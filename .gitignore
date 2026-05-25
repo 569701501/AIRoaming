@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+.turbo/
+.vite/
+*.log
+
+apps/server/prisma/dev.db
+apps/server/prisma/dev.db-journal
+workspace/projects/*
+!workspace/projects/.gitkeep

@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id                    String   @id @default(cuid())
+  name                  String
+  type                  String   @default("comic")
+  status                String   @default("draft")
+  currentStoryVersionId String?  @map("current_story_version_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  storyVersions  StoryVersion[]
+  shots          Shot[]
+  assets         Asset[]
+  generationTasks GenerationTask[]
+
+  @@map("projects")
+}
+
+model StoryVersion {
+  id            String   @id @default(cuid())
+  projectId     String   @map("project_id")
+  version       Int      @default(1)
+  sourceText    String   @default("") @map("source_text")
+  summary       String?
+  structureJson String   @default("{}") @map("structure_json")
+  status        String   @default("draft")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shots   Shot[]
+
+  @@index([projectId, version], map: "idx_story_versions_project_version")
+  @@map("story_versions")
+}
+
+model Shot {
+  id                String   @id @default(cuid())
+  projectId         String   @map("project_id")
+  storyVersionId    String?  @map("story_version_id")
+  beatId            String?  @map("beat_id")
+  shotNumber        Int      @map("shot_number")
+  action            String
+  dialogue          String?
+  caption           String?
+  camera            String?
+  composition       String?
+  emotion           String?
+  promptDraft       String?  @map("prompt_draft")
+  lockedCandidateId String?  @map("locked_candidate_id")
+  status            String   @default("draft")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  storyVersion StoryVersion? @relation(fields: [storyVersionId], references: [id], onDelete: SetNull)
+  candidates   Candidate[]
+
+  @@index([projectId, shotNumber], map: "idx_shots_project_number")
+  @@map("shots")
+}
+
+model Candidate {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  shotId    String   @map("shot_id")
+  taskId    String?  @map("task_id")
+  assetId   String?  @map("asset_id")
+  index     Int      @default(1)
+  status    String   @default("generated")
+  score     Float?
+  notes     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  shot  Shot   @relation(fields: [shotId], references: [id], onDelete: Cascade)
+  asset Asset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  task  GenerationTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([shotId, status], map: "idx_candidates_shot_status")
+  @@map("candidates")
+}
+
+model Asset {
+  id           String   @id @default(cuid())
+  projectId    String   @map("project_id")
+  type         String
+  mimeType     String   @map("mime_type")
+  path         String
+  width        Int?
+  height       Int?
+  durationMs   Int?     @map("duration_ms")
+  sourceTaskId String?  @map("source_task_id")
+  metadataJson String   @default("{}") @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  candidates Candidate[]
+
+  @@index([projectId, type], map: "idx_assets_project_type")
+  @@map("assets")
+}
+
+model GenerationTask {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  type            String
+  status          String   @default("queued")
+  phase           String   @default("queued")
+  progressPercent Int?     @default(0) @map("progress_percent")
+  targetType      String?  @map("target_type")
+  targetId        String?  @map("target_id")
+  inputJson       String   @default("{}") @map("input_json")
+  outputJson      String?  @map("output_json")
+  errorJson       String?  @map("error_json")
+  attempt         Int      @default(0)
+  maxAttempts     Int      @default(1) @map("max_attempts")
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  candidates Candidate[]
+
+  @@index([projectId, status, updatedAt], map: "idx_generation_tasks_project_status_updated")
+  @@map("generation_tasks")
+}
