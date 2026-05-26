@@ -12,12 +12,14 @@
       </button>
     </div>
 
+    <WorkflowStrip class="overlay-workflow" />
   </section>
 </template>
 
 <script setup lang="ts">
 import { Plus } from "lucide-vue-next";
 import heroBannerUrl from "../../assets/project-library/hero-banner.png";
+import WorkflowStrip from "./WorkflowStrip.vue";
 
 defineProps<{
   runningTasks: number;

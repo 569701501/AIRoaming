@@ -78,6 +78,77 @@ export interface DeleteProjectResponse {
   deletedTaskCount: number;
 }
 
+export interface AIRuntimeModelSelection {
+  providerId: string;
+  modelId: string;
+}
+
+export interface AIRuntimeModelItem extends AIRuntimeModelSelection {
+  providerName: string;
+  displayName: string;
+  default: boolean;
+}
+
+export interface DialogueMessageItem {
+  id: string;
+  projectId: string;
+  threadId: string;
+  stepKey: string;
+  role: "user" | "assistant";
+  content: string;
+  status: "running" | "completed" | "failed";
+  model: AIRuntimeModelSelection | null;
+  error: {
+    code: string;
+    message: string;
+  } | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface DialogueThread {
+  id: string;
+  projectId: string;
+  currentStepKey: string;
+  messages: DialogueMessageItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SendDialogueMessageRequest {
+  content: string;
+  stepKey?: string;
+  model?: AIRuntimeModelSelection;
+}
+
+export interface SendDialogueMessageResponse {
+  thread: DialogueThread;
+  userMessage: DialogueMessageItem;
+  assistantMessage: DialogueMessageItem;
+}
+
+export type DialogueStreamEventType =
+  | "dialogue.message.created"
+  | "dialogue.message.delta"
+  | "dialogue.message.completed"
+  | "dialogue.error";
+
+export interface DialogueStreamEvent {
+  type: DialogueStreamEventType;
+  threadId: string;
+  messageId?: string;
+  thread?: DialogueThread;
+  userMessage?: DialogueMessageItem;
+  assistantMessage?: DialogueMessageItem;
+  delta?: string;
+  content?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
+  createdAt: string;
+}
+
 export interface GenerationTaskTarget {
   type: "project" | "story" | "shot" | "asset" | "export";
   id: string;

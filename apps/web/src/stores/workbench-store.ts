@@ -1,6 +1,11 @@
 import { defineStore } from "pinia";
 import type {
+  AIRuntimeModelItem,
+  AIRuntimeModelSelection,
   CreateProjectRequest,
+  DialogueMessageItem,
+  DialogueStreamEvent,
+  DialogueThread,
   GenerationTaskItem,
   HealthResponse,
   ProjectListItem,
@@ -15,7 +20,14 @@ interface WorkbenchState {
   workspace: WorkspaceInfo | null;
   projects: ProjectListItem[];
   activeProjectId: string | null;
+  activeStepKey: string;
   snapshot: WorkbenchSnapshot | null;
+  dialogueThread: DialogueThread | null;
+  dialogueSending: boolean;
+  dialogueError: string | null;
+  runtimeModels: AIRuntimeModelItem[];
+  selectedDialogueModel: AIRuntimeModelSelection | null;
+  runtimeModelError: string | null;
   tasks: GenerationTaskItem[];
   loading: boolean;
   error: string | null;
@@ -27,7 +39,14 @@ export const useWorkbenchStore = defineStore("workbench", {
     workspace: null,
     projects: [],
     activeProjectId: null,
+    activeStepKey: "project_story",
     snapshot: null,
+    dialogueThread: null,
+    dialogueSending: false,
+    dialogueError: null,
+    runtimeModels: [],
+    selectedDialogueModel: null,
+    runtimeModelError: null,
     tasks: [],
     loading: false,
     error: null,
@@ -52,33 +71,78 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.projects = projects.items;
         this.tasks = tasks.items;
         if (this.activeProjectId) {
-          const workbench = await api.workbench(this.activeProjectId);
+          const [workbench, dialogue] = await Promise.all([
+            api.workbench(this.activeProjectId),
+            api.dialogueThread(this.activeProjectId, this.activeStepKey),
+          ]);
           this.snapshot = workbench.snapshot;
+          this.dialogueThread = dialogue.thread;
         } else {
           this.snapshot = null;
+          this.dialogueThread = null;
         }
       } catch (error) {
         this.error = error instanceof Error ? error.message : "工作台连接失败";
+        if (this.activeProjectId) {
+          this.snapshot = null;
+          this.dialogueThread = null;
+        }
       } finally {
         this.loading = false;
       }
     },
-    async createProject(input: CreateProjectRequest) {
+    async createProject(input: CreateProjectRequest): Promise<ProjectListItem | null> {
       this.loading = true;
       this.error = null;
       try {
         const result = await api.createProject(input);
         this.activeProjectId = result.project.id;
+        this.activeStepKey = "project_story";
         await this.refresh();
+        return result.project;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "项目创建失败";
+        return null;
       } finally {
         this.loading = false;
       }
     },
-    async openProject(projectId: string) {
+    async openProject(projectId: string, stepKey = "project_story") {
       this.activeProjectId = projectId;
+      this.activeStepKey = stepKey;
+      this.snapshot = null;
+      this.dialogueThread = null;
+      this.dialogueError = null;
       await this.refresh();
+    },
+    async loadRuntimeModels() {
+      this.runtimeModelError = null;
+      try {
+        const result = await api.listRuntimeModels();
+        this.runtimeModels = result.items;
+
+        const selected = this.selectedDialogueModel;
+        const selectedStillExists = selected
+          ? result.items.some((item) => item.providerId === selected.providerId && item.modelId === selected.modelId)
+          : false;
+        if (selectedStillExists && selected) {
+          this.selectedDialogueModel = selected;
+          return;
+        }
+
+        const defaultModel = result.items.find((item) => item.default) ?? result.items[0];
+        this.selectedDialogueModel = defaultModel
+          ? {
+              providerId: defaultModel.providerId,
+              modelId: defaultModel.modelId,
+            }
+          : result.defaultModel;
+      } catch (error) {
+        this.runtimeModelError = error instanceof Error ? error.message : "模型列表加载失败";
+      }
+    },
+    selectDialogueModel(model: AIRuntimeModelSelection) {
+      this.selectedDialogueModel = model;
     },
     async deleteProject(projectId: string) {
       this.loading = true;
@@ -87,7 +151,9 @@ export const useWorkbenchStore = defineStore("workbench", {
         await api.deleteProject(projectId);
         if (this.activeProjectId === projectId) {
           this.activeProjectId = null;
+          this.activeStepKey = "project_story";
           this.snapshot = null;
+          this.dialogueThread = null;
         }
         await this.refresh();
       } catch (error) {
@@ -115,9 +181,96 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
+    async sendDialogueMessage(content: string) {
+      this.dialogueSending = true;
+      this.dialogueError = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const stepKey = this.activeStepKey;
+        await api.sendDialogueMessageStream(projectId, stepKey, {
+          content,
+          stepKey,
+          model: this.selectedDialogueModel ?? undefined,
+        }, (event) => this.applyDialogueStreamEvent(event));
+      } catch (error) {
+        this.dialogueError = error instanceof Error ? error.message : "对话发送失败";
+      } finally {
+        this.dialogueSending = false;
+      }
+    },
+    applyDialogueStreamEvent(event: DialogueStreamEvent) {
+      if (event.type === "dialogue.message.created" && event.thread) {
+        this.dialogueThread = event.thread;
+        return;
+      }
+
+      if (event.type === "dialogue.message.delta") {
+        this.updateDialogueMessageContent(event.messageId, event.content ?? "", "running");
+        return;
+      }
+
+      if (event.type === "dialogue.message.completed") {
+        if (event.thread) {
+          this.dialogueThread = event.thread;
+          return;
+        }
+        if (event.assistantMessage) {
+          this.upsertDialogueMessage(event.assistantMessage);
+        }
+        return;
+      }
+
+      if (event.type === "dialogue.error") {
+        this.dialogueError = event.error?.message ?? "对话发送失败";
+        if (event.thread) {
+          this.dialogueThread = event.thread;
+        } else if (event.assistantMessage) {
+          this.upsertDialogueMessage(event.assistantMessage);
+        }
+      }
+    },
+    updateDialogueMessageContent(messageId: string | undefined, content: string, status: DialogueMessageItem["status"]) {
+      if (!messageId || !this.dialogueThread) {
+        return;
+      }
+
+      this.dialogueThread = {
+        ...this.dialogueThread,
+        messages: this.dialogueThread.messages.map((message) => {
+          if (message.id !== messageId) {
+            return message;
+          }
+
+          return {
+            ...message,
+            content,
+            status,
+          };
+        }),
+      };
+    },
+    upsertDialogueMessage(nextMessage: DialogueMessageItem) {
+      if (!this.dialogueThread) {
+        return;
+      }
+
+      const exists = this.dialogueThread.messages.some((message) => message.id === nextMessage.id);
+      this.dialogueThread = {
+        ...this.dialogueThread,
+        messages: exists
+          ? this.dialogueThread.messages.map((message) => (message.id === nextMessage.id ? nextMessage : message))
+          : [...this.dialogueThread.messages, nextMessage],
+      };
+    },
     closeProject() {
       this.activeProjectId = null;
+      this.activeStepKey = "project_story";
       this.snapshot = null;
+      this.dialogueThread = null;
+      this.dialogueError = null;
     },
     async createMockStoryTask() {
       this.loading = true;

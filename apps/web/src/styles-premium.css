@@ -36,21 +36,6 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   backdrop-filter: blur(20px) !important;
 }
-.topbar-search {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 10px !important;
-}
-.search-shortcut {
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.08);
-  color: #6b7a94;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
 .ghost-action {
   border: 1px solid rgba(139, 92, 246, 0.3) !important;
   background: rgba(139, 92, 246, 0.1) !important;
@@ -117,8 +102,10 @@ body {
 .hero-banner {
   position: relative;
   display: flex;
-  align-items: flex-end;
-  height: 200px;
+  flex-direction: column;
+  justify-content: space-between;
+  height: auto;
+  min-height: 260px;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(139, 92, 246, 0.12);
@@ -139,7 +126,13 @@ body {
 .hero-content {
   position: relative;
   z-index: 1;
-  padding: 28px 32px;
+  padding: 32px 32px 0 32px;
+}
+.overlay-workflow {
+  position: relative;
+  z-index: 1;
+  padding: 24px 32px 32px 32px !important;
+  width: 100%;
 }
 .pulse-btn {
   background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
@@ -236,30 +229,36 @@ body {
 .workflow-bar {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 16px 0;
-}
-.workflow-label {
-  color: #e2e8f0;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
+  padding: 0;
+  width: 100%;
 }
 .workflow-steps {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  flex: 1;
-  overflow-x: auto;
-  background: rgba(15, 18, 28, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  padding: 12px 20px;
-  border-radius: 12px;
+  width: 100%;
+  background: rgba(10, 15, 30, 0.55);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 20px rgba(139, 92, 246, 0.15);
+  padding: 16px 28px;
+  border-radius: 16px;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .wf-step {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   white-space: nowrap;
   transition: opacity 0.15s;
   cursor: default;
@@ -271,29 +270,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #c4b5fd;
   flex-shrink: 0;
 }
 .wf-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 .wf-text strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #f1f5f9;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .wf-text span {
   font-size: 11px;
-  color: #6b7a94;
+  color: #94a3b8;
 }
 .wf-arrow {
-  color: #4b5563;
+  color: #64748b;
   flex-shrink: 0;
 }
 

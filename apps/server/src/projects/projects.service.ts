@@ -151,7 +151,7 @@ export class ProjectsService {
       stages: [
         {
           key: "project_story",
-          label: "项目与故事",
+          label: "剧本",
           status: "active",
           summary: hasStory ? "故事草稿已保存，可进入剧情分析" : "补充故事原文后进入剧情分析",
           evidence: `/workspace/projects/${project.id}`,

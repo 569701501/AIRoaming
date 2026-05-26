@@ -8,8 +8,6 @@
       @refresh="refresh"
     />
 
-    <WorkflowStrip />
-
     <section class="project-list-section" aria-label="项目列表">
       <div class="project-section-header">
         <div class="filter-tabs" role="tablist" aria-label="项目状态筛选">
@@ -55,7 +53,7 @@
           <FolderPlus :size="25" />
         </div>
         <strong>{{ projects.length ? "没有匹配项目" : "项目为空，请创建项目" }}</strong>
-        <p v-if="projects.length">请调整搜索或筛选条件。</p>
+        <p v-if="projects.length">请调整筛选条件。</p>
       </div>
     </section>
 
@@ -71,22 +69,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
+import { useRouter } from "vue-router";
 import { ChevronDown, FolderPlus, LayoutGrid, List } from "lucide-vue-next";
 import type { CreateProjectRequest, ProjectListItem, ProjectStatus } from "@airoaming/shared";
 import CreateProjectModal from "./CreateProjectModal.vue";
-import DeleteProjectDialog from "./DeleteProjectDialog.vue";
 import ProjectCard from "./ProjectCard.vue";
 import ProjectCommandPanel from "./ProjectCommandPanel.vue";
-import WorkflowStrip from "./WorkflowStrip.vue";
+import { projectRoute } from "../../router";
 import { useWorkbenchStore } from "../../stores/workbench-store";
 
-const props = defineProps<{
-  searchQuery: string;
-}>();
-
 const workbench = useWorkbenchStore();
+const router = useRouter();
 const { activeProjectId, error, loading, projects } = storeToRefs(workbench);
 
 const isCreateOpen = ref(false);
@@ -100,19 +95,11 @@ const filters: Array<{ key: ProjectStatus | "all"; label: string }> = [
   { key: "exported", label: "已完成" },
 ];
 
-const normalizedSearch = computed(() => props.searchQuery.trim().toLowerCase());
-
 const filteredProjects = computed(() => {
   return projects.value.filter((project) => {
     const matchedStatus = selectedFilter.value === "all" || project.status === selectedFilter.value;
-    const searchable = [project.name, project.description, project.sourceTextPreview].join(" ").toLowerCase();
-    const matchedSearch = !normalizedSearch.value || searchable.includes(normalizedSearch.value);
-    return matchedStatus && matchedSearch;
+    return matchedStatus;
   });
-});
-
-onMounted(() => {
-  void refresh();
 });
 
 async function refresh() {
@@ -120,14 +107,15 @@ async function refresh() {
 }
 
 async function createProject(input: CreateProjectRequest) {
-  await workbench.createProject(input);
-  if (!workbench.error) {
+  const project = await workbench.createProject(input);
+  if (project && !workbench.error) {
     isCreateOpen.value = false;
+    await router.push(projectRoute(project.id));
   }
 }
 
 async function openProject(projectId: string) {
-  await workbench.openProject(projectId);
+  await router.push(projectRoute(projectId));
 }
 
 function requestDeleteProject(project: ProjectListItem) {

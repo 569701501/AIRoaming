@@ -1,9 +1,9 @@
 <template>
-  <section class="story-panel" aria-label="项目与故事">
+  <section class="story-panel" aria-label="剧本">
     <header class="story-panel-header">
       <div>
         <span>步骤 1</span>
-        <h2>项目与故事</h2>
+        <h2>剧本</h2>
       </div>
       <div class="story-actions">
         <button class="ghost-story-btn" type="button" :disabled="loading || !hasChanges" @click="resetForm">

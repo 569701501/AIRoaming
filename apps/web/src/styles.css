@@ -40,16 +40,23 @@ button:disabled {
 }
 
 .app-shell {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .app-sidebar {
   position: sticky;
-  top: 0;
+  top: 72px;
   display: flex;
-  height: 100vh;
+  width: 248px;
+  height: calc(100vh - 72px);
   flex-direction: column;
   gap: 28px;
   border-right: 1px solid rgba(209, 218, 245, 0.12);
@@ -62,13 +69,12 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
 }
 
 .brand-mark {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
@@ -77,23 +83,39 @@ button:disabled {
   box-shadow: 0 14px 28px rgba(70, 80, 255, 0.32);
 }
 
-.brand-lockup strong,
-.brand-lockup span {
-  display: block;
-}
-
 .brand-lockup strong {
   color: #ffffff;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.2;
 }
 
-.brand-lockup span {
-  margin-top: 3px;
+.project-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 16px;
+}
+
+.back-to-list-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #9ba8c8;
-  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-to-list-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
 }
 
 .sidebar-nav {
@@ -143,42 +165,16 @@ button:disabled {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  width: 100%;
   min-height: 72px;
   border-bottom: 1px solid rgba(209, 218, 245, 0.12);
   background: rgba(11, 16, 32, 0.78);
   padding: 14px 24px;
   backdrop-filter: blur(18px);
-}
-
-.topbar-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: min(560px, 100%);
-  height: 44px;
-  border: 1px solid rgba(204, 215, 245, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #96a3c3;
-  padding: 0 14px;
-}
-
-.topbar-search input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #f7f9ff;
-}
-
-.topbar-search input::placeholder {
-  color: #7784a4;
 }
 
 .topbar-actions {

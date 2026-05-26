@@ -2,9 +2,9 @@
 
 ---
 doc_id: AIR-EXEC-COMPLETION-PROJECT-CREATE-FIELDS-001
-status: active
+status: superseded
 created: 2026-05-24
-updated: 2026-05-24
+updated: 2026-05-25
 owner: AI漫游项目
 audience: human, ai-agent, developer
 source: 项目创建链路、核心数据模型、素材文件与版本契约
@@ -13,6 +13,8 @@ source: 项目创建链路、核心数据模型、素材文件与版本契约
 ## 1. 功能摘要
 
 项目创建链路已补齐故事标题、题材标签、漫画格式和画风方向四个字段，并在创建项目时由后端写入本地 workspace 项目目录。
+
+2026-05-25 后续结论：该前端交互已被“创建项目弹窗轻量化”覆盖。创建项目弹窗用户可见标题为“创建项目”，只保留“项目名称”一个字段，不展示内部语义或“下一步”提示文案；故事标题、题材标签、漫画格式、画风方向和故事原文改到项目内第 1 步“剧本”填写。
 
 ## 2. 存储结论
 
@@ -70,4 +72,4 @@ ArtStyle = dark_realistic | semi_realistic | japanese_realistic | comic_style | 
 
 ## 7. 后续建议
 
-下一步继续做项目创建后的“进入项目工作区外壳 + 项目与故事”页面，让创建成功后的用户链路闭合。
+下一步继续做项目创建后的“进入项目工作区外壳 + 剧本”页面，让创建成功后的用户链路闭合。

@@ -1,191 +1,166 @@
 <template>
   <main class="project-workbench">
-    <section class="workbench-header">
-      <button class="back-library-btn" type="button" @click="$emit('back')">
-        <ArrowLeft :size="17" />
-        <span>返回项目库</span>
-      </button>
-
-      <div class="workbench-title">
-        <span>项目工作区</span>
-        <h1>{{ snapshot.project.name }}</h1>
-        <p>{{ snapshot.project.storyTitle }}</p>
-      </div>
-
-      <div class="workbench-status">
-        <span>当前阶段</span>
-        <strong>项目与故事</strong>
-      </div>
-    </section>
-
-    <WorkbenchStageRail :stages="snapshot.stages" />
-
-    <ProjectStoryPanel
-      :loading="loading"
-      :snapshot="snapshot"
-      @analyze="$emit('analyzeStory')"
-      @save="$emit('saveStory', $event)"
+    <WorkbenchStageRail
+      :active-step-key="activeStepKey"
+      :stages="snapshot.stages"
+      @select-step="$emit('selectStep', $event)"
     />
 
-    <section class="workbench-task-note" aria-label="任务状态">
-      <div>
-        <ListTodo :size="17" />
-        <span>当前运行任务</span>
+    <section class="workbench-content" :aria-label="`${currentStageLabel}工作区`">
+      <ProjectDialoguePanel
+        :dialogue-error="dialogueError"
+        :dialogue-sending="dialogueSending"
+        :dialogue-thread="dialogueThread"
+        :loading="loading"
+        :runtime-model-error="runtimeModelError"
+        :runtime-models="runtimeModels"
+        :selected-model="selectedDialogueModel"
+        :snapshot="snapshot"
+        :step-label="currentStageLabel"
+        @send="$emit('sendDialogue', $event)"
+        @select-model="$emit('selectDialogueModel', $event)"
+      />
+
+      <template v-if="isScriptStep">
+        <ScriptDocumentEditor :loading="loading" :snapshot="snapshot" @save="$emit('saveStory', $event)" />
+        <ScriptOutlinePanel :snapshot="snapshot" />
+      </template>
+
+      <div v-else class="step-placeholder">
+        <span>STEP {{ currentStageIndex + 1 }}</span>
+        <h2>{{ currentStageLabel }}</h2>
+        <p>此阶段功能正在开发中。左侧对话框会按当前步骤加载独立记录，右侧工作面板后续接入。</p>
       </div>
-      <strong>{{ runningTasks }}</strong>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, ListTodo } from "lucide-vue-next";
-import type { UpdateProjectDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
-import ProjectStoryPanel from "./ProjectStoryPanel.vue";
+import { computed } from "vue";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueThread, UpdateProjectDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
+import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
+import ScriptOutlinePanel from "./ScriptOutlinePanel.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
 
-defineProps<{
+const props = defineProps<{
   snapshot: WorkbenchSnapshot;
   loading: boolean;
   runningTasks: number;
+  activeStepKey: string;
+  dialogueThread: DialogueThread | null;
+  dialogueSending: boolean;
+  dialogueError: string | null;
+  runtimeModels: AIRuntimeModelItem[];
+  selectedDialogueModel: AIRuntimeModelSelection | null;
+  runtimeModelError: string | null;
 }>();
 
 defineEmits<{
   back: [];
   saveStory: [input: UpdateProjectDraftRequest];
-  analyzeStory: [];
+  selectStep: [stepKey: string];
+  selectDialogueModel: [model: AIRuntimeModelSelection];
+  sendDialogue: [content: string];
 }>();
+
+const currentStageIndex = computed(() => {
+  const index = props.snapshot.stages.findIndex((s) => s.key === props.activeStepKey);
+  return Math.max(0, index);
+});
+
+const currentStageLabel = computed(() => {
+  return props.snapshot.stages[currentStageIndex.value]?.label || "未知阶段";
+});
+
+const isScriptStep = computed(() => props.activeStepKey === "project_story");
 </script>
 
 <style scoped>
 .project-workbench {
   display: grid;
   gap: 16px;
-  width: min(1440px, 100%);
+  width: 100%;
   margin: 0 auto;
   padding: 22px 24px 30px;
 }
 
-.workbench-header {
+.workbench-content {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 380px minmax(0, 1fr) 280px;
   gap: 16px;
+  align-items: stretch;
   min-width: 0;
+}
+
+.step-placeholder {
+  display: grid;
+  grid-column: 2 / -1;
+  min-height: 560px;
+  align-content: center;
+  gap: 10px;
   border: 1px solid rgba(116, 95, 255, 0.16);
   border-radius: 14px;
   background:
-    linear-gradient(135deg, rgba(18, 24, 43, 0.78), rgba(8, 12, 24, 0.7)),
+    linear-gradient(180deg, rgba(18, 24, 43, 0.76), rgba(11, 16, 30, 0.62)),
     rgba(8, 12, 24, 0.76);
-  padding: 16px;
+  padding: 28px;
 }
 
-.back-library-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #d7def1;
-  padding: 0 13px;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.back-library-btn:hover {
-  border-color: rgba(34, 199, 169, 0.24);
-  background: rgba(34, 199, 169, 0.1);
-  color: #ffffff;
-}
-
-.workbench-title {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.workbench-title span,
-.workbench-status span {
-  color: #95a3c2;
+.step-placeholder span {
+  color: #8df0dc;
   font-size: 12px;
   font-weight: 900;
 }
 
-.workbench-title h1,
-.workbench-title p {
-  overflow: hidden;
+.step-placeholder h2,
+.step-placeholder p {
   margin: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.workbench-title h1 {
-  color: #f9fbff;
-  font-size: 26px;
+.step-placeholder h2 {
+  color: #f8fbff;
+  font-size: 24px;
   font-weight: 900;
-  line-height: 1.18;
 }
 
-.workbench-title p {
-  color: #8c9ab8;
-  font-size: 13px;
+.step-placeholder p {
+  max-width: 520px;
+  color: #95a3c2;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
-.workbench-status {
-  display: grid;
-  gap: 4px;
-  justify-items: end;
-  min-width: 136px;
-}
+@media (max-width: 1200px) {
+  .workbench-content {
+    grid-template-columns: 380px minmax(0, 1fr);
+  }
 
-.workbench-status strong {
-  border: 1px solid rgba(34, 199, 169, 0.22);
-  border-radius: 999px;
-  background: rgba(34, 199, 169, 0.12);
-  color: #7ce3ce;
-  font-size: 13px;
-  padding: 7px 11px;
-}
+  .workbench-content :deep(.script-outline-panel) {
+    display: none;
+  }
 
-.workbench-task-note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
-  color: #92a0bc;
-  padding: 12px 14px;
-}
-
-.workbench-task-note div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.workbench-task-note strong {
-  color: #c9bbff;
-  font-size: 18px;
+  .step-placeholder {
+    grid-column: 2;
+  }
 }
 
 @media (max-width: 860px) {
-  .workbench-header {
+
+  .workbench-content {
     grid-template-columns: 1fr;
-    align-items: stretch;
   }
 
-  .back-library-btn {
-    width: fit-content;
+  .workbench-content :deep(.script-editor) {
+    order: 1;
   }
 
-  .workbench-status {
-    justify-items: start;
+  .workbench-content :deep(.dialogue-panel) {
+    order: 2;
+  }
+
+  .step-placeholder {
+    grid-column: 1;
   }
 }
 </style>

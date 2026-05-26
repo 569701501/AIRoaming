@@ -4,7 +4,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-05-24
+updated: 2026-05-26
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -19,7 +19,7 @@ source: AI漫游文档体系
 - 后续扩展产物：轻漫剧基础视频
 - 第一阶段重点：故事到分镜、分镜到漫画图候选、候选图选择、漫画页排版导出
 - 第二阶段重点：基于已选漫画图生成基础轻漫剧视频
-- 当前 UI 结论：应用入口为项目库；用户先查看或创建项目；进入项目后显示项目工作区；项目工作区中间展示 6 步创作流程；当前不默认使用大 hero 图和右侧常驻栏，主工作区优先。
+- 当前 UI 结论：应用入口为项目库；用户先查看或创建项目；创建项目只建立项目记录，不要求填写剧本字段；创建弹窗的用户可见标题为“创建项目”，且只保留“项目名称”一个字段；创建项目成功后直接进入项目工作区，并默认打开第 1 步“剧本”；项目库和项目工作区均不展示顶部搜索框；进入项目后项目工作区隐藏全局左侧导航，顶部保留返回项目列表按钮和紧凑 6 步流程栏；项目工作区首屏必须是左侧公共“对话框”、右侧“剧本文档编辑器”；右侧剧本文档当前只编辑剧本正文，不展示项目名称、故事标题、题材标签、漫画格式和画风方向等字段；对话框当前可询问内容、给出建议/总结/改写版本，并可选择 provider/model 后发送流式消息；上传剧本、应用到剧本和插入光标是后续能力；AI 输出必须由用户点击“应用”或“插入”后才进入右侧文档；对话框组件公共，但对话记录按步骤隔离，项目级只共享用户已确认的事实和产物；当前不默认使用大 hero 图和右侧常驻栏，主工作区优先。
 
 ## 2. 当前优先级判断
 
@@ -56,6 +56,12 @@ source: AI漫游文档体系
 文档/03_模块梳理/模块总览与依赖.md
 ```
 
+涉及对话框真实 AI、模型添加、模型切换、provider 配置或 OpenCode 接入时，必须额外读取：
+
+```text
+文档/04_方案与决策/2026-05-25_OpenCode对话运行时移植方案.md
+```
+
 ## 5. 深思熟虑使用规则
 
 深思熟虑不再是项目默认流程。它已经迁移为 Codex 技能：
@@ -81,14 +87,14 @@ $deep-think
 - 异步任务：MVP 可先用本地任务表和进程内 worker，后续接 BullMQ/Redis。
 - 文件系统：本地 workspace 先行，后续可抽象对象存储。
 - 视频音频：FFmpeg、TTS 服务或本地 TTS。
-- Aurora 迁移原则：复用工作台、任务中心、workspace 路径和 provider adapter；暂不复制完整沙盒、计费、团队和 OpenCode runtime。
+- Aurora 迁移原则：复用工作台、任务中心、workspace 路径、provider adapter 和 OpenCode 对话运行时经验；第一阶段选择 OpenCode 作为项目对话框 AI Runtime，但不迁移完整 Docker sandbox、计费、团队、Phaser 工具和 Aurora 专用闭环系统。详见 `文档/04_方案与决策/2026-05-25_OpenCode对话运行时移植方案.md`。
 
 ## 7. 当前代码入口
 
 | 入口 | 路径 | 说明 |
 | --- | --- | --- |
-| Web 工作台 | `apps/web` | Vue 3 + Vite + Pinia，已实现项目库首版；项目工作区和 6 个项目内页面仍按当前 UI 信息架构分阶段实现 |
-| 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、任务 mock API 和 Prisma schema |
+| Web 工作台 | `apps/web` | Vue 3 + Vite + Pinia，已实现项目库首版和项目工作区第 1 步首屏；后续 5 个项目内页面仍按当前 UI 信息架构分阶段实现 |
+| 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、项目 API、任务 mock API、OpenCode 对话运行时、对话 API 和 Prisma schema |
 | 共享契约 | `packages/shared` | 任务枚举、DTO、workspace 虚拟路径工具 |
 | 本地素材根 | `workspace/projects` | 开发期项目素材占位目录 |
 
@@ -108,8 +114,18 @@ corepack pnpm dev
 - 复杂高风险任务不允许在未复核、未验证前宣称完成。
 - 前端参考图只能作为视觉灵感，不能直接决定产品功能。
 - 2026-05-23 起，旧工作台页面实现已清空；新的功能和页面链路已经收口，前端代码已开始按当前 UI 信息架构实现。
-- 2026-05-23 项目库首版已落地：包含左侧导航、顶部项目搜索、项目列表、创建项目弹窗、6 步流程预览和任务队列轻量入口；项目工作区仍是下一阶段。
-- 2026-05-24 创建项目契约已扩展：保存故事标题、题材标签、漫画格式和画风方向；创建时由后端写入本地 `workspace/projects/{projectId}/project.json` 和 `story/story_draft.source.txt`。
+- 2026-05-23 项目库首版已落地：包含左侧导航、项目列表、创建项目弹窗、6 步流程预览和任务队列轻量入口；项目工作区仍是下一阶段。2026-05-25 起项目库顶部搜索框已移除。
+- 2026-05-25 创建项目语义已收口：创建动作只建立项目记录，前端创建弹窗用户可见标题为“创建项目”，只保留“项目名称”一个字段，不展示内部语义或“下一步”提示文案，不再要求故事标题、题材标签、漫画格式、画风方向和故事原文。
+- 2026-05-25 项目工作区交互方向更新：进入项目后隐藏全局左侧导航；项目内左侧固定为公共“对话框”，右侧为当前步骤文档或工作区；顶部搜索移除，保留返回项目列表和 6 步流程。对话框按当前步骤注入不同提示词，AI 可给建议/总结/改写，但不能自动覆盖右侧文档。
+- 2026-05-25 创建后首屏要求收口：创建项目成功后不是停留在项目库，也不是进入旧“项目与故事”表单；必须进入项目工作区第 1 步“剧本”，页面布局为左侧对话框、右侧剧本文档编辑器。
+- 2026-05-25 对话上下文规则已收口：项目内共用同一个“对话框”组件，但不共用一条完整对话历史；每个步骤维护自己的对话记录，切换步骤时加载当前步骤记录、当前步骤提示词、当前步骤产物和项目级已确认事实。未被用户应用、插入、保存、锁定或确认的聊天内容不能自动进入其他步骤上下文。
+- 2026-05-25 OpenCode 运行时方向收口：项目对话框第一阶段采用 OpenCode 作为 AI Runtime；OpenCode Session 只作为运行时映射，AI漫游自己的 `ConversationThread`、`ConversationMessage` 和 `ProjectContextFact` 仍是业务事实源；OpenCode 不允许直接覆盖右侧文档，所有改动必须经用户应用、插入、保存或生成任务确认。
+- 2026-05-25 项目工作区第 1 步首屏已落地：创建或打开项目后隐藏全局左侧导航和顶部搜索，工作区顶部提供返回项目库与 6 步流程；主体为左侧 `ProjectDialoguePanel` 对话框 UI 壳、右侧 `ScriptDocumentEditor` 剧本文档编辑器；当时真实 OpenCode 对话、上传、应用和插入能力尚未接入。
+- 2026-05-26 剧本页右侧已简化：`ScriptDocumentEditor` 当前只展示和保存剧本正文 `sourceText`，不再展示项目名称、故事标题、题材标签、漫画格式和画风方向字段；`WorkbenchStageRail` 已由 6 个大卡片改为紧凑标签栏。
+- 2026-05-26 OpenCode 剧本对话最小闭环已落地：后端新增 `ai-runtime` 与 `dialogue` 模块，可启动或连接 `opencode serve`，创建 OpenCode session，发送剧本步骤 prompt，并把 assistant 文本作为 AI漫游 `DialogueMessageItem` 返回；前端左侧 `ProjectDialoguePanel` 已支持输入、发送、展示消息和失败状态。
+- 2026-05-26 OpenCode 流式输出已落地：后端新增 `POST /api/projects/{projectId}/dialogue/threads/{stepKey}/messages/stream`，将 OpenCode `message.part.delta` 转换为 AI漫游 `dialogue.message.delta`；前端使用 fetch 流式读取 SSE 并增量更新 assistant 消息。当前仍不支持停止生成、上传、应用到剧本或插入光标。
+- 2026-05-26 对话框模型选择已落地：前端进入项目工作区后读取 `GET /api/ai-runtime/models` 的非敏感 provider/model 列表，在左侧对话框顶部展示模型下拉；发送消息时把当前 provider/model 透传给后端和 OpenCode。当前仍不支持新增模型配置 UI 或 variant 选择。
+- 2026-05-26 项目路由骨架已落地：前端引入 `vue-router`，`/projects` 为项目库，`/projects/:projectId/script` 为剧本工作区，`structure/storyboard/candidates/layout/assets` 为后续 5 个步骤预留地址；URL 表示当前位置，Pinia 和后端负责项目快照、对话线程和临时状态。
 - 2026-05-24 项目删除链路已落地：项目卡片封面 hover 显示删除按钮，二次确认后调用 `DELETE /projects/{projectId}`，删除项目记录、本地 workspace 项目目录和该项目 mock 任务。
-- 2026-05-24 项目工作区外壳已落地：创建或打开项目后进入项目工作区，显示返回项目库、项目标题、6 步流程和“项目与故事”面板；故事草稿可通过 `PATCH /projects/{projectId}` 保存并写回 workspace。
+- 2026-05-24 项目工作区外壳已落地：创建或打开项目后进入项目工作区，显示返回项目库、项目标题、6 步流程和“剧本”面板；故事草稿可通过 `PATCH /projects/{projectId}` 保存并写回 workspace。
 - 历史 UI 试错文档已移至 `文档/98_历史归档/`，不再默认阅读。

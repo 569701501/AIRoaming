@@ -1,15 +1,18 @@
 <template>
   <header class="topbar">
-    <label class="topbar-search">
-      <Search :size="18" class="search-icon" />
-      <input
-        :value="search"
-        type="search"
-        :placeholder="placeholder"
-        @input="onSearchInput"
-      />
-      <div class="search-shortcut">⌘ K</div>
-    </label>
+    <div class="brand-lockup">
+      <div class="brand-logo-img">
+        <Sparkles :size="24" color="#9b8dff" />
+      </div>
+      <strong class="brand-name">绘界漫画</strong>
+
+      <div v-if="isProjectRoute" class="project-selector">
+        <button class="back-to-list-btn" @click="$emit('back')">
+          <ArrowLeft :size="14" />
+          <span>返回项目列表</span>
+        </button>
+      </div>
+    </div>
 
     <div class="topbar-actions">
       <div class="task-queue-dropdown">
@@ -54,22 +57,18 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Bell, ChevronDown, Layers, ListTodo, Search, UserSquare } from "lucide-vue-next";
+import { ArrowLeft, Bell, ChevronDown, ChevronRight, CheckCircle2, Layers, ListTodo, Sparkles, UserSquare } from "lucide-vue-next";
 
 defineProps<{
-  search: string;
   runningTasks: number;
   projectCount: number;
-  placeholder: string;
+  isProjectRoute?: boolean;
+  projectName?: string;
 }>();
 
-const emit = defineEmits<{
-  "update:search": [value: string];
+defineEmits<{
+  back: [];
 }>();
 
 const isTaskQueueOpen = ref(false);
-
-function onSearchInput(event: Event) {
-  emit("update:search", (event.target as HTMLInputElement).value);
-}
 </script>

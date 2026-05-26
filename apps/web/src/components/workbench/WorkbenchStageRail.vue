@@ -1,19 +1,19 @@
 <template>
   <section class="workbench-stage-rail" aria-label="项目创作流程">
-    <button
-      v-for="(stage, index) in stages"
-      :key="stage.key"
-      class="stage-step"
-      :class="[`is-${stage.status}`, { 'is-current': index === 0 }]"
-      type="button"
-      :disabled="index !== 0"
-    >
-      <span class="stage-index">{{ index + 1 }}</span>
-      <span class="stage-copy">
-        <strong>{{ stage.label }}</strong>
-        <small>{{ stage.summary }}</small>
-      </span>
-    </button>
+    <div class="rail-container">
+      <template v-for="(stage, index) in stages" :key="stage.key">
+        <button
+          class="stage-step"
+          :class="{ 'is-current': index === 0 }"
+          type="button"
+          :disabled="index !== 0"
+        >
+          <span class="stage-num">{{ index + 1 }}</span>
+          <span class="stage-label">{{ stage.label }}</span>
+        </button>
+        <div v-if="index < stages.length - 1" class="stage-connector"></div>
+      </template>
+    </div>
   </section>
 </template>
 
@@ -27,88 +27,77 @@ defineProps<{
 
 <style scoped>
 .workbench-stage-rail {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 24px;
+  width: 100%;
+}
+
+.rail-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .stage-step {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 9px;
-  min-width: 0;
-  min-height: 66px;
-  border: 1px solid rgba(116, 95, 255, 0.16);
-  border-radius: 10px;
-  background: rgba(13, 18, 33, 0.72);
-  color: #d9e2f5;
-  padding: 10px;
-  text-align: left;
-}
-
-.stage-step:disabled {
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 999px;
+  color: #64748b;
   cursor: default;
+  transition: all 0.2s;
 }
 
 .stage-step.is-current {
-  border-color: rgba(34, 199, 169, 0.42);
-  background: linear-gradient(135deg, rgba(34, 199, 169, 0.16), rgba(139, 92, 246, 0.12));
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
+  color: #f8fafc;
 }
 
-.stage-index {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 8px;
-  background: rgba(139, 92, 246, 0.18);
-  color: #c9bbff;
-  font-size: 13px;
-  font-weight: 900;
+.stage-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
 }
 
-.stage-step.is-current .stage-index {
-  background: rgba(34, 199, 169, 0.2);
-  color: #75ead3;
+.stage-step.is-current .stage-num {
+  background: #a78bfa;
+  color: #1e1b4b;
 }
 
-.stage-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.stage-copy strong,
-.stage-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.stage-label {
+  font-size: 14px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.stage-copy strong {
-  color: #f8fbff;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1.2;
+.stage-connector {
+  width: 48px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.stage-copy small {
-  color: #7e8ba8;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-@media (max-width: 1180px) {
-  .workbench-stage-rail {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (max-width: 900px) {
+  .stage-connector {
+    width: 20px;
   }
 }
-
-@media (max-width: 720px) {
-  .workbench-stage-rail {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .stage-step:not(.is-current) .stage-label {
+    display: none;
   }
 }
 </style>
