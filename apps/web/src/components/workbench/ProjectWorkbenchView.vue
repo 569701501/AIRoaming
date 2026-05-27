@@ -22,8 +22,23 @@
       />
 
       <template v-if="isScriptStep">
-        <ScriptDocumentEditor :loading="loading" :snapshot="snapshot" @save="$emit('saveStory', $event)" />
-        <ScriptOutlinePanel :snapshot="snapshot" />
+        <section class="script-workarea" aria-label="剧本章节工作区">
+          <ScriptChapterList
+            :chapters="chapterItems"
+            :current-chapter-id="currentChapterId"
+            @select="$emit('selectChapter', $event)"
+          />
+          <div class="script-panels">
+            <ScriptDocumentEditor
+              :loading="loading"
+              :snapshot="snapshot"
+              @save-draft="emitChapterDraft"
+              @complete-chapter="emitCompleteChapter"
+              @update-source-text="scriptDraft = $event"
+            />
+            <ScriptOutlinePanel :snapshot="snapshot" :source-text="scriptDraft" />
+          </div>
+        </section>
       </template>
 
       <div v-else class="step-placeholder">
@@ -36,9 +51,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueThread, UpdateProjectDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { computed, ref, watch } from "vue";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
+import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
 import ScriptOutlinePanel from "./ScriptOutlinePanel.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
@@ -56,9 +73,13 @@ const props = defineProps<{
   runtimeModelError: string | null;
 }>();
 
-defineEmits<{
+const scriptDraft = ref("");
+
+const emit = defineEmits<{
   back: [];
-  saveStory: [input: UpdateProjectDraftRequest];
+  saveChapterDraft: [payload: { chapterId: string; input: SaveChapterDraftRequest }];
+  completeChapter: [payload: { chapterId: string; input: CompleteChapterRequest }];
+  selectChapter: [chapterId: string];
   selectStep: [stepKey: string];
   selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [content: string];
@@ -74,6 +95,38 @@ const currentStageLabel = computed(() => {
 });
 
 const isScriptStep = computed(() => props.activeStepKey === "project_story");
+const chapterItems = computed(() => props.snapshot.chapters ?? []);
+const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
+
+watch(
+  () => getCurrentChapterSourceText(props.snapshot),
+  (sourceText) => {
+    scriptDraft.value = sourceText;
+  },
+  { immediate: true },
+);
+
+function emitChapterDraft(input: SaveChapterDraftRequest) {
+  if (!currentChapterId.value) {
+    return;
+  }
+
+  emit("saveChapterDraft", {
+    chapterId: currentChapterId.value,
+    input,
+  });
+}
+
+function emitCompleteChapter(input: CompleteChapterRequest) {
+  if (!currentChapterId.value) {
+    return;
+  }
+
+  emit("completeChapter", {
+    chapterId: currentChapterId.value,
+    input,
+  });
+}
 </script>
 
 <style scoped>
@@ -91,6 +144,23 @@ const isScriptStep = computed(() => props.activeStepKey === "project_story");
   gap: 16px;
   align-items: stretch;
   min-width: 0;
+}
+
+.script-workarea {
+  display: grid;
+  grid-column: 2 / -1;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.script-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .step-placeholder {
@@ -136,7 +206,15 @@ const isScriptStep = computed(() => props.activeStepKey === "project_story");
     grid-template-columns: 380px minmax(0, 1fr);
   }
 
-  .workbench-content :deep(.script-outline-panel) {
+  .script-workarea {
+    grid-column: 2;
+  }
+
+  .script-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workbench-content :deep(.chapter-inspector-panel) {
     display: none;
   }
 
@@ -153,6 +231,10 @@ const isScriptStep = computed(() => props.activeStepKey === "project_story");
 
   .workbench-content :deep(.script-editor) {
     order: 1;
+  }
+
+  .script-workarea {
+    grid-column: 1;
   }
 
   .workbench-content :deep(.dialogue-panel) {

@@ -49,8 +49,8 @@ export class DialogueService {
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
   ) {}
 
-  getProjectThread(projectId: string, stepKey: string): DialogueThread {
-    this.projectsService.getWorkbenchSnapshot(projectId);
+  async getProjectThread(projectId: string, stepKey: string): Promise<DialogueThread> {
+    await this.projectsService.getWorkbenchSnapshot(projectId);
     const normalizedStepKey = this.normalizeStepKey(stepKey);
     return this.toThreadDto(this.getOrCreateThread(projectId, normalizedStepKey));
   }
@@ -60,7 +60,7 @@ export class DialogueService {
     stepKey: string,
     input: SendDialogueMessageRequest,
   ): Promise<SendDialogueMessageResponse> {
-    const turn = this.createDialogueTurn(projectId, stepKey, input);
+    const turn = await this.createDialogueTurn(projectId, stepKey, input);
 
     try {
       const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot);
@@ -87,7 +87,7 @@ export class DialogueService {
     input: SendDialogueMessageRequest,
     emit: (event: DialogueStreamEvent) => void | Promise<void>,
   ): Promise<void> {
-    const turn = this.createDialogueTurn(projectId, stepKey, input);
+    const turn = await this.createDialogueTurn(projectId, stepKey, input);
     await emit({
       type: "dialogue.message.created",
       threadId: turn.thread.id,
@@ -148,12 +148,12 @@ export class DialogueService {
     }
   }
 
-  private createDialogueTurn(
+  private async createDialogueTurn(
     projectId: string,
     stepKey: string,
     input: SendDialogueMessageRequest,
-  ): DialogueTurn {
-    const snapshot = this.projectsService.getWorkbenchSnapshot(projectId);
+  ): Promise<DialogueTurn> {
+    const snapshot = await this.projectsService.getWorkbenchSnapshot(projectId);
     const normalizedStepKey = this.normalizeStepKey(input.stepKey ?? stepKey);
     const content = input.content.trim();
     if (!content) {
@@ -291,7 +291,9 @@ export class DialogueService {
     recentMessages: DialogueMessageItem[];
   }): string {
     const stepLabel = STEP_LABELS[input.stepKey] ?? "剧本";
-    const sourceText = input.snapshot.story.sourceText.trim();
+    const currentChapter = input.snapshot.currentChapter;
+    const chapterTitle = currentChapter?.title || input.snapshot.story.title || "当前章节";
+    const sourceText = (currentChapter?.sourceText ?? input.snapshot.story.sourceText).trim();
     const recentDialogue = input.recentMessages
       .filter((message) => message.content.trim())
       .map((message) => `${message.role === "user" ? "用户" : "AI"}（${STEP_LABELS[message.stepKey] ?? message.stepKey}）：${message.content}`)
@@ -301,12 +303,13 @@ export class DialogueService {
       "你是 AI漫游的漫画创作助手，当前运行在项目工作区的左侧对话框。",
       `当前项目：${input.snapshot.project.name}`,
       `当前步骤：${stepLabel}`,
+      `当前章节：${chapterTitle}`,
       "工作原则：",
       "1. 只提供建议、总结、提问、结构化分析或改写草案。",
       "2. 不要声称你已经修改了右侧剧本文档。",
       "3. 如给出改写版本，必须明确标注为“改写草案”，由用户决定是否应用。",
       "4. 回复使用中文，优先围绕漫画剧本创作、人物目标、冲突、节奏和画面化表达。",
-      "当前剧本文档：",
+      "当前章节剧本文档：",
       sourceText || "（用户还没有填写剧本内容）",
       "最近对话：",
       recentDialogue || "（暂无历史对话）",

@@ -2,53 +2,46 @@
   <section class="script-editor" aria-label="剧本">
     <header class="editor-toolbar">
       <div class="toolbar-group">
-        <button class="toolbar-dropdown" type="button">
-          <span>正文</span>
-          <ChevronDown :size="14" />
-        </button>
+        <span class="toolbar-label">Markdown</span>
         <div class="toolbar-divider"></div>
-        <button class="toolbar-btn text-btn">H1</button>
-        <button class="toolbar-btn text-btn">H2</button>
-        <button class="toolbar-btn text-btn">H3</button>
+        <button class="toolbar-btn text-btn" type="button" title="一级标题" @click="editorRef?.setHeading(1)">H1</button>
+        <button class="toolbar-btn text-btn" type="button" title="二级标题" @click="editorRef?.setHeading(2)">H2</button>
+        <button class="toolbar-btn text-btn" type="button" title="三级标题" @click="editorRef?.setHeading(3)">H3</button>
       </div>
 
       <div class="toolbar-group">
-        <button class="toolbar-btn"><List :size="14" /></button>
-        <button class="toolbar-btn"><ListOrdered :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="无序列表" @click="editorRef?.toggleBulletList()"><List :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="有序列表" @click="editorRef?.toggleOrderedList()"><ListOrdered :size="14" /></button>
       </div>
 
       <div class="toolbar-group">
-        <button class="toolbar-btn"><Bold :size="14" /></button>
-        <button class="toolbar-btn"><Italic :size="14" /></button>
-        <button class="toolbar-btn"><Underline :size="14" /></button>
-        <button class="toolbar-btn"><Strikethrough :size="14" /></button>
-        <button class="toolbar-btn"><Quote :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="加粗" @click="editorRef?.wrapSelection('**', '**')"><Bold :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="斜体" @click="editorRef?.wrapSelection('*', '*')"><Italic :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="下划线" @click="editorRef?.wrapSelection('<u>', '</u>')"><Underline :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="删除线" @click="editorRef?.wrapSelection('~~', '~~')"><Strikethrough :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="引用" @click="editorRef?.toggleBlockquote()"><Quote :size="14" /></button>
       </div>
 
       <div class="toolbar-group">
-        <button class="toolbar-btn"><Image :size="14" /></button>
-        <button class="toolbar-btn"><ImageIcon :size="14" /></button>
-      </div>
-
-      <div class="toolbar-group">
-        <button class="toolbar-btn"><MoreHorizontal :size="14" /></button>
+        <button class="toolbar-btn" type="button" title="插入图片 Markdown" @click="editorRef?.insertImage()"><Image :size="14" /></button>
       </div>
     </header>
 
     <div class="editor-content">
-      <textarea
-        v-model="form.sourceText"
-        class="script-textarea"
+      <MarkdownTextEditor
+        ref="editorRef"
+        v-model="sourceText"
+        :disabled="loading"
         placeholder="在这里开始写你的故事..."
-      ></textarea>
+      />
     </div>
 
     <footer class="editor-footer">
       <div class="footer-stats">
-        <span>字数 {{ form.sourceText.length }}</span>
+        <span>字数 {{ sourceText.length }}</span>
         <span>预估页数 {{ estimatedPages }} 页</span>
         <div class="save-status">
-          <span>已自动保存 10:24:36</span>
+          <span>{{ saveStatusLabel }}</span>
           <CheckCircle2 :size="14" class="status-icon" />
         </div>
       </div>
@@ -57,8 +50,8 @@
           <Save :size="14" />
           <span>保存草稿</span>
         </button>
-        <button class="next-step-btn" type="button">
-          <span>进入剧情结构</span>
+        <button class="next-step-btn" type="button" :disabled="loading || !canComplete" @click="submitComplete">
+          <span>完成本章</span>
           <ArrowRight :size="14" />
         </button>
       </div>
@@ -67,9 +60,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
-import { CheckCircle2, Save, ChevronDown, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ImageIcon, MoreHorizontal, ArrowRight } from "lucide-vue-next";
-import type { ArtStyle, ComicFormat, UpdateProjectDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { computed, ref, watch } from "vue";
+import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight } from "lucide-vue-next";
+import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
+import MarkdownTextEditor from "./MarkdownTextEditor.vue";
+
+type MarkdownTextEditorHandle = InstanceType<typeof MarkdownTextEditor>;
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -77,35 +74,17 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  save: [input: UpdateProjectDraftRequest];
+  saveDraft: [input: SaveChapterDraftRequest];
+  completeChapter: [input: CompleteChapterRequest];
+  updateSourceText: [value: string];
 }>();
 
-const form = reactive({
-  name: "",
-  storyTitle: "",
-  comicFormat: "vertical_scroll" as ComicFormat,
-  artStyle: "dark_realistic" as ArtStyle,
-  sourceText: "",
-});
-const genreText = ref("");
-
-const comicFormatOptions = [
-  { key: "vertical_scroll", label: "条漫 / 竖屏" },
-  { key: "page_horizontal", label: "页漫 / 横屏" },
-  { key: "four_panel", label: "四格漫画" },
-] as const satisfies ReadonlyArray<{ key: ComicFormat; label: string }>;
-
-const artStyleOptions = [
-  { key: "dark_realistic", label: "暗调写实" },
-  { key: "semi_realistic", label: "半写实" },
-  { key: "japanese_realistic", label: "日系写实" },
-  { key: "comic_style", label: "漫画风格" },
-  { key: "cyberpunk", label: "赛博朋克" },
-  { key: "custom", label: "自定义" },
-] as const satisfies ReadonlyArray<{ key: ArtStyle; label: string }>;
+const editorRef = ref<MarkdownTextEditorHandle | null>(null);
+const sourceText = ref("");
+const currentChapterSourceText = computed(() => getCurrentChapterSourceText(props.snapshot));
 
 const estimatedPages = computed(() => {
-  const length = form.sourceText.trim().length;
+  const length = sourceText.value.trim().length;
   if (length === 0) return "0";
   const min = Math.ceil(length / 300);
   const max = Math.ceil(length / 250);
@@ -113,20 +92,17 @@ const estimatedPages = computed(() => {
   return `${min}-${max}`;
 });
 
-const normalizedCurrentTags = computed(() => props.snapshot.project.genreTags.join("，"));
+const hasChanges = computed(() => sourceText.value !== currentChapterSourceText.value);
+const canSave = computed(() => hasChanges.value);
+const canComplete = computed(() => sourceText.value.trim().length > 0);
 
-const hasChanges = computed(() => {
-  return (
-    form.name !== props.snapshot.project.name ||
-    form.storyTitle !== props.snapshot.project.storyTitle ||
-    form.comicFormat !== props.snapshot.project.comicFormat ||
-    form.artStyle !== props.snapshot.project.artStyle ||
-    form.sourceText !== props.snapshot.story.sourceText ||
-    genreText.value !== normalizedCurrentTags.value
-  );
+const saveStatusLabel = computed(() => {
+  if (props.loading) {
+    return "保存中";
+  }
+
+  return hasChanges.value ? "有未保存更改" : "已保存";
 });
-
-const canSave = computed(() => form.name.trim().length > 0 && hasChanges.value);
 
 watch(
   () => props.snapshot,
@@ -134,13 +110,12 @@ watch(
   { immediate: true },
 );
 
+watch(sourceText, (value) => {
+  emit("updateSourceText", value);
+});
+
 function resetForm() {
-  form.name = props.snapshot.project.name;
-  form.storyTitle = props.snapshot.project.storyTitle;
-  form.comicFormat = props.snapshot.project.comicFormat;
-  form.artStyle = props.snapshot.project.artStyle;
-  form.sourceText = props.snapshot.story.sourceText;
-  genreText.value = normalizedCurrentTags.value;
+  sourceText.value = currentChapterSourceText.value;
 }
 
 function submitSave() {
@@ -148,17 +123,19 @@ function submitSave() {
     return;
   }
 
-  emit("save", {
-    name: form.name,
-    storyTitle: form.storyTitle,
-    genreTags: genreText.value
-      .split(/[，,]/)
-      .map((item) => item.trim())
-      .filter(Boolean),
-    comicFormat: form.comicFormat,
-    artStyle: form.artStyle,
-    description: form.storyTitle || form.name,
-    sourceText: form.sourceText,
+  emit("saveDraft", {
+    sourceText: sourceText.value,
+  });
+}
+
+function submitComplete() {
+  if (!canComplete.value) {
+    return;
+  }
+
+  emit("completeChapter", {
+    sourceText: sourceText.value,
+    createNextChapter: true,
   });
 }
 </script>
@@ -197,7 +174,8 @@ function submitSave() {
   margin: 0 4px;
 }
 
-.toolbar-btn, .toolbar-dropdown {
+.toolbar-btn,
+.toolbar-label {
   background: transparent;
   border: none;
   color: #94a3b8;
@@ -221,13 +199,14 @@ function submitSave() {
   font-weight: 600;
 }
 
-.toolbar-dropdown {
+.toolbar-label {
   gap: 6px;
   padding: 4px 8px;
   font-size: 13px;
+  cursor: default;
 }
 
-.toolbar-btn:hover, .toolbar-dropdown:hover {
+.toolbar-btn:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #e2e8f0;
 }
@@ -239,23 +218,6 @@ function submitSave() {
   flex-direction: column;
   background: rgba(13, 18, 33, 0.6);
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.2);
-}
-
-.script-textarea {
-  flex: 1;
-  width: 100%;
-  resize: none;
-  border: none;
-  background: transparent;
-  color: #e2e8f0;
-  font-size: 15px;
-  line-height: 1.8;
-  outline: none;
-  font-family: inherit;
-}
-
-.script-textarea::placeholder {
-  color: #475569;
 }
 
 .editor-footer {
@@ -326,8 +288,14 @@ function submitSave() {
   box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
 }
 
-.next-step-btn:hover {
+.next-step-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+}
+
+.next-step-btn:disabled,
+.save-draft-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 </style>

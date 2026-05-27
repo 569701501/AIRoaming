@@ -16,9 +16,9 @@ export class DialogueController {
   constructor(@Inject(DialogueService) private readonly dialogueService: DialogueService) {}
 
   @Get("threads/:stepKey")
-  thread(@Param("projectId") projectId: string, @Param("stepKey") stepKey: string) {
+  async thread(@Param("projectId") projectId: string, @Param("stepKey") stepKey: string) {
     return ok({
-      thread: this.dialogueService.getProjectThread(projectId, stepKey),
+      thread: await this.dialogueService.getProjectThread(projectId, stepKey),
     });
   }
 

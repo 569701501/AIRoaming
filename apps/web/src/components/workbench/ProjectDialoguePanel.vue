@@ -92,6 +92,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { ArrowUp, Bot, ChevronsLeft, FileText, Loader2, Paperclip, Sparkles, Zap, Users, Lightbulb, Search } from "lucide-vue-next";
 import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueMessageItem, DialogueThread, WorkbenchSnapshot } from "@airoaming/shared";
+import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -121,7 +122,7 @@ const quickPrompts = [
 const draft = ref("");
 const messageListRef = ref<HTMLElement | null>(null);
 
-const hasStory = computed(() => props.snapshot.story.sourceText.trim().length > 0);
+const hasStory = computed(() => getCurrentChapterSourceText(props.snapshot).trim().length > 0);
 const messages = computed(() => props.dialogueThread?.messages ?? []);
 const canSend = computed(() => draft.value.trim().length > 0 && !props.dialogueSending);
 const selectedModelValue = computed(() => props.selectedModel ? serializeModel(props.selectedModel) : "");
@@ -129,10 +130,10 @@ const analysisPrompt = "请分析当前剧本的人物目标、核心冲突、�
 
 const assistantOpening = computed(() => {
   if (hasStory.value) {
-    return "我先围绕当前剧本看人物目标、开场冲突和节奏断点。";
+    return "我先围绕当前章节看人物目标、开场冲突和节奏断点。";
   }
 
-  return "先把第一版剧本写在右侧，我会帮你把人物、冲突和节奏拆开看。";
+  return "先把当前章节写在右侧，我会帮你把人物、冲突和节奏拆开看。";
 });
 
 watch(

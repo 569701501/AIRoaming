@@ -1,0 +1,22 @@
+# AI漫游长期记忆
+
+- `文档/` 是项目事实源；实现前先读文档，改变产品、架构、数据、模块边界或功能完成后同步文档。
+- 正式文档使用中文，文档要服务人和 AI；重要结论必须落到对应 Markdown 文件，不把聊天隐含上下文当事实源。
+- `$deep-think` 是按需技能，只在用户明确调用、任务高风险或跨多模块时使用；不是每次对话默认流程。
+- 当前应用入口是项目库；创建项目只保留“项目名称”，创建成功后直接进入项目工作区第 1 步“剧本”。
+- 项目工作区隐藏全局左侧导航和顶部搜索；左侧是公共“对话框”，右侧是当前步骤主工作区；顶部保留返回项目列表和紧凑 6 步流程。
+- 项目主链路是：剧本、剧情结构、分镜工作台、候选图工作台、排版导出、素材包。
+- 对话框组件公共，但对话记录按步骤隔离；跨步骤只共享用户已确认的事实、保存文档和锁定产物。
+- AI 输出不能自动覆盖右侧文档，必须由用户显式“应用”或“插入”后才进入文档。
+- 第一阶段采用 OpenCode 作为项目对话框 AI Runtime；AI漫游自己的业务事实源仍是项目、对话、已确认事实和产物。
+- 剧本页右侧编辑器已换为 CodeMirror Markdown，保存接口当前仍保存纯文本 `sourceText`。
+- 剧本页最右侧当前章节信息面板从草稿文本轻量解析当前章节、故事主线、出场角色和场景列表；当前不调用 AI，也不保存结构化事实。
+- 当前后端仍未接数据库，项目 API 运行时使用进程内项目索引加本地 workspace 文件写入；服务启动或首次访问项目接口时会从 `workspace/projects/*/project.json`、章节目录和 `script.md` 恢复项目索引，避免重启后项目库丢失。
+- 本地 workspace 路径由后端统一管理，前端不能直接写本地物理路径。
+- 2026-05-27 章节工作流已收口为正式方向：`Chapter` 是项目内一等工作单元，剧本步骤需要章节列表、保存草稿、完成本章并进入下一章。
+- 章节内产物后续优先挂到 `chapterId`，包括章节剧本、结构化剧情、分镜、候选图、排版和导出；项目级角色、世界观、通用场景和共享素材继续挂到 `projectId`。
+- 目标本地结构为 `workspace/projects/{projectId}/chapters/chapter-001/script.md` 等章节目录；`story/story_draft.source.txt` 旧兼容路径已移除，新项目不再创建、读取或写入旧 `story/` 目录。
+- 章节共享契约已接入 `packages/shared`：包括 `ChapterStatus`、章节列表/详情/版本 DTO、保存草稿、完成本章请求响应；`WorkbenchSnapshot.chapters/currentChapter` 是剧本页当前章节读取主契约。
+- 后端已接入默认章节创建、项目索引重启恢复、章节列表 API、章节草稿保存 API 和完成本章 API；完成本章会写入 `script.versions/script-vNNN.md`，将当前章节标记为 `script_done`，并创建或进入下一章。
+- 前端剧本页已接入章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；手动新建章节、重命名、删除、排序和后续产物失效提示仍待实现。
+- 生成任务中心已强制章节作用域任务带 `chapterId`：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须有 `target.chapterId`；`input.chapterId` 省略会由服务端写回，不一致会拒绝。

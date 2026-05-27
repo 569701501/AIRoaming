@@ -83,6 +83,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import { CheckCircle2, PencilLine, RotateCcw, Save, Sparkles } from "lucide-vue-next";
 import type { ArtStyle, ComicFormat, UpdateProjectDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -119,7 +120,7 @@ const artStyleOptions = [
 ] as const satisfies ReadonlyArray<{ key: ArtStyle; label: string }>;
 
 const sourceLengthLabel = computed(() => {
-  const length = props.snapshot.story.sourceText.trim().length;
+  const length = getCurrentChapterSourceText(props.snapshot).trim().length;
   return length ? `${length} 字故事` : "未填写故事";
 });
 
@@ -131,7 +132,7 @@ const hasChanges = computed(() => {
     form.storyTitle !== props.snapshot.project.storyTitle ||
     form.comicFormat !== props.snapshot.project.comicFormat ||
     form.artStyle !== props.snapshot.project.artStyle ||
-    form.sourceText !== props.snapshot.story.sourceText ||
+    form.sourceText !== getCurrentChapterSourceText(props.snapshot) ||
     genreText.value !== normalizedCurrentTags.value
   );
 });
@@ -149,7 +150,7 @@ function resetForm() {
   form.storyTitle = props.snapshot.project.storyTitle;
   form.comicFormat = props.snapshot.project.comicFormat;
   form.artStyle = props.snapshot.project.artStyle;
-  form.sourceText = props.snapshot.story.sourceText;
+  form.sourceText = getCurrentChapterSourceText(props.snapshot);
   genreText.value = normalizedCurrentTags.value;
 }
 

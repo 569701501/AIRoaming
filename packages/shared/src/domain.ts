@@ -24,6 +24,17 @@ export const PROJECT_STATUSES = [
 ] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+export const CHAPTER_STATUSES = [
+  "draft",
+  "script_done",
+  "structured",
+  "storyboard_done",
+  "images_done",
+  "layout_done",
+  "exported",
+] as const;
+export type ChapterStatus = (typeof CHAPTER_STATUSES)[number];
+
 export const GENERATION_TASK_TYPES = [
   "story_parse",
   "shot_generate",
@@ -35,6 +46,25 @@ export const GENERATION_TASK_TYPES = [
   "asset_package_export",
 ] as const;
 export type GenerationTaskType = (typeof GENERATION_TASK_TYPES)[number];
+
+export const CHAPTER_SCOPED_GENERATION_TASK_TYPES = [
+  "story_parse",
+  "shot_generate",
+  "shot_prompt_generate",
+  "image_generate",
+  "layout_export",
+] as const satisfies ReadonlyArray<GenerationTaskType>;
+export type ChapterScopedGenerationTaskType = (typeof CHAPTER_SCOPED_GENERATION_TASK_TYPES)[number];
+
+export const GENERATION_TASK_TARGET_TYPES = [
+  "project",
+  "chapter",
+  "story",
+  "shot",
+  "asset",
+  "export",
+] as const;
+export type GenerationTaskTargetType = (typeof GENERATION_TASK_TARGET_TYPES)[number];
 
 export const GENERATION_TASK_STATUSES = [
   "queued",
@@ -65,6 +95,7 @@ export interface ProjectSummary {
   name: string;
   type: ProjectType;
   status: ProjectStatus;
+  currentChapterId: string | null;
   currentStoryVersionId: string | null;
   createdAt: string;
   updatedAt: string;

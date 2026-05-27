@@ -4,7 +4,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-05-26
+updated: 2026-05-27
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -126,6 +126,13 @@ corepack pnpm dev
 - 2026-05-26 OpenCode 流式输出已落地：后端新增 `POST /api/projects/{projectId}/dialogue/threads/{stepKey}/messages/stream`，将 OpenCode `message.part.delta` 转换为 AI漫游 `dialogue.message.delta`；前端使用 fetch 流式读取 SSE 并增量更新 assistant 消息。当前仍不支持停止生成、上传、应用到剧本或插入光标。
 - 2026-05-26 对话框模型选择已落地：前端进入项目工作区后读取 `GET /api/ai-runtime/models` 的非敏感 provider/model 列表，在左侧对话框顶部展示模型下拉；发送消息时把当前 provider/model 透传给后端和 OpenCode。当前仍不支持新增模型配置 UI 或 variant 选择。
 - 2026-05-26 项目路由骨架已落地：前端引入 `vue-router`，`/projects` 为项目库，`/projects/:projectId/script` 为剧本工作区，`structure/storyboard/candidates/layout/assets` 为后续 5 个步骤预留地址；URL 表示当前位置，Pinia 和后端负责项目快照、对话线程和临时状态。
+- 2026-05-26 剧本文本编辑器已换成 CodeMirror Markdown：右侧剧本文档编辑器不再使用原生 `textarea`，支持 Markdown 标题、列表、加粗、斜体、删除线、引用、插入图片文本和纯文本保存；保存接口仍只提交 `sourceText`。右侧大纲仍未接入真实解析，本阶段不处理。
+- 2026-05-27 剧本页最右侧已改为当前章节信息面板：不再展示旧的假剧本大纲；面板从当前草稿文本轻量解析当前章节、故事主线、出场角色和场景列表。当前只是本地文本解析，不调用 AI，不保存结构化事实。
+- 2026-05-27 章节工作流结论已收口：项目内创作应按章节推进，`Chapter` 是项目内一等工作单元；剧本步骤需要章节列表、当前章节编辑器、保存草稿、完成本章并进入下一章。后续结构化剧情、分镜、候选图、排版和导出都应优先挂到 `chapterId`，项目级角色、世界观、通用场景和共享素材继续挂到 `projectId`。
+- 2026-05-27 后端默认章节已接入：创建项目时写入 `chapters/chapter-001/chapter.json` 和 `script.md`；旧 `PATCH /api/projects/{projectId}` 仍可保存 `sourceText`，但只同步写入当前章节脚本；`story/story_draft.source.txt` 旧兼容路径已移除。
+- 2026-05-27 当前章节快照读取已接入：`WorkbenchSnapshot.chapters/currentChapter` 是剧本页读取章节的主契约；剧本编辑器、当前章节信息面板和剧本步骤对话 prompt 优先读取 `currentChapter`，`snapshot.story` 仅作旧链路兼容兜底。
+- 2026-05-27 章节列表与章节推进已接入：剧本页支持章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；完成本章会写入章节剧本版本，将当前章节标记为 `script_done`，并创建或进入下一章。
+- 2026-05-27 章节作用域任务校验已接入：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须带 `target.chapterId`；`input.chapterId` 如传入必须一致，省略时由服务端规范化写回。
 - 2026-05-24 项目删除链路已落地：项目卡片封面 hover 显示删除按钮，二次确认后调用 `DELETE /projects/{projectId}`，删除项目记录、本地 workspace 项目目录和该项目 mock 任务。
 - 2026-05-24 项目工作区外壳已落地：创建或打开项目后进入项目工作区，显示返回项目库、项目标题、6 步流程和“剧本”面板；故事草稿可通过 `PATCH /projects/{projectId}` 保存并写回 workspace。
 - 历史 UI 试错文档已移至 `文档/98_历史归档/`，不再默认阅读。

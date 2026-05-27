@@ -1,8 +1,10 @@
 import type {
   ArtStyle,
   AssetType,
+  ChapterStatus,
   ComicFormat,
   GenerationTaskStatus,
+  GenerationTaskTargetType,
   GenerationTaskType,
   ProjectStatus,
   ProjectType,
@@ -42,6 +44,8 @@ export interface ProjectListItem {
   name: string;
   type: ProjectType;
   status: ProjectStatus;
+  currentChapterId?: string | null;
+  chapterCount?: number;
   storyTitle: string;
   genreTags: string[];
   comicFormat: ComicFormat;
@@ -76,6 +80,73 @@ export interface UpdateProjectDraftRequest {
 export interface DeleteProjectResponse {
   deletedProjectId: string;
   deletedTaskCount: number;
+}
+
+export interface ChapterListItem {
+  id: string;
+  projectId: string;
+  slug: string;
+  order: number;
+  title: string;
+  status: ChapterStatus;
+  currentScriptVersionId: string | null;
+  currentStoryVersionId: string | null;
+  summary: string;
+  sourceTextPreview: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface ChapterDetail extends ChapterListItem {
+  sourceText: string;
+  scriptPath: string;
+}
+
+export interface ChapterScriptVersionItem {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  version: number;
+  sourcePath: string;
+  status: "current" | "archived";
+  createdAt: string;
+}
+
+export interface ListChaptersResponse {
+  chapters: ChapterListItem[];
+  currentChapterId: string | null;
+}
+
+export interface GetChapterResponse {
+  chapter: ChapterDetail;
+}
+
+export interface SaveChapterDraftRequest {
+  sourceText: string;
+  title?: string;
+  summary?: string;
+}
+
+export interface SaveChapterDraftResponse {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
+export interface CompleteChapterRequest {
+  sourceText: string;
+  title?: string;
+  summary?: string;
+  createNextChapter?: boolean;
+  nextChapterTitle?: string;
+}
+
+export interface CompleteChapterResponse {
+  completedChapter: ChapterDetail;
+  activeChapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  scriptVersion: ChapterScriptVersionItem;
+  createdNextChapter: boolean;
 }
 
 export interface AIRuntimeModelSelection {
@@ -150,8 +221,9 @@ export interface DialogueStreamEvent {
 }
 
 export interface GenerationTaskTarget {
-  type: "project" | "story" | "shot" | "asset" | "export";
+  type: GenerationTaskTargetType;
   id: string;
+  chapterId?: string;
 }
 
 export interface CreateGenerationTaskRequest {
@@ -196,6 +268,7 @@ export interface WorkbenchStage {
 
 export interface WorkbenchStory {
   id: string;
+  chapterId?: string | null;
   title: string;
   sourceText: string;
   summary: string;
@@ -210,6 +283,7 @@ export interface WorkbenchStory {
 
 export interface WorkbenchShot {
   id: string;
+  chapterId?: string;
   shotNumber: number;
   beatId: string;
   sceneName: string;
@@ -224,6 +298,7 @@ export interface WorkbenchShot {
 
 export interface WorkbenchCandidate {
   id: string;
+  chapterId?: string;
   shotId: string;
   label: string;
   status: "generated" | "selected" | "locked" | "rejected" | "superseded";
@@ -234,6 +309,7 @@ export interface WorkbenchCandidate {
 
 export interface WorkbenchAsset {
   id: string;
+  chapterId?: string | null;
   type: AssetType;
   name: string;
   path: string;
@@ -254,6 +330,8 @@ export interface WorkbenchSnapshot {
     description: string;
     updatedAt: string;
   };
+  chapters: ChapterListItem[];
+  currentChapter: ChapterDetail | null;
   stages: WorkbenchStage[];
   story: WorkbenchStory;
   shots: WorkbenchShot[];

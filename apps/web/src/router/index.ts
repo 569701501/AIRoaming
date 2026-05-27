@@ -30,7 +30,17 @@ export function getStepSlugFromKey(stepKey: string): ProjectStepSlug {
   return found ?? "script";
 }
 
-export function projectRoute(projectId: string, step: ProjectStepSlug = "script"): RouteLocationRaw {
+export function projectRoute(projectId: string, step: ProjectStepSlug = "script", chapterId?: string | null): RouteLocationRaw {
+  if (step === "script" && chapterId) {
+    return {
+      name: "project-script-chapter",
+      params: {
+        projectId,
+        chapterId,
+      },
+    };
+  }
+
   return {
     name: "project-step",
     params: {
@@ -65,6 +75,11 @@ export const router = createRouter({
     {
       path: "/projects/:projectId/:step(script|structure|storyboard|candidates|layout|assets)",
       name: "project-step",
+      component: RouteStub,
+    },
+    {
+      path: "/projects/:projectId/script/:chapterId",
+      name: "project-script-chapter",
       component: RouteStub,
     },
     {

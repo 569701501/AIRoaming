@@ -24,7 +24,9 @@
           :snapshot="snapshot"
           @send-dialogue="sendDialogue"
           @back="goProjectLibrary"
-          @save-story="saveStory"
+          @save-chapter-draft="saveChapterDraft"
+          @complete-chapter="completeChapter"
+          @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
           @select-dialogue-model="selectDialogueModel"
         />
@@ -46,7 +48,7 @@
 import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, UpdateProjectDraftRequest } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import ProjectLibraryView from "../projects/ProjectLibraryView.vue";
@@ -79,13 +81,17 @@ const routeStepKey = computed(() => {
   const value = route.params.step;
   return getStepKeyFromSlug(typeof value === "string" ? value : undefined);
 });
+const routeChapterId = computed(() => {
+  const value = route.params.chapterId;
+  return typeof value === "string" ? value : null;
+});
 const isProjectRoute = computed(() => Boolean(routeProjectId.value));
 
 watch(
-  [routeProjectId, routeStepKey],
-  async ([projectId, stepKey]) => {
+  [routeProjectId, routeStepKey, routeChapterId],
+  async ([projectId, stepKey, chapterId]) => {
     if (projectId) {
-      await workbench.openProject(projectId, stepKey);
+      await workbench.openProject(projectId, stepKey, chapterId);
       void workbench.loadRuntimeModels();
       return;
     }
@@ -96,8 +102,17 @@ watch(
   { immediate: true },
 );
 
-async function saveStory(input: UpdateProjectDraftRequest) {
-  await workbench.saveProjectDraft(input);
+async function saveChapterDraft(payload: { chapterId: string; input: SaveChapterDraftRequest }) {
+  await workbench.saveChapterDraft(payload.chapterId, payload.input);
+}
+
+async function completeChapter(payload: { chapterId: string; input: CompleteChapterRequest }) {
+  const activeChapter = await workbench.completeChapter(payload.chapterId, payload.input);
+  if (!activeChapter || !routeProjectId.value) {
+    return;
+  }
+
+  await router.push(projectRoute(routeProjectId.value, "script", activeChapter.id));
 }
 
 async function sendDialogue(content: string) {
@@ -118,7 +133,18 @@ async function goProjectStep(stepKey: string) {
     return;
   }
 
-  await router.push(projectRoute(projectId, getStepSlugFromKey(stepKey)));
+  const stepSlug = getStepSlugFromKey(stepKey);
+  const chapterId = stepSlug === "script" ? snapshot.value?.currentChapter?.id : null;
+  await router.push(projectRoute(projectId, stepSlug, chapterId));
+}
+
+async function goProjectChapter(chapterId: string) {
+  const projectId = routeProjectId.value;
+  if (!projectId) {
+    return;
+  }
+
+  await router.push(projectRoute(projectId, "script", chapterId));
 }
 </script>
 

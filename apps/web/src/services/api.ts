@@ -2,14 +2,20 @@ import type {
   ApiResponse,
   AIRuntimeModelItem,
   AIRuntimeModelSelection,
+  CompleteChapterRequest,
+  CompleteChapterResponse,
   CreateProjectRequest,
   DeleteProjectResponse,
   DialogueStreamEvent,
   DialogueThread,
   CreateGenerationTaskRequest,
   GenerationTaskItem,
+  GetChapterResponse,
   HealthResponse,
+  ListChaptersResponse,
   ProjectListItem,
+  SaveChapterDraftRequest,
+  SaveChapterDraftResponse,
   SendDialogueMessageRequest,
   SendDialogueMessageResponse,
   UpdateProjectDraftRequest,
@@ -28,13 +34,47 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
 
-  const payload = (await response.json()) as ApiResponse<T>;
-  if (!response.ok || !payload.success) {
-    const message = payload.success ? response.statusText : payload.error.message;
+  const payload = (await response.json()) as ApiResponse<T> | Record<string, unknown>;
+  if (!response.ok || !isApiSuccess<T>(payload)) {
+    const message = getApiErrorMessage(payload, response.statusText);
     throw new Error(message || "API request failed");
   }
 
   return payload.data;
+}
+
+function isApiSuccess<T>(payload: ApiResponse<T> | Record<string, unknown>): payload is Extract<ApiResponse<T>, { success: true }> {
+  return payload.success === true;
+}
+
+function getApiErrorMessage(payload: ApiResponse<unknown> | Record<string, unknown>, fallback: string): string {
+  if (!isRecord(payload)) {
+    return fallback;
+  }
+
+  const envelopeError = payload.success === false ? payload.error : null;
+  if (isRecord(envelopeError) && typeof envelopeError.message === "string") {
+    return envelopeError.message;
+  }
+
+  const defaultMessage = payload.message;
+  if (typeof defaultMessage === "string") {
+    return defaultMessage;
+  }
+
+  if (Array.isArray(defaultMessage)) {
+    return defaultMessage.filter((item): item is string => typeof item === "string").join("，");
+  }
+
+  if (typeof payload.error === "string") {
+    return payload.error;
+  }
+
+  return fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 async function requestStream(path: string, init: RequestInit, onEvent: (event: DialogueStreamEvent) => void): Promise<void> {
@@ -133,7 +173,28 @@ export const api = {
     method: "PATCH",
     body: JSON.stringify(input),
   }),
-  workbench: (projectId: string) => request<{ snapshot: WorkbenchSnapshot }>(`/projects/${encodeURIComponent(projectId)}/workbench`),
+  workbench: (projectId: string, chapterId?: string | null) => {
+    const query = chapterId ? `?chapterId=${encodeURIComponent(chapterId)}` : "";
+    return request<{ snapshot: WorkbenchSnapshot }>(`/projects/${encodeURIComponent(projectId)}/workbench${query}`);
+  },
+  listChapters: (projectId: string) => request<ListChaptersResponse>(`/projects/${encodeURIComponent(projectId)}/chapters`),
+  getChapter: (projectId: string, chapterId: string) => request<GetChapterResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}`,
+  ),
+  saveChapterDraft: (projectId: string, chapterId: string, input: SaveChapterDraftRequest) => request<SaveChapterDraftResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/draft`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  ),
+  completeChapter: (projectId: string, chapterId: string, input: CompleteChapterRequest) => request<CompleteChapterResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
   dialogueThread: (projectId: string, stepKey: string) => request<{ thread: DialogueThread }>(
     `/projects/${encodeURIComponent(projectId)}/dialogue/threads/${encodeURIComponent(stepKey)}`,
   ),

@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
   CreateGenerationTaskRequest,
   GenerationTaskItem,
   GenerationTaskStatus,
 } from "@airoaming/shared";
+import { CHAPTER_SCOPED_GENERATION_TASK_TYPES } from "@airoaming/shared";
+
+const chapterScopedTaskTypes = new Set<string>(CHAPTER_SCOPED_GENERATION_TASK_TYPES);
 
 @Injectable()
 export class TasksService {
@@ -23,6 +26,7 @@ export class TasksService {
   }
 
   create(input: CreateGenerationTaskRequest): GenerationTaskItem {
+    const taskInput = this.normalizeTaskInput(input);
     const now = new Date().toISOString();
     const task: GenerationTaskItem = {
       id: randomUUID(),
@@ -32,7 +36,7 @@ export class TasksService {
       phase: "queued",
       progressPercent: 0,
       target: input.target ?? null,
-      input: input.input ?? {},
+      input: taskInput,
       output: null,
       error: null,
       attempt: 0,
@@ -46,6 +50,45 @@ export class TasksService {
     this.tasks.set(task.id, task);
     this.runMockTask(task.id);
     return task;
+  }
+
+  private normalizeTaskInput(input: CreateGenerationTaskRequest): Record<string, unknown> {
+    const taskInput = input.input ?? {};
+    if (!chapterScopedTaskTypes.has(input.type)) {
+      return taskInput;
+    }
+
+    const targetChapterId = this.getTargetChapterId(input.target?.chapterId);
+    const inputChapterId = this.getInputChapterId(input.input);
+    if (inputChapterId !== null && inputChapterId !== targetChapterId) {
+      throw new BadRequestException("GENERATION_TASK_CHAPTER_ID_MISMATCH");
+    }
+
+    return {
+      ...taskInput,
+      chapterId: targetChapterId,
+    };
+  }
+
+  private getTargetChapterId(value: unknown): string {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new BadRequestException("GENERATION_TASK_CHAPTER_ID_REQUIRED");
+    }
+
+    return value.trim();
+  }
+
+  private getInputChapterId(input: Record<string, unknown> | undefined): string | null {
+    const value = input?.chapterId;
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    if (typeof value !== "string" || !value.trim()) {
+      throw new BadRequestException("GENERATION_TASK_INPUT_CHAPTER_ID_INVALID");
+    }
+
+    return value.trim();
   }
 
   cancel(taskId: string): GenerationTaskItem {

@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import type {
   AIRuntimeModelItem,
   AIRuntimeModelSelection,
+  ChapterDetail,
+  CompleteChapterRequest,
   CreateProjectRequest,
   DialogueMessageItem,
   DialogueStreamEvent,
@@ -9,17 +11,20 @@ import type {
   GenerationTaskItem,
   HealthResponse,
   ProjectListItem,
+  SaveChapterDraftRequest,
   UpdateProjectDraftRequest,
   WorkbenchSnapshot,
   WorkspaceInfo,
 } from "@airoaming/shared";
 import { api } from "../services/api";
+import { getCurrentChapterId, getCurrentChapterSourceText } from "../utils/workbench-chapter";
 
 interface WorkbenchState {
   health: HealthResponse | null;
   workspace: WorkspaceInfo | null;
   projects: ProjectListItem[];
   activeProjectId: string | null;
+  activeChapterId: string | null;
   activeStepKey: string;
   snapshot: WorkbenchSnapshot | null;
   dialogueThread: DialogueThread | null;
@@ -39,6 +44,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     workspace: null,
     projects: [],
     activeProjectId: null,
+    activeChapterId: null,
     activeStepKey: "project_story",
     snapshot: null,
     dialogueThread: null,
@@ -72,10 +78,11 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.tasks = tasks.items;
         if (this.activeProjectId) {
           const [workbench, dialogue] = await Promise.all([
-            api.workbench(this.activeProjectId),
+            api.workbench(this.activeProjectId, this.activeChapterId),
             api.dialogueThread(this.activeProjectId, this.activeStepKey),
           ]);
           this.snapshot = workbench.snapshot;
+          this.activeChapterId = workbench.snapshot.currentChapter?.id ?? null;
           this.dialogueThread = dialogue.thread;
         } else {
           this.snapshot = null;
@@ -97,6 +104,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       try {
         const result = await api.createProject(input);
         this.activeProjectId = result.project.id;
+        this.activeChapterId = result.project.currentChapterId ?? null;
         this.activeStepKey = "project_story";
         await this.refresh();
         return result.project;
@@ -107,8 +115,9 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async openProject(projectId: string, stepKey = "project_story") {
+    async openProject(projectId: string, stepKey = "project_story", chapterId: string | null = null) {
       this.activeProjectId = projectId;
+      this.activeChapterId = chapterId;
       this.activeStepKey = stepKey;
       this.snapshot = null;
       this.dialogueThread = null;
@@ -151,6 +160,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         await api.deleteProject(projectId);
         if (this.activeProjectId === projectId) {
           this.activeProjectId = null;
+          this.activeChapterId = null;
           this.activeStepKey = "project_story";
           this.snapshot = null;
           this.dialogueThread = null;
@@ -172,11 +182,58 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         const result = await api.updateProjectDraft(projectId, input);
         this.snapshot = result.snapshot;
+        this.activeChapterId = result.snapshot.currentChapter?.id ?? this.activeChapterId;
         this.projects = this.projects
           .map((project) => (project.id === result.project.id ? result.project : project))
           .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
       } catch (error) {
         this.error = error instanceof Error ? error.message : "故事草稿保存失败";
+      } finally {
+        this.loading = false;
+      }
+    },
+    async saveChapterDraft(chapterId: string, input: SaveChapterDraftRequest) {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        await api.saveChapterDraft(projectId, chapterId, input);
+        const [workbench, projects] = await Promise.all([
+          api.workbench(projectId, chapterId),
+          api.listProjects(),
+        ]);
+        this.snapshot = workbench.snapshot;
+        this.activeChapterId = workbench.snapshot.currentChapter?.id ?? chapterId;
+        this.projects = projects.items;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "章节草稿保存失败";
+      } finally {
+        this.loading = false;
+      }
+    },
+    async completeChapter(chapterId: string, input: CompleteChapterRequest): Promise<ChapterDetail | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const completed = await api.completeChapter(projectId, chapterId, input);
+        const [workbench, projects] = await Promise.all([
+          api.workbench(projectId, completed.activeChapter.id),
+          api.listProjects(),
+        ]);
+        this.snapshot = workbench.snapshot;
+        this.activeChapterId = completed.activeChapter.id;
+        this.projects = projects.items;
+        return completed.activeChapter;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "完成本章失败";
+        return null;
       } finally {
         this.loading = false;
       }
@@ -267,6 +324,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     },
     closeProject() {
       this.activeProjectId = null;
+      this.activeChapterId = null;
       this.activeStepKey = "project_story";
       this.snapshot = null;
       this.dialogueThread = null;
@@ -280,15 +338,22 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        const snapshot = this.snapshot;
+        if (!snapshot) {
+          throw new Error("项目快照还没有加载");
+        }
+        const chapterId = getCurrentChapterId(snapshot);
         await api.createTask({
           projectId,
           type: "story_parse",
           target: {
-            type: "project",
-            id: projectId,
+            type: "chapter",
+            id: chapterId ?? projectId,
+            chapterId: chapterId ?? undefined,
           },
           input: {
-            sourceText: this.snapshot?.story.sourceText ?? "",
+            chapterId,
+            sourceText: getCurrentChapterSourceText(snapshot),
             mode: "faithful",
             language: "zh-CN",
           },
