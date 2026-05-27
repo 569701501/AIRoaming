@@ -32,86 +32,97 @@
         class="dialogue-message"
         :class="[`is-${message.role}`, { 'is-muted': message.status === 'running' }]"
       >
-        <div v-if="message.role === 'assistant'" class="message-avatar bot-avatar">
-          <Bot :size="16" />
-        </div>
-        <div class="message-body" :class="{ 'is-failed': message.status === 'failed' }">
-          <div v-if="message.role === 'assistant' && message.status === 'running'" class="message-process-card is-thinking">
-            <Loader2 class="is-spinning" :size="14" />
-            <span class="process-kind">思考</span>
-            <span class="process-text">OpenCode 正在组织回复</span>
+        <template v-if="message.role === 'assistant'">
+          <div class="message-avatar bot-avatar">
+            <Bot :size="16" />
           </div>
+          <div class="assistant-message-stack">
+            <div v-if="shouldShowProcessBlock(message)" class="message-body process-message-body" :class="{ 'is-failed': message.status === 'failed' }">
+              <div v-if="message.status === 'running'" class="message-process-card is-thinking">
+                <Loader2 class="is-spinning" :size="14" />
+                <span class="process-kind">思考</span>
+                <span class="process-text">OpenCode 正在组织回复</span>
+              </div>
 
-          <div v-if="getMessageToolResults(message).length > 0" class="message-process-list" aria-label="AI 执行过程">
-            <article
-              v-for="toolResult in getMessageToolResults(message)"
-              :key="toolResult.id"
-              class="tool-event-card"
-              :class="[`is-${toolResult.status}`, { 'is-skill': isSkillTool(toolResult) }]"
-            >
-              <details class="tool-event-details">
-                <summary class="tool-event-trigger">
-                  <span class="tool-status-icon">
-                    <component :is="getToolStatusIcon(toolResult)" :size="14" :class="getToolStatusClass(toolResult)" />
-                  </span>
-                  <span class="tool-kind-icon">
-                    <component :is="getToolKindIcon(toolResult)" :size="13" />
-                  </span>
-                  <span class="tool-event-title">
-                    <span>{{ getToolKindLabel(toolResult) }}</span>
-                    <strong>{{ getToolDisplayName(toolResult) }}</strong>
-                  </span>
-                  <span class="tool-status-label">{{ getToolStatusLabel(toolResult) }}</span>
-                </summary>
+              <div v-if="getMessageToolResults(message).length > 0" class="message-process-list" aria-label="AI 执行过程">
+                <article
+                  v-for="toolResult in getMessageToolResults(message)"
+                  :key="toolResult.id"
+                  class="tool-event-card"
+                  :class="[`is-${toolResult.status}`, { 'is-skill': isSkillTool(toolResult) }]"
+                >
+                  <details class="tool-event-details">
+                    <summary class="tool-event-trigger">
+                      <span class="tool-status-icon">
+                        <component :is="getToolStatusIcon(toolResult)" :size="14" :class="getToolStatusClass(toolResult)" />
+                      </span>
+                      <span class="tool-kind-icon">
+                        <component :is="getToolKindIcon(toolResult)" :size="13" />
+                      </span>
+                      <span class="tool-event-title">
+                        <span>{{ getToolKindLabel(toolResult) }}</span>
+                        <strong>{{ getToolDisplayName(toolResult) }}</strong>
+                      </span>
+                      <span class="tool-status-label">{{ getToolStatusLabel(toolResult) }}</span>
+                    </summary>
 
-                <div class="tool-detail-panel">
-                  <div v-if="toolResult.analysis" class="tool-detail-section">
-                    <span class="tool-detail-label">分析结论</span>
-                    <p>{{ toolResult.analysis.reason }}</p>
-                    <p v-if="toolResult.analysis.risk">{{ toolResult.analysis.risk }}</p>
-                    <div class="tool-meta-grid">
-                      <span>类型：{{ getImportContentTypeLabel(toolResult.analysis.contentType) }}</span>
-                      <span>动作：{{ getImportDecisionLabel(toolResult.analysis.decision) }}</span>
+                    <div class="tool-detail-panel">
+                      <div v-if="toolResult.analysis" class="tool-detail-section">
+                        <span class="tool-detail-label">分析结论</span>
+                        <p>{{ toolResult.analysis.reason }}</p>
+                        <p v-if="toolResult.analysis.risk">{{ toolResult.analysis.risk }}</p>
+                        <div class="tool-meta-grid">
+                          <span>类型：{{ getImportContentTypeLabel(toolResult.analysis.contentType) }}</span>
+                          <span>动作：{{ getImportDecisionLabel(toolResult.analysis.decision) }}</span>
+                        </div>
+                      </div>
+
+                      <div v-if="toolResult.inspirationSeeds?.length" class="tool-detail-section">
+                        <span class="tool-detail-label">灵感种子</span>
+                        <ol class="seed-list">
+                          <li v-for="seed in toolResult.inspirationSeeds" :key="seed.id">
+                            <strong>{{ seed.order }}. {{ seed.title }}</strong>
+                            <span>{{ seed.logline }}</span>
+                            <small>冲突：{{ seed.keyConflict }} · 画面：{{ seed.visualHook }}</small>
+                          </li>
+                        </ol>
+                      </div>
+
+                      <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
+                        <span class="tool-detail-label">章节结果</span>
+                        <ol class="chapter-result-list">
+                          <li v-for="chapter in toolResult.chapters" :key="chapter.id">
+                            <span>{{ chapter.order }}. {{ chapter.title }}</span>
+                            <small>{{ chapter.status }}</small>
+                          </li>
+                        </ol>
+                      </div>
+
+                      <div v-if="toolResult.revision" class="tool-detail-section">
+                        <span class="tool-detail-label">写入记录</span>
+                        <p>{{ toolResult.revision.summary }}</p>
+                      </div>
                     </div>
-                  </div>
+                  </details>
 
-                  <div v-if="toolResult.inspirationSeeds?.length" class="tool-detail-section">
-                    <span class="tool-detail-label">灵感种子</span>
-                    <ol class="seed-list">
-                      <li v-for="seed in toolResult.inspirationSeeds" :key="seed.id">
-                        <strong>{{ seed.order }}. {{ seed.title }}</strong>
-                        <span>{{ seed.logline }}</span>
-                        <small>冲突：{{ seed.keyConflict }} · 画面：{{ seed.visualHook }}</small>
-                      </li>
-                    </ol>
-                  </div>
+                  <p class="tool-event-summary-text">{{ getToolEventSummary(toolResult) }}</p>
+                </article>
+              </div>
+            </div>
 
-                  <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
-                    <span class="tool-detail-label">章节结果</span>
-                    <ol class="chapter-result-list">
-                      <li v-for="chapter in toolResult.chapters" :key="chapter.id">
-                        <span>{{ chapter.order }}. {{ chapter.title }}</span>
-                        <small>{{ chapter.status }}</small>
-                      </li>
-                    </ol>
-                  </div>
-
-                  <div v-if="toolResult.revision" class="tool-detail-section">
-                    <span class="tool-detail-label">写入记录</span>
-                    <p>{{ toolResult.revision.summary }}</p>
-                  </div>
-                </div>
-              </details>
-
-              <p class="tool-event-summary-text">{{ toolResult.summary }}</p>
-            </article>
+            <div v-if="shouldShowMessageText(message)" class="message-body final-message-body" :class="{ 'is-failed': message.status === 'failed' }">
+              <p class="message-text">{{ getMessageContent(message) }}</p>
+            </div>
           </div>
-
-          <p v-if="shouldShowMessageText(message)" class="message-text">{{ getMessageContent(message) }}</p>
-        </div>
-        <div v-if="message.role === 'user'" class="message-avatar user-avatar">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="avatar-img" />
-        </div>
+        </template>
+        <template v-else>
+          <div class="message-body">
+            <p class="message-text">{{ getMessageContent(message) }}</p>
+          </div>
+          <div class="message-avatar user-avatar">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="avatar-img" />
+          </div>
+        </template>
       </article>
 
       <p v-if="dialogueError" class="dialogue-error">{{ dialogueError }}</p>
@@ -119,22 +130,7 @@
       <p v-if="runtimeModelError" class="dialogue-error">{{ runtimeModelError }}</p>
     </section>
 
-    <section class="dialogue-quick-actions" aria-label="快捷提问">
-      <span class="quick-actions-title">快捷建议</span>
-      <div class="quick-actions-grid">
-        <button
-          v-for="(item, index) in quickPrompts"
-          :key="item.text"
-          class="quick-action-btn"
-          type="button"
-          :disabled="dialogueSending"
-          @click="draft = item.text"
-        >
-          <component :is="item.icon" :size="14" class="quick-icon" :class="'color-' + (index % 4)" />
-          <span>{{ item.text }}</span>
-        </button>
-      </div>
-    </section>
+
 
     <footer class="dialogue-composer">
       <div class="composer-inner">
@@ -146,15 +142,7 @@
           </span>
         </div>
         <p v-if="attachmentError" class="attachment-error">{{ attachmentError }}</p>
-        <textarea
-          v-model="draft"
-          aria-label="输入对话内容"
-          placeholder="告诉我的想法，或输入“/”唤起指令"
-          rows="2"
-          :disabled="dialogueSending"
-          @keydown.enter.exact.prevent="submit"
-        ></textarea>
-        <div class="composer-actions">
+        <div class="composer-input-row">
           <input
             ref="fileInputRef"
             class="file-input"
@@ -166,6 +154,14 @@
           <button class="attach-btn" type="button" title="上传剧本文本" :disabled="dialogueSending" @click="fileInputRef?.click()">
             <Paperclip :size="16" />
           </button>
+          <textarea
+            v-model="draft"
+            aria-label="输入对话内容"
+            placeholder="告诉我的想法，或输入“/”唤起指令"
+            rows="1"
+            :disabled="dialogueSending"
+            @keydown.enter.exact.prevent="submit"
+          ></textarea>
           <button class="send-btn" type="button" title="发送" :disabled="!canSend" @click="submit">
             <Loader2 v-if="dialogueSending" class="is-spinning" :size="14" />
             <ArrowUp v-else :size="14" />
@@ -352,17 +348,12 @@ function getMessageToolResults(message: DialogueMessageItem) {
   return toolResultsByMessageId.value.get(message.id) ?? [];
 }
 
+function shouldShowProcessBlock(message: DialogueMessageItem) {
+  return message.role === "assistant" && (message.status === "running" || getMessageToolResults(message).length > 0);
+}
+
 function shouldShowMessageText(message: DialogueMessageItem) {
-  const content = getMessageContent(message).trim();
-  if (!content) {
-    return false;
-  }
-
-  if (message.role === "assistant" && getMessageToolResults(message).length > 0 && message.status !== "failed") {
-    return false;
-  }
-
-  return true;
+  return getMessageContent(message).trim().length > 0;
 }
 
 function isSkillTool(result: DialogueToolResult) {
@@ -379,6 +370,35 @@ function getToolKindIcon(result: DialogueToolResult) {
 
 function getToolDisplayName(result: DialogueToolResult) {
   return toolDisplayNames[result.tool] ?? result.tool;
+}
+
+function getToolEventSummary(result: DialogueToolResult) {
+  if (result.status === "failed") {
+    return "执行失败，详细原因见最终回复。";
+  }
+
+  if (result.status === "needs_user_confirmation") {
+    return "已完成分析，需要你确认下一步。";
+  }
+
+  if (result.tool === "generate_inspiration_seeds") {
+    const seedCount = result.inspirationSeeds?.length ?? 0;
+    return seedCount > 0 ? `已生成 ${seedCount} 个灵感方向。` : "已完成灵感生成。";
+  }
+
+  if (result.tool === "import_script_to_chapters") {
+    return `已写入 ${result.chapters.length} 个章节。`;
+  }
+
+  if (result.tool === "generate_script_from_seed") {
+    return "已根据选中的灵感方向生成章节草稿。";
+  }
+
+  if (result.tool === "update_chapter_draft") {
+    return "已更新当前章节草稿。";
+  }
+
+  return "已完成导入前分析。";
 }
 
 function getToolStatusLabel(result: DialogueToolResult) {
@@ -471,7 +491,7 @@ function getImportDecisionLabel(decision: string) {
 .dialogue-panel-header h2 {
   margin: 0;
   color: #f1f5f9;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -570,9 +590,16 @@ function getImportDecisionLabel(decision: string) {
   border-radius: 12px;
   background: rgba(30, 35, 55, 0.6);
   color: #e2e8f0;
-  padding: 12px 14px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 12px;
   line-height: 1.6;
+}
+
+.assistant-message-stack {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
 }
 
 .message-body p {
@@ -582,8 +609,6 @@ function getImportDecisionLabel(decision: string) {
 
 .message-text {
   display: block;
-  max-height: min(46vh, 520px);
-  overflow-y: auto;
   padding-right: 4px;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -601,6 +626,16 @@ function getImportDecisionLabel(decision: string) {
   border: 1px solid rgba(139, 92, 246, 0.2);
   background: rgba(139, 92, 246, 0.05);
   border-top-left-radius: 4px;
+}
+
+.dialogue-message.is-assistant .process-message-body {
+  border-color: rgba(96, 165, 250, 0.16);
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.dialogue-message.is-assistant .final-message-body {
+  border-color: rgba(139, 92, 246, 0.28);
+  background: rgba(139, 92, 246, 0.08);
 }
 
 .message-process-card,
@@ -928,16 +963,23 @@ function getImportDecisionLabel(decision: string) {
   flex-direction: column;
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 12px 14px;
-  gap: 12px;
+  border-radius: 18px;
+  padding: 6px 8px;
+  gap: 8px;
   transition: border-color 0.2s;
+}
+
+.composer-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .attachment-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  padding: 4px 8px 0;
 }
 
 .attachment-chip {
@@ -950,7 +992,7 @@ function getImportDecisionLabel(decision: string) {
   background: rgba(96, 165, 250, 0.1);
   color: #bfdbfe;
   padding: 5px 8px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .attachment-chip span {
@@ -977,33 +1019,30 @@ function getImportDecisionLabel(decision: string) {
 .attachment-error {
   margin: 0;
   color: #fca5a5;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.4;
+  padding: 0 8px;
 }
 
 .composer-inner:focus-within {
   border-color: rgba(139, 92, 246, 0.4);
 }
 
-.composer-inner textarea {
-  width: 100%;
+.composer-input-row textarea {
+  flex: 1;
+  min-width: 0;
   resize: none;
   border: none;
   background: transparent;
   color: #f1f5f9;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
   outline: none;
+  padding: 4px 0;
 }
 
-.composer-inner textarea::placeholder {
+.composer-input-row textarea::placeholder {
   color: #64748b;
-}
-
-.composer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .file-input {

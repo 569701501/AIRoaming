@@ -43,6 +43,7 @@ const editorTheme = EditorView.theme({
   ".cm-scroller": {
     fontFamily: "inherit",
     lineHeight: "1.8",
+    overflow: "auto",
   },
   ".cm-content": {
     minHeight: "100%",
@@ -305,17 +306,32 @@ defineExpose({
 <style scoped>
 .markdown-text-editor {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .markdown-editor-root {
-  flex: 1;
+  display: flex;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .markdown-editor-root :deep(.cm-editor) {
+  flex: 1 1 auto;
   height: 100%;
+  min-height: 0;
+}
+
+.markdown-editor-root :deep(.cm-scroller) {
+  overflow: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.markdown-editor-root :deep(.cm-scroller::-webkit-scrollbar) {
+  display: none;
 }
 </style>

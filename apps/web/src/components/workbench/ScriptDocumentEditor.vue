@@ -1,31 +1,6 @@
 <template>
   <section class="script-editor" aria-label="剧本">
-    <header class="editor-toolbar">
-      <div class="toolbar-group">
-        <span class="toolbar-label">Markdown</span>
-        <div class="toolbar-divider"></div>
-        <button class="toolbar-btn text-btn" type="button" title="一级标题" @click="editorRef?.setHeading(1)">H1</button>
-        <button class="toolbar-btn text-btn" type="button" title="二级标题" @click="editorRef?.setHeading(2)">H2</button>
-        <button class="toolbar-btn text-btn" type="button" title="三级标题" @click="editorRef?.setHeading(3)">H3</button>
-      </div>
 
-      <div class="toolbar-group">
-        <button class="toolbar-btn" type="button" title="无序列表" @click="editorRef?.toggleBulletList()"><List :size="14" /></button>
-        <button class="toolbar-btn" type="button" title="有序列表" @click="editorRef?.toggleOrderedList()"><ListOrdered :size="14" /></button>
-      </div>
-
-      <div class="toolbar-group">
-        <button class="toolbar-btn" type="button" title="加粗" @click="editorRef?.wrapSelection('**', '**')"><Bold :size="14" /></button>
-        <button class="toolbar-btn" type="button" title="斜体" @click="editorRef?.wrapSelection('*', '*')"><Italic :size="14" /></button>
-        <button class="toolbar-btn" type="button" title="下划线" @click="editorRef?.wrapSelection('<u>', '</u>')"><Underline :size="14" /></button>
-        <button class="toolbar-btn" type="button" title="删除线" @click="editorRef?.wrapSelection('~~', '~~')"><Strikethrough :size="14" /></button>
-        <button class="toolbar-btn" type="button" title="引用" @click="editorRef?.toggleBlockquote()"><Quote :size="14" /></button>
-      </div>
-
-      <div class="toolbar-group">
-        <button class="toolbar-btn" type="button" title="插入图片 Markdown" @click="editorRef?.insertImage()"><Image :size="14" /></button>
-      </div>
-    </header>
 
     <div class="editor-content">
       <MarkdownTextEditor
@@ -64,12 +39,30 @@
         </button>
       </div>
     </footer>
+    <Teleport to="body">
+      <div v-if="showResetConfirm" class="modal-overlay" @click.self="showResetConfirm = false">
+        <div class="modal-content">
+          <div class="modal-header">
+            <AlertTriangle class="modal-icon" :size="20" />
+            <span class="modal-title">清空剧本</span>
+          </div>
+          <p class="modal-desc">
+            此操作将<strong>删除当前项目下所有章节草稿</strong>，并重置为一个空白的第 1 章。<br />
+            确定要继续吗？
+          </p>
+          <div class="modal-actions">
+            <button class="modal-btn cancel" type="button" @click="showResetConfirm = false">取消</button>
+            <button class="modal-btn danger" type="button" @click="confirmReset">确定清空</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History } from "lucide-vue-next";
+import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History, AlertTriangle } from "lucide-vue-next";
 import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import MarkdownTextEditor from "./MarkdownTextEditor.vue";
@@ -90,6 +83,7 @@ const emit = defineEmits<{
 
 const editorRef = ref<MarkdownTextEditorHandle | null>(null);
 const sourceText = ref("");
+const showResetConfirm = ref(false);
 const currentChapterSourceText = computed(() => getCurrentChapterSourceText(props.snapshot));
 
 const estimatedPages = computed(() => {
@@ -162,13 +156,12 @@ function submitReset() {
   if (!canReset.value) {
     return;
   }
+  showResetConfirm.value = true;
+}
 
-  const confirmed = window.confirm("清空剧本会删除当前项目下所有章节草稿，并重置为一个空白第 1 章。确定继续吗？");
-  if (!confirmed) {
-    return;
-  }
-
+function confirmReset() {
   emit("resetScript");
+  showResetConfirm.value = false;
 }
 
 function shortId(id: string) {
@@ -180,6 +173,7 @@ function shortId(id: string) {
 .script-editor {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 14px;
@@ -248,7 +242,9 @@ function shortId(id: string) {
 }
 
 .editor-content {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 32px 48px;
   display: flex;
   flex-direction: column;
@@ -258,11 +254,14 @@ function shortId(id: string) {
 
 .editor-footer {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.02);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 16px;
+  overflow: hidden;
 }
 
 .footer-stats {
@@ -271,6 +270,19 @@ function shortId(id: string) {
   gap: 16px;
   color: #64748b;
   font-size: 13px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.footer-stats::-webkit-scrollbar {
+  display: none;
+}
+
+.footer-stats > span {
+  white-space: nowrap;
 }
 
 .save-status {
@@ -278,11 +290,13 @@ function shortId(id: string) {
   align-items: center;
   gap: 6px;
   color: #34d399;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .revision-status {
   display: inline-flex;
-  max-width: min(460px, 48vw);
+  max-width: 160px;
   min-width: 0;
   align-items: center;
   gap: 6px;
@@ -299,6 +313,7 @@ function shortId(id: string) {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .reset-script-btn,
@@ -361,5 +376,107 @@ function shortId(id: string) {
 .save-draft-btn:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 23, 0.7);
+  backdrop-filter: blur(8px);
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+.modal-content {
+  width: 360px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  animation: modal-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.modal-icon {
+  color: #f87171;
+}
+
+.modal-title {
+  color: #f1f5f9;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.modal-desc {
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.modal-desc strong {
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.modal-btn.cancel {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+}
+
+.modal-btn.cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.modal-btn.danger {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.modal-btn.danger:hover {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fee2e2;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 </style>

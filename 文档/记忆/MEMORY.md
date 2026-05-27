@@ -30,5 +30,6 @@
 - 用户提供剧本整理已接入导入前分析：对话框回形针支持 `.txt/.md` 文本附件，输入框支持粘贴长剧本；明确整理意图或长文本会先触发 `analyze_script_import`，只有内容像可导入剧本且章节边界可信时才调用 `import_script_to_chapters` 写入章节。失败或需要确认时不写 `chapters/*/script.md`；需要确认的待导入文本暂存在进程内剧本线程，用户回复“确认导入/确认覆盖”后再写入。
 - 剧本灵感和章节内 AI 编辑已接入第一版 AI skill 驱动链路：用户说“帮我找灵感”会触发 `generate_inspiration_seeds`，后端调用 OpenCode / `script-inspiration-seeding` 生成 5 个方向；用户回复“选第 N 个方向”会触发 `generate_script_from_seed`，调用 `script-chapter-drafting` 生成章节正文并写入当前章节；用户在章节内要求改写会触发 `update_chapter_draft`，调用 `script-chapter-editing` 基于编辑器最新 `context.sourceText` 返回完整改写稿。后端不硬编码灵感种子或章节正文。
 - 章节最近一次 AI 写入来源通过 `Chapter.lastScriptRevision` 暴露，并写入 `chapter.json` 与 `script.revisions/latest.json`；字段包含 `threadId`、`messageId`、`toolCallId`、`operation` 和摘要。完整写入历史和回退仍待实现。
-- 对话过程展示已参考 AuroraPlatformWeb：`DialogueThread.toolResults` 保存 AI 受控工具/技能结果，前端按 `messageId` 挂回 assistant 消息，以思考行、技能/工具过程卡片和局部滚动正文展示；工具结果不再只作为临时 notice，也不混入普通正文撑开页面。
+- 对话过程展示已参考 AuroraPlatformWeb：`DialogueThread.toolResults` 保存 AI 受控工具/技能结果，前端按 `messageId` 挂回 assistant 消息；过程卡片只表达技能/工具状态和结构化详情，`DialogueMessageItem.content` 作为面向用户的最终回复用独立气泡自然展开，正文气泡不做内部滚动，避免工具结果混入普通正文或让用户误以为没有最终回复。
+- 剧本文档编辑器的滚动契约：`ProjectWorkbenchView -> ScriptDocumentEditor -> MarkdownTextEditor -> CodeMirror` 这条 flex 高度链路必须逐层保留 `min-height: 0` 和合适的 `overflow`，由 CodeMirror `.cm-scroller` 接管正文内部滚动，避免长剧本撑开工作台。
 - 参考 AuroraPlatformWeb 的灵感文档设计：左侧对话推动流程，右侧固定文档承载持久事实；附件和用户输入只是临时上下文，正式事实必须落到工作区稳定路径，并通过状态/文件事件同步 UI。

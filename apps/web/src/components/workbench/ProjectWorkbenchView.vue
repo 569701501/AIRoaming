@@ -23,24 +23,22 @@
       />
 
       <template v-if="isScriptStep">
-        <section class="script-workarea" aria-label="剧本章节工作区">
+        <div class="script-middle-column">
           <ScriptChapterList
             :chapters="chapterItems"
             :current-chapter-id="currentChapterId"
             @select="$emit('selectChapter', $event)"
           />
-          <div class="script-panels">
-            <ScriptDocumentEditor
-              :loading="loading"
-              :snapshot="snapshot"
-              @save-draft="emitChapterDraft"
-              @complete-chapter="emitCompleteChapter"
-              @reset-script="$emit('resetScript')"
-              @update-source-text="scriptDraft = $event"
-            />
-            <ScriptOutlinePanel :snapshot="snapshot" :source-text="scriptDraft" />
-          </div>
-        </section>
+          <ScriptDocumentEditor
+            :loading="loading"
+            :snapshot="snapshot"
+            @save-draft="emitChapterDraft"
+            @complete-chapter="emitCompleteChapter"
+            @reset-script="$emit('resetScript')"
+            @update-source-text="scriptDraft = $event"
+          />
+        </div>
+        <ScriptOutlinePanel :snapshot="snapshot" :source-text="scriptDraft" />
       </template>
 
       <div v-else class="step-placeholder">
@@ -148,11 +146,11 @@ function emitDialogue(input: SendDialogueMessageRequest) {
 
 <style scoped>
 .project-workbench {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   gap: 8px;
   width: 100%;
-  height: 100%;
   min-height: 0;
   overflow: hidden;
   margin: 0 auto;
@@ -164,26 +162,20 @@ function emitDialogue(input: SendDialogueMessageRequest) {
   grid-template-columns: 35fr 45fr 20fr;
   gap: 16px;
   align-items: stretch;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.script-workarea {
-  display: grid;
-  grid-column: 2 / -1;
-  grid-template-rows: auto minmax(0, 1fr);
+.script-middle-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   gap: 12px;
   min-width: 0;
   min-height: 0;
-}
-
-.script-panels {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 16px;
-  min-width: 0;
-  min-height: 0;
+  overflow: hidden;
 }
 
 .step-placeholder {
@@ -229,14 +221,6 @@ function emitDialogue(input: SendDialogueMessageRequest) {
     grid-template-columns: 35fr 65fr;
   }
 
-  .script-workarea {
-    grid-column: 2;
-  }
-
-  .script-panels {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .workbench-content :deep(.chapter-inspector-panel) {
     display: none;
   }
@@ -256,14 +240,13 @@ function emitDialogue(input: SendDialogueMessageRequest) {
   .workbench-content {
     grid-template-columns: 1fr;
     overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  .workbench-content :deep(.script-editor) {
+  .script-middle-column {
     order: 1;
-  }
-
-  .script-workarea {
-    grid-column: 1;
   }
 
   .workbench-content :deep(.dialogue-panel) {
