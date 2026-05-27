@@ -140,7 +140,7 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
 
 .workbench-content {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr) 280px;
+  grid-template-columns: 35fr 45fr 20fr;
   gap: 16px;
   align-items: stretch;
   min-width: 0;
@@ -203,7 +203,7 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
 
 @media (max-width: 1200px) {
   .workbench-content {
-    grid-template-columns: 380px minmax(0, 1fr);
+    grid-template-columns: 35fr 65fr;
   }
 
   .script-workarea {
