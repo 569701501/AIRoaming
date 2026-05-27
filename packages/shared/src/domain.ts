@@ -35,6 +35,68 @@ export const CHAPTER_STATUSES = [
 ] as const;
 export type ChapterStatus = (typeof CHAPTER_STATUSES)[number];
 
+export const PROJECT_WORKFLOW_SCHEMA_VERSION = 1;
+
+export const PROJECT_WORKFLOW_STEP_KEYS = [
+  "project_story",
+  "story_structure",
+  "storyboard",
+  "image_candidates",
+  "layout_export",
+  "asset_package",
+] as const;
+export type ProjectWorkflowStepKey = (typeof PROJECT_WORKFLOW_STEP_KEYS)[number];
+
+export const PROJECT_WORKFLOW_STEP_STATUSES = ["done", "active", "waiting", "blocked"] as const;
+export type ProjectWorkflowStepStatus = (typeof PROJECT_WORKFLOW_STEP_STATUSES)[number];
+
+export const PROJECT_WORKFLOW_SCOPES = ["chapter", "project"] as const;
+export type ProjectWorkflowScope = (typeof PROJECT_WORKFLOW_SCOPES)[number];
+
+export const PROJECT_WORKFLOW_STEPS = [
+  {
+    key: "project_story",
+    label: "剧本",
+    scope: "chapter",
+    completionCriteria: ["当前章节 `script.md` 已保存", "用户点击完成本章并写入章节剧本版本"],
+  },
+  {
+    key: "story_structure",
+    label: "剧情结构",
+    scope: "chapter",
+    completionCriteria: ["当前章节存在结构化剧情", "`StoryVersion` 绑定到当前 `chapterId`"],
+  },
+  {
+    key: "storyboard",
+    label: "分镜工作台",
+    scope: "chapter",
+    completionCriteria: ["当前章节分镜已生成并可编辑", "分镜可追溯到剧情节拍"],
+  },
+  {
+    key: "image_candidates",
+    label: "候选图工作台",
+    scope: "chapter",
+    completionCriteria: ["当前章节分镜已生成候选图", "用户已选择或锁定可用候选"],
+  },
+  {
+    key: "layout_export",
+    label: "排版导出",
+    scope: "chapter",
+    completionCriteria: ["当前章节已完成页面排版", "导出物可追溯到锁定候选"],
+  },
+  {
+    key: "asset_package",
+    label: "素材包",
+    scope: "project",
+    completionCriteria: ["项目级共享素材与章节产物已归档", "素材包 manifest 可追溯到章节和任务"],
+  },
+] as const satisfies ReadonlyArray<{
+  key: ProjectWorkflowStepKey;
+  label: string;
+  scope: ProjectWorkflowScope;
+  completionCriteria: readonly string[];
+}>;
+
 export const GENERATION_TASK_TYPES = [
   "story_parse",
   "shot_generate",

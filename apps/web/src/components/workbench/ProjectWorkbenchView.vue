@@ -9,6 +9,7 @@
     <section class="workbench-content" :aria-label="`${currentStageLabel}工作区`">
       <ProjectDialoguePanel
         :dialogue-error="dialogueError"
+        :dialogue-notice="dialogueNotice"
         :dialogue-sending="dialogueSending"
         :dialogue-thread="dialogueThread"
         :loading="loading"
@@ -17,7 +18,7 @@
         :selected-model="selectedDialogueModel"
         :snapshot="snapshot"
         :step-label="currentStageLabel"
-        @send="$emit('sendDialogue', $event)"
+        @send="emitDialogue"
         @select-model="$emit('selectDialogueModel', $event)"
       />
 
@@ -34,6 +35,7 @@
               :snapshot="snapshot"
               @save-draft="emitChapterDraft"
               @complete-chapter="emitCompleteChapter"
+              @reset-script="$emit('resetScript')"
               @update-source-text="scriptDraft = $event"
             />
             <ScriptOutlinePanel :snapshot="snapshot" :source-text="scriptDraft" />
@@ -52,7 +54,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
@@ -68,6 +70,7 @@ const props = defineProps<{
   dialogueThread: DialogueThread | null;
   dialogueSending: boolean;
   dialogueError: string | null;
+  dialogueNotice: string | null;
   runtimeModels: AIRuntimeModelItem[];
   selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
@@ -79,10 +82,11 @@ const emit = defineEmits<{
   back: [];
   saveChapterDraft: [payload: { chapterId: string; input: SaveChapterDraftRequest }];
   completeChapter: [payload: { chapterId: string; input: CompleteChapterRequest }];
+  resetScript: [];
   selectChapter: [chapterId: string];
   selectStep: [stepKey: string];
   selectDialogueModel: [model: AIRuntimeModelSelection];
-  sendDialogue: [content: string];
+  sendDialogue: [input: SendDialogueMessageRequest];
 }>();
 
 const currentStageIndex = computed(() => {
@@ -127,15 +131,32 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
     input,
   });
 }
+
+function emitDialogue(input: SendDialogueMessageRequest) {
+  const hasAttachments = (input.attachments?.length ?? 0) > 0;
+  const shouldUseProjectThread = hasAttachments || input.intent === "organize_script_to_chapters" || input.intent === "generate_inspiration_seeds";
+  emit("sendDialogue", {
+    ...input,
+    chapterId: shouldUseProjectThread ? null : currentChapterId.value,
+    context: {
+      ...input.context,
+      sourceText: scriptDraft.value,
+    },
+  });
+}
 </script>
 
 <style scoped>
 .project-workbench {
   display: grid;
-  gap: 16px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   margin: 0 auto;
-  padding: 22px 24px 30px;
+  padding: 12px 24px 24px;
 }
 
 .workbench-content {
@@ -144,6 +165,8 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
   gap: 16px;
   align-items: stretch;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .script-workarea {
@@ -166,7 +189,7 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
 .step-placeholder {
   display: grid;
   grid-column: 2 / -1;
-  min-height: 560px;
+  min-height: 0;
   align-content: center;
   gap: 10px;
   border: 1px solid rgba(116, 95, 255, 0.16);
@@ -224,9 +247,15 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
 }
 
 @media (max-width: 860px) {
+  .project-workbench {
+    height: auto;
+    min-height: calc(100vh - 72px);
+    overflow: visible;
+  }
 
   .workbench-content {
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .workbench-content :deep(.script-editor) {
@@ -239,6 +268,8 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
 
   .workbench-content :deep(.dialogue-panel) {
     order: 2;
+    min-height: 520px;
+    max-height: 72vh;
   }
 
   .step-placeholder {

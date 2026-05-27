@@ -36,6 +36,11 @@ export class ProjectsController {
     return ok({ snapshot: await this.projectsService.getWorkbenchSnapshot(projectId, chapterId) });
   }
 
+  @Post(":projectId/script/reset")
+  async resetScript(@Param("projectId") projectId: string) {
+    return ok(await this.projectsService.resetProjectScript(projectId));
+  }
+
   @Get(":projectId/chapters")
   async listChapters(@Param("projectId") projectId: string) {
     return ok(await this.projectsService.listChapters(projectId));

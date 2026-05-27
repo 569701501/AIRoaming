@@ -6,12 +6,17 @@
   text-rendering: optimizeLegibility;
 }
 
+html {
+  height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   min-width: 320px;
+  height: 100%;
   min-height: 100vh;
   margin: 0;
   background:
@@ -36,6 +41,7 @@ button:disabled {
 }
 
 #app {
+  height: 100%;
   min-height: 100vh;
 }
 
@@ -45,10 +51,20 @@ button:disabled {
   min-height: 100vh;
 }
 
+.app-shell.is-project-mode {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .app-body {
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+.app-shell.is-project-mode .app-body {
+  overflow: hidden;
 }
 
 .app-sidebar {
@@ -157,9 +173,15 @@ button:disabled {
 }
 
 .app-main {
+  flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow-x: hidden;
   background: rgba(245, 247, 255, 0.04);
+}
+
+.app-shell.is-project-mode .app-main {
+  overflow: hidden;
 }
 
 .topbar {
@@ -175,6 +197,19 @@ button:disabled {
   background: rgba(11, 16, 32, 0.78);
   padding: 14px 24px;
   backdrop-filter: blur(18px);
+}
+
+@media (max-width: 860px) {
+  .app-shell.is-project-mode {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-shell.is-project-mode .app-body,
+  .app-shell.is-project-mode .app-main {
+    overflow: visible;
+  }
 }
 
 .topbar-actions {

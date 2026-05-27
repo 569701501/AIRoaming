@@ -8,10 +8,12 @@ import type {
   DialogueMessageItem,
   DialogueStreamEvent,
   DialogueThread,
+  DialogueToolResult,
   GenerationTaskItem,
   HealthResponse,
   ProjectListItem,
   SaveChapterDraftRequest,
+  SendDialogueMessageRequest,
   UpdateProjectDraftRequest,
   WorkbenchSnapshot,
   WorkspaceInfo,
@@ -30,6 +32,7 @@ interface WorkbenchState {
   dialogueThread: DialogueThread | null;
   dialogueSending: boolean;
   dialogueError: string | null;
+  dialogueNotice: string | null;
   runtimeModels: AIRuntimeModelItem[];
   selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
@@ -50,6 +53,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     dialogueThread: null,
     dialogueSending: false,
     dialogueError: null,
+    dialogueNotice: null,
     runtimeModels: [],
     selectedDialogueModel: null,
     runtimeModelError: null,
@@ -79,7 +83,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (this.activeProjectId) {
           const [workbench, dialogue] = await Promise.all([
             api.workbench(this.activeProjectId, this.activeChapterId),
-            api.dialogueThread(this.activeProjectId, this.activeStepKey),
+            api.dialogueThread(this.activeProjectId, this.activeStepKey, this.activeChapterId),
           ]);
           this.snapshot = workbench.snapshot;
           this.activeChapterId = workbench.snapshot.currentChapter?.id ?? null;
@@ -122,6 +126,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.snapshot = null;
       this.dialogueThread = null;
       this.dialogueError = null;
+      this.dialogueNotice = null;
       await this.refresh();
     },
     async loadRuntimeModels() {
@@ -164,6 +169,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           this.activeStepKey = "project_story";
           this.snapshot = null;
           this.dialogueThread = null;
+          this.dialogueNotice = null;
         }
         await this.refresh();
       } catch (error) {
@@ -238,9 +244,36 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async sendDialogueMessage(content: string) {
+    async resetProjectScript(): Promise<ChapterDetail | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+
+        const result = await api.resetProjectScript(projectId);
+        const [workbench, projects] = await Promise.all([
+          api.workbench(projectId, result.chapter.id),
+          api.listProjects(),
+        ]);
+        this.snapshot = workbench.snapshot;
+        this.activeChapterId = result.chapter.id;
+        this.projects = projects.items;
+        this.dialogueNotice = "已清空项目剧本，并重置为第 1 章空白草稿。";
+        return result.chapter;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "清空剧本失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async sendDialogueMessage(input: SendDialogueMessageRequest) {
       this.dialogueSending = true;
       this.dialogueError = null;
+      this.dialogueNotice = null;
       try {
         const projectId = this.activeProjectId;
         if (!projectId) {
@@ -248,7 +281,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         const stepKey = this.activeStepKey;
         await api.sendDialogueMessageStream(projectId, stepKey, {
-          content,
+          ...input,
           stepKey,
           model: this.selectedDialogueModel ?? undefined,
         }, (event) => this.applyDialogueStreamEvent(event));
@@ -276,6 +309,24 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         if (event.assistantMessage) {
           this.upsertDialogueMessage(event.assistantMessage);
+        }
+        return;
+      }
+
+      if (event.type === "dialogue.tool_result.created") {
+        if (event.thread) {
+          this.dialogueThread = event.thread;
+        }
+        if (event.toolResult) {
+          this.upsertDialogueToolResult(event.toolResult);
+          const shouldRefreshWorkbench = event.toolResult.status === "succeeded" && [
+            "import_script_to_chapters",
+            "generate_script_from_seed",
+            "update_chapter_draft",
+          ].includes(event.toolResult.tool);
+          if (shouldRefreshWorkbench) {
+            void this.refreshAfterToolResult(event.toolResult.currentChapterId);
+          }
         }
         return;
       }
@@ -322,6 +373,34 @@ export const useWorkbenchStore = defineStore("workbench", {
           : [...this.dialogueThread.messages, nextMessage],
       };
     },
+    upsertDialogueToolResult(nextResult: DialogueToolResult) {
+      if (!this.dialogueThread) {
+        return;
+      }
+
+      const toolResults = this.dialogueThread.toolResults ?? [];
+      const exists = toolResults.some((result) => result.id === nextResult.id);
+      this.dialogueThread = {
+        ...this.dialogueThread,
+        toolResults: exists
+          ? toolResults.map((result) => (result.id === nextResult.id ? nextResult : result))
+          : [...toolResults, nextResult],
+      };
+    },
+    async refreshAfterToolResult(chapterId: string | null) {
+      const projectId = this.activeProjectId;
+      if (!projectId) {
+        return;
+      }
+
+      const [workbench, projects] = await Promise.all([
+        api.workbench(projectId, chapterId ?? this.activeChapterId),
+        api.listProjects(),
+      ]);
+      this.snapshot = workbench.snapshot;
+      this.activeChapterId = workbench.snapshot.currentChapter?.id ?? chapterId ?? this.activeChapterId;
+      this.projects = projects.items;
+    },
     closeProject() {
       this.activeProjectId = null;
       this.activeChapterId = null;
@@ -329,6 +408,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.snapshot = null;
       this.dialogueThread = null;
       this.dialogueError = null;
+      this.dialogueNotice = null;
     },
     async createMockStoryTask() {
       this.loading = true;

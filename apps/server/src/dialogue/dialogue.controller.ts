@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, Res } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query, Res } from "@nestjs/common";
 import type { DialogueStreamEvent, SendDialogueMessageRequest } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { DialogueService } from "./dialogue.service.js";
@@ -16,9 +16,13 @@ export class DialogueController {
   constructor(@Inject(DialogueService) private readonly dialogueService: DialogueService) {}
 
   @Get("threads/:stepKey")
-  async thread(@Param("projectId") projectId: string, @Param("stepKey") stepKey: string) {
+  async thread(
+    @Param("projectId") projectId: string,
+    @Param("stepKey") stepKey: string,
+    @Query("chapterId") chapterId?: string,
+  ) {
     return ok({
-      thread: await this.dialogueService.getProjectThread(projectId, stepKey),
+      thread: await this.dialogueService.getProjectThread(projectId, stepKey, chapterId ?? null),
     });
   }
 

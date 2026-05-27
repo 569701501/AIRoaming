@@ -7,7 +7,7 @@
 - 项目工作区隐藏全局左侧导航和顶部搜索；左侧是公共“对话框”，右侧是当前步骤主工作区；顶部保留返回项目列表和紧凑 6 步流程。
 - 项目主链路是：剧本、剧情结构、分镜工作台、候选图工作台、排版导出、素材包。
 - 对话框组件公共，但对话记录按步骤隔离；跨步骤只共享用户已确认的事实、保存文档和锁定产物。
-- AI 输出不能自动覆盖右侧文档，必须由用户显式“应用”或“插入”后才进入文档。
+- AI 不直接操作本地物理路径；剧本阶段允许 AI 通过 AI漫游受控工具/API 整理、生成和编辑章节草稿，其他阶段写入权限需按各自契约单独确认。
 - 第一阶段采用 OpenCode 作为项目对话框 AI Runtime；AI漫游自己的业务事实源仍是项目、对话、已确认事实和产物。
 - 剧本页右侧编辑器已换为 CodeMirror Markdown，保存接口当前仍保存纯文本 `sourceText`。
 - 剧本页最右侧当前章节信息面板从草稿文本轻量解析当前章节、故事主线、出场角色和场景列表；当前不调用 AI，也不保存结构化事实。
@@ -18,5 +18,17 @@
 - 目标本地结构为 `workspace/projects/{projectId}/chapters/chapter-001/script.md` 等章节目录；`story/story_draft.source.txt` 旧兼容路径已移除，新项目不再创建、读取或写入旧 `story/` 目录。
 - 章节共享契约已接入 `packages/shared`：包括 `ChapterStatus`、章节列表/详情/版本 DTO、保存草稿、完成本章请求响应；`WorkbenchSnapshot.chapters/currentChapter` 是剧本页当前章节读取主契约。
 - 后端已接入默认章节创建、项目索引重启恢复、章节列表 API、章节草稿保存 API 和完成本章 API；完成本章会写入 `script.versions/script-vNNN.md`，将当前章节标记为 `script_done`，并创建或进入下一章。
+- 后端和前端已接入项目级清空剧本能力：`POST /api/projects/{projectId}/script/reset` 会删除旧 `chapters/` 和历史 `story/` 目录，重建空白 `chapter-001`；整本剧本导入替换章节前也必须清理旧章节目录，避免服务重启扫描恢复 stale chapter。
 - 前端剧本页已接入章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；手动新建章节、重命名、删除、排序和后续产物失效提示仍待实现。
 - 生成任务中心已强制章节作用域任务带 `chapterId`：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须有 `target.chapterId`；`input.chapterId` 省略会由服务端写回，不一致会拒绝。
+- 项目 workflow 已接入为轻量流程状态：`ProjectWorkflow` 定义 6 步、当前章节下一步、步骤状态、完成标准和证据路径；后端按当前章节 `Chapter.status` 推导并写入 `workspace/projects/{projectId}/workflow.json`，前端流程栏只开放已完成步骤和当前 active 步骤。
+- 剧本对话当前已覆盖“聊天辅助 + OpenCode 流式输出 + 已保存/编辑器当前章节上下文 + 用户提供剧本整理 + 灵感种子生成 + AI 受控写章节草稿”；停止生成、对话持久化和完整回退仍待实现。
+- 剧本对话新方向已确认：剧本阶段有“用户提供剧本整理”和“无灵感生成剧本”双来源；已有剧本复用对话框附件上传或输入框粘贴，不新增独立导入主按钮，AI 负责整理格式、拆分章节并写入 `chapters/*/script.md`；无灵感时 AI 先生成灵感种子，用户选择后再生成章节剧本。
+- 剧本阶段 AI 工具应按业务能力暴露：读取当前章节/章节列表/项目事实、整理用户提供剧本并写入章节、生成灵感种子、从种子生成剧本、更新当前章节草稿、记录 AI 写入来源；不暴露本地物理路径或 shell。
+- 剧本阶段需要独立 agent/skill 约束：定义 AI 是漫画剧本协作者，区分固定剧本导入、灵感共创、章节起草、章节编辑和一致性检查；AI 可通过受控工具更新章节草稿，但必须保留来源追溯。
+- AI漫游已采用 `apps/server/opencodeAI` 作为 OpenCode AI 资产源码目录，参考 AuroraPlatformWeb 的 `agents / skills / tools` 组织方式，但内容必须是 AI漫游自己的漫画创作资产；当前已落地剧本协作 agent 和 `script-import-normalize` skill，运行时模板复制和真实 tool bridge 尚未接入。
+- 用户提供剧本整理已接入导入前分析：对话框回形针支持 `.txt/.md` 文本附件，输入框支持粘贴长剧本；明确整理意图或长文本会先触发 `analyze_script_import`，只有内容像可导入剧本且章节边界可信时才调用 `import_script_to_chapters` 写入章节。失败或需要确认时不写 `chapters/*/script.md`；需要确认的待导入文本暂存在进程内剧本线程，用户回复“确认导入/确认覆盖”后再写入。
+- 剧本灵感和章节内 AI 编辑已接入第一版 AI skill 驱动链路：用户说“帮我找灵感”会触发 `generate_inspiration_seeds`，后端调用 OpenCode / `script-inspiration-seeding` 生成 5 个方向；用户回复“选第 N 个方向”会触发 `generate_script_from_seed`，调用 `script-chapter-drafting` 生成章节正文并写入当前章节；用户在章节内要求改写会触发 `update_chapter_draft`，调用 `script-chapter-editing` 基于编辑器最新 `context.sourceText` 返回完整改写稿。后端不硬编码灵感种子或章节正文。
+- 章节最近一次 AI 写入来源通过 `Chapter.lastScriptRevision` 暴露，并写入 `chapter.json` 与 `script.revisions/latest.json`；字段包含 `threadId`、`messageId`、`toolCallId`、`operation` 和摘要。完整写入历史和回退仍待实现。
+- 对话过程展示已参考 AuroraPlatformWeb：`DialogueThread.toolResults` 保存 AI 受控工具/技能结果，前端按 `messageId` 挂回 assistant 消息，以思考行、技能/工具过程卡片和局部滚动正文展示；工具结果不再只作为临时 notice，也不混入普通正文撑开页面。
+- 参考 AuroraPlatformWeb 的灵感文档设计：左侧对话推动流程，右侧固定文档承载持久事实；附件和用户输入只是临时上下文，正式事实必须落到工作区稳定路径，并通过状态/文件事件同步 UI。

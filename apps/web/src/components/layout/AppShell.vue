@@ -14,6 +14,7 @@
           v-if="isProjectRoute && snapshot"
           :active-step-key="activeStepKey"
           :dialogue-error="dialogueError"
+          :dialogue-notice="dialogueNotice"
           :dialogue-sending="dialogueSending"
           :dialogue-thread="dialogueThread"
           :loading="loading"
@@ -26,6 +27,7 @@
           @back="goProjectLibrary"
           @save-chapter-draft="saveChapterDraft"
           @complete-chapter="completeChapter"
+          @reset-script="resetProjectScript"
           @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
           @select-dialogue-model="selectDialogueModel"
@@ -48,7 +50,7 @@
 import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import ProjectLibraryView from "../projects/ProjectLibraryView.vue";
@@ -62,6 +64,7 @@ const router = useRouter();
 const {
   activeStepKey,
   dialogueError,
+  dialogueNotice,
   dialogueSending,
   dialogueThread,
   error,
@@ -115,8 +118,17 @@ async function completeChapter(payload: { chapterId: string; input: CompleteChap
   await router.push(projectRoute(routeProjectId.value, "script", activeChapter.id));
 }
 
-async function sendDialogue(content: string) {
-  await workbench.sendDialogueMessage(content);
+async function resetProjectScript() {
+  const activeChapter = await workbench.resetProjectScript();
+  if (!activeChapter || !routeProjectId.value) {
+    return;
+  }
+
+  await router.push(projectRoute(routeProjectId.value, "script", activeChapter.id));
+}
+
+async function sendDialogue(input: SendDialogueMessageRequest) {
+  await workbench.sendDialogueMessage(input);
 }
 
 function selectDialogueModel(model: AIRuntimeModelSelection) {

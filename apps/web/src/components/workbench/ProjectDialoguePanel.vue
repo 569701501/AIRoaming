@@ -36,7 +36,78 @@
           <Bot :size="16" />
         </div>
         <div class="message-body" :class="{ 'is-failed': message.status === 'failed' }">
-          <p>{{ getMessageContent(message) }}</p>
+          <div v-if="message.role === 'assistant' && message.status === 'running'" class="message-process-card is-thinking">
+            <Loader2 class="is-spinning" :size="14" />
+            <span class="process-kind">思考</span>
+            <span class="process-text">OpenCode 正在组织回复</span>
+          </div>
+
+          <div v-if="getMessageToolResults(message).length > 0" class="message-process-list" aria-label="AI 执行过程">
+            <article
+              v-for="toolResult in getMessageToolResults(message)"
+              :key="toolResult.id"
+              class="tool-event-card"
+              :class="[`is-${toolResult.status}`, { 'is-skill': isSkillTool(toolResult) }]"
+            >
+              <details class="tool-event-details">
+                <summary class="tool-event-trigger">
+                  <span class="tool-status-icon">
+                    <component :is="getToolStatusIcon(toolResult)" :size="14" :class="getToolStatusClass(toolResult)" />
+                  </span>
+                  <span class="tool-kind-icon">
+                    <component :is="getToolKindIcon(toolResult)" :size="13" />
+                  </span>
+                  <span class="tool-event-title">
+                    <span>{{ getToolKindLabel(toolResult) }}</span>
+                    <strong>{{ getToolDisplayName(toolResult) }}</strong>
+                  </span>
+                  <span class="tool-status-label">{{ getToolStatusLabel(toolResult) }}</span>
+                </summary>
+
+                <div class="tool-detail-panel">
+                  <div v-if="toolResult.analysis" class="tool-detail-section">
+                    <span class="tool-detail-label">分析结论</span>
+                    <p>{{ toolResult.analysis.reason }}</p>
+                    <p v-if="toolResult.analysis.risk">{{ toolResult.analysis.risk }}</p>
+                    <div class="tool-meta-grid">
+                      <span>类型：{{ getImportContentTypeLabel(toolResult.analysis.contentType) }}</span>
+                      <span>动作：{{ getImportDecisionLabel(toolResult.analysis.decision) }}</span>
+                    </div>
+                  </div>
+
+                  <div v-if="toolResult.inspirationSeeds?.length" class="tool-detail-section">
+                    <span class="tool-detail-label">灵感种子</span>
+                    <ol class="seed-list">
+                      <li v-for="seed in toolResult.inspirationSeeds" :key="seed.id">
+                        <strong>{{ seed.order }}. {{ seed.title }}</strong>
+                        <span>{{ seed.logline }}</span>
+                        <small>冲突：{{ seed.keyConflict }} · 画面：{{ seed.visualHook }}</small>
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
+                    <span class="tool-detail-label">章节结果</span>
+                    <ol class="chapter-result-list">
+                      <li v-for="chapter in toolResult.chapters" :key="chapter.id">
+                        <span>{{ chapter.order }}. {{ chapter.title }}</span>
+                        <small>{{ chapter.status }}</small>
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div v-if="toolResult.revision" class="tool-detail-section">
+                    <span class="tool-detail-label">写入记录</span>
+                    <p>{{ toolResult.revision.summary }}</p>
+                  </div>
+                </div>
+              </details>
+
+              <p class="tool-event-summary-text">{{ toolResult.summary }}</p>
+            </article>
+          </div>
+
+          <p v-if="shouldShowMessageText(message)" class="message-text">{{ getMessageContent(message) }}</p>
         </div>
         <div v-if="message.role === 'user'" class="message-avatar user-avatar">
           <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="avatar-img" />
@@ -44,6 +115,7 @@
       </article>
 
       <p v-if="dialogueError" class="dialogue-error">{{ dialogueError }}</p>
+      <p v-if="dialogueNotice" class="dialogue-notice">{{ dialogueNotice }}</p>
       <p v-if="runtimeModelError" class="dialogue-error">{{ runtimeModelError }}</p>
     </section>
 
@@ -66,6 +138,14 @@
 
     <footer class="dialogue-composer">
       <div class="composer-inner">
+        <div v-if="attachments.length > 0" class="attachment-list" aria-label="已选择附件">
+          <span v-for="attachment in attachments" :key="attachment.id" class="attachment-chip">
+            <FileText :size="13" />
+            <span>{{ attachment.name }}</span>
+            <button type="button" title="移除附件" @click="removeAttachment(attachment.id)">×</button>
+          </span>
+        </div>
+        <p v-if="attachmentError" class="attachment-error">{{ attachmentError }}</p>
         <textarea
           v-model="draft"
           aria-label="输入对话内容"
@@ -75,7 +155,15 @@
           @keydown.enter.exact.prevent="submit"
         ></textarea>
         <div class="composer-actions">
-          <button class="attach-btn" type="button" title="上传剧本后续接入" disabled>
+          <input
+            ref="fileInputRef"
+            class="file-input"
+            type="file"
+            accept=".txt,.md,text/plain,text/markdown"
+            multiple
+            @change="handleFileChange"
+          />
+          <button class="attach-btn" type="button" title="上传剧本文本" :disabled="dialogueSending" @click="fileInputRef?.click()">
             <Paperclip :size="16" />
           </button>
           <button class="send-btn" type="button" title="发送" :disabled="!canSend" @click="submit">
@@ -90,8 +178,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ArrowUp, Bot, ChevronsLeft, FileText, Loader2, Paperclip, Sparkles, Zap, Users, Lightbulb, Search } from "lucide-vue-next";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueMessageItem, DialogueThread, WorkbenchSnapshot } from "@airoaming/shared";
+import { ArrowUp, Bot, Brain, CheckCircle2, ChevronsLeft, CircleAlert, FileText, Loader2, Paperclip, Sparkles, Wrench, Zap, Users, Lightbulb, Search } from "lucide-vue-next";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 
 const props = defineProps<{
@@ -100,6 +188,7 @@ const props = defineProps<{
   dialogueThread: DialogueThread | null;
   dialogueSending: boolean;
   dialogueError: string | null;
+  dialogueNotice: string | null;
   runtimeModels: AIRuntimeModelItem[];
   selectedModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
@@ -107,11 +196,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  send: [content: string];
+  send: [input: SendDialogueMessageRequest];
   selectModel: [model: AIRuntimeModelSelection];
 }>();
 
 const quickPrompts = [
+  { text: "帮我找灵感", icon: Lightbulb },
   { text: "优化开场钩子", icon: Sparkles },
   { text: "丰富角色动机", icon: Users },
   { text: "扩展戏剧冲突", icon: Zap },
@@ -120,24 +210,53 @@ const quickPrompts = [
   { text: "检查逻辑一致性", icon: Search },
 ];
 const draft = ref("");
+const attachments = ref<Array<DialogueAttachmentInput & { id: string }>>([]);
+const attachmentError = ref<string | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
 
 const hasStory = computed(() => getCurrentChapterSourceText(props.snapshot).trim().length > 0);
 const messages = computed(() => props.dialogueThread?.messages ?? []);
-const canSend = computed(() => draft.value.trim().length > 0 && !props.dialogueSending);
+const toolResults = computed(() => props.dialogueThread?.toolResults ?? []);
+const toolResultsByMessageId = computed(() => {
+  const groups = new Map<string, DialogueToolResult[]>();
+  for (const result of toolResults.value) {
+    const items = groups.get(result.messageId) ?? [];
+    items.push(result);
+    groups.set(result.messageId, items);
+  }
+
+  return groups;
+});
+const canSend = computed(() => (draft.value.trim().length > 0 || attachments.value.length > 0) && !props.dialogueSending);
 const selectedModelValue = computed(() => props.selectedModel ? serializeModel(props.selectedModel) : "");
 const analysisPrompt = "请分析当前剧本的人物目标、核心冲突、节奏断点和最适合漫画化的画面段落。";
+const skillTools = new Set<DialogueToolResult["tool"]>([
+  "generate_inspiration_seeds",
+  "generate_script_from_seed",
+  "update_chapter_draft",
+]);
+const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
+  analyze_script_import: "analyze_script_import",
+  import_script_to_chapters: "import_script_to_chapters",
+  generate_inspiration_seeds: "script-inspiration-seeding",
+  generate_script_from_seed: "script-chapter-drafting",
+  update_chapter_draft: "script-chapter-editing",
+};
 
 const assistantOpening = computed(() => {
   if (hasStory.value) {
     return "我先围绕当前章节看人物目标、开场冲突和节奏断点。";
   }
 
-  return "先把当前章节写在右侧，我会帮你把人物、冲突和节奏拆开看。";
+  return "可以先说“帮我找灵感”，我会给你几个方向；选中后我会生成第 1 章草稿。";
 });
 
 watch(
-  () => messages.value.map((message) => `${message.id}:${message.content}:${message.status}`).join("|"),
+  () => [
+    messages.value.map((message) => `${message.id}:${message.content}:${message.status}`).join("|"),
+    toolResults.value.map((result) => `${result.id}:${result.status}:${result.summary}`).join("|"),
+  ].join("||"),
   async () => {
     await nextTick();
     const element = messageListRef.value;
@@ -149,19 +268,58 @@ watch(
 
 function submit() {
   const content = draft.value.trim();
-  if (!content || props.dialogueSending) {
+  if ((!content && attachments.value.length === 0) || props.dialogueSending) {
     return;
   }
 
+  const selectedAttachments = attachments.value.map(({ id, ...attachment }) => attachment);
   draft.value = "";
-  emit("send", content);
+  attachments.value = [];
+  attachmentError.value = null;
+  emit("send", {
+    content: content || "请根据附件内容整理成章节。",
+    intent: content ? undefined : "organize_script_to_chapters",
+    attachments: selectedAttachments,
+  });
 }
 
 function sendPreset(content: string) {
   if (props.dialogueSending) {
     return;
   }
-  emit("send", content);
+  emit("send", { content });
+}
+
+async function handleFileChange(event: Event) {
+  attachmentError.value = null;
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  input.value = "";
+
+  for (const file of files) {
+    if (!isSupportedTextFile(file)) {
+      attachmentError.value = "当前只支持 .txt 和 .md 剧本文本。";
+      continue;
+    }
+
+    const content = await file.text();
+    attachments.value.push({
+      id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+      mimeType: file.type || "text/plain",
+      size: file.size,
+      content,
+    });
+  }
+}
+
+function isSupportedTextFile(file: File) {
+  const name = file.name.toLowerCase();
+  return name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/");
+}
+
+function removeAttachment(id: string) {
+  attachments.value = attachments.value.filter((attachment) => attachment.id !== id);
 }
 
 function selectModel(event: Event) {
@@ -187,11 +345,92 @@ function getModelLabel(model: AIRuntimeModelItem) {
 }
 
 function getMessageContent(message: DialogueMessageItem) {
-  if (message.status === "running" && !message.content) {
-    return "OpenCode 正在思考...";
+  return message.content;
+}
+
+function getMessageToolResults(message: DialogueMessageItem) {
+  return toolResultsByMessageId.value.get(message.id) ?? [];
+}
+
+function shouldShowMessageText(message: DialogueMessageItem) {
+  const content = getMessageContent(message).trim();
+  if (!content) {
+    return false;
   }
 
-  return message.content;
+  if (message.role === "assistant" && getMessageToolResults(message).length > 0 && message.status !== "failed") {
+    return false;
+  }
+
+  return true;
+}
+
+function isSkillTool(result: DialogueToolResult) {
+  return skillTools.has(result.tool);
+}
+
+function getToolKindLabel(result: DialogueToolResult) {
+  return isSkillTool(result) ? "调用技能" : "调用工具";
+}
+
+function getToolKindIcon(result: DialogueToolResult) {
+  return isSkillTool(result) ? Brain : Wrench;
+}
+
+function getToolDisplayName(result: DialogueToolResult) {
+  return toolDisplayNames[result.tool] ?? result.tool;
+}
+
+function getToolStatusLabel(result: DialogueToolResult) {
+  if (result.status === "succeeded") {
+    return "完成";
+  }
+
+  if (result.status === "needs_user_confirmation") {
+    return "待确认";
+  }
+
+  return "失败";
+}
+
+function getToolStatusIcon(result: DialogueToolResult) {
+  if (result.status === "succeeded") {
+    return CheckCircle2;
+  }
+
+  return CircleAlert;
+}
+
+function getToolStatusClass(result: DialogueToolResult) {
+  if (result.status === "succeeded") {
+    return "is-success";
+  }
+
+  if (result.status === "needs_user_confirmation") {
+    return "is-warning";
+  }
+
+  return "is-danger";
+}
+
+function getImportContentTypeLabel(contentType: string) {
+  const labels: Record<string, string> = {
+    script: "剧本",
+    story_prose: "小说/正文",
+    outline: "大纲",
+    worldbuilding: "世界观资料",
+    invalid: "无法导入",
+  };
+  return labels[contentType] ?? contentType;
+}
+
+function getImportDecisionLabel(decision: string) {
+  const labels: Record<string, string> = {
+    ready_to_import: "可直接导入",
+    needs_user_confirmation: "需要用户确认",
+    reject: "拒绝导入",
+  };
+  return labels[decision] ?? decision;
 }
 </script>
 
@@ -199,8 +438,10 @@ function getMessageContent(message: DialogueMessageItem) {
 .dialogue-panel {
   display: flex;
   flex-direction: column;
-  min-height: 620px;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   gap: 16px;
   border: 1px solid rgba(139, 92, 246, 0.15);
   border-radius: 16px;
@@ -210,6 +451,7 @@ function getMessageContent(message: DialogueMessageItem) {
 
 .dialogue-panel-header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
@@ -254,6 +496,7 @@ function getMessageContent(message: DialogueMessageItem) {
 
 .dialogue-messages {
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
   gap: 16px;
@@ -322,6 +565,8 @@ function getMessageContent(message: DialogueMessageItem) {
 
 .message-body {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border-radius: 12px;
   background: rgba(30, 35, 55, 0.6);
   color: #e2e8f0;
@@ -330,16 +575,256 @@ function getMessageContent(message: DialogueMessageItem) {
   line-height: 1.6;
 }
 
+.message-body p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.message-text {
+  display: block;
+  max-height: min(46vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .dialogue-message.is-user .message-body {
+  max-width: min(86%, 680px);
   background: rgba(59, 130, 246, 0.15);
   border: 1px solid rgba(59, 130, 246, 0.2);
   border-top-right-radius: 4px;
 }
 
 .dialogue-message.is-assistant .message-body {
+  width: 100%;
   border: 1px solid rgba(139, 92, 246, 0.2);
   background: rgba(139, 92, 246, 0.05);
   border-top-left-radius: 4px;
+}
+
+.message-process-card,
+.tool-event-trigger {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.message-process-card {
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
+  color: #9fb0d0;
+  padding: 2px 0 2px 10px;
+  font-size: 12px;
+}
+
+.message-process-card + .message-text {
+  margin-top: 10px;
+}
+
+.process-kind {
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+}
+
+.process-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-process-list {
+  display: grid;
+  gap: 8px;
+}
+
+.message-process-list + .message-text {
+  margin-top: 10px;
+}
+
+.tool-event-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.tool-event-card.is-skill {
+  border-color: rgba(96, 165, 250, 0.18);
+  background: rgba(14, 30, 52, 0.46);
+}
+
+.tool-event-card.is-succeeded {
+  border-color: rgba(52, 211, 153, 0.18);
+}
+
+.tool-event-card.is-needs_user_confirmation {
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.tool-event-card.is-failed {
+  border-color: rgba(248, 113, 113, 0.22);
+}
+
+.tool-event-details {
+  min-width: 0;
+}
+
+.tool-event-trigger {
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 9px 10px 0;
+}
+
+.tool-event-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.tool-status-icon,
+.tool-kind-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-kind-icon {
+  color: #93c5fd;
+}
+
+.tool-event-title {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.tool-event-title span {
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.tool-event-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-status-label {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tool-status-icon .is-success {
+  color: #34d399;
+}
+
+.tool-status-icon .is-warning {
+  color: #fbbf24;
+}
+
+.tool-status-icon .is-danger {
+  color: #f87171;
+}
+
+.tool-event-summary-text {
+  max-height: 132px;
+  overflow-y: auto;
+  margin: 8px 10px 10px;
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.tool-detail-panel {
+  display: grid;
+  max-height: min(34vh, 360px);
+  gap: 10px;
+  overflow-y: auto;
+  margin: 8px 10px 0;
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 0 0 2px 10px;
+}
+
+.tool-detail-section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-detail-section p {
+  color: #b7c4dc;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.tool-detail-label {
+  color: #8df0dc;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tool-meta-grid {
+  display: grid;
+  gap: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.seed-list,
+.chapter-result-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.seed-list li,
+.chapter-result-list li {
+  min-width: 0;
+  color: #cbd5e1;
+}
+
+.seed-list strong,
+.seed-list span,
+.seed-list small,
+.chapter-result-list span,
+.chapter-result-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.seed-list strong,
+.chapter-result-list span {
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.seed-list span,
+.seed-list small,
+.chapter-result-list small {
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .message-actions button {
@@ -366,6 +851,7 @@ function getMessageContent(message: DialogueMessageItem) {
 
 .dialogue-quick-actions {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 10px;
   margin-top: auto;
@@ -420,7 +906,20 @@ function getMessageContent(message: DialogueMessageItem) {
   line-height: 1.5;
 }
 
+.dialogue-notice {
+  margin: 0;
+  border: 1px solid rgba(52, 211, 153, 0.24);
+  border-radius: 10px;
+  background: rgba(52, 211, 153, 0.1);
+  color: #bbf7d0;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .dialogue-composer {
+  flex: 0 0 auto;
   margin-top: 8px;
 }
 
@@ -433,6 +932,53 @@ function getMessageContent(message: DialogueMessageItem) {
   padding: 12px 14px;
   gap: 12px;
   transition: border-color 0.2s;
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.1);
+  color: #bfdbfe;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.attachment-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #dbeafe;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.attachment-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .composer-inner:focus-within {
@@ -458,6 +1004,10 @@ function getMessageContent(message: DialogueMessageItem) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.file-input {
+  display: none;
 }
 
 .attach-btn {

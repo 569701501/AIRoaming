@@ -14,6 +14,7 @@ import type {
   HealthResponse,
   ListChaptersResponse,
   ProjectListItem,
+  ResetProjectScriptResponse,
   SaveChapterDraftRequest,
   SaveChapterDraftResponse,
   SendDialogueMessageRequest,
@@ -195,9 +196,18 @@ export const api = {
       body: JSON.stringify(input),
     },
   ),
-  dialogueThread: (projectId: string, stepKey: string) => request<{ thread: DialogueThread }>(
-    `/projects/${encodeURIComponent(projectId)}/dialogue/threads/${encodeURIComponent(stepKey)}`,
+  resetProjectScript: (projectId: string) => request<ResetProjectScriptResponse>(
+    `/projects/${encodeURIComponent(projectId)}/script/reset`,
+    {
+      method: "POST",
+    },
   ),
+  dialogueThread: (projectId: string, stepKey: string, chapterId?: string | null) => {
+    const query = chapterId ? `?chapterId=${encodeURIComponent(chapterId)}` : "";
+    return request<{ thread: DialogueThread }>(
+      `/projects/${encodeURIComponent(projectId)}/dialogue/threads/${encodeURIComponent(stepKey)}${query}`,
+    );
+  },
   sendDialogueMessage: (projectId: string, stepKey: string, input: SendDialogueMessageRequest) => request<SendDialogueMessageResponse>(
     `/projects/${encodeURIComponent(projectId)}/dialogue/threads/${encodeURIComponent(stepKey)}/messages`,
     {

@@ -40,12 +40,20 @@
       <div class="footer-stats">
         <span>字数 {{ sourceText.length }}</span>
         <span>预估页数 {{ estimatedPages }} 页</span>
+        <div v-if="lastScriptRevision" class="revision-status" :title="revisionTitle">
+          <History :size="14" />
+          <span>AI 来源 {{ shortId(lastScriptRevision.messageId) }}：{{ lastScriptRevision.summary }}</span>
+        </div>
         <div class="save-status">
           <span>{{ saveStatusLabel }}</span>
           <CheckCircle2 :size="14" class="status-icon" />
         </div>
       </div>
       <div class="footer-actions">
+        <button class="reset-script-btn" type="button" :disabled="loading || !canReset" @click="submitReset">
+          <Trash2 :size="14" />
+          <span>清空剧本</span>
+        </button>
         <button class="save-draft-btn" type="button" :disabled="loading || !hasChanges" @click="submitSave">
           <Save :size="14" />
           <span>保存草稿</span>
@@ -61,7 +69,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight } from "lucide-vue-next";
+import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History } from "lucide-vue-next";
 import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import MarkdownTextEditor from "./MarkdownTextEditor.vue";
@@ -77,6 +85,7 @@ const emit = defineEmits<{
   saveDraft: [input: SaveChapterDraftRequest];
   completeChapter: [input: CompleteChapterRequest];
   updateSourceText: [value: string];
+  resetScript: [];
 }>();
 
 const editorRef = ref<MarkdownTextEditorHandle | null>(null);
@@ -95,6 +104,16 @@ const estimatedPages = computed(() => {
 const hasChanges = computed(() => sourceText.value !== currentChapterSourceText.value);
 const canSave = computed(() => hasChanges.value);
 const canComplete = computed(() => sourceText.value.trim().length > 0);
+const canReset = computed(() => sourceText.value.trim().length > 0 || props.snapshot.chapters.length > 1);
+const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScriptRevision ?? null);
+const revisionTitle = computed(() => {
+  const revision = lastScriptRevision.value;
+  if (!revision) {
+    return "";
+  }
+
+  return `threadId: ${revision.threadId}\nmessageId: ${revision.messageId}\ntoolCallId: ${revision.toolCallId}`;
+});
 
 const saveStatusLabel = computed(() => {
   if (props.loading) {
@@ -137,6 +156,23 @@ function submitComplete() {
     sourceText: sourceText.value,
     createNextChapter: true,
   });
+}
+
+function submitReset() {
+  if (!canReset.value) {
+    return;
+  }
+
+  const confirmed = window.confirm("清空剧本会删除当前项目下所有章节草稿，并重置为一个空白第 1 章。确定继续吗？");
+  if (!confirmed) {
+    return;
+  }
+
+  emit("resetScript");
+}
+
+function shortId(id: string) {
+  return id.slice(0, 8);
 }
 </script>
 
@@ -244,12 +280,28 @@ function submitComplete() {
   color: #34d399;
 }
 
+.revision-status {
+  display: inline-flex;
+  max-width: min(460px, 48vw);
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: #c4b5fd;
+}
+
+.revision-status span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .footer-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+.reset-script-btn,
 .save-draft-btn {
   display: flex;
   align-items: center;
@@ -264,6 +316,17 @@ function submitComplete() {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.reset-script-btn {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fecaca;
+}
+
+.reset-script-btn:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fee2e2;
 }
 
 .save-draft-btn:hover:not(:disabled) {
@@ -294,6 +357,7 @@ function submitComplete() {
 }
 
 .next-step-btn:disabled,
+.reset-script-btn:disabled,
 .save-draft-btn:disabled {
   cursor: not-allowed;
   opacity: 0.48;

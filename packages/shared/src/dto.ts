@@ -6,6 +6,9 @@ import type {
   GenerationTaskStatus,
   GenerationTaskTargetType,
   GenerationTaskType,
+  ProjectWorkflowScope,
+  ProjectWorkflowStepKey,
+  ProjectWorkflowStepStatus,
   ProjectStatus,
   ProjectType,
 } from "./domain.js";
@@ -93,6 +96,7 @@ export interface ChapterListItem {
   currentStoryVersionId: string | null;
   summary: string;
   sourceTextPreview: string;
+  lastScriptRevision: ScriptRevisionItem | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -149,6 +153,11 @@ export interface CompleteChapterResponse {
   createdNextChapter: boolean;
 }
 
+export interface ResetProjectScriptResponse {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
 export interface AIRuntimeModelSelection {
   providerId: string;
   modelId: string;
@@ -165,6 +174,7 @@ export interface DialogueMessageItem {
   projectId: string;
   threadId: string;
   stepKey: string;
+  chapterId?: string | null;
   role: "user" | "assistant";
   content: string;
   status: "running" | "completed" | "failed";
@@ -181,26 +191,134 @@ export interface DialogueThread {
   id: string;
   projectId: string;
   currentStepKey: string;
+  chapterId: string | null;
   messages: DialogueMessageItem[];
+  toolResults: DialogueToolResult[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type DialogueIntent =
+  | "general_chat"
+  | "analyze_script"
+  | "organize_script_to_chapters"
+  | "generate_inspiration_seeds"
+  | "generate_script_from_seed"
+  | "update_chapter_draft";
+
+export interface DialogueAttachmentInput {
+  id?: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  content: string;
+}
+
+export interface DialogueMessageContextInput {
+  sourceText?: string;
+  selectionText?: string;
 }
 
 export interface SendDialogueMessageRequest {
   content: string;
   stepKey?: string;
+  chapterId?: string | null;
+  intent?: DialogueIntent;
+  context?: DialogueMessageContextInput;
+  attachments?: DialogueAttachmentInput[];
   model?: AIRuntimeModelSelection;
+}
+
+export interface ScriptRevisionItem {
+  id: string;
+  projectId: string;
+  chapterId: string | null;
+  source: "ai_tool";
+  threadId: string;
+  messageId: string;
+  toolCallId: string;
+  operation: "import_script_to_chapters" | "update_chapter_draft" | "generate_script_from_seed";
+  summary: string;
+  createdAt: string;
+}
+
+export interface ScriptInspirationSeed {
+  id: string;
+  order: number;
+  title: string;
+  genreTags: string[];
+  logline: string;
+  keyConflict: string;
+  visualHook: string;
+  firstChapterDirection: string;
+}
+
+export type ScriptImportContentType =
+  | "script"
+  | "story_prose"
+  | "outline"
+  | "worldbuilding"
+  | "invalid";
+
+export type ScriptImportDecision =
+  | "ready_to_import"
+  | "needs_user_confirmation"
+  | "reject";
+
+export type ScriptImportChapterBoundary =
+  | "explicit_chapter_heading"
+  | "numeric_heading"
+  | "single_chapter";
+
+export interface ScriptImportChapterPlan {
+  order: number;
+  title: string;
+  boundary: ScriptImportChapterBoundary;
+  summary: string;
+}
+
+export interface ScriptImportAnalysis {
+  decision: ScriptImportDecision;
+  contentType: ScriptImportContentType;
+  reason: string;
+  chapters: ScriptImportChapterPlan[];
+  risk: string | null;
+  nextTool: "import_script_to_chapters" | null;
+}
+
+export interface DialogueToolResult {
+  id: string;
+  projectId: string;
+  threadId: string;
+  messageId: string;
+  toolCallId: string;
+  tool:
+    | "analyze_script_import"
+    | "import_script_to_chapters"
+    | "generate_inspiration_seeds"
+    | "generate_script_from_seed"
+    | "update_chapter_draft";
+  status: "succeeded" | "failed" | "needs_user_confirmation";
+  summary: string;
+  chapters: ChapterListItem[];
+  currentChapterId: string | null;
+  analysis?: ScriptImportAnalysis | null;
+  inspirationSeeds?: ScriptInspirationSeed[] | null;
+  revision: ScriptRevisionItem | null;
+  createdAt: string;
 }
 
 export interface SendDialogueMessageResponse {
   thread: DialogueThread;
   userMessage: DialogueMessageItem;
   assistantMessage: DialogueMessageItem;
+  toolResults?: DialogueToolResult[];
 }
 
 export type DialogueStreamEventType =
   | "dialogue.message.created"
   | "dialogue.message.delta"
+  | "dialogue.tool_result.created"
   | "dialogue.message.completed"
   | "dialogue.error";
 
@@ -211,6 +329,7 @@ export interface DialogueStreamEvent {
   thread?: DialogueThread;
   userMessage?: DialogueMessageItem;
   assistantMessage?: DialogueMessageItem;
+  toolResult?: DialogueToolResult;
   delta?: string;
   content?: string;
   error?: {
@@ -258,13 +377,26 @@ export interface GenerationTaskItem {
   updatedAt: string;
 }
 
-export interface WorkbenchStage {
-  key: string;
+export interface ProjectWorkflowStep {
+  key: ProjectWorkflowStepKey;
   label: string;
-  status: "done" | "active" | "waiting" | "blocked";
+  status: ProjectWorkflowStepStatus;
   summary: string;
   evidence: string;
+  scope: ProjectWorkflowScope;
+  completionCriteria: string[];
 }
+
+export interface ProjectWorkflow {
+  schemaVersion: number;
+  projectId: string;
+  currentChapterId: string | null;
+  currentStepKey: ProjectWorkflowStepKey;
+  steps: ProjectWorkflowStep[];
+  updatedAt: string;
+}
+
+export type WorkbenchStage = ProjectWorkflowStep;
 
 export interface WorkbenchStory {
   id: string;
@@ -332,6 +464,7 @@ export interface WorkbenchSnapshot {
   };
   chapters: ChapterListItem[];
   currentChapter: ChapterDetail | null;
+  workflow: ProjectWorkflow;
   stages: WorkbenchStage[];
   story: WorkbenchStory;
   shots: WorkbenchShot[];

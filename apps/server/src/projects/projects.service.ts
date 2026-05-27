@@ -6,6 +6,9 @@ import {
   ART_STYLES,
   CHAPTER_STATUSES,
   COMIC_FORMATS,
+  PROJECT_WORKFLOW_SCHEMA_VERSION,
+  PROJECT_WORKFLOW_STEP_KEYS,
+  PROJECT_WORKFLOW_STEPS,
   PROJECT_TYPES,
   type ChapterDetail,
   type ChapterListItem,
@@ -21,8 +24,17 @@ import {
   type ListChaptersResponse,
   type ProjectListItem,
   type ProjectType,
+  type ProjectWorkflow,
+  type ProjectWorkflowStep,
+  type ProjectWorkflowStepKey,
+  type ResetProjectScriptResponse,
   type SaveChapterDraftRequest,
   type SaveChapterDraftResponse,
+  type ScriptImportAnalysis,
+  type ScriptImportChapterBoundary,
+  type ScriptImportChapterPlan,
+  type ScriptImportContentType,
+  type ScriptRevisionItem,
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
 } from "@airoaming/shared";
@@ -33,6 +45,9 @@ const DEFAULT_CHAPTER_ID = "chapter_001";
 const DEFAULT_CHAPTER_SLUG = "chapter-001";
 const DEFAULT_CHAPTER_TITLE = "第 1 章";
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
+const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
+  PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
+);
 
 interface LocalChapterScriptVersion extends ChapterScriptVersionItem {
   sourceText: string;
@@ -53,6 +68,7 @@ interface LocalChapter {
   updatedAt: string;
   completedAt: string | null;
   scriptVersions: LocalChapterScriptVersion[];
+  lastScriptRevision: ScriptRevisionItem | null;
 }
 
 interface LocalProject {
@@ -69,6 +85,66 @@ interface LocalProject {
   chapters: LocalChapter[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ImportScriptToChaptersInput {
+  sourceText: string;
+  sourceName: string;
+  threadId: string;
+  messageId: string;
+  toolCallId: string;
+}
+
+export interface ImportScriptToChaptersResult {
+  chapters: ChapterListItem[];
+  currentChapter: ChapterDetail;
+  revision: ScriptRevisionItem;
+}
+
+export interface WriteChapterDraftFromAIInput {
+  sourceText: string;
+  title?: string;
+  summary: string;
+  threadId: string;
+  messageId: string;
+  toolCallId: string;
+  operation: "update_chapter_draft" | "generate_script_from_seed";
+}
+
+export interface WriteChapterDraftFromAIResult {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  revision: ScriptRevisionItem;
+}
+
+export interface AnalyzeScriptImportInput {
+  sourceText: string;
+  sourceName: string;
+  userConfirmedOverwrite?: boolean;
+}
+
+interface ParsedScriptChapter {
+  title: string;
+  sourceText: string;
+  summary: string;
+  boundary: ScriptImportChapterBoundary;
+}
+
+interface ChapterBoundaryMatch {
+  index: number;
+  title: string;
+  boundary: ScriptImportChapterBoundary;
+}
+
+interface ScriptTextSignals {
+  nonEmptyLineCount: number;
+  averageLineLength: number;
+  bulletRatio: number;
+  dialogueLineCount: number;
+  sceneLineCount: number;
+  storySentenceCount: number;
+  outlineWordCount: number;
+  worldbuildingWordCount: number;
 }
 
 @Injectable()
@@ -269,6 +345,236 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
+  async importScriptToChapters(
+    projectId: string,
+    input: ImportScriptToChaptersInput,
+  ): Promise<ImportScriptToChaptersResult> {
+    const project = await this.getReadyProject(projectId);
+    const sourceText = input.sourceText.trim();
+    if (!sourceText) {
+      throw new BadRequestException("SCRIPT_SOURCE_REQUIRED");
+    }
+
+    const now = new Date().toISOString();
+    const parsedChapters = this.parseProvidedScriptChapters(sourceText);
+    const revision: ScriptRevisionItem = {
+      id: randomUUID(),
+      projectId: project.id,
+      chapterId: null,
+      source: "ai_tool",
+      threadId: input.threadId,
+      messageId: input.messageId,
+      toolCallId: input.toolCallId,
+      operation: "import_script_to_chapters",
+      summary: `根据${input.sourceName || "用户提供剧本"}整理并写入 ${parsedChapters.length} 个章节。`,
+      createdAt: now,
+    };
+    const chapters = parsedChapters.map((item, index): LocalChapter => {
+      const order = index + 1;
+      const suffix = String(order).padStart(3, "0");
+      const existing = project.chapters.find((chapter) => chapter.order === order);
+      const chapterId = existing?.id ?? `chapter_${suffix}`;
+      return {
+        id: chapterId,
+        projectId: project.id,
+        slug: `chapter-${suffix}`,
+        order,
+        title: item.title || `第 ${order} 章`,
+        status: "draft",
+        currentScriptVersionId: null,
+        currentStoryVersionId: null,
+        sourceText: item.sourceText,
+        summary: item.summary,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        completedAt: null,
+        scriptVersions: existing?.scriptVersions ?? [],
+        lastScriptRevision: {
+          ...revision,
+          chapterId,
+        },
+      };
+    });
+    const currentChapter = chapters[0] ?? this.createDefaultChapter(project.id, sourceText, now);
+    const nextProject: LocalProject = {
+      ...project,
+      currentChapterId: currentChapter.id,
+      sourceText: currentChapter.sourceText,
+      chapters,
+      updatedAt: now,
+    };
+
+    await this.clearProjectChaptersDir(nextProject.id);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      chapters: this.sortChapters(chapters).map((item) => this.toChapterListItem(item)),
+      currentChapter: this.toChapterDetail(currentChapter),
+      revision,
+    };
+  }
+
+  async writeChapterDraftFromAI(
+    projectId: string,
+    chapterId: string,
+    input: WriteChapterDraftFromAIInput,
+  ): Promise<WriteChapterDraftFromAIResult> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    const sourceText = input.sourceText.trim();
+    if (!sourceText) {
+      throw new BadRequestException("AI_CHAPTER_DRAFT_REQUIRED");
+    }
+
+    const updatedAt = new Date().toISOString();
+    const revision: ScriptRevisionItem = {
+      id: randomUUID(),
+      projectId,
+      chapterId: chapter.id,
+      source: "ai_tool",
+      threadId: input.threadId,
+      messageId: input.messageId,
+      toolCallId: input.toolCallId,
+      operation: input.operation,
+      summary: input.summary,
+      createdAt: updatedAt,
+    };
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      title: input.title?.trim() || chapter.title,
+      summary: input.summary.trim() || chapter.summary,
+      sourceText,
+      updatedAt,
+      lastScriptRevision: revision,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      sourceText: nextChapter.sourceText,
+      updatedAt,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+      revision,
+    };
+  }
+
+  async resetProjectScript(projectId: string): Promise<ResetProjectScriptResponse> {
+    const project = await this.getReadyProject(projectId);
+    const now = new Date().toISOString();
+    const chapter = this.createDefaultChapter(project.id, "", now);
+    const nextProject: LocalProject = {
+      ...project,
+      currentChapterId: chapter.id,
+      sourceText: "",
+      chapters: [chapter],
+      updatedAt: now,
+    };
+
+    await this.clearProjectChaptersDir(nextProject.id);
+    await this.clearLegacyStoryDir(nextProject.id);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      chapter: this.toChapterDetail(chapter),
+      chapters: [this.toChapterListItem(chapter)],
+    };
+  }
+
+  async analyzeScriptImport(projectId: string, input: AnalyzeScriptImportInput): Promise<ScriptImportAnalysis> {
+    const project = await this.getReadyProject(projectId);
+    const sourceText = input.sourceText.trim();
+    if (!sourceText) {
+      return {
+        decision: "reject",
+        contentType: "invalid",
+        reason: "附件或粘贴内容为空，不能导入为章节。",
+        chapters: [],
+        risk: "没有可写入章节的正文。",
+        nextTool: null,
+      };
+    }
+
+    const parsedChapters = this.parseProvidedScriptChapters(sourceText);
+    const contentType = this.inferScriptImportContentType(sourceText);
+    const chapterPlans = parsedChapters.map((chapter, index): ScriptImportChapterPlan => ({
+      order: index + 1,
+      title: chapter.title,
+      boundary: chapter.boundary,
+      summary: chapter.summary,
+    }));
+    const hasOnlySingleFallbackChapter = parsedChapters.length === 1 && parsedChapters[0].boundary === "single_chapter";
+    const hasNumericBoundaries = parsedChapters.some((chapter) => chapter.boundary === "numeric_heading");
+    const hasNonEmptyExistingChapters = project.chapters.some((chapter) => chapter.sourceText.trim().length > 0);
+
+    if (contentType === "invalid") {
+      return this.createScriptImportAnalysis({
+        decision: "reject",
+        contentType,
+        reason: "这份内容太短或缺少连续剧情，暂时不像可导入的剧本。",
+        chapters: chapterPlans,
+        risk: "直接导入会生成空章节或无效章节正文。",
+      });
+    }
+
+    if (contentType === "outline" || contentType === "worldbuilding") {
+      return this.createScriptImportAnalysis({
+        decision: "reject",
+        contentType,
+        reason: contentType === "outline"
+          ? "这份内容更像大纲或提纲，缺少可作为正文导入的连续剧情。"
+          : "这份内容更像世界观、角色或素材设定，不适合作为章节正文直接导入。",
+        chapters: chapterPlans,
+        risk: "直接导入会把设定或提纲误写成章节正文。",
+      });
+    }
+
+    if (hasNumericBoundaries && !this.areNumericBoundariesCredible(parsedChapters)) {
+      return this.createScriptImportAnalysis({
+        decision: "reject",
+        contentType,
+        reason: "识别到数字编号，但这些编号后面的正文不够像剧本章节，不能直接按 1、2、3 拆章。",
+        chapters: chapterPlans,
+        risk: "数字编号可能只是普通列表或提纲编号。",
+      });
+    }
+
+    if (hasOnlySingleFallbackChapter) {
+      return this.createScriptImportAnalysis({
+        decision: "needs_user_confirmation",
+        contentType,
+        reason: "这份内容像故事或剧本，但没有识别到明确章节边界。",
+        chapters: chapterPlans,
+        risk: "继续导入会先写成单个章节；如果要自动拆成多章，需要后续再做剧情节拍拆分。",
+      });
+    }
+
+    if (hasNonEmptyExistingChapters && !input.userConfirmedOverwrite) {
+      return this.createScriptImportAnalysis({
+        decision: "needs_user_confirmation",
+        contentType,
+        reason: "当前项目里已经有非空章节，导入会用新内容替换同序号章节草稿。",
+        chapters: chapterPlans,
+        risk: "继续导入可能覆盖已有章节草稿，请确认后再写入。",
+      });
+    }
+
+    return this.createScriptImportAnalysis({
+      decision: "ready_to_import",
+      contentType,
+      reason: `识别到 ${parsedChapters.length} 个可信章节边界，内容可以整理为章节草稿。`,
+      chapters: chapterPlans,
+      risk: null,
+    });
+  }
+
   async deleteProject(projectId: string): Promise<DeleteProjectResponse> {
     const project = await this.getReadyProject(projectId);
 
@@ -291,6 +597,7 @@ export class ProjectsService implements OnModuleInit {
     const hasStory = sourceText.trim().length > 0;
     const chapters = this.sortChapters(readyProject.chapters).map((chapter) => this.toChapterListItem(chapter));
     const currentChapterDetail = currentChapter ? this.toChapterDetail(currentChapter) : null;
+    const workflow = this.buildProjectWorkflow(readyProject, currentChapter);
 
     return {
       project: {
@@ -307,50 +614,8 @@ export class ProjectsService implements OnModuleInit {
       },
       chapters,
       currentChapter: currentChapterDetail,
-      stages: [
-        {
-          key: "project_story",
-          label: "剧本",
-          status: "active",
-          summary: hasStory ? "故事草稿已保存，可进入剧情分析" : "补充故事原文后进入剧情分析",
-          evidence: `/workspace/projects/${readyProject.id}/chapters/${currentChapter?.slug ?? DEFAULT_CHAPTER_SLUG}/script.md`,
-        },
-        {
-          key: "story_structure",
-          label: "剧情结构",
-          status: "waiting",
-          summary: hasStory ? "等待 AI 分析剧情" : "需要先保存故事原文",
-          evidence: "story_parse",
-        },
-        {
-          key: "storyboard",
-          label: "分镜工作台",
-          status: "waiting",
-          summary: "结构化剧情后生成分镜",
-          evidence: "shot_generate",
-        },
-        {
-          key: "image_candidates",
-          label: "候选图工作台",
-          status: "waiting",
-          summary: "分镜确认后生成候选图",
-          evidence: "image_generate",
-        },
-        {
-          key: "layout_export",
-          label: "排版导出",
-          status: "waiting",
-          summary: "锁定候选后进入排版导出",
-          evidence: "layout_export",
-        },
-        {
-          key: "asset_package",
-          label: "素材包",
-          status: "waiting",
-          summary: "导出后归档素材和 manifest",
-          evidence: "asset_package_export",
-        },
-      ],
+      workflow,
+      stages: workflow.steps,
       story: {
         id: currentChapter?.currentStoryVersionId ?? "chapter_script_draft",
         chapterId: currentChapter?.id ?? null,
@@ -496,6 +761,8 @@ export class ProjectsService implements OnModuleInit {
     const createdAt = this.getStringField(metadata, "createdAt", new Date().toISOString());
     const updatedAt = this.getStringField(metadata, "updatedAt", createdAt);
     const currentScriptVersionId = this.getOptionalStringField(metadata, "currentScriptVersionId");
+    const lastScriptRevision = this.parseScriptRevision(metadata.lastScriptRevision)
+      ?? await this.readLatestScriptRevision(path.join(chapterDir, "script.revisions", "latest.json"));
     const scriptVersions = await this.readChapterScriptVersions(
       projectId,
       chapterId,
@@ -523,6 +790,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt,
       completedAt: this.getOptionalStringField(metadata, "completedAt"),
       scriptVersions,
+      lastScriptRevision,
     };
   }
 
@@ -566,6 +834,19 @@ export class ProjectsService implements OnModuleInit {
     return versions;
   }
 
+  private async readLatestScriptRevision(filePath: string): Promise<ScriptRevisionItem | null> {
+    const content = await this.readOptionalTextFile(filePath);
+    if (content === null) {
+      return null;
+    }
+
+    try {
+      return this.parseScriptRevision(JSON.parse(content));
+    } catch {
+      return null;
+    }
+  }
+
   private async readOptionalDirectory(dirPath: string) {
     try {
       return await readdir(dirPath, { withFileTypes: true });
@@ -597,6 +878,344 @@ export class ProjectsService implements OnModuleInit {
 
   private normalizeChapterStatus(input: unknown): ChapterStatus {
     return typeof input === "string" && CHAPTER_STATUSES.includes(input as ChapterStatus) ? input as ChapterStatus : "draft";
+  }
+
+  private parseProvidedScriptChapters(sourceText: string): ParsedScriptChapter[] {
+    const lines = sourceText.replace(/\r\n/g, "\n").split("\n");
+    const chapterStarts: ChapterBoundaryMatch[] = [];
+
+    lines.forEach((line, index) => {
+      const boundary = this.extractChapterBoundary(line);
+      if (boundary) {
+        chapterStarts.push({ index, ...boundary });
+      }
+    });
+
+    if (chapterStarts.length === 0) {
+      return [{
+        title: DEFAULT_CHAPTER_TITLE,
+        sourceText: this.formatChapterSource(DEFAULT_CHAPTER_TITLE, sourceText),
+        summary: this.summarizeScript(sourceText),
+        boundary: "single_chapter",
+      }];
+    }
+
+    return chapterStarts.map((start, index) => {
+      const end = chapterStarts[index + 1]?.index ?? lines.length;
+      const body = lines.slice(start.index + 1, end).join("\n").trim();
+      return {
+        title: start.title,
+        sourceText: this.formatChapterSource(start.title, body),
+        summary: this.summarizeScript(body || start.title),
+        boundary: start.boundary,
+      };
+    });
+  }
+
+  private extractChapterBoundary(line: string): Omit<ChapterBoundaryMatch, "index"> | null {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const markdownMatch = trimmed.match(/^#{1,3}\s+(.+)$/);
+    const candidate = markdownMatch ? markdownMatch[1]?.trim() ?? "" : trimmed;
+
+    if (/^第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回话幕]/.test(candidate)) {
+      return {
+        title: candidate.replace(/[:：]\s*$/, ""),
+        boundary: "explicit_chapter_heading",
+      };
+    }
+
+    const numericMatch = candidate.match(/^(\d{1,3}|[一二三四五六七八九十百千万零〇两]{1,4})[.、．)]?$/);
+    if (numericMatch) {
+      return {
+        title: `第 ${numericMatch[1]} 章`,
+        boundary: "numeric_heading",
+      };
+    }
+
+    return null;
+  }
+
+  private createScriptImportAnalysis(input: {
+    decision: ScriptImportAnalysis["decision"];
+    contentType: ScriptImportContentType;
+    reason: string;
+    chapters: ScriptImportChapterPlan[];
+    risk: string | null;
+  }): ScriptImportAnalysis {
+    return {
+      decision: input.decision,
+      contentType: input.contentType,
+      reason: input.reason,
+      chapters: input.chapters,
+      risk: input.risk,
+      nextTool: input.decision === "ready_to_import" ? "import_script_to_chapters" : null,
+    };
+  }
+
+  private inferScriptImportContentType(sourceText: string): ScriptImportContentType {
+    const text = sourceText.trim();
+    if (text.length < 80) {
+      return "invalid";
+    }
+
+    const signals = this.getScriptTextSignals(text);
+    if (
+      signals.worldbuildingWordCount >= 2
+      && signals.storySentenceCount < 3
+      && signals.dialogueLineCount === 0
+    ) {
+      return "worldbuilding";
+    }
+
+    if (
+      signals.outlineWordCount >= 2
+      || (signals.bulletRatio > 0.45 && signals.averageLineLength < 80 && signals.storySentenceCount < 4)
+    ) {
+      return "outline";
+    }
+
+    if (signals.dialogueLineCount >= 2 || signals.sceneLineCount >= 1) {
+      return "script";
+    }
+
+    if (signals.storySentenceCount >= 4 || (text.length >= 500 && signals.storySentenceCount >= 2)) {
+      return "story_prose";
+    }
+
+    return "invalid";
+  }
+
+  private getScriptTextSignals(sourceText: string): ScriptTextSignals {
+    const lines = sourceText
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const nonEmptyLineCount = lines.length;
+    const totalLineLength = lines.reduce((sum, line) => sum + line.length, 0);
+    const bulletLineCount = lines.filter((line) => /^([-*+]|\d+[.、．)]|[一二三四五六七八九十]+[.、．)])\s*\S+/.test(line)).length;
+    const dialogueLineCount = lines.filter((line) => /^.{1,16}[：:]\s*\S+/.test(line) || /[“"].+[”"]/.test(line)).length;
+    const sceneLineCount = lines.filter((line) => /^(场景|地点|时间|内景|外景|INT\.|EXT\.)/i.test(line)).length;
+    const storySentenceCount = (sourceText.match(/[。！？!?]/g) ?? []).length
+      + lines.filter((line) => /(走|看|说|问|发现|推开|冲|站|回头|听见|醒来|追|逃|笑|哭|沉默|望向|拿起|打开)/.test(line)).length;
+    const outlineWordCount = (sourceText.match(/(大纲|提纲|梗概|章节梗概|待补|TODO|主题|卖点|目标用户)/g) ?? []).length;
+    const worldbuildingWordCount = (sourceText.match(/(世界观|角色设定|人物设定|设定|能力|技能|阵营|规则|素材|画风|参考图|提示词)/g) ?? []).length;
+
+    return {
+      nonEmptyLineCount,
+      averageLineLength: nonEmptyLineCount === 0 ? 0 : totalLineLength / nonEmptyLineCount,
+      bulletRatio: nonEmptyLineCount === 0 ? 0 : bulletLineCount / nonEmptyLineCount,
+      dialogueLineCount,
+      sceneLineCount,
+      storySentenceCount,
+      outlineWordCount,
+      worldbuildingWordCount,
+    };
+  }
+
+  private areNumericBoundariesCredible(chapters: ParsedScriptChapter[]): boolean {
+    const numericChapters = chapters.filter((chapter) => chapter.boundary === "numeric_heading");
+    if (numericChapters.length === 0) {
+      return true;
+    }
+
+    if (chapters.length < 2) {
+      return false;
+    }
+
+    return chapters.every((chapter) => {
+      const text = chapter.sourceText.replace(/^#{1,3}\s+.+\n?/, "").trim();
+      const signals = this.getScriptTextSignals(text);
+      return text.length >= 80 && (
+        signals.dialogueLineCount > 0
+        || signals.sceneLineCount > 0
+        || signals.storySentenceCount >= 2
+      );
+    });
+  }
+
+  private formatChapterSource(title: string, rawText: string): string {
+    const text = rawText.trim();
+    if (!text) {
+      return `# ${title}\n`;
+    }
+
+    if (/^#{1,3}\s+/m.test(text.split("\n")[0] ?? "")) {
+      return `${text}\n`;
+    }
+
+    return `# ${title}\n\n${text}\n`;
+  }
+
+  private summarizeScript(sourceText: string): string {
+    const firstLine = sourceText
+      .split("\n")
+      .map((line) => line.replace(/^#{1,3}\s+/, "").trim())
+      .find((line) => line.length > 0);
+    return (firstLine ?? "").slice(0, 120);
+  }
+
+  private buildProjectWorkflow(project: LocalProject, currentChapter: LocalChapter | null): ProjectWorkflow {
+    const currentStepKey = this.resolveWorkflowCurrentStepKey(currentChapter);
+    return {
+      schemaVersion: PROJECT_WORKFLOW_SCHEMA_VERSION,
+      projectId: project.id,
+      currentChapterId: currentChapter?.id ?? null,
+      currentStepKey,
+      steps: PROJECT_WORKFLOW_STEPS.map((step) => this.toWorkflowStep(project, currentChapter, step, currentStepKey)),
+      updatedAt: project.updatedAt,
+    };
+  }
+
+  private toWorkflowStep(
+    project: LocalProject,
+    currentChapter: LocalChapter | null,
+    definition: (typeof PROJECT_WORKFLOW_STEPS)[number],
+    currentStepKey: ProjectWorkflowStepKey,
+  ): ProjectWorkflowStep {
+    const status = this.resolveWorkflowStepStatus(definition.key, currentStepKey, currentChapter?.status ?? "draft");
+    return {
+      key: definition.key,
+      label: definition.label,
+      status,
+      scope: definition.scope,
+      summary: this.getWorkflowStepSummary(definition.key, status, currentChapter),
+      evidence: this.getWorkflowStepEvidence(project.id, currentChapter, definition.key),
+      completionCriteria: [...definition.completionCriteria],
+    };
+  }
+
+  private resolveWorkflowCurrentStepKey(chapter: LocalChapter | null): ProjectWorkflowStepKey {
+    switch (chapter?.status) {
+      case "script_done":
+        return "story_structure";
+      case "structured":
+        return "storyboard";
+      case "storyboard_done":
+        return "image_candidates";
+      case "images_done":
+        return "layout_export";
+      case "layout_done":
+      case "exported":
+        return "asset_package";
+      case "draft":
+      default:
+        return "project_story";
+    }
+  }
+
+  private resolveWorkflowStepStatus(
+    stepKey: ProjectWorkflowStepKey,
+    currentStepKey: ProjectWorkflowStepKey,
+    chapterStatus: ChapterStatus,
+  ): ProjectWorkflowStep["status"] {
+    if (chapterStatus === "exported") {
+      return "done";
+    }
+
+    const stepIndex = workflowStepOrder.get(stepKey) ?? 0;
+    const currentIndex = workflowStepOrder.get(currentStepKey) ?? 0;
+    if (stepIndex < currentIndex) {
+      return "done";
+    }
+    if (stepIndex === currentIndex) {
+      return "active";
+    }
+    return "waiting";
+  }
+
+  private getWorkflowStepSummary(
+    stepKey: ProjectWorkflowStepKey,
+    status: ProjectWorkflowStep["status"],
+    chapter: LocalChapter | null,
+  ): string {
+    if (status === "done") {
+      return this.getWorkflowDoneSummary(stepKey);
+    }
+    if (status === "waiting") {
+      return this.getWorkflowWaitingSummary(stepKey);
+    }
+
+    switch (stepKey) {
+      case "project_story":
+        return chapter?.sourceText.trim()
+          ? "当前章节已有草稿，保存后可点击完成本章。"
+          : "补充当前章节剧本，保存草稿后继续推进。";
+      case "story_structure":
+        return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
+      case "storyboard":
+        return "当前章节剧情结构已就绪，可以生成和编辑分镜。";
+      case "image_candidates":
+        return "当前章节分镜已就绪，可以生成候选图并锁定结果。";
+      case "layout_export":
+        return "当前章节图片结果已就绪，可以排版并导出。";
+      case "asset_package":
+        return "当前章节或项目导出已就绪，可以归档素材包。";
+    }
+    return "继续推进当前工作流步骤。";
+  }
+
+  private getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string {
+    switch (stepKey) {
+      case "project_story":
+        return "章节剧本已完成并写入版本快照。";
+      case "story_structure":
+        return "结构化剧情已完成。";
+      case "storyboard":
+        return "分镜已完成。";
+      case "image_candidates":
+        return "候选图或锁定图已完成。";
+      case "layout_export":
+        return "排版导出已完成。";
+      case "asset_package":
+        return "素材包已归档。";
+    }
+    return "该步骤已完成。";
+  }
+
+  private getWorkflowWaitingSummary(stepKey: ProjectWorkflowStepKey): string {
+    switch (stepKey) {
+      case "project_story":
+        return "等待进入剧本阶段。";
+      case "story_structure":
+        return "需要先完成当前章节剧本。";
+      case "storyboard":
+        return "需要先完成当前章节剧情结构。";
+      case "image_candidates":
+        return "需要先完成当前章节分镜。";
+      case "layout_export":
+        return "需要先锁定当前章节候选图。";
+      case "asset_package":
+        return "需要先完成章节排版和导出。";
+    }
+    return "等待前置步骤完成。";
+  }
+
+  private getWorkflowStepEvidence(
+    projectId: string,
+    chapter: LocalChapter | null,
+    stepKey: ProjectWorkflowStepKey,
+  ): string {
+    const chapterSlug = chapter?.slug ?? DEFAULT_CHAPTER_SLUG;
+    switch (stepKey) {
+      case "project_story":
+        return `/workspace/projects/${projectId}/chapters/${chapterSlug}/script.md`;
+      case "story_structure":
+        return `/workspace/projects/${projectId}/chapters/${chapterSlug}/structure.json`;
+      case "storyboard":
+        return `/workspace/projects/${projectId}/chapters/${chapterSlug}/storyboard.json`;
+      case "image_candidates":
+        return `/workspace/projects/${projectId}/chapters/${chapterSlug}/candidates/`;
+      case "layout_export":
+        return `/workspace/projects/${projectId}/chapters/${chapterSlug}/layout/`;
+      case "asset_package":
+        return `/workspace/projects/${projectId}/exports/packages/`;
+    }
+    return `/workspace/projects/${projectId}/workflow.json`;
   }
 
   private toProjectListItem(project: LocalProject): ProjectListItem {
@@ -645,14 +1264,28 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: project.updatedAt,
     };
     await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+    await writeFile(path.join(projectDir, "workflow.json"), `${JSON.stringify(this.buildProjectWorkflow(project, currentChapter), null, 2)}\n`, "utf8");
     for (const chapter of this.sortChapters(project.chapters.length > 0 ? project.chapters : [currentChapter])) {
       await this.writeChapterFiles(projectDir, chapter);
     }
   }
 
+  private async clearProjectChaptersDir(projectId: string): Promise<void> {
+    await this.workspacePathService.ensureReady();
+    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
+    await rm(path.join(projectDir, "chapters"), { recursive: true, force: true });
+  }
+
+  private async clearLegacyStoryDir(projectId: string): Promise<void> {
+    await this.workspacePathService.ensureReady();
+    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
+    await rm(path.join(projectDir, "story"), { recursive: true, force: true });
+  }
+
   private async writeChapterFiles(projectDir: string, chapter: LocalChapter): Promise<void> {
     const chapterDir = path.join(projectDir, "chapters", chapter.slug);
     const versionsDir = path.join(chapterDir, "script.versions");
+    const revisionsDir = path.join(chapterDir, "script.revisions");
     await mkdir(versionsDir, { recursive: true });
     await mkdir(path.join(chapterDir, "candidates"), { recursive: true });
     await mkdir(path.join(chapterDir, "layout"), { recursive: true });
@@ -660,6 +1293,12 @@ export class ProjectsService implements OnModuleInit {
 
     await writeFile(path.join(chapterDir, "chapter.json"), `${JSON.stringify(this.toChapterDetail(chapter), null, 2)}\n`, "utf8");
     await writeFile(path.join(chapterDir, "script.md"), chapter.sourceText, "utf8");
+    if (chapter.lastScriptRevision) {
+      await mkdir(revisionsDir, { recursive: true });
+      await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
+    } else {
+      await rm(revisionsDir, { recursive: true, force: true });
+    }
     for (const version of chapter.scriptVersions) {
       await writeFile(path.join(versionsDir, `script-v${String(version.version).padStart(3, "0")}.md`), version.sourceText, "utf8");
     }
@@ -681,6 +1320,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
       completedAt: null,
       scriptVersions: [],
+      lastScriptRevision: null,
     };
   }
 
@@ -784,6 +1424,40 @@ export class ProjectsService implements OnModuleInit {
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
   }
 
+  private parseScriptRevision(value: unknown): ScriptRevisionItem | null {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const operation = record.operation;
+    if (
+      operation !== "import_script_to_chapters"
+      && operation !== "update_chapter_draft"
+      && operation !== "generate_script_from_seed"
+    ) {
+      return null;
+    }
+
+    const requiredStrings = ["id", "projectId", "threadId", "messageId", "toolCallId", "summary", "createdAt"];
+    if (!requiredStrings.every((key) => typeof record[key] === "string")) {
+      return null;
+    }
+
+    return {
+      id: record.id as string,
+      projectId: record.projectId as string,
+      chapterId: typeof record.chapterId === "string" ? record.chapterId : null,
+      source: "ai_tool",
+      threadId: record.threadId as string,
+      messageId: record.messageId as string,
+      toolCallId: record.toolCallId as string,
+      operation,
+      summary: record.summary as string,
+      createdAt: record.createdAt as string,
+    };
+  }
+
   private getOrderFromChapterSlug(slug: string): number | null {
     const match = slug.match(/^chapter-(\d+)$/);
     if (!match) {
@@ -875,6 +1549,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
       completedAt: null,
       scriptVersions: [],
+      lastScriptRevision: null,
     };
   }
 
@@ -912,6 +1587,7 @@ export class ProjectsService implements OnModuleInit {
       currentStoryVersionId: chapter.currentStoryVersionId,
       summary: chapter.summary,
       sourceTextPreview: chapter.sourceText.slice(0, 96),
+      lastScriptRevision: chapter.lastScriptRevision,
       createdAt: chapter.createdAt,
       updatedAt: chapter.updatedAt,
       completedAt: chapter.completedAt,
