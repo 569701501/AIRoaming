@@ -10,6 +10,10 @@
       </div>
       <ChevronDown :size="16" class="chevron-icon" :class="{ 'is-open': isOpen }" />
     </button>
+    <div v-if="storyTitle" class="script-title-display" :title="storyTitle">
+      <span class="script-title-label">剧本</span>
+      <span class="script-title-text">{{ storyTitle }}</span>
+    </div>
 
     <div v-if="isOpen" class="dropdown-menu">
       <div class="dropdown-header">
@@ -46,6 +50,7 @@ import type { ChapterListItem, ChapterStatus } from "@airoaming/shared";
 const props = defineProps<{
   chapters: ChapterListItem[];
   currentChapterId: string | null;
+  storyTitle?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -57,6 +62,7 @@ const containerRef = ref<HTMLElement | null>(null);
 
 const orderedChapters = computed(() => [...props.chapters].sort((left, right) => left.order - right.order));
 const currentChapter = computed(() => props.chapters.find(c => c.id === props.currentChapterId));
+const storyTitle = computed(() => props.storyTitle?.trim() || "");
 
 function toggleDropdown() {
   isOpen.value = !isOpen.value;
@@ -98,6 +104,10 @@ function statusLabel(status: ChapterStatus) {
 <style scoped>
 .chapter-selector {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   z-index: 20;
 }
 
@@ -169,6 +179,32 @@ function statusLabel(status: ChapterStatus) {
 
 .chevron-icon.is-open {
   transform: rotate(180deg);
+}
+
+.script-title-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(420px, 42vw);
+  color: #cbd5e1;
+}
+
+.script-title-label {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.script-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .dropdown-menu {

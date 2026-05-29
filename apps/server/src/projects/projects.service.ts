@@ -10,10 +10,17 @@ import {
   PROJECT_WORKFLOW_STEP_KEYS,
   PROJECT_WORKFLOW_STEPS,
   PROJECT_TYPES,
+  extractChapterScriptName,
+  extractChapterScriptTitle,
+  extractScriptOutlineTitle,
+  formatChapterScriptDocument,
+  isChapterScriptDocument,
+  stripChapterScriptName,
   type ChapterDetail,
   type ChapterListItem,
   type ChapterScriptVersionItem,
   type ChapterStatus,
+  type ClearChapterScriptResponse,
   type ArtStyle,
   type ComicFormat,
   type CompleteChapterRequest,
@@ -23,6 +30,7 @@ import {
   type GetChapterResponse,
   type ListChaptersResponse,
   type ProjectListItem,
+  type ProjectScriptOutline,
   type ProjectType,
   type ProjectWorkflow,
   type ProjectWorkflowStep,
@@ -43,7 +51,8 @@ import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 
 const DEFAULT_CHAPTER_ID = "chapter_001";
 const DEFAULT_CHAPTER_SLUG = "chapter-001";
-const DEFAULT_CHAPTER_TITLE = "第 1 章";
+const getDefaultChapterTitle = (order: number): string => `第 ${order} 章`;
+const DEFAULT_CHAPTER_TITLE = getDefaultChapterTitle(1);
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
   PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
@@ -82,6 +91,7 @@ interface LocalProject {
   artStyle: ArtStyle;
   description: string;
   sourceText: string;
+  scriptOutline: ProjectScriptOutline | null;
   chapters: LocalChapter[];
   createdAt: string;
   updatedAt: string;
@@ -108,13 +118,20 @@ export interface WriteChapterDraftFromAIInput {
   threadId: string;
   messageId: string;
   toolCallId: string;
-  operation: "update_chapter_draft" | "generate_script_from_seed";
+  operation: "update_chapter_draft" | "generate_script_from_seed" | "generate_script_from_outline";
 }
 
 export interface WriteChapterDraftFromAIResult {
   chapter: ChapterDetail;
   chapters: ChapterListItem[];
   revision: ScriptRevisionItem;
+}
+
+export interface SaveScriptOutlineFromAIInput {
+  sourceText: string;
+  threadId: string;
+  messageId: string;
+  toolCallId: string;
 }
 
 export interface AnalyzeScriptImportInput {
@@ -197,6 +214,7 @@ export class ProjectsService implements OnModuleInit {
       artStyle,
       description,
       sourceText,
+      scriptOutline: null,
       chapters: [this.createDefaultChapter(projectId, sourceText, now)],
       createdAt: now,
       updatedAt: now,
@@ -263,16 +281,20 @@ export class ProjectsService implements OnModuleInit {
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
     const updatedAt = new Date().toISOString();
+    const parsedStoryTitle = extractChapterScriptName(input.sourceText);
+    const sourceText = stripChapterScriptName(input.sourceText);
+    const parsedChapterTitle = extractChapterScriptTitle(sourceText);
     const nextChapter: LocalChapter = {
       ...chapter,
-      title: input.title?.trim() || chapter.title,
+      title: input.title?.trim() || parsedChapterTitle || chapter.title,
       summary: input.summary === undefined ? chapter.summary : input.summary.trim(),
-      sourceText: input.sourceText,
+      sourceText,
       updatedAt,
     };
     const nextProject = this.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
+      storyTitle: parsedStoryTitle || project.storyTitle,
       sourceText: nextChapter.sourceText,
       updatedAt,
     }, nextChapter);
@@ -294,12 +316,15 @@ export class ProjectsService implements OnModuleInit {
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
     const completedAt = new Date().toISOString();
-    const scriptVersion = this.createChapterScriptVersion(chapter, input.sourceText, completedAt);
+    const parsedStoryTitle = extractChapterScriptName(input.sourceText);
+    const sourceText = stripChapterScriptName(input.sourceText);
+    const parsedChapterTitle = extractChapterScriptTitle(sourceText);
+    const scriptVersion = this.createChapterScriptVersion(chapter, sourceText, completedAt);
     const completedChapter: LocalChapter = {
       ...chapter,
-      title: input.title?.trim() || chapter.title,
+      title: input.title?.trim() || parsedChapterTitle || chapter.title,
       summary: input.summary === undefined ? chapter.summary : input.summary.trim(),
-      sourceText: input.sourceText,
+      sourceText,
       status: "script_done",
       currentScriptVersionId: scriptVersion.id,
       updatedAt: completedAt,
@@ -328,6 +353,7 @@ export class ProjectsService implements OnModuleInit {
     const nextProject: LocalProject = {
       ...project,
       currentChapterId: activeChapter.id,
+      storyTitle: parsedStoryTitle || project.storyTitle,
       sourceText: activeChapter.sourceText,
       chapters,
       updatedAt: completedAt,
@@ -342,6 +368,39 @@ export class ProjectsService implements OnModuleInit {
       chapters: this.sortChapters(chapters).map((item) => this.toChapterListItem(item)),
       scriptVersion: this.toChapterScriptVersionItem(scriptVersion),
       createdNextChapter,
+    };
+  }
+
+  async clearChapterScript(projectId: string, chapterId: string): Promise<ClearChapterScriptResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    const updatedAt = new Date().toISOString();
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      title: getDefaultChapterTitle(chapter.order),
+      status: "draft",
+      currentScriptVersionId: null,
+      currentStoryVersionId: null,
+      sourceText: "",
+      summary: "",
+      updatedAt,
+      completedAt: null,
+      scriptVersions: [],
+      lastScriptRevision: null,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      sourceText: nextChapter.sourceText,
+      updatedAt,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
     };
   }
 
@@ -396,9 +455,11 @@ export class ProjectsService implements OnModuleInit {
       };
     });
     const currentChapter = chapters[0] ?? this.createDefaultChapter(project.id, sourceText, now);
+    const parsedStoryTitle = extractChapterScriptName(sourceText);
     const nextProject: LocalProject = {
       ...project,
       currentChapterId: currentChapter.id,
+      storyTitle: parsedStoryTitle || project.storyTitle,
       sourceText: currentChapter.sourceText,
       chapters,
       updatedAt: now,
@@ -422,12 +483,15 @@ export class ProjectsService implements OnModuleInit {
   ): Promise<WriteChapterDraftFromAIResult> {
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
-    const sourceText = input.sourceText.trim();
+    const rawSourceText = input.sourceText.trim();
+    const sourceText = stripChapterScriptName(rawSourceText);
     if (!sourceText) {
       throw new BadRequestException("AI_CHAPTER_DRAFT_REQUIRED");
     }
 
     const updatedAt = new Date().toISOString();
+    const parsedChapterTitle = extractChapterScriptTitle(sourceText);
+    const parsedStoryTitle = extractChapterScriptName(rawSourceText);
     const revision: ScriptRevisionItem = {
       id: randomUUID(),
       projectId,
@@ -442,7 +506,7 @@ export class ProjectsService implements OnModuleInit {
     };
     const nextChapter: LocalChapter = {
       ...chapter,
-      title: input.title?.trim() || chapter.title,
+      title: input.title?.trim() || parsedChapterTitle || chapter.title,
       summary: input.summary.trim() || chapter.summary,
       sourceText,
       updatedAt,
@@ -451,6 +515,7 @@ export class ProjectsService implements OnModuleInit {
     const nextProject = this.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
+      storyTitle: parsedStoryTitle || project.storyTitle,
       sourceText: nextChapter.sourceText,
       updatedAt,
     }, nextChapter);
@@ -463,6 +528,62 @@ export class ProjectsService implements OnModuleInit {
       chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
       revision,
     };
+  }
+
+  async saveScriptOutlineFromAI(projectId: string, input: SaveScriptOutlineFromAIInput): Promise<ProjectScriptOutline> {
+    const project = await this.getReadyProject(projectId);
+    const sourceText = input.sourceText.trim();
+    if (!sourceText) {
+      throw new BadRequestException("AI_SCRIPT_OUTLINE_REQUIRED");
+    }
+
+    const now = new Date().toISOString();
+    const title = extractScriptOutlineTitle(sourceText) ?? project.storyTitle ?? project.name;
+    const outline: ProjectScriptOutline = {
+      id: project.scriptOutline?.id ?? "script_outline_current",
+      projectId,
+      status: "draft",
+      title,
+      sourceText: sourceText.endsWith("\n") ? sourceText : `${sourceText}\n`,
+      outlinePath: `projects/${projectId}/script-outline.md`,
+      createdAt: project.scriptOutline?.createdAt ?? now,
+      updatedAt: now,
+      confirmedAt: null,
+    };
+    const nextProject: LocalProject = {
+      ...project,
+      storyTitle: title || project.storyTitle,
+      scriptOutline: outline,
+      updatedAt: now,
+    };
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+    return outline;
+  }
+
+  async confirmScriptOutline(projectId: string): Promise<ProjectScriptOutline> {
+    const project = await this.getReadyProject(projectId);
+    if (!project.scriptOutline) {
+      throw new BadRequestException("SCRIPT_OUTLINE_REQUIRED");
+    }
+
+    const now = new Date().toISOString();
+    const outline: ProjectScriptOutline = {
+      ...project.scriptOutline,
+      status: "confirmed",
+      updatedAt: now,
+      confirmedAt: now,
+    };
+    const nextProject: LocalProject = {
+      ...project,
+      scriptOutline: outline,
+      updatedAt: now,
+    };
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+    return outline;
   }
 
   async resetProjectScript(projectId: string): Promise<ResetProjectScriptResponse> {
@@ -593,7 +714,7 @@ export class ProjectsService implements OnModuleInit {
   async getWorkbenchSnapshot(projectId: string, chapterId?: string): Promise<WorkbenchSnapshot> {
     const readyProject = await this.selectCurrentChapter(await this.getReadyProject(projectId), chapterId);
     const currentChapter = this.getCurrentChapter(readyProject);
-    const sourceText = currentChapter?.sourceText ?? readyProject.sourceText;
+    const sourceText = stripChapterScriptName(currentChapter?.sourceText ?? readyProject.sourceText);
     const hasStory = sourceText.trim().length > 0;
     const chapters = this.sortChapters(readyProject.chapters).map((chapter) => this.toChapterListItem(chapter));
     const currentChapterDetail = currentChapter ? this.toChapterDetail(currentChapter) : null;
@@ -614,6 +735,7 @@ export class ProjectsService implements OnModuleInit {
       },
       chapters,
       currentChapter: currentChapterDetail,
+      scriptOutline: readyProject.scriptOutline,
       workflow,
       stages: workflow.steps,
       story: {
@@ -705,7 +827,9 @@ export class ProjectsService implements OnModuleInit {
     const requestedCurrentChapterId = this.getOptionalStringField(metadata, "currentChapterId");
     const currentChapter = readyChapters.find((chapter) => chapter.id === requestedCurrentChapterId) ?? readyChapters[0] ?? null;
     const sourceText = currentChapter?.sourceText ?? fallbackSourceText;
-    const storyTitle = this.getStringField(metadata, "storyTitle", this.getStringField(metadata, "name", projectId));
+    const parsedStoryTitle = extractChapterScriptName(sourceText);
+    const scriptOutline = await this.readProjectScriptOutline(projectDir, projectId, createdAt, updatedAt);
+    const storyTitle = parsedStoryTitle ?? this.getStringField(metadata, "storyTitle", this.getStringField(metadata, "name", projectId));
 
     return {
       id: projectId,
@@ -718,9 +842,42 @@ export class ProjectsService implements OnModuleInit {
       artStyle: this.normalizeArtStyle(metadata.artStyle as ArtStyle | undefined),
       description: this.getStringField(metadata, "description", storyTitle),
       sourceText,
+      scriptOutline,
       chapters: this.sortChapters(readyChapters),
       createdAt,
       updatedAt,
+    };
+  }
+
+  private async readProjectScriptOutline(
+    projectDir: string,
+    projectId: string,
+    fallbackCreatedAt: string,
+    fallbackUpdatedAt: string,
+  ): Promise<ProjectScriptOutline | null> {
+    const outlinePath = path.join(projectDir, "script-outline.md");
+    const sourceText = await this.readOptionalTextFile(outlinePath);
+    if (sourceText === null || !sourceText.trim()) {
+      return null;
+    }
+
+    const metadataPath = path.join(projectDir, "script-outline.json");
+    const metadataText = await this.readOptionalTextFile(metadataPath);
+    const metadata = metadataText ? this.parseJsonRecord(metadataText, metadataPath) : {};
+    const title = extractScriptOutlineTitle(sourceText)
+      ?? this.getStringField(metadata, "title", "未命名剧本大纲");
+    const status = metadata.status === "confirmed" ? "confirmed" : "draft";
+
+    return {
+      id: this.getStringField(metadata, "id", "script_outline_current"),
+      projectId,
+      status,
+      title,
+      sourceText,
+      outlinePath: `projects/${projectId}/script-outline.md`,
+      createdAt: this.getStringField(metadata, "createdAt", fallbackCreatedAt),
+      updatedAt: this.getStringField(metadata, "updatedAt", fallbackUpdatedAt),
+      confirmedAt: this.getOptionalStringField(metadata, "confirmedAt"),
     };
   }
 
@@ -780,7 +937,7 @@ export class ProjectsService implements OnModuleInit {
       projectId,
       slug,
       order,
-      title: this.getStringField(metadata, "title", `第 ${order} 章`),
+      title: extractChapterScriptTitle(sourceText) ?? this.getStringField(metadata, "title", `第 ${order} 章`),
       status: this.normalizeChapterStatus(metadata.status),
       currentScriptVersionId: restoredCurrentScriptVersionId,
       currentStoryVersionId: this.getOptionalStringField(metadata, "currentStoryVersionId"),
@@ -1041,14 +1198,17 @@ export class ProjectsService implements OnModuleInit {
   private formatChapterSource(title: string, rawText: string): string {
     const text = rawText.trim();
     if (!text) {
-      return `# ${title}\n`;
+      return formatChapterScriptDocument({ chapterTitle: title });
     }
 
-    if (/^#{1,3}\s+/m.test(text.split("\n")[0] ?? "")) {
-      return `${text}\n`;
+    if (isChapterScriptDocument(text)) {
+      return stripChapterScriptName(text);
     }
 
-    return `# ${title}\n\n${text}\n`;
+    return formatChapterScriptDocument({
+      chapterTitle: title,
+      sourceText: text,
+    });
   }
 
   private summarizeScript(sourceText: string): string {
@@ -1265,6 +1425,19 @@ export class ProjectsService implements OnModuleInit {
     };
     await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
     await writeFile(path.join(projectDir, "workflow.json"), `${JSON.stringify(this.buildProjectWorkflow(project, currentChapter), null, 2)}\n`, "utf8");
+    if (project.scriptOutline) {
+      await writeFile(path.join(projectDir, "script-outline.md"), project.scriptOutline.sourceText, "utf8");
+      await writeFile(path.join(projectDir, "script-outline.json"), `${JSON.stringify({
+        id: project.scriptOutline.id,
+        projectId: project.scriptOutline.projectId,
+        status: project.scriptOutline.status,
+        title: project.scriptOutline.title,
+        outlinePath: project.scriptOutline.outlinePath,
+        createdAt: project.scriptOutline.createdAt,
+        updatedAt: project.scriptOutline.updatedAt,
+        confirmedAt: project.scriptOutline.confirmedAt,
+      }, null, 2)}\n`, "utf8");
+    }
     for (const chapter of this.sortChapters(project.chapters.length > 0 ? project.chapters : [currentChapter])) {
       await this.writeChapterFiles(projectDir, chapter);
     }
@@ -1286,7 +1459,12 @@ export class ProjectsService implements OnModuleInit {
     const chapterDir = path.join(projectDir, "chapters", chapter.slug);
     const versionsDir = path.join(chapterDir, "script.versions");
     const revisionsDir = path.join(chapterDir, "script.revisions");
-    await mkdir(versionsDir, { recursive: true });
+    await mkdir(chapterDir, { recursive: true });
+    if (chapter.scriptVersions.length > 0) {
+      await mkdir(versionsDir, { recursive: true });
+    } else {
+      await rm(versionsDir, { recursive: true, force: true });
+    }
     await mkdir(path.join(chapterDir, "candidates"), { recursive: true });
     await mkdir(path.join(chapterDir, "layout"), { recursive: true });
     await mkdir(path.join(chapterDir, "exports"), { recursive: true });
@@ -1299,8 +1477,10 @@ export class ProjectsService implements OnModuleInit {
     } else {
       await rm(revisionsDir, { recursive: true, force: true });
     }
-    for (const version of chapter.scriptVersions) {
-      await writeFile(path.join(versionsDir, `script-v${String(version.version).padStart(3, "0")}.md`), version.sourceText, "utf8");
+    if (chapter.scriptVersions.length > 0) {
+      for (const version of chapter.scriptVersions) {
+        await writeFile(path.join(versionsDir, `script-v${String(version.version).padStart(3, "0")}.md`), version.sourceText, "utf8");
+      }
     }
   }
 
@@ -1435,6 +1615,7 @@ export class ProjectsService implements OnModuleInit {
       operation !== "import_script_to_chapters"
       && operation !== "update_chapter_draft"
       && operation !== "generate_script_from_seed"
+      && operation !== "generate_script_from_outline"
     ) {
       return null;
     }
@@ -1539,7 +1720,7 @@ export class ProjectsService implements OnModuleInit {
       projectId,
       slug: `chapter-${suffix}`,
       order: nextOrder,
-      title: title?.trim() || `第 ${nextOrder} 章`,
+      title: title?.trim() || getDefaultChapterTitle(nextOrder),
       status: "draft",
       currentScriptVersionId: null,
       currentStoryVersionId: null,
@@ -1576,6 +1757,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private toChapterListItem(chapter: LocalChapter): ChapterListItem {
+    const sourceText = stripChapterScriptName(chapter.sourceText);
     return {
       id: chapter.id,
       projectId: chapter.projectId,
@@ -1586,7 +1768,7 @@ export class ProjectsService implements OnModuleInit {
       currentScriptVersionId: chapter.currentScriptVersionId,
       currentStoryVersionId: chapter.currentStoryVersionId,
       summary: chapter.summary,
-      sourceTextPreview: chapter.sourceText.slice(0, 96),
+      sourceTextPreview: sourceText.slice(0, 96),
       lastScriptRevision: chapter.lastScriptRevision,
       createdAt: chapter.createdAt,
       updatedAt: chapter.updatedAt,
@@ -1595,9 +1777,10 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private toChapterDetail(chapter: LocalChapter): ChapterDetail {
+    const sourceText = stripChapterScriptName(chapter.sourceText);
     return {
       ...this.toChapterListItem(chapter),
-      sourceText: chapter.sourceText,
+      sourceText,
       scriptPath: `projects/${chapter.projectId}/chapters/${chapter.slug}/script.md`,
     };
   }

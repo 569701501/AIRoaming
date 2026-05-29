@@ -1,25 +1,213 @@
 import { defineStore } from "pinia";
-import type {
-  AIRuntimeModelItem,
-  AIRuntimeModelSelection,
-  ChapterDetail,
-  CompleteChapterRequest,
-  CreateProjectRequest,
-  DialogueMessageItem,
-  DialogueStreamEvent,
-  DialogueThread,
-  DialogueToolResult,
-  GenerationTaskItem,
-  HealthResponse,
-  ProjectListItem,
-  SaveChapterDraftRequest,
-  SendDialogueMessageRequest,
-  UpdateProjectDraftRequest,
-  WorkbenchSnapshot,
-  WorkspaceInfo,
+import {
+  PROJECT_WORKFLOW_STEP_KEYS,
+  type AIRuntimeModelItem,
+  type AIRuntimeModelSelection,
+  type ChapterDetail,
+  type ChapterListItem,
+  type CompleteChapterRequest,
+  type CreateProjectRequest,
+  type DialogueMessageItem,
+  type DialogueStreamEvent,
+  type DialogueThread,
+  type DialogueToolResult,
+  type GenerationTaskItem,
+  type HealthResponse,
+  type ProjectListItem,
+  type ProjectWorkflowStepKey,
+  type ProjectWorkflowStepStatus,
+  type SaveChapterDraftRequest,
+  type SendDialogueMessageRequest,
+  type UpdateProjectDraftRequest,
+  type WorkbenchSnapshot,
+  type WorkspaceInfo,
 } from "@airoaming/shared";
 import { api } from "../services/api";
 import { getCurrentChapterId, getCurrentChapterSourceText } from "../utils/workbench-chapter";
+
+const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
+  PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
+);
+
+function toChapterListItem(chapter: ChapterDetail): ChapterListItem {
+  return {
+    id: chapter.id,
+    projectId: chapter.projectId,
+    slug: chapter.slug,
+    order: chapter.order,
+    title: chapter.title,
+    status: chapter.status,
+    currentScriptVersionId: chapter.currentScriptVersionId,
+    currentStoryVersionId: chapter.currentStoryVersionId,
+    summary: chapter.summary,
+    sourceTextPreview: chapter.sourceTextPreview,
+    lastScriptRevision: chapter.lastScriptRevision,
+    createdAt: chapter.createdAt,
+    updatedAt: chapter.updatedAt,
+    completedAt: chapter.completedAt,
+  };
+}
+
+function resolveChapterList(
+  existingChapters: ChapterListItem[],
+  nextChapters: ChapterListItem[] | null,
+  currentChapter: ChapterDetail,
+): ChapterListItem[] {
+  if (nextChapters && nextChapters.length > 0) {
+    return nextChapters
+      .map((chapter) => (chapter.id === currentChapter.id ? toChapterListItem(currentChapter) : chapter))
+      .sort((left, right) => left.order - right.order);
+  }
+
+  const byId = new Map(existingChapters.map((chapter) => [chapter.id, chapter]));
+  byId.set(currentChapter.id, toChapterListItem(currentChapter));
+  return [...byId.values()].sort((left, right) => left.order - right.order);
+}
+
+function resolveWorkflowCurrentStepKey(chapter: ChapterDetail): ProjectWorkflowStepKey {
+  switch (chapter.status) {
+    case "script_done":
+      return "story_structure";
+    case "structured":
+      return "storyboard";
+    case "storyboard_done":
+      return "image_candidates";
+    case "images_done":
+      return "layout_export";
+    case "layout_done":
+    case "exported":
+      return "asset_package";
+    case "draft":
+    default:
+      return "project_story";
+  }
+}
+
+function resolveWorkflowStepStatus(
+  stepKey: ProjectWorkflowStepKey,
+  currentStepKey: ProjectWorkflowStepKey,
+  chapterStatus: ChapterDetail["status"],
+): ProjectWorkflowStepStatus {
+  if (chapterStatus === "exported") {
+    return "done";
+  }
+
+  const stepIndex = workflowStepOrder.get(stepKey) ?? 0;
+  const currentIndex = workflowStepOrder.get(currentStepKey) ?? 0;
+  if (stepIndex < currentIndex) {
+    return "done";
+  }
+  if (stepIndex === currentIndex) {
+    return "active";
+  }
+  return "waiting";
+}
+
+function getWorkflowStepSummary(
+  stepKey: ProjectWorkflowStepKey,
+  status: ProjectWorkflowStepStatus,
+  chapter: ChapterDetail,
+): string {
+  if (status === "done") {
+    return getWorkflowDoneSummary(stepKey);
+  }
+  if (status === "waiting") {
+    return getWorkflowWaitingSummary(stepKey);
+  }
+
+  switch (stepKey) {
+    case "project_story":
+      return chapter.sourceText.trim()
+        ? "当前章节已有草稿，保存后可点击完成本章。"
+        : "补充当前章节剧本，保存草稿后继续推进。";
+    case "story_structure":
+      return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
+    case "storyboard":
+      return "当前章节剧情结构已就绪，可以生成和编辑分镜。";
+    case "image_candidates":
+      return "当前章节分镜已就绪，可以生成候选图并锁定结果。";
+    case "layout_export":
+      return "当前章节图片结果已就绪，可以排版并导出。";
+    case "asset_package":
+      return "当前章节或项目导出已就绪，可以归档素材包。";
+  }
+}
+
+function getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string {
+  switch (stepKey) {
+    case "project_story":
+      return "章节剧本已完成并写入版本快照。";
+    case "story_structure":
+      return "结构化剧情已完成。";
+    case "storyboard":
+      return "分镜已完成。";
+    case "image_candidates":
+      return "候选图或锁定图已完成。";
+    case "layout_export":
+      return "排版导出已完成。";
+    case "asset_package":
+      return "素材包已归档。";
+  }
+}
+
+function getWorkflowWaitingSummary(stepKey: ProjectWorkflowStepKey): string {
+  switch (stepKey) {
+    case "project_story":
+      return "等待进入剧本阶段。";
+    case "story_structure":
+      return "需要先完成当前章节剧本。";
+    case "storyboard":
+      return "需要先完成当前章节剧情结构。";
+    case "image_candidates":
+      return "需要先完成当前章节分镜。";
+    case "layout_export":
+      return "需要先锁定当前章节候选图。";
+    case "asset_package":
+      return "需要先完成章节排版和导出。";
+  }
+}
+
+function getWorkflowStepEvidence(projectId: string, chapter: ChapterDetail, stepKey: ProjectWorkflowStepKey): string {
+  switch (stepKey) {
+    case "project_story":
+      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/script.md`;
+    case "story_structure":
+      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/structure.json`;
+    case "storyboard":
+      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/storyboard.json`;
+    case "image_candidates":
+      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/candidates/`;
+    case "layout_export":
+      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/layout/`;
+    case "asset_package":
+      return `/workspace/projects/${projectId}/exports/packages/`;
+  }
+}
+
+function patchWorkflowForChapter(snapshot: WorkbenchSnapshot, chapter: ChapterDetail): WorkbenchSnapshot["workflow"] {
+  const currentStepKey = resolveWorkflowCurrentStepKey(chapter);
+  const steps = snapshot.workflow.steps.map((step) => {
+    const status = resolveWorkflowStepStatus(step.key, currentStepKey, chapter.status);
+    return {
+      ...step,
+      status,
+      summary: getWorkflowStepSummary(step.key, status, chapter),
+      evidence: getWorkflowStepEvidence(snapshot.project.id, chapter, step.key),
+    };
+  });
+
+  return {
+    ...snapshot.workflow,
+    currentChapterId: chapter.id,
+    currentStepKey,
+    steps,
+    updatedAt: chapter.updatedAt,
+  };
+}
+
+function getProjectStatusFromChapter(chapter: ChapterDetail): ProjectListItem["status"] {
+  return chapter.sourceText.trim().length > 0 ? "story_ready" : "draft";
+}
 
 interface WorkbenchState {
   health: HealthResponse | null;
@@ -81,12 +269,10 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.projects = projects.items;
         this.tasks = tasks.items;
         if (this.activeProjectId) {
-          const [workbench, dialogue] = await Promise.all([
-            api.workbench(this.activeProjectId, this.activeChapterId),
-            api.dialogueThread(this.activeProjectId, this.activeStepKey, this.activeChapterId),
-          ]);
+          const workbench = await api.workbench(this.activeProjectId, this.activeChapterId);
           this.snapshot = workbench.snapshot;
           this.activeChapterId = workbench.snapshot.currentChapter?.id ?? null;
+          const dialogue = await api.dialogueThread(this.activeProjectId, this.activeStepKey, this.getActiveDialogueChapterId());
           this.dialogueThread = dialogue.thread;
         } else {
           this.snapshot = null;
@@ -101,6 +287,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       } finally {
         this.loading = false;
       }
+    },
+    getActiveDialogueChapterId(): string | null {
+      return this.activeStepKey === "project_story" ? this.activeChapterId : null;
     },
     async createProject(input: CreateProjectRequest): Promise<ProjectListItem | null> {
       this.loading = true;
@@ -135,15 +324,6 @@ export const useWorkbenchStore = defineStore("workbench", {
         const result = await api.listRuntimeModels();
         this.runtimeModels = result.items;
 
-        const selected = this.selectedDialogueModel;
-        const selectedStillExists = selected
-          ? result.items.some((item) => item.providerId === selected.providerId && item.modelId === selected.modelId)
-          : false;
-        if (selectedStillExists && selected) {
-          this.selectedDialogueModel = selected;
-          return;
-        }
-
         const defaultModel = result.items.find((item) => item.default) ?? result.items[0];
         this.selectedDialogueModel = defaultModel
           ? {
@@ -157,6 +337,60 @@ export const useWorkbenchStore = defineStore("workbench", {
     },
     selectDialogueModel(model: AIRuntimeModelSelection) {
       this.selectedDialogueModel = model;
+    },
+    applyChapterUpdate(chapter: ChapterDetail, chapters: ChapterListItem[] | null = null) {
+      if (!this.snapshot) {
+        return;
+      }
+
+      const nextChapters = resolveChapterList(this.snapshot.chapters, chapters, chapter);
+      const workflow = patchWorkflowForChapter(this.snapshot, chapter);
+      const hasStory = chapter.sourceText.trim().length > 0;
+      this.snapshot = {
+        ...this.snapshot,
+        project: {
+          ...this.snapshot.project,
+          status: getProjectStatusFromChapter(chapter),
+          updatedAt: chapter.updatedAt,
+        },
+        chapters: nextChapters,
+        currentChapter: chapter,
+        workflow,
+        stages: workflow.steps,
+        story: {
+          ...this.snapshot.story,
+          id: chapter.currentStoryVersionId ?? "chapter_script_draft",
+          chapterId: chapter.id,
+          title: chapter.title || this.snapshot.project.storyTitle,
+          sourceText: chapter.sourceText,
+          summary: hasStory ? "故事已进入项目，下一步执行结构化剧情。" : "还没有故事原文。",
+        },
+      };
+      this.activeChapterId = chapter.id;
+      this.patchProjectPreviewFromChapter(chapter, nextChapters.length);
+    },
+    patchProjectPreviewFromChapter(chapter: ChapterDetail, chapterCount: number) {
+      const exists = this.projects.some((project) => project.id === chapter.projectId);
+      if (!exists) {
+        return;
+      }
+
+      this.projects = this.projects
+        .map((project) => {
+          if (project.id !== chapter.projectId) {
+            return project;
+          }
+
+          return {
+            ...project,
+            status: getProjectStatusFromChapter(chapter),
+            currentChapterId: chapter.id,
+            chapterCount,
+            sourceTextPreview: chapter.sourceText.slice(0, 96),
+            updatedAt: chapter.updatedAt,
+          };
+        })
+        .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
     },
     async deleteProject(projectId: string) {
       this.loading = true;
@@ -206,14 +440,8 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
-        await api.saveChapterDraft(projectId, chapterId, input);
-        const [workbench, projects] = await Promise.all([
-          api.workbench(projectId, chapterId),
-          api.listProjects(),
-        ]);
-        this.snapshot = workbench.snapshot;
-        this.activeChapterId = workbench.snapshot.currentChapter?.id ?? chapterId;
-        this.projects = projects.items;
+        const result = await api.saveChapterDraft(projectId, chapterId, input);
+        this.applyChapterUpdate(result.chapter, result.chapters);
       } catch (error) {
         this.error = error instanceof Error ? error.message : "章节草稿保存失败";
       } finally {
@@ -229,13 +457,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           throw new Error("请先进入项目");
         }
         const completed = await api.completeChapter(projectId, chapterId, input);
-        const [workbench, projects] = await Promise.all([
-          api.workbench(projectId, completed.activeChapter.id),
-          api.listProjects(),
-        ]);
-        this.snapshot = workbench.snapshot;
-        this.activeChapterId = completed.activeChapter.id;
-        this.projects = projects.items;
+        this.applyChapterUpdate(completed.activeChapter, completed.chapters);
         return completed.activeChapter;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "完成本章失败";
@@ -244,7 +466,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async resetProjectScript(): Promise<ChapterDetail | null> {
+    async clearCurrentChapterScript(): Promise<ChapterDetail | null> {
       this.loading = true;
       this.error = null;
       try {
@@ -252,19 +474,17 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : this.activeChapterId;
+        if (!chapterId) {
+          throw new Error("请先打开一个章节");
+        }
 
-        const result = await api.resetProjectScript(projectId);
-        const [workbench, projects] = await Promise.all([
-          api.workbench(projectId, result.chapter.id),
-          api.listProjects(),
-        ]);
-        this.snapshot = workbench.snapshot;
-        this.activeChapterId = result.chapter.id;
-        this.projects = projects.items;
-        this.dialogueNotice = "已清空项目剧本，并重置为第 1 章空白草稿。";
+        const result = await api.clearChapterScript(projectId, chapterId);
+        this.applyChapterUpdate(result.chapter, result.chapters);
+        this.dialogueNotice = `已清空「${result.chapter.title}」的剧本正文，其他章节未受影响。`;
         return result.chapter;
       } catch (error) {
-        this.error = error instanceof Error ? error.message : "清空剧本失败";
+        this.error = error instanceof Error ? error.message : "清空当前章节失败";
         return null;
       } finally {
         this.loading = false;
@@ -319,13 +539,20 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         if (event.toolResult) {
           this.upsertDialogueToolResult(event.toolResult);
-          const shouldRefreshWorkbench = event.toolResult.status === "succeeded" && [
+          if (event.toolResult.scriptOutline && this.snapshot) {
+            this.snapshot = {
+              ...this.snapshot,
+              scriptOutline: event.toolResult.scriptOutline,
+            };
+          }
+          const shouldPatchChapter = event.toolResult.status === "succeeded" && [
             "import_script_to_chapters",
+            "generate_script_from_outline",
             "generate_script_from_seed",
             "update_chapter_draft",
           ].includes(event.toolResult.tool);
-          if (shouldRefreshWorkbench) {
-            void this.refreshAfterToolResult(event.toolResult.currentChapterId);
+          if (shouldPatchChapter) {
+            void this.applyToolResultChapterUpdate(event.toolResult);
           }
         }
         return;
@@ -387,19 +614,19 @@ export const useWorkbenchStore = defineStore("workbench", {
           : [...toolResults, nextResult],
       };
     },
-    async refreshAfterToolResult(chapterId: string | null) {
+    async applyToolResultChapterUpdate(toolResult: DialogueToolResult) {
       const projectId = this.activeProjectId;
       if (!projectId) {
         return;
       }
 
-      const [workbench, projects] = await Promise.all([
-        api.workbench(projectId, chapterId ?? this.activeChapterId),
-        api.listProjects(),
-      ]);
-      this.snapshot = workbench.snapshot;
-      this.activeChapterId = workbench.snapshot.currentChapter?.id ?? chapterId ?? this.activeChapterId;
-      this.projects = projects.items;
+      const currentChapter = toolResult.currentChapter
+        ?? (toolResult.currentChapterId ? (await api.getChapter(projectId, toolResult.currentChapterId)).chapter : null);
+      if (!currentChapter) {
+        return;
+      }
+
+      this.applyChapterUpdate(currentChapter, toolResult.chapters);
     },
     closeProject() {
       this.activeProjectId = null;

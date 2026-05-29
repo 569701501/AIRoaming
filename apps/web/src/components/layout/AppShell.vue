@@ -27,7 +27,7 @@
           @back="goProjectLibrary"
           @save-chapter-draft="saveChapterDraft"
           @complete-chapter="completeChapter"
-          @reset-script="resetProjectScript"
+          @reset-script="clearCurrentChapterScript"
           @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
           @select-dialogue-model="selectDialogueModel"
@@ -94,6 +94,15 @@ watch(
   [routeProjectId, routeStepKey, routeChapterId],
   async ([projectId, stepKey, chapterId]) => {
     if (projectId) {
+      const alreadyOpen = snapshot.value
+        && workbench.activeProjectId === projectId
+        && workbench.activeStepKey === stepKey
+        && (chapterId === null || workbench.activeChapterId === chapterId)
+        && workbench.dialogueThread;
+      if (alreadyOpen) {
+        return;
+      }
+
       await workbench.openProject(projectId, stepKey, chapterId);
       void workbench.loadRuntimeModels();
       return;
@@ -118,8 +127,8 @@ async function completeChapter(payload: { chapterId: string; input: CompleteChap
   await router.push(projectRoute(routeProjectId.value, "script", activeChapter.id));
 }
 
-async function resetProjectScript() {
-  const activeChapter = await workbench.resetProjectScript();
+async function clearCurrentChapterScript() {
+  const activeChapter = await workbench.clearCurrentChapterScript();
   if (!activeChapter || !routeProjectId.value) {
     return;
   }

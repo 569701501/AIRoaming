@@ -27,6 +27,7 @@
           <ScriptChapterList
             :chapters="chapterItems"
             :current-chapter-id="currentChapterId"
+            :story-title="snapshot.project.storyTitle"
             @select="$emit('selectChapter', $event)"
           />
           <ScriptDocumentEditor
@@ -38,7 +39,6 @@
             @update-source-text="scriptDraft = $event"
           />
         </div>
-        <ScriptOutlinePanel :snapshot="snapshot" :source-text="scriptDraft" />
       </template>
 
       <div v-else class="step-placeholder">
@@ -57,7 +57,6 @@ import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
-import ScriptOutlinePanel from "./ScriptOutlinePanel.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
 
 const props = defineProps<{
@@ -132,7 +131,10 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
 
 function emitDialogue(input: SendDialogueMessageRequest) {
   const hasAttachments = (input.attachments?.length ?? 0) > 0;
-  const shouldUseProjectThread = hasAttachments || input.intent === "organize_script_to_chapters" || input.intent === "generate_inspiration_seeds";
+  const shouldUseProjectThread = hasAttachments
+    || input.intent === "organize_script_to_chapters"
+    || input.intent === "generate_inspiration_seeds"
+    || input.intent === "generate_script_outline_from_seed";
   emit("sendDialogue", {
     ...input,
     chapterId: shouldUseProjectThread ? null : currentChapterId.value,
@@ -159,7 +161,7 @@ function emitDialogue(input: SendDialogueMessageRequest) {
 
 .workbench-content {
   display: grid;
-  grid-template-columns: 35fr 45fr 20fr;
+  grid-template-columns: minmax(320px, 35fr) minmax(0, 65fr);
   gap: 16px;
   align-items: stretch;
   flex: 1;
@@ -218,11 +220,7 @@ function emitDialogue(input: SendDialogueMessageRequest) {
 
 @media (max-width: 1200px) {
   .workbench-content {
-    grid-template-columns: 35fr 65fr;
-  }
-
-  .workbench-content :deep(.chapter-inspector-panel) {
-    display: none;
+    grid-template-columns: minmax(300px, 36fr) minmax(0, 64fr);
   }
 
   .step-placeholder {

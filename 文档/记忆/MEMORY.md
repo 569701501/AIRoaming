@@ -9,8 +9,9 @@
 - 对话框组件公共，但对话记录按步骤隔离；跨步骤只共享用户已确认的事实、保存文档和锁定产物。
 - AI 不直接操作本地物理路径；剧本阶段允许 AI 通过 AI漫游受控工具/API 整理、生成和编辑章节草稿，其他阶段写入权限需按各自契约单独确认。
 - 第一阶段采用 OpenCode 作为项目对话框 AI Runtime；AI漫游自己的业务事实源仍是项目、对话、已确认事实和产物。
+- OpenCode 对话默认模型当前兜底为 `self/gpt-5.5`，可通过 `OPENCODE_PROVIDER_ID` 和 `OPENCODE_MODEL_ID` 覆盖；2026-05-29 诊断确认旧默认 `aurora/gpt-5.4` 背后的 timicc provider 返回 `503 No available accounts`，不再作为默认。
 - 剧本页右侧编辑器已换为 CodeMirror Markdown，保存接口当前仍保存纯文本 `sourceText`。
-- 剧本页最右侧当前章节信息面板从草稿文本轻量解析当前章节、故事主线、出场角色和场景列表；当前不调用 AI，也不保存结构化事实。
+- 2026-05-29 产品口径更新：剧本页不再需要最右侧“当前章节信息”面板；当前剧本区域就是写剧本正文，主线、出场角色和场景列表不再常驻展示，应后置到剧情结构步骤或局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
 - 当前后端仍未接数据库，项目 API 运行时使用进程内项目索引加本地 workspace 文件写入；服务启动或首次访问项目接口时会从 `workspace/projects/*/project.json`、章节目录和 `script.md` 恢复项目索引，避免重启后项目库丢失。
 - 本地 workspace 路径由后端统一管理，前端不能直接写本地物理路径。
 - 2026-05-27 章节工作流已收口为正式方向：`Chapter` 是项目内一等工作单元，剧本步骤需要章节列表、保存草稿、完成本章并进入下一章。
@@ -18,18 +19,24 @@
 - 目标本地结构为 `workspace/projects/{projectId}/chapters/chapter-001/script.md` 等章节目录；`story/story_draft.source.txt` 旧兼容路径已移除，新项目不再创建、读取或写入旧 `story/` 目录。
 - 章节共享契约已接入 `packages/shared`：包括 `ChapterStatus`、章节列表/详情/版本 DTO、保存草稿、完成本章请求响应；`WorkbenchSnapshot.chapters/currentChapter` 是剧本页当前章节读取主契约。
 - 后端已接入默认章节创建、项目索引重启恢复、章节列表 API、章节草稿保存 API 和完成本章 API；完成本章会写入 `script.versions/script-vNNN.md`，将当前章节标记为 `script_done`，并创建或进入下一章。
-- 后端和前端已接入项目级清空剧本能力：`POST /api/projects/{projectId}/script/reset` 会删除旧 `chapters/` 和历史 `story/` 目录，重建空白 `chapter-001`；整本剧本导入替换章节前也必须清理旧章节目录，避免服务重启扫描恢复 stale chapter。
+- 前端剧本编辑器的“清空本章”只作用于当前打开章节：`POST /api/projects/{projectId}/chapters/{chapterId}/script/clear` 会清空目标章节正文、将章节标题重置为默认 `第 N 章`、退回 `draft` 并保留其他章节；项目级 `POST /api/projects/{projectId}/script/reset` 只作为整本替换或错误导入维护能力，整本导入替换章节前仍必须清理旧 `chapters/` 目录，避免服务重启扫描恢复 stale chapter。
 - 前端剧本页已接入章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；手动新建章节、重命名、删除、排序和后续产物失效提示仍待实现。
 - 生成任务中心已强制章节作用域任务带 `chapterId`：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须有 `target.chapterId`；`input.chapterId` 省略会由服务端写回，不一致会拒绝。
 - 项目 workflow 已接入为轻量流程状态：`ProjectWorkflow` 定义 6 步、当前章节下一步、步骤状态、完成标准和证据路径；后端按当前章节 `Chapter.status` 推导并写入 `workspace/projects/{projectId}/workflow.json`，前端流程栏只开放已完成步骤和当前 active 步骤。
-- 剧本对话当前已覆盖“聊天辅助 + OpenCode 流式输出 + 已保存/编辑器当前章节上下文 + 用户提供剧本整理 + 灵感种子生成 + AI 受控写章节草稿”；停止生成、对话持久化和完整回退仍待实现。
-- 剧本对话新方向已确认：剧本阶段有“用户提供剧本整理”和“无灵感生成剧本”双来源；已有剧本复用对话框附件上传或输入框粘贴，不新增独立导入主按钮，AI 负责整理格式、拆分章节并写入 `chapters/*/script.md`；无灵感时 AI 先生成灵感种子，用户选择后再生成章节剧本。
-- 剧本阶段 AI 工具应按业务能力暴露：读取当前章节/章节列表/项目事实、整理用户提供剧本并写入章节、生成灵感种子、从种子生成剧本、更新当前章节草稿、记录 AI 写入来源；不暴露本地物理路径或 shell。
+- 剧本对话当前已覆盖“聊天辅助 + OpenCode 流式输出 + 已保存/编辑器当前章节上下文 + 用户提供剧本整理 + 灵感种子生成 + AI 受控写章节草稿”；刷新或离开页面导致 SSE 中断时，后端会 abort 对应 OpenCode 请求并把不活跃的旧 `running` assistant 消息收敛为失败；正式停止生成、对话持久化和完整回退仍待实现。
+- 剧本对话新方向已确认：剧本阶段有“用户提供剧本整理”和“无灵感生成剧本”双来源；已有剧本复用对话框附件上传或输入框粘贴，不新增独立导入主按钮，AI 负责整理格式、拆分章节并写入 `chapters/*/script.md`；无灵感时 AI 每次生成 3 个灵感种子，用户选择其一后先生成可保存、可确认的「剧本大纲」，确认大纲后再生成固定格式「章节剧本」，第一版只生成当前一章，不喜欢灵感可重新生成 3 个。
+- 项目级「剧本大纲」固定保存到 `workspace/projects/{projectId}/script-outline.md`，元数据保存到 `script-outline.json`；固定格式包含 `基础信息`（剧集名称、题材风格、剧集篇幅、剧集章数、剧情简介）、`主要角色`、`情节概要`。大纲必须在对话中展示并询问用户确认；用户说“不行”或提出修改要求时重新生成大纲，直到确认后才生成当前一章。
+- 剧本阶段 AI 工具应按业务能力暴露：读取当前章节/章节列表/项目事实、整理用户提供剧本并写入章节、生成灵感种子、从种子生成项目级剧本大纲、从确认大纲生成当前章、更新当前章节草稿、记录 AI 写入来源；不暴露本地物理路径或 shell。
+- 剧本阶段 AI 统一边界契约默认覆盖所有剧本对话：普通建议不写入，灵感先生成候选，导入/改写/生成章节必须走 AI漫游受控工具/API；覆盖非空章节、替换整本剧本、低可信拆章或可能导致后续产物失效时必须先让用户确认。
 - 剧本阶段需要独立 agent/skill 约束：定义 AI 是漫画剧本协作者，区分固定剧本导入、灵感共创、章节起草、章节编辑和一致性检查；AI 可通过受控工具更新章节草稿，但必须保留来源追溯。
 - AI漫游已采用 `apps/server/opencodeAI` 作为 OpenCode AI 资产源码目录，参考 AuroraPlatformWeb 的 `agents / skills / tools` 组织方式，但内容必须是 AI漫游自己的漫画创作资产；当前已落地剧本协作 agent 和 `script-import-normalize` skill，运行时模板复制和真实 tool bridge 尚未接入。
 - 用户提供剧本整理已接入导入前分析：对话框回形针支持 `.txt/.md` 文本附件，输入框支持粘贴长剧本；明确整理意图或长文本会先触发 `analyze_script_import`，只有内容像可导入剧本且章节边界可信时才调用 `import_script_to_chapters` 写入章节。失败或需要确认时不写 `chapters/*/script.md`；需要确认的待导入文本暂存在进程内剧本线程，用户回复“确认导入/确认覆盖”后再写入。
-- 剧本灵感和章节内 AI 编辑已接入第一版 AI skill 驱动链路：用户说“帮我找灵感”会触发 `generate_inspiration_seeds`，后端调用 OpenCode / `script-inspiration-seeding` 生成 5 个方向；用户回复“选第 N 个方向”会触发 `generate_script_from_seed`，调用 `script-chapter-drafting` 生成章节正文并写入当前章节；用户在章节内要求改写会触发 `update_chapter_draft`，调用 `script-chapter-editing` 基于编辑器最新 `context.sourceText` 返回完整改写稿。后端不硬编码灵感种子或章节正文。
+- 剧本灵感和章节内 AI 编辑已接入 AI skill 驱动链路：用户说“帮我找灵感”会触发 `generate_inspiration_seeds`，后端调用 OpenCode / `script-inspiration-seeding` 生成 3 个方向；用户回复“选第 N 个方向”会触发 `generate_script_outline_from_seed`，调用 `script-outline-drafting` 生成并保存项目级剧本大纲；用户确认大纲后触发 `generate_script_from_outline`，调用 `script-chapter-drafting` 只生成当前一章；用户在章节内要求改写会触发 `update_chapter_draft`。
+- 灵感种子选择不再直接写入当前章节：前端灵感卡片按钮是“生成大纲”；大纲结果卡片提供“确认并生成当前章节”。后端仍支持“1/2/3”“第一个”“选第 2 个”等文本选择表达；看起来像选择但无法识别时，应提示用户明确序号或点击按钮，不能静默走普通聊天。
+- 剧本阶段最终用户可见章节正文统一为固定格式「章节剧本」：章节标题、基础方向、本章方向、剧本亮点、视觉基调、剧本正文、本章结尾；最终章节剧本不输出剧本名称、主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号、图片 Prompt 或 JSON，这些后置到项目级标题、剧情结构、分镜工作台和候选图阶段。
+- `剧本名称/剧集名称` 是项目级作品名，从已确认剧本大纲同步到 `Project.storyTitle`，显示在章节下拉框右侧，不写进章节正文。`第 X 章：章节标题` 是章节名，保存、AI 写入或服务从 workspace 恢复旧项目时应同步到 `Chapter.title`，保证顶部章节选择器和编辑器标题一致。
 - 章节最近一次 AI 写入来源通过 `Chapter.lastScriptRevision` 暴露，并写入 `chapter.json` 与 `script.revisions/latest.json`；字段包含 `threadId`、`messageId`、`toolCallId`、`operation` 和摘要。完整写入历史和回退仍待实现。
-- 对话过程展示已参考 AuroraPlatformWeb：`DialogueThread.toolResults` 保存 AI 受控工具/技能结果，前端按 `messageId` 挂回 assistant 消息；过程卡片只表达技能/工具状态和结构化详情，`DialogueMessageItem.content` 作为面向用户的最终回复用独立气泡自然展开，正文气泡不做内部滚动，避免工具结果混入普通正文或让用户误以为没有最终回复。
+- AI 写入章节、清空当前章节、保存草稿和完成本章后的前端更新应走章节级局部合并，不再为更新剧本编辑器重新拉完整 workbench；`DialogueToolResult` 写入类结果应带 `currentChapter` 和 `chapters`，前端据此更新 `snapshot.currentChapter/chapter list/story/workflow` 与项目预览。
+- 对话过程展示已参考 AuroraPlatformWeb：`DialogueThread.toolResults` 保存 AI 受控工具/技能结果，前端按 `messageId` 挂回 assistant 消息；过程卡片只表达技能/工具状态和结构化详情，`DialogueMessageItem.content` 作为面向用户的最终回复用独立气泡自然展开，正文气泡不做内部滚动，避免工具结果混入普通正文或让用户误以为没有最终回复。前端刷新项目工作台时需先读取 workbench 得到当前章节，再加载 `projectId + stepKey + chapterId` 对话线程，避免默认读到空的项目级线程。
 - 剧本文档编辑器的滚动契约：`ProjectWorkbenchView -> ScriptDocumentEditor -> MarkdownTextEditor -> CodeMirror` 这条 flex 高度链路必须逐层保留 `min-height: 0` 和合适的 `overflow`，由 CodeMirror `.cm-scroller` 接管正文内部滚动，避免长剧本撑开工作台。
 - 参考 AuroraPlatformWeb 的灵感文档设计：左侧对话推动流程，右侧固定文档承载持久事实；附件和用户输入只是临时上下文，正式事实必须落到工作区稳定路径，并通过状态/文件事件同步 UI。

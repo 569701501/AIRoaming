@@ -153,9 +153,28 @@ export interface CompleteChapterResponse {
   createdNextChapter: boolean;
 }
 
+export interface ClearChapterScriptResponse {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
 export interface ResetProjectScriptResponse {
   chapter: ChapterDetail;
   chapters: ChapterListItem[];
+}
+
+export type ProjectScriptOutlineStatus = "draft" | "confirmed";
+
+export interface ProjectScriptOutline {
+  id: string;
+  projectId: string;
+  status: ProjectScriptOutlineStatus;
+  title: string;
+  sourceText: string;
+  outlinePath: string;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt: string | null;
 }
 
 export interface AIRuntimeModelSelection {
@@ -203,6 +222,8 @@ export type DialogueIntent =
   | "analyze_script"
   | "organize_script_to_chapters"
   | "generate_inspiration_seeds"
+  | "generate_script_outline_from_seed"
+  | "generate_script_from_outline"
   | "generate_script_from_seed"
   | "update_chapter_draft";
 
@@ -237,7 +258,7 @@ export interface ScriptRevisionItem {
   threadId: string;
   messageId: string;
   toolCallId: string;
-  operation: "import_script_to_chapters" | "update_chapter_draft" | "generate_script_from_seed";
+  operation: "import_script_to_chapters" | "update_chapter_draft" | "generate_script_from_seed" | "generate_script_from_outline";
   summary: string;
   createdAt: string;
 }
@@ -296,14 +317,18 @@ export interface DialogueToolResult {
     | "analyze_script_import"
     | "import_script_to_chapters"
     | "generate_inspiration_seeds"
+    | "generate_script_outline_from_seed"
+    | "generate_script_from_outline"
     | "generate_script_from_seed"
     | "update_chapter_draft";
   status: "succeeded" | "failed" | "needs_user_confirmation";
   summary: string;
   chapters: ChapterListItem[];
   currentChapterId: string | null;
+  currentChapter?: ChapterDetail | null;
   analysis?: ScriptImportAnalysis | null;
   inspirationSeeds?: ScriptInspirationSeed[] | null;
+  scriptOutline?: ProjectScriptOutline | null;
   revision: ScriptRevisionItem | null;
   createdAt: string;
 }
@@ -464,6 +489,7 @@ export interface WorkbenchSnapshot {
   };
   chapters: ChapterListItem[];
   currentChapter: ChapterDetail | null;
+  scriptOutline: ProjectScriptOutline | null;
   workflow: ProjectWorkflow;
   stages: WorkbenchStage[];
   story: WorkbenchStory;

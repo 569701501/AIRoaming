@@ -49,8 +49,13 @@ export class DialogueController {
     response.flushHeaders?.();
 
     let closed = false;
+    let settled = false;
+    const requestAbortController = new AbortController();
     response.on("close", () => {
       closed = true;
+      if (!settled) {
+        requestAbortController.abort();
+      }
     });
 
     const writeEvent = (event: DialogueStreamEvent) => {
@@ -62,7 +67,7 @@ export class DialogueController {
     };
 
     try {
-      await this.dialogueService.streamMessage(projectId, stepKey, body, writeEvent);
+      await this.dialogueService.streamMessage(projectId, stepKey, body, writeEvent, requestAbortController.signal);
     } catch (error) {
       writeEvent({
         type: "dialogue.error",
@@ -74,6 +79,7 @@ export class DialogueController {
         createdAt: new Date().toISOString(),
       });
     } finally {
+      settled = true;
       if (!closed) {
         response.end();
       }

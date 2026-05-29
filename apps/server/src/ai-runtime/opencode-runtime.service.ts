@@ -47,8 +47,8 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   private readonly baseUrl = process.env.OPENCODE_BASE_URL ?? `http://${this.host}:${this.port}`;
   private readonly autoStart = process.env.OPENCODE_AUTO_START !== "false";
   private readonly defaultModel: AIRuntimeModelSelection = {
-    providerId: process.env.OPENCODE_PROVIDER_ID ?? "aurora",
-    modelId: process.env.OPENCODE_MODEL_ID ?? "gpt-5.4",
+    providerId: process.env.OPENCODE_PROVIDER_ID ?? "self",
+    modelId: process.env.OPENCODE_MODEL_ID ?? "gpt-5.5",
   };
 
   private child: ChildProcess | null = null;
@@ -90,11 +90,12 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     }
   }
 
-  async createSession(title: string): Promise<string> {
+  async createSession(title: string, signal?: AbortSignal): Promise<string> {
     const session = await this.withReadyRetry(() => {
       return this.requestJson<OpenCodeSession>("/session", {
         method: "POST",
         body: JSON.stringify({ title }),
+        signal,
       });
     });
     if (!session.id) {
@@ -107,12 +108,13 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     sessionId: string;
     content: string;
     model?: AIRuntimeModelSelection;
+    signal?: AbortSignal;
   }): Promise<{
     content: string;
     model: AIRuntimeModelSelection;
   }> {
     const model = input.model ?? this.defaultModel;
-    const response = await this.withReadyRetry(() => this.postMessage(input.sessionId, input.content, model));
+    const response = await this.withReadyRetry(() => this.postMessage(input.sessionId, input.content, model, input.signal));
 
     const content = this.extractText(response);
     if (!content) {
@@ -130,6 +132,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       sessionId: string;
       content: string;
       model?: AIRuntimeModelSelection;
+      signal?: AbortSignal;
     },
     handlers: {
       onDelta: (delta: string, content: string) => void | Promise<void>;
@@ -142,7 +145,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     await this.ensureReady();
 
     try {
-      return await this.streamMessageOnce(input.sessionId, input.content, model, handlers);
+      return await this.streamMessageOnce(input.sessionId, input.content, model, handlers, input.signal);
     } catch (error) {
       this.readyPromise = null;
       if (error instanceof BadGatewayException) {
@@ -196,6 +199,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     handlers: {
       onDelta: (delta: string, content: string) => void | Promise<void>;
     },
+    signal?: AbortSignal,
   ): Promise<{
     content: string;
     model: AIRuntimeModelSelection;
@@ -203,6 +207,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     let streamedContent = "";
     const listener = this.listenToEvents({
       sessionId,
+      signal,
       onDelta: async (delta) => {
         streamedContent += delta;
         await handlers.onDelta(delta, streamedContent);
@@ -212,7 +217,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     await listener.ready;
 
     try {
-      const response = await this.postMessage(sessionId, content, model);
+      const response = await this.postMessage(sessionId, content, model, signal);
       const finalContent = this.extractText(response);
       if (!finalContent) {
         throw new BadGatewayException("OPENCODE_EMPTY_RESPONSE");
@@ -230,6 +235,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
 
   private listenToEvents(input: {
     sessionId: string;
+    signal?: AbortSignal;
     onDelta: (delta: string) => void | Promise<void>;
   }): {
     ready: Promise<void>;
@@ -237,6 +243,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     abort: () => void;
   } {
     const controller = new AbortController();
+    const cleanupAbort = this.forwardAbort(input.signal, controller);
     let resolveReady!: () => void;
     let rejectReady!: (error: unknown) => void;
     const ready = new Promise<void>((resolve, reject) => {
@@ -290,6 +297,8 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
         }
         rejectReady(error);
         throw error;
+      } finally {
+        cleanupAbort();
       }
     })();
 
@@ -304,6 +313,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     sessionId: string,
     content: string,
     model: AIRuntimeModelSelection,
+    signal?: AbortSignal,
   ): Promise<OpenCodeMessageResponse> {
     return this.requestJson<OpenCodeMessageResponse>(`/session/${encodeURIComponent(sessionId)}/message`, {
       method: "POST",
@@ -320,6 +330,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
         ],
       }),
       timeoutMs: Number(process.env.OPENCODE_MESSAGE_TIMEOUT_MS ?? 120000),
+      signal,
     });
   }
 
@@ -358,16 +369,17 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   }
 
   private async requestJson<T>(path: string, init: RequestInit & { timeoutMs?: number }): Promise<T> {
-    const timeoutMs = init.timeoutMs ?? 12000;
+    const { timeoutMs = 12000, signal, ...requestInit } = init;
     const controller = new AbortController();
+    const cleanupAbort = this.forwardAbort(signal ?? undefined, controller);
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
-        ...init,
+        ...requestInit,
         headers: {
           "Content-Type": "application/json",
-          ...(init.headers ?? {}),
+          ...(requestInit.headers ?? {}),
         },
         signal: controller.signal,
       });
@@ -392,8 +404,24 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
         message: error instanceof Error ? error.message : "OpenCode request failed",
       });
     } finally {
+      cleanupAbort();
       clearTimeout(timeout);
     }
+  }
+
+  private forwardAbort(signal: AbortSignal | undefined, controller: AbortController): () => void {
+    if (!signal) {
+      return () => undefined;
+    }
+
+    if (signal.aborted) {
+      controller.abort();
+      return () => undefined;
+    }
+
+    const abort = () => controller.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    return () => signal.removeEventListener("abort", abort);
   }
 
   private extractText(response: OpenCodeMessageResponse): string {

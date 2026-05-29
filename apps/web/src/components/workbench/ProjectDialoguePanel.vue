@@ -17,12 +17,6 @@
         </div>
         <div class="message-body">
           <p>{{ assistantOpening }}</p>
-          <div class="message-actions">
-            <button type="button" :disabled="!hasStory || loading || dialogueSending" @click="sendPreset(analysisPrompt)">
-              <Sparkles :size="14" />
-              <span>分析剧情</span>
-            </button>
-          </div>
         </div>
       </article>
 
@@ -84,8 +78,34 @@
                             <strong>{{ seed.order }}. {{ seed.title }}</strong>
                             <span>{{ seed.logline }}</span>
                             <small>冲突：{{ seed.keyConflict }} · 画面：{{ seed.visualHook }}</small>
+                            <button
+                              class="seed-select-btn"
+                              type="button"
+                              :disabled="dialogueSending"
+                              title="生成项目级剧本大纲"
+                              @click="chooseInspirationSeed(seed)"
+                            >
+                              <FileText :size="12" />
+                              <span>生成大纲</span>
+                            </button>
                           </li>
                         </ol>
+                      </div>
+
+                      <div v-if="toolResult.scriptOutline" class="tool-detail-section">
+                        <span class="tool-detail-label">剧本大纲</span>
+                        <pre class="script-outline-preview">{{ toolResult.scriptOutline.sourceText }}</pre>
+                        <button
+                          v-if="toolResult.status === 'needs_user_confirmation'"
+                          class="seed-select-btn"
+                          type="button"
+                          :disabled="dialogueSending"
+                          title="确认大纲并生成当前章节"
+                          @click="confirmScriptOutline(toolResult.scriptOutline)"
+                        >
+                          <CheckCircle2 :size="12" />
+                          <span>确认并生成当前章</span>
+                        </button>
                       </div>
 
                       <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
@@ -175,8 +195,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { ArrowUp, Bot, Brain, CheckCircle2, ChevronsLeft, CircleAlert, FileText, Loader2, Paperclip, Sparkles, Wrench, Zap, Users, Lightbulb, Search } from "lucide-vue-next";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
-import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -211,7 +230,6 @@ const attachmentError = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
 
-const hasStory = computed(() => getCurrentChapterSourceText(props.snapshot).trim().length > 0);
 const messages = computed(() => props.dialogueThread?.messages ?? []);
 const toolResults = computed(() => props.dialogueThread?.toolResults ?? []);
 const toolResultsByMessageId = computed(() => {
@@ -226,9 +244,10 @@ const toolResultsByMessageId = computed(() => {
 });
 const canSend = computed(() => (draft.value.trim().length > 0 || attachments.value.length > 0) && !props.dialogueSending);
 const selectedModelValue = computed(() => props.selectedModel ? serializeModel(props.selectedModel) : "");
-const analysisPrompt = "请分析当前剧本的人物目标、核心冲突、节奏断点和最适合漫画化的画面段落。";
 const skillTools = new Set<DialogueToolResult["tool"]>([
   "generate_inspiration_seeds",
+  "generate_script_outline_from_seed",
+  "generate_script_from_outline",
   "generate_script_from_seed",
   "update_chapter_draft",
 ]);
@@ -236,17 +255,13 @@ const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   analyze_script_import: "analyze_script_import",
   import_script_to_chapters: "import_script_to_chapters",
   generate_inspiration_seeds: "script-inspiration-seeding",
+  generate_script_outline_from_seed: "script-outline-drafting",
+  generate_script_from_outline: "script-chapter-drafting",
   generate_script_from_seed: "script-chapter-drafting",
   update_chapter_draft: "script-chapter-editing",
 };
 
-const assistantOpening = computed(() => {
-  if (hasStory.value) {
-    return "我先围绕当前章节看人物目标、开场冲突和节奏断点。";
-  }
-
-  return "可以先说“帮我找灵感”，我会给你几个方向；选中后我会生成第 1 章草稿。";
-});
+const assistantOpening = "可以先说“帮我找灵感”，也可以上传或粘贴剧本让我整理；选中灵感后我会先生成剧本大纲。";
 
 watch(
   () => [
@@ -279,11 +294,26 @@ function submit() {
   });
 }
 
-function sendPreset(content: string) {
+function chooseInspirationSeed(seed: ScriptInspirationSeed) {
   if (props.dialogueSending) {
     return;
   }
-  emit("send", { content });
+
+  emit("send", {
+    content: `选第 ${seed.order} 个：${seed.title}`,
+    intent: "generate_script_outline_from_seed",
+  });
+}
+
+function confirmScriptOutline(outline: ProjectScriptOutline) {
+  if (props.dialogueSending) {
+    return;
+  }
+
+  emit("send", {
+    content: `确认大纲：${outline.title}，生成当前章节`,
+    intent: "generate_script_from_outline",
+  });
 }
 
 async function handleFileChange(event: Event) {
@@ -386,8 +416,16 @@ function getToolEventSummary(result: DialogueToolResult) {
     return seedCount > 0 ? `已生成 ${seedCount} 个灵感方向。` : "已完成灵感生成。";
   }
 
+  if (result.tool === "generate_script_outline_from_seed") {
+    return "已生成项目级剧本大纲，等待确认。";
+  }
+
   if (result.tool === "import_script_to_chapters") {
     return `已写入 ${result.chapters.length} 个章节。`;
+  }
+
+  if (result.tool === "generate_script_from_outline") {
+    return "已根据确认的大纲生成当前章节草稿。";
   }
 
   if (result.tool === "generate_script_from_seed") {
@@ -862,26 +900,41 @@ function getImportDecisionLabel(decision: string) {
   line-height: 1.45;
 }
 
-.message-actions button {
+.script-outline-preview {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.36);
+  color: #dbeafe;
+  padding: 10px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.seed-select-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 28px;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  gap: 4px;
+  min-height: 24px;
+  margin-top: 6px;
+  border: 1px solid rgba(141, 240, 220, 0.24);
   border-radius: 6px;
-  background: rgba(139, 92, 246, 0.1);
-  color: #c4b5fd;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
+  background: rgba(141, 240, 220, 0.08);
+  color: #a7fff0;
+  font-size: 11px;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s;
 }
 
-.message-actions button:hover:not(:disabled) {
-  background: rgba(139, 92, 246, 0.2);
-  color: #e2e8f0;
+.seed-select-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
 }
 
 .dialogue-quick-actions {

@@ -14,10 +14,6 @@
           <Save :size="15" />
           <span>{{ loading ? "保存中..." : "保存草稿" }}</span>
         </button>
-        <button class="analyze-story-btn" type="button" :disabled="loading || !form.sourceText.trim()" @click="$emit('analyze')">
-          <Sparkles :size="15" />
-          <span>AI 分析剧情</span>
-        </button>
       </div>
     </header>
 
@@ -81,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { CheckCircle2, PencilLine, RotateCcw, Save, Sparkles } from "lucide-vue-next";
+import { CheckCircle2, PencilLine, RotateCcw, Save } from "lucide-vue-next";
 import type { ArtStyle, ComicFormat, UpdateProjectDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 
@@ -92,7 +88,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   save: [input: UpdateProjectDraftRequest];
-  analyze: [];
 }>();
 
 const form = reactive({
@@ -220,8 +215,7 @@ function submitSave() {
 }
 
 .ghost-story-btn,
-.save-story-btn,
-.analyze-story-btn {
+.save-story-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -246,15 +240,8 @@ function submitSave() {
   color: #85ead7;
 }
 
-.analyze-story-btn {
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.88), rgba(20, 184, 166, 0.78));
-  color: #ffffff;
-}
-
 .ghost-story-btn:hover,
-.save-story-btn:hover,
-.analyze-story-btn:hover {
+.save-story-btn:hover {
   transform: translateY(-1px);
 }
 

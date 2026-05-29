@@ -51,6 +51,11 @@ export class ProjectsController {
     return ok(await this.projectsService.getChapter(projectId, chapterId));
   }
 
+  @Post(":projectId/chapters/:chapterId/script/clear")
+  async clearChapterScript(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.projectsService.clearChapterScript(projectId, chapterId));
+  }
+
   @Patch(":projectId/chapters/:chapterId/draft")
   async saveChapterDraft(
     @Param("projectId") projectId: string,

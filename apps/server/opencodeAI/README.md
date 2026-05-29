@@ -14,6 +14,23 @@
 | `skills/**/SKILL.md` | 可复用阶段能力，定义触发时机、输入、输出、失败条件和验收口径 |
 | `tools/` | 后续对 OpenCode 暴露的受控业务工具封装 |
 
+## Skill 文件格式
+
+每个 `skills/**/SKILL.md` 必须以 YAML frontmatter 开头，至少包含：
+
+```yaml
+---
+name: script-example
+description: 用一句话说明触发时机、核心职责和关键边界。
+---
+```
+
+要求：
+
+- `name` 必须和 skill 目录名一致。
+- `description` 写给模型和运行时检索使用，应包含触发场景、输出目标和关键禁止事项。
+- frontmatter 后再写正文标题和详细流程。
+
 ## 命名规则
 
 - Agent：`airoaming__{workflow-or-step}-agent.md`
@@ -30,4 +47,3 @@
 - AI 不直接读写本地物理路径，不直接编辑 `workspace/projects/*`。
 - 任何写入项目事实源的动作都必须经过 AI漫游后端受控工具/API。
 - Skill 负责降低上下文漂移，不替代 `文档/`、DTO、后端校验或用户确认。
-

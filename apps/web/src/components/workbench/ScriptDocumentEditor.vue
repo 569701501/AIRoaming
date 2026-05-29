@@ -27,7 +27,7 @@
       <div class="footer-actions">
         <button class="reset-script-btn" type="button" :disabled="loading || !canReset" @click="submitReset">
           <Trash2 :size="14" />
-          <span>清空剧本</span>
+          <span>清空本章</span>
         </button>
         <button class="save-draft-btn" type="button" :disabled="loading || !hasChanges" @click="submitSave">
           <Save :size="14" />
@@ -44,10 +44,11 @@
         <div class="modal-content">
           <div class="modal-header">
             <AlertTriangle class="modal-icon" :size="20" />
-            <span class="modal-title">清空剧本</span>
+            <span class="modal-title">清空当前章节</span>
           </div>
           <p class="modal-desc">
-            此操作将<strong>删除当前项目下所有章节草稿</strong>，并重置为一个空白的第 1 章。<br />
+            此操作只会<strong>清空当前打开章节的剧本正文</strong>，其他章节不会删除。<br />
+            如果本章已完成，清空后会回到草稿状态。
             确定要继续吗？
           </p>
           <div class="modal-actions">
@@ -98,7 +99,7 @@ const estimatedPages = computed(() => {
 const hasChanges = computed(() => sourceText.value !== currentChapterSourceText.value);
 const canSave = computed(() => hasChanges.value);
 const canComplete = computed(() => sourceText.value.trim().length > 0);
-const canReset = computed(() => sourceText.value.trim().length > 0 || props.snapshot.chapters.length > 1);
+const canReset = computed(() => sourceText.value.trim().length > 0 || props.snapshot.currentChapter?.status !== "draft");
 const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScriptRevision ?? null);
 const revisionTitle = computed(() => {
   const revision = lastScriptRevision.value;
@@ -118,7 +119,7 @@ const saveStatusLabel = computed(() => {
 });
 
 watch(
-  () => props.snapshot,
+  currentChapterSourceText,
   () => resetForm(),
   { immediate: true },
 );

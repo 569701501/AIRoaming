@@ -5,6 +5,7 @@ import type {
   CompleteChapterRequest,
   CompleteChapterResponse,
   CreateProjectRequest,
+  ClearChapterScriptResponse,
   DeleteProjectResponse,
   DialogueStreamEvent,
   DialogueThread,
@@ -24,7 +25,7 @@ import type {
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -194,6 +195,12 @@ export const api = {
     {
       method: "POST",
       body: JSON.stringify(input),
+    },
+  ),
+  clearChapterScript: (projectId: string, chapterId: string) => request<ClearChapterScriptResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/clear`,
+    {
+      method: "POST",
     },
   ),
   resetProjectScript: (projectId: string) => request<ResetProjectScriptResponse>(
