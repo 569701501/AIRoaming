@@ -12,3 +12,5 @@ apps/server/prisma/dev.db
 apps/server/prisma/dev.db-journal
 workspace/projects/*
 !workspace/projects/.gitkeep
+workspace/settings/*
+!workspace/settings/.gitkeep

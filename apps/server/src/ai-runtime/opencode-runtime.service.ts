@@ -1,6 +1,8 @@
-import { BadGatewayException, Injectable, OnModuleDestroy } from "@nestjs/common";
+import { BadGatewayException, Inject, Injectable, OnModuleDestroy } from "@nestjs/common";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import type { AIRuntimeModelItem, AIRuntimeModelSelection } from "@airoaming/shared";
+import { SettingsService } from "../settings/settings.service.js";
 
 interface OpenCodeSession {
   id: string;
@@ -53,6 +55,9 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
 
   private child: ChildProcess | null = null;
   private readyPromise: Promise<void> | null = null;
+  private syncedAuthSignature: string | null = null;
+
+  constructor(@Inject(SettingsService) private readonly settingsService: SettingsService) {}
 
   async onModuleDestroy(): Promise<void> {
     if (this.child) {
@@ -62,16 +67,22 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   }
 
   getDefaultModel(): AIRuntimeModelSelection {
-    return { ...this.defaultModel };
+    const settingsModel = this.settingsService.getRuntimeAIKeySettings();
+    return {
+      providerId: settingsModel.providerId || this.defaultModel.providerId,
+      modelId: settingsModel.modelId || this.defaultModel.modelId,
+    };
   }
 
   async listModels(): Promise<AIRuntimeModelItem[]> {
     try {
-      const config = await this.withReadyRetry(() => {
+      const config = await this.withReadyRetry(async () => {
+        await this.syncConfiguredAuth();
         return this.requestJson<OpenCodeConfigResponse>("/config", {
           method: "GET",
         });
       });
+      const defaultModel = this.getDefaultModel();
       const providers = config.provider ?? {};
       const items = Object.entries(providers).flatMap(([providerId, provider]) => {
         const providerName = provider.name ?? provider.id ?? providerId;
@@ -80,11 +91,13 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
           modelId,
           providerName,
           displayName: model.name ?? model.id ?? modelId,
-          default: providerId === this.defaultModel.providerId && modelId === this.defaultModel.modelId,
+          default: providerId === defaultModel.providerId && modelId === defaultModel.modelId,
         }));
       });
 
-      return items.length > 0 ? items : [this.fallbackModel()];
+      const hasDefaultModel = items.some((item) => item.providerId === defaultModel.providerId && item.modelId === defaultModel.modelId);
+      const normalizedItems = hasDefaultModel ? items : [this.fallbackModel(), ...items];
+      return normalizedItems.length > 0 ? normalizedItems : [this.fallbackModel()];
     } catch {
       return [this.fallbackModel()];
     }
@@ -113,8 +126,11 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     content: string;
     model: AIRuntimeModelSelection;
   }> {
-    const model = input.model ?? this.defaultModel;
-    const response = await this.withReadyRetry(() => this.postMessage(input.sessionId, input.content, model, input.signal));
+    const model = input.model ?? this.getDefaultModel();
+    const response = await this.withReadyRetry(async () => {
+      await this.syncConfiguredAuth();
+      return this.postMessage(input.sessionId, input.content, model, input.signal);
+    });
 
     const content = this.extractText(response);
     if (!content) {
@@ -141,8 +157,9 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     content: string;
     model: AIRuntimeModelSelection;
   }> {
-    const model = input.model ?? this.defaultModel;
+    const model = input.model ?? this.getDefaultModel();
     await this.ensureReady();
+    await this.syncConfiguredAuth();
 
     try {
       return await this.streamMessageOnce(input.sessionId, input.content, model, handlers, input.signal);
@@ -498,12 +515,43 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   }
 
   private fallbackModel(): AIRuntimeModelItem {
+    const defaultModel = this.getDefaultModel();
     return {
-      ...this.defaultModel,
-      providerName: this.defaultModel.providerId,
-      displayName: this.defaultModel.modelId,
+      ...defaultModel,
+      providerName: defaultModel.providerId,
+      displayName: defaultModel.modelId,
       default: true,
     };
+  }
+
+  private async syncConfiguredAuth(): Promise<void> {
+    const credential = this.settingsService.getRuntimeAIKeySettings();
+    if (!credential.apiKey) {
+      this.syncedAuthSignature = null;
+      return;
+    }
+
+    const signature = createHash("sha256")
+      .update([credential.providerId, credential.baseUrl ?? "", credential.apiKey].join("\0"))
+      .digest("hex");
+    if (this.syncedAuthSignature === signature) {
+      return;
+    }
+
+    await this.requestJson<boolean>(`/auth/${encodeURIComponent(credential.providerId)}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        type: "api",
+        key: credential.apiKey,
+        metadata: credential.baseUrl
+          ? {
+              baseURL: credential.baseUrl,
+            }
+          : undefined,
+      }),
+      timeoutMs: Number(process.env.OPENCODE_AUTH_TIMEOUT_MS ?? 5000),
+    });
+    this.syncedAuthSignature = signature;
   }
 
   private delay(ms: number): Promise<void> {

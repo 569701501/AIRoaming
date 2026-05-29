@@ -9,7 +9,7 @@
     />
     <div class="app-body">
       <AppSidebar v-if="!isProjectRoute" />
-      <section class="app-main" :aria-label="isProjectRoute ? '绘界漫画项目工作区' : '绘界漫画项目库'">
+      <section class="app-main" :aria-label="mainAriaLabel">
         <ProjectWorkbenchView
           v-if="isProjectRoute && snapshot"
           :active-step-key="activeStepKey"
@@ -40,6 +40,7 @@
           </div>
           <span v-else>正在打开项目...</span>
         </main>
+        <AppSettingsView v-else-if="isSettingsRoute" />
         <ProjectLibraryView v-else />
       </section>
     </div>
@@ -53,6 +54,7 @@ import { useRoute, useRouter } from "vue-router";
 import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
+import AppSettingsView from "../settings/AppSettingsView.vue";
 import ProjectLibraryView from "../projects/ProjectLibraryView.vue";
 import ProjectWorkbenchView from "../workbench/ProjectWorkbenchView.vue";
 import { getStepKeyFromSlug, getStepSlugFromKey, projectRoute } from "../../router";
@@ -89,6 +91,16 @@ const routeChapterId = computed(() => {
   return typeof value === "string" ? value : null;
 });
 const isProjectRoute = computed(() => Boolean(routeProjectId.value));
+const isSettingsRoute = computed(() => route.name === "settings");
+const mainAriaLabel = computed(() => {
+  if (isProjectRoute.value) {
+    return "绘界漫画项目工作区";
+  }
+  if (isSettingsRoute.value) {
+    return "绘界漫画设置";
+  }
+  return "绘界漫画项目库";
+});
 
 watch(
   [routeProjectId, routeStepKey, routeChapterId],

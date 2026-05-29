@@ -2,6 +2,7 @@ import type {
   ApiResponse,
   AIRuntimeModelItem,
   AIRuntimeModelSelection,
+  AppSettings,
   CompleteChapterRequest,
   CompleteChapterResponse,
   CreateProjectRequest,
@@ -20,6 +21,7 @@ import type {
   SaveChapterDraftResponse,
   SendDialogueMessageRequest,
   SendDialogueMessageResponse,
+  UpdateAppSettingsRequest,
   UpdateProjectDraftRequest,
   WorkspaceInfo,
   WorkbenchSnapshot,
@@ -156,6 +158,11 @@ function parseSseBlock(block: string): DialogueStreamEvent | null {
 export const api = {
   health: () => request<HealthResponse>("/health"),
   workspace: () => request<WorkspaceInfo>("/workspace"),
+  settings: () => request<AppSettings>("/settings"),
+  updateSettings: (input: UpdateAppSettingsRequest) => request<AppSettings>("/settings", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  }),
   listRuntimeModels: () => request<{
     defaultModel: AIRuntimeModelSelection;
     items: AIRuntimeModelItem[];

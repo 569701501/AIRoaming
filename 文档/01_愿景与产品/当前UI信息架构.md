@@ -180,4 +180,5 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 | 剧本 | current | 当前代码支持在右侧剧本文档编辑器中用 CodeMirror Markdown 编辑和保存当前章节正文；最右侧“当前章节信息”面板已废弃并从剧本页常驻布局移除；剧本编辑器和左侧对话框优先读取 `WorkbenchSnapshot.currentChapter`，并以 `snapshot.story` 作为过渡兜底；项目名称、故事标题、题材标签、漫画格式和画风方向不在当前剧本文档页展示；左侧对话框已接入 OpenCode 对话和流式输出，provider/model 透传链路存在但可见模型选择控件需恢复或重做；用户提供剧本整理、AI skill 灵感种子、从灵感生成章节草稿和 AI 受控编辑章节草稿已接入第一版 |
 | 章节工作流 | current | 已实现章节列表、`/projects/:projectId/script/:chapterId` 章节路由、章节级保存草稿、完成本章并创建或进入下一章；当前仍未实现手动新建章节、章节重命名表单、章节删除和后续产物失效提示 |
 | 对话过程展示 | current | 已参考 AuroraPlatformWeb 的 reasoning/tool 展示模式：消息区独立滚动，长正文局部滚动，AI 思考、技能调用和工具结果以紧凑过程卡片展示 |
-| 素材库、设置、通知、团队 | deferred | 不进入当前主路径 |
+| 设置 | current | 首页全局左侧导航可进入 `/settings`；设置页参考 AuroraPlatformWeb 的分组形态，当前保留 `AI 密钥` 和 `外观设置` 两个分组。AI 密钥由后端保存到 workspace 全局设置，前端只展示掩码和指纹；外观可切换深色、浅色和跟随系统 |
+| 素材库、通知、团队 | deferred | 不进入当前主路径 |

@@ -10,6 +10,9 @@
 - AI 不直接操作本地物理路径；剧本阶段允许 AI 通过 AI漫游受控工具/API 整理、生成和编辑章节草稿，其他阶段写入权限需按各自契约单独确认。
 - 第一阶段采用 OpenCode 作为项目对话框 AI Runtime；AI漫游自己的业务事实源仍是项目、对话、已确认事实和产物。
 - OpenCode 对话默认模型当前兜底为 `self/gpt-5.5`，可通过 `OPENCODE_PROVIDER_ID` 和 `OPENCODE_MODEL_ID` 覆盖；2026-05-29 诊断确认旧默认 `aurora/gpt-5.4` 背后的 timicc provider 返回 `503 No available accounts`，不再作为默认。
+- 首页全局设置页已接入 `/settings`：当前只保留 `AI 密钥` 和 `外观设置` 两个分组。AI 密钥保存到后端 workspace 全局设置，前端读取时只展示掩码和指纹；外观设置支持 `system/dark/light` 并由前端应用到 `document.documentElement`。
+- 全局设置保存路径为 `workspace/settings/app-settings.json`，`workspace/settings/*` 已被 `.gitignore` 排除，只保留 `.gitkeep`；后续正式形态应替换为系统 keychain、数据库加密字段或专用密钥服务。
+- `OpenCodeRuntimeService` 默认 `providerId/modelId` 优先读取全局设置；当设置中存在 API Key 时，后端在调用 OpenCode 前通过 OpenCode auth 接口服务端同步，不向前端回传完整密钥。
 - 剧本页右侧编辑器已换为 CodeMirror Markdown，保存接口当前仍保存纯文本 `sourceText`。
 - 2026-05-29 产品口径更新：剧本页不再需要最右侧“当前章节信息”面板；当前剧本区域就是写剧本正文，主线、出场角色和场景列表不再常驻展示，应后置到剧情结构步骤或局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
 - 当前后端仍未接数据库，项目 API 运行时使用进程内项目索引加本地 workspace 文件写入；服务启动或首次访问项目接口时会从 `workspace/projects/*/project.json`、章节目录和 `script.md` 恢复项目索引，避免重启后项目库丢失。

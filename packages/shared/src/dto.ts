@@ -6,6 +6,7 @@ import type {
   GenerationTaskStatus,
   GenerationTaskTargetType,
   GenerationTaskType,
+  AppearanceTheme,
   ProjectWorkflowScope,
   ProjectWorkflowStepKey,
   ProjectWorkflowStepStatus,
@@ -40,6 +41,46 @@ export interface WorkspaceInfo {
   virtualRoot: "/workspace";
   projectsPath: "/workspace/projects";
   ready: boolean;
+}
+
+export interface AppAppearanceSettings {
+  theme: AppearanceTheme;
+}
+
+export interface AppAIKeySettings {
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  baseUrl: string | null;
+  configured: boolean;
+  keyPreview: string | null;
+  keyFingerprint: string | null;
+  updatedAt: string | null;
+}
+
+export interface AppSettings {
+  aiKey: AppAIKeySettings;
+  appearance: AppAppearanceSettings;
+  settingsPath: "/workspace/settings/app-settings.json";
+  updatedAt: string;
+}
+
+export interface UpdateAIKeySettingsRequest {
+  providerId?: string;
+  providerName?: string;
+  modelId?: string;
+  baseUrl?: string | null;
+  apiKey?: string;
+  clearApiKey?: boolean;
+}
+
+export interface UpdateAppearanceSettingsRequest {
+  theme?: AppearanceTheme;
+}
+
+export interface UpdateAppSettingsRequest {
+  aiKey?: UpdateAIKeySettingsRequest;
+  appearance?: UpdateAppearanceSettingsRequest;
 }
 
 export interface ProjectListItem {

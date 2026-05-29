@@ -152,6 +152,9 @@ export type GenerationTaskEvent = (typeof GENERATION_TASK_EVENTS)[number];
 export const ASSET_TYPES = ["image", "audio", "video", "document", "archive"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 
+export const APPEARANCE_THEMES = ["system", "dark", "light"] as const;
+export type AppearanceTheme = (typeof APPEARANCE_THEMES)[number];
+
 export interface ProjectSummary {
   id: string;
   name: string;

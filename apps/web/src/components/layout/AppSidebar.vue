@@ -5,9 +5,11 @@
         v-for="item in navItems"
         :key="item.label"
         class="sidebar-nav-item"
-        :class="{ 'is-active': item.status === 'current', 'is-muted': item.status !== 'current' }"
+        :class="{ 'is-active': isActive(item), 'is-muted': !isActive(item) && item.status !== 'current' }"
         type="button"
-        :aria-current="item.status === 'current' ? 'page' : undefined"
+        :aria-current="isActive(item) ? 'page' : undefined"
+        :disabled="!item.path"
+        @click="goNav(item)"
       >
         <component :is="item.icon" :size="20" />
         <span>{{ item.label }}</span>
@@ -20,6 +22,10 @@
 
 <script setup lang="ts">
 import { FolderKanban, Images, ListTodo, Settings } from "lucide-vue-next";
+import { useRoute, useRouter } from "vue-router";
+
+const route = useRoute();
+const router = useRouter();
 
 const navItems = [
   {
@@ -27,24 +33,44 @@ const navItems = [
     status: "current",
     badge: "",
     icon: FolderKanban,
+    path: "/projects",
   },
   {
     label: "素材库",
     status: "planned",
     badge: "",
     icon: Images,
+    path: "",
   },
   {
     label: "任务队列",
     status: "shell",
     badge: "",
     icon: ListTodo,
+    path: "",
   },
   {
     label: "设置",
-    status: "planned",
+    status: "current",
     badge: "",
     icon: Settings,
+    path: "/settings",
   },
 ] as const;
+
+type NavItem = (typeof navItems)[number];
+
+function isActive(item: NavItem): boolean {
+  if (!item.path) {
+    return false;
+  }
+  return route.path === item.path;
+}
+
+async function goNav(item: NavItem) {
+  if (!item.path || route.path === item.path) {
+    return;
+  }
+  await router.push(item.path);
+}
 </script>

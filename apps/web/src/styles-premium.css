@@ -1098,3 +1098,100 @@ body {
     transform: translateY(0) !important;
   }
 }
+
+/* ---- Appearance Settings: Light Theme Overrides ---- */
+html[data-theme="light"] {
+  color: #172033;
+  background: #f5f7fb;
+}
+
+html[data-theme="light"] body {
+  background:
+    linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%) !important;
+  color: #172033;
+}
+
+html[data-theme="light"] .app-main {
+  background: rgba(240, 244, 250, 0.82) !important;
+}
+
+html[data-theme="light"] .topbar,
+html[data-theme="light"] .app-sidebar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(38, 51, 77, 0.1) !important;
+}
+
+html[data-theme="light"] .brand-lockup strong,
+html[data-theme="light"] .user-name,
+html[data-theme="light"] .settings-heading h1,
+html[data-theme="light"] .panel-title-row h2,
+html[data-theme="light"] .project-card-title strong,
+html[data-theme="light"] .stat-value-row > strong,
+html[data-theme="light"] .section-heading strong,
+html[data-theme="light"] .queue-card strong {
+  color: #172033 !important;
+}
+
+html[data-theme="light"] .ghost-action,
+html[data-theme="light"] .notification-btn,
+html[data-theme="light"] .user-profile,
+html[data-theme="light"] .settings-icon-btn,
+html[data-theme="light"] .secondary-action {
+  border-color: rgba(38, 51, 77, 0.12) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #43506a !important;
+}
+
+html[data-theme="light"] .sidebar-nav-item {
+  color: #53617c !important;
+}
+
+html[data-theme="light"] .sidebar-nav-item.is-active,
+html[data-theme="light"] .settings-nav-btn.is-active {
+  border-color: rgba(88, 80, 220, 0.24) !important;
+  background: rgba(88, 80, 220, 0.1) !important;
+  color: #202a44 !important;
+}
+
+html[data-theme="light"] .command-panel,
+html[data-theme="light"] .workflow-strip,
+html[data-theme="light"] .project-card,
+html[data-theme="light"] .stat-card,
+html[data-theme="light"] .settings-nav,
+html[data-theme="light"] .settings-panel,
+html[data-theme="light"] .key-meta > div,
+html[data-theme="light"] .theme-option {
+  border-color: rgba(38, 51, 77, 0.1) !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  box-shadow: 0 14px 36px rgba(23, 32, 51, 0.08) !important;
+}
+
+html[data-theme="light"] .project-list-section {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] .command-copy p,
+html[data-theme="light"] .queue-card p,
+html[data-theme="light"] .project-card-title p,
+html[data-theme="light"] .sort-label,
+html[data-theme="light"] .filter-tabs button,
+html[data-theme="light"] .settings-nav-btn,
+html[data-theme="light"] .theme-option,
+html[data-theme="light"] .key-meta strong {
+  color: #5f6d86 !important;
+}
+
+html[data-theme="light"] input,
+html[data-theme="light"] select {
+  border-color: rgba(38, 51, 77, 0.14) !important;
+  background: #ffffff !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"] .theme-option.is-active,
+html[data-theme="light"] .status-pill.is-ready {
+  border-color: rgba(20, 148, 126, 0.28) !important;
+  background: rgba(20, 148, 126, 0.09) !important;
+  color: #17352f !important;
+}

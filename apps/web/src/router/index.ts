@@ -63,6 +63,11 @@ export const router = createRouter({
       component: RouteStub,
     },
     {
+      path: "/settings",
+      name: "settings",
+      component: RouteStub,
+    },
+    {
       path: "/projects/:projectId",
       redirect: (to) => ({
         name: "project-step",
