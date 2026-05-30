@@ -5,6 +5,7 @@ import type {
   AppSettings,
   CompleteChapterRequest,
   CompleteChapterResponse,
+  ConfirmChapterStoryStructureRequest,
   CreateProjectRequest,
   ClearChapterScriptResponse,
   DeleteProjectResponse,
@@ -19,8 +20,10 @@ import type {
   ResetProjectScriptResponse,
   SaveChapterDraftRequest,
   SaveChapterDraftResponse,
+  SaveChapterStoryStructureResponse,
   SendDialogueMessageRequest,
   SendDialogueMessageResponse,
+  UpdateChapterStoryStructureRequest,
   UpdateAppSettingsRequest,
   UpdateProjectDraftRequest,
   WorkspaceInfo,
@@ -201,6 +204,28 @@ export const api = {
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/complete`,
     {
       method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  confirmChapterStoryStructure: (
+    projectId: string,
+    chapterId: string,
+    input: ConfirmChapterStoryStructureRequest,
+  ) => request<SaveChapterStoryStructureResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  updateChapterStoryStructure: (
+    projectId: string,
+    chapterId: string,
+    input: UpdateChapterStoryStructureRequest,
+  ) => request<SaveChapterStoryStructureResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure`,
+    {
+      method: "PATCH",
       body: JSON.stringify(input),
     },
   ),

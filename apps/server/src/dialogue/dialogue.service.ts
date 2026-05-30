@@ -12,6 +12,8 @@ import type {
   SendDialogueMessageResponse,
   ScriptImportAnalysis,
   ScriptInspirationSeed,
+  ChapterStoryStructure,
+  StoryStructureJson,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import {
@@ -76,6 +78,12 @@ interface PendingScriptOutline {
   createdAt: string;
 }
 
+interface PendingStoryStructure {
+  storyStructure: ChapterStoryStructure;
+  chapterId: string;
+  createdAt: string;
+}
+
 const STEP_LABELS: Record<string, string> = {
   project_story: "剧本",
   story_structure: "剧情结构",
@@ -92,6 +100,7 @@ export class DialogueService {
   private readonly pendingScriptImports = new Map<string, PendingScriptImport>();
   private readonly pendingInspirationSeeds = new Map<string, PendingInspirationSeeds>();
   private readonly pendingScriptOutlines = new Map<string, PendingScriptOutline>();
+  private readonly pendingStoryStructures = new Map<string, PendingStoryStructure>();
 
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
@@ -443,6 +452,11 @@ export class DialogueService {
     input: SendDialogueMessageRequest,
     signal?: AbortSignal,
   ): Promise<DialogueToolResult[]> {
+    const storyStructureResult = await this.tryHandleStoryStructureTools(turn, input, signal);
+    if (storyStructureResult) {
+      return [storyStructureResult];
+    }
+
     const importResults = await this.tryHandleScriptImport(turn, input);
     if (importResults.length > 0) {
       return importResults;
@@ -459,6 +473,157 @@ export class DialogueService {
     }
 
     return [];
+  }
+
+  private async tryHandleStoryStructureTools(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
+  ): Promise<DialogueToolResult | null> {
+    if (turn.normalizedStepKey !== "story_structure") {
+      return null;
+    }
+
+    const pendingKey = this.getPendingStoryStructureKey(turn.thread.projectId, turn.thread.chapterId);
+    const pending = this.pendingStoryStructures.get(pendingKey);
+    if (pending && (input.intent === "confirm_story_structure" || this.isConfirmingStoryStructure(input.content))) {
+      this.pendingStoryStructures.delete(pendingKey);
+      return this.createConfirmStoryStructureToolResult(turn, pending.storyStructure);
+    }
+
+    if (!this.shouldGenerateStoryStructure(input)) {
+      return null;
+    }
+
+    const chapter = turn.snapshot.currentChapter;
+    if (!chapter) {
+      return this.createFailedToolResult(turn, "generate_story_structure", "当前项目还没有可生成剧情结构的章节。");
+    }
+
+    if (chapter.status === "draft") {
+      return this.createFailedToolResult(
+        turn,
+        "generate_story_structure",
+        "当前章节还没有完成剧本，请先在剧本步骤点击“完成本章”，再生成剧情结构。",
+      );
+    }
+
+    if (chapter.status !== "script_done" && !this.isConfirmingStoryStructureRegeneration(input.content)) {
+      return this.createStoryStructureWarningToolResult(
+        turn,
+        "本章已经有剧情结构或后续产物。重新生成会影响后面的分镜、候选图和排版；确认要重新生成，请回复“确认重新生成剧情结构”。",
+      );
+    }
+
+    let structureJson: StoryStructureJson;
+    try {
+      structureJson = await this.generateStoryStructureWithAI(turn, input, signal);
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_story_structure",
+        `剧情结构生成失败：${this.getErrorMessage(error)}。本次没有写入章节结构。`,
+      );
+    }
+
+    const now = new Date().toISOString();
+    const existingVersion = turn.snapshot.storyStructure?.version ?? 0;
+    const storyStructure: ChapterStoryStructure = {
+      id: `${chapter.id}_story_pending_${randomUUID().slice(0, 8)}`,
+      projectId: turn.thread.projectId,
+      chapterId: chapter.id,
+      version: existingVersion + 1,
+      status: "pending_confirmation",
+      structurePath: null,
+      sourceScriptVersionId: chapter.currentScriptVersionId,
+      structureJson: this.normalizeStoryStructureJson(structureJson, chapter.id, chapter.title, {
+        sourceScriptVersionId: chapter.currentScriptVersionId,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      createdAt: now,
+      updatedAt: now,
+      confirmedAt: null,
+    };
+
+    this.pendingStoryStructures.set(pendingKey, {
+      storyStructure,
+      chapterId: chapter.id,
+      createdAt: now,
+    });
+
+    return this.createGenerateStoryStructureToolResult(turn, storyStructure);
+  }
+
+  private async createConfirmStoryStructureToolResult(
+    turn: DialogueTurn,
+    storyStructure: ChapterStoryStructure,
+  ): Promise<DialogueToolResult> {
+    const result = await this.projectsService.confirmChapterStoryStructure(turn.thread.projectId, storyStructure.chapterId, {
+      structureJson: storyStructure.structureJson,
+    });
+
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "confirm_story_structure",
+      status: "succeeded",
+      summary: `已确认「${result.chapter.title}」的剧情结构，并写入 ${result.storyStructure.structurePath}。现在可以进入分镜工作台。`,
+      chapters: result.chapters,
+      currentChapterId: result.chapter.id,
+      currentChapter: result.chapter,
+      storyStructure: result.storyStructure,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private createGenerateStoryStructureToolResult(
+    turn: DialogueTurn,
+    storyStructure: ChapterStoryStructure,
+  ): DialogueToolResult {
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "generate_story_structure",
+      status: "needs_user_confirmation",
+      summary: [
+        `已生成「${storyStructure.structureJson.chapterTitle}」的剧情结构预览，右侧可查看。`,
+        "这还是待确认预览，不会写入正式 structure.json，也不能生成分镜。",
+        "确认后我会通过受控接口保存到当前章节，并把章节推进为 structured。",
+      ].join("\n"),
+      chapters: [],
+      currentChapterId: storyStructure.chapterId,
+      currentChapter: turn.snapshot.currentChapter ?? null,
+      storyStructure,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private createStoryStructureWarningToolResult(turn: DialogueTurn, summary: string): DialogueToolResult {
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "generate_story_structure",
+      status: "needs_user_confirmation",
+      summary,
+      chapters: [],
+      currentChapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
+      currentChapter: turn.snapshot.currentChapter ?? null,
+      storyStructure: null,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   private async tryHandleScriptImport(
@@ -1017,6 +1182,263 @@ export class DialogueService {
     return /(帮我|给我|想|找|生成|来点|有没有).{0,10}(灵感|点子|创意|方向|题材|故事种子)|没有灵感|没想法|不知道写什么/.test(content);
   }
 
+  private shouldGenerateStoryStructure(input: SendDialogueMessageRequest): boolean {
+    if (input.intent === "generate_story_structure") {
+      return true;
+    }
+
+    const content = input.content.trim();
+    return /(生成|整理|拆|做|创建|重新生成).{0,12}(剧情结构|剧本结构|结构化剧情|故事结构|story_parse)/.test(content)
+      || /剧情结构/.test(content);
+  }
+
+  private isConfirmingStoryStructure(content: string): boolean {
+    const text = content.trim();
+    if (/(不行|不可以|不满意|不要|先别|取消)/.test(text)) {
+      return false;
+    }
+
+    return /^(确认|可以|继续|同意|就这个|没问题|通过)$/.test(text)
+      || /(确认|通过|保存).{0,10}(剧情结构|剧本结构|结构)/.test(text)
+      || /(按这个|就这个).{0,8}(保存|确认|继续)/.test(text);
+  }
+
+  private isConfirmingStoryStructureRegeneration(content: string): boolean {
+    return /(确认|确定|同意).{0,10}(重新生成|重生成|覆盖).{0,10}(剧情结构|剧本结构|结构)/.test(content.trim())
+      || /(重新生成|重生成).{0,8}(剧情结构|剧本结构|结构)/.test(content.trim());
+  }
+
+  private async generateStoryStructureWithAI(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
+  ): Promise<StoryStructureJson> {
+    const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot, signal);
+    const response = await this.openCodeRuntimeService.sendMessage({
+      sessionId: openCodeSessionId,
+      model: input.model,
+      content: this.buildStoryStructurePrompt(turn, input),
+      signal,
+    });
+
+    return this.parseStoryStructureJson(response.content, turn.snapshot);
+  }
+
+  private buildStoryStructurePrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
+    const snapshot = turn.snapshot;
+    const currentChapter = snapshot.currentChapter;
+    const sourceText = (input.context?.sourceText ?? currentChapter?.sourceText ?? snapshot.story.sourceText).trim();
+
+    return [
+      "你正在为 AI漫游执行剧情结构阶段 skill：structure-story-parse。",
+      "任务：只针对当前章节生成「剧情结构」JSON，供后续分镜工作台使用。",
+      "",
+      "硬性边界：",
+      "- 只生成当前章节的剧情结构，不要生成整部作品结构。",
+      "- 剧情结构不是章节剧本正文，也不是分镜稿。",
+      "- 角色卡和场景卡默认都是本章结构卡，不要声称已创建项目级角色库或场景库。",
+      "- 剧情节拍按关键剧情事件切分，粒度要比分镜粗；不要输出镜头编号、景别、机位、构图、图片 Prompt 或 JSON 以外的 Markdown 正文。",
+      "- visualFocus 只能写轻量画面重点，不能写镜头语言。",
+      "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
+      "",
+      "JSON 结构必须是：",
+      "```json",
+      JSON.stringify({
+        synopsis: "本章剧情摘要",
+        direction: {
+          logline: "一句话梗概",
+          chapterGoal: "本章目标",
+          coreConflict: "核心冲突",
+          emotionalArc: "情绪走向",
+          endingHook: "结尾钩子",
+        },
+        characters: [
+          {
+            name: "角色名",
+            role: "本章职能",
+            motivation: "本章动机",
+            relationship: "和本章其他角色的关系",
+            visualTraits: "可供后续理解的视觉特征",
+            notes: "备注",
+          },
+        ],
+        scenes: [
+          {
+            name: "场景名",
+            location: "地点",
+            timeOfDay: "时间",
+            atmosphere: "氛围",
+            purpose: "剧情作用",
+          },
+        ],
+        beats: [
+          {
+            order: 1,
+            title: "节拍标题",
+            summary: "关键事件",
+            conflict: "这一拍的冲突或转折",
+            characters: ["角色名"],
+            sceneName: "场景名",
+            visualFocus: "轻量画面重点",
+            outcome: "结果/推动",
+          },
+        ],
+        notes: "给后续分镜的结构提醒",
+      }, null, 2),
+      "```",
+      "",
+      `项目名称：${snapshot.project.name}`,
+      `剧集名称：${snapshot.project.storyTitle}`,
+      `当前章节：${currentChapter?.title ?? "当前章节"}`,
+      `当前章节状态：${currentChapter?.status ?? "unknown"}`,
+      `当前剧本版本：${currentChapter?.currentScriptVersionId ?? "未生成版本"}`,
+      "项目级剧本大纲：",
+      snapshot.scriptOutline?.sourceText?.trim() || "（暂无项目级剧本大纲）",
+      "当前章节剧本：",
+      sourceText || "（当前章节为空）",
+      "用户本次要求：",
+      input.content,
+    ].join("\n");
+  }
+
+  private parseStoryStructureJson(content: string, snapshot: WorkbenchSnapshot): StoryStructureJson {
+    const jsonText = this.extractJsonPayload(content);
+    const value = JSON.parse(jsonText) as unknown;
+    const chapter = snapshot.currentChapter;
+    if (!chapter) {
+      throw new Error("当前章节不存在，无法生成剧情结构");
+    }
+
+    return this.normalizeStoryStructureJson(value, chapter.id, chapter.title, {
+      sourceScriptVersionId: chapter.currentScriptVersionId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  private normalizeStoryStructureJson(
+    input: unknown,
+    chapterId: string,
+    fallbackChapterTitle: string,
+    overrides: Partial<Pick<StoryStructureJson, "sourceScriptVersionId" | "createdAt" | "updatedAt">> = {},
+  ): StoryStructureJson {
+    const record = this.asRecord(input);
+    const now = new Date().toISOString();
+    const direction = this.asRecord(record.direction);
+    const scenes = this.normalizeStoryStructureScenes(record.scenes);
+
+    return {
+      schemaVersion: 1,
+      chapterId,
+      chapterTitle: this.getOptionalRecordString(record, "chapterTitle") ?? fallbackChapterTitle,
+      sourceScriptVersionId: overrides.sourceScriptVersionId
+        ?? this.getOptionalRecordString(record, "sourceScriptVersionId"),
+      synopsis: this.getOptionalRecordString(record, "synopsis") ?? "",
+      direction: {
+        logline: this.getOptionalRecordString(direction, "logline") ?? "",
+        chapterGoal: this.getOptionalRecordString(direction, "chapterGoal") ?? "",
+        coreConflict: this.getOptionalRecordString(direction, "coreConflict") ?? "",
+        emotionalArc: this.getOptionalRecordString(direction, "emotionalArc") ?? "",
+        endingHook: this.getOptionalRecordString(direction, "endingHook") ?? "",
+      },
+      characters: this.normalizeStoryStructureCharacters(record.characters),
+      scenes,
+      beats: this.normalizeStoryStructureBeats(record.beats, scenes),
+      notes: this.getOptionalRecordString(record, "notes") ?? "",
+      createdAt: overrides.createdAt ?? this.getOptionalRecordString(record, "createdAt") ?? now,
+      updatedAt: overrides.updatedAt ?? this.getOptionalRecordString(record, "updatedAt") ?? now,
+    };
+  }
+
+  private normalizeStoryStructureCharacters(input: unknown): StoryStructureJson["characters"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .map((item) => this.asRecord(item))
+      .filter((item) => Object.keys(item).length > 0)
+      .map((item, index) => ({
+        id: this.getOptionalRecordString(item, "id") ?? `character_${String(index + 1).padStart(2, "0")}`,
+        name: this.getOptionalRecordString(item, "name") ?? `角色 ${index + 1}`,
+        role: this.getOptionalRecordString(item, "role") ?? "",
+        motivation: this.getOptionalRecordString(item, "motivation") ?? "",
+        relationship: this.getOptionalRecordString(item, "relationship") ?? "",
+        visualTraits: this.getOptionalRecordString(item, "visualTraits") ?? "",
+        notes: this.getOptionalRecordString(item, "notes") ?? "",
+      }));
+  }
+
+  private normalizeStoryStructureScenes(input: unknown): StoryStructureJson["scenes"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .map((item) => this.asRecord(item))
+      .filter((item) => Object.keys(item).length > 0)
+      .map((item, index) => ({
+        id: this.getOptionalRecordString(item, "id") ?? `scene_${String(index + 1).padStart(2, "0")}`,
+        name: this.getOptionalRecordString(item, "name") ?? `场景 ${index + 1}`,
+        location: this.getOptionalRecordString(item, "location") ?? "",
+        timeOfDay: this.getOptionalRecordString(item, "timeOfDay") ?? "",
+        atmosphere: this.getOptionalRecordString(item, "atmosphere") ?? "",
+        purpose: this.getOptionalRecordString(item, "purpose") ?? "",
+      }));
+  }
+
+  private normalizeStoryStructureBeats(input: unknown, scenes: StoryStructureJson["scenes"]): StoryStructureJson["beats"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .map((item) => this.asRecord(item))
+      .filter((item) => Object.keys(item).length > 0)
+      .map((item, index) => {
+        const sceneId = this.getOptionalRecordString(item, "sceneId")
+          ?? this.resolveSceneIdByName(this.getOptionalRecordString(item, "sceneName"), scenes);
+        return {
+          id: this.getOptionalRecordString(item, "id") ?? `beat_${String(index + 1).padStart(2, "0")}`,
+          order: this.getOptionalRecordNumber(item, "order") ?? index + 1,
+          title: this.getOptionalRecordString(item, "title") ?? `节拍 ${index + 1}`,
+          summary: this.getOptionalRecordString(item, "summary") ?? "",
+          conflict: this.getOptionalRecordString(item, "conflict") ?? "",
+          characters: this.getRecordStringArray(item, "characters"),
+          sceneId,
+          visualFocus: this.getOptionalRecordString(item, "visualFocus") ?? "",
+          outcome: this.getOptionalRecordString(item, "outcome") ?? "",
+        };
+      });
+  }
+
+  private resolveSceneIdByName(sceneName: string | null, scenes: StoryStructureJson["scenes"]): string | null {
+    if (!sceneName) {
+      return null;
+    }
+
+    return scenes.find((scene) => scene.name === sceneName)?.id ?? null;
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  }
+
+  private getOptionalRecordString(record: Record<string, unknown>, key: string): string | null {
+    const value = record[key];
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+
+  private getOptionalRecordNumber(record: Record<string, unknown>, key: string): number | null {
+    const value = record[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  private getRecordStringArray(record: Record<string, unknown>, key: string): string[] {
+    const value = record[key];
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+  }
+
   private async generateInspirationSeedsWithAI(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
@@ -1521,6 +1943,10 @@ export class DialogueService {
 
   private getPendingScriptOutlineKey(projectId: string, stepKey: string): string {
     return `${projectId}:${stepKey}:script-outline`;
+  }
+
+  private getPendingStoryStructureKey(projectId: string, chapterId: string | null): string {
+    return `${projectId}:story_structure:${chapterId ?? "project"}`;
   }
 
   private getErrorMessage(error: unknown): string {

@@ -108,6 +108,22 @@
                         </button>
                       </div>
 
+                      <div v-if="toolResult.storyStructure" class="tool-detail-section">
+                        <span class="tool-detail-label">剧情结构</span>
+                        <pre class="script-outline-preview">{{ formatStoryStructurePreview(toolResult.storyStructure.structureJson) }}</pre>
+                        <button
+                          v-if="toolResult.status === 'needs_user_confirmation'"
+                          class="seed-select-btn"
+                          type="button"
+                          :disabled="dialogueSending"
+                          title="确认剧情结构"
+                          @click="confirmStoryStructure"
+                        >
+                          <CheckCircle2 :size="12" />
+                          <span>确认结构</span>
+                        </button>
+                      </div>
+
                       <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
                         <span class="tool-detail-label">章节结果</span>
                         <ol class="chapter-result-list">
@@ -250,6 +266,8 @@ const skillTools = new Set<DialogueToolResult["tool"]>([
   "generate_script_from_outline",
   "generate_script_from_seed",
   "update_chapter_draft",
+  "generate_story_structure",
+  "confirm_story_structure",
 ]);
 const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   analyze_script_import: "analyze_script_import",
@@ -259,6 +277,8 @@ const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   generate_script_from_outline: "script-chapter-drafting",
   generate_script_from_seed: "script-chapter-drafting",
   update_chapter_draft: "script-chapter-editing",
+  generate_story_structure: "structure-story-parse",
+  confirm_story_structure: "confirm-story-structure",
 };
 
 const assistantOpening = "可以先说“帮我找灵感”，也可以上传或粘贴剧本让我整理；选中灵感后我会先生成剧本大纲。";
@@ -313,6 +333,17 @@ function confirmScriptOutline(outline: ProjectScriptOutline) {
   emit("send", {
     content: `确认大纲：${outline.title}，生成当前章节`,
     intent: "generate_script_from_outline",
+  });
+}
+
+function confirmStoryStructure() {
+  if (props.dialogueSending) {
+    return;
+  }
+
+  emit("send", {
+    content: "确认剧情结构",
+    intent: "confirm_story_structure",
   });
 }
 
@@ -436,7 +467,23 @@ function getToolEventSummary(result: DialogueToolResult) {
     return "已更新当前章节草稿。";
   }
 
+  if (result.tool === "generate_story_structure") {
+    return result.storyStructure ? "已生成剧情结构预览，等待确认。" : "已完成剧情结构检查。";
+  }
+
+  if (result.tool === "confirm_story_structure") {
+    return "已确认并写入当前章节剧情结构。";
+  }
+
   return "已完成导入前分析。";
+}
+
+function formatStoryStructurePreview(structure: { synopsis: string; beats: Array<{ order: number; title: string; summary: string }> }) {
+  return [
+    structure.synopsis,
+    "",
+    ...structure.beats.map((beat) => `${beat.order}. ${beat.title}：${beat.summary}`),
+  ].join("\n").trim();
 }
 
 function getToolStatusLabel(result: DialogueToolResult) {

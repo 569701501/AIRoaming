@@ -27,10 +27,12 @@
           @back="goProjectLibrary"
           @save-chapter-draft="saveChapterDraft"
           @complete-chapter="completeChapter"
+          @confirm-story-structure="confirmStoryStructure"
           @reset-script="clearCurrentChapterScript"
           @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
           @select-dialogue-model="selectDialogueModel"
+          @update-story-structure="updateStoryStructure"
         />
         <main v-else-if="isProjectRoute" class="route-loading" aria-label="项目加载中">
           <div v-if="error" class="route-error">
@@ -51,7 +53,7 @@
 import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryStructureJson } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -139,6 +141,14 @@ async function completeChapter(payload: { chapterId: string; input: CompleteChap
   await router.push(projectRoute(routeProjectId.value, "script", activeChapter.id));
 }
 
+async function confirmStoryStructure(payload: { chapterId: string; structureJson: StoryStructureJson }) {
+  await workbench.confirmStoryStructure(payload.chapterId, payload.structureJson);
+}
+
+async function updateStoryStructure(payload: { chapterId: string; structureJson: StoryStructureJson }) {
+  await workbench.updateStoryStructure(payload.chapterId, payload.structureJson);
+}
+
 async function clearCurrentChapterScript() {
   const activeChapter = await workbench.clearCurrentChapterScript();
   if (!activeChapter || !routeProjectId.value) {
@@ -177,7 +187,12 @@ async function goProjectChapter(chapterId: string) {
     return;
   }
 
-  await router.push(projectRoute(projectId, "script", chapterId));
+  if (activeStepKey.value === "project_story") {
+    await router.push(projectRoute(projectId, "script", chapterId));
+    return;
+  }
+
+  await workbench.openProject(projectId, activeStepKey.value, chapterId);
 }
 </script>
 

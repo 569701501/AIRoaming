@@ -204,6 +204,94 @@ export interface ResetProjectScriptResponse {
   chapters: ChapterListItem[];
 }
 
+export type ChapterStoryStructureStatus = "pending_confirmation" | "structured";
+
+export interface StoryStructureDirection {
+  logline: string;
+  chapterGoal: string;
+  coreConflict: string;
+  emotionalArc: string;
+  endingHook: string;
+}
+
+export interface StoryStructureCharacterCard {
+  id: string;
+  name: string;
+  role: string;
+  motivation: string;
+  relationship: string;
+  visualTraits: string;
+  notes: string;
+}
+
+export interface StoryStructureSceneCard {
+  id: string;
+  name: string;
+  location: string;
+  timeOfDay: string;
+  atmosphere: string;
+  purpose: string;
+}
+
+export interface StoryStructureBeat {
+  id: string;
+  order: number;
+  title: string;
+  summary: string;
+  conflict: string;
+  characters: string[];
+  sceneId: string | null;
+  visualFocus: string;
+  outcome: string;
+}
+
+export interface StoryStructureJson {
+  schemaVersion: 1;
+  chapterId: string;
+  chapterTitle: string;
+  sourceScriptVersionId: string | null;
+  synopsis: string;
+  direction: StoryStructureDirection;
+  characters: StoryStructureCharacterCard[];
+  scenes: StoryStructureSceneCard[];
+  beats: StoryStructureBeat[];
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChapterStoryStructure {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  version: number;
+  status: ChapterStoryStructureStatus;
+  structurePath: string | null;
+  sourceScriptVersionId: string | null;
+  structureJson: StoryStructureJson;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt: string | null;
+}
+
+export interface GetChapterStoryStructureResponse {
+  storyStructure: ChapterStoryStructure | null;
+}
+
+export interface ConfirmChapterStoryStructureRequest {
+  structureJson: StoryStructureJson;
+}
+
+export interface UpdateChapterStoryStructureRequest {
+  structureJson: StoryStructureJson;
+}
+
+export interface SaveChapterStoryStructureResponse {
+  storyStructure: ChapterStoryStructure;
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
 export type ProjectScriptOutlineStatus = "draft" | "confirmed";
 
 export interface ProjectScriptOutline {
@@ -266,7 +354,9 @@ export type DialogueIntent =
   | "generate_script_outline_from_seed"
   | "generate_script_from_outline"
   | "generate_script_from_seed"
-  | "update_chapter_draft";
+  | "update_chapter_draft"
+  | "generate_story_structure"
+  | "confirm_story_structure";
 
 export interface DialogueAttachmentInput {
   id?: string;
@@ -361,7 +451,9 @@ export interface DialogueToolResult {
     | "generate_script_outline_from_seed"
     | "generate_script_from_outline"
     | "generate_script_from_seed"
-    | "update_chapter_draft";
+    | "update_chapter_draft"
+    | "generate_story_structure"
+    | "confirm_story_structure";
   status: "succeeded" | "failed" | "needs_user_confirmation";
   summary: string;
   chapters: ChapterListItem[];
@@ -370,6 +462,7 @@ export interface DialogueToolResult {
   analysis?: ScriptImportAnalysis | null;
   inspirationSeeds?: ScriptInspirationSeed[] | null;
   scriptOutline?: ProjectScriptOutline | null;
+  storyStructure?: ChapterStoryStructure | null;
   revision: ScriptRevisionItem | null;
   createdAt: string;
 }
@@ -531,6 +624,7 @@ export interface WorkbenchSnapshot {
   chapters: ChapterListItem[];
   currentChapter: ChapterDetail | null;
   scriptOutline: ProjectScriptOutline | null;
+  storyStructure: ChapterStoryStructure | null;
   workflow: ProjectWorkflow;
   stages: WorkbenchStage[];
   story: WorkbenchStory;

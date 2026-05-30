@@ -1,5 +1,12 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import type { CompleteChapterRequest, CreateProjectRequest, SaveChapterDraftRequest, UpdateProjectDraftRequest } from "@airoaming/shared";
+import type {
+  CompleteChapterRequest,
+  ConfirmChapterStoryStructureRequest,
+  CreateProjectRequest,
+  SaveChapterDraftRequest,
+  UpdateChapterStoryStructureRequest,
+  UpdateProjectDraftRequest,
+} from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
 
@@ -72,5 +79,28 @@ export class ProjectsController {
     @Body() body: CompleteChapterRequest,
   ) {
     return ok(await this.projectsService.completeChapter(projectId, chapterId, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/story-structure")
+  async getChapterStoryStructure(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.projectsService.getChapterStoryStructure(projectId, chapterId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/story-structure/confirm")
+  async confirmChapterStoryStructure(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ConfirmChapterStoryStructureRequest,
+  ) {
+    return ok(await this.projectsService.confirmChapterStoryStructure(projectId, chapterId, body));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/story-structure")
+  async updateChapterStoryStructure(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: UpdateChapterStoryStructureRequest,
+  ) {
+    return ok(await this.projectsService.updateChapterStoryStructure(projectId, chapterId, body));
   }
 }

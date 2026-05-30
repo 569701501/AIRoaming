@@ -41,6 +41,18 @@
         </div>
       </template>
 
+      <StoryStructureWorkspace
+        v-else-if="isStructureStep"
+        :dialogue-sending="dialogueSending"
+        :dialogue-thread="dialogueThread"
+        :loading="loading"
+        :snapshot="snapshot"
+        @select-chapter="$emit('selectChapter', $event)"
+        @generate-structure="emitGenerateStructure"
+        @confirm-structure="$emit('confirmStoryStructure', $event)"
+        @update-structure="$emit('updateStoryStructure', $event)"
+      />
+
       <div v-else class="step-placeholder">
         <span>STEP {{ currentStageIndex + 1 }}</span>
         <h2>{{ currentStageLabel }}</h2>
@@ -52,11 +64,12 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryStructureJson, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
+import StoryStructureWorkspace from "./StoryStructureWorkspace.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
 
 const props = defineProps<{
@@ -84,6 +97,8 @@ const emit = defineEmits<{
   selectStep: [stepKey: string];
   selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [input: SendDialogueMessageRequest];
+  confirmStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
+  updateStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
 }>();
 
 const currentStageIndex = computed(() => {
@@ -96,6 +111,7 @@ const currentStageLabel = computed(() => {
 });
 
 const isScriptStep = computed(() => props.activeStepKey === "project_story");
+const isStructureStep = computed(() => props.activeStepKey === "story_structure");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
 
@@ -144,6 +160,17 @@ function emitDialogue(input: SendDialogueMessageRequest) {
     },
   });
 }
+
+function emitGenerateStructure(payload: { chapterId: string; regenerate: boolean }) {
+  emit("sendDialogue", {
+    content: payload.regenerate ? "确认重新生成剧情结构" : "生成当前章节剧情结构",
+    chapterId: payload.chapterId,
+    intent: "generate_story_structure",
+    context: {
+      sourceText: getCurrentChapterSourceText(props.snapshot),
+    },
+  });
+}
 </script>
 
 <style scoped>
@@ -178,6 +205,10 @@ function emitDialogue(input: SendDialogueMessageRequest) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.structure-workspace {
+  min-height: 0;
 }
 
 .step-placeholder {

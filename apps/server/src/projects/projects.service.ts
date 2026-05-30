@@ -19,14 +19,17 @@ import {
   type ChapterDetail,
   type ChapterListItem,
   type ChapterScriptVersionItem,
+  type ChapterStoryStructure,
   type ChapterStatus,
   type ClearChapterScriptResponse,
   type ArtStyle,
   type ComicFormat,
+  type ConfirmChapterStoryStructureRequest,
   type CompleteChapterRequest,
   type CompleteChapterResponse,
   type CreateProjectRequest,
   type DeleteProjectResponse,
+  type GetChapterStoryStructureResponse,
   type GetChapterResponse,
   type ListChaptersResponse,
   type ProjectListItem,
@@ -38,11 +41,14 @@ import {
   type ResetProjectScriptResponse,
   type SaveChapterDraftRequest,
   type SaveChapterDraftResponse,
+  type SaveChapterStoryStructureResponse,
   type ScriptImportAnalysis,
   type ScriptImportChapterBoundary,
   type ScriptImportChapterPlan,
   type ScriptImportContentType,
   type ScriptRevisionItem,
+  type StoryStructureJson,
+  type UpdateChapterStoryStructureRequest,
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
 } from "@airoaming/shared";
@@ -73,6 +79,7 @@ interface LocalChapter {
   currentStoryVersionId: string | null;
   sourceText: string;
   summary: string;
+  storyStructure: ChapterStoryStructure | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -383,6 +390,7 @@ export class ProjectsService implements OnModuleInit {
       currentStoryVersionId: null,
       sourceText: "",
       summary: "",
+      storyStructure: null,
       updatedAt,
       completedAt: null,
       scriptVersions: [],
@@ -444,6 +452,7 @@ export class ProjectsService implements OnModuleInit {
         currentStoryVersionId: null,
         sourceText: item.sourceText,
         summary: item.summary,
+        storyStructure: null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         completedAt: null,
@@ -584,6 +593,94 @@ export class ProjectsService implements OnModuleInit {
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
     return outline;
+  }
+
+  async getChapterStoryStructure(projectId: string, chapterId: string): Promise<GetChapterStoryStructureResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    return {
+      storyStructure: chapter.storyStructure,
+    };
+  }
+
+  async confirmChapterStoryStructure(
+    projectId: string,
+    chapterId: string,
+    input: ConfirmChapterStoryStructureRequest,
+  ): Promise<SaveChapterStoryStructureResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    this.assertChapterCanSaveStoryStructure(chapter);
+
+    const now = new Date().toISOString();
+    const previousVersion = chapter.storyStructure?.version ?? 0;
+    const storyStructure = this.createChapterStoryStructure(project.id, chapter, input.structureJson, previousVersion + 1, now);
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      status: "structured",
+      currentStoryVersionId: storyStructure.id,
+      storyStructure,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      storyStructure,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  async updateChapterStoryStructure(
+    projectId: string,
+    chapterId: string,
+    input: UpdateChapterStoryStructureRequest,
+  ): Promise<SaveChapterStoryStructureResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    if (!chapter.storyStructure) {
+      throw new BadRequestException("STORY_STRUCTURE_NOT_CONFIRMED");
+    }
+
+    const now = new Date().toISOString();
+    const structureJson = this.normalizeStoryStructureJson(input.structureJson, chapter.id, chapter.title, {
+      sourceScriptVersionId: chapter.storyStructure.sourceScriptVersionId,
+      createdAt: chapter.storyStructure.structureJson.createdAt,
+      updatedAt: now,
+    });
+    const storyStructure: ChapterStoryStructure = {
+      ...chapter.storyStructure,
+      sourceScriptVersionId: structureJson.sourceScriptVersionId,
+      structureJson,
+      updatedAt: now,
+    };
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      currentStoryVersionId: storyStructure.id,
+      storyStructure,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      storyStructure,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
   }
 
   async resetProjectScript(projectId: string): Promise<ResetProjectScriptResponse> {
@@ -736,6 +833,7 @@ export class ProjectsService implements OnModuleInit {
       chapters,
       currentChapter: currentChapterDetail,
       scriptOutline: readyProject.scriptOutline,
+      storyStructure: currentChapter?.storyStructure ?? null,
       workflow,
       stages: workflow.steps,
       story: {
@@ -743,8 +841,15 @@ export class ProjectsService implements OnModuleInit {
         chapterId: currentChapter?.id ?? null,
         title: currentChapter?.title || readyProject.storyTitle,
         sourceText,
-        summary: hasStory ? "故事已进入项目，下一步执行结构化剧情。" : "还没有故事原文。",
-        beats: [],
+        summary: currentChapter?.storyStructure?.structureJson.synopsis
+          || (hasStory ? "故事已进入项目，下一步执行结构化剧情。" : "还没有故事原文。"),
+        beats: (currentChapter?.storyStructure?.structureJson.beats ?? []).map((beat) => ({
+          id: beat.id,
+          order: beat.order,
+          summary: beat.summary,
+          sceneName: currentChapter?.storyStructure?.structureJson.scenes.find((scene) => scene.id === beat.sceneId)?.name ?? "",
+          characterNames: beat.characters,
+        })),
       },
       shots: [],
       candidates: [],
@@ -928,8 +1033,18 @@ export class ProjectsService implements OnModuleInit {
       currentScriptVersionId,
       updatedAt,
     );
+    const storyStructure = await this.readChapterStoryStructure(
+      projectId,
+      chapterId,
+      slug,
+      path.join(chapterDir, "structure.json"),
+      updatedAt,
+    );
     const restoredCurrentScriptVersionId = currentScriptVersionId
       ?? scriptVersions.find((version) => version.status === "current")?.id
+      ?? null;
+    const restoredCurrentStoryVersionId = this.getOptionalStringField(metadata, "currentStoryVersionId")
+      ?? storyStructure?.id
       ?? null;
 
     return {
@@ -940,9 +1055,10 @@ export class ProjectsService implements OnModuleInit {
       title: extractChapterScriptTitle(sourceText) ?? this.getStringField(metadata, "title", `第 ${order} 章`),
       status: this.normalizeChapterStatus(metadata.status),
       currentScriptVersionId: restoredCurrentScriptVersionId,
-      currentStoryVersionId: this.getOptionalStringField(metadata, "currentStoryVersionId"),
+      currentStoryVersionId: restoredCurrentStoryVersionId,
       sourceText,
       summary: this.getStringField(metadata, "summary", ""),
+      storyStructure,
       createdAt,
       updatedAt,
       completedAt: this.getOptionalStringField(metadata, "completedAt"),
@@ -989,6 +1105,39 @@ export class ProjectsService implements OnModuleInit {
     }
 
     return versions;
+  }
+
+  private async readChapterStoryStructure(
+    projectId: string,
+    chapterId: string,
+    slug: string,
+    filePath: string,
+    fallbackCreatedAt: string,
+  ): Promise<ChapterStoryStructure | null> {
+    const content = await this.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return null;
+    }
+
+    const record = this.parseJsonRecord(content, filePath);
+    const structureJson = this.normalizeStoryStructureJson(record.structureJson ?? record, chapterId, this.getStringField(record, "chapterTitle", ""));
+    const version = this.getNumberField(record, "version", 1);
+    const createdAt = this.getStringField(record, "createdAt", fallbackCreatedAt);
+    const updatedAt = this.getStringField(record, "updatedAt", createdAt);
+
+    return {
+      id: this.getStringField(record, "id", `${chapterId}_story_v${String(version).padStart(3, "0")}`),
+      projectId,
+      chapterId,
+      version,
+      status: "structured",
+      structurePath: `projects/${projectId}/chapters/${slug}/structure.json`,
+      sourceScriptVersionId: this.getOptionalStringField(record, "sourceScriptVersionId") ?? structureJson.sourceScriptVersionId,
+      structureJson,
+      createdAt,
+      updatedAt,
+      confirmedAt: this.getOptionalStringField(record, "confirmedAt") ?? updatedAt,
+    };
   }
 
   private async readLatestScriptRevision(filePath: string): Promise<ScriptRevisionItem | null> {
@@ -1471,6 +1620,11 @@ export class ProjectsService implements OnModuleInit {
 
     await writeFile(path.join(chapterDir, "chapter.json"), `${JSON.stringify(this.toChapterDetail(chapter), null, 2)}\n`, "utf8");
     await writeFile(path.join(chapterDir, "script.md"), chapter.sourceText, "utf8");
+    if (chapter.storyStructure) {
+      await writeFile(path.join(chapterDir, "structure.json"), `${JSON.stringify(chapter.storyStructure, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "structure.json"), { force: true });
+    }
     if (chapter.lastScriptRevision) {
       await mkdir(revisionsDir, { recursive: true });
       await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
@@ -1496,6 +1650,7 @@ export class ProjectsService implements OnModuleInit {
       currentStoryVersionId: null,
       sourceText,
       summary: "",
+      storyStructure: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,
@@ -1602,6 +1757,98 @@ export class ProjectsService implements OnModuleInit {
   private getNumberField(record: Record<string, unknown>, key: string, fallback: number): number {
     const value = record[key];
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  }
+
+  private normalizeStoryStructureJson(
+    input: unknown,
+    chapterId: string,
+    fallbackChapterTitle: string,
+    overrides: Partial<Pick<StoryStructureJson, "sourceScriptVersionId" | "createdAt" | "updatedAt">> = {},
+  ): StoryStructureJson {
+    const record = typeof input === "object" && input !== null && !Array.isArray(input)
+      ? input as Record<string, unknown>
+      : {};
+    const now = new Date().toISOString();
+    const directionRecord = typeof record.direction === "object" && record.direction !== null && !Array.isArray(record.direction)
+      ? record.direction as Record<string, unknown>
+      : {};
+
+    return {
+      schemaVersion: 1,
+      chapterId,
+      chapterTitle: this.getStringField(record, "chapterTitle", fallbackChapterTitle || "当前章节"),
+      sourceScriptVersionId: overrides.sourceScriptVersionId
+        ?? (typeof record.sourceScriptVersionId === "string" && record.sourceScriptVersionId.trim() ? record.sourceScriptVersionId : null),
+      synopsis: this.getStringField(record, "synopsis", ""),
+      direction: {
+        logline: this.getStringField(directionRecord, "logline", ""),
+        chapterGoal: this.getStringField(directionRecord, "chapterGoal", ""),
+        coreConflict: this.getStringField(directionRecord, "coreConflict", ""),
+        emotionalArc: this.getStringField(directionRecord, "emotionalArc", ""),
+        endingHook: this.getStringField(directionRecord, "endingHook", ""),
+      },
+      characters: this.normalizeStoryStructureCharacters(record.characters),
+      scenes: this.normalizeStoryStructureScenes(record.scenes),
+      beats: this.normalizeStoryStructureBeats(record.beats),
+      notes: this.getStringField(record, "notes", ""),
+      createdAt: overrides.createdAt ?? this.getStringField(record, "createdAt", now),
+      updatedAt: overrides.updatedAt ?? this.getStringField(record, "updatedAt", now),
+    };
+  }
+
+  private normalizeStoryStructureCharacters(input: unknown): StoryStructureJson["characters"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item, index) => ({
+        id: this.getStringField(item, "id", `character_${String(index + 1).padStart(2, "0")}`),
+        name: this.getStringField(item, "name", `角色 ${index + 1}`),
+        role: this.getStringField(item, "role", ""),
+        motivation: this.getStringField(item, "motivation", ""),
+        relationship: this.getStringField(item, "relationship", ""),
+        visualTraits: this.getStringField(item, "visualTraits", ""),
+        notes: this.getStringField(item, "notes", ""),
+      }));
+  }
+
+  private normalizeStoryStructureScenes(input: unknown): StoryStructureJson["scenes"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item, index) => ({
+        id: this.getStringField(item, "id", `scene_${String(index + 1).padStart(2, "0")}`),
+        name: this.getStringField(item, "name", `场景 ${index + 1}`),
+        location: this.getStringField(item, "location", ""),
+        timeOfDay: this.getStringField(item, "timeOfDay", ""),
+        atmosphere: this.getStringField(item, "atmosphere", ""),
+        purpose: this.getStringField(item, "purpose", ""),
+      }));
+  }
+
+  private normalizeStoryStructureBeats(input: unknown): StoryStructureJson["beats"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item, index) => ({
+        id: this.getStringField(item, "id", `beat_${String(index + 1).padStart(2, "0")}`),
+        order: this.getNumberField(item, "order", index + 1),
+        title: this.getStringField(item, "title", `节拍 ${index + 1}`),
+        summary: this.getStringField(item, "summary", ""),
+        conflict: this.getStringField(item, "conflict", ""),
+        characters: this.getStringArrayField(item, "characters"),
+        sceneId: this.getOptionalStringField(item, "sceneId"),
+        visualFocus: this.getStringField(item, "visualFocus", ""),
+        outcome: this.getStringField(item, "outcome", ""),
+      }));
   }
 
   private parseScriptRevision(value: unknown): ScriptRevisionItem | null {
@@ -1726,6 +1973,7 @@ export class ProjectsService implements OnModuleInit {
       currentStoryVersionId: null,
       sourceText: "",
       summary: "",
+      storyStructure: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,
@@ -1749,6 +1997,45 @@ export class ProjectsService implements OnModuleInit {
       status: "current",
       createdAt,
       sourceText,
+    };
+  }
+
+  private assertChapterCanSaveStoryStructure(chapter: LocalChapter): void {
+    if (!chapter.sourceText.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
+
+    if (chapter.status === "draft") {
+      throw new BadRequestException("CHAPTER_SCRIPT_NOT_COMPLETED");
+    }
+  }
+
+  private createChapterStoryStructure(
+    projectId: string,
+    chapter: LocalChapter,
+    input: StoryStructureJson,
+    version: number,
+    now: string,
+  ): ChapterStoryStructure {
+    const id = `${chapter.id}_story_v${String(version).padStart(3, "0")}`;
+    const structureJson = this.normalizeStoryStructureJson(input, chapter.id, chapter.title, {
+      sourceScriptVersionId: chapter.currentScriptVersionId,
+      createdAt: input.createdAt || now,
+      updatedAt: now,
+    });
+
+    return {
+      id,
+      projectId,
+      chapterId: chapter.id,
+      version,
+      status: "structured",
+      structurePath: `projects/${projectId}/chapters/${chapter.slug}/structure.json`,
+      sourceScriptVersionId: structureJson.sourceScriptVersionId,
+      structureJson,
+      createdAt: chapter.storyStructure?.createdAt ?? now,
+      updatedAt: now,
+      confirmedAt: now,
     };
   }
 

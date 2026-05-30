@@ -18,6 +18,8 @@ import {
   type ProjectWorkflowStepStatus,
   type SaveChapterDraftRequest,
   type SendDialogueMessageRequest,
+  type StoryStructureJson,
+  type ChapterStoryStructure,
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
   type WorkspaceInfo,
@@ -209,6 +211,14 @@ function getProjectStatusFromChapter(chapter: ChapterDetail): ProjectListItem["s
   return chapter.sourceText.trim().length > 0 ? "story_ready" : "draft";
 }
 
+function getSceneName(storyStructure: ChapterStoryStructure | null, sceneId: string | null): string {
+  if (!storyStructure || !sceneId) {
+    return "";
+  }
+
+  return storyStructure.structureJson.scenes.find((scene) => scene.id === sceneId)?.name ?? "";
+}
+
 interface WorkbenchState {
   health: HealthResponse | null;
   workspace: WorkspaceInfo | null;
@@ -289,7 +299,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       }
     },
     getActiveDialogueChapterId(): string | null {
-      return this.activeStepKey === "project_story" ? this.activeChapterId : null;
+      return ["project_story", "story_structure", "storyboard", "image_candidates", "layout_export"].includes(this.activeStepKey)
+        ? this.activeChapterId
+        : null;
     },
     async createProject(input: CreateProjectRequest): Promise<ProjectListItem | null> {
       this.loading = true;
@@ -346,6 +358,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       const nextChapters = resolveChapterList(this.snapshot.chapters, chapters, chapter);
       const workflow = patchWorkflowForChapter(this.snapshot, chapter);
       const hasStory = chapter.sourceText.trim().length > 0;
+      const storyStructure = this.snapshot.storyStructure?.chapterId === chapter.id && chapter.currentStoryVersionId
+        ? this.snapshot.storyStructure
+        : null;
       this.snapshot = {
         ...this.snapshot,
         project: {
@@ -355,6 +370,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         },
         chapters: nextChapters,
         currentChapter: chapter,
+        storyStructure,
         workflow,
         stages: workflow.steps,
         story: {
@@ -363,11 +379,41 @@ export const useWorkbenchStore = defineStore("workbench", {
           chapterId: chapter.id,
           title: chapter.title || this.snapshot.project.storyTitle,
           sourceText: chapter.sourceText,
-          summary: hasStory ? "故事已进入项目，下一步执行结构化剧情。" : "还没有故事原文。",
+          summary: storyStructure?.structureJson.synopsis || (hasStory ? "故事已进入项目，下一步执行结构化剧情。" : "还没有故事原文。"),
+          beats: (storyStructure?.structureJson.beats ?? []).map((beat) => ({
+            id: beat.id,
+            order: beat.order,
+            summary: beat.summary,
+            sceneName: getSceneName(storyStructure, beat.sceneId),
+            characterNames: beat.characters,
+          })),
         },
       };
       this.activeChapterId = chapter.id;
       this.patchProjectPreviewFromChapter(chapter, nextChapters.length);
+    },
+    applyStoryStructureUpdate(storyStructure: ChapterStoryStructure, chapter: ChapterDetail, chapters: ChapterListItem[] | null = null) {
+      this.applyChapterUpdate(chapter, chapters);
+      if (!this.snapshot) {
+        return;
+      }
+
+      this.snapshot = {
+        ...this.snapshot,
+        storyStructure,
+        story: {
+          ...this.snapshot.story,
+          id: storyStructure.id,
+          summary: storyStructure.structureJson.synopsis,
+          beats: storyStructure.structureJson.beats.map((beat) => ({
+            id: beat.id,
+            order: beat.order,
+            summary: beat.summary,
+            sceneName: getSceneName(storyStructure, beat.sceneId),
+            characterNames: beat.characters,
+          })),
+        },
+      };
     },
     patchProjectPreviewFromChapter(chapter: ChapterDetail, chapterCount: number) {
       const exists = this.projects.some((project) => project.id === chapter.projectId);
@@ -466,6 +512,43 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
+    async confirmStoryStructure(chapterId: string, structureJson: StoryStructureJson): Promise<ChapterStoryStructure | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.confirmChapterStoryStructure(projectId, chapterId, { structureJson });
+        this.applyStoryStructureUpdate(result.storyStructure, result.chapter, result.chapters);
+        this.dialogueNotice = `已确认「${result.chapter.title}」的剧情结构。`;
+        return result.storyStructure;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "确认剧情结构失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async updateStoryStructure(chapterId: string, structureJson: StoryStructureJson): Promise<ChapterStoryStructure | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.updateChapterStoryStructure(projectId, chapterId, { structureJson });
+        this.applyStoryStructureUpdate(result.storyStructure, result.chapter, result.chapters);
+        return result.storyStructure;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "更新剧情结构失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
     async clearCurrentChapterScript(): Promise<ChapterDetail | null> {
       this.loading = true;
       this.error = null;
@@ -550,6 +633,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             "generate_script_from_outline",
             "generate_script_from_seed",
             "update_chapter_draft",
+            "confirm_story_structure",
           ].includes(event.toolResult.tool);
           if (shouldPatchChapter) {
             void this.applyToolResultChapterUpdate(event.toolResult);
@@ -623,6 +707,11 @@ export const useWorkbenchStore = defineStore("workbench", {
       const currentChapter = toolResult.currentChapter
         ?? (toolResult.currentChapterId ? (await api.getChapter(projectId, toolResult.currentChapterId)).chapter : null);
       if (!currentChapter) {
+        return;
+      }
+
+      if (toolResult.storyStructure && toolResult.status === "succeeded") {
+        this.applyStoryStructureUpdate(toolResult.storyStructure, currentChapter, toolResult.chapters);
         return;
       }
 
