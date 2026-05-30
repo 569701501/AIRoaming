@@ -28,8 +28,8 @@
       <div v-if="settings.error" class="settings-alert is-error">
         {{ settings.error }}
       </div>
-      <div v-else-if="settings.notice" class="settings-alert is-success">
-        {{ settings.notice }}
+      <div v-else-if="visibleNotice" class="settings-alert is-success">
+        {{ visibleNotice }}
       </div>
 
       <form v-if="activeTab === 'ai-key'" class="settings-panel" @submit.prevent="saveAIKey">
@@ -168,6 +168,7 @@ const themeOptions = [
 
 const activeTabLabel = computed(() => tabs.find((item) => item.key === activeTab.value)?.label ?? "设置");
 const appearanceTheme = computed(() => settings.settings?.appearance.theme ?? "dark");
+const visibleNotice = computed(() => settings.noticeScope === activeTab.value ? settings.notice : null);
 const aiKeyStatus = computed(() => settings.settings?.aiKey ?? {
   providerId: "self",
   providerName: "自定义 OpenAI 兼容",

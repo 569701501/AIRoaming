@@ -30,6 +30,7 @@ source: 任务执行记录
 - 增加 `/settings` 路由、`AppSettingsView` 页面、`settings-store` 和侧边栏设置入口。
 - OpenCodeRuntimeService 改为读取全局设置默认模型，并在存在 API Key 时同步 OpenCode auth。
 - 更新产品、架构、模块、OpenCode 方案和核心数据模型文档。
+- 修复设置页成功提示跨分组残留问题：保存提示新增来源作用域，只在对应设置分组展示。
 
 ### 创建或修改文件
 
@@ -63,6 +64,8 @@ source: 任务执行记录
 - `GET/PATCH /api/settings` 冒烟：保存测试 key 后响应未包含完整 key，只返回 `sk-t...7890` 和指纹；随后已清空测试 key 并恢复深色主题。
 - `GET /api/ai-runtime/models` 冒烟：默认模型返回 `self/gpt-5.5`。
 - `GET http://127.0.0.1:5173/settings`：200。
+- `corepack pnpm --filter @airoaming/web typecheck`：修复设置页提示作用域后通过。
+- `git diff --check`：通过。
 
 ### 下一步
 

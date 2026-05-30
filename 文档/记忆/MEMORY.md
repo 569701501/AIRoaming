@@ -6,11 +6,25 @@
 - 当前应用入口是项目库；创建项目只保留“项目名称”，创建成功后直接进入项目工作区第 1 步“剧本”。
 - 项目工作区隐藏全局左侧导航和顶部搜索；左侧是公共“对话框”，右侧是当前步骤主工作区；顶部保留返回项目列表和紧凑 6 步流程。
 - 项目主链路是：剧本、剧情结构、分镜工作台、候选图工作台、排版导出、素材包。
+- 「剧情结构」的产品语义已确认：它不是给读者看的剧本，也不是最终分镜，而是给制作使用的结构表，包含当前章节摘要、角色、场景和剧情节拍，并作为分镜生成上游输入。
+- 剧情结构中的 `StoryBeat` 按关键剧情事件切分，不和最终分镜/镜头一一对应；分镜工作台再把一个 beat 拆成多个 shot。
+- 剧情结构里的角色卡和场景卡默认是本章结构卡，归属于当前 `StoryVersion`；不自动进入项目级角色库/场景库，只有用户确认复用后才提升为项目级资产。
+- 剧情结构页面主形态是可编辑结构表，不是 Markdown 文档编辑器；底层保存当前章节 `structure.json` / `StoryVersion.structureJson`，供分镜任务读取。
+- 剧情节拍可包含轻量 `visualFocus` 画面重点，但不得包含镜头编号、景别、机位、构图或完整分镜稿；这些属于分镜工作台的 `Shot`。
+- AI 生成剧情结构后不能自动继续生成分镜；必须用户编辑/确认剧情结构后，才可触发 `shot_generate`。
+- 剧情结构步骤页面约定：左侧仍使用公共对话框但注入剧情结构 prompt；右侧以元素化结构表展示确认后的 `structureJson`，不使用文本编辑器；可编辑字段右上角显示小笔图标，点击后变输入框，失焦保存并恢复文本态。
+- 剧情结构待确认预览已确认：AI 生成后右侧可以先展示“待确认预览”，方便用户检查；确认后才转为正式结构表/`structure.json`，未确认预览不能触发分镜生成。
+- 剧情结构按章节逐章生成和确认：一个 `Chapter` 对应自己的 `StoryVersion` / `structure.json`，不把整本剧本一次性生成成全局剧情结构。
+- 剧情结构步骤也需要章节下拉/切换器，展示每章结构状态；`Chapter.status = structured` 且 `currentStoryVersionId` 存在表示该章剧情结构完成，待确认预览不推进章节状态。
+- 剧情结构章节下拉展示所有章节；`draft` 章节不能生成结构，只提示先完成本章剧本；`script_done` 章节可生成待确认预览；`structured` 及后续章节可查看/编辑结构，重新生成前必须提示会影响后续分镜、候选图和排版。`需更新` 是 UI 派生状态，不新增章节状态枚举。
+- 2026-05-30 剧情结构第一版已实现：共享契约新增 `StoryStructureJson` / `ChapterStoryStructure`；后端确认后写入 `workspace/projects/{projectId}/chapters/{chapterSlug}/structure.json` 并将章节推进到 `structured`；前端 `StoryStructureWorkspace.vue` 提供章节下拉、待确认预览、正式元素化结构表和字段级小笔编辑。
+- 剧情结构对话工具已接入 `DialogueService`：`story_structure` 步骤可触发 `generate_story_structure` 生成待确认预览，用户确认后触发 `confirm_story_structure` 或右侧确认 API 写入正式结构；待确认预览只存在当前对话线程，正式事实以 `structure.json` 为准。
 - 对话框组件公共，但对话记录按步骤隔离；跨步骤只共享用户已确认的事实、保存文档和锁定产物。
 - AI 不直接操作本地物理路径；剧本阶段允许 AI 通过 AI漫游受控工具/API 整理、生成和编辑章节草稿，其他阶段写入权限需按各自契约单独确认。
 - 第一阶段采用 OpenCode 作为项目对话框 AI Runtime；AI漫游自己的业务事实源仍是项目、对话、已确认事实和产物。
 - OpenCode 对话默认模型当前兜底为 `self/gpt-5.5`，可通过 `OPENCODE_PROVIDER_ID` 和 `OPENCODE_MODEL_ID` 覆盖；2026-05-29 诊断确认旧默认 `aurora/gpt-5.4` 背后的 timicc provider 返回 `503 No available accounts`，不再作为默认。
 - 首页全局设置页已接入 `/settings`：当前只保留 `AI 密钥` 和 `外观设置` 两个分组。AI 密钥保存到后端 workspace 全局设置，前端读取时只展示掩码和指纹；外观设置支持 `system/dark/light` 并由前端应用到 `document.documentElement`。
+- 设置页保存成功提示按分组作用域展示：AI 密钥保存提示只在 `AI 密钥` 分组显示，外观保存提示只在 `外观设置` 分组显示，避免全局 notice 跨页签残留。
 - 全局设置保存路径为 `workspace/settings/app-settings.json`，`workspace/settings/*` 已被 `.gitignore` 排除，只保留 `.gitkeep`；后续正式形态应替换为系统 keychain、数据库加密字段或专用密钥服务。
 - `OpenCodeRuntimeService` 默认 `providerId/modelId` 优先读取全局设置；当设置中存在 API Key 时，后端在调用 OpenCode 前通过 OpenCode auth 接口服务端同步，不向前端回传完整密钥。
 - 剧本页右侧编辑器已换为 CodeMirror Markdown，保存接口当前仍保存纯文本 `sourceText`。
@@ -35,6 +49,8 @@
 - AI漫游已采用 `apps/server/opencodeAI` 作为 OpenCode AI 资产源码目录，参考 AuroraPlatformWeb 的 `agents / skills / tools` 组织方式，但内容必须是 AI漫游自己的漫画创作资产；当前已落地剧本协作 agent 和 `script-import-normalize` skill，运行时模板复制和真实 tool bridge 尚未接入。
 - 用户提供剧本整理已接入导入前分析：对话框回形针支持 `.txt/.md` 文本附件，输入框支持粘贴长剧本；明确整理意图或长文本会先触发 `analyze_script_import`，只有内容像可导入剧本且章节边界可信时才调用 `import_script_to_chapters` 写入章节。失败或需要确认时不写 `chapters/*/script.md`；需要确认的待导入文本暂存在进程内剧本线程，用户回复“确认导入/确认覆盖”后再写入。
 - 剧本灵感和章节内 AI 编辑已接入 AI skill 驱动链路：用户说“帮我找灵感”会触发 `generate_inspiration_seeds`，后端调用 OpenCode / `script-inspiration-seeding` 生成 3 个方向；用户回复“选第 N 个方向”会触发 `generate_script_outline_from_seed`，调用 `script-outline-drafting` 生成并保存项目级剧本大纲；用户确认大纲后触发 `generate_script_from_outline`，调用 `script-chapter-drafting` 只生成当前一章；用户在章节内要求改写会触发 `update_chapter_draft`。
+- 2026-05-29 实测确认：已确认的大纲会落盘到 `script-outline.md/json`，确认大纲后生成的当前章会落盘到 `chapters/{chapterSlug}/script.md`、`chapter.json` 和 `script.revisions/latest.json`；灵感种子本身仍不是稳定项目文件，只存在 pending/对话工具结果中。
+- 2026-05-29 发现项目文件元数据缺口：`project.json.status` 当前仍可能写成 `draft`，而 `GET /api/projects` 会根据当前章节正文推导 `story_ready`；后续应统一文件状态与运行时视图。
 - 灵感种子选择不再直接写入当前章节：前端灵感卡片按钮是“生成大纲”；大纲结果卡片提供“确认并生成当前章节”。后端仍支持“1/2/3”“第一个”“选第 2 个”等文本选择表达；看起来像选择但无法识别时，应提示用户明确序号或点击按钮，不能静默走普通聊天。
 - 剧本阶段最终用户可见章节正文统一为固定格式「章节剧本」：章节标题、基础方向、本章方向、剧本亮点、视觉基调、剧本正文、本章结尾；最终章节剧本不输出剧本名称、主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号、图片 Prompt 或 JSON，这些后置到项目级标题、剧情结构、分镜工作台和候选图阶段。
 - `剧本名称/剧集名称` 是项目级作品名，从已确认剧本大纲同步到 `Project.storyTitle`，显示在章节下拉框右侧，不写进章节正文。`第 X 章：章节标题` 是章节名，保存、AI 写入或服务从 workspace 恢复旧项目时应同步到 `Chapter.title`，保证顶部章节选择器和编辑器标题一致。

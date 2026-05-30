@@ -2,12 +2,15 @@ import { defineStore } from "pinia";
 import type { AppSettings, AppearanceTheme, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest } from "@airoaming/shared";
 import { api } from "../services/api";
 
+export type SettingsNoticeScope = "ai-key" | "appearance";
+
 interface SettingsState {
   settings: AppSettings | null;
   loading: boolean;
   saving: boolean;
   error: string | null;
   notice: string | null;
+  noticeScope: SettingsNoticeScope | null;
 }
 
 const THEME_MEDIA_QUERY = "(prefers-color-scheme: dark)";
@@ -32,6 +35,7 @@ export const useSettingsStore = defineStore("settings", {
     saving: false,
     error: null,
     notice: null,
+    noticeScope: null,
   }),
   getters: {
     appearanceTheme: (state): AppearanceTheme => state.settings?.appearance.theme ?? "dark",
@@ -40,6 +44,8 @@ export const useSettingsStore = defineStore("settings", {
     async loadSettings() {
       this.loading = true;
       this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
       try {
         this.settings = await api.settings();
         applyAppearance(this.settings.appearance.theme);
@@ -54,11 +60,14 @@ export const useSettingsStore = defineStore("settings", {
       this.saving = true;
       this.error = null;
       this.notice = null;
+      this.noticeScope = null;
       try {
         this.settings = await api.updateSettings({ aiKey: input });
         applyAppearance(this.settings.appearance.theme);
         this.notice = input.clearApiKey ? "AI 密钥已清除" : "AI 密钥已保存";
+        this.noticeScope = "ai-key";
       } catch (error) {
+        this.noticeScope = null;
         this.error = error instanceof Error ? error.message : "AI 密钥保存失败";
       } finally {
         this.saving = false;
@@ -68,6 +77,7 @@ export const useSettingsStore = defineStore("settings", {
       this.saving = true;
       this.error = null;
       this.notice = null;
+      this.noticeScope = null;
       const previousTheme = this.settings?.appearance.theme ?? "dark";
       if (input.theme) {
         applyAppearance(input.theme);
@@ -76,7 +86,9 @@ export const useSettingsStore = defineStore("settings", {
         this.settings = await api.updateSettings({ appearance: input });
         applyAppearance(this.settings.appearance.theme);
         this.notice = "外观设置已保存";
+        this.noticeScope = "appearance";
       } catch (error) {
+        this.noticeScope = null;
         applyAppearance(previousTheme);
         this.error = error instanceof Error ? error.message : "外观设置保存失败";
       } finally {
