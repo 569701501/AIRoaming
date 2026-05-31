@@ -1,9 +1,11 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import type {
   CompleteChapterRequest,
+  ConfirmChapterStoryboardRequest,
   ConfirmChapterStoryStructureRequest,
   CreateProjectRequest,
   SaveChapterDraftRequest,
+  UpdateChapterStoryboardRequest,
   UpdateChapterStoryStructureRequest,
   UpdateProjectDraftRequest,
 } from "@airoaming/shared";
@@ -102,5 +104,37 @@ export class ProjectsController {
     @Body() body: UpdateChapterStoryStructureRequest,
   ) {
     return ok(await this.projectsService.updateChapterStoryStructure(projectId, chapterId, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/storyboard")
+  async getChapterStoryboard(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.projectsService.getChapterStoryboard(projectId, chapterId));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/storyboard/pending")
+  async savePendingChapterStoryboard(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: UpdateChapterStoryboardRequest,
+  ) {
+    return ok(await this.projectsService.savePendingChapterStoryboard(projectId, chapterId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/storyboard/confirm")
+  async confirmChapterStoryboard(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ConfirmChapterStoryboardRequest,
+  ) {
+    return ok(await this.projectsService.confirmChapterStoryboard(projectId, chapterId, body));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/storyboard")
+  async updateChapterStoryboard(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: UpdateChapterStoryboardRequest,
+  ) {
+    return ok(await this.projectsService.updateChapterStoryboard(projectId, chapterId, body));
   }
 }

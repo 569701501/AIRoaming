@@ -12,7 +12,11 @@ import type {
   SendDialogueMessageResponse,
   ScriptImportAnalysis,
   ScriptInspirationSeed,
+  ChapterListItem,
+  ChapterStoryboard,
   ChapterStoryStructure,
+  StoryboardJson,
+  StoryboardShot,
   StoryStructureJson,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
@@ -457,6 +461,11 @@ export class DialogueService {
       return [storyStructureResult];
     }
 
+    const storyboardResult = await this.tryHandleStoryboardTools(turn, input, signal);
+    if (storyboardResult) {
+      return [storyboardResult];
+    }
+
     const importResults = await this.tryHandleScriptImport(turn, input);
     if (importResults.length > 0) {
       return importResults;
@@ -621,6 +630,137 @@ export class DialogueService {
       currentChapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
       currentChapter: turn.snapshot.currentChapter ?? null,
       storyStructure: null,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private async tryHandleStoryboardTools(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
+  ): Promise<DialogueToolResult | null> {
+    if (turn.normalizedStepKey !== "storyboard") {
+      return null;
+    }
+
+    const pending = turn.thread.chapterId
+      ? await this.projectsService.getPendingChapterStoryboard(turn.thread.projectId, turn.thread.chapterId)
+      : null;
+    if (pending && (input.intent === "confirm_storyboard" || this.isConfirmingStoryboard(input.content))) {
+      return this.createConfirmStoryboardToolResult(turn, pending);
+    }
+
+    if (!this.shouldGenerateStoryboard(input)) {
+      return null;
+    }
+
+    const chapter = turn.snapshot.currentChapter;
+    if (!chapter) {
+      return this.createFailedToolResult(turn, "generate_storyboard", "当前项目还没有可生成分镜的章节。");
+    }
+
+    if (!turn.snapshot.storyStructure || !chapter.currentStoryVersionId || chapter.status === "script_done" || chapter.status === "draft") {
+      return this.createFailedToolResult(
+        turn,
+        "generate_storyboard",
+        "当前章节还没有确认剧情结构，请先在剧情结构步骤确认 structure.json，再生成分镜。",
+      );
+    }
+
+    if (chapter.status !== "structured" && !this.isConfirmingStoryboardRegeneration(input.content)) {
+      return this.createStoryboardWarningToolResult(
+        turn,
+        "本章已经有分镜或后续产物。重新生成会影响候选图、排版和轻漫剧镜头字段；确认要重新生成，请回复“确认重新生成分镜”。",
+      );
+    }
+
+    let storyboardJson: StoryboardJson;
+    try {
+      storyboardJson = await this.generateStoryboardWithAI(turn, input, signal);
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_storyboard",
+        `分镜生成失败：${this.getErrorMessage(error)}。本次没有写入 storyboard.json。`,
+      );
+    }
+
+    const saved = await this.projectsService.savePendingChapterStoryboard(turn.thread.projectId, chapter.id, {
+      storyboardJson: this.normalizeStoryboardJson(storyboardJson, chapter.id, chapter.title, {
+        sourceStoryVersionId: chapter.currentStoryVersionId,
+      }),
+    });
+
+    return this.createGenerateStoryboardToolResult(turn, saved.storyboard);
+  }
+
+  private async createConfirmStoryboardToolResult(
+    turn: DialogueTurn,
+    storyboard: ChapterStoryboard,
+  ): Promise<DialogueToolResult> {
+    const result = await this.projectsService.confirmChapterStoryboard(turn.thread.projectId, storyboard.chapterId, {
+      storyboardJson: storyboard.storyboardJson,
+    });
+
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "confirm_storyboard",
+      status: "succeeded",
+      summary: `已确认「${result.chapter.title}」的分镜，并写入 ${result.storyboard.storyboardPath}。现在可以进入候选图工作台。`,
+      chapters: result.chapters,
+      currentChapterId: result.chapter.id,
+      currentChapter: result.chapter,
+      storyboard: result.storyboard,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private createGenerateStoryboardToolResult(
+    turn: DialogueTurn,
+    storyboard: ChapterStoryboard,
+  ): DialogueToolResult {
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "generate_storyboard",
+      status: "needs_user_confirmation",
+      summary: [
+        `已生成「${storyboard.storyboardJson.chapterTitle}」的分镜预览，共 ${storyboard.storyboardJson.shots.length} 镜，右侧可查看。`,
+        "每个镜头包含漫画画格字段和基础漫剧镜头字段。",
+        "这还是待确认预览，已保存为 storyboard.pending.json；确认后才会写入正式 storyboard.json，也才能生成候选图。",
+      ].join("\n"),
+      chapters: [],
+      currentChapterId: storyboard.chapterId,
+      currentChapter: turn.snapshot.currentChapter ?? null,
+      storyboard,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private createStoryboardWarningToolResult(turn: DialogueTurn, summary: string): DialogueToolResult {
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "generate_storyboard",
+      status: "needs_user_confirmation",
+      summary,
+      chapters: [],
+      currentChapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
+      currentChapter: turn.snapshot.currentChapter ?? null,
+      storyboard: null,
       revision: null,
       createdAt: new Date().toISOString(),
     };
@@ -921,26 +1061,29 @@ export class DialogueService {
     outline: ProjectScriptOutline,
     signal?: AbortSignal,
   ): Promise<DialogueToolResult> {
-    const chapterId = input.chapterId ?? turn.snapshot.currentChapter?.id ?? turn.thread.chapterId;
-    if (!chapterId) {
+    const targetChapter = this.resolveScriptFromOutlineTargetChapter(turn, input);
+    if (!targetChapter) {
       return this.createFailedToolResult(turn, "generate_script_from_outline", "当前项目还没有可写入的章节，请先创建或打开第 1 章。");
+    }
+    if ("error" in targetChapter) {
+      return this.createFailedToolResult(turn, "generate_script_from_outline", targetChapter.error);
     }
 
     const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId);
     const toolCallId = randomUUID();
     let sourceText: string;
     try {
-      sourceText = await this.generateScriptFromOutlineWithAI(turn, input, confirmedOutline, signal);
+      sourceText = await this.generateScriptFromOutlineWithAI(turn, input, confirmedOutline, targetChapter.title, signal);
     } catch (error) {
       return this.createFailedToolResult(
         turn,
         "generate_script_from_outline",
-        `第一章草稿生成失败：${this.getErrorMessage(error)}。剧本大纲已保存，章节正文本次没有写入。`,
+        `章节草稿生成失败：${this.getErrorMessage(error)}。剧本大纲已保存，章节正文本次没有写入。`,
       );
     }
 
-    const chapterTitle = extractChapterScriptTitle(sourceText) ?? `第 1 章：${confirmedOutline.title}`;
-    const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, chapterId, {
+    const chapterTitle = extractChapterScriptTitle(sourceText) ?? targetChapter.title;
+    const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, targetChapter.id, {
       sourceText,
       title: chapterTitle,
       summary: `根据已确认剧本大纲「${confirmedOutline.title}」生成 ${chapterTitle} 草稿。`,
@@ -959,7 +1102,7 @@ export class DialogueService {
       toolCallId,
       tool: "generate_script_from_outline",
       status: "succeeded",
-      summary: `已确认剧本大纲「${confirmedOutline.title}」，并只生成当前一章：${result.chapter.title}。来源：${this.formatRevisionSource(result.revision)}`,
+      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${result.chapter.title}。来源：${this.formatRevisionSource(result.revision)}`,
       chapters: result.chapters,
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,
@@ -1208,6 +1351,32 @@ export class DialogueService {
       || /(重新生成|重生成).{0,8}(剧情结构|剧本结构|结构)/.test(content.trim());
   }
 
+  private shouldGenerateStoryboard(input: SendDialogueMessageRequest): boolean {
+    if (input.intent === "generate_storyboard") {
+      return true;
+    }
+
+    const content = input.content.trim();
+    return /(生成|整理|拆|做|创建|重新生成).{0,12}(分镜|镜头|storyboard|shot)/.test(content)
+      || /分镜工作台/.test(content);
+  }
+
+  private isConfirmingStoryboard(content: string): boolean {
+    const text = content.trim();
+    if (/(不行|不可以|不满意|不要|先别|取消)/.test(text)) {
+      return false;
+    }
+
+    return /^(确认|可以|继续|同意|就这个|没问题|通过)$/.test(text)
+      || /(确认|通过|保存).{0,10}(分镜|镜头|storyboard)/.test(text)
+      || /(按这个|就这个).{0,8}(保存|确认|继续)/.test(text);
+  }
+
+  private isConfirmingStoryboardRegeneration(content: string): boolean {
+    return /(确认|确定|同意).{0,10}(重新生成|重生成|覆盖).{0,10}(分镜|镜头|storyboard)/.test(content.trim())
+      || /(重新生成|重生成).{0,8}(分镜|镜头|storyboard)/.test(content.trim());
+  }
+
   private async generateStoryStructureWithAI(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
@@ -1314,6 +1483,182 @@ export class DialogueService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+  }
+
+  private async generateStoryboardWithAI(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
+  ): Promise<StoryboardJson> {
+    const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot, signal);
+    const response = await this.openCodeRuntimeService.sendMessage({
+      sessionId: openCodeSessionId,
+      model: input.model,
+      content: this.buildStoryboardPrompt(turn, input),
+      signal,
+    });
+
+    return this.parseStoryboardJson(response.content, turn.snapshot);
+  }
+
+  private buildStoryboardPrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
+    const snapshot = turn.snapshot;
+    const currentChapter = snapshot.currentChapter;
+    const structure = snapshot.storyStructure?.structureJson;
+    const beatCount = Array.isArray(structure?.beats) ? structure.beats.length : 0;
+    const targetShotRange = beatCount > 0
+      ? `${beatCount}-${Math.min(Math.max(beatCount * 2, beatCount), 24)}`
+      : "8-16";
+    const chapterScriptExcerpt = this.compactPromptText(currentChapter?.sourceText?.trim() ?? "", 6000);
+
+    return [
+      "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。",
+      "任务：只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。",
+      "",
+      "硬性边界：",
+      "- 只生成当前章节分镜，不要生成整部作品分镜。",
+      "- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。",
+      "- 每个 Shot 必须有共同核心字段，并同时包含 comic 漫画画格表达和 motion 基础漫剧镜头表达。",
+      "- M1 可以默认一个 Shot 对应一个漫画画格和一个基础漫剧镜头，但不要在文案中声称未来永远一一对应。",
+      "- 不要生成最终图片 Prompt；promptDraft 只能是给后续候选图阶段的草稿摘要。",
+      "- 不要生成候选图、TTS、字幕、视频或排版。",
+      `- 本章建议生成 ${targetShotRange} 个 Shot；每个剧情节拍默认拆 1-2 个 Shot，除非关键动作/情绪转折必须拆开。`,
+      "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
+      "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
+      "",
+      "JSON 结构必须是：",
+      "```json",
+      JSON.stringify({
+        shots: [
+          {
+            order: 1,
+            beatId: "beat_01",
+            sceneId: "scene_01",
+            characterIds: ["角色名"],
+            coreAction: "镜头核心动作",
+            emotion: "情绪",
+            comic: {
+              panelDescription: "漫画画格画面描述",
+              composition: "漫画构图/景别/阅读重点",
+              dialogue: "对白",
+              caption: "旁白",
+              panelRhythm: "画格节奏",
+            },
+            motion: {
+              visualDescription: "漫剧画面描述",
+              compositionDesign: "构图设计",
+              cameraMovement: "运镜调度",
+              voiceRole: "配音角色",
+              line: "台词内容",
+              durationHint: "约 2-4s",
+              frameType: "对口型/氛围镜头/动作镜头/反应镜头",
+            },
+            promptDraft: "给后续图片提示词生成的简短草稿，不是最终 Prompt",
+          },
+        ],
+        notes: "分镜节奏说明",
+      }, null, 2),
+      "```",
+      "",
+      `项目名称：${snapshot.project.name}`,
+      `剧集名称：${snapshot.project.storyTitle}`,
+      `当前章节：${currentChapter?.title ?? "当前章节"}`,
+      `当前章节状态：${currentChapter?.status ?? "unknown"}`,
+      `当前剧情结构版本：${currentChapter?.currentStoryVersionId ?? "未确认"}`,
+      "已确认剧情结构：",
+      JSON.stringify(structure ?? {}, null, 2),
+      "当前章节剧本摘录（仅作对白和动作参考；正式拆分以 structure.json 为准）：",
+      chapterScriptExcerpt || "（当前章节为空）",
+      "用户本次要求：",
+      input.content,
+    ].join("\n");
+  }
+
+  private parseStoryboardJson(content: string, snapshot: WorkbenchSnapshot): StoryboardJson {
+    const jsonText = this.extractJsonPayload(content);
+    const value = JSON.parse(jsonText) as unknown;
+    const chapter = snapshot.currentChapter;
+    if (!chapter) {
+      throw new Error("当前章节不存在，无法生成分镜");
+    }
+
+    return this.normalizeStoryboardJson(value, chapter.id, chapter.title, {
+      sourceStoryVersionId: chapter.currentStoryVersionId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  private normalizeStoryboardJson(
+    input: unknown,
+    chapterId: string,
+    fallbackChapterTitle: string,
+    overrides: Partial<Pick<StoryboardJson, "sourceStoryVersionId" | "createdAt" | "updatedAt">> = {},
+  ): StoryboardJson {
+    const record = this.asRecord(input);
+    const now = new Date().toISOString();
+    return {
+      schemaVersion: 1,
+      chapterId,
+      chapterTitle: this.getOptionalRecordString(record, "chapterTitle") ?? fallbackChapterTitle,
+      sourceStoryVersionId: overrides.sourceStoryVersionId
+        ?? this.getOptionalRecordString(record, "sourceStoryVersionId"),
+      shots: this.normalizeStoryboardShots(record.shots),
+      notes: this.getOptionalRecordString(record, "notes") ?? "",
+      createdAt: overrides.createdAt ?? this.getOptionalRecordString(record, "createdAt") ?? now,
+      updatedAt: overrides.updatedAt ?? this.getOptionalRecordString(record, "updatedAt") ?? now,
+    };
+  }
+
+  private normalizeStoryboardShots(input: unknown): StoryboardJson["shots"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .map((item) => this.asRecord(item))
+      .filter((item) => Object.keys(item).length > 0)
+      .map((item, index) => this.normalizeStoryboardShot(item, index))
+      .sort((left, right) => left.order - right.order);
+  }
+
+  private normalizeStoryboardShot(item: Record<string, unknown>, index: number): StoryboardShot {
+    const comic = this.asRecord(item.comic);
+    const motion = this.asRecord(item.motion);
+    const status = this.getOptionalRecordString(item, "status");
+
+    return {
+      id: this.getOptionalRecordString(item, "id") ?? `shot_${String(index + 1).padStart(3, "0")}`,
+      order: this.getOptionalRecordNumber(item, "order") ?? this.getOptionalRecordNumber(item, "shotNumber") ?? index + 1,
+      beatId: this.getOptionalRecordString(item, "beatId"),
+      sceneId: this.getOptionalRecordString(item, "sceneId"),
+      characterIds: this.getRecordStringArray(item, "characterIds").length > 0
+        ? this.getRecordStringArray(item, "characterIds")
+        : this.getRecordStringArray(item, "characters"),
+      coreAction: this.getOptionalRecordString(item, "coreAction") ?? this.getOptionalRecordString(item, "action") ?? "",
+      emotion: this.getOptionalRecordString(item, "emotion") ?? "",
+      comic: {
+        panelDescription: this.getOptionalRecordString(comic, "panelDescription") ?? this.getOptionalRecordString(item, "action") ?? "",
+        composition: this.getOptionalRecordString(comic, "composition") ?? this.getOptionalRecordString(item, "composition") ?? "",
+        dialogue: this.getOptionalRecordString(comic, "dialogue") ?? this.getOptionalRecordString(item, "dialogue") ?? "",
+        caption: this.getOptionalRecordString(comic, "caption") ?? this.getOptionalRecordString(item, "caption") ?? "",
+        panelRhythm: this.getOptionalRecordString(comic, "panelRhythm") ?? "",
+      },
+      motion: {
+        visualDescription: this.getOptionalRecordString(motion, "visualDescription") ?? this.getOptionalRecordString(item, "action") ?? "",
+        compositionDesign: this.getOptionalRecordString(motion, "compositionDesign") ?? this.getOptionalRecordString(item, "camera") ?? "",
+        cameraMovement: this.getOptionalRecordString(motion, "cameraMovement") ?? "",
+        voiceRole: this.getOptionalRecordString(motion, "voiceRole") ?? "",
+        line: this.getOptionalRecordString(motion, "line") ?? this.getOptionalRecordString(item, "dialogue") ?? "",
+        durationHint: this.getOptionalRecordString(motion, "durationHint") ?? "",
+        frameType: this.getOptionalRecordString(motion, "frameType") ?? "",
+      },
+      promptDraft: this.getOptionalRecordString(item, "promptDraft") ?? "",
+      lockedCandidateId: this.getOptionalRecordString(item, "lockedCandidateId"),
+      status: status === "ready_for_image" || status === "image_generated" || status === "locked" || status === "needs_revision"
+        ? status
+        : "draft",
+    };
   }
 
   private normalizeStoryStructureJson(
@@ -1617,7 +1962,25 @@ export class DialogueService {
       十: 10,
     };
 
-    return Number(value) || map[value] || 0;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+
+    if (map[value]) {
+      return map[value];
+    }
+
+    const tenIndex = value.indexOf("十");
+    if (tenIndex >= 0) {
+      const tensText = value.slice(0, tenIndex);
+      const onesText = value.slice(tenIndex + 1);
+      const tens = tensText ? map[tensText] : 1;
+      const ones = onesText ? map[onesText] : 0;
+      return tens && ones >= 0 ? tens * 10 + ones : 0;
+    }
+
+    return 0;
   }
 
   private isCancellingInspiration(content: string): boolean {
@@ -1633,7 +1996,9 @@ export class DialogueService {
     return /^(确认|可以|继续|同意|就这个|没问题|通过)$/.test(text)
       || /(确认|通过).{0,8}(大纲|方向)/.test(text)
       || /(按这个|就这个).{0,8}(生成|写|继续)/.test(text)
-      || /生成\s*(?:第\s*)?(?:1|一)\s*章|生成第一章/.test(text);
+      || /(生成|写|起草).{0,8}(?:第\s*)?[0-9一二三四五六七八九十]+\s*(?:章|张|话)/.test(text)
+      || /^(?:第\s*)?[0-9一二三四五六七八九十]+\s*(?:章|张|话)$/.test(text)
+      || /(生成|写|起草).{0,12}(当前章|当前章节|这一章|这章|本章|下一章)/.test(text);
   }
 
   private isCancellingScriptOutline(content: string): boolean {
@@ -1654,6 +2019,63 @@ export class DialogueService {
     const asksForCurrentChapter = /(这一章|这章|当前章|当前章节|本章|这段|当前草稿|剧本)/.test(content);
     const asksForRewrite = /(改|改写|润色|重写|调整|优化|压缩|扩写|加强|写得|变得|更紧张|更刺激|节奏|对白|冲突)/.test(content);
     return asksForRewrite && (asksForCurrentChapter || /润色对白|优化开场|加强冲突|节奏加快|写得更紧张/.test(content));
+  }
+
+  private resolveScriptFromOutlineTargetChapter(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+  ): { id: string; title: string; order: number | null } | { error: string } | null {
+    const requestedOrder = this.resolveRequestedScriptChapterOrder(input.content, turn.snapshot);
+    if (requestedOrder) {
+      const chapter = turn.snapshot.chapters.find((item) => item.order === requestedOrder);
+      if (!chapter) {
+        return {
+          error: `第 ${requestedOrder} 章还不存在。请先完成当前章进入下一章，或先创建第 ${requestedOrder} 章后再生成。`,
+        };
+      }
+
+      return this.toScriptFromOutlineTarget(chapter);
+    }
+
+    const chapterId = input.chapterId ?? turn.snapshot.currentChapter?.id ?? turn.thread.chapterId;
+    if (!chapterId) {
+      return null;
+    }
+
+    const chapter = turn.snapshot.chapters.find((item) => item.id === chapterId);
+    return chapter
+      ? this.toScriptFromOutlineTarget(chapter)
+      : {
+          id: chapterId,
+          title: turn.snapshot.currentChapter?.title ?? "当前章节",
+          order: turn.snapshot.currentChapter?.order ?? null,
+        };
+  }
+
+  private toScriptFromOutlineTarget(chapter: ChapterListItem): { id: string; title: string; order: number } {
+    return {
+      id: chapter.id,
+      title: chapter.title,
+      order: chapter.order,
+    };
+  }
+
+  private resolveRequestedScriptChapterOrder(content: string, snapshot: WorkbenchSnapshot): number | null {
+    const text = content.trim();
+    const explicitMatch = text.match(/第\s*([0-9一二三四五六七八九十]+)\s*(?:章|张|话)/)
+      ?? text.match(/([0-9一二三四五六七八九十]+)\s*(?:章|张|话)/);
+    if (explicitMatch) {
+      return this.parseChineseOrder(explicitMatch[1]) || null;
+    }
+
+    if (/下一章/.test(text)) {
+      const currentOrder = snapshot.currentChapter?.order
+        ?? snapshot.chapters.find((chapter) => chapter.id === snapshot.currentChapter?.id)?.order
+        ?? null;
+      return currentOrder ? currentOrder + 1 : null;
+    }
+
+    return null;
   }
 
   private async generateScriptOutlineFromSeedWithAI(
@@ -1693,7 +2115,7 @@ export class DialogueService {
       `- 剧集名称优先使用选中的灵感种子标题：${seed.title}`,
       "- 大纲是项目级产物，用于让用户确认故事方向；不要写章节正文。",
       "- 情节概要按漫剧集数段落写，例如「第 1 - 2 集：...」，但具体内容必须来自当前项目和灵感种子。",
-      "- 剧集章数要说明每集或每组集数对应的漫画章节规划；第一版后续只会生成当前一章，不会一次性生成多章。",
+      "- 剧集章数要说明每集或每组集数对应的漫画章节规划；后续按单个目标章节生成，不会一次性生成多章。",
       "- 不要套用用户示例里的人名、古装重生剧情、角色关系或情节，只参考格式。",
       "- 不要声称你直接操作本地文件；保存由后端受控工具完成。",
       "",
@@ -1723,35 +2145,37 @@ export class DialogueService {
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
     outline: ProjectScriptOutline,
+    targetChapterTitle: string,
     signal?: AbortSignal,
   ): Promise<string> {
     const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot, signal);
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
-      content: this.buildScriptFromOutlinePrompt(turn, input, outline),
+      content: this.buildScriptFromOutlinePrompt(turn, input, outline, targetChapterTitle),
       signal,
     });
 
-    return this.ensureChapterMarkdown(response.content, turn.snapshot.currentChapter?.title ?? "第 1 章");
+    return this.ensureChapterMarkdown(response.content, targetChapterTitle);
   }
 
   private buildScriptFromOutlinePrompt(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
     outline: ProjectScriptOutline,
+    targetChapterTitle: string,
   ): string {
     return [
       "你正在为 AI漫游执行剧本阶段 skill：script-chapter-drafting。",
-      "任务：根据用户已确认的项目级「剧本大纲」，只生成当前一章的完整「章节剧本」。",
+      "任务：根据用户已确认的项目级「剧本大纲」，只生成目标章节的完整「章节剧本」。",
       this.buildScriptStageBoundaryContract(),
       "",
       "硬性规则：",
       "- 只返回章节 Markdown 正文，不要返回 JSON，不要包代码块。",
       "- 必须按「章节剧本」固定格式输出，不要改名、删块或合并块。",
       `- 项目级剧本名称是「${outline.title}」，只作为上下文使用，不要在章节正文里输出“剧本名称”。`,
-      "- 只生成当前一章，不要一次性生成多章，也不要输出整部大纲。",
-      "- 内容要能直接写入当前章节的 `script.md`。",
+      `- 只生成目标章节「${targetChapterTitle}」，不要一次性生成多章，也不要输出整部大纲。`,
+      "- 内容要能直接写入目标章节的 `script.md`。",
       "- 「视觉基调」只是方向，不是图片 Prompt。",
       "- 「剧本正文」里可以有场景、人物、动作和对白，但不能输出正式场景列表、剧情节拍、分镜剧本或镜头编号。",
       "- 不要声称你直接操作本地文件；写入由后端受控工具完成。",
@@ -1760,7 +2184,7 @@ export class DialogueService {
       "",
       getChapterScriptForbiddenOutputPrompt(),
       "",
-      `当前章节：${turn.snapshot.currentChapter?.title ?? "第 1 章"}`,
+      `目标章节：${targetChapterTitle}`,
       `用户确认消息：${input.content}`,
       "已确认剧本大纲：",
       outline.sourceText,
@@ -1953,6 +2377,20 @@ export class DialogueService {
     return error instanceof Error ? error.message : String(error);
   }
 
+  private compactPromptText(text: string, maxLength: number): string {
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    const headLength = Math.floor(maxLength * 0.65);
+    const tailLength = maxLength - headLength;
+    return [
+      text.slice(0, headLength).trimEnd(),
+      `\n\n（中间内容已省略 ${text.length - maxLength} 字，以控制 AI 输入长度）\n\n`,
+      text.slice(text.length - tailLength).trimStart(),
+    ].join("");
+  }
+
   private getScriptOrganizationInput(input: SendDialogueMessageRequest): ScriptOrganizationInput | null {
     if (!this.shouldOrganizeProvidedScript(input)) {
       return null;
@@ -2089,7 +2527,7 @@ export class DialogueService {
       "- 不直接操作本地物理路径、数据库、shell 或 workspace 文件。",
       "- 不绕过 AI漫游受控工具/API 写入章节。",
       "- 不把未确认聊天内容自动当作项目事实。",
-      "- 不在用户选择灵感种子后直接写章节；必须先生成项目级剧本大纲，用户确认大纲后才生成当前一章。",
+      "- 不在用户选择灵感种子后直接写章节；必须先生成项目级剧本大纲，用户确认大纲后才生成单个目标章节。",
       "- 不在剧本阶段擅自生成分镜、图片、排版或素材包产物。",
       "- 不把主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号、图片 Prompt 或 JSON 作为最终章节剧本输出；这些属于后续剧情结构、分镜工作台或候选图阶段。",
       "- 不把普通建议包装成已经完成的写入。",

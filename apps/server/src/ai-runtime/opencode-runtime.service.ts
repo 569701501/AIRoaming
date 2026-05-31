@@ -48,6 +48,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   private readonly port = Number(process.env.OPENCODE_PORT ?? 4396);
   private readonly baseUrl = process.env.OPENCODE_BASE_URL ?? `http://${this.host}:${this.port}`;
   private readonly autoStart = process.env.OPENCODE_AUTO_START !== "false";
+  private readonly messageTimeoutMs = Number(process.env.OPENCODE_MESSAGE_TIMEOUT_MS ?? 300000);
   private readonly defaultModel: AIRuntimeModelSelection = {
     providerId: process.env.OPENCODE_PROVIDER_ID ?? "self",
     modelId: process.env.OPENCODE_MODEL_ID ?? "gpt-5.5",
@@ -199,6 +200,10 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     try {
       return await operation();
     } catch (error) {
+      if (!this.shouldRetryReadyOperation(error)) {
+        throw error;
+      }
+
       this.readyPromise = null;
       if (!this.autoStart) {
         throw error;
@@ -346,7 +351,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
           },
         ],
       }),
-      timeoutMs: Number(process.env.OPENCODE_MESSAGE_TIMEOUT_MS ?? 120000),
+      timeoutMs: this.messageTimeoutMs,
       signal,
     });
   }
@@ -389,7 +394,11 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     const { timeoutMs = 12000, signal, ...requestInit } = init;
     const controller = new AbortController();
     const cleanupAbort = this.forwardAbort(signal ?? undefined, controller);
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
 
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
@@ -416,6 +425,19 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       if (error instanceof BadGatewayException) {
         throw error;
       }
+      if (timedOut) {
+        throw new BadGatewayException({
+          code: "OPENCODE_REQUEST_TIMEOUT",
+          timeoutMs,
+          message: `OpenCode 请求超过 ${Math.round(timeoutMs / 1000)} 秒未完成，请稍后重试或换用更快的模型。`,
+        });
+      }
+      if (signal?.aborted) {
+        throw new BadGatewayException({
+          code: "OPENCODE_REQUEST_ABORTED",
+          message: "请求已取消：页面刷新、离开当前步骤或连接断开时会中止本次生成。",
+        });
+      }
       throw new BadGatewayException({
         code: "OPENCODE_REQUEST_FAILED",
         message: error instanceof Error ? error.message : "OpenCode request failed",
@@ -439,6 +461,25 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     const abort = () => controller.abort();
     signal.addEventListener("abort", abort, { once: true });
     return () => signal.removeEventListener("abort", abort);
+  }
+
+  private shouldRetryReadyOperation(error: unknown): boolean {
+    if (!(error instanceof BadGatewayException)) {
+      return true;
+    }
+
+    const code = this.getExceptionCode(error);
+    return code !== "OPENCODE_REQUEST_TIMEOUT" && code !== "OPENCODE_REQUEST_ABORTED";
+  }
+
+  private getExceptionCode(error: BadGatewayException): string | null {
+    const response = error.getResponse();
+    if (typeof response === "object" && response !== null && "code" in response) {
+      const code = (response as { code?: unknown }).code;
+      return typeof code === "string" ? code : null;
+    }
+
+    return null;
   }
 
   private extractText(response: OpenCodeMessageResponse): string {

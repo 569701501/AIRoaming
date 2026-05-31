@@ -133,6 +133,7 @@ export interface ChapterListItem {
   order: number;
   title: string;
   status: ChapterStatus;
+  storyboardStatus: ChapterStoryboardStatus | null;
   currentScriptVersionId: string | null;
   currentStoryVersionId: string | null;
   summary: string;
@@ -292,6 +293,86 @@ export interface SaveChapterStoryStructureResponse {
   chapters: ChapterListItem[];
 }
 
+export type ChapterStoryboardStatus = "pending_confirmation" | "storyboard_done";
+export type StoryboardShotStatus = "draft" | "ready_for_image" | "image_generated" | "locked" | "needs_revision";
+
+export interface StoryboardShotComic {
+  panelDescription: string;
+  composition: string;
+  dialogue: string;
+  caption: string;
+  panelRhythm: string;
+}
+
+export interface StoryboardShotMotion {
+  visualDescription: string;
+  compositionDesign: string;
+  cameraMovement: string;
+  voiceRole: string;
+  line: string;
+  durationHint: string;
+  frameType: string;
+}
+
+export interface StoryboardShot {
+  id: string;
+  order: number;
+  beatId: string | null;
+  sceneId: string | null;
+  characterIds: string[];
+  coreAction: string;
+  emotion: string;
+  comic: StoryboardShotComic;
+  motion: StoryboardShotMotion;
+  promptDraft: string;
+  lockedCandidateId: string | null;
+  status: StoryboardShotStatus;
+}
+
+export interface StoryboardJson {
+  schemaVersion: 1;
+  chapterId: string;
+  chapterTitle: string;
+  sourceStoryVersionId: string | null;
+  shots: StoryboardShot[];
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChapterStoryboard {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  version: number;
+  status: ChapterStoryboardStatus;
+  storyboardPath: string | null;
+  sourceStoryVersionId: string | null;
+  storyboardJson: StoryboardJson;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt: string | null;
+}
+
+export interface GetChapterStoryboardResponse {
+  storyboard: ChapterStoryboard | null;
+  pendingStoryboard: ChapterStoryboard | null;
+}
+
+export interface ConfirmChapterStoryboardRequest {
+  storyboardJson: StoryboardJson;
+}
+
+export interface UpdateChapterStoryboardRequest {
+  storyboardJson: StoryboardJson;
+}
+
+export interface SaveChapterStoryboardResponse {
+  storyboard: ChapterStoryboard;
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
 export type ProjectScriptOutlineStatus = "draft" | "confirmed";
 
 export interface ProjectScriptOutline {
@@ -356,7 +437,9 @@ export type DialogueIntent =
   | "generate_script_from_seed"
   | "update_chapter_draft"
   | "generate_story_structure"
-  | "confirm_story_structure";
+  | "confirm_story_structure"
+  | "generate_storyboard"
+  | "confirm_storyboard";
 
 export interface DialogueAttachmentInput {
   id?: string;
@@ -453,7 +536,9 @@ export interface DialogueToolResult {
     | "generate_script_from_seed"
     | "update_chapter_draft"
     | "generate_story_structure"
-    | "confirm_story_structure";
+    | "confirm_story_structure"
+    | "generate_storyboard"
+    | "confirm_storyboard";
   status: "succeeded" | "failed" | "needs_user_confirmation";
   summary: string;
   chapters: ChapterListItem[];
@@ -463,6 +548,7 @@ export interface DialogueToolResult {
   inspirationSeeds?: ScriptInspirationSeed[] | null;
   scriptOutline?: ProjectScriptOutline | null;
   storyStructure?: ChapterStoryStructure | null;
+  storyboard?: ChapterStoryboard | null;
   revision: ScriptRevisionItem | null;
   createdAt: string;
 }
@@ -575,15 +661,18 @@ export interface WorkbenchStory {
 export interface WorkbenchShot {
   id: string;
   chapterId?: string;
-  shotNumber: number;
-  beatId: string;
+  order: number;
+  beatId: string | null;
+  sceneId: string | null;
   sceneName: string;
+  characterIds: string[];
   characters: string[];
-  action: string;
-  dialogue: string;
-  camera: string;
+  coreAction: string;
   emotion: string;
-  status: "draft" | "ready_for_image" | "image_generated" | "locked" | "needs_revision";
+  comic: StoryboardShotComic;
+  motion: StoryboardShotMotion;
+  promptDraft: string;
+  status: StoryboardShotStatus;
   lockedCandidateId: string | null;
 }
 
@@ -625,6 +714,8 @@ export interface WorkbenchSnapshot {
   currentChapter: ChapterDetail | null;
   scriptOutline: ProjectScriptOutline | null;
   storyStructure: ChapterStoryStructure | null;
+  storyboard: ChapterStoryboard | null;
+  pendingStoryboard: ChapterStoryboard | null;
   workflow: ProjectWorkflow;
   stages: WorkbenchStage[];
   story: WorkbenchStory;

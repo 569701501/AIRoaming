@@ -8,6 +8,7 @@
 
     <section class="workbench-content" :aria-label="`${currentStageLabel}工作区`">
       <ProjectDialoguePanel
+        :active-step-key="activeStepKey"
         :dialogue-error="dialogueError"
         :dialogue-notice="dialogueNotice"
         :dialogue-sending="dialogueSending"
@@ -30,6 +31,25 @@
             :story-title="snapshot.project.storyTitle"
             @select="$emit('selectChapter', $event)"
           />
+          <div v-if="activeCompletionPrompt" class="chapter-next-actions">
+            <div>
+              <span>本章剧本已完成</span>
+              <strong>{{ activeCompletionPrompt.completedChapterTitle }}</strong>
+            </div>
+            <div class="chapter-next-buttons">
+              <button class="primary-next" type="button" @click="enterCompletedChapterStructure">
+                进入本章剧情结构
+              </button>
+              <button
+                v-if="activeCompletionPrompt.nextChapterId"
+                class="secondary-next"
+                type="button"
+                @click="continueNextChapter"
+              >
+                继续{{ activeCompletionPrompt.nextChapterTitle }}
+              </button>
+            </div>
+          </div>
           <ScriptDocumentEditor
             :loading="loading"
             :snapshot="snapshot"
@@ -53,6 +73,19 @@
         @update-structure="$emit('updateStoryStructure', $event)"
       />
 
+      <StoryboardWorkspace
+        v-else-if="isStoryboardStep"
+        :dialogue-sending="dialogueSending"
+        :dialogue-thread="dialogueThread"
+        :loading="loading"
+        :snapshot="snapshot"
+        @select-chapter="$emit('selectChapter', $event)"
+        @generate-storyboard="emitGenerateStoryboard"
+        @confirm-storyboard="$emit('confirmStoryboard', $event)"
+        @update-storyboard="$emit('updateStoryboard', $event)"
+        @save-pending-storyboard="$emit('savePendingStoryboard', $event)"
+      />
+
       <div v-else class="step-placeholder">
         <span>STEP {{ currentStageIndex + 1 }}</span>
         <h2>{{ currentStageLabel }}</h2>
@@ -64,11 +97,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryStructureJson, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, WorkbenchSnapshot } from "@airoaming/shared";
+import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
+import StoryboardWorkspace from "./StoryboardWorkspace.vue";
 import StoryStructureWorkspace from "./StoryStructureWorkspace.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
 
@@ -77,6 +112,7 @@ const props = defineProps<{
   loading: boolean;
   runningTasks: number;
   activeStepKey: string;
+  chapterCompletionPrompt: ChapterCompletionPrompt | null;
   dialogueThread: DialogueThread | null;
   dialogueSending: boolean;
   dialogueError: string | null;
@@ -95,10 +131,14 @@ const emit = defineEmits<{
   resetScript: [];
   selectChapter: [chapterId: string];
   selectStep: [stepKey: string];
+  dismissCompletionPrompt: [];
   selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [input: SendDialogueMessageRequest];
   confirmStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
+  confirmStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
+  updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
+  savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
 }>();
 
 const currentStageIndex = computed(() => {
@@ -112,8 +152,16 @@ const currentStageLabel = computed(() => {
 
 const isScriptStep = computed(() => props.activeStepKey === "project_story");
 const isStructureStep = computed(() => props.activeStepKey === "story_structure");
+const isStoryboardStep = computed(() => props.activeStepKey === "storyboard");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
+const activeCompletionPrompt = computed(() => {
+  if (!props.chapterCompletionPrompt || props.chapterCompletionPrompt.completedChapterId !== currentChapterId.value) {
+    return null;
+  }
+
+  return props.chapterCompletionPrompt;
+});
 
 watch(
   () => getCurrentChapterSourceText(props.snapshot),
@@ -171,6 +219,31 @@ function emitGenerateStructure(payload: { chapterId: string; regenerate: boolean
     },
   });
 }
+
+function emitGenerateStoryboard(payload: { chapterId: string; regenerate: boolean }) {
+  emit("sendDialogue", {
+    content: payload.regenerate ? "确认重新生成分镜" : "生成当前章节分镜",
+    chapterId: payload.chapterId,
+    intent: "generate_storyboard",
+    context: {
+      sourceText: getCurrentChapterSourceText(props.snapshot),
+    },
+  });
+}
+
+function enterCompletedChapterStructure() {
+  emit("dismissCompletionPrompt");
+  emit("selectStep", "story_structure");
+}
+
+function continueNextChapter() {
+  if (!activeCompletionPrompt.value?.nextChapterId) {
+    return;
+  }
+
+  emit("dismissCompletionPrompt");
+  emit("selectChapter", activeCompletionPrompt.value.nextChapterId);
+}
 </script>
 
 <style scoped>
@@ -205,6 +278,63 @@ function emitGenerateStructure(payload: { chapterId: string; regenerate: boolean
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.chapter-next-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(34, 199, 169, 0.26);
+  border-radius: 12px;
+  background: rgba(11, 42, 38, 0.42);
+  padding: 12px 14px;
+}
+
+.chapter-next-actions div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.chapter-next-actions span {
+  color: #8df0dc;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.chapter-next-actions strong {
+  color: #f8fbff;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-next-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.chapter-next-buttons button {
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.primary-next {
+  border: 1px solid rgba(34, 199, 169, 0.34);
+  background: linear-gradient(135deg, #22c7a9, #745fff);
+  color: #ffffff;
+}
+
+.secondary-next {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.76);
+  color: #d8e0f0;
 }
 
 .structure-workspace {
@@ -276,6 +406,15 @@ function emitGenerateStructure(payload: { chapterId: string; regenerate: boolean
 
   .script-middle-column {
     order: 1;
+  }
+
+  .chapter-next-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chapter-next-buttons {
+    flex-wrap: wrap;
   }
 
   .workbench-content :deep(.dialogue-panel) {

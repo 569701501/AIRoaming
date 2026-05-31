@@ -3,7 +3,7 @@
     <header class="dialogue-panel-header">
       <div class="header-title">
         <Sparkles :size="16" class="title-icon" />
-        <h2>AI 编剧助手</h2>
+        <h2>{{ dialogueCopy.title }}</h2>
       </div>
       <button class="collapse-btn" type="button">
         <ChevronsLeft :size="16" />
@@ -16,7 +16,7 @@
           <Bot :size="16" />
         </div>
         <div class="message-body">
-          <p>{{ assistantOpening }}</p>
+          <p>{{ dialogueCopy.opening }}</p>
         </div>
       </article>
 
@@ -124,6 +124,22 @@
                         </button>
                       </div>
 
+                      <div v-if="toolResult.storyboard" class="tool-detail-section">
+                        <span class="tool-detail-label">分镜预览</span>
+                        <pre class="script-outline-preview">{{ formatStoryboardPreview(toolResult.storyboard.storyboardJson) }}</pre>
+                        <button
+                          v-if="toolResult.status === 'needs_user_confirmation'"
+                          class="seed-select-btn"
+                          type="button"
+                          :disabled="dialogueSending"
+                          title="确认分镜"
+                          @click="confirmStoryboard"
+                        >
+                          <CheckCircle2 :size="12" />
+                          <span>确认分镜</span>
+                        </button>
+                      </div>
+
                       <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
                         <span class="tool-detail-label">章节结果</span>
                         <ol class="chapter-result-list">
@@ -187,13 +203,20 @@
             multiple
             @change="handleFileChange"
           />
-          <button class="attach-btn" type="button" title="上传剧本文本" :disabled="dialogueSending" @click="fileInputRef?.click()">
+          <button
+            v-if="dialogueCopy.allowAttachments"
+            class="attach-btn"
+            type="button"
+            :title="dialogueCopy.attachmentTitle"
+            :disabled="dialogueSending"
+            @click="fileInputRef?.click()"
+          >
             <Paperclip :size="16" />
           </button>
           <textarea
             v-model="draft"
             aria-label="输入对话内容"
-            placeholder="告诉我的想法，或输入“/”唤起指令"
+            :placeholder="dialogueCopy.placeholder"
             rows="1"
             :disabled="dialogueSending"
             @keydown.enter.exact.prevent="submit"
@@ -215,6 +238,7 @@ import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInp
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
+  activeStepKey: string;
   stepLabel?: string;
   dialogueThread: DialogueThread | null;
   dialogueSending: boolean;
@@ -258,7 +282,11 @@ const toolResultsByMessageId = computed(() => {
 
   return groups;
 });
-const canSend = computed(() => (draft.value.trim().length > 0 || attachments.value.length > 0) && !props.dialogueSending);
+const canSend = computed(() => {
+  const hasContent = draft.value.trim().length > 0;
+  const hasAttachments = dialogueCopy.value.allowAttachments && attachments.value.length > 0;
+  return (hasContent || hasAttachments) && !props.dialogueSending;
+});
 const selectedModelValue = computed(() => props.selectedModel ? serializeModel(props.selectedModel) : "");
 const skillTools = new Set<DialogueToolResult["tool"]>([
   "generate_inspiration_seeds",
@@ -268,6 +296,8 @@ const skillTools = new Set<DialogueToolResult["tool"]>([
   "update_chapter_draft",
   "generate_story_structure",
   "confirm_story_structure",
+  "generate_storyboard",
+  "confirm_storyboard",
 ]);
 const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   analyze_script_import: "analyze_script_import",
@@ -279,9 +309,63 @@ const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   update_chapter_draft: "script-chapter-editing",
   generate_story_structure: "structure-story-parse",
   confirm_story_structure: "confirm-story-structure",
+  generate_storyboard: "storyboard-shot-generate",
+  confirm_storyboard: "confirm-storyboard",
 };
 
-const assistantOpening = "可以先说“帮我找灵感”，也可以上传或粘贴剧本让我整理；选中灵感后我会先生成剧本大纲。";
+const dialogueCopy = computed(() => {
+  if (props.activeStepKey === "storyboard") {
+    return {
+      title: "AI 分镜助手",
+      opening: "这一阶段会把已确认的剧情结构拆成镜头卡。每个镜头会同时生成漫画画格字段和基础漫剧镜头字段，确认后保存为本章分镜。",
+      placeholder: "输入“生成分镜”，或告诉我镜头节奏调整要求",
+      allowAttachments: false,
+      attachmentTitle: "",
+      emptyAttachmentContent: "",
+    };
+  }
+
+  if (props.activeStepKey === "story_structure") {
+    return {
+      title: "AI 剧情结构助手",
+      opening: "这一阶段会把当前已完成章节拆成摘要、角色、场景和剧情节拍。可以说“生成剧情结构”，确认后会保存为本章结构表。",
+      placeholder: "输入“生成剧情结构”，或告诉我结构调整要求",
+      allowAttachments: false,
+      attachmentTitle: "",
+      emptyAttachmentContent: "",
+    };
+  }
+
+  if (props.activeStepKey === "project_story") {
+    return {
+      title: "AI 编剧助手",
+      opening: "可以先说“帮我找灵感”，也可以上传或粘贴剧本让我整理；选中灵感后我会先生成剧本大纲。",
+      placeholder: "告诉我的想法，或输入“/”唤起指令",
+      allowAttachments: true,
+      attachmentTitle: "上传剧本文本",
+      emptyAttachmentContent: "请根据附件内容整理成章节。",
+    };
+  }
+
+  return {
+    title: `AI ${props.stepLabel ?? "创作"}助手`,
+    opening: `这里会围绕${props.stepLabel ?? "当前阶段"}提供建议和受控生成能力。`,
+    placeholder: `输入关于${props.stepLabel ?? "当前阶段"}的想法或要求`,
+    allowAttachments: false,
+    attachmentTitle: "",
+    emptyAttachmentContent: "",
+  };
+});
+
+watch(
+  () => props.activeStepKey,
+  () => {
+    if (!dialogueCopy.value.allowAttachments) {
+      attachments.value = [];
+      attachmentError.value = null;
+    }
+  },
+);
 
 watch(
   () => [
@@ -299,16 +383,19 @@ watch(
 
 function submit() {
   const content = draft.value.trim();
-  if ((!content && attachments.value.length === 0) || props.dialogueSending) {
+  const canUseAttachments = dialogueCopy.value.allowAttachments && attachments.value.length > 0;
+  if ((!content && !canUseAttachments) || props.dialogueSending) {
     return;
   }
 
-  const selectedAttachments = attachments.value.map(({ id, ...attachment }) => attachment);
+  const selectedAttachments = dialogueCopy.value.allowAttachments
+    ? attachments.value.map(({ id, ...attachment }) => attachment)
+    : [];
   draft.value = "";
   attachments.value = [];
   attachmentError.value = null;
   emit("send", {
-    content: content || "请根据附件内容整理成章节。",
+    content: content || dialogueCopy.value.emptyAttachmentContent,
     intent: content ? undefined : "organize_script_to_chapters",
     attachments: selectedAttachments,
   });
@@ -347,11 +434,25 @@ function confirmStoryStructure() {
   });
 }
 
+function confirmStoryboard() {
+  if (props.dialogueSending) {
+    return;
+  }
+
+  emit("send", {
+    content: "确认分镜",
+    intent: "confirm_storyboard",
+  });
+}
+
 async function handleFileChange(event: Event) {
   attachmentError.value = null;
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files ?? []);
   input.value = "";
+  if (!dialogueCopy.value.allowAttachments) {
+    return;
+  }
 
   for (const file of files) {
     if (!isSupportedTextFile(file)) {
@@ -475,6 +576,14 @@ function getToolEventSummary(result: DialogueToolResult) {
     return "已确认并写入当前章节剧情结构。";
   }
 
+  if (result.tool === "generate_storyboard") {
+    return result.storyboard ? "已生成分镜预览，等待确认。" : "已完成分镜检查。";
+  }
+
+  if (result.tool === "confirm_storyboard") {
+    return "已确认并写入当前章节分镜。";
+  }
+
   return "已完成导入前分析。";
 }
 
@@ -484,6 +593,13 @@ function formatStoryStructurePreview(structure: { synopsis: string; beats: Array
     "",
     ...structure.beats.map((beat) => `${beat.order}. ${beat.title}：${beat.summary}`),
   ].join("\n").trim();
+}
+
+function formatStoryboardPreview(storyboard: { shots: Array<{ order: number; coreAction: string; comic: { panelDescription: string }; motion: { frameType: string; cameraMovement: string } }> }) {
+  return storyboard.shots
+    .map((shot) => `${shot.order}. ${shot.coreAction || shot.comic.panelDescription}\n漫画：${shot.comic.panelDescription}\n漫剧：${shot.motion.frameType || "未设置"} · ${shot.motion.cameraMovement || "无运镜"}`)
+    .join("\n\n")
+    .trim();
 }
 
 function getToolStatusLabel(result: DialogueToolResult) {

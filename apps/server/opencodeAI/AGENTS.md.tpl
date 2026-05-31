@@ -97,5 +97,5 @@
 - `script-import-normalize`：用户上传或粘贴已有剧本时，先识别、校验、规划拆章，再决定是否允许写入。
 - `script-inspiration-seeding`：用户没有固定剧本时，生成 3 个候选方向，不写章节。
 - `script-outline-drafting`：用户选中灵感种子或提出大纲调整要求后，生成固定格式项目级「剧本大纲」Markdown。
-- `script-chapter-drafting`：用户确认项目级剧本大纲后，生成可写入当前章节的固定格式「章节剧本」Markdown。
+- `script-chapter-drafting`：用户确认项目级剧本大纲后，生成可写入目标章节的固定格式「章节剧本」Markdown。
 - `script-chapter-editing`：用户明确要求改写当前章节时，返回完整更新后的固定格式「章节剧本」Markdown。

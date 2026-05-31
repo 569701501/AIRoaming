@@ -19,17 +19,20 @@ import {
   type ChapterDetail,
   type ChapterListItem,
   type ChapterScriptVersionItem,
+  type ChapterStoryboard,
   type ChapterStoryStructure,
   type ChapterStatus,
   type ClearChapterScriptResponse,
   type ArtStyle,
   type ComicFormat,
+  type ConfirmChapterStoryboardRequest,
   type ConfirmChapterStoryStructureRequest,
   type CompleteChapterRequest,
   type CompleteChapterResponse,
   type CreateProjectRequest,
   type DeleteProjectResponse,
   type GetChapterStoryStructureResponse,
+  type GetChapterStoryboardResponse,
   type GetChapterResponse,
   type ListChaptersResponse,
   type ProjectListItem,
@@ -42,12 +45,16 @@ import {
   type SaveChapterDraftRequest,
   type SaveChapterDraftResponse,
   type SaveChapterStoryStructureResponse,
+  type SaveChapterStoryboardResponse,
   type ScriptImportAnalysis,
   type ScriptImportChapterBoundary,
   type ScriptImportChapterPlan,
   type ScriptImportContentType,
   type ScriptRevisionItem,
+  type StoryboardJson,
+  type StoryboardShot,
   type StoryStructureJson,
+  type UpdateChapterStoryboardRequest,
   type UpdateChapterStoryStructureRequest,
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
@@ -80,6 +87,8 @@ interface LocalChapter {
   sourceText: string;
   summary: string;
   storyStructure: ChapterStoryStructure | null;
+  storyboard: ChapterStoryboard | null;
+  pendingStoryboard?: ChapterStoryboard | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -334,6 +343,7 @@ export class ProjectsService implements OnModuleInit {
       sourceText,
       status: "script_done",
       currentScriptVersionId: scriptVersion.id,
+      pendingStoryboard: null,
       updatedAt: completedAt,
       completedAt,
       scriptVersions: [
@@ -359,9 +369,9 @@ export class ProjectsService implements OnModuleInit {
 
     const nextProject: LocalProject = {
       ...project,
-      currentChapterId: activeChapter.id,
+      currentChapterId: completedChapter.id,
       storyTitle: parsedStoryTitle || project.storyTitle,
-      sourceText: activeChapter.sourceText,
+      sourceText: completedChapter.sourceText,
       chapters,
       updatedAt: completedAt,
     };
@@ -371,7 +381,7 @@ export class ProjectsService implements OnModuleInit {
 
     return {
       completedChapter: this.toChapterDetail(completedChapter),
-      activeChapter: this.toChapterDetail(activeChapter),
+      activeChapter: this.toChapterDetail(completedChapter),
       chapters: this.sortChapters(chapters).map((item) => this.toChapterListItem(item)),
       scriptVersion: this.toChapterScriptVersionItem(scriptVersion),
       createdNextChapter,
@@ -391,6 +401,8 @@ export class ProjectsService implements OnModuleInit {
       sourceText: "",
       summary: "",
       storyStructure: null,
+      storyboard: null,
+      pendingStoryboard: null,
       updatedAt,
       completedAt: null,
       scriptVersions: [],
@@ -453,6 +465,8 @@ export class ProjectsService implements OnModuleInit {
         sourceText: item.sourceText,
         summary: item.summary,
         storyStructure: null,
+        storyboard: null,
+        pendingStoryboard: null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         completedAt: null,
@@ -620,6 +634,7 @@ export class ProjectsService implements OnModuleInit {
       status: "structured",
       currentStoryVersionId: storyStructure.id,
       storyStructure,
+      pendingStoryboard: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
@@ -665,6 +680,7 @@ export class ProjectsService implements OnModuleInit {
       ...chapter,
       currentStoryVersionId: storyStructure.id,
       storyStructure,
+      pendingStoryboard: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
@@ -678,6 +694,133 @@ export class ProjectsService implements OnModuleInit {
 
     return {
       storyStructure,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  async getChapterStoryboard(projectId: string, chapterId: string): Promise<GetChapterStoryboardResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    return {
+      storyboard: chapter.storyboard,
+      pendingStoryboard: chapter.pendingStoryboard ?? null,
+    };
+  }
+
+  async getPendingChapterStoryboard(projectId: string, chapterId: string): Promise<ChapterStoryboard | null> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    return chapter.pendingStoryboard ?? null;
+  }
+
+  async savePendingChapterStoryboard(
+    projectId: string,
+    chapterId: string,
+    input: UpdateChapterStoryboardRequest,
+  ): Promise<SaveChapterStoryboardResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    this.assertChapterCanSaveStoryboard(chapter);
+
+    const now = new Date().toISOString();
+    const version = chapter.pendingStoryboard?.version ?? (chapter.storyboard?.version ?? 0) + 1;
+    const storyboard = this.createPendingChapterStoryboard(project.id, chapter, input.storyboardJson, version, now);
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      pendingStoryboard: storyboard,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      storyboard,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  async confirmChapterStoryboard(
+    projectId: string,
+    chapterId: string,
+    input: ConfirmChapterStoryboardRequest,
+  ): Promise<SaveChapterStoryboardResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    this.assertChapterCanSaveStoryboard(chapter);
+
+    const now = new Date().toISOString();
+    const previousVersion = chapter.storyboard?.version ?? 0;
+    const storyboard = this.createChapterStoryboard(project.id, chapter, input.storyboardJson, previousVersion + 1, now);
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      status: "storyboard_done",
+      storyboard,
+      pendingStoryboard: null,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      storyboard,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  async updateChapterStoryboard(
+    projectId: string,
+    chapterId: string,
+    input: UpdateChapterStoryboardRequest,
+  ): Promise<SaveChapterStoryboardResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    if (!chapter.storyboard) {
+      throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
+    }
+
+    const now = new Date().toISOString();
+    const storyboardJson = this.normalizeStoryboardJson(input.storyboardJson, chapter.id, chapter.title, {
+      sourceStoryVersionId: chapter.storyboard.sourceStoryVersionId,
+      createdAt: chapter.storyboard.storyboardJson.createdAt,
+      updatedAt: now,
+    });
+    const storyboard: ChapterStoryboard = {
+      ...chapter.storyboard,
+      sourceStoryVersionId: storyboardJson.sourceStoryVersionId,
+      storyboardJson,
+      updatedAt: now,
+    };
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      storyboard,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      storyboard,
       chapter: this.toChapterDetail(nextChapter),
       chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
     };
@@ -834,6 +977,8 @@ export class ProjectsService implements OnModuleInit {
       currentChapter: currentChapterDetail,
       scriptOutline: readyProject.scriptOutline,
       storyStructure: currentChapter?.storyStructure ?? null,
+      storyboard: currentChapter?.storyboard ?? null,
+      pendingStoryboard: currentChapter?.pendingStoryboard ?? null,
       workflow,
       stages: workflow.steps,
       story: {
@@ -851,7 +996,7 @@ export class ProjectsService implements OnModuleInit {
           characterNames: beat.characters,
         })),
       },
-      shots: [],
+      shots: this.toWorkbenchShots(currentChapter),
       candidates: [],
       assets: [],
       aiNotes: [
@@ -1059,6 +1204,20 @@ export class ProjectsService implements OnModuleInit {
       sourceText,
       summary: this.getStringField(metadata, "summary", ""),
       storyStructure,
+      storyboard: await this.readChapterStoryboard(
+        projectId,
+        chapterId,
+        slug,
+        path.join(chapterDir, "storyboard.json"),
+        updatedAt,
+      ),
+      pendingStoryboard: await this.readPendingChapterStoryboard(
+        projectId,
+        chapterId,
+        slug,
+        path.join(chapterDir, "storyboard.pending.json"),
+        updatedAt,
+      ),
       createdAt,
       updatedAt,
       completedAt: this.getOptionalStringField(metadata, "completedAt"),
@@ -1137,6 +1296,72 @@ export class ProjectsService implements OnModuleInit {
       createdAt,
       updatedAt,
       confirmedAt: this.getOptionalStringField(record, "confirmedAt") ?? updatedAt,
+    };
+  }
+
+  private async readChapterStoryboard(
+    projectId: string,
+    chapterId: string,
+    slug: string,
+    filePath: string,
+    fallbackCreatedAt: string,
+  ): Promise<ChapterStoryboard | null> {
+    const content = await this.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return null;
+    }
+
+    const record = this.parseJsonRecord(content, filePath);
+    const storyboardJson = this.normalizeStoryboardJson(record.storyboardJson ?? record, chapterId, this.getStringField(record, "chapterTitle", ""));
+    const version = this.getNumberField(record, "version", 1);
+    const createdAt = this.getStringField(record, "createdAt", fallbackCreatedAt);
+    const updatedAt = this.getStringField(record, "updatedAt", createdAt);
+
+    return {
+      id: this.getStringField(record, "id", `${chapterId}_storyboard_v${String(version).padStart(3, "0")}`),
+      projectId,
+      chapterId,
+      version,
+      status: "storyboard_done",
+      storyboardPath: `projects/${projectId}/chapters/${slug}/storyboard.json`,
+      sourceStoryVersionId: this.getOptionalStringField(record, "sourceStoryVersionId") ?? storyboardJson.sourceStoryVersionId,
+      storyboardJson,
+      createdAt,
+      updatedAt,
+      confirmedAt: this.getOptionalStringField(record, "confirmedAt") ?? updatedAt,
+    };
+  }
+
+  private async readPendingChapterStoryboard(
+    projectId: string,
+    chapterId: string,
+    slug: string,
+    filePath: string,
+    fallbackCreatedAt: string,
+  ): Promise<ChapterStoryboard | null> {
+    const content = await this.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return null;
+    }
+
+    const record = this.parseJsonRecord(content, filePath);
+    const storyboardJson = this.normalizeStoryboardJson(record.storyboardJson ?? record, chapterId, this.getStringField(record, "chapterTitle", ""));
+    const version = this.getNumberField(record, "version", 1);
+    const createdAt = this.getStringField(record, "createdAt", fallbackCreatedAt);
+    const updatedAt = this.getStringField(record, "updatedAt", createdAt);
+
+    return {
+      id: this.getStringField(record, "id", `${chapterId}_storyboard_pending_v${String(version).padStart(3, "0")}`),
+      projectId,
+      chapterId,
+      version,
+      status: "pending_confirmation",
+      storyboardPath: `projects/${projectId}/chapters/${slug}/storyboard.pending.json`,
+      sourceStoryVersionId: this.getOptionalStringField(record, "sourceStoryVersionId") ?? storyboardJson.sourceStoryVersionId,
+      storyboardJson,
+      createdAt,
+      updatedAt,
+      confirmedAt: null,
     };
   }
 
@@ -1625,6 +1850,16 @@ export class ProjectsService implements OnModuleInit {
     } else {
       await rm(path.join(chapterDir, "structure.json"), { force: true });
     }
+    if (chapter.storyboard) {
+      await writeFile(path.join(chapterDir, "storyboard.json"), `${JSON.stringify(chapter.storyboard, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "storyboard.json"), { force: true });
+    }
+    if (chapter.pendingStoryboard) {
+      await writeFile(path.join(chapterDir, "storyboard.pending.json"), `${JSON.stringify(chapter.pendingStoryboard, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "storyboard.pending.json"), { force: true });
+    }
     if (chapter.lastScriptRevision) {
       await mkdir(revisionsDir, { recursive: true });
       await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
@@ -1651,6 +1886,8 @@ export class ProjectsService implements OnModuleInit {
       sourceText,
       summary: "",
       storyStructure: null,
+      storyboard: null,
+      pendingStoryboard: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,
@@ -1851,6 +2088,82 @@ export class ProjectsService implements OnModuleInit {
       }));
   }
 
+  private normalizeStoryboardJson(
+    input: unknown,
+    chapterId: string,
+    fallbackChapterTitle: string,
+    overrides: Partial<Pick<StoryboardJson, "sourceStoryVersionId" | "createdAt" | "updatedAt">> = {},
+  ): StoryboardJson {
+    const record = typeof input === "object" && input !== null && !Array.isArray(input)
+      ? input as Record<string, unknown>
+      : {};
+    const now = new Date().toISOString();
+
+    return {
+      schemaVersion: 1,
+      chapterId,
+      chapterTitle: this.getStringField(record, "chapterTitle", fallbackChapterTitle || "当前章节"),
+      sourceStoryVersionId: overrides.sourceStoryVersionId
+        ?? (typeof record.sourceStoryVersionId === "string" && record.sourceStoryVersionId.trim() ? record.sourceStoryVersionId : null),
+      shots: this.normalizeStoryboardShots(record.shots),
+      notes: this.getStringField(record, "notes", ""),
+      createdAt: overrides.createdAt ?? this.getStringField(record, "createdAt", now),
+      updatedAt: overrides.updatedAt ?? this.getStringField(record, "updatedAt", now),
+    };
+  }
+
+  private normalizeStoryboardShots(input: unknown): StoryboardJson["shots"] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item, index) => this.normalizeStoryboardShot(item, index))
+      .sort((left, right) => left.order - right.order);
+  }
+
+  private normalizeStoryboardShot(item: Record<string, unknown>, index: number): StoryboardShot {
+    const comic = typeof item.comic === "object" && item.comic !== null && !Array.isArray(item.comic)
+      ? item.comic as Record<string, unknown>
+      : {};
+    const motion = typeof item.motion === "object" && item.motion !== null && !Array.isArray(item.motion)
+      ? item.motion as Record<string, unknown>
+      : {};
+    const status = this.getStringField(item, "status", "draft");
+
+    return {
+      id: this.getStringField(item, "id", `shot_${String(index + 1).padStart(3, "0")}`),
+      order: this.getNumberField(item, "order", this.getNumberField(item, "shotNumber", index + 1)),
+      beatId: this.getOptionalStringField(item, "beatId"),
+      sceneId: this.getOptionalStringField(item, "sceneId"),
+      characterIds: this.getStringArrayField(item, "characterIds"),
+      coreAction: this.getStringField(item, "coreAction", this.getStringField(item, "action", "")),
+      emotion: this.getStringField(item, "emotion", ""),
+      comic: {
+        panelDescription: this.getStringField(comic, "panelDescription", this.getStringField(item, "action", "")),
+        composition: this.getStringField(comic, "composition", this.getStringField(item, "composition", this.getStringField(item, "camera", ""))),
+        dialogue: this.getStringField(comic, "dialogue", this.getStringField(item, "dialogue", "")),
+        caption: this.getStringField(comic, "caption", this.getStringField(item, "caption", "")),
+        panelRhythm: this.getStringField(comic, "panelRhythm", ""),
+      },
+      motion: {
+        visualDescription: this.getStringField(motion, "visualDescription", this.getStringField(item, "action", "")),
+        compositionDesign: this.getStringField(motion, "compositionDesign", this.getStringField(item, "camera", "")),
+        cameraMovement: this.getStringField(motion, "cameraMovement", ""),
+        voiceRole: this.getStringField(motion, "voiceRole", ""),
+        line: this.getStringField(motion, "line", this.getStringField(item, "dialogue", "")),
+        durationHint: this.getStringField(motion, "durationHint", ""),
+        frameType: this.getStringField(motion, "frameType", ""),
+      },
+      promptDraft: this.getStringField(item, "promptDraft", ""),
+      lockedCandidateId: this.getOptionalStringField(item, "lockedCandidateId"),
+      status: status === "ready_for_image" || status === "image_generated" || status === "locked" || status === "needs_revision"
+        ? status
+        : "draft",
+    };
+  }
+
   private parseScriptRevision(value: unknown): ScriptRevisionItem | null {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       return null;
@@ -1974,6 +2287,8 @@ export class ProjectsService implements OnModuleInit {
       sourceText: "",
       summary: "",
       storyStructure: null,
+      storyboard: null,
+      pendingStoryboard: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,
@@ -2010,6 +2325,16 @@ export class ProjectsService implements OnModuleInit {
     }
   }
 
+  private assertChapterCanSaveStoryboard(chapter: LocalChapter): void {
+    if (!chapter.storyStructure || !chapter.currentStoryVersionId) {
+      throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
+    }
+
+    if (chapter.status === "draft" || chapter.status === "script_done") {
+      throw new BadRequestException("STORY_STRUCTURE_NOT_COMPLETED");
+    }
+  }
+
   private createChapterStoryStructure(
     projectId: string,
     chapter: LocalChapter,
@@ -2039,6 +2364,83 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
+  private createChapterStoryboard(
+    projectId: string,
+    chapter: LocalChapter,
+    input: StoryboardJson,
+    version: number,
+    now: string,
+  ): ChapterStoryboard {
+    const id = `${chapter.id}_storyboard_v${String(version).padStart(3, "0")}`;
+    const storyboardJson = this.normalizeStoryboardJson(input, chapter.id, chapter.title, {
+      sourceStoryVersionId: chapter.currentStoryVersionId,
+      createdAt: input.createdAt || now,
+      updatedAt: now,
+    });
+
+    return {
+      id,
+      projectId,
+      chapterId: chapter.id,
+      version,
+      status: "storyboard_done",
+      storyboardPath: `projects/${projectId}/chapters/${chapter.slug}/storyboard.json`,
+      sourceStoryVersionId: storyboardJson.sourceStoryVersionId,
+      storyboardJson,
+      createdAt: chapter.storyboard?.createdAt ?? now,
+      updatedAt: now,
+      confirmedAt: now,
+    };
+  }
+
+  private createPendingChapterStoryboard(
+    projectId: string,
+    chapter: LocalChapter,
+    input: StoryboardJson,
+    version: number,
+    now: string,
+  ): ChapterStoryboard {
+    const storyboardJson = this.normalizeStoryboardJson(input, chapter.id, chapter.title, {
+      sourceStoryVersionId: chapter.currentStoryVersionId,
+      createdAt: input.createdAt || now,
+      updatedAt: now,
+    });
+
+    return {
+      id: chapter.pendingStoryboard?.id ?? `${chapter.id}_storyboard_pending_v${String(version).padStart(3, "0")}`,
+      projectId,
+      chapterId: chapter.id,
+      version,
+      status: "pending_confirmation",
+      storyboardPath: `projects/${projectId}/chapters/${chapter.slug}/storyboard.pending.json`,
+      sourceStoryVersionId: storyboardJson.sourceStoryVersionId,
+      storyboardJson,
+      createdAt: chapter.pendingStoryboard?.createdAt ?? now,
+      updatedAt: now,
+      confirmedAt: null,
+    };
+  }
+
+  private toWorkbenchShots(chapter: LocalChapter | null): WorkbenchSnapshot["shots"] {
+    const storyboard = chapter?.storyboard?.storyboardJson;
+    const structure = chapter?.storyStructure?.structureJson;
+    if (!chapter || !storyboard) {
+      return [];
+    }
+
+    return storyboard.shots.map((shot) => {
+      const scene = structure?.scenes.find((item) => item.id === shot.sceneId) ?? null;
+      const beat = structure?.beats.find((item) => item.id === shot.beatId) ?? null;
+      return {
+        ...shot,
+        chapterId: chapter.id,
+        sceneName: scene?.name ?? "",
+        characterIds: shot.characterIds,
+        characters: shot.characterIds.length > 0 ? shot.characterIds : beat?.characters ?? [],
+      };
+    });
+  }
+
   private sortChapters(chapters: LocalChapter[]): LocalChapter[] {
     return [...chapters].sort((left, right) => left.order - right.order);
   }
@@ -2052,6 +2454,7 @@ export class ProjectsService implements OnModuleInit {
       order: chapter.order,
       title: chapter.title,
       status: chapter.status,
+      storyboardStatus: chapter.pendingStoryboard?.status ?? chapter.storyboard?.status ?? null,
       currentScriptVersionId: chapter.currentScriptVersionId,
       currentStoryVersionId: chapter.currentStoryVersionId,
       summary: chapter.summary,

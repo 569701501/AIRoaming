@@ -5,6 +5,8 @@ import {
   type AIRuntimeModelSelection,
   type ChapterDetail,
   type ChapterListItem,
+  type ChapterStoryboard,
+  type CompleteChapterResponse,
   type CompleteChapterRequest,
   type CreateProjectRequest,
   type DialogueMessageItem,
@@ -20,6 +22,7 @@ import {
   type SendDialogueMessageRequest,
   type StoryStructureJson,
   type ChapterStoryStructure,
+  type StoryboardJson,
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
   type WorkspaceInfo,
@@ -39,6 +42,7 @@ function toChapterListItem(chapter: ChapterDetail): ChapterListItem {
     order: chapter.order,
     title: chapter.title,
     status: chapter.status,
+    storyboardStatus: chapter.storyboardStatus,
     currentScriptVersionId: chapter.currentScriptVersionId,
     currentStoryVersionId: chapter.currentStoryVersionId,
     summary: chapter.summary,
@@ -219,6 +223,24 @@ function getSceneName(storyStructure: ChapterStoryStructure | null, sceneId: str
   return storyStructure.structureJson.scenes.find((scene) => scene.id === sceneId)?.name ?? "";
 }
 
+function mapStoryboardShots(storyboard: ChapterStoryboard | null, storyStructure: ChapterStoryStructure | null, chapterId: string): WorkbenchSnapshot["shots"] {
+  if (!storyboard) {
+    return [];
+  }
+
+  return storyboard.storyboardJson.shots.map((shot) => {
+    const scene = storyStructure?.structureJson.scenes.find((item) => item.id === shot.sceneId) ?? null;
+    const beat = storyStructure?.structureJson.beats.find((item) => item.id === shot.beatId) ?? null;
+    return {
+      ...shot,
+      chapterId,
+      sceneName: scene?.name ?? "",
+      characterIds: shot.characterIds,
+      characters: shot.characterIds.length > 0 ? shot.characterIds : beat?.characters ?? [],
+    };
+  });
+}
+
 interface WorkbenchState {
   health: HealthResponse | null;
   workspace: WorkspaceInfo | null;
@@ -228,6 +250,7 @@ interface WorkbenchState {
   activeStepKey: string;
   snapshot: WorkbenchSnapshot | null;
   dialogueThread: DialogueThread | null;
+  chapterCompletionPrompt: ChapterCompletionPrompt | null;
   dialogueSending: boolean;
   dialogueError: string | null;
   dialogueNotice: string | null;
@@ -237,6 +260,13 @@ interface WorkbenchState {
   tasks: GenerationTaskItem[];
   loading: boolean;
   error: string | null;
+}
+
+export interface ChapterCompletionPrompt {
+  completedChapterId: string;
+  completedChapterTitle: string;
+  nextChapterId: string | null;
+  nextChapterTitle: string | null;
 }
 
 export const useWorkbenchStore = defineStore("workbench", {
@@ -249,6 +279,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     activeStepKey: "project_story",
     snapshot: null,
     dialogueThread: null,
+    chapterCompletionPrompt: null,
     dialogueSending: false,
     dialogueError: null,
     dialogueNotice: null,
@@ -320,14 +351,25 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async openProject(projectId: string, stepKey = "project_story", chapterId: string | null = null) {
+    async openProject(
+      projectId: string,
+      stepKey = "project_story",
+      chapterId: string | null = null,
+      options: { preserveSnapshot?: boolean } = {},
+    ) {
+      const shouldPreserveSnapshot = Boolean(options.preserveSnapshot && this.activeProjectId === projectId && this.snapshot);
       this.activeProjectId = projectId;
       this.activeChapterId = chapterId;
       this.activeStepKey = stepKey;
-      this.snapshot = null;
+      if (!shouldPreserveSnapshot) {
+        this.snapshot = null;
+      }
       this.dialogueThread = null;
       this.dialogueError = null;
       this.dialogueNotice = null;
+      if (!this.chapterCompletionPrompt || this.chapterCompletionPrompt.completedChapterId !== chapterId) {
+        this.chapterCompletionPrompt = null;
+      }
       await this.refresh();
     },
     async loadRuntimeModels() {
@@ -361,6 +403,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       const storyStructure = this.snapshot.storyStructure?.chapterId === chapter.id && chapter.currentStoryVersionId
         ? this.snapshot.storyStructure
         : null;
+      const storyboard = this.snapshot.storyboard?.chapterId === chapter.id && chapter.status === "storyboard_done"
+        ? this.snapshot.storyboard
+        : null;
       this.snapshot = {
         ...this.snapshot,
         project: {
@@ -371,6 +416,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         chapters: nextChapters,
         currentChapter: chapter,
         storyStructure,
+        storyboard,
         workflow,
         stages: workflow.steps,
         story: {
@@ -388,6 +434,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             characterNames: beat.characters,
           })),
         },
+        shots: mapStoryboardShots(storyboard, storyStructure, chapter.id),
       };
       this.activeChapterId = chapter.id;
       this.patchProjectPreviewFromChapter(chapter, nextChapters.length);
@@ -401,6 +448,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.snapshot = {
         ...this.snapshot,
         storyStructure,
+        storyboard: null,
+        pendingStoryboard: null,
+        shots: [],
         story: {
           ...this.snapshot.story,
           id: storyStructure.id,
@@ -413,6 +463,32 @@ export const useWorkbenchStore = defineStore("workbench", {
             characterNames: beat.characters,
           })),
         },
+      };
+    },
+    applyStoryboardUpdate(storyboard: ChapterStoryboard, chapter: ChapterDetail, chapters: ChapterListItem[] | null = null) {
+      this.applyChapterUpdate(chapter, chapters);
+      if (!this.snapshot) {
+        return;
+      }
+
+      this.snapshot = {
+        ...this.snapshot,
+        storyboard,
+        pendingStoryboard: null,
+        shots: mapStoryboardShots(storyboard, this.snapshot.storyStructure, chapter.id),
+      };
+    },
+    applyPendingStoryboardUpdate(storyboard: ChapterStoryboard, chapter: ChapterDetail | null = null, chapters: ChapterListItem[] | null = null) {
+      if (chapter) {
+        this.applyChapterUpdate(chapter, chapters);
+      }
+      if (!this.snapshot) {
+        return;
+      }
+
+      this.snapshot = {
+        ...this.snapshot,
+        pendingStoryboard: storyboard,
       };
     },
     patchProjectPreviewFromChapter(chapter: ChapterDetail, chapterCount: number) {
@@ -494,7 +570,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async completeChapter(chapterId: string, input: CompleteChapterRequest): Promise<ChapterDetail | null> {
+    async completeChapter(chapterId: string, input: CompleteChapterRequest): Promise<CompleteChapterResponse | null> {
       this.loading = true;
       this.error = null;
       try {
@@ -503,14 +579,24 @@ export const useWorkbenchStore = defineStore("workbench", {
           throw new Error("请先进入项目");
         }
         const completed = await api.completeChapter(projectId, chapterId, input);
-        this.applyChapterUpdate(completed.activeChapter, completed.chapters);
-        return completed.activeChapter;
+        this.applyChapterUpdate(completed.completedChapter, completed.chapters);
+        const nextChapter = completed.chapters.find((item) => item.order > completed.completedChapter.order) ?? null;
+        this.chapterCompletionPrompt = {
+          completedChapterId: completed.completedChapter.id,
+          completedChapterTitle: completed.completedChapter.title,
+          nextChapterId: nextChapter?.id ?? null,
+          nextChapterTitle: nextChapter?.title ?? null,
+        };
+        return completed;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "完成本章失败";
         return null;
       } finally {
         this.loading = false;
       }
+    },
+    clearChapterCompletionPrompt() {
+      this.chapterCompletionPrompt = null;
     },
     async confirmStoryStructure(chapterId: string, structureJson: StoryStructureJson): Promise<ChapterStoryStructure | null> {
       this.loading = true;
@@ -544,6 +630,58 @@ export const useWorkbenchStore = defineStore("workbench", {
         return result.storyStructure;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "更新剧情结构失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async confirmStoryboard(chapterId: string, storyboardJson: StoryboardJson): Promise<ChapterStoryboard | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.confirmChapterStoryboard(projectId, chapterId, { storyboardJson });
+        this.applyStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
+        this.dialogueNotice = `已确认「${result.chapter.title}」的分镜。`;
+        return result.storyboard;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "确认分镜失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async savePendingStoryboard(chapterId: string, storyboardJson: StoryboardJson): Promise<ChapterStoryboard | null> {
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.savePendingChapterStoryboard(projectId, chapterId, { storyboardJson });
+        this.applyPendingStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
+        return result.storyboard;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "保存待确认分镜失败";
+        return null;
+      }
+    },
+    async updateStoryboard(chapterId: string, storyboardJson: StoryboardJson): Promise<ChapterStoryboard | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.updateChapterStoryboard(projectId, chapterId, { storyboardJson });
+        this.applyStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
+        return result.storyboard;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "更新分镜失败";
         return null;
       } finally {
         this.loading = false;
@@ -628,12 +766,16 @@ export const useWorkbenchStore = defineStore("workbench", {
               scriptOutline: event.toolResult.scriptOutline,
             };
           }
+          if (event.toolResult.tool === "generate_storyboard" && event.toolResult.status === "needs_user_confirmation" && event.toolResult.storyboard) {
+            this.applyPendingStoryboardUpdate(event.toolResult.storyboard);
+          }
           const shouldPatchChapter = event.toolResult.status === "succeeded" && [
             "import_script_to_chapters",
             "generate_script_from_outline",
             "generate_script_from_seed",
             "update_chapter_draft",
             "confirm_story_structure",
+            "confirm_storyboard",
           ].includes(event.toolResult.tool);
           if (shouldPatchChapter) {
             void this.applyToolResultChapterUpdate(event.toolResult);
@@ -712,6 +854,11 @@ export const useWorkbenchStore = defineStore("workbench", {
 
       if (toolResult.storyStructure && toolResult.status === "succeeded") {
         this.applyStoryStructureUpdate(toolResult.storyStructure, currentChapter, toolResult.chapters);
+        return;
+      }
+
+      if (toolResult.storyboard && toolResult.status === "succeeded") {
+        this.applyStoryboardUpdate(toolResult.storyboard, currentChapter, toolResult.chapters);
         return;
       }
 

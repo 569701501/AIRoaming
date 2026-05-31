@@ -6,6 +6,7 @@ import type {
   CompleteChapterRequest,
   CompleteChapterResponse,
   ConfirmChapterStoryStructureRequest,
+  ConfirmChapterStoryboardRequest,
   CreateProjectRequest,
   ClearChapterScriptResponse,
   DeleteProjectResponse,
@@ -21,9 +22,11 @@ import type {
   SaveChapterDraftRequest,
   SaveChapterDraftResponse,
   SaveChapterStoryStructureResponse,
+  SaveChapterStoryboardResponse,
   SendDialogueMessageRequest,
   SendDialogueMessageResponse,
   UpdateChapterStoryStructureRequest,
+  UpdateChapterStoryboardRequest,
   UpdateAppSettingsRequest,
   UpdateProjectDraftRequest,
   WorkspaceInfo,
@@ -224,6 +227,39 @@ export const api = {
     input: UpdateChapterStoryStructureRequest,
   ) => request<SaveChapterStoryStructureResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  ),
+  confirmChapterStoryboard: (
+    projectId: string,
+    chapterId: string,
+    input: ConfirmChapterStoryboardRequest,
+  ) => request<SaveChapterStoryboardResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  savePendingChapterStoryboard: (
+    projectId: string,
+    chapterId: string,
+    input: UpdateChapterStoryboardRequest,
+  ) => request<SaveChapterStoryboardResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/pending`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  ),
+  updateChapterStoryboard: (
+    projectId: string,
+    chapterId: string,
+    input: UpdateChapterStoryboardRequest,
+  ) => request<SaveChapterStoryboardResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard`,
     {
       method: "PATCH",
       body: JSON.stringify(input),

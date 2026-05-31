@@ -13,6 +13,7 @@
         <ProjectWorkbenchView
           v-if="isProjectRoute && snapshot"
           :active-step-key="activeStepKey"
+          :chapter-completion-prompt="chapterCompletionPrompt"
           :dialogue-error="dialogueError"
           :dialogue-notice="dialogueNotice"
           :dialogue-sending="dialogueSending"
@@ -28,11 +29,15 @@
           @save-chapter-draft="saveChapterDraft"
           @complete-chapter="completeChapter"
           @confirm-story-structure="confirmStoryStructure"
+          @confirm-storyboard="confirmStoryboard"
+          @dismiss-completion-prompt="workbench.clearChapterCompletionPrompt"
           @reset-script="clearCurrentChapterScript"
           @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
           @select-dialogue-model="selectDialogueModel"
           @update-story-structure="updateStoryStructure"
+          @update-storyboard="updateStoryboard"
+          @save-pending-storyboard="savePendingStoryboard"
         />
         <main v-else-if="isProjectRoute" class="route-loading" aria-label="项目加载中">
           <div v-if="error" class="route-error">
@@ -53,7 +58,7 @@
 import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryStructureJson } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -67,6 +72,7 @@ const route = useRoute();
 const router = useRouter();
 const {
   activeStepKey,
+  chapterCompletionPrompt,
   dialogueError,
   dialogueNotice,
   dialogueSending,
@@ -117,7 +123,9 @@ watch(
         return;
       }
 
-      await workbench.openProject(projectId, stepKey, chapterId);
+      await workbench.openProject(projectId, stepKey, chapterId, {
+        preserveSnapshot: Boolean(snapshot.value && workbench.activeProjectId === projectId),
+      });
       void workbench.loadRuntimeModels();
       return;
     }
@@ -133,12 +141,12 @@ async function saveChapterDraft(payload: { chapterId: string; input: SaveChapter
 }
 
 async function completeChapter(payload: { chapterId: string; input: CompleteChapterRequest }) {
-  const activeChapter = await workbench.completeChapter(payload.chapterId, payload.input);
-  if (!activeChapter || !routeProjectId.value) {
+  const result = await workbench.completeChapter(payload.chapterId, payload.input);
+  if (!result || !routeProjectId.value) {
     return;
   }
 
-  await router.push(projectRoute(routeProjectId.value, "script", activeChapter.id));
+  await router.push(projectRoute(routeProjectId.value, "script", result.completedChapter.id));
 }
 
 async function confirmStoryStructure(payload: { chapterId: string; structureJson: StoryStructureJson }) {
@@ -147,6 +155,18 @@ async function confirmStoryStructure(payload: { chapterId: string; structureJson
 
 async function updateStoryStructure(payload: { chapterId: string; structureJson: StoryStructureJson }) {
   await workbench.updateStoryStructure(payload.chapterId, payload.structureJson);
+}
+
+async function confirmStoryboard(payload: { chapterId: string; storyboardJson: StoryboardJson }) {
+  await workbench.confirmStoryboard(payload.chapterId, payload.storyboardJson);
+}
+
+async function updateStoryboard(payload: { chapterId: string; storyboardJson: StoryboardJson }) {
+  await workbench.updateStoryboard(payload.chapterId, payload.storyboardJson);
+}
+
+async function savePendingStoryboard(payload: { chapterId: string; storyboardJson: StoryboardJson }) {
+  await workbench.savePendingStoryboard(payload.chapterId, payload.storyboardJson);
 }
 
 async function clearCurrentChapterScript() {
@@ -192,7 +212,9 @@ async function goProjectChapter(chapterId: string) {
     return;
   }
 
-  await workbench.openProject(projectId, activeStepKey.value, chapterId);
+  await workbench.openProject(projectId, activeStepKey.value, chapterId, {
+    preserveSnapshot: true,
+  });
 }
 </script>
 
