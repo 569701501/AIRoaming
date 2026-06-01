@@ -17,6 +17,11 @@ export const projectStatusMeta: Record<ProjectStatus, { label: string; tone: str
     tone: "blue",
     progress: 26,
   },
+  characters_ready: {
+    label: "角色就绪",
+    tone: "green",
+    progress: 34,
+  },
   shots_ready: {
     label: "分镜就绪",
     tone: "violet",

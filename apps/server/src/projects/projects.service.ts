@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import {
   ART_STYLES,
@@ -27,14 +27,24 @@ import {
   type ComicFormat,
   type ConfirmChapterStoryboardRequest,
   type ConfirmChapterStoryStructureRequest,
+  type ConfirmCharacterReferenceRequest,
   type CompleteChapterRequest,
   type CompleteChapterResponse,
   type CreateProjectRequest,
   type DeleteProjectResponse,
+  type ExtractProjectCharactersRequest,
+  type ExtractProjectCharactersResponse,
+  type GenerateCharacterReferenceRequest,
+  type GenerateCharacterReferenceResponse,
   type GetChapterStoryStructureResponse,
   type GetChapterStoryboardResponse,
   type GetChapterResponse,
   type ListChaptersResponse,
+  type ProjectCharacter,
+  type ProjectCharacterLevel,
+  type ProjectCharacterReferenceKind,
+  type ProjectCharacterStatus,
+  type ProjectCharactersResponse,
   type ProjectListItem,
   type ProjectScriptOutline,
   type ProjectType,
@@ -46,6 +56,7 @@ import {
   type SaveChapterDraftResponse,
   type SaveChapterStoryStructureResponse,
   type SaveChapterStoryboardResponse,
+  type SaveProjectCharacterResponse,
   type ScriptImportAnalysis,
   type ScriptImportChapterBoundary,
   type ScriptImportChapterPlan,
@@ -56,9 +67,12 @@ import {
   type StoryStructureJson,
   type UpdateChapterStoryboardRequest,
   type UpdateChapterStoryStructureRequest,
+  type UpdateProjectCharacterRequest,
   type UpdateProjectDraftRequest,
+  type WorkbenchAsset,
   type WorkbenchSnapshot,
 } from "@airoaming/shared";
+import { SettingsService } from "../settings/settings.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 
@@ -70,6 +84,9 @@ const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
   PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
 );
+const characterLevels: ProjectCharacterLevel[] = ["lead", "recurring", "chapter", "extra"];
+const characterStatuses: ProjectCharacterStatus[] = ["draft", "needs_reference", "finalized", "in_use"];
+const characterReferenceKinds: ProjectCharacterReferenceKind[] = ["turnaround_4view", "single_front", "none"];
 
 interface LocalChapterScriptVersion extends ChapterScriptVersionItem {
   sourceText: string;
@@ -108,6 +125,8 @@ interface LocalProject {
   description: string;
   sourceText: string;
   scriptOutline: ProjectScriptOutline | null;
+  characters: ProjectCharacter[];
+  assets: WorkbenchAsset[];
   chapters: LocalChapter[];
   createdAt: string;
   updatedAt: string;
@@ -190,6 +209,7 @@ export class ProjectsService implements OnModuleInit {
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(TasksService) private readonly tasksService: TasksService,
+    @Inject(SettingsService) private readonly settingsService: SettingsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -231,6 +251,8 @@ export class ProjectsService implements OnModuleInit {
       description,
       sourceText,
       scriptOutline: null,
+      characters: [],
+      assets: [],
       chapters: [this.createDefaultChapter(projectId, sourceText, now)],
       createdAt: now,
       updatedAt: now,
@@ -287,6 +309,239 @@ export class ProjectsService implements OnModuleInit {
     return {
       chapter: this.toChapterDetail(chapter),
     };
+  }
+
+  async listProjectCharacters(projectId: string): Promise<ProjectCharactersResponse> {
+    const project = await this.getReadyProject(projectId);
+    return this.toProjectCharactersResponse(project);
+  }
+
+  async extractProjectCharacters(
+    projectId: string,
+    input: ExtractProjectCharactersRequest = {},
+  ): Promise<ExtractProjectCharactersResponse> {
+    const project = await this.getReadyProject(projectId);
+    const now = new Date().toISOString();
+    const extracted = this.extractCharactersFromProjectSource(project, input.source ?? "auto", now);
+    const existingByName = new Map(project.characters.map((character) => [this.normalizeCharacterNameKey(character.name), character]));
+    let createdCount = 0;
+    let updatedCount = 0;
+    const nextCharacters = [...project.characters];
+
+    for (const candidate of extracted) {
+      const key = this.normalizeCharacterNameKey(candidate.name);
+      const existing = existingByName.get(key);
+      if (!existing) {
+        nextCharacters.push(candidate);
+        existingByName.set(key, candidate);
+        createdCount += 1;
+        continue;
+      }
+
+      const nextCharacter: ProjectCharacter = {
+        ...existing,
+        role: existing.role || candidate.role,
+        level: this.resolveMoreImportantCharacterLevel(existing.level, candidate.level),
+        appearance: existing.appearance || candidate.appearance,
+        personality: existing.personality || candidate.personality,
+        promptFragment: existing.promptFragment || candidate.promptFragment,
+        updatedAt: now,
+      };
+      const index = nextCharacters.findIndex((character) => character.id === existing.id);
+      if (index >= 0) {
+        nextCharacters[index] = nextCharacter;
+        updatedCount += 1;
+      }
+    }
+
+    const nextProject: LocalProject = {
+      ...project,
+      characters: this.sortProjectCharacters(nextCharacters),
+      updatedAt: now,
+    };
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      ...this.toProjectCharactersResponse(nextProject),
+      createdCount,
+      updatedCount,
+    };
+  }
+
+  async updateProjectCharacter(
+    projectId: string,
+    characterId: string,
+    input: UpdateProjectCharacterRequest,
+  ): Promise<SaveProjectCharacterResponse> {
+    const project = await this.getReadyProject(projectId);
+    const character = this.findProjectCharacter(project, characterId);
+    const updatedAt = new Date().toISOString();
+    const nextLevel = input.level === undefined ? character.level : this.normalizeCharacterLevel(input.level);
+    const nextReferenceKind = this.defaultReferenceKindForLevel(nextLevel);
+    const nextCharacter: ProjectCharacter = {
+      ...character,
+      name: input.name === undefined ? character.name : this.normalizeCharacterName(input.name),
+      role: input.role === undefined ? character.role : input.role.trim(),
+      level: nextLevel,
+      status: this.resolveCharacterStatusForReference(
+        nextLevel,
+        character.primaryReferenceAssetId,
+        character.status === "in_use",
+      ),
+      appearance: input.appearance === undefined ? character.appearance : input.appearance.trim(),
+      personality: input.personality === undefined ? character.personality : input.personality.trim(),
+      promptFragment: input.promptFragment === undefined ? character.promptFragment : input.promptFragment.trim(),
+      primaryReferenceKind: character.primaryReferenceAssetId ? character.primaryReferenceKind : nextReferenceKind,
+      updatedAt,
+    };
+    const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, updatedAt);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+    return {
+      ...this.toProjectCharactersResponse(nextProject),
+      character: nextCharacter,
+    };
+  }
+
+  async generateCharacterReference(
+    projectId: string,
+    characterId: string,
+    input: GenerateCharacterReferenceRequest = {},
+  ): Promise<GenerateCharacterReferenceResponse> {
+    const project = await this.getReadyProject(projectId);
+    const character = this.findProjectCharacter(project, characterId);
+    const referenceKind = this.normalizeRequestedReferenceKind(character, input.referenceKind);
+    if (referenceKind === "none") {
+      throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
+    }
+
+    const settings = this.settingsService.getRuntimeImageProviderSettings();
+    const apiKey = settings.apiKey?.trim();
+    const baseUrl = settings.baseUrl?.trim() || process.env.OPENAI_IMAGE_BASE_URL?.trim() || "";
+    if (!apiKey || !baseUrl) {
+      throw new BadRequestException("IMAGE_PROVIDER_NOT_CONFIGURED");
+    }
+
+    const nextVisualVersion = Math.max(1, character.visualVersion + 1);
+    const fileName = referenceKind === "turnaround_4view" ? "turnaround.webp" : "front.webp";
+    const relativePath = `projects/${project.id}/assets/characters/${character.id}/visual-v${String(nextVisualVersion).padStart(3, "0")}/${fileName}`;
+    const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
+    const prompt = input.prompt?.trim() || this.buildCharacterReferencePrompt(project, character, referenceKind);
+    const generated = await this.requestOpenAiImage({
+      apiKey,
+      baseUrl,
+      model: settings.modelId || "gpt-image-2",
+      prompt,
+      size: input.size?.trim() || (referenceKind === "turnaround_4view" ? "3072x1536" : "1536x2048"),
+      quality: input.quality ?? "high",
+      outputFormat: input.outputFormat ?? "webp",
+    });
+
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, generated);
+
+    const now = new Date().toISOString();
+    const asset: WorkbenchAsset = {
+      id: `asset_${randomUUID()}`,
+      chapterId: null,
+      type: "image",
+      name: `${character.name} ${referenceKind === "turnaround_4view" ? "四视图" : "正面参考"}`,
+      path: relativePath,
+      sourceTaskId: null,
+      meta: JSON.stringify({
+        characterId: character.id,
+        referenceKind,
+        provider: "openai_image",
+        model: settings.modelId || "gpt-image-2",
+        promptDigest: this.digestPrompt(prompt),
+        createdAt: now,
+      }),
+    };
+    const nextCharacter: ProjectCharacter = {
+      ...character,
+      status: "needs_reference",
+      primaryReferenceKind: referenceKind,
+      referenceAssetIds: [...new Set([...character.referenceAssetIds, asset.id])],
+      visualVersion: nextVisualVersion,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedProjectCharacter({
+      ...project,
+      assets: [...project.assets, asset],
+    }, nextCharacter, now);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      ...this.toProjectCharactersResponse(nextProject),
+      character: nextCharacter,
+      asset,
+    };
+  }
+
+  async confirmCharacterReference(
+    projectId: string,
+    characterId: string,
+    input: ConfirmCharacterReferenceRequest,
+  ): Promise<SaveProjectCharacterResponse> {
+    const project = await this.getReadyProject(projectId);
+    const character = this.findProjectCharacter(project, characterId);
+    const asset = project.assets.find((item) => item.id === input.assetId);
+    if (!asset) {
+      throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
+    }
+    if (!character.referenceAssetIds.includes(asset.id)) {
+      throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
+    }
+
+    const now = new Date().toISOString();
+    const nextCharacter: ProjectCharacter = {
+      ...character,
+      status: character.status === "in_use" ? "in_use" : "finalized",
+      primaryReferenceAssetId: asset.id,
+      primaryReferenceKind: this.getAssetReferenceKind(asset) ?? character.primaryReferenceKind,
+      updatedAt: now,
+      finalizedAt: now,
+    };
+    const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, now);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+    return {
+      ...this.toProjectCharactersResponse(nextProject),
+      character: nextCharacter,
+    };
+  }
+
+  async getProjectAssetFile(projectId: string, assetId: string): Promise<{
+    buffer: Buffer;
+    mimeType: string;
+    fileName: string;
+  }> {
+    const project = await this.getReadyProject(projectId);
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset) {
+      throw new NotFoundException("PROJECT_ASSET_NOT_FOUND");
+    }
+
+    const safePath = asset.path.replace(/^\/+/, "");
+    if (!safePath.startsWith(`projects/${project.id}/`)) {
+      throw new BadRequestException("PROJECT_ASSET_PATH_INVALID");
+    }
+
+    const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${safePath}`);
+    try {
+      return {
+        buffer: await readFile(absolutePath),
+        mimeType: this.inferMimeType(asset.path),
+        fileName: path.basename(asset.path),
+      };
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        throw new NotFoundException("PROJECT_ASSET_FILE_NOT_FOUND");
+      }
+      throw error;
+    }
   }
 
   async saveChapterDraft(
@@ -965,7 +1220,7 @@ export class ProjectsService implements OnModuleInit {
         id: readyProject.id,
         name: readyProject.name,
         type: readyProject.type,
-        status: hasStory ? "story_ready" : "draft",
+        status: this.isProjectCharacterLibraryReady(readyProject) ? "characters_ready" : hasStory ? "story_ready" : "draft",
         storyTitle: readyProject.storyTitle,
         genreTags: readyProject.genreTags,
         comicFormat: readyProject.comicFormat,
@@ -979,6 +1234,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: currentChapter?.storyStructure ?? null,
       storyboard: currentChapter?.storyboard ?? null,
       pendingStoryboard: currentChapter?.pendingStoryboard ?? null,
+      characters: readyProject.characters,
       workflow,
       stages: workflow.steps,
       story: {
@@ -998,7 +1254,7 @@ export class ProjectsService implements OnModuleInit {
       },
       shots: this.toWorkbenchShots(currentChapter),
       candidates: [],
-      assets: [],
+      assets: readyProject.assets,
       aiNotes: [
         {
           role: "orchestrator",
@@ -1079,6 +1335,8 @@ export class ProjectsService implements OnModuleInit {
     const sourceText = currentChapter?.sourceText ?? fallbackSourceText;
     const parsedStoryTitle = extractChapterScriptName(sourceText);
     const scriptOutline = await this.readProjectScriptOutline(projectDir, projectId, createdAt, updatedAt);
+    const assets = await this.readProjectAssets(projectDir);
+    const characters = await this.readProjectCharacters(projectDir, projectId, createdAt, updatedAt);
     const storyTitle = parsedStoryTitle ?? this.getStringField(metadata, "storyTitle", this.getStringField(metadata, "name", projectId));
 
     return {
@@ -1093,6 +1351,8 @@ export class ProjectsService implements OnModuleInit {
       description: this.getStringField(metadata, "description", storyTitle),
       sourceText,
       scriptOutline,
+      characters,
+      assets,
       chapters: this.sortChapters(readyChapters),
       createdAt,
       updatedAt,
@@ -1129,6 +1389,53 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: this.getStringField(metadata, "updatedAt", fallbackUpdatedAt),
       confirmedAt: this.getOptionalStringField(metadata, "confirmedAt"),
     };
+  }
+
+  private async readProjectCharacters(
+    projectDir: string,
+    projectId: string,
+    fallbackCreatedAt: string,
+    fallbackUpdatedAt: string,
+  ): Promise<ProjectCharacter[]> {
+    const charactersPath = path.join(projectDir, "shared", "characters.json");
+    const content = await this.readOptionalTextFile(charactersPath);
+    if (content === null || !content.trim()) {
+      return [];
+    }
+
+    const record = this.parseJsonRecord(content, charactersPath);
+    const input = Array.isArray(record.characters) ? record.characters : [];
+    return this.sortProjectCharacters(input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item, index) => this.normalizeProjectCharacter(item, projectId, fallbackCreatedAt, fallbackUpdatedAt, index)));
+  }
+
+  private async readProjectAssets(projectDir: string): Promise<WorkbenchAsset[]> {
+    const assetsPath = path.join(projectDir, "shared", "assets.json");
+    const content = await this.readOptionalTextFile(assetsPath);
+    if (content === null || !content.trim()) {
+      return [];
+    }
+
+    const record = this.parseJsonRecord(content, assetsPath);
+    const input = Array.isArray(record.assets) ? record.assets : [];
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item): WorkbenchAsset => {
+        const type = item.type === "audio" || item.type === "video" || item.type === "document" || item.type === "archive"
+          ? item.type
+          : "image";
+        return {
+          id: this.getStringField(item, "id", `asset_${randomUUID()}`),
+          chapterId: this.getOptionalStringField(item, "chapterId"),
+          type,
+          name: this.getStringField(item, "name", "未命名素材"),
+          path: this.getStringField(item, "path", ""),
+          sourceTaskId: this.getOptionalStringField(item, "sourceTaskId"),
+          meta: this.getStringField(item, "meta", "{}"),
+        };
+      })
+      .filter((asset) => asset.path.trim());
   }
 
   private async readChaptersFromWorkspace(projectDir: string, projectId: string): Promise<LocalChapter[]> {
@@ -1594,7 +1901,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private buildProjectWorkflow(project: LocalProject, currentChapter: LocalChapter | null): ProjectWorkflow {
-    const currentStepKey = this.resolveWorkflowCurrentStepKey(currentChapter);
+    const currentStepKey = this.resolveWorkflowCurrentStepKey(project, currentChapter);
     return {
       schemaVersion: PROJECT_WORKFLOW_SCHEMA_VERSION,
       projectId: project.id,
@@ -1611,19 +1918,28 @@ export class ProjectsService implements OnModuleInit {
     definition: (typeof PROJECT_WORKFLOW_STEPS)[number],
     currentStepKey: ProjectWorkflowStepKey,
   ): ProjectWorkflowStep {
-    const status = this.resolveWorkflowStepStatus(definition.key, currentStepKey, currentChapter?.status ?? "draft");
+    const status = this.resolveWorkflowStepStatus(
+      definition.key,
+      currentStepKey,
+      currentChapter?.status ?? "draft",
+      this.isProjectCharacterLibraryReady(project),
+    );
     return {
       key: definition.key,
       label: definition.label,
       status,
       scope: definition.scope,
-      summary: this.getWorkflowStepSummary(definition.key, status, currentChapter),
+      summary: this.getWorkflowStepSummary(definition.key, status, currentChapter, project),
       evidence: this.getWorkflowStepEvidence(project.id, currentChapter, definition.key),
       completionCriteria: [...definition.completionCriteria],
     };
   }
 
-  private resolveWorkflowCurrentStepKey(chapter: LocalChapter | null): ProjectWorkflowStepKey {
+  private resolveWorkflowCurrentStepKey(project: LocalProject, chapter: LocalChapter | null): ProjectWorkflowStepKey {
+    if (chapter && chapter.status !== "draft" && !this.isProjectCharacterLibraryReady(project)) {
+      return "project_characters";
+    }
+
     switch (chapter?.status) {
       case "script_done":
         return "story_structure";
@@ -1646,6 +1962,7 @@ export class ProjectsService implements OnModuleInit {
     stepKey: ProjectWorkflowStepKey,
     currentStepKey: ProjectWorkflowStepKey,
     chapterStatus: ChapterStatus,
+    charactersReady: boolean,
   ): ProjectWorkflowStep["status"] {
     if (chapterStatus === "exported") {
       return "done";
@@ -1659,6 +1976,9 @@ export class ProjectsService implements OnModuleInit {
     if (stepIndex === currentIndex) {
       return "active";
     }
+    if (stepKey === "story_structure" && chapterStatus !== "draft" && !charactersReady) {
+      return "blocked";
+    }
     return "waiting";
   }
 
@@ -1666,6 +1986,7 @@ export class ProjectsService implements OnModuleInit {
     stepKey: ProjectWorkflowStepKey,
     status: ProjectWorkflowStep["status"],
     chapter: LocalChapter | null,
+    project: LocalProject,
   ): string {
     if (status === "done") {
       return this.getWorkflowDoneSummary(stepKey);
@@ -1679,6 +2000,10 @@ export class ProjectsService implements OnModuleInit {
         return chapter?.sourceText.trim()
           ? "当前章节已有草稿，保存后可点击完成本章。"
           : "补充当前章节剧本，保存草稿后继续推进。";
+      case "project_characters":
+        return this.isProjectCharacterLibraryReady(project)
+          ? "主角和常驻角色已定稿。"
+          : "提取主角和常驻角色，并确认四视图角色定稿图。";
       case "story_structure":
         return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
       case "storyboard":
@@ -1697,6 +2022,8 @@ export class ProjectsService implements OnModuleInit {
     switch (stepKey) {
       case "project_story":
         return "章节剧本已完成并写入版本快照。";
+      case "project_characters":
+        return "项目角色库已完成。";
       case "story_structure":
         return "结构化剧情已完成。";
       case "storyboard":
@@ -1715,8 +2042,10 @@ export class ProjectsService implements OnModuleInit {
     switch (stepKey) {
       case "project_story":
         return "等待进入剧本阶段。";
-      case "story_structure":
+      case "project_characters":
         return "需要先完成当前章节剧本。";
+      case "story_structure":
+        return "需要先完成项目角色库。";
       case "storyboard":
         return "需要先完成当前章节剧情结构。";
       case "image_candidates":
@@ -1738,6 +2067,8 @@ export class ProjectsService implements OnModuleInit {
     switch (stepKey) {
       case "project_story":
         return `/workspace/projects/${projectId}/chapters/${chapterSlug}/script.md`;
+      case "project_characters":
+        return `/workspace/projects/${projectId}/shared/characters.json`;
       case "story_structure":
         return `/workspace/projects/${projectId}/chapters/${chapterSlug}/structure.json`;
       case "storyboard":
@@ -1756,11 +2087,12 @@ export class ProjectsService implements OnModuleInit {
     const currentChapter = this.getCurrentChapter(project);
     const sourceText = currentChapter?.sourceText ?? project.sourceText;
 
+    const hasStory = sourceText.trim().length > 0;
     return {
       id: project.id,
       name: project.name,
       type: project.type,
-      status: sourceText.trim().length > 0 ? "story_ready" : "draft",
+      status: this.isProjectCharacterLibraryReady(project) ? "characters_ready" : hasStory ? "story_ready" : "draft",
       currentChapterId: project.currentChapterId,
       chapterCount: project.chapters.length,
       storyTitle: project.storyTitle,
@@ -1779,7 +2111,9 @@ export class ProjectsService implements OnModuleInit {
 
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
     const currentChapter = this.getCurrentChapter(project) ?? this.createDefaultChapter(project.id, project.sourceText, project.createdAt);
+    await mkdir(path.join(projectDir, "shared"), { recursive: true });
     await mkdir(path.join(projectDir, "assets"), { recursive: true });
+    await mkdir(path.join(projectDir, "assets", "characters"), { recursive: true });
     await mkdir(path.join(projectDir, "tasks"), { recursive: true });
     await mkdir(path.join(projectDir, "exports"), { recursive: true });
 
@@ -1799,6 +2133,16 @@ export class ProjectsService implements OnModuleInit {
     };
     await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
     await writeFile(path.join(projectDir, "workflow.json"), `${JSON.stringify(this.buildProjectWorkflow(project, currentChapter), null, 2)}\n`, "utf8");
+    await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({
+      projectId: project.id,
+      characters: this.sortProjectCharacters(project.characters),
+      updatedAt: project.updatedAt,
+    }, null, 2)}\n`, "utf8");
+    await writeFile(path.join(projectDir, "shared", "assets.json"), `${JSON.stringify({
+      projectId: project.id,
+      assets: project.assets,
+      updatedAt: project.updatedAt,
+    }, null, 2)}\n`, "utf8");
     if (project.scriptOutline) {
       await writeFile(path.join(projectDir, "script-outline.md"), project.scriptOutline.sourceText, "utf8");
       await writeFile(path.join(projectDir, "script-outline.json"), `${JSON.stringify({
@@ -2162,6 +2506,377 @@ export class ProjectsService implements OnModuleInit {
         ? status
         : "draft",
     };
+  }
+
+  private toProjectCharactersResponse(project: LocalProject): ProjectCharactersResponse {
+    return {
+      characters: this.sortProjectCharacters(project.characters),
+      assets: project.assets,
+      ready: this.isProjectCharacterLibraryReady(project),
+    };
+  }
+
+  private normalizeProjectCharacter(
+    item: Record<string, unknown>,
+    projectId: string,
+    fallbackCreatedAt: string,
+    fallbackUpdatedAt: string,
+    index: number,
+  ): ProjectCharacter {
+    const level = this.normalizeCharacterLevel(this.getStringField(item, "level", index === 0 ? "lead" : "recurring"));
+    const primaryReferenceAssetId = this.getOptionalStringField(item, "primaryReferenceAssetId");
+    const status = this.normalizeCharacterStatus(this.getStringField(item, "status", primaryReferenceAssetId ? "finalized" : "draft"));
+    return {
+      id: this.getStringField(item, "id", `char_${String(index + 1).padStart(3, "0")}`),
+      projectId,
+      name: this.normalizeCharacterName(this.getStringField(item, "name", `角色 ${index + 1}`)),
+      role: this.getStringField(item, "role", ""),
+      level,
+      status,
+      appearance: this.getStringField(item, "appearance", ""),
+      personality: this.getStringField(item, "personality", ""),
+      promptFragment: this.getStringField(item, "promptFragment", ""),
+      referenceAssetIds: this.getStringArrayField(item, "referenceAssetIds"),
+      primaryReferenceAssetId,
+      primaryReferenceKind: this.normalizeCharacterReferenceKind(
+        this.getStringField(item, "primaryReferenceKind", this.defaultReferenceKindForLevel(level)),
+      ),
+      visualVersion: this.getNumberField(item, "visualVersion", primaryReferenceAssetId ? 1 : 0),
+      source: item.source === "imported_script" || item.source === "manual" || item.source === "story_structure" ? item.source : "script_outline",
+      createdAt: this.getStringField(item, "createdAt", fallbackCreatedAt),
+      updatedAt: this.getStringField(item, "updatedAt", fallbackUpdatedAt),
+      finalizedAt: this.getOptionalStringField(item, "finalizedAt"),
+    };
+  }
+
+  private normalizeCharacterLevel(value: string): ProjectCharacterLevel {
+    return characterLevels.includes(value as ProjectCharacterLevel) ? value as ProjectCharacterLevel : "chapter";
+  }
+
+  private normalizeCharacterStatus(value: string): ProjectCharacterStatus {
+    return characterStatuses.includes(value as ProjectCharacterStatus) ? value as ProjectCharacterStatus : "draft";
+  }
+
+  private normalizeCharacterReferenceKind(value: string): ProjectCharacterReferenceKind {
+    return characterReferenceKinds.includes(value as ProjectCharacterReferenceKind) ? value as ProjectCharacterReferenceKind : "none";
+  }
+
+  private defaultReferenceKindForLevel(level: ProjectCharacterLevel): ProjectCharacterReferenceKind {
+    if (level === "lead" || level === "recurring") {
+      return "turnaround_4view";
+    }
+    if (level === "chapter") {
+      return "single_front";
+    }
+    return "none";
+  }
+
+  private normalizeRequestedReferenceKind(
+    character: ProjectCharacter,
+    requested: ProjectCharacterReferenceKind | undefined,
+  ): ProjectCharacterReferenceKind {
+    const fallback = this.defaultReferenceKindForLevel(character.level);
+    const normalized = requested ? this.normalizeCharacterReferenceKind(requested) : fallback;
+    if ((character.level === "lead" || character.level === "recurring") && normalized !== "turnaround_4view") {
+      throw new BadRequestException("CHARACTER_TURNAROUND_REQUIRED");
+    }
+    if (character.level === "extra") {
+      return "none";
+    }
+    return normalized === "none" ? fallback : normalized;
+  }
+
+  private isProjectCharacterLibraryReady(project: Pick<LocalProject, "characters">): boolean {
+    const required = project.characters.filter((character) => character.level === "lead" || character.level === "recurring");
+    if (required.length === 0) {
+      return false;
+    }
+
+    return required.every((character) =>
+      (character.status === "finalized" || character.status === "in_use")
+      && Boolean(character.primaryReferenceAssetId)
+      && character.primaryReferenceKind === "turnaround_4view",
+    );
+  }
+
+  private resolveCharacterStatusForReference(
+    level: ProjectCharacterLevel,
+    primaryReferenceAssetId: string | null,
+    inUse: boolean,
+  ): ProjectCharacterStatus {
+    if (inUse) {
+      return "in_use";
+    }
+    if (primaryReferenceAssetId) {
+      return "finalized";
+    }
+    if (level === "lead" || level === "recurring") {
+      return "needs_reference";
+    }
+    return "draft";
+  }
+
+  private sortProjectCharacters(characters: ProjectCharacter[]): ProjectCharacter[] {
+    const order: Record<ProjectCharacterLevel, number> = {
+      lead: 0,
+      recurring: 1,
+      chapter: 2,
+      extra: 3,
+    };
+    return [...characters].sort((left, right) => {
+      const levelDelta = order[left.level] - order[right.level];
+      if (levelDelta !== 0) return levelDelta;
+      return left.createdAt.localeCompare(right.createdAt);
+    });
+  }
+
+  private normalizeCharacterName(value: string): string {
+    const name = value.trim().replace(/^[-*•\d.\s]+/u, "");
+    if (!name) {
+      throw new BadRequestException("CHARACTER_NAME_REQUIRED");
+    }
+    return name.slice(0, 60);
+  }
+
+  private normalizeCharacterNameKey(name: string): string {
+    return name.trim().toLowerCase();
+  }
+
+  private resolveMoreImportantCharacterLevel(
+    left: ProjectCharacterLevel,
+    right: ProjectCharacterLevel,
+  ): ProjectCharacterLevel {
+    const order: Record<ProjectCharacterLevel, number> = {
+      lead: 0,
+      recurring: 1,
+      chapter: 2,
+      extra: 3,
+    };
+    return order[left] <= order[right] ? left : right;
+  }
+
+  private extractCharactersFromProjectSource(
+    project: LocalProject,
+    source: "script_outline" | "current_chapter" | "auto",
+    now: string,
+  ): ProjectCharacter[] {
+    const sourceText = source === "current_chapter"
+      ? this.getCurrentChapter(project)?.sourceText ?? ""
+      : project.scriptOutline?.sourceText || this.getCurrentChapter(project)?.sourceText || project.sourceText;
+    const sourceType: ProjectCharacter["source"] = project.scriptOutline?.sourceText && source !== "current_chapter"
+      ? "script_outline"
+      : "imported_script";
+    const section = this.extractMainCharactersSection(sourceText);
+    const lines = (section || sourceText)
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const candidates: ProjectCharacter[] = [];
+
+    for (const line of lines) {
+      const parsed = this.parseCharacterLine(line);
+      if (!parsed) {
+        continue;
+      }
+      const level = this.inferCharacterLevel(parsed.name, parsed.role, parsed.description, candidates.length);
+      candidates.push({
+        id: `char_${randomUUID()}`,
+        projectId: project.id,
+        name: parsed.name,
+        role: parsed.role,
+        level,
+        status: level === "lead" || level === "recurring" ? "needs_reference" : "draft",
+        appearance: parsed.description,
+        personality: "",
+        promptFragment: parsed.description,
+        referenceAssetIds: [],
+        primaryReferenceAssetId: null,
+        primaryReferenceKind: this.defaultReferenceKindForLevel(level),
+        visualVersion: 0,
+        source: sourceType,
+        createdAt: now,
+        updatedAt: now,
+        finalizedAt: null,
+      });
+    }
+
+    return candidates.slice(0, 12);
+  }
+
+  private extractMainCharactersSection(sourceText: string): string {
+    const start = sourceText.search(/主要角色|角色设定|人物设定/u);
+    if (start < 0) {
+      return "";
+    }
+    const rest = sourceText.slice(start);
+    const end = rest.search(/\n\s*(情节概要|剧情简介|章节|第\s*\d+\s*[章集]|##?\s+)/u);
+    return end > 0 ? rest.slice(0, end) : rest;
+  }
+
+  private parseCharacterLine(line: string): { name: string; role: string; description: string } | null {
+    const cleaned = line.replace(/^[-*•\d.\s]+/u, "").trim();
+    const match = /^([^：:（(]{1,30})(?:[（(]([^）)]{1,30})[）)])?\s*[：:]\s*(.{2,})$/u.exec(cleaned);
+    if (!match) {
+      return null;
+    }
+    const rawName = match[1].trim();
+    if (/^(主要角色|角色设定|人物设定|基础信息|剧情简介)$/u.test(rawName)) {
+      return null;
+    }
+    return {
+      name: this.normalizeCharacterName(rawName),
+      role: (match[2] ?? "").trim(),
+      description: match[3].trim(),
+    };
+  }
+
+  private inferCharacterLevel(
+    name: string,
+    role: string,
+    description: string,
+    index: number,
+  ): ProjectCharacterLevel {
+    const text = `${name} ${role} ${description}`;
+    if (/主角|女主|男主|核心视角|主人公/u.test(text) || index === 0) {
+      return "lead";
+    }
+    if (/常驻|主要|反派|男二|女二|伙伴|搭档|摄政王|长期|宿敌/u.test(text)) {
+      return "recurring";
+    }
+    if (/路人|背景|群众|侍卫|店员|司机/u.test(text)) {
+      return "extra";
+    }
+    return "chapter";
+  }
+
+  private findProjectCharacter(project: LocalProject, characterId: string): ProjectCharacter {
+    const character = project.characters.find((item) => item.id === characterId);
+    if (!character) {
+      throw new NotFoundException("PROJECT_CHARACTER_NOT_FOUND");
+    }
+    return character;
+  }
+
+  private withUpdatedProjectCharacter(
+    project: LocalProject,
+    character: ProjectCharacter,
+    updatedAt: string,
+  ): LocalProject {
+    return {
+      ...project,
+      characters: this.sortProjectCharacters(project.characters.map((item) => (item.id === character.id ? character : item))),
+      updatedAt,
+    };
+  }
+
+  private buildCharacterReferencePrompt(
+    project: LocalProject,
+    character: ProjectCharacter,
+    referenceKind: ProjectCharacterReferenceKind,
+  ): string {
+    const style = `${project.artStyle} ${project.comicFormat}`;
+    const base = [
+      `角色名：${character.name}`,
+      `角色身份：${character.role || character.level}`,
+      `外貌设定：${character.appearance || "根据项目风格补全，但保持简洁稳定"}`,
+      `性格气质：${character.personality || "符合角色身份"}`,
+      `项目风格：${style}`,
+      character.promptFragment ? `提示词片段：${character.promptFragment}` : "",
+    ].filter(Boolean).join("\n");
+
+    if (referenceKind === "turnaround_4view") {
+      return [
+        "Create a clean character turnaround reference sheet for a comic production pipeline.",
+        "One same character, same outfit, same proportions, neutral expression, full body, plain light background.",
+        "Four evenly spaced views in one image: front view, left side view, right side view, back view.",
+        "No text labels, no logo, no watermark, no extra characters, no dramatic pose changes.",
+        base,
+      ].join("\n");
+    }
+
+    return [
+      "Create a clean single front character reference image for a comic production pipeline.",
+      "One character, front view, upper body or full body, plain light background.",
+      "No text labels, no logo, no watermark, no extra characters.",
+      base,
+    ].join("\n");
+  }
+
+  private async requestOpenAiImage(input: {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    prompt: string;
+    size: string;
+    quality: "auto" | "low" | "medium" | "high";
+    outputFormat: "webp" | "png" | "jpeg";
+  }): Promise<Buffer> {
+    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: input.model,
+        prompt: input.prompt,
+        n: 1,
+        size: input.size,
+        quality: input.quality,
+        output_format: input.outputFormat,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new BadRequestException(`IMAGE_PROVIDER_FAILED:${response.status}:${errorText.slice(0, 240)}`);
+    }
+
+    const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
+    const first = data.data?.[0];
+    if (first?.b64_json) {
+      return Buffer.from(first.b64_json, "base64");
+    }
+    if (first?.url) {
+      const imageResponse = await fetch(first.url);
+      if (!imageResponse.ok) {
+        throw new BadRequestException(`IMAGE_PROVIDER_URL_FAILED:${imageResponse.status}`);
+      }
+      return Buffer.from(await imageResponse.arrayBuffer());
+    }
+
+    throw new BadRequestException("IMAGE_PROVIDER_EMPTY_RESPONSE");
+  }
+
+  private digestPrompt(prompt: string): string {
+    return createHash("sha256").update(prompt).digest("hex").slice(0, 12);
+  }
+
+  private getAssetReferenceKind(asset: WorkbenchAsset): ProjectCharacterReferenceKind | null {
+    try {
+      const value = JSON.parse(asset.meta) as { referenceKind?: unknown };
+      return typeof value.referenceKind === "string" ? this.normalizeCharacterReferenceKind(value.referenceKind) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private inferMimeType(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+      case ".png":
+        return "image/png";
+      case ".jpg":
+      case ".jpeg":
+        return "image/jpeg";
+      case ".webp":
+        return "image/webp";
+      case ".gif":
+        return "image/gif";
+      default:
+        return "application/octet-stream";
+    }
   }
 
   private parseScriptRevision(value: unknown): ScriptRevisionItem | null {

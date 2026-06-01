@@ -98,6 +98,68 @@
         </div>
       </form>
 
+      <form v-else-if="activeTab === 'image-provider'" class="settings-panel" @submit.prevent="saveImageProvider">
+        <div class="panel-title-row">
+          <div>
+            <span>角色与候选图</span>
+            <h2>图片生成</h2>
+          </div>
+          <span class="status-pill" :class="{ 'is-ready': imageProviderStatus.configured }">
+            {{ imageProviderStatus.configured ? "已配置" : "未配置" }}
+          </span>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            <span>服务商</span>
+            <input v-model.trim="imageForm.providerName" autocomplete="off" />
+          </label>
+          <label>
+            <span>模型</span>
+            <input v-model.trim="imageForm.modelId" autocomplete="off" placeholder="gpt-image-2" />
+          </label>
+          <label class="is-wide">
+            <span>Base URL</span>
+            <input v-model.trim="imageForm.baseUrl" autocomplete="off" placeholder="例如 https://api.example.com/v1" />
+          </label>
+          <label class="is-wide">
+            <span>API Key</span>
+            <input
+              v-model.trim="imageForm.apiKey"
+              autocomplete="new-password"
+              placeholder="留空则保留当前密钥"
+              type="password"
+            />
+          </label>
+        </div>
+
+        <div class="key-meta">
+          <div>
+            <span>当前密钥</span>
+            <strong>{{ imageProviderStatus.keyPreview ?? "未保存" }}</strong>
+          </div>
+          <div>
+            <span>指纹</span>
+            <strong>{{ imageProviderStatus.keyFingerprint ?? "无" }}</strong>
+          </div>
+          <div>
+            <span>更新时间</span>
+            <strong>{{ imageProviderStatus.updatedAt ? formatTime(imageProviderStatus.updatedAt) : "无" }}</strong>
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button class="secondary-action" type="button" :disabled="settings.saving || !imageProviderStatus.configured" @click="clearImageProvider">
+            <Trash2 :size="16" />
+            <span>清除密钥</span>
+          </button>
+          <button class="primary-action" type="submit" :disabled="settings.saving">
+            <Save :size="16" />
+            <span>{{ settings.saving ? "保存中" : "保存图片设置" }}</span>
+          </button>
+        </div>
+      </form>
+
       <section v-else class="settings-panel">
         <div class="panel-title-row">
           <div>
@@ -130,11 +192,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import type { AppearanceTheme } from "@airoaming/shared";
-import { Check, KeyRound, Monitor, Moon, Palette, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
+import { Check, ImagePlus, KeyRound, Monitor, Moon, Palette, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
 import { useSettingsStore } from "../../stores/settings-store";
 
 const settings = useSettingsStore();
-const activeTab = ref<"ai-key" | "appearance">("ai-key");
+const activeTab = ref<"ai-key" | "image-provider" | "appearance">("ai-key");
 const aiForm = reactive({
   providerId: "self",
   providerName: "自定义 OpenAI 兼容",
@@ -142,9 +204,17 @@ const aiForm = reactive({
   baseUrl: "",
   apiKey: "",
 });
+const imageForm = reactive({
+  providerId: "openai_image",
+  providerName: "OpenAI 图片生成",
+  modelId: "gpt-image-2",
+  baseUrl: "",
+  apiKey: "",
+});
 
 const tabs = [
   { key: "ai-key", label: "AI 密钥", icon: KeyRound },
+  { key: "image-provider", label: "图片生成", icon: ImagePlus },
   { key: "appearance", label: "外观设置", icon: Palette },
 ] as const;
 
@@ -179,6 +249,16 @@ const aiKeyStatus = computed(() => settings.settings?.aiKey ?? {
   keyFingerprint: null,
   updatedAt: null,
 });
+const imageProviderStatus = computed(() => settings.settings?.imageProvider ?? {
+  providerId: "openai_image",
+  providerName: "OpenAI 图片生成",
+  modelId: "gpt-image-2",
+  baseUrl: null,
+  configured: false,
+  keyPreview: null,
+  keyFingerprint: null,
+  updatedAt: null,
+});
 
 watch(
   () => settings.settings?.aiKey,
@@ -191,6 +271,21 @@ watch(
     aiForm.modelId = aiKey.modelId;
     aiForm.baseUrl = aiKey.baseUrl ?? "";
     aiForm.apiKey = "";
+  },
+  { immediate: true },
+);
+
+watch(
+  () => settings.settings?.imageProvider,
+  (imageProvider) => {
+    if (!imageProvider) {
+      return;
+    }
+    imageForm.providerId = imageProvider.providerId;
+    imageForm.providerName = imageProvider.providerName;
+    imageForm.modelId = imageProvider.modelId;
+    imageForm.baseUrl = imageProvider.baseUrl ?? "";
+    imageForm.apiKey = "";
   },
   { immediate: true },
 );
@@ -227,6 +322,28 @@ async function clearAIKey() {
     clearApiKey: true,
   });
   aiForm.apiKey = "";
+}
+
+async function saveImageProvider() {
+  await settings.saveImageProvider({
+    providerId: imageForm.providerId,
+    providerName: imageForm.providerName,
+    modelId: imageForm.modelId,
+    baseUrl: imageForm.baseUrl || null,
+    apiKey: imageForm.apiKey || undefined,
+  });
+  imageForm.apiKey = "";
+}
+
+async function clearImageProvider() {
+  await settings.saveImageProvider({
+    providerId: imageForm.providerId,
+    providerName: imageForm.providerName,
+    modelId: imageForm.modelId,
+    baseUrl: imageForm.baseUrl || null,
+    clearApiKey: true,
+  });
+  imageForm.apiKey = "";
 }
 
 async function saveAppearance(theme: AppearanceTheme) {

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteLocationRaw } from "vue-route
 
 export const projectStepRouteMap = {
   script: "project_story",
+  characters: "project_characters",
   structure: "story_structure",
   storyboard: "storyboard",
   candidates: "image_candidates",
@@ -78,7 +79,7 @@ export const router = createRouter({
       }),
     },
     {
-      path: "/projects/:projectId/:step(script|structure|storyboard|candidates|layout|assets)",
+      path: "/projects/:projectId/:step(script|characters|structure|storyboard|candidates|layout|assets)",
       name: "project-step",
       component: RouteStub,
     },

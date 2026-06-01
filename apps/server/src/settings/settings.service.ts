@@ -6,8 +6,10 @@ import {
   APPEARANCE_THEMES,
   type AppAIKeySettings,
   type AppAppearanceSettings,
+  type AppImageProviderSettings,
   type AppSettings,
   type UpdateAIKeySettingsRequest,
+  type UpdateImageProviderSettingsRequest,
   type UpdateAppSettingsRequest,
   type AppearanceTheme,
 } from "@airoaming/shared";
@@ -26,11 +28,19 @@ interface StoredAIKeySettings {
 interface StoredAppSettings {
   version: 1;
   aiKey: StoredAIKeySettings;
+  imageProvider: StoredAIKeySettings;
   appearance: AppAppearanceSettings;
   updatedAt: string;
 }
 
 export interface RuntimeAIKeySettings {
+  providerId: string;
+  modelId: string;
+  baseUrl: string | null;
+  apiKey: string | null;
+}
+
+export interface RuntimeImageProviderSettings {
   providerId: string;
   modelId: string;
   baseUrl: string | null;
@@ -45,6 +55,7 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
   deepseek: "DeepSeek 对话",
   mimo: "Xiaomi MiMo 对话",
   custom: "自定义 OpenAI 兼容",
+  openai_image: "OpenAI 图片生成",
 };
 
 @Injectable()
@@ -66,6 +77,15 @@ export class SettingsService implements OnModuleInit {
     };
   }
 
+  getRuntimeImageProviderSettings(): RuntimeImageProviderSettings {
+    return {
+      providerId: this.settings.imageProvider.providerId,
+      modelId: this.settings.imageProvider.modelId,
+      baseUrl: this.settings.imageProvider.baseUrl,
+      apiKey: this.settings.imageProvider.apiKey,
+    };
+  }
+
   async getSettings(): Promise<AppSettings> {
     this.settings = await this.readSettings();
     return this.toPublicSettings(this.settings);
@@ -77,6 +97,9 @@ export class SettingsService implements OnModuleInit {
     const next: StoredAppSettings = {
       ...current,
       aiKey: input.aiKey ? this.updateAIKeySettings(current.aiKey, input.aiKey, now) : current.aiKey,
+      imageProvider: input.imageProvider
+        ? this.updateImageProviderSettings(current.imageProvider, input.imageProvider, now)
+        : current.imageProvider,
       appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
       updatedAt: now,
     };
@@ -84,6 +107,37 @@ export class SettingsService implements OnModuleInit {
     await this.writeSettings(next);
     this.settings = next;
     return this.toPublicSettings(next);
+  }
+
+  private updateImageProviderSettings(
+    current: StoredAIKeySettings,
+    input: UpdateImageProviderSettingsRequest,
+    now: string,
+  ): StoredAIKeySettings {
+    const providerId = input.providerId === undefined ? current.providerId : this.normalizeProviderId(input.providerId);
+    const providerName = input.providerName === undefined
+      ? this.resolveProviderName(providerId, current.providerName)
+      : this.normalizeProviderName(input.providerName, providerId);
+    const modelId = input.modelId === undefined ? current.modelId : this.normalizeModelId(input.modelId);
+    const baseUrl = input.baseUrl === undefined ? current.baseUrl : this.normalizeBaseUrl(input.baseUrl);
+    const apiKeyInput = input.apiKey?.trim();
+    const providerChanged = input.providerId !== undefined && providerId !== current.providerId;
+    const shouldClearApiKey = input.clearApiKey === true || (providerChanged && !apiKeyInput);
+    const apiKey = shouldClearApiKey
+      ? null
+      : apiKeyInput
+        ? apiKeyInput
+        : current.apiKey;
+
+    return {
+      providerId,
+      providerName,
+      modelId,
+      baseUrl,
+      apiKey,
+      keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : null,
+      updatedAt: now,
+    };
   }
 
   private updateAIKeySettings(current: StoredAIKeySettings, input: UpdateAIKeySettingsRequest, now: string): StoredAIKeySettings {
@@ -149,8 +203,11 @@ export class SettingsService implements OnModuleInit {
   private normalizeStoredSettings(input: Partial<StoredAppSettings>): StoredAppSettings {
     const defaults = this.defaultSettings();
     const aiKey = input.aiKey ?? defaults.aiKey;
+    const imageProvider = input.imageProvider ?? defaults.imageProvider;
     const providerId = this.normalizeProviderId(aiKey.providerId ?? defaults.aiKey.providerId);
+    const imageProviderId = this.normalizeProviderId(imageProvider.providerId ?? defaults.imageProvider.providerId);
     const apiKey = typeof aiKey.apiKey === "string" && aiKey.apiKey.trim() ? aiKey.apiKey.trim() : null;
+    const imageApiKey = typeof imageProvider.apiKey === "string" && imageProvider.apiKey.trim() ? imageProvider.apiKey.trim() : null;
     const theme = input.appearance?.theme && APPEARANCE_THEMES.includes(input.appearance.theme)
       ? input.appearance.theme
       : defaults.appearance.theme;
@@ -166,6 +223,18 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : null,
         updatedAt: typeof aiKey.updatedAt === "string" ? aiKey.updatedAt : null,
       },
+      imageProvider: {
+        providerId: imageProviderId,
+        providerName: this.normalizeProviderName(
+          imageProvider.providerName ?? this.resolveProviderName(imageProviderId),
+          imageProviderId,
+        ),
+        modelId: this.normalizeModelId(imageProvider.modelId ?? defaults.imageProvider.modelId),
+        baseUrl: this.normalizeBaseUrl(imageProvider.baseUrl ?? defaults.imageProvider.baseUrl),
+        apiKey: imageApiKey,
+        keyFingerprint: imageApiKey ? this.fingerprintKey(imageApiKey) : null,
+        updatedAt: typeof imageProvider.updatedAt === "string" ? imageProvider.updatedAt : null,
+      },
       appearance: { theme },
       updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : defaults.updatedAt,
     };
@@ -174,6 +243,10 @@ export class SettingsService implements OnModuleInit {
   private defaultSettings(): StoredAppSettings {
     const providerId = process.env.OPENCODE_PROVIDER_ID?.trim() || "self";
     const modelId = process.env.OPENCODE_MODEL_ID?.trim() || "gpt-5.5";
+    const imageProviderId = process.env.OPENAI_IMAGE_PROVIDER_ID?.trim() || "openai_image";
+    const imageModelId = process.env.OPENAI_IMAGE_MODEL_ID?.trim() || "gpt-image-2";
+    const imageBaseUrl = process.env.OPENAI_IMAGE_BASE_URL?.trim() || null;
+    const imageApiKey = process.env.OPENAI_IMAGE_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || null;
     const now = new Date().toISOString();
 
     return {
@@ -187,6 +260,15 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: null,
         updatedAt: null,
       },
+      imageProvider: {
+        providerId: imageProviderId,
+        providerName: this.resolveProviderName(imageProviderId),
+        modelId: imageModelId,
+        baseUrl: this.normalizeBaseUrl(imageBaseUrl),
+        apiKey: imageApiKey,
+        keyFingerprint: imageApiKey ? this.fingerprintKey(imageApiKey) : null,
+        updatedAt: imageApiKey || imageBaseUrl ? now : null,
+      },
       appearance: {
         theme: "dark",
       },
@@ -197,8 +279,22 @@ export class SettingsService implements OnModuleInit {
   private toPublicSettings(settings: StoredAppSettings): AppSettings {
     return {
       aiKey: this.toPublicAIKey(settings.aiKey),
+      imageProvider: this.toPublicImageProvider(settings.imageProvider),
       appearance: settings.appearance,
       settingsPath: SETTINGS_VIRTUAL_PATH,
+      updatedAt: settings.updatedAt,
+    };
+  }
+
+  private toPublicImageProvider(settings: StoredAIKeySettings): AppImageProviderSettings {
+    return {
+      providerId: settings.providerId,
+      providerName: settings.providerName,
+      modelId: settings.modelId,
+      baseUrl: settings.baseUrl,
+      configured: Boolean(settings.apiKey),
+      keyPreview: settings.apiKey ? this.previewKey(settings.apiKey) : null,
+      keyFingerprint: settings.keyFingerprint,
       updatedAt: settings.updatedAt,
     };
   }

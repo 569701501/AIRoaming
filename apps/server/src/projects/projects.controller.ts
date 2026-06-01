@@ -1,10 +1,14 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Res, StreamableFile } from "@nestjs/common";
 import type {
   CompleteChapterRequest,
+  ConfirmCharacterReferenceRequest,
   ConfirmChapterStoryboardRequest,
   ConfirmChapterStoryStructureRequest,
   CreateProjectRequest,
+  ExtractProjectCharactersRequest,
+  GenerateCharacterReferenceRequest,
   SaveChapterDraftRequest,
+  UpdateProjectCharacterRequest,
   UpdateChapterStoryboardRequest,
   UpdateChapterStoryStructureRequest,
   UpdateProjectDraftRequest,
@@ -58,6 +62,56 @@ export class ProjectsController {
   @Get(":projectId/chapters/:chapterId")
   async getChapter(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
     return ok(await this.projectsService.getChapter(projectId, chapterId));
+  }
+
+  @Get(":projectId/characters")
+  async listProjectCharacters(@Param("projectId") projectId: string) {
+    return ok(await this.projectsService.listProjectCharacters(projectId));
+  }
+
+  @Post(":projectId/characters/extract")
+  async extractProjectCharacters(@Param("projectId") projectId: string, @Body() body: ExtractProjectCharactersRequest) {
+    return ok(await this.projectsService.extractProjectCharacters(projectId, body));
+  }
+
+  @Patch(":projectId/characters/:characterId")
+  async updateProjectCharacter(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: UpdateProjectCharacterRequest,
+  ) {
+    return ok(await this.projectsService.updateProjectCharacter(projectId, characterId, body));
+  }
+
+  @Post(":projectId/characters/:characterId/reference")
+  async generateCharacterReference(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: GenerateCharacterReferenceRequest,
+  ) {
+    return ok(await this.projectsService.generateCharacterReference(projectId, characterId, body));
+  }
+
+  @Post(":projectId/characters/:characterId/reference/confirm")
+  async confirmCharacterReference(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: ConfirmCharacterReferenceRequest,
+  ) {
+    return ok(await this.projectsService.confirmCharacterReference(projectId, characterId, body));
+  }
+
+  @Get(":projectId/assets/:assetId/file")
+  async getProjectAssetFile(
+    @Param("projectId") projectId: string,
+    @Param("assetId") assetId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const file = await this.projectsService.getProjectAssetFile(projectId, assetId);
+    response.setHeader("Content-Type", file.mimeType);
+    response.setHeader("Cache-Control", "private, max-age=60");
+    response.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(file.fileName)}"`);
+    return new StreamableFile(file.buffer);
   }
 
   @Post(":projectId/chapters/:chapterId/script/clear")

@@ -17,6 +17,7 @@ export type ArtStyle = (typeof ART_STYLES)[number];
 export const PROJECT_STATUSES = [
   "draft",
   "story_ready",
+  "characters_ready",
   "shots_ready",
   "images_ready",
   "layout_ready",
@@ -39,6 +40,7 @@ export const PROJECT_WORKFLOW_SCHEMA_VERSION = 1;
 
 export const PROJECT_WORKFLOW_STEP_KEYS = [
   "project_story",
+  "project_characters",
   "story_structure",
   "storyboard",
   "image_candidates",
@@ -59,6 +61,12 @@ export const PROJECT_WORKFLOW_STEPS = [
     label: "剧本",
     scope: "chapter",
     completionCriteria: ["当前章节 `script.md` 已保存", "用户点击完成本章并写入章节剧本版本"],
+  },
+  {
+    key: "project_characters",
+    label: "项目角色库",
+    scope: "project",
+    completionCriteria: ["主角和常驻角色已提取为项目级角色", "主角和常驻角色均确认四视图定稿图"],
   },
   {
     key: "story_structure",
@@ -98,6 +106,7 @@ export const PROJECT_WORKFLOW_STEPS = [
 }>;
 
 export const GENERATION_TASK_TYPES = [
+  "character_reference_generate",
   "story_parse",
   "shot_generate",
   "shot_prompt_generate",
@@ -120,6 +129,7 @@ export type ChapterScopedGenerationTaskType = (typeof CHAPTER_SCOPED_GENERATION_
 
 export const GENERATION_TASK_TARGET_TYPES = [
   "project",
+  "character",
   "chapter",
   "story",
   "shot",

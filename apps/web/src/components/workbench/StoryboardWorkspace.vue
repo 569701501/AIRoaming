@@ -133,14 +133,15 @@ const EditableShotField = defineComponent({
         h("span", { class: "editable-shot-label" }, props.label),
         h("div", { class: "editable-shot-value" }, [
           isEditing
-            ? h(props.multiline ? "textarea" : "input", {
+            ? h("textarea", {
                 value: props.editingValue,
-                rows: props.multiline ? 3 : undefined,
+                rows: props.multiline ? 4 : 2,
                 onInput: (event: Event) => emit("input", (event.target as HTMLInputElement | HTMLTextAreaElement).value),
                 onBlur: () => emit("commit", props.fieldKey),
                 onKeydown: (event: KeyboardEvent) => {
                   if (!props.multiline && event.key === "Enter") {
-                    (event.target as HTMLInputElement).blur();
+                    event.preventDefault();
+                    (event.target as HTMLTextAreaElement).blur();
                   }
                 },
               })

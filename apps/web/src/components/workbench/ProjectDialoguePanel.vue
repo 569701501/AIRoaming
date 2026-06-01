@@ -140,6 +140,16 @@
                         </button>
                       </div>
 
+                      <div v-if="toolResult.characters?.length" class="tool-detail-section">
+                        <span class="tool-detail-label">项目角色</span>
+                        <ol class="chapter-result-list">
+                          <li v-for="character in toolResult.characters" :key="character.id">
+                            <span>{{ character.name }} · {{ getCharacterLevelLabel(character.level) }}</span>
+                            <small>{{ getCharacterStatusLabel(character.status) }}</small>
+                          </li>
+                        </ol>
+                      </div>
+
                       <div v-if="toolResult.chapters.length > 0" class="tool-detail-section">
                         <span class="tool-detail-label">章节结果</span>
                         <ol class="chapter-result-list">
@@ -296,6 +306,7 @@ const skillTools = new Set<DialogueToolResult["tool"]>([
   "update_chapter_draft",
   "generate_story_structure",
   "confirm_story_structure",
+  "generate_project_characters",
   "generate_storyboard",
   "confirm_storyboard",
 ]);
@@ -309,6 +320,7 @@ const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   update_chapter_draft: "script-chapter-editing",
   generate_story_structure: "structure-story-parse",
   confirm_story_structure: "confirm-story-structure",
+  generate_project_characters: "project-character-extract",
   generate_storyboard: "storyboard-shot-generate",
   confirm_storyboard: "confirm-storyboard",
 };
@@ -330,6 +342,17 @@ const dialogueCopy = computed(() => {
       title: "AI 剧情结构助手",
       opening: "这一阶段会把当前已完成章节拆成摘要、角色、场景和剧情节拍。可以说“生成剧情结构”，确认后会保存为本章结构表。",
       placeholder: "输入“生成剧情结构”，或告诉我结构调整要求",
+      allowAttachments: false,
+      attachmentTitle: "",
+      emptyAttachmentContent: "",
+    };
+  }
+
+  if (props.activeStepKey === "project_characters") {
+    return {
+      title: "AI 角色定稿助手",
+      opening: "这一阶段会先提取项目级主角和常驻角色，再为必需角色生成四视图定稿图。确认定稿后，剧情结构和后续出图都会读取这里。",
+      placeholder: "输入“生成项目角色库”，或告诉我要调整哪个角色",
       allowAttachments: false,
       attachmentTitle: "",
       emptyAttachmentContent: "",
@@ -576,6 +599,11 @@ function getToolEventSummary(result: DialogueToolResult) {
     return "已确认并写入当前章节剧情结构。";
   }
 
+  if (result.tool === "generate_project_characters") {
+    const count = result.characters?.length ?? 0;
+    return count > 0 ? `已写入 ${count} 个项目角色。` : "已完成项目角色检查。";
+  }
+
   if (result.tool === "generate_storyboard") {
     return result.storyboard ? "已生成分镜预览，等待确认。" : "已完成分镜检查。";
   }
@@ -585,6 +613,26 @@ function getToolEventSummary(result: DialogueToolResult) {
   }
 
   return "已完成导入前分析。";
+}
+
+function getCharacterLevelLabel(level: string) {
+  const labels: Record<string, string> = {
+    lead: "主角",
+    recurring: "常驻",
+    chapter: "本章重要",
+    extra: "临时/背景",
+  };
+  return labels[level] ?? level;
+}
+
+function getCharacterStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    draft: "草稿",
+    needs_reference: "待定稿",
+    finalized: "已定稿",
+    in_use: "已使用",
+  };
+  return labels[status] ?? status;
 }
 
 function formatStoryStructurePreview(structure: { synopsis: string; beats: Array<{ order: number; title: string; summary: string }> }) {

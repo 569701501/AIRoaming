@@ -28,6 +28,10 @@
           @back="goProjectLibrary"
           @save-chapter-draft="saveChapterDraft"
           @complete-chapter="completeChapter"
+          @extract-characters="extractProjectCharacters"
+          @update-project-character="updateProjectCharacter"
+          @generate-character-reference="generateCharacterReference"
+          @confirm-character-reference="confirmCharacterReference"
           @confirm-story-structure="confirmStoryStructure"
           @confirm-storyboard="confirmStoryboard"
           @dismiss-completion-prompt="workbench.clearChapterCompletionPrompt"
@@ -58,7 +62,7 @@
 import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CompleteChapterRequest, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -147,6 +151,22 @@ async function completeChapter(payload: { chapterId: string; input: CompleteChap
   }
 
   await router.push(projectRoute(routeProjectId.value, "script", result.completedChapter.id));
+}
+
+async function extractProjectCharacters() {
+  await workbench.extractProjectCharacters();
+}
+
+async function updateProjectCharacter(payload: { characterId: string; input: UpdateProjectCharacterRequest }) {
+  await workbench.updateProjectCharacter(payload.characterId, payload.input);
+}
+
+async function generateCharacterReference(payload: { characterId: string; referenceKind: GenerateCharacterReferenceRequest["referenceKind"] }) {
+  await workbench.generateCharacterReference(payload.characterId, { referenceKind: payload.referenceKind });
+}
+
+async function confirmCharacterReference(payload: { characterId: string; assetId: string }) {
+  await workbench.confirmCharacterReference(payload.characterId, payload.assetId);
 }
 
 async function confirmStoryStructure(payload: { chapterId: string; structureJson: StoryStructureJson }) {

@@ -8,6 +8,7 @@ import {
   type ChapterStoryboard,
   type CompleteChapterResponse,
   type CompleteChapterRequest,
+  type GenerateCharacterReferenceRequest,
   type CreateProjectRequest,
   type DialogueMessageItem,
   type DialogueStreamEvent,
@@ -15,10 +16,12 @@ import {
   type DialogueToolResult,
   type GenerationTaskItem,
   type HealthResponse,
+  type ProjectCharacter,
   type ProjectListItem,
   type ProjectWorkflowStepKey,
   type ProjectWorkflowStepStatus,
   type SaveChapterDraftRequest,
+  type UpdateProjectCharacterRequest,
   type SendDialogueMessageRequest,
   type StoryStructureJson,
   type ChapterStoryStructure,
@@ -70,7 +73,20 @@ function resolveChapterList(
   return [...byId.values()].sort((left, right) => left.order - right.order);
 }
 
-function resolveWorkflowCurrentStepKey(chapter: ChapterDetail): ProjectWorkflowStepKey {
+function isProjectCharacterLibraryReady(characters: ProjectCharacter[]): boolean {
+  const required = characters.filter((character) => character.level === "lead" || character.level === "recurring");
+  return required.length > 0 && required.every((character) =>
+    (character.status === "finalized" || character.status === "in_use")
+    && Boolean(character.primaryReferenceAssetId)
+    && character.primaryReferenceKind === "turnaround_4view",
+  );
+}
+
+function resolveWorkflowCurrentStepKey(chapter: ChapterDetail, charactersReady: boolean): ProjectWorkflowStepKey {
+  if (chapter.status !== "draft" && !charactersReady) {
+    return "project_characters";
+  }
+
   switch (chapter.status) {
     case "script_done":
       return "story_structure";
@@ -93,6 +109,7 @@ function resolveWorkflowStepStatus(
   stepKey: ProjectWorkflowStepKey,
   currentStepKey: ProjectWorkflowStepKey,
   chapterStatus: ChapterDetail["status"],
+  charactersReady: boolean,
 ): ProjectWorkflowStepStatus {
   if (chapterStatus === "exported") {
     return "done";
@@ -105,6 +122,9 @@ function resolveWorkflowStepStatus(
   }
   if (stepIndex === currentIndex) {
     return "active";
+  }
+  if (stepKey === "story_structure" && chapterStatus !== "draft" && !charactersReady) {
+    return "blocked";
   }
   return "waiting";
 }
@@ -120,12 +140,17 @@ function getWorkflowStepSummary(
   if (status === "waiting") {
     return getWorkflowWaitingSummary(stepKey);
   }
+  if (status === "blocked") {
+    return getWorkflowWaitingSummary(stepKey);
+  }
 
   switch (stepKey) {
     case "project_story":
       return chapter.sourceText.trim()
         ? "当前章节已有草稿，保存后可点击完成本章。"
         : "补充当前章节剧本，保存草稿后继续推进。";
+    case "project_characters":
+      return "提取主角和常驻角色，并确认四视图角色定稿图。";
     case "story_structure":
       return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
     case "storyboard":
@@ -143,6 +168,8 @@ function getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string {
   switch (stepKey) {
     case "project_story":
       return "章节剧本已完成并写入版本快照。";
+    case "project_characters":
+      return "项目角色库已完成。";
     case "story_structure":
       return "结构化剧情已完成。";
     case "storyboard":
@@ -160,8 +187,10 @@ function getWorkflowWaitingSummary(stepKey: ProjectWorkflowStepKey): string {
   switch (stepKey) {
     case "project_story":
       return "等待进入剧本阶段。";
-    case "story_structure":
+    case "project_characters":
       return "需要先完成当前章节剧本。";
+    case "story_structure":
+      return "需要先完成项目角色库。";
     case "storyboard":
       return "需要先完成当前章节剧情结构。";
     case "image_candidates":
@@ -177,6 +206,8 @@ function getWorkflowStepEvidence(projectId: string, chapter: ChapterDetail, step
   switch (stepKey) {
     case "project_story":
       return `/workspace/projects/${projectId}/chapters/${chapter.slug}/script.md`;
+    case "project_characters":
+      return `/workspace/projects/${projectId}/shared/characters.json`;
     case "story_structure":
       return `/workspace/projects/${projectId}/chapters/${chapter.slug}/structure.json`;
     case "storyboard":
@@ -191,9 +222,10 @@ function getWorkflowStepEvidence(projectId: string, chapter: ChapterDetail, step
 }
 
 function patchWorkflowForChapter(snapshot: WorkbenchSnapshot, chapter: ChapterDetail): WorkbenchSnapshot["workflow"] {
-  const currentStepKey = resolveWorkflowCurrentStepKey(chapter);
+  const charactersReady = isProjectCharacterLibraryReady(snapshot.characters);
+  const currentStepKey = resolveWorkflowCurrentStepKey(chapter, charactersReady);
   const steps = snapshot.workflow.steps.map((step) => {
-    const status = resolveWorkflowStepStatus(step.key, currentStepKey, chapter.status);
+    const status = resolveWorkflowStepStatus(step.key, currentStepKey, chapter.status, charactersReady);
     return {
       ...step,
       status,
@@ -211,7 +243,10 @@ function patchWorkflowForChapter(snapshot: WorkbenchSnapshot, chapter: ChapterDe
   };
 }
 
-function getProjectStatusFromChapter(chapter: ChapterDetail): ProjectListItem["status"] {
+function getProjectStatusFromChapter(chapter: ChapterDetail, charactersReady = false): ProjectListItem["status"] {
+  if (charactersReady) {
+    return "characters_ready";
+  }
   return chapter.sourceText.trim().length > 0 ? "story_ready" : "draft";
 }
 
@@ -410,7 +445,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         ...this.snapshot,
         project: {
           ...this.snapshot.project,
-          status: getProjectStatusFromChapter(chapter),
+          status: getProjectStatusFromChapter(chapter, isProjectCharacterLibraryReady(this.snapshot.characters)),
           updatedAt: chapter.updatedAt,
         },
         chapters: nextChapters,
@@ -491,6 +526,27 @@ export const useWorkbenchStore = defineStore("workbench", {
         pendingStoryboard: storyboard,
       };
     },
+    applyProjectCharactersUpdate(characters: ProjectCharacter[], assets: WorkbenchSnapshot["assets"] | null = null) {
+      if (!this.snapshot) {
+        return;
+      }
+
+      const nextSnapshot: WorkbenchSnapshot = {
+        ...this.snapshot,
+        characters,
+        assets: assets ?? this.snapshot.assets,
+      };
+      const currentChapter = nextSnapshot.currentChapter;
+      if (currentChapter) {
+        nextSnapshot.workflow = patchWorkflowForChapter(nextSnapshot, currentChapter);
+        nextSnapshot.stages = nextSnapshot.workflow.steps;
+        nextSnapshot.project = {
+          ...nextSnapshot.project,
+          status: getProjectStatusFromChapter(currentChapter, isProjectCharacterLibraryReady(characters)),
+        };
+      }
+      this.snapshot = nextSnapshot;
+    },
     patchProjectPreviewFromChapter(chapter: ChapterDetail, chapterCount: number) {
       const exists = this.projects.some((project) => project.id === chapter.projectId);
       if (!exists) {
@@ -505,7 +561,7 @@ export const useWorkbenchStore = defineStore("workbench", {
 
           return {
             ...project,
-            status: getProjectStatusFromChapter(chapter),
+            status: getProjectStatusFromChapter(chapter, isProjectCharacterLibraryReady(this.snapshot?.characters ?? [])),
             currentChapterId: chapter.id,
             chapterCount,
             sourceTextPreview: chapter.sourceText.slice(0, 96),
@@ -687,6 +743,81 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
+    async extractProjectCharacters(): Promise<ProjectCharacter[] | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.extractProjectCharacters(projectId, { source: "auto" });
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.dialogueNotice = `已提取 ${result.characters.length} 个项目角色。`;
+        return result.characters;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "提取项目角色失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async updateProjectCharacter(characterId: string, input: UpdateProjectCharacterRequest): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.updateProjectCharacter(projectId, characterId, input);
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        return result.character;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "更新项目角色失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async generateCharacterReference(characterId: string, input: GenerateCharacterReferenceRequest): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.generateCharacterReference(projectId, characterId, input);
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.dialogueNotice = `已生成「${result.character.name}」的角色参考图。`;
+        return result.character;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "生成角色参考图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async confirmCharacterReference(characterId: string, assetId: string): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.confirmCharacterReference(projectId, characterId, { assetId });
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.dialogueNotice = `已确认「${result.character.name}」的角色定稿图。`;
+        return result.character;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "确认角色定稿失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
     async clearCurrentChapterScript(): Promise<ChapterDetail | null> {
       this.loading = true;
       this.error = null;
@@ -765,6 +896,9 @@ export const useWorkbenchStore = defineStore("workbench", {
               ...this.snapshot,
               scriptOutline: event.toolResult.scriptOutline,
             };
+          }
+          if (event.toolResult.characters && this.snapshot) {
+            this.applyProjectCharactersUpdate(event.toolResult.characters);
           }
           if (event.toolResult.tool === "generate_storyboard" && event.toolResult.status === "needs_user_confirmation" && event.toolResult.storyboard) {
             this.applyPendingStoryboardUpdate(event.toolResult.storyboard);

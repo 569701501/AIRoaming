@@ -201,14 +201,15 @@ const EditableBlock = defineComponent({
         h("span", { class: "editable-label" }, props.label),
         h("div", { class: "editable-value" }, [
           isEditing
-            ? h(props.multiline ? "textarea" : "input", {
+            ? h("textarea", {
                 value: props.editingValue,
-                rows: props.multiline ? 3 : undefined,
+                rows: props.multiline ? 4 : 2,
                 onInput: (event: Event) => emit("input", (event.target as HTMLInputElement | HTMLTextAreaElement).value),
                 onBlur: () => emit("commit", props.fieldKey),
                 onKeydown: (event: KeyboardEvent) => {
                   if (!props.multiline && event.key === "Enter") {
-                    (event.target as HTMLInputElement).blur();
+                    event.preventDefault();
+                    (event.target as HTMLTextAreaElement).blur();
                   }
                 },
               })
@@ -362,11 +363,11 @@ function getStructureStatusLabel(chapter: ChapterListItem) {
 }
 
 function isStructureStale(chapter: ChapterListItem, storyStructure: ChapterStoryStructure) {
-  if (storyStructure.sourceScriptVersionId && chapter.currentScriptVersionId && storyStructure.sourceScriptVersionId !== chapter.currentScriptVersionId) {
-    return true;
+  if (!storyStructure.sourceScriptVersionId || !chapter.currentScriptVersionId) {
+    return false;
   }
 
-  return Date.parse(chapter.updatedAt) > Date.parse(storyStructure.updatedAt);
+  return storyStructure.sourceScriptVersionId !== chapter.currentScriptVersionId;
 }
 
 function cloneStructure(structure: StoryStructureJson): StoryStructureJson {

@@ -58,8 +58,20 @@ export interface AppAIKeySettings {
   updatedAt: string | null;
 }
 
+export interface AppImageProviderSettings {
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  baseUrl: string | null;
+  configured: boolean;
+  keyPreview: string | null;
+  keyFingerprint: string | null;
+  updatedAt: string | null;
+}
+
 export interface AppSettings {
   aiKey: AppAIKeySettings;
+  imageProvider: AppImageProviderSettings;
   appearance: AppAppearanceSettings;
   settingsPath: "/workspace/settings/app-settings.json";
   updatedAt: string;
@@ -74,12 +86,22 @@ export interface UpdateAIKeySettingsRequest {
   clearApiKey?: boolean;
 }
 
+export interface UpdateImageProviderSettingsRequest {
+  providerId?: string;
+  providerName?: string;
+  modelId?: string;
+  baseUrl?: string | null;
+  apiKey?: string;
+  clearApiKey?: boolean;
+}
+
 export interface UpdateAppearanceSettingsRequest {
   theme?: AppearanceTheme;
 }
 
 export interface UpdateAppSettingsRequest {
   aiKey?: UpdateAIKeySettingsRequest;
+  imageProvider?: UpdateImageProviderSettingsRequest;
   appearance?: UpdateAppearanceSettingsRequest;
 }
 
@@ -373,6 +395,75 @@ export interface SaveChapterStoryboardResponse {
   chapters: ChapterListItem[];
 }
 
+export type ProjectCharacterLevel = "lead" | "recurring" | "chapter" | "extra";
+export type ProjectCharacterStatus = "draft" | "needs_reference" | "finalized" | "in_use";
+export type ProjectCharacterReferenceKind = "turnaround_4view" | "single_front" | "none";
+
+export interface ProjectCharacter {
+  id: string;
+  projectId: string;
+  name: string;
+  role: string;
+  level: ProjectCharacterLevel;
+  status: ProjectCharacterStatus;
+  appearance: string;
+  personality: string;
+  promptFragment: string;
+  referenceAssetIds: string[];
+  primaryReferenceAssetId: string | null;
+  primaryReferenceKind: ProjectCharacterReferenceKind;
+  visualVersion: number;
+  source: "script_outline" | "imported_script" | "manual" | "story_structure";
+  createdAt: string;
+  updatedAt: string;
+  finalizedAt: string | null;
+}
+
+export interface ProjectCharactersResponse {
+  characters: ProjectCharacter[];
+  assets: WorkbenchAsset[];
+  ready: boolean;
+}
+
+export interface ExtractProjectCharactersRequest {
+  source?: "script_outline" | "current_chapter" | "auto";
+}
+
+export interface ExtractProjectCharactersResponse extends ProjectCharactersResponse {
+  createdCount: number;
+  updatedCount: number;
+}
+
+export interface UpdateProjectCharacterRequest {
+  name?: string;
+  role?: string;
+  level?: ProjectCharacterLevel;
+  appearance?: string;
+  personality?: string;
+  promptFragment?: string;
+}
+
+export interface SaveProjectCharacterResponse extends ProjectCharactersResponse {
+  character: ProjectCharacter;
+}
+
+export interface GenerateCharacterReferenceRequest {
+  referenceKind?: ProjectCharacterReferenceKind;
+  prompt?: string;
+  size?: string;
+  quality?: "auto" | "low" | "medium" | "high";
+  outputFormat?: "webp" | "png" | "jpeg";
+}
+
+export interface GenerateCharacterReferenceResponse extends ProjectCharactersResponse {
+  character: ProjectCharacter;
+  asset: WorkbenchAsset;
+}
+
+export interface ConfirmCharacterReferenceRequest {
+  assetId: string;
+}
+
 export type ProjectScriptOutlineStatus = "draft" | "confirmed";
 
 export interface ProjectScriptOutline {
@@ -438,6 +529,7 @@ export type DialogueIntent =
   | "update_chapter_draft"
   | "generate_story_structure"
   | "confirm_story_structure"
+  | "generate_project_characters"
   | "generate_storyboard"
   | "confirm_storyboard";
 
@@ -537,6 +629,7 @@ export interface DialogueToolResult {
     | "update_chapter_draft"
     | "generate_story_structure"
     | "confirm_story_structure"
+    | "generate_project_characters"
     | "generate_storyboard"
     | "confirm_storyboard";
   status: "succeeded" | "failed" | "needs_user_confirmation";
@@ -549,6 +642,7 @@ export interface DialogueToolResult {
   scriptOutline?: ProjectScriptOutline | null;
   storyStructure?: ChapterStoryStructure | null;
   storyboard?: ChapterStoryboard | null;
+  characters?: ProjectCharacter[] | null;
   revision: ScriptRevisionItem | null;
   createdAt: string;
 }
@@ -716,6 +810,7 @@ export interface WorkbenchSnapshot {
   storyStructure: ChapterStoryStructure | null;
   storyboard: ChapterStoryboard | null;
   pendingStoryboard: ChapterStoryboard | null;
+  characters: ProjectCharacter[];
   workflow: ProjectWorkflow;
   stages: WorkbenchStage[];
   story: WorkbenchStory;

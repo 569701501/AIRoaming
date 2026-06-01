@@ -38,7 +38,7 @@
             </div>
             <div class="chapter-next-buttons">
               <button class="primary-next" type="button" @click="enterCompletedChapterStructure">
-                进入本章剧情结构
+                进入项目角色库
               </button>
               <button
                 v-if="activeCompletionPrompt.nextChapterId"
@@ -73,6 +73,16 @@
         @update-structure="$emit('updateStoryStructure', $event)"
       />
 
+      <ProjectCharactersWorkspace
+        v-else-if="isCharactersStep"
+        :loading="loading"
+        :snapshot="snapshot"
+        @extract-characters="$emit('extractCharacters')"
+        @update-character="$emit('updateProjectCharacter', $event)"
+        @generate-reference="$emit('generateCharacterReference', $event)"
+        @confirm-reference="$emit('confirmCharacterReference', $event)"
+      />
+
       <StoryboardWorkspace
         v-else-if="isStoryboardStep"
         :dialogue-sending="dialogueSending"
@@ -97,10 +107,11 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
+import ProjectCharactersWorkspace from "./ProjectCharactersWorkspace.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
 import StoryboardWorkspace from "./StoryboardWorkspace.vue";
@@ -134,6 +145,10 @@ const emit = defineEmits<{
   dismissCompletionPrompt: [];
   selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [input: SendDialogueMessageRequest];
+  extractCharacters: [];
+  updateProjectCharacter: [payload: { characterId: string; input: UpdateProjectCharacterRequest }];
+  generateCharacterReference: [payload: { characterId: string; referenceKind: GenerateCharacterReferenceRequest["referenceKind"] }];
+  confirmCharacterReference: [payload: { characterId: string; assetId: string }];
   confirmStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   confirmStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
@@ -151,6 +166,7 @@ const currentStageLabel = computed(() => {
 });
 
 const isScriptStep = computed(() => props.activeStepKey === "project_story");
+const isCharactersStep = computed(() => props.activeStepKey === "project_characters");
 const isStructureStep = computed(() => props.activeStepKey === "story_structure");
 const isStoryboardStep = computed(() => props.activeStepKey === "storyboard");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
@@ -233,7 +249,7 @@ function emitGenerateStoryboard(payload: { chapterId: string; regenerate: boolea
 
 function enterCompletedChapterStructure() {
   emit("dismissCompletionPrompt");
-  emit("selectStep", "story_structure");
+  emit("selectStep", "project_characters");
 }
 
 function continueNextChapter() {

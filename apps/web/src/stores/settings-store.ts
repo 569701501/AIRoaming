@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
-import type { AppSettings, AppearanceTheme, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest } from "@airoaming/shared";
+import type { AppSettings, AppearanceTheme, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest, UpdateImageProviderSettingsRequest } from "@airoaming/shared";
 import { api } from "../services/api";
 
-export type SettingsNoticeScope = "ai-key" | "appearance";
+export type SettingsNoticeScope = "ai-key" | "image-provider" | "appearance";
 
 interface SettingsState {
   settings: AppSettings | null;
@@ -69,6 +69,23 @@ export const useSettingsStore = defineStore("settings", {
       } catch (error) {
         this.noticeScope = null;
         this.error = error instanceof Error ? error.message : "AI 密钥保存失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async saveImageProvider(input: UpdateImageProviderSettingsRequest) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.updateSettings({ imageProvider: input });
+        applyAppearance(this.settings.appearance.theme);
+        this.notice = input.clearApiKey ? "图片生成密钥已清除" : "图片生成设置已保存";
+        this.noticeScope = "image-provider";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "图片生成设置保存失败";
       } finally {
         this.saving = false;
       }

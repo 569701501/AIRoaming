@@ -90,6 +90,7 @@ interface PendingStoryStructure {
 
 const STEP_LABELS: Record<string, string> = {
   project_story: "剧本",
+  project_characters: "项目角色库",
   story_structure: "剧情结构",
   storyboard: "分镜工作台",
   image_candidates: "候选图工作台",
@@ -440,6 +441,10 @@ export class DialogueService {
   }
 
   private resolveDialogueChapterId(stepKey: string, input: SendDialogueMessageRequest): string | null {
+    if (stepKey === "project_characters") {
+      return null;
+    }
+
     if (stepKey !== "project_story") {
       return input.chapterId ?? null;
     }
@@ -456,6 +461,11 @@ export class DialogueService {
     input: SendDialogueMessageRequest,
     signal?: AbortSignal,
   ): Promise<DialogueToolResult[]> {
+    const projectCharactersResult = await this.tryHandleProjectCharacterTools(turn, input);
+    if (projectCharactersResult) {
+      return [projectCharactersResult];
+    }
+
     const storyStructureResult = await this.tryHandleStoryStructureTools(turn, input, signal);
     if (storyStructureResult) {
       return [storyStructureResult];
@@ -562,6 +572,53 @@ export class DialogueService {
     });
 
     return this.createGenerateStoryStructureToolResult(turn, storyStructure);
+  }
+
+  private async tryHandleProjectCharacterTools(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+  ): Promise<DialogueToolResult | null> {
+    if (turn.normalizedStepKey !== "project_characters") {
+      return null;
+    }
+
+    if (!this.shouldGenerateProjectCharacters(input)) {
+      return null;
+    }
+
+    const result = await this.projectsService.extractProjectCharacters(turn.thread.projectId, {
+      source: "auto",
+    });
+    if (result.characters.length === 0) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_project_characters",
+        "我没有从已确认剧本大纲或当前章节里识别出可入库角色。可以先在剧本阶段确认大纲，或把主要角色设定发给我再提取。",
+      );
+    }
+
+    const requiredCount = result.characters.filter((character) =>
+      character.level === "lead" || character.level === "recurring",
+    ).length;
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "generate_project_characters",
+      status: "succeeded",
+      summary: [
+        `已提取 ${result.characters.length} 个项目角色，其中 ${requiredCount} 个需要四视图定稿。`,
+        "右侧项目角色库可以校正角色层级和设定；主角/常驻角色生成并确认四视图后，才能进入剧情结构。",
+      ].join("\n"),
+      chapters: turn.snapshot.chapters,
+      currentChapterId: turn.snapshot.currentChapter?.id ?? null,
+      currentChapter: turn.snapshot.currentChapter ?? null,
+      characters: result.characters,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   private async createConfirmStoryStructureToolResult(
@@ -1333,6 +1390,16 @@ export class DialogueService {
     const content = input.content.trim();
     return /(生成|整理|拆|做|创建|重新生成).{0,12}(剧情结构|剧本结构|结构化剧情|故事结构|story_parse)/.test(content)
       || /剧情结构/.test(content);
+  }
+
+  private shouldGenerateProjectCharacters(input: SendDialogueMessageRequest): boolean {
+    if (input.intent === "generate_project_characters") {
+      return true;
+    }
+
+    const content = input.content.trim();
+    return /(生成|提取|整理|创建|做).{0,12}(项目角色库|角色库|项目角色|角色定稿|主要角色|常驻角色)/.test(content)
+      || /角色库/.test(content);
   }
 
   private isConfirmingStoryStructure(content: string): boolean {
@@ -2481,6 +2548,7 @@ export class DialogueService {
       .map((message) => `${message.role === "user" ? "用户" : "AI"}（${STEP_LABELS[message.stepKey] ?? message.stepKey}）：${message.content}`)
       .join("\n");
     const scriptBoundary = input.stepKey === "project_story" ? this.buildScriptStageBoundaryContract() : "";
+    const projectCharactersBoundary = input.stepKey === "project_characters" ? this.buildProjectCharactersBoundaryContract(input.snapshot) : "";
 
     return [
       "你是 AI漫游的漫画创作助手，当前运行在项目工作区的左侧对话框。",
@@ -2488,6 +2556,7 @@ export class DialogueService {
       `当前步骤：${stepLabel}`,
       `当前章节：${chapterTitle}`,
       scriptBoundary,
+      projectCharactersBoundary,
       "工作原则：",
       "1. 回复使用中文，优先围绕当前步骤、漫画创作目标和用户正在编辑的产物。",
       "2. 没有明确写入权限或受控工具时，只能给建议、分析、问题清单或候选方案。",
@@ -2496,6 +2565,10 @@ export class DialogueService {
       sourceText || "（用户还没有填写剧本内容）",
       "项目级剧本大纲：",
       input.snapshot.scriptOutline?.sourceText?.trim() || "（项目还没有保存剧本大纲）",
+      "当前项目角色库：",
+      input.snapshot.characters.length > 0
+        ? input.snapshot.characters.map((character) => `${character.name} / ${character.level} / ${character.status} / ${character.primaryReferenceKind}`).join("\n")
+        : "（项目角色库为空）",
       "本轮附件文本：",
       input.attachmentText || "（本轮没有文本附件）",
       "最近对话：",
@@ -2503,6 +2576,22 @@ export class DialogueService {
       "用户本次消息：",
       input.userContent,
     ].filter(Boolean).join("\n\n");
+  }
+
+  private buildProjectCharactersBoundaryContract(snapshot: WorkbenchSnapshot): string {
+    const requiredCharacters = snapshot.characters.filter((character) =>
+      character.level === "lead" || character.level === "recurring",
+    );
+    return [
+      "项目角色库阶段边界契约：",
+      "",
+      "目标：提取项目级主角、常驻角色和可选本章重要角色，生成可供后续漫画候选图复用的角色视觉基准。",
+      "事实源：已确认剧本大纲、已完成章节剧本和右侧项目角色库。",
+      "写入规则：普通聊天不能直接写文件；只有调用系统受控工具后，才可把角色草稿写入 `shared/characters.json`。",
+      "图片规则：主角和常驻角色必须确认一张四视图定稿图；本章重要角色可选单张正面参考；临时/背景角色不生成定稿图。",
+      "禁区：不要声称 OpenCode 自己调用图片模型或写入本地文件；图片生成必须由 AI漫游后端受控接口执行。",
+      `当前必需四视图角色数：${requiredCharacters.length}`,
+    ].join("\n");
   }
 
   private buildScriptStageBoundaryContract(): string {

@@ -5,6 +5,7 @@ import type {
   AppSettings,
   CompleteChapterRequest,
   CompleteChapterResponse,
+  ConfirmCharacterReferenceRequest,
   ConfirmChapterStoryStructureRequest,
   ConfirmChapterStoryboardRequest,
   CreateProjectRequest,
@@ -12,19 +13,26 @@ import type {
   DeleteProjectResponse,
   DialogueStreamEvent,
   DialogueThread,
+  ExtractProjectCharactersRequest,
+  ExtractProjectCharactersResponse,
+  GenerateCharacterReferenceRequest,
+  GenerateCharacterReferenceResponse,
   CreateGenerationTaskRequest,
   GenerationTaskItem,
   GetChapterResponse,
   HealthResponse,
   ListChaptersResponse,
+  ProjectCharactersResponse,
   ProjectListItem,
   ResetProjectScriptResponse,
   SaveChapterDraftRequest,
   SaveChapterDraftResponse,
+  SaveProjectCharacterResponse,
   SaveChapterStoryStructureResponse,
   SaveChapterStoryboardResponse,
   SendDialogueMessageRequest,
   SendDialogueMessageResponse,
+  UpdateProjectCharacterRequest,
   UpdateChapterStoryStructureRequest,
   UpdateChapterStoryboardRequest,
   UpdateAppSettingsRequest,
@@ -196,6 +204,51 @@ export const api = {
   getChapter: (projectId: string, chapterId: string) => request<GetChapterResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}`,
   ),
+  listProjectCharacters: (projectId: string) => request<ProjectCharactersResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters`,
+  ),
+  extractProjectCharacters: (projectId: string, input: ExtractProjectCharactersRequest) => request<ExtractProjectCharactersResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters/extract`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  updateProjectCharacter: (
+    projectId: string,
+    characterId: string,
+    input: UpdateProjectCharacterRequest,
+  ) => request<SaveProjectCharacterResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  ),
+  generateCharacterReference: (
+    projectId: string,
+    characterId: string,
+    input: GenerateCharacterReferenceRequest,
+  ) => request<GenerateCharacterReferenceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/reference`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  confirmCharacterReference: (
+    projectId: string,
+    characterId: string,
+    input: ConfirmCharacterReferenceRequest,
+  ) => request<SaveProjectCharacterResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/reference/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  projectAssetFileUrl: (projectId: string, assetId: string) =>
+    `${API_BASE}/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}/file`,
   saveChapterDraft: (projectId: string, chapterId: string, input: SaveChapterDraftRequest) => request<SaveChapterDraftResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/draft`,
     {
