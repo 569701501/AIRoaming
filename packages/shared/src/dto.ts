@@ -146,6 +146,7 @@ export interface UpdateProjectDraftRequest {
 export interface DeleteProjectResponse {
   deletedProjectId: string;
   deletedTaskCount: number;
+  deletedRuntimeStateCount: number;
 }
 
 export interface ChapterListItem {
@@ -395,9 +396,120 @@ export interface SaveChapterStoryboardResponse {
   chapters: ChapterListItem[];
 }
 
+export type ImagePreflightCheckStatus = "ok" | "warning" | "blocked";
+
+export interface ImagePreflightCharacterCheck {
+  characterId: string;
+  name: string;
+  level: ProjectCharacterLevel;
+  appearanceCount: number;
+  requiredReference: boolean;
+  referenceReady: boolean;
+  referenceAssetId: string | null;
+  status: ImagePreflightCheckStatus;
+  note: string;
+}
+
+export interface ImagePreflightSceneCheck {
+  sceneId: string;
+  name: string;
+  shotCount: number;
+  status: ImagePreflightCheckStatus;
+  note: string;
+}
+
+export interface ImagePreflightStyleCheck {
+  comicFormat: ComicFormat;
+  comicFormatLabel: string;
+  artStyle: ArtStyle;
+  artStyleLabel: string;
+  status: ImagePreflightCheckStatus;
+  note: string;
+}
+
+export interface ImagePreflightIssue {
+  type:
+    | "missing_storyboard"
+    | "unresolved_character"
+    | "missing_reference"
+    | "running_reference_task"
+    | "missing_scene"
+    | "missing_style_context";
+  status: Exclude<ImagePreflightCheckStatus, "ok">;
+  message: string;
+  relatedName?: string;
+  relatedCharacterId?: string;
+  relatedSceneId?: string;
+  relatedShotId?: string;
+}
+
+export interface ImagePreflightJson {
+  schemaVersion: 1;
+  chapterId: string;
+  chapterTitle: string;
+  sourceStoryboardId: string | null;
+  sourceStoryboardUpdatedAt: string | null;
+  shotCount: number;
+  unresolvedCharacters: string[];
+  characterChecks: ImagePreflightCharacterCheck[];
+  sceneChecks: ImagePreflightSceneCheck[];
+  styleCheck: ImagePreflightStyleCheck;
+  issues: ImagePreflightIssue[];
+  ready: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChapterImagePreflight {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  version: number;
+  status: "confirmed";
+  preflightPath: string;
+  sourceStoryboardId: string | null;
+  sourceStoryboardUpdatedAt: string | null;
+  preflightJson: ImagePreflightJson;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt: string;
+}
+
+export interface GetChapterImagePreflightResponse {
+  imagePreflight: ChapterImagePreflight | null;
+}
+
+export interface ConfirmChapterImagePreflightRequest {
+  notes?: string;
+}
+
+export interface SaveChapterImagePreflightResponse {
+  imagePreflight: ChapterImagePreflight;
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
+export type ResolveImagePreflightCharacterAction =
+  | "add_to_library"
+  | "merge_existing"
+  | "mark_temporary"
+  | "ignore";
+
+export interface ResolveImagePreflightCharacterRequest {
+  token: string;
+  action: ResolveImagePreflightCharacterAction;
+  targetCharacterId?: string;
+  level?: ProjectCharacterLevel;
+  role?: string;
+  appearance?: string;
+  personality?: string;
+  promptFragment?: string;
+}
+
 export type ProjectCharacterLevel = "lead" | "recurring" | "chapter" | "extra";
 export type ProjectCharacterStatus = "draft" | "needs_reference" | "finalized" | "in_use";
-export type ProjectCharacterReferenceKind = "turnaround_4view" | "single_front" | "none";
+export type ProjectCharacterReferenceKind = "preview_front" | "final_reference" | "none";
 
 export interface ProjectCharacter {
   id: string;
@@ -410,10 +522,12 @@ export interface ProjectCharacter {
   personality: string;
   promptFragment: string;
   referenceAssetIds: string[];
+  previewReferenceAssetId: string | null;
+  previewConfirmedAt: string | null;
   primaryReferenceAssetId: string | null;
   primaryReferenceKind: ProjectCharacterReferenceKind;
   visualVersion: number;
-  source: "script_outline" | "imported_script" | "manual" | "story_structure";
+  source: "script_outline" | "imported_script" | "manual" | "story_structure" | "image_preflight";
   createdAt: string;
   updatedAt: string;
   finalizedAt: string | null;
@@ -447,6 +561,19 @@ export interface SaveProjectCharacterResponse extends ProjectCharactersResponse 
   character: ProjectCharacter;
 }
 
+export interface DeleteCharacterReferenceResponse extends ProjectCharactersResponse {
+  character: ProjectCharacter;
+  deletedAssetId: string;
+}
+
+export interface ResolveImagePreflightCharacterResponse extends ProjectCharactersResponse {
+  storyboard: ChapterStoryboard;
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  imagePreflight: ChapterImagePreflight | null;
+  character: ProjectCharacter | null;
+}
+
 export interface GenerateCharacterReferenceRequest {
   referenceKind?: ProjectCharacterReferenceKind;
   prompt?: string;
@@ -458,6 +585,20 @@ export interface GenerateCharacterReferenceRequest {
 export interface GenerateCharacterReferenceResponse extends ProjectCharactersResponse {
   character: ProjectCharacter;
   asset: WorkbenchAsset;
+}
+
+export interface QueueCharacterReferenceResponse extends ProjectCharactersResponse {
+  tasks: GenerationTaskItem[];
+  createdCount: number;
+}
+
+export interface ConfirmCharacterPreviewRequest {
+  assetId: string;
+}
+
+export interface ConfirmCharacterPreviewResponse extends ProjectCharactersResponse {
+  character: ProjectCharacter;
+  tasks: GenerationTaskItem[];
 }
 
 export interface ConfirmCharacterReferenceRequest {
@@ -810,6 +951,7 @@ export interface WorkbenchSnapshot {
   storyStructure: ChapterStoryStructure | null;
   storyboard: ChapterStoryboard | null;
   pendingStoryboard: ChapterStoryboard | null;
+  imagePreflight: ChapterImagePreflight | null;
   characters: ProjectCharacter[];
   workflow: ProjectWorkflow;
   stages: WorkbenchStage[];

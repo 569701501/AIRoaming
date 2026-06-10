@@ -4,18 +4,29 @@
 - 正式文档使用中文，文档要服务人和 AI；重要结论必须落到对应 Markdown 文件，不把聊天隐含上下文当事实源。
 - `$deep-think` 是按需技能，只在用户明确调用、任务高风险或跨多模块时使用；不是每次对话默认流程。
 - 当前应用入口是项目库；创建项目只保留“项目名称”，创建成功后直接进入项目工作区第 1 步“剧本”。
+- 项目库操作区 banner 源文件为 `apps/web/src/assets/project-library/hero-banner.png`，由 `ProjectCommandPanel.vue` 静态导入；该受跟踪图片缺失会导致 Vite 启动/构建无法解析资源。
+- 项目库删除入口保持为项目卡片封面右上角删除按钮；卡片底部 `MoreHorizontal` 不是删除入口。删除按钮组件事件使用明确的 `request-delete`，按钮常驻可点击，hover 只改变样式。删除确认弹窗 `DeleteProjectDialog` 必须在项目列表页显式导入。删除成功后前端应先从本地项目列表移除卡片，再刷新校准后端列表，避免完整刷新延迟造成“点击删除没用”的感知。
+- 删除项目属于用户二次确认后的破坏性项目容器清理：必须删除项目运行时索引、`workspace/projects/{projectId}` 目录、该项目 `GenerationTask` 和项目级对话运行态缓存；正在运行的异步生成任务不能在删除后重新写回该项目目录；不能影响全局设置、其他项目目录或其他项目任务。
 - 项目工作区隐藏全局左侧导航和顶部搜索；左侧是公共“对话框”，右侧是当前步骤主工作区；顶部保留返回项目列表和紧凑 7 步流程。
 - 左侧公共对话框必须随当前步骤切换标题、开场白、输入占位和附件入口；剧情结构步骤显示剧情结构助手语义，不展示剧本阶段“帮我找灵感/上传剧本文本”的文案。
-- 项目主链路是：剧本、项目角色库、剧情结构、分镜工作台、候选图工作台、排版导出、素材包。
-- 项目角色库是项目级步骤，位于剧本和剧情结构之间；剧本大纲或导入剧本中的主角和常驻角色应先进入项目级 `Character` 草稿，AI 自动判断角色层级，用户可校正。
-- 项目角色库阶段继续沿用“左侧公共 AI 对话 + 右侧工作区”结构；左侧负责生成、解释、重生成和按用户要求调整，右侧才是正式项目角色库事实源。
+- 项目主链路是：剧本、剧情结构、分镜工作台、出图准备、候选图工作台、排版导出、素材包；代码中的顶部 workflow 已迁移为 `project_story -> story_structure -> storyboard -> image_preflight -> image_candidates -> layout_export -> asset_package`。`project_characters` 不再是顶部主流程步骤，只保留为 `/characters` 项目级常驻资产入口。
+- 项目角色库是项目级常驻资产入口，不再作为顶部主流程步骤；顶部“角色库”默认以项目内弹窗/抽屉打开，保留当前章节步骤上下文；弹窗默认显示当前章节相关角色、当前阻塞角色和待处理新角色，并提供 `查看全部角色` 切换到全量角色库；`/characters` 路由只作为深度维护或兼容入口。剧本大纲或导入剧本中的主角和常驻角色应先进入项目级 `Character` 草稿，剧情结构和分镜阶段发现的新角色进入待处理队列。
+- 前端角色库入口实现口径：`TopBar` 角色库按钮和出图准备/分镜前检查中的“打开角色库”都应打开项目内 `ProjectCharactersModal`，不要默认 `router.push(projectRoute(projectId, "characters"))`；旧 `characters` 路由保留给深度维护和兼容。弹窗内 `ProjectCharactersWorkspace(initialView="context")` 优先按当前章 `shots` 与 `storyStructure` 匹配当前相关角色，用户可切换到全部角色。
+- 项目角色库可沿用“左侧公共 AI 对话 + 右侧工作区”结构；左侧负责生成、解释、重生成、合并建议和批量调整，右侧是正式项目角色库事实源。角色名是项目内身份标识，普通角色图片生成弹窗不能改名；弹窗里的描述是给 AI 生图的形象描述 / prompt。
 - `Character` 是角色库和角色定稿图的唯一正式事实源；`ProjectContextFact(type=character)` 如存在，只能作为由 `Character` 派生的 AI 上下文快照或历史事实，不能成为第二份并列角色库。
-- 主角和常驻角色必须完成四视图角色定稿图，才能进入剧情结构；四视图包含正面、左侧面、右侧面和背面。本章重要角色默认只需可选单张正面或半身参考图且不作为硬门槛，临时/背景角色不生成定稿图。
+- 项目角色库右侧显示角色列表、角色描述、角色图和定稿图状态；普通卡片主按钮不展示 `确认预览`、`重新生成预览` 这类中间状态，只保留 `生成角色图`、`生成定稿`、`锁定定稿` 等用户能理解的动作；改生图描述 / prompt 和重新生成主要放在图片生成弹窗或 hover 编辑中。
+- 本章角色图列表是剧情结构和出图准备中的轻量审核组件，不是完整角色库：默认只展示当前章节相关角色、当前阻塞角色和待处理新角色；卡片 hover 显示编辑/删除。编辑打开角色图片生成弹窗，角色名只读，只能改 AI 生图描述 / prompt；重新生成在 UI 上直接替换当前卡片图，底层可保留 `Asset` 或视觉版本追溯但不展示版本选择器；删除只删除当前图片版本，不删除 `Character`。
+- 剧情结构确认是本章角色自动同步点：确认 `structure.json` 时系统按角色名匹配项目角色库；已有角色复用已有档案和角色图，不重复创建、不重复生成；新角色自动创建为项目级 `Character(source=story_structure)`，并自动排队生成第一张角色图。用户不需要先确认入库，只在不满意时编辑生图描述、重生成或删除当前图片。
+- 所有进入项目角色库的角色默认自动异步生成 `preview_front` 第一张角色图；`preview_front` 是底层角色视觉身份锚点，不作为普通用户按钮文案出现。用户触发 `生成定稿` 时，系统内部自动使用当前第一张角色图作为参考，不要求用户先点击“确认预览”。主角、常驻角色和当前章重要出镜角色在出图准备阶段前应生成并确认 `final_reference` 角色定稿图；角色视觉定稿不阻塞剧情结构，主要阻塞候选图生成。`final_reference` 是一张组合图，包含正面半身、正面全身、侧面全身、背面全身；临时/背景角色默认只保留预览图和描述。角色图是漫画制作资产，prompt 必须明确漫画/条漫/漫剧角色设定图和非真人照片约束，`dark_realistic` 等写实类风格只表示漫画写实氛围。
 - 角色定稿图在未被漫画候选图使用前可重新生成、替换或编辑；一旦用于生成 `Candidate`，旧参考图不能覆盖，后续换形象应创建新视觉版本并保留旧候选图追溯。
-- 章节推进采用“按章流水线”：完成某一章剧本后，可以优先进入项目角色库；项目角色库完成后再进入该章剧情结构、分镜和后续制作，不要求整部作品所有章节剧本都先写完；完成本章后页面应停留在刚完成章节，并提供 `进入项目角色库` 主动作和 `继续下一章` 次动作，若项目角色库已完成可直接进入本章剧情结构。
+- 章节推进采用“按章流水线”：完成某一章剧本后，优先进入该章剧情结构；角色库待处理项只提示，不阻塞结构化；分镜完成后进入出图准备，检查本章出镜角色、场景和画风参考后才能进入候选图。不要求整部作品所有章节剧本都先写完。
+- 当前阶段必须先跑通人工可控的章节流水线；后续再建设“调度中心”作为自动化编排层，从剧本到候选图/排版串起全 AI 生成，人只在关键节点做确认、选择、锁定和返修决策。调度中心不改变当前基础流程的事实源和阶段边界。
+- 出图准备中的待处理出镜角色可以加入角色库、合并到已有角色、标记临时或忽略；加入/临时会创建或复用项目级 `Character` 并写 `source = image_preflight`，所有操作都会改写正式 `storyboard.json` 的 `Shot.characterIds` 并清空旧 `preflight.json`。
+- 出图准备的轻量场景/画风检查已收口：正式 `Shot.sceneId` 必须匹配当前章剧情结构场景卡；`preflight.json` 写入 `sceneChecks` 和 `styleCheck`，自定义画风先作为 warning，不阻塞候选图。
+- 出图准备页面的用户语言应以“当前只需要做什么”和“本章角色锁定”为主，不暴露 `preview_front`、`final_reference`、primary reference 等内部资产字段；角色库弹窗可显示“角色效果图 / 角色定稿 / 使用这版 / 锁定角色”，底层数据契约仍保持不变。
 - 「剧情结构」的产品语义已确认：它不是给读者看的剧本，也不是最终分镜，而是给制作使用的结构表，包含当前章节摘要、角色、场景和剧情节拍，并作为分镜生成上游输入。
 - 剧情结构中的 `StoryBeat` 按关键剧情事件切分，不和最终分镜/镜头一一对应；分镜工作台再把一个 beat 拆成多个 shot。
-- 剧情结构里的角色卡和场景卡默认是本章结构卡，归属于当前 `StoryVersion`；剧情结构生成必须优先读取项目角色库，主角和常驻角色关联已有 `Character`，不能重复创建。本章新出现的重要角色/场景只有用户确认复用后才提升为项目级资产。
+- 剧情结构里的角色卡和场景卡默认是本章结构卡，归属于当前 `StoryVersion`；剧情结构生成必须优先读取项目角色库，主角和常驻角色关联已有 `Character`，不能重复创建。本章新出现的重要角色进入待处理队列，用户可加入角色库、合并到已有角色、标记临时或忽略；本章新场景只有用户确认复用后才提升为项目级资产。
 - 剧情结构页面主形态是可编辑结构表，不是 Markdown 文档编辑器；底层保存当前章节 `structure.json` / `StoryVersion.structureJson`，供分镜任务读取。
 - 剧情节拍可包含轻量 `visualFocus` 画面重点，但不得包含镜头编号、景别、机位、构图或完整分镜稿；这些属于分镜工作台的 `Shot`。
 - AI 生成剧情结构后不能自动继续生成分镜；必须用户编辑/确认剧情结构后，才可触发 `shot_generate`。
@@ -35,6 +46,7 @@
 - 2026-05-31 分镜链路审计结论：第 3 章真实样例中 8 个 `StoryBeat` 拆成 16 个 `Shot`，`beatId`、`sceneId`、角色名和 `comic` / `motion` 字段完整且与 `structure.json` 对齐；已补齐待确认分镜 `storyboard.pending.json` 持久化，剩余缺口是镜头缩略预览、拖拽重排、单镜头重写、批量重编号和候选图入口尚未实现。
 - 2026-05-30 剧情结构第一版已实现：共享契约新增 `StoryStructureJson` / `ChapterStoryStructure`；后端确认后写入 `workspace/projects/{projectId}/chapters/{chapterSlug}/structure.json` 并将章节推进到 `structured`；前端 `StoryStructureWorkspace.vue` 提供章节下拉、待确认预览、正式元素化结构表和字段级小笔编辑。
 - 剧情结构对话工具已接入 `DialogueService`：`story_structure` 步骤可触发 `generate_story_structure` 生成待确认预览，用户确认后触发 `confirm_story_structure` 或右侧确认 API 写入正式结构；待确认预览只存在当前对话线程，正式事实以 `structure.json` 为准。
+- 左侧对话确认剧情结构和右侧按钮确认剧情结构必须保持同等刷新语义：`confirm_story_structure` 成功后除了合并 `storyStructure/chapter`，还要刷新当前项目运行态，拿到后端同步的 `snapshot.characters/assets/tasks`，否则本章角色图列表会误显示空态。
 - 对话框组件公共，但对话记录按步骤隔离；跨步骤只共享用户已确认的事实、保存文档和锁定产物。
 - AI 不直接操作本地物理路径；剧本阶段允许 AI 通过 AI漫游受控工具/API 整理、生成和编辑章节草稿，其他阶段写入权限需按各自契约单独确认。
 - 第一阶段采用 OpenCode 作为项目对话框 AI Runtime；AI漫游自己的业务事实源仍是项目、对话、已确认事实和产物。
@@ -44,22 +56,24 @@
 - 全局设置保存路径为 `workspace/settings/app-settings.json`，`workspace/settings/*` 已被 `.gitignore` 排除，只保留 `.gitkeep`；后续正式形态应替换为系统 keychain、数据库加密字段或专用密钥服务。
 - `OpenCodeRuntimeService` 默认 `providerId/modelId` 优先读取全局设置；当设置中存在 API Key 时，后端在调用 OpenCode 前通过 OpenCode auth 接口服务端同步，不向前端回传完整密钥。
 - 图片生成 provider 配置必须独立于 OpenCode 对话 `aiKey`；第一版固定 `providerId=openai_image`、`modelId=gpt-image-2`，`baseUrl` 作为最终 API 前缀使用，后端只去掉末尾 `/` 后拼接 `/images/generations` 或 `/images/edits`，不自动追加 `/v1`。真实图片 API Key 不写入文档、Git、任务输出或错误日志。
+- 图片生成任务在本地 MVP 阶段使用进程内串行队列；项目角色库的 `character_reference_generate` 必须进入统一 `GenerationTask` 列表和顶部任务队列入口，一个一个生成，降低 429 限流和代理超时概率。顶部任务队列应单独刷新任务列表，不能为了刷新队列而刷新剧本/结构/分镜编辑内容。
 - 2026-06-01 项目角色库第一版已接入：共享契约、后端 API、前端 `/characters` 路由和右侧角色库工作区已实现；后端保存 `shared/characters.json`、`shared/assets.json`，角色参考图保存到 `assets/characters/{characterId}/visual-vNNN/` 并通过受控素材文件接口预览。
+- 项目角色库状态规则已收口：重新生成角色参考图只新增候选资产，不直接覆盖已有 `primaryReferenceAssetId`；用户确认 `final_reference` 后才替换定稿图。角色提升为主角/常驻时必须拥有 `final_reference`，不兼容的旧 primary 需要清空并重新生成定稿图。`in_use` 角色后端必须锁定，避免破坏已生成候选图追溯。
 - 2026-06-01 设置页新增“图片生成”分组；本地图片 provider 配置保存到 gitignored `workspace/settings/app-settings.json` 的 `imageProvider`，前端只展示掩码和指纹。
 - 剧本页右侧编辑器已换为 CodeMirror Markdown，保存接口当前仍保存纯文本 `sourceText`。
 - 2026-05-29 产品口径更新：剧本页不再需要最右侧“当前章节信息”面板；当前剧本区域就是写剧本正文，主线、出场角色和场景列表不再常驻展示，应后置到剧情结构步骤或局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
 - 当前后端仍未接数据库，项目 API 运行时使用进程内项目索引加本地 workspace 文件写入；服务启动或首次访问项目接口时会从 `workspace/projects/*/project.json`、章节目录和 `script.md` 恢复项目索引，避免重启后项目库丢失。
 - 本地 workspace 路径由后端统一管理，前端不能直接写本地物理路径。
-- 2026-05-27 章节工作流已收口为正式方向：`Chapter` 是项目内一等工作单元，剧本步骤需要章节列表、保存草稿、完成本章，并在完成后选择进入项目角色库或继续下一章；角色库完成后可进入本章剧情结构。
+- 2026-06-02 章节工作流目标口径：`Chapter` 是项目内一等工作单元，剧本步骤需要章节列表、保存草稿、完成本章，并在完成后选择进入本章剧情结构或继续下一章；角色库待处理项只提示，不阻塞剧情结构。
 - 章节内产物后续优先挂到 `chapterId`，包括章节剧本、结构化剧情、分镜、候选图、排版和导出；项目级角色、世界观、通用场景和共享素材继续挂到 `projectId`。
 - 目标本地结构为 `workspace/projects/{projectId}/chapters/chapter-001/script.md` 等章节目录；`story/story_draft.source.txt` 旧兼容路径已移除，新项目不再创建、读取或写入旧 `story/` 目录。
 - 章节共享契约已接入 `packages/shared`：包括 `ChapterStatus`、章节列表/详情/版本 DTO、保存草稿、完成本章请求响应；`WorkbenchSnapshot.chapters/currentChapter` 是剧本页当前章节读取主契约。
-- 后端已接入默认章节创建、项目索引重启恢复、章节列表 API、章节草稿保存 API 和完成本章 API；完成本章会写入 `script.versions/script-vNNN.md`，将当前章节标记为 `script_done`，并创建下一章草稿；产品口径已调整为当前章节停留后应优先进入项目角色库，角色库完成后再进入本章剧情结构。
+- 后端已接入默认章节创建、项目索引重启恢复、章节列表 API、章节草稿保存 API 和完成本章 API；完成本章会写入 `script.versions/script-vNNN.md`，将当前章节标记为 `script_done`，并创建下一章草稿；完成本章后优先进入本章剧情结构，项目角色库不再作为剧情结构前置门槛。
 - 前端剧本编辑器的“清空本章”只作用于当前打开章节：`POST /api/projects/{projectId}/chapters/{chapterId}/script/clear` 会清空目标章节正文、将章节标题重置为默认 `第 N 章`、退回 `draft` 并保留其他章节；项目级 `POST /api/projects/{projectId}/script/reset` 只作为整本替换或错误导入维护能力，整本导入替换章节前仍必须清理旧 `chapters/` 目录，避免服务重启扫描恢复 stale chapter。
 - 前端剧本页已接入章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；手动新建章节、重命名、删除、排序和后续产物失效提示仍待实现。
 - 前端同项目章节切换不应清空 `WorkbenchSnapshot`；`openProject(..., { preserveSnapshot: true })` 用于保留工作台壳、顶部流程和左右布局，只局部刷新当前章节快照与章节级对话线程，避免切章时出现整页“正在打开项目”。
-- 生成任务中心已强制章节作用域任务带 `chapterId`：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须有 `target.chapterId`；`input.chapterId` 省略会由服务端写回，不一致会拒绝。
-- 项目 workflow 目标口径为 7 步：`ProjectWorkflow` 需定义项目角色库门槛、当前章节下一步、步骤状态、完成标准和证据路径；现有代码仍需从 6 步迁移到 7 步。
+- 生成任务中心已强制章节作用域任务带 `chapterId`：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须有 `target.chapterId`；`input.chapterId` 省略会由服务端写回，不一致会拒绝。`shot_prompt_generate` / `image_generate` 创建前还必须通过章节级出图准备 guard，成功后任务 input 会注入 `imagePreflightId`、`sourceStoryboardId` 等追溯字段。
+- 项目 workflow 为 7 步：`ProjectWorkflow` 定义 `project_story -> story_structure -> storyboard -> image_preflight -> image_candidates -> layout_export -> asset_package`，其中项目角色库是常驻资产入口，不作为顶部主流程步骤；`storyboard_done` 后进入出图准备，用户确认后写入 `preflight.json`，确认记录与当前分镜匹配且派生检查仍通过时才推进到候选图。
 - 剧本对话当前已覆盖“聊天辅助 + OpenCode 流式输出 + 已保存/编辑器当前章节上下文 + 用户提供剧本整理 + 灵感种子生成 + AI 受控写章节草稿”；刷新或离开页面导致 SSE 中断时，后端会 abort 对应 OpenCode 请求并把不活跃的旧 `running` assistant 消息收敛为失败；正式停止生成、对话持久化和完整回退仍待实现。
 - 剧本对话新方向已确认：剧本阶段有“用户提供剧本整理”和“无灵感生成剧本”双来源；已有剧本复用对话框附件上传或输入框粘贴，不新增独立导入主按钮，AI 负责整理格式、拆分章节并写入 `chapters/*/script.md`；无灵感时 AI 每次生成 3 个灵感种子，用户选择其一后先生成可保存、可确认的「剧本大纲」，确认大纲后再按单个目标章节生成固定格式「章节剧本」，不喜欢灵感可重新生成 3 个。
 - 项目级「剧本大纲」固定保存到 `workspace/projects/{projectId}/script-outline.md`，元数据保存到 `script-outline.json`；固定格式包含 `基础信息`（剧集名称、题材风格、剧集篇幅、剧集章数、剧情简介）、`主要角色`、`情节概要`。大纲必须在对话中展示并询问用户确认；用户说“不行”或提出修改要求时重新生成大纲，直到用户确认后才生成单个目标章节。
@@ -72,6 +86,7 @@
 - 2026-05-29 实测确认：已确认的大纲会落盘到 `script-outline.md/json`，确认大纲后生成的当前章会落盘到 `chapters/{chapterSlug}/script.md`、`chapter.json` 和 `script.revisions/latest.json`；灵感种子本身仍不是稳定项目文件，只存在 pending/对话工具结果中。
 - 2026-05-29 发现项目文件元数据缺口：`project.json.status` 当前仍可能写成 `draft`，而 `GET /api/projects` 会根据当前章节正文推导 `story_ready`；后续应统一文件状态与运行时视图。
 - 灵感种子选择不再直接写入章节：前端灵感卡片按钮是“生成大纲”；大纲结果卡片提供“确认并生成章节”。后端仍支持“1/2/3”“第一个”“选第 2 个”等文本选择表达；看起来像选择但无法识别时，应提示用户明确序号或点击按钮，不能静默走普通聊天。
+- 剧本灵感入口必须优先命中后端受控工具分流，避免普通 OpenCode 聊天生成不可保存的大纲候选；`给点灵感`、`给些灵感`、`给几个故事种子`、`来几个方向` 等口语表达应触发 `generate_inspiration_seeds`。
 - 剧本阶段最终用户可见章节正文统一为固定格式「章节剧本」：章节标题、基础方向、本章方向、剧本亮点、视觉基调、剧本正文、本章结尾；最终章节剧本不输出剧本名称、主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号、图片 Prompt 或 JSON，这些后置到项目级标题、剧情结构、分镜工作台和候选图阶段。
 - `剧本名称/剧集名称` 是项目级作品名，从已确认剧本大纲同步到 `Project.storyTitle`，显示在章节下拉框右侧，不写进章节正文。`第 X 章：章节标题` 是章节名，保存、AI 写入或服务从 workspace 恢复旧项目时应同步到 `Chapter.title`，保证顶部章节选择器和编辑器标题一致。
 - 章节最近一次 AI 写入来源通过 `Chapter.lastScriptRevision` 暴露，并写入 `chapter.json` 与 `script.revisions/latest.json`；字段包含 `threadId`、`messageId`、`toolCallId`、`operation` 和摘要。完整写入历史和回退仍待实现。

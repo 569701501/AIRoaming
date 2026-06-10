@@ -1,12 +1,15 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Res, StreamableFile } from "@nestjs/common";
 import type {
   CompleteChapterRequest,
+  ConfirmCharacterPreviewRequest,
   ConfirmCharacterReferenceRequest,
+  ConfirmChapterImagePreflightRequest,
   ConfirmChapterStoryboardRequest,
   ConfirmChapterStoryStructureRequest,
   CreateProjectRequest,
   ExtractProjectCharactersRequest,
   GenerateCharacterReferenceRequest,
+  ResolveImagePreflightCharacterRequest,
   SaveChapterDraftRequest,
   UpdateProjectCharacterRequest,
   UpdateChapterStoryboardRequest,
@@ -74,6 +77,11 @@ export class ProjectsController {
     return ok(await this.projectsService.extractProjectCharacters(projectId, body));
   }
 
+  @Post(":projectId/characters/previews/ensure")
+  async ensureProjectCharacterPreviewTasks(@Param("projectId") projectId: string) {
+    return ok(await this.projectsService.ensureProjectCharacterPreviewTasks(projectId));
+  }
+
   @Patch(":projectId/characters/:characterId")
   async updateProjectCharacter(
     @Param("projectId") projectId: string,
@@ -89,7 +97,16 @@ export class ProjectsController {
     @Param("characterId") characterId: string,
     @Body() body: GenerateCharacterReferenceRequest,
   ) {
-    return ok(await this.projectsService.generateCharacterReference(projectId, characterId, body));
+    return ok(await this.projectsService.queueCharacterReference(projectId, characterId, body));
+  }
+
+  @Post(":projectId/characters/:characterId/preview/confirm")
+  async confirmCharacterPreview(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: ConfirmCharacterPreviewRequest,
+  ) {
+    return ok(await this.projectsService.confirmCharacterPreview(projectId, characterId, body));
   }
 
   @Post(":projectId/characters/:characterId/reference/confirm")
@@ -99,6 +116,15 @@ export class ProjectsController {
     @Body() body: ConfirmCharacterReferenceRequest,
   ) {
     return ok(await this.projectsService.confirmCharacterReference(projectId, characterId, body));
+  }
+
+  @Delete(":projectId/characters/:characterId/references/:assetId")
+  async deleteCharacterReference(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Param("assetId") assetId: string,
+  ) {
+    return ok(await this.projectsService.deleteCharacterReference(projectId, characterId, assetId));
   }
 
   @Get(":projectId/assets/:assetId/file")
@@ -163,6 +189,29 @@ export class ProjectsController {
   @Get(":projectId/chapters/:chapterId/storyboard")
   async getChapterStoryboard(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
     return ok(await this.projectsService.getChapterStoryboard(projectId, chapterId));
+  }
+
+  @Get(":projectId/chapters/:chapterId/image-preflight")
+  async getChapterImagePreflight(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.projectsService.getChapterImagePreflight(projectId, chapterId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/image-preflight/confirm")
+  async confirmChapterImagePreflight(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ConfirmChapterImagePreflightRequest,
+  ) {
+    return ok(await this.projectsService.confirmChapterImagePreflight(projectId, chapterId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/image-preflight/characters/resolve")
+  async resolveImagePreflightCharacter(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ResolveImagePreflightCharacterRequest,
+  ) {
+    return ok(await this.projectsService.resolveImagePreflightCharacter(projectId, chapterId, body));
   }
 
   @Patch(":projectId/chapters/:chapterId/storyboard/pending")

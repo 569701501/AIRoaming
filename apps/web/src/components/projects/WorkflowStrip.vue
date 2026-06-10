@@ -18,12 +18,13 @@
 </template>
 
 <script setup lang="ts">
-import { BookOpenText, ChevronRight, Images, LayoutPanelTop, ListTree, PackageCheck, PanelsTopLeft } from "lucide-vue-next";
+import { BookOpenText, CheckSquare, ChevronRight, Images, LayoutPanelTop, ListTree, PackageCheck, PanelsTopLeft } from "lucide-vue-next";
 
 const steps = [
   { title: "剧本", subtitle: "保存故事草稿", icon: BookOpenText },
   { title: "剧情结构", subtitle: "整理摘要与节拍", icon: ListTree },
   { title: "分镜工作台", subtitle: "编辑镜头列表", icon: PanelsTopLeft },
+  { title: "出图准备", subtitle: "检查角色参考图", icon: CheckSquare },
   { title: "候选图工作台", subtitle: "筛选最佳候选图", icon: Images },
   { title: "排版导出", subtitle: "排版并导出成品", icon: LayoutPanelTop },
   { title: "素材包", subtitle: "归档项目素材", icon: PackageCheck },

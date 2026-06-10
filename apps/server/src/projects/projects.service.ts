@@ -19,27 +19,42 @@ import {
   type ChapterDetail,
   type ChapterListItem,
   type ChapterScriptVersionItem,
+  type ChapterImagePreflight,
   type ChapterStoryboard,
   type ChapterStoryStructure,
   type ChapterStatus,
   type ClearChapterScriptResponse,
   type ArtStyle,
   type ComicFormat,
+  type ConfirmCharacterPreviewRequest,
+  type ConfirmCharacterPreviewResponse,
   type ConfirmChapterStoryboardRequest,
   type ConfirmChapterStoryStructureRequest,
   type ConfirmCharacterReferenceRequest,
+  type ConfirmChapterImagePreflightRequest,
   type CompleteChapterRequest,
   type CompleteChapterResponse,
+  type CreateGenerationTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectResponse,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
   type GenerateCharacterReferenceRequest,
   type GenerateCharacterReferenceResponse,
+  type GenerationTaskItem,
   type GetChapterStoryStructureResponse,
   type GetChapterStoryboardResponse,
+  type GetChapterImagePreflightResponse,
   type GetChapterResponse,
+  type ImagePreflightCharacterCheck,
+  type ImagePreflightIssue,
+  type ImagePreflightJson,
+  type ImagePreflightSceneCheck,
+  type ImagePreflightStyleCheck,
   type ListChaptersResponse,
+  type QueueCharacterReferenceResponse,
+  type ResolveImagePreflightCharacterRequest,
+  type ResolveImagePreflightCharacterResponse,
   type ProjectCharacter,
   type ProjectCharacterLevel,
   type ProjectCharacterReferenceKind,
@@ -54,6 +69,7 @@ import {
   type ResetProjectScriptResponse,
   type SaveChapterDraftRequest,
   type SaveChapterDraftResponse,
+  type SaveChapterImagePreflightResponse,
   type SaveChapterStoryStructureResponse,
   type SaveChapterStoryboardResponse,
   type SaveProjectCharacterResponse,
@@ -86,7 +102,8 @@ const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
 );
 const characterLevels: ProjectCharacterLevel[] = ["lead", "recurring", "chapter", "extra"];
 const characterStatuses: ProjectCharacterStatus[] = ["draft", "needs_reference", "finalized", "in_use"];
-const characterReferenceKinds: ProjectCharacterReferenceKind[] = ["turnaround_4view", "single_front", "none"];
+const characterReferenceKinds: ProjectCharacterReferenceKind[] = ["preview_front", "final_reference", "none"];
+const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
 interface LocalChapterScriptVersion extends ChapterScriptVersionItem {
   sourceText: string;
@@ -106,6 +123,7 @@ interface LocalChapter {
   storyStructure: ChapterStoryStructure | null;
   storyboard: ChapterStoryboard | null;
   pendingStoryboard?: ChapterStoryboard | null;
+  imagePreflight: ChapterImagePreflight | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -130,6 +148,16 @@ interface LocalProject {
   chapters: LocalChapter[];
   createdAt: string;
   updatedAt: string;
+}
+
+interface ProjectAssetFile {
+  buffer: Buffer;
+  mimeType: string;
+  fileName: string;
+}
+
+interface CharacterReferenceSource extends ProjectAssetFile {
+  asset: WorkbenchAsset;
 }
 
 export interface ImportScriptToChaptersInput {
@@ -199,12 +227,16 @@ interface ScriptTextSignals {
   worldbuildingWordCount: number;
 }
 
+type ProjectDeletedListener = (projectId: string) => number | void;
+
 @Injectable()
 export class ProjectsService implements OnModuleInit {
   private readonly logger = new Logger(ProjectsService.name);
   private readonly projects = new Map<string, LocalProject>();
   private projectsLoaded = false;
   private projectsLoadPromise: Promise<void> | null = null;
+  private characterReferenceQueue: Promise<void> = Promise.resolve();
+  private readonly projectDeletedListeners = new Set<ProjectDeletedListener>();
 
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
@@ -213,6 +245,7 @@ export class ProjectsService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    this.tasksService.setCreateGuard((input) => this.guardGenerationTaskCreate(input));
     await this.ensureProjectsLoaded();
   }
 
@@ -221,6 +254,13 @@ export class ProjectsService implements OnModuleInit {
     return [...this.projects.values()]
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
       .map((project) => this.toProjectListItem(project));
+  }
+
+  onProjectDeleted(listener: ProjectDeletedListener): () => void {
+    this.projectDeletedListeners.add(listener);
+    return () => {
+      this.projectDeletedListeners.delete(listener);
+    };
   }
 
   async createProject(input: CreateProjectRequest): Promise<ProjectListItem> {
@@ -316,6 +356,18 @@ export class ProjectsService implements OnModuleInit {
     return this.toProjectCharactersResponse(project);
   }
 
+  async ensureProjectCharacterPreviewTasks(projectId: string): Promise<QueueCharacterReferenceResponse> {
+    const project = await this.getReadyProject(projectId);
+    const tasks = project.characters
+      .map((character) => this.queueMissingCharacterReferenceTask(project, character, "preview_front"))
+      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+    return {
+      ...this.toProjectCharactersResponse(project),
+      tasks,
+      createdCount: tasks.length,
+    };
+  }
+
   async extractProjectCharacters(
     projectId: string,
     input: ExtractProjectCharactersRequest = {},
@@ -361,6 +413,7 @@ export class ProjectsService implements OnModuleInit {
     };
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
+    void this.ensureProjectCharacterPreviewTasks(nextProject.id);
 
     return {
       ...this.toProjectCharactersResponse(nextProject),
@@ -376,28 +429,45 @@ export class ProjectsService implements OnModuleInit {
   ): Promise<SaveProjectCharacterResponse> {
     const project = await this.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
+    if (character.status === "in_use") {
+      throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+    }
+
     const updatedAt = new Date().toISOString();
+    const nextName = input.name === undefined ? character.name : this.normalizeCharacterName(input.name);
+    const duplicatedName = project.characters.some((item) =>
+      item.id !== character.id
+      && this.normalizeCharacterNameKey(item.name) === this.normalizeCharacterNameKey(nextName),
+    );
+    if (duplicatedName) {
+      throw new BadRequestException("PROJECT_CHARACTER_NAME_DUPLICATED");
+    }
+
     const nextLevel = input.level === undefined ? character.level : this.normalizeCharacterLevel(input.level);
-    const nextReferenceKind = this.defaultReferenceKindForLevel(nextLevel);
+    const nextReference = this.resolvePrimaryReferenceForLevel(character, nextLevel);
     const nextCharacter: ProjectCharacter = {
       ...character,
-      name: input.name === undefined ? character.name : this.normalizeCharacterName(input.name),
+      name: nextName,
       role: input.role === undefined ? character.role : input.role.trim(),
       level: nextLevel,
       status: this.resolveCharacterStatusForReference(
         nextLevel,
-        character.primaryReferenceAssetId,
-        character.status === "in_use",
+        nextReference.primaryReferenceAssetId,
+        false,
+        nextReference.primaryReferenceKind,
       ),
       appearance: input.appearance === undefined ? character.appearance : input.appearance.trim(),
       personality: input.personality === undefined ? character.personality : input.personality.trim(),
       promptFragment: input.promptFragment === undefined ? character.promptFragment : input.promptFragment.trim(),
-      primaryReferenceKind: character.primaryReferenceAssetId ? character.primaryReferenceKind : nextReferenceKind,
+      primaryReferenceAssetId: nextReference.primaryReferenceAssetId,
+      primaryReferenceKind: nextReference.primaryReferenceKind,
+      finalizedAt: nextReference.finalizedAt,
       updatedAt,
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, updatedAt);
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
+    void this.ensureProjectCharacterPreviewTasks(nextProject.id);
     return {
       ...this.toProjectCharactersResponse(nextProject),
       character: nextCharacter,
@@ -407,10 +477,14 @@ export class ProjectsService implements OnModuleInit {
   async generateCharacterReference(
     projectId: string,
     characterId: string,
-    input: GenerateCharacterReferenceRequest = {},
+    input: GenerateCharacterReferenceRequest & { sourceTaskId?: string } = {},
   ): Promise<GenerateCharacterReferenceResponse> {
     const project = await this.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
+    if (character.status === "in_use") {
+      throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+    }
+
     const referenceKind = this.normalizeRequestedReferenceKind(character, input.referenceKind);
     if (referenceKind === "none") {
       throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
@@ -424,20 +498,35 @@ export class ProjectsService implements OnModuleInit {
     }
 
     const nextVisualVersion = Math.max(1, character.visualVersion + 1);
-    const fileName = referenceKind === "turnaround_4view" ? "turnaround.webp" : "front.webp";
+    const fileName = referenceKind === "final_reference" ? "final-reference.webp" : "preview.webp";
     const relativePath = `projects/${project.id}/assets/characters/${character.id}/visual-v${String(nextVisualVersion).padStart(3, "0")}/${fileName}`;
     const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
     const prompt = input.prompt?.trim() || this.buildCharacterReferencePrompt(project, character, referenceKind);
-    const generated = await this.requestOpenAiImage({
-      apiKey,
-      baseUrl,
-      model: settings.modelId || "gpt-image-2",
-      prompt,
-      size: input.size?.trim() || (referenceKind === "turnaround_4view" ? "3072x1536" : "1536x2048"),
-      quality: input.quality ?? "high",
-      outputFormat: input.outputFormat ?? "webp",
-    });
+    const referenceSource = referenceKind === "final_reference"
+      ? await this.getConfirmedPreviewReferenceSource(project, character)
+      : null;
+    const generated = referenceSource
+      ? await this.requestOpenAiImageEdit({
+          apiKey,
+          baseUrl,
+          model: settings.modelId || "gpt-image-2",
+          prompt,
+          size: input.size?.trim() || "3072x1536",
+          quality: input.quality ?? "high",
+          outputFormat: input.outputFormat ?? "webp",
+          referenceImage: referenceSource,
+        })
+      : await this.requestOpenAiImage({
+          apiKey,
+          baseUrl,
+          model: settings.modelId || "gpt-image-2",
+          prompt,
+          size: input.size?.trim() || (referenceKind === "final_reference" ? "3072x1536" : "1536x2048"),
+          quality: input.quality ?? "high",
+          outputFormat: input.outputFormat ?? "webp",
+        });
 
+    this.assertProjectStillActive(project.id);
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, generated);
 
@@ -446,30 +535,41 @@ export class ProjectsService implements OnModuleInit {
       id: `asset_${randomUUID()}`,
       chapterId: null,
       type: "image",
-      name: `${character.name} ${referenceKind === "turnaround_4view" ? "四视图" : "正面参考"}`,
+      name: `${character.name} ${referenceKind === "final_reference" ? "角色定稿图" : "角色预览图"}`,
       path: relativePath,
-      sourceTaskId: null,
+      sourceTaskId: input.sourceTaskId ?? null,
       meta: JSON.stringify({
         characterId: character.id,
         referenceKind,
         provider: "openai_image",
         model: settings.modelId || "gpt-image-2",
         promptDigest: this.digestPrompt(prompt),
+        generationMode: referenceSource ? "image_edit" : "image_generation",
+        sourceReferenceAssetId: referenceSource?.asset.id ?? null,
         createdAt: now,
       }),
     };
+    const hasCompatiblePrimaryReference = this.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind);
     const nextCharacter: ProjectCharacter = {
       ...character,
-      status: "needs_reference",
-      primaryReferenceKind: referenceKind,
+      status: this.resolveCharacterStatusForReference(
+        character.level,
+        hasCompatiblePrimaryReference ? character.primaryReferenceAssetId : null,
+        false,
+        hasCompatiblePrimaryReference ? character.primaryReferenceKind : referenceKind,
+      ),
+      primaryReferenceAssetId: hasCompatiblePrimaryReference ? character.primaryReferenceAssetId : null,
+      primaryReferenceKind: hasCompatiblePrimaryReference ? character.primaryReferenceKind : this.defaultReferenceKindForLevel(character.level),
       referenceAssetIds: [...new Set([...character.referenceAssetIds, asset.id])],
       visualVersion: nextVisualVersion,
+      finalizedAt: hasCompatiblePrimaryReference ? character.finalizedAt : null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedProjectCharacter({
       ...project,
       assets: [...project.assets, asset],
     }, nextCharacter, now);
+    this.assertProjectStillActive(project.id);
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
 
@@ -480,6 +580,90 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
+  async queueCharacterReference(
+    projectId: string,
+    characterId: string,
+    input: GenerateCharacterReferenceRequest = {},
+  ): Promise<QueueCharacterReferenceResponse> {
+    let project = await this.getReadyProject(projectId);
+    let character = this.findProjectCharacter(project, characterId);
+    if (character.status === "in_use") {
+      throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+    }
+    const referenceKind = this.normalizeRequestedReferenceKind(character, input.referenceKind);
+    if (referenceKind === "none") {
+      throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
+    }
+    if (referenceKind === "final_reference" && !character.previewReferenceAssetId) {
+      const previewAsset = this.getCharacterReferenceAssets(project, character, "preview_front")[0] ?? null;
+      if (!previewAsset) {
+        throw new BadRequestException("CHARACTER_PREVIEW_REFERENCE_REQUIRED");
+      }
+      const now = new Date().toISOString();
+      character = {
+        ...character,
+        previewReferenceAssetId: previewAsset.id,
+        previewConfirmedAt: now,
+        status: character.level === "lead" || character.level === "recurring" ? "needs_reference" : character.status,
+        updatedAt: now,
+      };
+      project = this.withUpdatedProjectCharacter(project, character, now);
+      await this.writeProjectFiles(project);
+      this.projects.set(project.id, project);
+    }
+    const alreadyActive = this.hasActiveCharacterReferenceTask(project.id, character.id, referenceKind);
+    const task = this.queueCharacterReferenceTask(project, character, referenceKind, input);
+    return {
+      ...this.toProjectCharactersResponse(project),
+      tasks: [task],
+      createdCount: alreadyActive ? 0 : 1,
+    };
+  }
+
+  async confirmCharacterPreview(
+    projectId: string,
+    characterId: string,
+    input: ConfirmCharacterPreviewRequest,
+  ): Promise<ConfirmCharacterPreviewResponse> {
+    const project = await this.getReadyProject(projectId);
+    const character = this.findProjectCharacter(project, characterId);
+    if (character.status === "in_use") {
+      throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+    }
+    const asset = project.assets.find((item) => item.id === input.assetId);
+    if (!asset) {
+      throw new NotFoundException("CHARACTER_PREVIEW_ASSET_NOT_FOUND");
+    }
+    if (!character.referenceAssetIds.includes(asset.id)) {
+      throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
+    }
+    if (this.getAssetReferenceKind(asset) !== "preview_front") {
+      throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
+    }
+
+    const now = new Date().toISOString();
+    const nextCharacter: ProjectCharacter = {
+      ...character,
+      previewReferenceAssetId: asset.id,
+      previewConfirmedAt: now,
+      status: character.level === "lead" || character.level === "recurring" ? "needs_reference" : character.status,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, now);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    const shouldQueueFinalReference = nextCharacter.level === "lead" || nextCharacter.level === "recurring";
+    const task = shouldQueueFinalReference
+      ? this.queueMissingCharacterReferenceTask(nextProject, nextCharacter, "final_reference")
+      : null;
+    return {
+      ...this.toProjectCharactersResponse(nextProject),
+      character: nextCharacter,
+      tasks: task ? [task] : [],
+    };
+  }
+
   async confirmCharacterReference(
     projectId: string,
     characterId: string,
@@ -487,12 +671,23 @@ export class ProjectsService implements OnModuleInit {
   ): Promise<SaveProjectCharacterResponse> {
     const project = await this.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
+    if (character.status === "in_use" && character.primaryReferenceAssetId !== input.assetId) {
+      throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+    }
+
     const asset = project.assets.find((item) => item.id === input.assetId);
     if (!asset) {
       throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
     }
+    if (asset.type !== "image") {
+      throw new BadRequestException("CHARACTER_REFERENCE_ASSET_TYPE_INVALID");
+    }
     if (!character.referenceAssetIds.includes(asset.id)) {
       throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
+    }
+    const referenceKind = this.getAssetReferenceKind(asset) ?? character.primaryReferenceKind;
+    if (!this.isPrimaryReferenceCompatible(asset.id, referenceKind)) {
+      throw new BadRequestException("CHARACTER_REFERENCE_KIND_MISMATCH");
     }
 
     const now = new Date().toISOString();
@@ -500,7 +695,7 @@ export class ProjectsService implements OnModuleInit {
       ...character,
       status: character.status === "in_use" ? "in_use" : "finalized",
       primaryReferenceAssetId: asset.id,
-      primaryReferenceKind: this.getAssetReferenceKind(asset) ?? character.primaryReferenceKind,
+      primaryReferenceKind: referenceKind,
       updatedAt: now,
       finalizedAt: now,
     };
@@ -513,35 +708,71 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
-  async getProjectAssetFile(projectId: string, assetId: string): Promise<{
-    buffer: Buffer;
-    mimeType: string;
-    fileName: string;
-  }> {
+  async deleteCharacterReference(
+    projectId: string,
+    characterId: string,
+    assetId: string,
+  ): Promise<SaveProjectCharacterResponse & { deletedAssetId: string }> {
+    const project = await this.getReadyProject(projectId);
+    const character = this.findProjectCharacter(project, characterId);
+    if (character.status === "in_use" && character.primaryReferenceAssetId === assetId) {
+      throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+    }
+
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset) {
+      throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
+    }
+    if (!character.referenceAssetIds.includes(asset.id)) {
+      throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
+    }
+
+    const now = new Date().toISOString();
+    const nextPrimaryReferenceAssetId = character.primaryReferenceAssetId === asset.id
+      ? null
+      : character.primaryReferenceAssetId;
+    const nextPrimaryReferenceKind = nextPrimaryReferenceAssetId
+      ? character.primaryReferenceKind
+      : this.defaultReferenceKindForLevel(character.level);
+    const nextCharacter: ProjectCharacter = {
+      ...character,
+      referenceAssetIds: character.referenceAssetIds.filter((item) => item !== asset.id),
+      previewReferenceAssetId: character.previewReferenceAssetId === asset.id ? null : character.previewReferenceAssetId,
+      previewConfirmedAt: character.previewReferenceAssetId === asset.id ? null : character.previewConfirmedAt,
+      primaryReferenceAssetId: nextPrimaryReferenceAssetId,
+      primaryReferenceKind: nextPrimaryReferenceKind,
+      finalizedAt: nextPrimaryReferenceAssetId ? character.finalizedAt : null,
+      status: this.resolveCharacterStatusForReference(
+        character.level,
+        nextPrimaryReferenceAssetId,
+        false,
+        nextPrimaryReferenceKind,
+      ),
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedProjectCharacter({
+      ...project,
+      assets: project.assets.filter((item) => item.id !== asset.id),
+    }, nextCharacter, now);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+    await this.removeProjectAssetFile(project, asset);
+
+    return {
+      ...this.toProjectCharactersResponse(nextProject),
+      character: nextCharacter,
+      deletedAssetId: asset.id,
+    };
+  }
+
+  async getProjectAssetFile(projectId: string, assetId: string): Promise<ProjectAssetFile> {
     const project = await this.getReadyProject(projectId);
     const asset = project.assets.find((item) => item.id === assetId);
     if (!asset) {
       throw new NotFoundException("PROJECT_ASSET_NOT_FOUND");
     }
 
-    const safePath = asset.path.replace(/^\/+/, "");
-    if (!safePath.startsWith(`projects/${project.id}/`)) {
-      throw new BadRequestException("PROJECT_ASSET_PATH_INVALID");
-    }
-
-    const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${safePath}`);
-    try {
-      return {
-        buffer: await readFile(absolutePath),
-        mimeType: this.inferMimeType(asset.path),
-        fileName: path.basename(asset.path),
-      };
-    } catch (error) {
-      if (this.isNotFoundError(error)) {
-        throw new NotFoundException("PROJECT_ASSET_FILE_NOT_FOUND");
-      }
-      throw error;
-    }
+    return this.readProjectAssetFile(project, asset);
   }
 
   async saveChapterDraft(
@@ -587,18 +818,25 @@ export class ProjectsService implements OnModuleInit {
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
     const completedAt = new Date().toISOString();
-    const parsedStoryTitle = extractChapterScriptName(input.sourceText);
-    const sourceText = stripChapterScriptName(input.sourceText);
+    const payload = input ?? ({} as CompleteChapterRequest);
+    const sourceTextInput = typeof payload.sourceText === "string" ? payload.sourceText : chapter.sourceText;
+    if (!sourceTextInput.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
+
+    const parsedStoryTitle = extractChapterScriptName(sourceTextInput);
+    const sourceText = stripChapterScriptName(sourceTextInput);
     const parsedChapterTitle = extractChapterScriptTitle(sourceText);
     const scriptVersion = this.createChapterScriptVersion(chapter, sourceText, completedAt);
     const completedChapter: LocalChapter = {
       ...chapter,
-      title: input.title?.trim() || parsedChapterTitle || chapter.title,
-      summary: input.summary === undefined ? chapter.summary : input.summary.trim(),
+      title: payload.title?.trim() || parsedChapterTitle || chapter.title,
+      summary: payload.summary === undefined ? chapter.summary : payload.summary.trim(),
       sourceText,
       status: "script_done",
       currentScriptVersionId: scriptVersion.id,
       pendingStoryboard: null,
+      imagePreflight: null,
       updatedAt: completedAt,
       completedAt,
       scriptVersions: [
@@ -616,8 +854,8 @@ export class ProjectsService implements OnModuleInit {
     let activeChapter = existingNextChapter ?? completedChapter;
     let createdNextChapter = false;
 
-    if (!existingNextChapter && input.createNextChapter !== false) {
-      activeChapter = this.createNextChapter(project.id, chapters, completedAt, input.nextChapterTitle);
+    if (!existingNextChapter && payload.createNextChapter !== false) {
+      activeChapter = this.createNextChapter(project.id, chapters, completedAt, payload.nextChapterTitle);
       chapters = [...chapters, activeChapter];
       createdNextChapter = true;
     }
@@ -658,6 +896,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: null,
       storyboard: null,
       pendingStoryboard: null,
+      imagePreflight: null,
       updatedAt,
       completedAt: null,
       scriptVersions: [],
@@ -722,6 +961,7 @@ export class ProjectsService implements OnModuleInit {
         storyStructure: null,
         storyboard: null,
         pendingStoryboard: null,
+        imagePreflight: null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         completedAt: null,
@@ -884,22 +1124,25 @@ export class ProjectsService implements OnModuleInit {
     const now = new Date().toISOString();
     const previousVersion = chapter.storyStructure?.version ?? 0;
     const storyStructure = this.createChapterStoryStructure(project.id, chapter, input.structureJson, previousVersion + 1, now);
+    const projectWithCharacters = this.syncStoryStructureCharacters(project, storyStructure.structureJson, now);
     const nextChapter: LocalChapter = {
       ...chapter,
       status: "structured",
       currentStoryVersionId: storyStructure.id,
       storyStructure,
       pendingStoryboard: null,
+      imagePreflight: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
-      ...project,
+      ...projectWithCharacters,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
+    void this.ensureProjectCharacterPreviewTasks(nextProject.id);
 
     return {
       storyStructure,
@@ -936,6 +1179,7 @@ export class ProjectsService implements OnModuleInit {
       currentStoryVersionId: storyStructure.id,
       storyStructure,
       pendingStoryboard: null,
+      imagePreflight: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
@@ -963,10 +1207,250 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
+  async getChapterImagePreflight(projectId: string, chapterId: string): Promise<GetChapterImagePreflightResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    return {
+      imagePreflight: chapter.imagePreflight,
+    };
+  }
+
+  async confirmChapterImagePreflight(
+    projectId: string,
+    chapterId: string,
+    input: ConfirmChapterImagePreflightRequest = {},
+  ): Promise<SaveChapterImagePreflightResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    if (!chapter.storyboard) {
+      throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
+    }
+
+    const now = new Date().toISOString();
+    const preflightJson = this.buildImagePreflightJson(project, chapter, input.notes?.trim() ?? "", now);
+    if (!preflightJson.ready) {
+      throw new BadRequestException("IMAGE_PREFLIGHT_BLOCKED");
+    }
+
+    const version = (chapter.imagePreflight?.version ?? 0) + 1;
+    const imagePreflight: ChapterImagePreflight = {
+      id: `${chapter.id}_image_preflight_v${String(version).padStart(3, "0")}`,
+      projectId,
+      chapterId: chapter.id,
+      version,
+      status: "confirmed",
+      preflightPath: `projects/${projectId}/chapters/${chapter.slug}/preflight.json`,
+      sourceStoryboardId: chapter.storyboard.id,
+      sourceStoryboardUpdatedAt: chapter.storyboard.updatedAt,
+      preflightJson,
+      createdAt: chapter.imagePreflight?.createdAt ?? now,
+      updatedAt: now,
+      confirmedAt: now,
+    };
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      imagePreflight,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      imagePreflight,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  async resolveImagePreflightCharacter(
+    projectId: string,
+    chapterId: string,
+    input: ResolveImagePreflightCharacterRequest,
+  ): Promise<ResolveImagePreflightCharacterResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    if (!chapter.storyboard) {
+      throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
+    }
+
+    const token = input.token?.trim();
+    if (!token) {
+      throw new BadRequestException("IMAGE_PREFLIGHT_CHARACTER_TOKEN_REQUIRED");
+    }
+
+    const storyboard = chapter.storyboard;
+    const tokenExists = storyboard.storyboardJson.shots.some((shot) =>
+      this.getShotCharacterTokens(shot.characterIds).some((item) => this.normalizeCharacterNameKey(item) === this.normalizeCharacterNameKey(token)),
+    );
+    if (!tokenExists) {
+      throw new BadRequestException("IMAGE_PREFLIGHT_CHARACTER_TOKEN_NOT_FOUND");
+    }
+
+    const now = new Date().toISOString();
+    let nextCharacters = project.characters;
+    let character: ProjectCharacter | null = null;
+    let replacementCharacterId: string | null = null;
+
+    switch (input.action) {
+      case "add_to_library": {
+        const result = this.resolveOrCreatePreflightCharacter(project, nextCharacters, token, input.level ?? "chapter", input, now);
+        nextCharacters = result.characters;
+        character = result.character;
+        replacementCharacterId = result.character.id;
+        break;
+      }
+      case "mark_temporary": {
+        const result = this.resolveOrCreatePreflightCharacter(project, nextCharacters, token, "extra", {
+          ...input,
+          role: input.role || "临时/背景角色",
+        }, now);
+        nextCharacters = result.characters;
+        character = result.character;
+        replacementCharacterId = result.character.id;
+        break;
+      }
+      case "merge_existing": {
+        if (!input.targetCharacterId?.trim()) {
+          throw new BadRequestException("TARGET_CHARACTER_ID_REQUIRED");
+        }
+        character = this.findProjectCharacter({ ...project, characters: nextCharacters }, input.targetCharacterId);
+        replacementCharacterId = character.id;
+        break;
+      }
+      case "ignore": {
+        replacementCharacterId = null;
+        break;
+      }
+      default:
+        throw new BadRequestException("IMAGE_PREFLIGHT_CHARACTER_ACTION_INVALID");
+    }
+
+    const storyboardJson = this.normalizeStoryboardJson({
+      ...storyboard.storyboardJson,
+      shots: storyboard.storyboardJson.shots.map((shot) => ({
+        ...shot,
+        characterIds: this.resolveStoryboardCharacterIds(shot.characterIds, token, replacementCharacterId),
+      })),
+    }, chapter.id, chapter.title, {
+      sourceStoryVersionId: storyboard.sourceStoryVersionId,
+      createdAt: storyboard.storyboardJson.createdAt,
+      updatedAt: now,
+    });
+    const nextStoryboard: ChapterStoryboard = {
+      ...storyboard,
+      storyboardJson,
+      updatedAt: now,
+    };
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      storyboard: nextStoryboard,
+      imagePreflight: null,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      characters: this.sortProjectCharacters(nextCharacters),
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      storyboard: nextStoryboard,
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+      characters: this.sortProjectCharacters(nextProject.characters),
+      assets: nextProject.assets,
+      ready: this.isProjectCharacterLibraryReady(nextProject),
+      imagePreflight: null,
+      character,
+    };
+  }
+
   async getPendingChapterStoryboard(projectId: string, chapterId: string): Promise<ChapterStoryboard | null> {
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
     return chapter.pendingStoryboard ?? null;
+  }
+
+  private async guardGenerationTaskCreate(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest | void> {
+    if (!imageCandidateTaskTypes.has(input.type)) {
+      return;
+    }
+
+    const projectId = typeof input.projectId === "string" ? input.projectId.trim() : "";
+    if (!projectId) {
+      throw new BadRequestException("GENERATION_TASK_PROJECT_ID_REQUIRED");
+    }
+
+    const project = await this.getReadyProject(projectId);
+    const chapterId = this.getGenerationTaskChapterId(input);
+    const chapter = this.findChapter(project, chapterId);
+    if (!this.isChapterImagePreflightReady(project, chapter)) {
+      throw new BadRequestException("IMAGE_PREFLIGHT_NOT_CONFIRMED");
+    }
+
+    const storyboard = chapter.storyboard;
+    const imagePreflight = chapter.imagePreflight;
+    if (!storyboard || !imagePreflight) {
+      throw new BadRequestException("IMAGE_PREFLIGHT_NOT_CONFIRMED");
+    }
+
+    this.assertGenerationTaskShotTarget(input, storyboard.storyboardJson.shots);
+
+    return {
+      ...input,
+      projectId,
+      input: {
+        ...(input.input ?? {}),
+        chapterId: chapter.id,
+        imagePreflightId: imagePreflight.id,
+        imagePreflightVersion: imagePreflight.version,
+        imagePreflightPath: imagePreflight.preflightPath,
+        imagePreflightConfirmedAt: imagePreflight.confirmedAt,
+        sourceStoryboardId: imagePreflight.sourceStoryboardId,
+        sourceStoryboardUpdatedAt: imagePreflight.sourceStoryboardUpdatedAt,
+        preflightCharacterReferenceAssetIds: imagePreflight.preflightJson.characterChecks
+          .map((check) => check.referenceAssetId)
+          .filter((assetId): assetId is string => Boolean(assetId)),
+      },
+    };
+  }
+
+  private getGenerationTaskChapterId(input: CreateGenerationTaskRequest): string {
+    const targetChapterId = typeof input.target?.chapterId === "string" ? input.target.chapterId.trim() : "";
+    const inputChapterId = typeof input.input?.chapterId === "string" ? input.input.chapterId.trim() : "";
+    const chapterId = targetChapterId || inputChapterId;
+    if (!chapterId) {
+      throw new BadRequestException("GENERATION_TASK_CHAPTER_ID_REQUIRED");
+    }
+    if (targetChapterId && inputChapterId && targetChapterId !== inputChapterId) {
+      throw new BadRequestException("GENERATION_TASK_CHAPTER_ID_MISMATCH");
+    }
+    return chapterId;
+  }
+
+  private assertGenerationTaskShotTarget(input: CreateGenerationTaskRequest, shots: StoryboardShot[]): void {
+    const targetShotId = input.target?.type === "shot" && typeof input.target.id === "string" ? input.target.id.trim() : "";
+    const inputShotId = typeof input.input?.shotId === "string" ? input.input.shotId.trim() : "";
+    const shotId = targetShotId || inputShotId;
+    if (!shotId) {
+      return;
+    }
+    if (targetShotId && inputShotId && targetShotId !== inputShotId) {
+      throw new BadRequestException("GENERATION_TASK_SHOT_ID_MISMATCH");
+    }
+    if (!shots.some((shot) => shot.id === shotId)) {
+      throw new BadRequestException("GENERATION_TASK_SHOT_NOT_IN_CONFIRMED_STORYBOARD");
+    }
   }
 
   async savePendingChapterStoryboard(
@@ -1019,6 +1503,7 @@ export class ProjectsService implements OnModuleInit {
       status: "storyboard_done",
       storyboard,
       pendingStoryboard: null,
+      imagePreflight: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
@@ -1063,6 +1548,7 @@ export class ProjectsService implements OnModuleInit {
     const nextChapter: LocalChapter = {
       ...chapter,
       storyboard,
+      imagePreflight: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
@@ -1199,11 +1685,25 @@ export class ProjectsService implements OnModuleInit {
     await rm(projectDir, { recursive: true, force: true });
     const deletedTaskCount = this.tasksService.deleteByProjectId(project.id);
     this.projects.delete(project.id);
+    const deletedRuntimeStateCount = this.notifyProjectDeleted(project.id);
 
     return {
       deletedProjectId: project.id,
       deletedTaskCount,
+      deletedRuntimeStateCount,
     };
+  }
+
+  private notifyProjectDeleted(projectId: string): number {
+    let deletedStateCount = 0;
+    for (const listener of this.projectDeletedListeners) {
+      try {
+        deletedStateCount += listener(projectId) ?? 0;
+      } catch (error) {
+        this.logger.warn(`Project delete listener failed for ${projectId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return deletedStateCount;
   }
 
   async getWorkbenchSnapshot(projectId: string, chapterId?: string): Promise<WorkbenchSnapshot> {
@@ -1234,6 +1734,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: currentChapter?.storyStructure ?? null,
       storyboard: currentChapter?.storyboard ?? null,
       pendingStoryboard: currentChapter?.pendingStoryboard ?? null,
+      imagePreflight: currentChapter?.imagePreflight ?? null,
       characters: readyProject.characters,
       workflow,
       stages: workflow.steps,
@@ -1525,6 +2026,13 @@ export class ProjectsService implements OnModuleInit {
         path.join(chapterDir, "storyboard.pending.json"),
         updatedAt,
       ),
+      imagePreflight: await this.readChapterImagePreflight(
+        projectId,
+        chapterId,
+        slug,
+        path.join(chapterDir, "preflight.json"),
+        updatedAt,
+      ),
       createdAt,
       updatedAt,
       completedAt: this.getOptionalStringField(metadata, "completedAt"),
@@ -1669,6 +2177,41 @@ export class ProjectsService implements OnModuleInit {
       createdAt,
       updatedAt,
       confirmedAt: null,
+    };
+  }
+
+  private async readChapterImagePreflight(
+    projectId: string,
+    chapterId: string,
+    slug: string,
+    filePath: string,
+    fallbackCreatedAt: string,
+  ): Promise<ChapterImagePreflight | null> {
+    const content = await this.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return null;
+    }
+
+    const record = this.parseJsonRecord(content, filePath);
+    const preflightJson = this.normalizeImagePreflightJson(record.preflightJson ?? record, chapterId, this.getStringField(record, "chapterTitle", ""));
+    const version = this.getNumberField(record, "version", 1);
+    const createdAt = this.getStringField(record, "createdAt", fallbackCreatedAt);
+    const updatedAt = this.getStringField(record, "updatedAt", createdAt);
+    const confirmedAt = this.getStringField(record, "confirmedAt", updatedAt);
+
+    return {
+      id: this.getStringField(record, "id", `${chapterId}_image_preflight_v${String(version).padStart(3, "0")}`),
+      projectId,
+      chapterId,
+      version,
+      status: "confirmed",
+      preflightPath: `projects/${projectId}/chapters/${slug}/preflight.json`,
+      sourceStoryboardId: this.getOptionalStringField(record, "sourceStoryboardId") ?? preflightJson.sourceStoryboardId,
+      sourceStoryboardUpdatedAt: this.getOptionalStringField(record, "sourceStoryboardUpdatedAt") ?? preflightJson.sourceStoryboardUpdatedAt,
+      preflightJson,
+      createdAt,
+      updatedAt,
+      confirmedAt,
     };
   }
 
@@ -1922,31 +2465,26 @@ export class ProjectsService implements OnModuleInit {
       definition.key,
       currentStepKey,
       currentChapter?.status ?? "draft",
-      this.isProjectCharacterLibraryReady(project),
     );
     return {
       key: definition.key,
       label: definition.label,
       status,
       scope: definition.scope,
-      summary: this.getWorkflowStepSummary(definition.key, status, currentChapter, project),
+      summary: this.getWorkflowStepSummary(definition.key, status, currentChapter),
       evidence: this.getWorkflowStepEvidence(project.id, currentChapter, definition.key),
       completionCriteria: [...definition.completionCriteria],
     };
   }
 
   private resolveWorkflowCurrentStepKey(project: LocalProject, chapter: LocalChapter | null): ProjectWorkflowStepKey {
-    if (chapter && chapter.status !== "draft" && !this.isProjectCharacterLibraryReady(project)) {
-      return "project_characters";
-    }
-
     switch (chapter?.status) {
       case "script_done":
         return "story_structure";
       case "structured":
         return "storyboard";
       case "storyboard_done":
-        return "image_candidates";
+        return this.isChapterImagePreflightReady(project, chapter) ? "image_candidates" : "image_preflight";
       case "images_done":
         return "layout_export";
       case "layout_done":
@@ -1962,7 +2500,6 @@ export class ProjectsService implements OnModuleInit {
     stepKey: ProjectWorkflowStepKey,
     currentStepKey: ProjectWorkflowStepKey,
     chapterStatus: ChapterStatus,
-    charactersReady: boolean,
   ): ProjectWorkflowStep["status"] {
     if (chapterStatus === "exported") {
       return "done";
@@ -1976,9 +2513,6 @@ export class ProjectsService implements OnModuleInit {
     if (stepIndex === currentIndex) {
       return "active";
     }
-    if (stepKey === "story_structure" && chapterStatus !== "draft" && !charactersReady) {
-      return "blocked";
-    }
     return "waiting";
   }
 
@@ -1986,12 +2520,14 @@ export class ProjectsService implements OnModuleInit {
     stepKey: ProjectWorkflowStepKey,
     status: ProjectWorkflowStep["status"],
     chapter: LocalChapter | null,
-    project: LocalProject,
   ): string {
     if (status === "done") {
       return this.getWorkflowDoneSummary(stepKey);
     }
     if (status === "waiting") {
+      return this.getWorkflowWaitingSummary(stepKey);
+    }
+    if (status === "blocked") {
       return this.getWorkflowWaitingSummary(stepKey);
     }
 
@@ -2000,16 +2536,14 @@ export class ProjectsService implements OnModuleInit {
         return chapter?.sourceText.trim()
           ? "当前章节已有草稿，保存后可点击完成本章。"
           : "补充当前章节剧本，保存草稿后继续推进。";
-      case "project_characters":
-        return this.isProjectCharacterLibraryReady(project)
-          ? "主角和常驻角色已定稿。"
-          : "提取主角和常驻角色，并确认四视图角色定稿图。";
       case "story_structure":
         return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
       case "storyboard":
         return "当前章节剧情结构已就绪，可以生成和编辑分镜。";
+      case "image_preflight":
+        return "当前章节分镜已确认，检查角色参考图、镜头绑定和出图输入。";
       case "image_candidates":
-        return "当前章节分镜已就绪，可以生成候选图并锁定结果。";
+        return "出图准备已通过，可以生成候选图并锁定结果。";
       case "layout_export":
         return "当前章节图片结果已就绪，可以排版并导出。";
       case "asset_package":
@@ -2022,12 +2556,12 @@ export class ProjectsService implements OnModuleInit {
     switch (stepKey) {
       case "project_story":
         return "章节剧本已完成并写入版本快照。";
-      case "project_characters":
-        return "项目角色库已完成。";
       case "story_structure":
         return "结构化剧情已完成。";
       case "storyboard":
         return "分镜已完成。";
+      case "image_preflight":
+        return "出图准备已完成。";
       case "image_candidates":
         return "候选图或锁定图已完成。";
       case "layout_export":
@@ -2042,14 +2576,14 @@ export class ProjectsService implements OnModuleInit {
     switch (stepKey) {
       case "project_story":
         return "等待进入剧本阶段。";
-      case "project_characters":
-        return "需要先完成当前章节剧本。";
       case "story_structure":
-        return "需要先完成项目角色库。";
+        return "需要先完成当前章节剧本。";
       case "storyboard":
         return "需要先完成当前章节剧情结构。";
+      case "image_preflight":
+        return "需要先确认当前章节分镜。";
       case "image_candidates":
-        return "需要先完成当前章节分镜。";
+        return "需要先通过出图准备。";
       case "layout_export":
         return "需要先锁定当前章节候选图。";
       case "asset_package":
@@ -2067,12 +2601,12 @@ export class ProjectsService implements OnModuleInit {
     switch (stepKey) {
       case "project_story":
         return `/workspace/projects/${projectId}/chapters/${chapterSlug}/script.md`;
-      case "project_characters":
-        return `/workspace/projects/${projectId}/shared/characters.json`;
       case "story_structure":
         return `/workspace/projects/${projectId}/chapters/${chapterSlug}/structure.json`;
       case "storyboard":
         return `/workspace/projects/${projectId}/chapters/${chapterSlug}/storyboard.json`;
+      case "image_preflight":
+        return `/workspace/projects/${projectId}/chapters/${chapterSlug}/preflight.json`;
       case "image_candidates":
         return `/workspace/projects/${projectId}/chapters/${chapterSlug}/candidates/`;
       case "layout_export":
@@ -2081,6 +2615,433 @@ export class ProjectsService implements OnModuleInit {
         return `/workspace/projects/${projectId}/exports/packages/`;
     }
     return `/workspace/projects/${projectId}/workflow.json`;
+  }
+
+  private isChapterImagePreflightReady(project: LocalProject, chapter: LocalChapter | null): boolean {
+    if (!chapter?.storyboard || !chapter.imagePreflight?.preflightJson.ready) {
+      return false;
+    }
+
+    if (
+      chapter.imagePreflight.sourceStoryboardId !== chapter.storyboard.id
+      || chapter.imagePreflight.sourceStoryboardUpdatedAt !== chapter.storyboard.updatedAt
+    ) {
+      return false;
+    }
+
+    return this.buildImagePreflightJson(project, chapter, chapter.imagePreflight.preflightJson.notes, chapter.imagePreflight.updatedAt).ready;
+  }
+
+  private buildImagePreflightJson(
+    project: LocalProject,
+    chapter: LocalChapter,
+    notes: string,
+    now: string,
+  ): ImagePreflightJson {
+    const storyboard = chapter.storyboard;
+    const issues: ImagePreflightIssue[] = [];
+    const styleCheck = this.buildImagePreflightStyleCheck(project);
+    if (styleCheck.status === "warning") {
+      issues.push({
+        type: "missing_style_context",
+        status: "warning",
+        message: styleCheck.note,
+      });
+    }
+
+    if (!storyboard) {
+      issues.push({
+        type: "missing_storyboard",
+        status: "blocked",
+        message: "当前章节还没有正式 storyboard.json，请先确认分镜。",
+      });
+      return {
+        schemaVersion: 1,
+        chapterId: chapter.id,
+        chapterTitle: chapter.title,
+        sourceStoryboardId: null,
+        sourceStoryboardUpdatedAt: null,
+        shotCount: 0,
+        unresolvedCharacters: [],
+        characterChecks: [],
+        sceneChecks: [],
+        styleCheck,
+        issues,
+        ready: false,
+        notes,
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+
+    const shots = storyboard.storyboardJson.shots;
+    const characterById = new Map(project.characters.map((character) => [character.id, character]));
+    const characterByName = new Map(project.characters.map((character) => [character.name.trim().toLowerCase(), character]));
+    const appearanceCounts = new Map<string, number>();
+    const unresolvedCharacters = new Set<string>();
+    const structureScenes = chapter.storyStructure?.structureJson.scenes ?? [];
+    const sceneById = new Map(structureScenes.map((scene) => [scene.id, scene]));
+    const sceneAppearanceCounts = new Map<string, number>();
+
+    for (const shot of shots) {
+      const seenInShot = new Set<string>();
+      for (const token of this.getShotCharacterTokens(shot.characterIds)) {
+        const character = characterById.get(token) ?? characterByName.get(token.toLowerCase());
+        if (!character) {
+          unresolvedCharacters.add(token);
+          continue;
+        }
+        seenInShot.add(character.id);
+      }
+
+      for (const characterId of seenInShot) {
+        appearanceCounts.set(characterId, (appearanceCounts.get(characterId) ?? 0) + 1);
+      }
+
+      const sceneId = shot.sceneId?.trim() ?? "";
+      if (!sceneId) {
+        issues.push({
+          type: "missing_scene",
+          status: "blocked",
+          message: `镜头 ${shot.order} 还没有绑定场景，请先在分镜中补齐 sceneId。`,
+          relatedShotId: shot.id,
+        });
+        continue;
+      }
+
+      if (!sceneById.has(sceneId)) {
+        issues.push({
+          type: "missing_scene",
+          status: "blocked",
+          message: `镜头 ${shot.order} 绑定的场景「${sceneId}」不在本章剧情结构场景卡中。`,
+          relatedName: sceneId,
+          relatedSceneId: sceneId,
+          relatedShotId: shot.id,
+        });
+        continue;
+      }
+
+      sceneAppearanceCounts.set(sceneId, (sceneAppearanceCounts.get(sceneId) ?? 0) + 1);
+    }
+
+    for (const name of unresolvedCharacters) {
+      issues.push({
+        type: "unresolved_character",
+        status: "blocked",
+        message: `「${name}」还没有匹配到项目角色库角色，请先加入角色库、合并到已有角色或标记为临时/背景角色。`,
+        relatedName: name,
+      });
+    }
+
+    const characterChecks: ImagePreflightCharacterCheck[] = [];
+    for (const [characterId, appearanceCount] of appearanceCounts) {
+      const character = characterById.get(characterId);
+      if (!character) {
+        continue;
+      }
+      const requiredReference = this.isRequiredPreflightReferenceCharacter(character, appearanceCount);
+      const referenceReady = this.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind);
+      const runningReferenceTask = this.hasActiveCharacterReferenceTask(project.id, character.id, "final_reference");
+      let status: ImagePreflightCharacterCheck["status"] = "ok";
+      let note = "参考图满足当前出图要求。";
+      if (runningReferenceTask) {
+        status = "blocked";
+        note = "角色定稿图任务正在生成，完成后再确认出图准备。";
+        issues.push({
+          type: "running_reference_task",
+          status: "blocked",
+          message: `「${character.name}」的角色定稿图任务仍在生成中。`,
+          relatedName: character.name,
+          relatedCharacterId: character.id,
+        });
+      } else if (requiredReference && !referenceReady) {
+        status = "blocked";
+        note = "该角色在本章需要定稿图。";
+        issues.push({
+          type: "missing_reference",
+          status: "blocked",
+          message: `「${character.name}」缺少可用角色定稿图。`,
+          relatedName: character.name,
+          relatedCharacterId: character.id,
+        });
+      } else if (!requiredReference && !referenceReady) {
+        status = "warning";
+        note = "当前按临时/轻量角色处理，可用文字描述进入候选图。";
+      }
+
+      characterChecks.push({
+        characterId: character.id,
+        name: character.name,
+        level: character.level,
+        appearanceCount,
+        requiredReference,
+        referenceReady,
+        referenceAssetId: referenceReady ? character.primaryReferenceAssetId : null,
+        status,
+        note,
+      });
+    }
+
+    characterChecks.sort((left, right) => right.appearanceCount - left.appearanceCount || left.name.localeCompare(right.name));
+    const sceneChecks: ImagePreflightSceneCheck[] = [...sceneAppearanceCounts.entries()]
+      .map(([sceneId, shotCount]) => {
+        const scene = sceneById.get(sceneId);
+        return {
+          sceneId,
+          name: scene?.name || sceneId,
+          shotCount,
+          status: "ok" as const,
+          note: "场景已绑定到本章剧情结构场景卡，可供候选图提示词读取。",
+        };
+      })
+      .sort((left, right) => right.shotCount - left.shotCount || left.name.localeCompare(right.name));
+
+    const ready = issues.every((issue) => issue.status !== "blocked");
+    return {
+      schemaVersion: 1,
+      chapterId: chapter.id,
+      chapterTitle: chapter.title,
+      sourceStoryboardId: storyboard.id,
+      sourceStoryboardUpdatedAt: storyboard.updatedAt,
+      shotCount: shots.length,
+      unresolvedCharacters: [...unresolvedCharacters.values()].sort(),
+      characterChecks,
+      sceneChecks,
+      styleCheck,
+      issues,
+      ready,
+      notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  private buildImagePreflightStyleCheck(project: Pick<LocalProject, "comicFormat" | "artStyle">): ImagePreflightStyleCheck {
+    const comicFormatLabel = this.getComicFormatLabel(project.comicFormat);
+    const artStyleLabel = this.getArtStyleLabel(project.artStyle);
+    if (project.artStyle === "custom") {
+      return {
+        comicFormat: project.comicFormat,
+        comicFormatLabel,
+        artStyle: project.artStyle,
+        artStyleLabel,
+        status: "warning",
+        note: "当前项目使用自定义画风，候选图可继续生成，但后续应补充更明确的画风参考或提示词片段。",
+      };
+    }
+
+    return {
+      comicFormat: project.comicFormat,
+      comicFormatLabel,
+      artStyle: project.artStyle,
+      artStyleLabel,
+      status: "ok",
+      note: "漫画形式和美术风格已存在，可供候选图提示词读取。",
+    };
+  }
+
+  private getShotCharacterTokens(characterIds: string[]): string[] {
+    return [...new Set(characterIds
+      .map((item) => item.trim())
+      .filter((item) => item && !/^(无|无人|旁白|环境|背景)$/i.test(item)))];
+  }
+
+  private resolveStoryboardCharacterIds(characterIds: string[], token: string, replacementCharacterId: string | null): string[] {
+    const tokenKey = this.normalizeCharacterNameKey(token);
+    const next: string[] = [];
+    for (const characterId of characterIds) {
+      if (this.normalizeCharacterNameKey(characterId) === tokenKey) {
+        if (replacementCharacterId && !next.includes(replacementCharacterId)) {
+          next.push(replacementCharacterId);
+        }
+        continue;
+      }
+      if (!next.includes(characterId)) {
+        next.push(characterId);
+      }
+    }
+    return next;
+  }
+
+  private resolveOrCreatePreflightCharacter(
+    project: Pick<LocalProject, "id">,
+    characters: ProjectCharacter[],
+    token: string,
+    requestedLevel: ProjectCharacterLevel,
+    input: Pick<ResolveImagePreflightCharacterRequest, "role" | "appearance" | "personality" | "promptFragment">,
+    now: string,
+  ): { character: ProjectCharacter; characters: ProjectCharacter[] } {
+    const name = this.normalizeCharacterName(token);
+    const existing = characters.find((character) => this.normalizeCharacterNameKey(character.name) === this.normalizeCharacterNameKey(name));
+    if (existing) {
+      return { character: existing, characters };
+    }
+
+    const level = this.normalizeCharacterLevel(requestedLevel);
+    const description = input.appearance?.trim() || input.promptFragment?.trim() || `${name}，由出图准备待处理角色生成。`;
+    const character: ProjectCharacter = {
+      id: `char_${randomUUID()}`,
+      projectId: project.id,
+      name,
+      role: input.role?.trim() || (level === "extra" ? "临时/背景角色" : "本章角色"),
+      level,
+      status: level === "lead" || level === "recurring" ? "needs_reference" : "draft",
+      appearance: description,
+      personality: input.personality?.trim() || "",
+      promptFragment: input.promptFragment?.trim() || description,
+      referenceAssetIds: [],
+      previewReferenceAssetId: null,
+      previewConfirmedAt: null,
+      primaryReferenceAssetId: null,
+      primaryReferenceKind: this.defaultReferenceKindForLevel(level),
+      visualVersion: 0,
+      source: "image_preflight",
+      createdAt: now,
+      updatedAt: now,
+      finalizedAt: null,
+    };
+    return {
+      character,
+      characters: this.sortProjectCharacters([...characters, character]),
+    };
+  }
+
+  private syncStoryStructureCharacters(
+    project: LocalProject,
+    structureJson: StoryStructureJson,
+    now: string,
+  ): LocalProject {
+    const existingByName = new Map(project.characters.map((character) => [
+      this.normalizeCharacterNameKey(character.name),
+      character,
+    ]));
+    const nextCharacters = [...project.characters];
+    let changed = false;
+
+    structureJson.characters.forEach((card, index) => {
+      const rawName = card.name.trim();
+      if (!rawName) {
+        return;
+      }
+
+      const name = this.normalizeCharacterName(rawName);
+      const key = this.normalizeCharacterNameKey(name);
+      const description = this.buildStoryStructureCharacterPrompt(card);
+      const inferredLevel = this.inferCharacterLevel(name, card.role, description, index);
+      const existing = existingByName.get(key);
+
+      if (existing) {
+        const level = this.resolveMoreImportantCharacterLevel(existing.level, inferredLevel);
+        const primary = this.resolvePrimaryReferenceForLevel(existing, level);
+        const nextRole = existing.role || card.role.trim() || this.getDefaultRoleForLevel(level);
+        const nextStatus = this.resolveCharacterStatusForReference(
+          level,
+          primary.primaryReferenceAssetId,
+          existing.status === "in_use",
+          primary.primaryReferenceKind,
+        );
+        const nextAppearance = existing.appearance || description;
+        const nextPersonality = existing.personality || card.motivation.trim();
+        const nextPromptFragment = existing.promptFragment || description;
+        const hasChanges = existing.role !== nextRole
+          || existing.level !== level
+          || existing.status !== nextStatus
+          || existing.appearance !== nextAppearance
+          || existing.personality !== nextPersonality
+          || existing.promptFragment !== nextPromptFragment
+          || existing.primaryReferenceAssetId !== primary.primaryReferenceAssetId
+          || existing.primaryReferenceKind !== primary.primaryReferenceKind
+          || existing.finalizedAt !== primary.finalizedAt;
+        if (!hasChanges) {
+          return;
+        }
+        const nextCharacter: ProjectCharacter = {
+          ...existing,
+          role: nextRole,
+          level,
+          status: nextStatus,
+          appearance: nextAppearance,
+          personality: nextPersonality,
+          promptFragment: nextPromptFragment,
+          primaryReferenceAssetId: primary.primaryReferenceAssetId,
+          primaryReferenceKind: primary.primaryReferenceKind,
+          finalizedAt: primary.finalizedAt,
+          updatedAt: now,
+        };
+        const characterIndex = nextCharacters.findIndex((item) => item.id === existing.id);
+        if (characterIndex >= 0) {
+          nextCharacters[characterIndex] = nextCharacter;
+          existingByName.set(key, nextCharacter);
+          changed = true;
+        }
+        return;
+      }
+
+      const character: ProjectCharacter = {
+        id: `char_${randomUUID()}`,
+        projectId: project.id,
+        name,
+        role: card.role.trim() || this.getDefaultRoleForLevel(inferredLevel),
+        level: inferredLevel,
+        status: inferredLevel === "lead" || inferredLevel === "recurring" ? "needs_reference" : "draft",
+        appearance: description,
+        personality: card.motivation.trim(),
+        promptFragment: description,
+        referenceAssetIds: [],
+        previewReferenceAssetId: null,
+        previewConfirmedAt: null,
+        primaryReferenceAssetId: null,
+        primaryReferenceKind: this.defaultReferenceKindForLevel(inferredLevel),
+        visualVersion: 0,
+        source: "story_structure",
+        createdAt: now,
+        updatedAt: now,
+        finalizedAt: null,
+      };
+      nextCharacters.push(character);
+      existingByName.set(key, character);
+      changed = true;
+    });
+
+    if (!changed) {
+      return project;
+    }
+
+    return {
+      ...project,
+      characters: this.sortProjectCharacters(nextCharacters),
+      updatedAt: now,
+    };
+  }
+
+  private buildStoryStructureCharacterPrompt(card: StoryStructureJson["characters"][number]): string {
+    const parts = [
+      card.visualTraits.trim(),
+      card.role.trim() ? `${card.name.trim()}，${card.role.trim()}` : "",
+      card.relationship.trim(),
+      card.motivation.trim(),
+      card.notes.trim(),
+    ].filter(Boolean);
+    return parts.join("；") || `${card.name.trim()}，本章出镜角色。`;
+  }
+
+  private getDefaultRoleForLevel(level: ProjectCharacterLevel): string {
+    if (level === "lead") {
+      return "主角";
+    }
+    if (level === "recurring") {
+      return "常驻角色";
+    }
+    if (level === "extra") {
+      return "临时/背景角色";
+    }
+    return "本章角色";
+  }
+
+  private isRequiredPreflightReferenceCharacter(character: ProjectCharacter, appearanceCount: number): boolean {
+    return character.level === "lead"
+      || character.level === "recurring"
+      || (character.level === "chapter" && appearanceCount > 1);
   }
 
   private toProjectListItem(project: LocalProject): ProjectListItem {
@@ -2204,6 +3165,11 @@ export class ProjectsService implements OnModuleInit {
     } else {
       await rm(path.join(chapterDir, "storyboard.pending.json"), { force: true });
     }
+    if (chapter.imagePreflight) {
+      await writeFile(path.join(chapterDir, "preflight.json"), `${JSON.stringify(chapter.imagePreflight, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "preflight.json"), { force: true });
+    }
     if (chapter.lastScriptRevision) {
       await mkdir(revisionsDir, { recursive: true });
       await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
@@ -2232,6 +3198,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: null,
       storyboard: null,
       pendingStoryboard: null,
+      imagePreflight: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,
@@ -2508,12 +3475,279 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
+  private normalizeImagePreflightJson(input: unknown, chapterId: string, fallbackChapterTitle: string): ImagePreflightJson {
+    const record = typeof input === "object" && input !== null && !Array.isArray(input)
+      ? input as Record<string, unknown>
+      : {};
+    const now = new Date().toISOString();
+    const sourceStoryboardId = this.getOptionalStringField(record, "sourceStoryboardId");
+    const sourceStoryboardUpdatedAt = this.getOptionalStringField(record, "sourceStoryboardUpdatedAt");
+    const issues = this.normalizeImagePreflightIssues(record.issues);
+    const unresolvedCharacters = this.getStringArrayField(record, "unresolvedCharacters").map((item) => item.trim()).filter(Boolean);
+    const characterChecks = this.normalizeImagePreflightCharacterChecks(record.characterChecks);
+    const sceneChecks = this.normalizeImagePreflightSceneChecks(record.sceneChecks);
+    const styleCheck = this.normalizeImagePreflightStyleCheck(record.styleCheck);
+
+    return {
+      schemaVersion: 1,
+      chapterId,
+      chapterTitle: this.getStringField(record, "chapterTitle", fallbackChapterTitle || "当前章节"),
+      sourceStoryboardId,
+      sourceStoryboardUpdatedAt,
+      shotCount: this.getNumberField(record, "shotCount", 0),
+      unresolvedCharacters,
+      characterChecks,
+      sceneChecks,
+      styleCheck,
+      issues,
+      ready: typeof record.ready === "boolean" ? record.ready : issues.length === 0,
+      notes: this.getStringField(record, "notes", ""),
+      createdAt: this.getStringField(record, "createdAt", now),
+      updatedAt: this.getStringField(record, "updatedAt", now),
+    };
+  }
+
+  private normalizeImagePreflightCharacterChecks(input: unknown): ImagePreflightCharacterCheck[] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item) => {
+        const status = this.normalizeImagePreflightStatus(this.getStringField(item, "status", "ok"));
+        return {
+          characterId: this.getStringField(item, "characterId", ""),
+          name: this.getStringField(item, "name", "未命名角色"),
+          level: this.normalizeCharacterLevel(this.getStringField(item, "level", "extra")),
+          appearanceCount: this.getNumberField(item, "appearanceCount", 0),
+          requiredReference: Boolean(item.requiredReference),
+          referenceReady: Boolean(item.referenceReady),
+          referenceAssetId: this.getOptionalStringField(item, "referenceAssetId"),
+          status,
+          note: this.getStringField(item, "note", ""),
+        };
+      });
+  }
+
+  private normalizeImagePreflightSceneChecks(input: unknown): ImagePreflightSceneCheck[] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item) => ({
+        sceneId: this.getStringField(item, "sceneId", ""),
+        name: this.getStringField(item, "name", "未命名场景"),
+        shotCount: this.getNumberField(item, "shotCount", 0),
+        status: this.normalizeImagePreflightStatus(this.getStringField(item, "status", "ok")),
+        note: this.getStringField(item, "note", ""),
+      }));
+  }
+
+  private normalizeImagePreflightStyleCheck(input: unknown): ImagePreflightStyleCheck {
+    const record = typeof input === "object" && input !== null && !Array.isArray(input)
+      ? input as Record<string, unknown>
+      : {};
+    const comicFormat = this.normalizeComicFormat(this.getStringField(record, "comicFormat", "vertical_scroll") as ComicFormat);
+    const artStyle = this.normalizeArtStyle(this.getStringField(record, "artStyle", "comic_style") as ArtStyle);
+    return {
+      comicFormat,
+      comicFormatLabel: this.getStringField(record, "comicFormatLabel", this.getComicFormatLabel(comicFormat)),
+      artStyle,
+      artStyleLabel: this.getStringField(record, "artStyleLabel", this.getArtStyleLabel(artStyle)),
+      status: this.normalizeImagePreflightStatus(this.getStringField(record, "status", "ok")),
+      note: this.getStringField(record, "note", ""),
+    };
+  }
+
+  private normalizeImagePreflightIssues(input: unknown): ImagePreflightIssue[] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+      .map((item) => {
+        const type = this.getStringField(item, "type", "unresolved_character");
+        return {
+          type: type === "missing_storyboard"
+            || type === "missing_reference"
+            || type === "running_reference_task"
+            || type === "missing_scene"
+            || type === "missing_style_context"
+            ? type
+            : "unresolved_character",
+          status: this.normalizeImagePreflightStatus(this.getStringField(item, "status", "blocked")) === "warning" ? "warning" : "blocked",
+          message: this.getStringField(item, "message", ""),
+          relatedName: this.getOptionalStringField(item, "relatedName") ?? undefined,
+          relatedCharacterId: this.getOptionalStringField(item, "relatedCharacterId") ?? undefined,
+          relatedSceneId: this.getOptionalStringField(item, "relatedSceneId") ?? undefined,
+          relatedShotId: this.getOptionalStringField(item, "relatedShotId") ?? undefined,
+        };
+      });
+  }
+
+  private normalizeImagePreflightStatus(value: string): ImagePreflightCharacterCheck["status"] {
+    return value === "warning" || value === "blocked" ? value : "ok";
+  }
+
   private toProjectCharactersResponse(project: LocalProject): ProjectCharactersResponse {
     return {
       characters: this.sortProjectCharacters(project.characters),
       assets: project.assets,
       ready: this.isProjectCharacterLibraryReady(project),
     };
+  }
+
+  private queueMissingCharacterReferenceTask(
+    project: LocalProject,
+    character: ProjectCharacter,
+    referenceKind: ProjectCharacterReferenceKind,
+  ): GenerationTaskItem | null {
+    if (referenceKind === "none") {
+      return null;
+    }
+    if (character.status === "in_use") {
+      return null;
+    }
+    if (this.getCharacterReferenceAssets(project, character, referenceKind).length > 0) {
+      return null;
+    }
+    if (this.hasActiveCharacterReferenceTask(project.id, character.id, referenceKind)) {
+      return null;
+    }
+    return this.queueCharacterReferenceTask(project, character, referenceKind);
+  }
+
+  private queueCharacterReferenceTask(
+    project: LocalProject,
+    character: ProjectCharacter,
+    referenceKind: ProjectCharacterReferenceKind,
+    input: GenerateCharacterReferenceRequest = {},
+  ): GenerationTaskItem {
+    if (this.hasActiveCharacterReferenceTask(project.id, character.id, referenceKind)) {
+      const existing = this.tasksService.list().find((task) =>
+        task.projectId === project.id
+        && task.type === "character_reference_generate"
+        && task.target?.type === "character"
+        && task.target.id === character.id
+        && task.input.referenceKind === referenceKind
+        && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
+      );
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const task = this.tasksService.createControlled({
+      projectId: project.id,
+      type: "character_reference_generate",
+      target: {
+        type: "character",
+        id: character.id,
+      },
+      input: {
+        characterId: character.id,
+        characterName: character.name,
+        referenceKind,
+        ...(referenceKind === "final_reference" && character.previewReferenceAssetId
+          ? { sourceReferenceAssetId: character.previewReferenceAssetId }
+          : {}),
+        prompt: input.prompt,
+        size: input.size,
+        quality: input.quality,
+        outputFormat: input.outputFormat,
+      },
+      options: {
+        provider: "openai_image",
+      },
+    });
+    this.enqueueCharacterReferenceTaskRun(task.id, project.id, character.id, referenceKind, input);
+    return task;
+  }
+
+  private enqueueCharacterReferenceTaskRun(
+    taskId: string,
+    projectId: string,
+    characterId: string,
+    referenceKind: ProjectCharacterReferenceKind,
+    input: GenerateCharacterReferenceRequest,
+  ): void {
+    const run = () => this.runCharacterReferenceTask(taskId, projectId, characterId, referenceKind, input);
+    this.characterReferenceQueue = this.characterReferenceQueue.then(run, run);
+    void this.characterReferenceQueue.catch((error) => {
+      this.logger.error(`Character reference queue failed: ${this.getErrorMessage(error)}`);
+    });
+  }
+
+  private async runCharacterReferenceTask(
+    taskId: string,
+    projectId: string,
+    characterId: string,
+    referenceKind: ProjectCharacterReferenceKind,
+    input: GenerateCharacterReferenceRequest,
+  ): Promise<void> {
+    const current = this.tasksService.peek(taskId);
+    if (!current) {
+      return;
+    }
+    if (current.status === "cancelled") {
+      return;
+    }
+    this.tasksService.start(taskId, "image_provider_running");
+    try {
+      const result = await this.generateCharacterReference(projectId, characterId, {
+        ...input,
+        referenceKind,
+        sourceTaskId: taskId,
+      });
+      this.tasksService.succeed(taskId, {
+        characterId,
+        referenceKind,
+        assetId: result.asset.id,
+      });
+    } catch (error) {
+      if (!this.tasksService.peek(taskId)) {
+        return;
+      }
+      this.tasksService.fail(taskId, "CHARACTER_REFERENCE_GENERATE_FAILED", this.getErrorMessage(error), true);
+    }
+  }
+
+  private hasActiveCharacterReferenceTask(projectId: string, characterId: string, referenceKind: ProjectCharacterReferenceKind): boolean {
+    return this.tasksService.list().some((task) =>
+      task.projectId === projectId
+      && task.type === "character_reference_generate"
+      && task.target?.type === "character"
+      && task.target.id === characterId
+      && task.input.referenceKind === referenceKind
+      && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
+    );
+  }
+
+  private getCharacterReferenceAssets(
+    project: Pick<LocalProject, "assets">,
+    character: Pick<ProjectCharacter, "id" | "referenceAssetIds">,
+    referenceKind: ProjectCharacterReferenceKind,
+  ): WorkbenchAsset[] {
+    const ids = new Set(character.referenceAssetIds);
+    return project.assets
+      .filter((asset) =>
+        ids.has(asset.id)
+        && this.getAssetReferenceKind(asset) === referenceKind,
+      )
+      .sort((left, right) => Date.parse(this.getAssetCreatedAt(right)) - Date.parse(this.getAssetCreatedAt(left)));
+  }
+
+  private getAssetCreatedAt(asset: WorkbenchAsset): string {
+    try {
+      const value = JSON.parse(asset.meta) as { createdAt?: unknown };
+      return typeof value.createdAt === "string" ? value.createdAt : "1970-01-01T00:00:00.000Z";
+    } catch {
+      return "1970-01-01T00:00:00.000Z";
+    }
   }
 
   private normalizeProjectCharacter(
@@ -2537,12 +3771,14 @@ export class ProjectsService implements OnModuleInit {
       personality: this.getStringField(item, "personality", ""),
       promptFragment: this.getStringField(item, "promptFragment", ""),
       referenceAssetIds: this.getStringArrayField(item, "referenceAssetIds"),
+      previewReferenceAssetId: this.getOptionalStringField(item, "previewReferenceAssetId"),
+      previewConfirmedAt: this.getOptionalStringField(item, "previewConfirmedAt"),
       primaryReferenceAssetId,
       primaryReferenceKind: this.normalizeCharacterReferenceKind(
         this.getStringField(item, "primaryReferenceKind", this.defaultReferenceKindForLevel(level)),
       ),
       visualVersion: this.getNumberField(item, "visualVersion", primaryReferenceAssetId ? 1 : 0),
-      source: item.source === "imported_script" || item.source === "manual" || item.source === "story_structure" ? item.source : "script_outline",
+      source: item.source === "imported_script" || item.source === "manual" || item.source === "story_structure" || item.source === "image_preflight" ? item.source : "script_outline",
       createdAt: this.getStringField(item, "createdAt", fallbackCreatedAt),
       updatedAt: this.getStringField(item, "updatedAt", fallbackUpdatedAt),
       finalizedAt: this.getOptionalStringField(item, "finalizedAt"),
@@ -2558,15 +3794,21 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private normalizeCharacterReferenceKind(value: string): ProjectCharacterReferenceKind {
+    if (value === "turnaround_4view") {
+      return "final_reference";
+    }
+    if (value === "single_front") {
+      return "preview_front";
+    }
     return characterReferenceKinds.includes(value as ProjectCharacterReferenceKind) ? value as ProjectCharacterReferenceKind : "none";
   }
 
   private defaultReferenceKindForLevel(level: ProjectCharacterLevel): ProjectCharacterReferenceKind {
     if (level === "lead" || level === "recurring") {
-      return "turnaround_4view";
+      return "final_reference";
     }
-    if (level === "chapter") {
-      return "single_front";
+    if (level === "chapter" || level === "extra") {
+      return "preview_front";
     }
     return "none";
   }
@@ -2577,10 +3819,10 @@ export class ProjectsService implements OnModuleInit {
   ): ProjectCharacterReferenceKind {
     const fallback = this.defaultReferenceKindForLevel(character.level);
     const normalized = requested ? this.normalizeCharacterReferenceKind(requested) : fallback;
-    if ((character.level === "lead" || character.level === "recurring") && normalized !== "turnaround_4view") {
-      throw new BadRequestException("CHARACTER_TURNAROUND_REQUIRED");
+    if (normalized === "preview_front") {
+      return "preview_front";
     }
-    if (character.level === "extra") {
+    if (normalized === "final_reference" && character.level === "extra") {
       return "none";
     }
     return normalized === "none" ? fallback : normalized;
@@ -2595,19 +3837,49 @@ export class ProjectsService implements OnModuleInit {
     return required.every((character) =>
       (character.status === "finalized" || character.status === "in_use")
       && Boolean(character.primaryReferenceAssetId)
-      && character.primaryReferenceKind === "turnaround_4view",
+      && character.primaryReferenceKind === "final_reference",
     );
+  }
+
+  private resolvePrimaryReferenceForLevel(
+    character: ProjectCharacter,
+    level: ProjectCharacterLevel,
+  ): Pick<ProjectCharacter, "primaryReferenceAssetId" | "primaryReferenceKind" | "finalizedAt"> {
+    if (this.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind)) {
+      return {
+        primaryReferenceAssetId: character.primaryReferenceAssetId,
+        primaryReferenceKind: character.primaryReferenceKind,
+        finalizedAt: character.finalizedAt,
+      };
+    }
+
+    return {
+      primaryReferenceAssetId: null,
+      primaryReferenceKind: this.defaultReferenceKindForLevel(level),
+      finalizedAt: null,
+    };
+  }
+
+  private isPrimaryReferenceCompatible(
+    primaryReferenceAssetId: string | null,
+    primaryReferenceKind: ProjectCharacterReferenceKind,
+  ): boolean {
+    if (!primaryReferenceAssetId) {
+      return false;
+    }
+    return primaryReferenceKind === "final_reference";
   }
 
   private resolveCharacterStatusForReference(
     level: ProjectCharacterLevel,
     primaryReferenceAssetId: string | null,
     inUse: boolean,
+    primaryReferenceKind = this.defaultReferenceKindForLevel(level),
   ): ProjectCharacterStatus {
     if (inUse) {
       return "in_use";
     }
-    if (primaryReferenceAssetId) {
+    if (this.isPrimaryReferenceCompatible(primaryReferenceAssetId, primaryReferenceKind)) {
       return "finalized";
     }
     if (level === "lead" || level === "recurring") {
@@ -2667,7 +3939,11 @@ export class ProjectsService implements OnModuleInit {
       ? "script_outline"
       : "imported_script";
     const section = this.extractMainCharactersSection(sourceText);
-    const lines = (section || sourceText)
+    if (!section.trim()) {
+      return [];
+    }
+
+    const lines = section
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
@@ -2690,6 +3966,8 @@ export class ProjectsService implements OnModuleInit {
         personality: "",
         promptFragment: parsed.description,
         referenceAssetIds: [],
+        previewReferenceAssetId: null,
+        previewConfirmedAt: null,
         primaryReferenceAssetId: null,
         primaryReferenceKind: this.defaultReferenceKindForLevel(level),
         visualVersion: 0,
@@ -2704,12 +3982,12 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private extractMainCharactersSection(sourceText: string): string {
-    const start = sourceText.search(/主要角色|角色设定|人物设定/u);
+    const start = sourceText.search(/主要角色|角色设定|人物设定|角色列表|人物列表/u);
     if (start < 0) {
       return "";
     }
     const rest = sourceText.slice(start);
-    const end = rest.search(/\n\s*(情节概要|剧情简介|章节|第\s*\d+\s*[章集]|##?\s+)/u);
+    const end = rest.search(/\n\s*(情节概要|剧情简介|章节|剧本正文|第\s*\d+\s*[章集]|##?\s+)/u);
     return end > 0 ? rest.slice(0, end) : rest;
   }
 
@@ -2774,32 +4052,140 @@ export class ProjectsService implements OnModuleInit {
     character: ProjectCharacter,
     referenceKind: ProjectCharacterReferenceKind,
   ): string {
-    const style = `${project.artStyle} ${project.comicFormat}`;
+    const styleGuide = this.buildCharacterReferenceStyleGuide(project);
     const base = [
+      `项目类型：${this.getProjectTypeLabel(project.type)}。This is a comic/manhua production project, not a live-action casting project.`,
+      `作品名：${project.storyTitle || project.name}`,
+      project.genreTags.length > 0 ? `题材标签：${project.genreTags.join("、")}` : "",
+      `漫画形式：${this.getComicFormatLabel(project.comicFormat)}`,
+      `美术风格：${this.getArtStyleLabel(project.artStyle)}`,
+      "风格硬约束：必须是绘制感漫画/条漫/漫画角色设定图，不能生成真人照片、真人演员定妆照、摄影棚肖像、电影剧照、cosplay 照片或 3D 渲染。",
+      styleGuide,
       `角色名：${character.name}`,
       `角色身份：${character.role || character.level}`,
       `外貌设定：${character.appearance || "根据项目风格补全，但保持简洁稳定"}`,
       `性格气质：${character.personality || "符合角色身份"}`,
-      `项目风格：${style}`,
       character.promptFragment ? `提示词片段：${character.promptFragment}` : "",
     ].filter(Boolean).join("\n");
 
-    if (referenceKind === "turnaround_4view") {
+    if (referenceKind === "final_reference") {
       return [
-        "Create a clean character turnaround reference sheet for a comic production pipeline.",
-        "One same character, same outfit, same proportions, neutral expression, full body, plain light background.",
-        "Four evenly spaced views in one image: front view, left side view, right side view, back view.",
+        "Create a clean final character reference sheet for a comic/manhua production pipeline using the provided preview image as the strict character identity reference.",
+        "Preserve the same face, hairstyle, outfit, age, body proportions, and overall temperament from the preview image.",
+        "Drawn illustration style only. One same character, same outfit, same proportions, neutral expression, plain light background.",
+        "The single image must contain four panels: front half-body portrait, front full-body, side full-body, back full-body.",
         "No text labels, no logo, no watermark, no extra characters, no dramatic pose changes.",
         base,
       ].join("\n");
     }
 
     return [
-      "Create a clean single front character reference image for a comic production pipeline.",
-      "One character, front view, upper body or full body, plain light background.",
+      "Create a clean front preview portrait for a comic/manhua character library.",
+      "Drawn illustration style only. One character, front view, half-body portrait, clear face and costume cues, plain light background.",
       "No text labels, no logo, no watermark, no extra characters.",
       base,
     ].join("\n");
+  }
+
+  private buildCharacterReferenceStyleGuide(project: Pick<LocalProject, "artStyle" | "comicFormat">): string {
+    const artStyle = this.getArtStyleLabel(project.artStyle);
+    const comicFormat = this.getComicFormatLabel(project.comicFormat);
+    return [
+      `Style guide: ${artStyle}; ${comicFormat}.`,
+      "Use stylized comic linework, controlled cel shading or painterly comic shading, clean readable silhouette, and production-ready character consistency.",
+      "Even if the story is realistic or dark, interpret realism as comic realism, not photorealism.",
+    ].join("\n");
+  }
+
+  private getProjectTypeLabel(type: ProjectType): string {
+    const labels: Record<ProjectType, string> = {
+      comic: "漫画",
+      light_motion: "漫剧",
+      mixed: "漫画 + 漫剧",
+    };
+    return labels[type] ?? "漫画";
+  }
+
+  private getComicFormatLabel(format: ComicFormat): string {
+    const labels: Record<ComicFormat, string> = {
+      vertical_scroll: "竖版条漫 / vertical scrolling webcomic",
+      page_horizontal: "页漫 / page-based comic",
+      four_panel: "四格漫画 / four-panel comic",
+    };
+    return labels[format] ?? "竖版条漫 / vertical scrolling webcomic";
+  }
+
+  private getArtStyleLabel(style: ArtStyle): string {
+    const labels: Record<ArtStyle, string> = {
+      dark_realistic: "暗调漫画写实 / dark cinematic comic realism, non-photorealistic",
+      semi_realistic: "半写实漫画 / semi-realistic comic illustration, non-photorealistic",
+      japanese_realistic: "日系漫画写实 / Japanese manga-realistic illustration, non-photorealistic",
+      comic_style: "漫画风格 / clean comic and manhua illustration",
+      cyberpunk: "赛博朋克漫画 / cyberpunk comic illustration",
+      custom: "自定义漫画美术 / custom comic illustration style",
+    };
+    return labels[style] ?? "漫画风格 / clean comic and manhua illustration";
+  }
+
+  private async getConfirmedPreviewReferenceSource(
+    project: LocalProject,
+    character: ProjectCharacter,
+  ): Promise<CharacterReferenceSource> {
+    if (!character.previewReferenceAssetId) {
+      throw new BadRequestException("CHARACTER_PREVIEW_REFERENCE_REQUIRED");
+    }
+
+    const asset = project.assets.find((item) => item.id === character.previewReferenceAssetId);
+    if (!asset) {
+      throw new NotFoundException("CHARACTER_PREVIEW_ASSET_NOT_FOUND");
+    }
+    if (!character.referenceAssetIds.includes(asset.id)) {
+      throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
+    }
+    if (this.getAssetReferenceKind(asset) !== "preview_front") {
+      throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
+    }
+
+    return {
+      asset,
+      ...(await this.readProjectAssetFile(project, asset)),
+    };
+  }
+
+  private async readProjectAssetFile(project: Pick<LocalProject, "id">, asset: WorkbenchAsset): Promise<ProjectAssetFile> {
+    const safePath = asset.path.replace(/^\/+/, "");
+    if (!safePath.startsWith(`projects/${project.id}/`)) {
+      throw new BadRequestException("PROJECT_ASSET_PATH_INVALID");
+    }
+
+    const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${safePath}`);
+    try {
+      return {
+        buffer: await readFile(absolutePath),
+        mimeType: this.inferMimeType(asset.path),
+        fileName: path.basename(asset.path),
+      };
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        throw new NotFoundException("PROJECT_ASSET_FILE_NOT_FOUND");
+      }
+      throw error;
+    }
+  }
+
+  private async removeProjectAssetFile(project: Pick<LocalProject, "id">, asset: WorkbenchAsset): Promise<void> {
+    const safePath = asset.path.replace(/^\/+/, "");
+    if (!safePath.startsWith(`projects/${project.id}/`)) {
+      this.logger.warn(`Skip invalid project asset path during delete: ${asset.path}`);
+      return;
+    }
+
+    const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${safePath}`);
+    try {
+      await rm(absolutePath, { force: true });
+    } catch (error) {
+      this.logger.warn(`Failed to remove project asset file ${safePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async requestOpenAiImage(input: {
@@ -2812,7 +4198,7 @@ export class ProjectsService implements OnModuleInit {
     outputFormat: "webp" | "png" | "jpeg";
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
-    const response = await fetch(url, {
+    const response = await this.fetchWithTimeout(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2829,8 +4215,7 @@ export class ProjectsService implements OnModuleInit {
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      throw new BadRequestException(`IMAGE_PROVIDER_FAILED:${response.status}:${errorText.slice(0, 240)}`);
+      throw new BadRequestException(`IMAGE_PROVIDER_FAILED:${response.status}`);
     }
 
     const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
@@ -2839,7 +4224,7 @@ export class ProjectsService implements OnModuleInit {
       return Buffer.from(first.b64_json, "base64");
     }
     if (first?.url) {
-      const imageResponse = await fetch(first.url);
+      const imageResponse = await this.fetchWithTimeout(first.url);
       if (!imageResponse.ok) {
         throw new BadRequestException(`IMAGE_PROVIDER_URL_FAILED:${imageResponse.status}`);
       }
@@ -2847,6 +4232,78 @@ export class ProjectsService implements OnModuleInit {
     }
 
     throw new BadRequestException("IMAGE_PROVIDER_EMPTY_RESPONSE");
+  }
+
+  private async requestOpenAiImageEdit(input: {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    prompt: string;
+    size: string;
+    quality: "auto" | "low" | "medium" | "high";
+    outputFormat: "webp" | "png" | "jpeg";
+    referenceImage: ProjectAssetFile;
+  }): Promise<Buffer> {
+    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/edits`;
+    const form = new FormData();
+    const referenceBytes = new Uint8Array(input.referenceImage.buffer.length);
+    referenceBytes.set(input.referenceImage.buffer);
+    form.set("model", input.model);
+    form.set("prompt", input.prompt);
+    form.set("n", "1");
+    form.set("size", input.size);
+    form.set("quality", input.quality);
+    form.set("output_format", input.outputFormat);
+    form.set(
+      "image",
+      new Blob([referenceBytes], { type: input.referenceImage.mimeType }),
+      input.referenceImage.fileName,
+    );
+
+    const response = await this.fetchWithTimeout(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: form,
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException(`IMAGE_PROVIDER_EDIT_FAILED:${response.status}`);
+    }
+
+    const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
+    const first = data.data?.[0];
+    if (first?.b64_json) {
+      return Buffer.from(first.b64_json, "base64");
+    }
+    if (first?.url) {
+      const imageResponse = await this.fetchWithTimeout(first.url);
+      if (!imageResponse.ok) {
+        throw new BadRequestException(`IMAGE_PROVIDER_EDIT_URL_FAILED:${imageResponse.status}`);
+      }
+      return Buffer.from(await imageResponse.arrayBuffer());
+    }
+
+    throw new BadRequestException("IMAGE_PROVIDER_EDIT_EMPTY_RESPONSE");
+  }
+
+  private async fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 300_000): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: init.signal ?? controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new BadRequestException("IMAGE_PROVIDER_TIMEOUT");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private digestPrompt(prompt: string): string {
@@ -2937,6 +4394,12 @@ export class ProjectsService implements OnModuleInit {
       ?? null;
   }
 
+  private assertProjectStillActive(projectId: string): void {
+    if (!this.projects.has(projectId)) {
+      throw new NotFoundException("PROJECT_NOT_FOUND");
+    }
+  }
+
   private async getReadyProject(projectId: string): Promise<LocalProject> {
     await this.ensureProjectsLoaded();
     const project = this.projects.get(projectId);
@@ -3004,6 +4467,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: null,
       storyboard: null,
       pendingStoryboard: null,
+      imagePreflight: null,
       createdAt: now,
       updatedAt: now,
       completedAt: null,

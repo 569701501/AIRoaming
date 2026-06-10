@@ -40,9 +40,9 @@ export const PROJECT_WORKFLOW_SCHEMA_VERSION = 1;
 
 export const PROJECT_WORKFLOW_STEP_KEYS = [
   "project_story",
-  "project_characters",
   "story_structure",
   "storyboard",
+  "image_preflight",
   "image_candidates",
   "layout_export",
   "asset_package",
@@ -63,12 +63,6 @@ export const PROJECT_WORKFLOW_STEPS = [
     completionCriteria: ["当前章节 `script.md` 已保存", "用户点击完成本章并写入章节剧本版本"],
   },
   {
-    key: "project_characters",
-    label: "项目角色库",
-    scope: "project",
-    completionCriteria: ["主角和常驻角色已提取为项目级角色", "主角和常驻角色均确认四视图定稿图"],
-  },
-  {
     key: "story_structure",
     label: "剧情结构",
     scope: "chapter",
@@ -79,6 +73,12 @@ export const PROJECT_WORKFLOW_STEPS = [
     label: "分镜工作台",
     scope: "chapter",
     completionCriteria: ["当前章节分镜已生成并可编辑", "分镜可追溯到剧情节拍"],
+  },
+  {
+    key: "image_preflight",
+    label: "出图准备",
+    scope: "chapter",
+    completionCriteria: ["当前章节正式分镜已存在", "出镜角色已绑定项目角色库或标记为临时/背景角色", "候选图所需角色参考图已补齐"],
   },
   {
     key: "image_candidates",

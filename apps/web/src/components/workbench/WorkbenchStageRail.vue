@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { BookOpen, ChevronRight, Image, LayoutDashboard, LayoutTemplate, ListTree, Package, UsersRound } from "lucide-vue-next";
+import { BookOpen, CheckSquare, ChevronRight, Image, LayoutDashboard, LayoutTemplate, ListTree, Package } from "lucide-vue-next";
 import type { WorkbenchStage } from "@airoaming/shared";
 
 defineProps<{
@@ -44,7 +44,7 @@ function canSelectStage(stage: WorkbenchStage) {
   return stage.status === "done" || stage.status === "active";
 }
 
-const ICONS = [BookOpen, UsersRound, ListTree, LayoutTemplate, Image, LayoutDashboard, Package];
+const ICONS = [BookOpen, ListTree, LayoutTemplate, CheckSquare, Image, LayoutDashboard, Package];
 function getStageIcon(index: number) {
   return ICONS[index % ICONS.length];
 }

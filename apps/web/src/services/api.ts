@@ -5,7 +5,10 @@ import type {
   AppSettings,
   CompleteChapterRequest,
   CompleteChapterResponse,
+  ConfirmCharacterPreviewRequest,
+  ConfirmCharacterPreviewResponse,
   ConfirmCharacterReferenceRequest,
+  ConfirmChapterImagePreflightRequest,
   ConfirmChapterStoryStructureRequest,
   ConfirmChapterStoryboardRequest,
   CreateProjectRequest,
@@ -16,7 +19,6 @@ import type {
   ExtractProjectCharactersRequest,
   ExtractProjectCharactersResponse,
   GenerateCharacterReferenceRequest,
-  GenerateCharacterReferenceResponse,
   CreateGenerationTaskRequest,
   GenerationTaskItem,
   GetChapterResponse,
@@ -24,9 +26,13 @@ import type {
   ListChaptersResponse,
   ProjectCharactersResponse,
   ProjectListItem,
+  QueueCharacterReferenceResponse,
+  ResolveImagePreflightCharacterRequest,
+  ResolveImagePreflightCharacterResponse,
   ResetProjectScriptResponse,
   SaveChapterDraftRequest,
   SaveChapterDraftResponse,
+  SaveChapterImagePreflightResponse,
   SaveProjectCharacterResponse,
   SaveChapterStoryStructureResponse,
   SaveChapterStoryboardResponse,
@@ -207,6 +213,12 @@ export const api = {
   listProjectCharacters: (projectId: string) => request<ProjectCharactersResponse>(
     `/projects/${encodeURIComponent(projectId)}/characters`,
   ),
+  ensureProjectCharacterPreviewTasks: (projectId: string) => request<QueueCharacterReferenceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters/previews/ensure`,
+    {
+      method: "POST",
+    },
+  ),
   extractProjectCharacters: (projectId: string, input: ExtractProjectCharactersRequest) => request<ExtractProjectCharactersResponse>(
     `/projects/${encodeURIComponent(projectId)}/characters/extract`,
     {
@@ -229,8 +241,19 @@ export const api = {
     projectId: string,
     characterId: string,
     input: GenerateCharacterReferenceRequest,
-  ) => request<GenerateCharacterReferenceResponse>(
+  ) => request<QueueCharacterReferenceResponse>(
     `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/reference`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  confirmCharacterPreview: (
+    projectId: string,
+    characterId: string,
+    input: ConfirmCharacterPreviewRequest,
+  ) => request<ConfirmCharacterPreviewResponse>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/preview/confirm`,
     {
       method: "POST",
       body: JSON.stringify(input),
@@ -245,6 +268,16 @@ export const api = {
     {
       method: "POST",
       body: JSON.stringify(input),
+    },
+  ),
+  deleteCharacterReference: (
+    projectId: string,
+    characterId: string,
+    assetId: string,
+  ) => request<SaveProjectCharacterResponse & { deletedAssetId: string }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/references/${encodeURIComponent(assetId)}`,
+    {
+      method: "DELETE",
     },
   ),
   projectAssetFileUrl: (projectId: string, assetId: string) =>
@@ -291,6 +324,28 @@ export const api = {
     input: ConfirmChapterStoryboardRequest,
   ) => request<SaveChapterStoryboardResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  confirmChapterImagePreflight: (
+    projectId: string,
+    chapterId: string,
+    input: ConfirmChapterImagePreflightRequest,
+  ) => request<SaveChapterImagePreflightResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/image-preflight/confirm`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  resolveImagePreflightCharacter: (
+    projectId: string,
+    chapterId: string,
+    input: ResolveImagePreflightCharacterRequest,
+  ) => request<ResolveImagePreflightCharacterResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/image-preflight/characters/resolve`,
     {
       method: "POST",
       body: JSON.stringify(input),

@@ -134,6 +134,24 @@
       </section>
 
       <section class="structure-section">
+        <CharacterImageList
+          compact
+          :characters="structureProjectCharacters"
+          :loading="loading"
+          :snapshot="snapshot"
+          :tasks="tasks"
+          subtitle="本章角色图"
+          title="角色图片"
+          empty-title="本章角色还没有进入角色库"
+          empty-text="确认剧情结构后，本章角色会自动进入角色库并排队生成角色图。"
+          @regenerate-reference="$emit('regenerateCharacterReference', $event)"
+          @delete-reference="$emit('deleteCharacterReference', $event)"
+          @confirm-preview="$emit('confirmCharacterPreview', $event)"
+          @confirm-reference="$emit('confirmCharacterReference', $event)"
+        />
+      </section>
+
+      <section class="structure-section">
         <div class="section-heading">
           <span>本章结构卡</span>
           <h2>场景</h2>
@@ -181,7 +199,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, ref, type PropType } from "vue";
 import { CheckCircle2, FileText, Lock, PencilLine, RefreshCw } from "lucide-vue-next";
-import type { ChapterListItem, ChapterStoryStructure, DialogueThread, StoryStructureJson, WorkbenchSnapshot } from "@airoaming/shared";
+import type { ChapterListItem, ChapterStoryStructure, DialogueThread, GenerationTaskItem, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import CharacterImageList from "./CharacterImageList.vue";
 
 const EditableBlock = defineComponent({
   props: {
@@ -230,6 +249,7 @@ const EditableBlock = defineComponent({
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
+  tasks: GenerationTaskItem[];
   dialogueThread: DialogueThread | null;
   loading: boolean;
   dialogueSending: boolean;
@@ -240,6 +260,10 @@ const emit = defineEmits<{
   generateStructure: [payload: { chapterId: string; regenerate: boolean }];
   confirmStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
+  regenerateCharacterReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
+  deleteCharacterReference: [payload: { characterId: string; assetId: string }];
+  confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
+  confirmCharacterReference: [payload: { characterId: string; assetId: string }];
 }>();
 
 const editingKey = ref<string | null>(null);
@@ -275,6 +299,17 @@ const structureJson = computed(() => activeStructure.value?.structureJson ?? cre
 const hasStructure = computed(() => Boolean(pendingStructure.value || formalStructure.value));
 const canGenerate = computed(() => Boolean(currentChapter.value && currentChapter.value.status !== "draft"));
 const canEdit = computed(() => activeStructure.value?.status === "structured");
+const projectCharacterByName = computed(() => new Map(props.snapshot.characters.map((character) => [normalizeCharacterKey(character.name), character])));
+const structureProjectCharacters = computed(() => {
+  const matched = new Map<string, WorkbenchSnapshot["characters"][number]>();
+  structureJson.value.characters.forEach((character) => {
+    const projectCharacter = projectCharacterByName.value.get(normalizeCharacterKey(character.name));
+    if (projectCharacter) {
+      matched.set(projectCharacter.id, projectCharacter);
+    }
+  });
+  return [...matched.values()];
+});
 
 function selectChapter(event: Event) {
   const chapterId = (event.target as HTMLSelectElement).value;
@@ -336,6 +371,10 @@ function getBeatSceneName(sceneId: string | null) {
   }
 
   return structureJson.value.scenes.find((scene) => scene.id === sceneId)?.name ?? "未关联场景";
+}
+
+function normalizeCharacterKey(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function getCurrentStatusLabel() {

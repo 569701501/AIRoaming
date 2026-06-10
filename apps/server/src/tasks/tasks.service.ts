@@ -8,10 +8,14 @@ import type {
 import { CHAPTER_SCOPED_GENERATION_TASK_TYPES } from "@airoaming/shared";
 
 const chapterScopedTaskTypes = new Set<string>(CHAPTER_SCOPED_GENERATION_TASK_TYPES);
+type CreateGenerationTaskGuard = (
+  input: CreateGenerationTaskRequest,
+) => CreateGenerationTaskRequest | void | Promise<CreateGenerationTaskRequest | void>;
 
 @Injectable()
 export class TasksService {
   private readonly tasks = new Map<string, GenerationTaskItem>();
+  private createGuard: CreateGenerationTaskGuard | null = null;
 
   list(): GenerationTaskItem[] {
     return [...this.tasks.values()].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
@@ -25,7 +29,70 @@ export class TasksService {
     return task;
   }
 
-  create(input: CreateGenerationTaskRequest): GenerationTaskItem {
+  peek(taskId: string): GenerationTaskItem | null {
+    return this.tasks.get(taskId) ?? null;
+  }
+
+  setCreateGuard(guard: CreateGenerationTaskGuard): void {
+    this.createGuard = guard;
+  }
+
+  async create(input: CreateGenerationTaskRequest): Promise<GenerationTaskItem> {
+    const guardedInput = await this.applyCreateGuard(input);
+    const task = this.createQueuedTask(guardedInput);
+    this.runMockTask(task.id);
+    return task;
+  }
+
+  createControlled(input: CreateGenerationTaskRequest): GenerationTaskItem {
+    return this.createQueuedTask(input);
+  }
+
+  start(taskId: string, phase = "running"): GenerationTaskItem {
+    const current = this.get(taskId);
+    return this.update(taskId, {
+      status: "running",
+      phase,
+      progressPercent: Math.max(current.progressPercent ?? 0, 10),
+      attempt: current.attempt + 1,
+      startedAt: current.startedAt ?? new Date().toISOString(),
+    });
+  }
+
+  progress(taskId: string, progressPercent: number, phase = "running"): GenerationTaskItem {
+    return this.update(taskId, {
+      status: "running",
+      phase,
+      progressPercent,
+    });
+  }
+
+  succeed(taskId: string, output: Record<string, unknown>): GenerationTaskItem {
+    return this.update(taskId, {
+      status: "succeeded",
+      phase: "completed",
+      progressPercent: 100,
+      output,
+      error: null,
+      finishedAt: new Date().toISOString(),
+    });
+  }
+
+  fail(taskId: string, code: string, message: string, retryable = true, details?: unknown): GenerationTaskItem {
+    return this.update(taskId, {
+      status: "failed",
+      phase: "failed",
+      error: {
+        code,
+        message,
+        retryable,
+        details,
+      },
+      finishedAt: new Date().toISOString(),
+    });
+  }
+
+  private createQueuedTask(input: CreateGenerationTaskRequest): GenerationTaskItem {
     const taskInput = this.normalizeTaskInput(input);
     const now = new Date().toISOString();
     const task: GenerationTaskItem = {
@@ -48,8 +115,15 @@ export class TasksService {
     };
 
     this.tasks.set(task.id, task);
-    this.runMockTask(task.id);
     return task;
+  }
+
+  private async applyCreateGuard(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest> {
+    if (!this.createGuard) {
+      return input;
+    }
+
+    return (await this.createGuard(input)) ?? input;
   }
 
   private normalizeTaskInput(input: CreateGenerationTaskRequest): Record<string, unknown> {

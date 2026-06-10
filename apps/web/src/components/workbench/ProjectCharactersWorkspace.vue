@@ -3,17 +3,17 @@
     <header class="characters-header">
       <div>
         <span>项目角色库</span>
-        <h2>{{ ready ? "角色定稿已就绪" : "确认主角与常驻角色" }}</h2>
+        <h2>{{ activeView === "context" ? "本章相关角色图" : "角色列表与角色图" }}</h2>
       </div>
       <button class="primary-action" type="button" :disabled="loading" @click="$emit('extractCharacters')">
         <UsersRound :size="15" />
-        <span>{{ characters.length > 0 ? "重新提取角色" : "提取项目角色" }}</span>
+        <span>{{ characters.length > 0 ? "重新整理角色列表" : "提取项目角色" }}</span>
       </button>
     </header>
 
     <div class="characters-status">
       <div>
-        <span>必需角色</span>
+        <span>需定稿角色</span>
         <strong>{{ finalizedRequiredCount }}/{{ requiredCount }}</strong>
       </div>
       <div>
@@ -21,191 +21,211 @@
         <strong>{{ characters.length }}</strong>
       </div>
       <div>
-        <span>当前门槛</span>
-        <strong>{{ ready ? "已通过" : "待四视图确认" }}</strong>
+        <span>角色库状态</span>
+        <strong>{{ ready ? "已就绪" : "待确认" }}</strong>
       </div>
     </div>
+
+    <div v-if="characters.length > 0" class="characters-view-switch" role="tablist" aria-label="角色展示范围">
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="activeView === 'context'"
+        :class="{ 'is-active': activeView === 'context' }"
+        @click="activeView = 'context'"
+      >
+        <span>当前相关</span>
+        <strong>{{ contextCharacters.length }}</strong>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="activeView === 'all'"
+        :class="{ 'is-active': activeView === 'all' }"
+        @click="activeView = 'all'"
+      >
+        <span>全部角色</span>
+        <strong>{{ characters.length }}</strong>
+      </button>
+    </div>
+
+    <section v-if="activeView === 'context' && unresolvedCharacterNames.length > 0" class="character-context-alert">
+      <AlertCircle :size="16" />
+      <div>
+        <strong>当前章节还有未纳入角色库的出镜角色</strong>
+        <span>{{ unresolvedCharacterNames.join("、") }}</span>
+      </div>
+    </section>
 
     <div v-if="characters.length === 0" class="empty-state">
       <UserRound :size="24" />
       <h3>还没有项目角色</h3>
-      <p>先从已确认剧本大纲或当前章节里提取角色，再为主角和常驻角色生成四视图定稿。</p>
+      <p>先从剧本大纲或当前章节里提取角色，系统会自动为角色生成效果图。</p>
     </div>
 
-    <div v-else class="character-list">
-      <article v-for="character in characters" :key="character.id" class="character-card">
-        <div class="character-title-row">
-          <div>
-            <span>{{ getLevelLabel(character.level) }}</span>
-            <h3>{{ character.name }}</h3>
-          </div>
-          <span class="status-pill" :class="`is-${character.status}`">{{ getStatusLabel(character.status) }}</span>
+    <div v-else class="characters-scroll">
+      <section class="character-summary">
+        <div class="section-title">
+          <UsersRound :size="16" />
+          <h3>角色描述</h3>
         </div>
+        <ul>
+          <li v-for="character in displayedCharacters" :key="`summary-${character.id}`">
+            <strong>{{ character.name }}：</strong>
+            <span>{{ getCharacterDescription(character) }}</span>
+          </li>
+        </ul>
+      </section>
 
-        <div class="character-edit-grid">
-          <label>
-            <span>角色名</span>
-            <input v-model.trim="forms[character.id].name" :disabled="isLocked(character)" />
-          </label>
-          <label>
-            <span>层级</span>
-            <select v-model="forms[character.id].level" :disabled="isLocked(character)">
-              <option value="lead">主角</option>
-              <option value="recurring">常驻角色</option>
-              <option value="chapter">本章重要</option>
-              <option value="extra">临时/背景</option>
-            </select>
-          </label>
-          <label>
-            <span>职能</span>
-            <input v-model.trim="forms[character.id].role" :disabled="isLocked(character)" />
-          </label>
-          <label class="is-wide">
-            <span>外貌设定</span>
-            <textarea v-model.trim="forms[character.id].appearance" rows="3" :disabled="isLocked(character)"></textarea>
-          </label>
-          <label class="is-wide">
-            <span>性格气质</span>
-            <textarea v-model.trim="forms[character.id].personality" rows="2" :disabled="isLocked(character)"></textarea>
-          </label>
-          <label class="is-wide">
-            <span>出图提示片段</span>
-            <textarea v-model.trim="forms[character.id].promptFragment" rows="2" :disabled="isLocked(character)"></textarea>
-          </label>
-        </div>
-
-        <div class="character-actions">
-          <button class="secondary-action" type="button" :disabled="loading || isLocked(character)" @click="saveCharacter(character)">
-            <Save :size="14" />
-            <span>保存设定</span>
-          </button>
-          <button
-            v-if="character.primaryReferenceKind !== 'none'"
-            class="primary-action"
-            type="button"
-            :disabled="loading || isLocked(character)"
-            @click="$emit('generateReference', { characterId: character.id, referenceKind: character.primaryReferenceKind })"
-          >
-            <ImagePlus :size="14" />
-            <span>{{ character.primaryReferenceKind === "turnaround_4view" ? "生成四视图" : "生成参考图" }}</span>
-          </button>
-        </div>
-
-        <div v-if="getReferenceAssets(character).length > 0" class="reference-strip">
-          <figure v-for="asset in getReferenceAssets(character)" :key="asset.id" class="reference-item">
-            <img :src="assetUrl(asset.id)" :alt="asset.name" />
-            <figcaption>
-              <span>{{ asset.name }}</span>
-              <button
-                type="button"
-                :disabled="loading || character.primaryReferenceAssetId === asset.id"
-                @click="$emit('confirmReference', { characterId: character.id, assetId: asset.id })"
-              >
-                <CheckCircle2 :size="13" />
-                <span>{{ character.primaryReferenceAssetId === asset.id ? "已定稿" : "确认定稿" }}</span>
-              </button>
-            </figcaption>
-          </figure>
-        </div>
-      </article>
+      <CharacterImageList
+        :characters="displayedCharacters"
+        :loading="loading"
+        :snapshot="snapshot"
+        :tasks="tasks"
+        subtitle="角色图"
+        title="图片列表"
+        empty-title="当前没有相关角色"
+        empty-text="确认剧情结构后会显示本章涉及的角色。"
+        @regenerate-reference="$emit('regenerateReference', $event)"
+        @delete-reference="$emit('deleteReference', $event)"
+        @confirm-preview="$emit('confirmPreview', $event)"
+        @confirm-reference="$emit('confirmReference', $event)"
+      />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
-import { CheckCircle2, ImagePlus, Save, UserRound, UsersRound } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { AlertCircle, UserRound, UsersRound } from "lucide-vue-next";
 import type {
-  GenerateCharacterReferenceRequest,
+  GenerationTaskItem,
   ProjectCharacter,
-  ProjectCharacterLevel,
   UpdateProjectCharacterRequest,
-  WorkbenchAsset,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
-import { api } from "../../services/api";
+import CharacterImageList from "./CharacterImageList.vue";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
+  tasks: GenerationTaskItem[];
   loading: boolean;
+  initialView?: "context" | "all";
 }>();
 
 const emit = defineEmits<{
   extractCharacters: [];
-  updateCharacter: [payload: { characterId: string; input: UpdateProjectCharacterRequest }];
-  generateReference: [payload: { characterId: string; referenceKind: GenerateCharacterReferenceRequest["referenceKind"] }];
+  ensurePreviews: [];
+  regenerateReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
+  deleteReference: [payload: { characterId: string; assetId: string }];
+  confirmPreview: [payload: { characterId: string; assetId: string }];
   confirmReference: [payload: { characterId: string; assetId: string }];
 }>();
 
-type CharacterForm = Required<Pick<UpdateProjectCharacterRequest, "name" | "role" | "level" | "appearance" | "personality" | "promptFragment">>;
+const ensuredSignature = ref("");
+const activeView = ref<"context" | "all">(props.initialView ?? "all");
 
-const forms = reactive<Record<string, CharacterForm>>({});
 const characters = computed(() => props.snapshot.characters ?? []);
-const assets = computed(() => props.snapshot.assets ?? []);
 const requiredCharacters = computed(() => characters.value.filter((character) => character.level === "lead" || character.level === "recurring"));
 const requiredCount = computed(() => requiredCharacters.value.length);
 const finalizedRequiredCount = computed(() => requiredCharacters.value.filter((character) =>
   (character.status === "finalized" || character.status === "in_use")
-  && character.primaryReferenceAssetId
-  && character.primaryReferenceKind === "turnaround_4view",
+  && Boolean(character.primaryReferenceAssetId)
+  && character.primaryReferenceKind === "final_reference",
 ).length);
 const ready = computed(() => requiredCount.value > 0 && finalizedRequiredCount.value === requiredCount.value);
+const currentChapterId = computed(() =>
+  props.snapshot.currentChapter?.id
+  ?? props.snapshot.story.chapterId
+  ?? props.snapshot.storyStructure?.chapterId
+  ?? props.snapshot.storyboard?.chapterId
+  ?? null,
+);
+const characterById = computed(() => new Map(characters.value.map((character) => [character.id, character])));
+const characterByName = computed(() => new Map(characters.value.map((character) => [normalizeCharacterKey(character.name), character])));
+const currentCharacterTokens = computed(() => {
+  const tokens: string[] = [];
+  const chapterId = currentChapterId.value;
+  const addToken = (value: string | null | undefined) => {
+    const normalized = value?.trim();
+    if (normalized) {
+      tokens.push(normalized);
+    }
+  };
+
+  props.snapshot.shots
+    .filter((shot) => !chapterId || !shot.chapterId || shot.chapterId === chapterId)
+    .forEach((shot) => {
+      shot.characterIds.forEach(addToken);
+      shot.characters.forEach(addToken);
+    });
+
+  const structure = props.snapshot.storyStructure?.structureJson;
+  if (structure && (!chapterId || structure.chapterId === chapterId)) {
+    structure.characters.forEach((character) => addToken(character.name));
+    structure.beats.forEach((beat) => beat.characters.forEach(addToken));
+  }
+
+  return [...new Set(tokens)];
+});
+const contextCharacters = computed(() => {
+  const matched = new Map<string, ProjectCharacter>();
+  currentCharacterTokens.value.forEach((token) => {
+    const character = characterById.value.get(token) ?? characterByName.value.get(normalizeCharacterKey(token));
+    if (character) {
+      matched.set(character.id, character);
+    }
+  });
+
+  if (matched.size > 0) {
+    return [...matched.values()];
+  }
+  if (requiredCharacters.value.length > 0) {
+    return requiredCharacters.value;
+  }
+  return characters.value;
+});
+const displayedCharacters = computed(() => activeView.value === "context" ? contextCharacters.value : characters.value);
+const unresolvedCharacterNames = computed(() => currentCharacterTokens.value.filter((token) =>
+  !characterById.value.has(token)
+  && !characterByName.value.has(normalizeCharacterKey(token))
+  && !looksLikeInternalId(token),
+));
 
 watch(
-  characters,
-  (items) => {
-    for (const character of items) {
-      forms[character.id] = {
-        name: character.name,
-        role: character.role,
-        level: character.level,
-        appearance: character.appearance,
-        personality: character.personality,
-        promptFragment: character.promptFragment,
-      };
-    }
+  () => props.initialView,
+  (initialView) => {
+    activeView.value = initialView ?? "all";
   },
   { immediate: true },
 );
 
-function saveCharacter(character: ProjectCharacter) {
-  emit("updateCharacter", {
-    characterId: character.id,
-    input: forms[character.id],
-  });
+watch(
+  () => characters.value.map((character) => `${character.id}:${character.referenceAssetIds.join(",")}`).join("|"),
+  (signature) => {
+    if (!signature || signature === ensuredSignature.value) {
+      return;
+    }
+    ensuredSignature.value = signature;
+    emit("ensurePreviews");
+  },
+  { immediate: true },
+);
+
+function normalizeCharacterKey(value: string) {
+  return value.trim().toLowerCase();
 }
 
-function getReferenceAssets(character: ProjectCharacter): WorkbenchAsset[] {
-  const ids = new Set(character.referenceAssetIds);
-  return assets.value.filter((asset) => ids.has(asset.id));
+function looksLikeInternalId(value: string) {
+  return /^[a-z]+_[a-z0-9_-]+$/i.test(value) || /^[0-9a-f-]{16,}$/i.test(value);
 }
 
-function assetUrl(assetId: string) {
-  return api.projectAssetFileUrl(props.snapshot.project.id, assetId);
-}
-
-function isLocked(character: ProjectCharacter) {
-  return character.status === "in_use";
-}
-
-function getLevelLabel(level: ProjectCharacterLevel) {
-  const labels: Record<ProjectCharacterLevel, string> = {
-    lead: "主角",
-    recurring: "常驻角色",
-    chapter: "本章重要",
-    extra: "临时/背景",
-  };
-  return labels[level];
-}
-
-function getStatusLabel(status: ProjectCharacter["status"]) {
-  const labels: Record<ProjectCharacter["status"], string> = {
-    draft: "草稿",
-    needs_reference: "待定稿",
-    finalized: "已定稿",
-    in_use: "已使用",
-  };
-  return labels[status];
+function getCharacterDescription(character: ProjectCharacter) {
+  const description = [character.role, character.appearance, character.personality]
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join("，");
+  return description || character.promptFragment || "暂无角色描述";
 }
 </script>
 
@@ -220,7 +240,9 @@ function getStatusLabel(status: ProjectCharacter["status"]) {
 
 .characters-header,
 .characters-status,
-.character-card,
+.characters-view-switch,
+.character-context-alert,
+.character-summary,
 .empty-state {
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
@@ -236,9 +258,7 @@ function getStatusLabel(status: ProjectCharacter["status"]) {
 }
 
 .characters-header span,
-.characters-status span,
-.character-title-row span,
-.character-edit-grid label > span {
+.characters-status span {
   color: #8df0dc;
   font-size: 12px;
   font-weight: 900;
@@ -246,7 +266,7 @@ function getStatusLabel(status: ProjectCharacter["status"]) {
 
 .characters-header h2,
 .empty-state h3,
-.character-title-row h3 {
+.character-summary h3 {
   margin: 0;
   color: #f8fbff;
 }
@@ -275,210 +295,119 @@ function getStatusLabel(status: ProjectCharacter["status"]) {
   font-size: 18px;
 }
 
-.empty-state {
-  display: grid;
-  place-items: center;
+.characters-view-switch {
+  display: flex;
   gap: 8px;
-  min-height: 320px;
-  padding: 24px;
-  color: #95a3c2;
-  text-align: center;
+  padding: 6px;
 }
 
-.empty-state svg {
-  color: #a78bfa;
+.characters-view-switch button {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  padding: 0 12px;
+  font-weight: 900;
 }
 
-.empty-state p {
-  max-width: 480px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
+.characters-view-switch button.is-active {
+  border-color: rgba(139, 92, 246, 0.26);
+  background: rgba(139, 92, 246, 0.12);
+  color: #f8fbff;
 }
 
-.character-list {
+.character-context-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(69, 45, 9, 0.28);
+  color: #fde68a;
+  padding: 12px 14px;
+}
+
+.character-context-alert div {
   display: grid;
+  gap: 4px;
+}
+
+.character-context-alert span {
+  color: #fcd34d;
+  font-size: 12px;
+}
+
+.characters-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-height: 0;
-  gap: 12px;
-  overflow-y: auto;
-  padding-right: 4px;
+  overflow: auto;
+  padding-right: 6px;
 }
 
-.character-card {
+.character-summary {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding: 14px;
 }
 
-.character-title-row,
-.character-actions {
+.section-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.character-title-row h3 {
-  margin-top: 3px;
-  font-size: 17px;
-}
-
-.status-pill {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.1);
-  color: #cbd5e1;
-  padding: 4px 9px;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.status-pill.is-finalized,
-.status-pill.is-in_use {
-  border-color: rgba(52, 211, 153, 0.28);
-  background: rgba(52, 211, 153, 0.1);
+  gap: 8px;
   color: #8df0dc;
 }
 
-.status-pill.is-needs_reference {
-  border-color: rgba(245, 158, 11, 0.3);
-  background: rgba(245, 158, 11, 0.1);
-  color: #facc15;
-}
-
-.character-edit-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.character-edit-grid label {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.character-edit-grid .is-wide {
-  grid-column: 1 / -1;
-}
-
-.character-edit-grid input,
-.character-edit-grid select,
-.character-edit-grid textarea {
-  width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 8px;
-  background: rgba(7, 12, 24, 0.72);
-  color: #f8fbff;
-  padding: 9px 10px;
-  font: inherit;
-  font-size: 13px;
-}
-
-.character-edit-grid textarea {
-  resize: vertical;
-  line-height: 1.55;
-}
-
-.character-actions {
-  justify-content: flex-end;
-}
-
-.primary-action,
-.secondary-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 34px;
-  border-radius: 8px;
-  padding: 0 12px;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.primary-action {
-  border: 1px solid rgba(34, 199, 169, 0.34);
-  background: linear-gradient(135deg, #22c7a9, #745fff);
-  color: #ffffff;
-}
-
-.secondary-action {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.72);
-  color: #d8e0f0;
-}
-
-.primary-action:disabled,
-.secondary-action:disabled,
-.reference-item button:disabled {
-  cursor: not-allowed;
-  opacity: 0.56;
-}
-
-.reference-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-.reference-item {
+.character-summary ul {
   display: grid;
   gap: 8px;
   margin: 0;
-  overflow: hidden;
-}
-
-.reference-item img {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 8px;
-  background: rgba(7, 12, 24, 0.72);
-  object-fit: contain;
-}
-
-.reference-item figcaption {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  padding-left: 18px;
   color: #cbd5e1;
-  font-size: 12px;
+  line-height: 1.75;
 }
 
-.reference-item figcaption > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.character-summary strong {
+  color: #f8fbff;
 }
 
-.reference-item button {
+.empty-state {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  min-height: 260px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 24px;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+.primary-action {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 30px;
-  border: 1px solid rgba(34, 199, 169, 0.24);
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid rgba(34, 199, 169, 0.28);
   border-radius: 8px;
   background: rgba(34, 199, 169, 0.1);
   color: #8df0dc;
-  padding: 0 9px;
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 900;
 }
 
-@media (max-width: 900px) {
-  .characters-status,
-  .character-edit-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .characters-header,
-  .character-title-row,
-  .character-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 </style>

@@ -38,7 +38,7 @@
             </div>
             <div class="chapter-next-buttons">
               <button class="primary-next" type="button" @click="enterCompletedChapterStructure">
-                进入项目角色库
+                {{ completionPrimaryActionLabel }}
               </button>
               <button
                 v-if="activeCompletionPrompt.nextChapterId"
@@ -67,19 +67,27 @@
         :dialogue-thread="dialogueThread"
         :loading="loading"
         :snapshot="snapshot"
+        :tasks="tasks"
         @select-chapter="$emit('selectChapter', $event)"
         @generate-structure="emitGenerateStructure"
         @confirm-structure="$emit('confirmStoryStructure', $event)"
         @update-structure="$emit('updateStoryStructure', $event)"
+        @regenerate-character-reference="$emit('regenerateCharacterReference', $event)"
+        @delete-character-reference="$emit('deleteCharacterReference', $event)"
+        @confirm-character-preview="$emit('confirmCharacterPreview', $event)"
+        @confirm-character-reference="$emit('confirmCharacterReference', $event)"
       />
 
       <ProjectCharactersWorkspace
         v-else-if="isCharactersStep"
         :loading="loading"
         :snapshot="snapshot"
+        :tasks="tasks"
         @extract-characters="$emit('extractCharacters')"
-        @update-character="$emit('updateProjectCharacter', $event)"
-        @generate-reference="$emit('generateCharacterReference', $event)"
+        @ensure-previews="$emit('ensureCharacterPreviews')"
+        @regenerate-reference="$emit('regenerateCharacterReference', $event)"
+        @delete-reference="$emit('deleteCharacterReference', $event)"
+        @confirm-preview="$emit('confirmCharacterPreview', $event)"
         @confirm-reference="$emit('confirmCharacterReference', $event)"
       />
 
@@ -96,6 +104,18 @@
         @save-pending-storyboard="$emit('savePendingStoryboard', $event)"
       />
 
+      <ImagePreflightWorkspace
+        v-else-if="isPreflightStep"
+        :loading="loading"
+        :snapshot="snapshot"
+        :tasks="tasks"
+        @select-chapter="$emit('selectChapter', $event)"
+        @open-characters="$emit('openCharacters')"
+        @confirm-preflight="$emit('confirmImagePreflight', $event)"
+        @resolve-character="$emit('resolveImagePreflightCharacter', $event)"
+        @go-candidates="$emit('selectStep', 'image_candidates')"
+      />
+
       <div v-else class="step-placeholder">
         <span>STEP {{ currentStageIndex + 1 }}</span>
         <h2>{{ currentStageLabel }}</h2>
@@ -107,19 +127,21 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, ResolveImagePreflightCharacterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ProjectCharactersWorkspace from "./ProjectCharactersWorkspace.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
+import ImagePreflightWorkspace from "./ImagePreflightWorkspace.vue";
 import StoryboardWorkspace from "./StoryboardWorkspace.vue";
 import StoryStructureWorkspace from "./StoryStructureWorkspace.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
+  tasks: GenerationTaskItem[];
   loading: boolean;
   runningTasks: number;
   activeStepKey: string;
@@ -137,6 +159,7 @@ const scriptDraft = ref("");
 
 const emit = defineEmits<{
   back: [];
+  openCharacters: [];
   saveChapterDraft: [payload: { chapterId: string; input: SaveChapterDraftRequest }];
   completeChapter: [payload: { chapterId: string; input: CompleteChapterRequest }];
   resetScript: [];
@@ -146,14 +169,20 @@ const emit = defineEmits<{
   selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [input: SendDialogueMessageRequest];
   extractCharacters: [];
+  ensureCharacterPreviews: [];
   updateProjectCharacter: [payload: { characterId: string; input: UpdateProjectCharacterRequest }];
   generateCharacterReference: [payload: { characterId: string; referenceKind: GenerateCharacterReferenceRequest["referenceKind"] }];
+  regenerateCharacterReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
+  deleteCharacterReference: [payload: { characterId: string; assetId: string }];
+  confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
   confirmStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   confirmStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
+  confirmImagePreflight: [chapterId: string];
+  resolveImagePreflightCharacter: [payload: { chapterId: string; input: ResolveImagePreflightCharacterRequest }];
 }>();
 
 const currentStageIndex = computed(() => {
@@ -162,6 +191,9 @@ const currentStageIndex = computed(() => {
 });
 
 const currentStageLabel = computed(() => {
+  if (props.activeStepKey === "project_characters") {
+    return "项目角色库";
+  }
   return props.snapshot.stages[currentStageIndex.value]?.label || "未知阶段";
 });
 
@@ -169,8 +201,10 @@ const isScriptStep = computed(() => props.activeStepKey === "project_story");
 const isCharactersStep = computed(() => props.activeStepKey === "project_characters");
 const isStructureStep = computed(() => props.activeStepKey === "story_structure");
 const isStoryboardStep = computed(() => props.activeStepKey === "storyboard");
+const isPreflightStep = computed(() => props.activeStepKey === "image_preflight");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
+const completionPrimaryActionLabel = computed(() => "进入本章剧情结构");
 const activeCompletionPrompt = computed(() => {
   if (!props.chapterCompletionPrompt || props.chapterCompletionPrompt.completedChapterId !== currentChapterId.value) {
     return null;
@@ -249,7 +283,7 @@ function emitGenerateStoryboard(payload: { chapterId: string; regenerate: boolea
 
 function enterCompletedChapterStructure() {
   emit("dismissCompletionPrompt");
-  emit("selectStep", "project_characters");
+  emit("selectStep", "story_structure");
 }
 
 function continueNextChapter() {

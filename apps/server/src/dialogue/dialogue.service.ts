@@ -93,6 +93,7 @@ const STEP_LABELS: Record<string, string> = {
   project_characters: "项目角色库",
   story_structure: "剧情结构",
   storyboard: "分镜工作台",
+  image_preflight: "出图准备",
   image_candidates: "候选图工作台",
   layout_export: "排版导出",
   asset_package: "素材包",
@@ -110,7 +111,9 @@ export class DialogueService {
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
-  ) {}
+  ) {
+    this.projectsService.onProjectDeleted((projectId) => this.deleteProjectRuntimeState(projectId));
+  }
 
   async getProjectThread(projectId: string, stepKey: string, chapterId?: string | null): Promise<DialogueThread> {
     await this.projectsService.getWorkbenchSnapshot(projectId, chapterId ?? undefined);
@@ -408,6 +411,49 @@ export class DialogueService {
     }
   }
 
+  private deleteProjectRuntimeState(projectId: string): number {
+    let deletedCount = 0;
+    const deletedThreadIds = new Set<string>();
+
+    for (const [threadKey, thread] of this.threads.entries()) {
+      if (thread.projectId !== projectId) {
+        continue;
+      }
+
+      deletedThreadIds.add(thread.id);
+      for (const message of thread.messages) {
+        this.activeStreamingAssistantMessageIds.delete(message.id);
+      }
+      this.threads.delete(threadKey);
+      deletedCount += 1;
+    }
+
+    for (const threadId of deletedThreadIds) {
+      if (this.pendingScriptImports.delete(threadId)) {
+        deletedCount += 1;
+      }
+    }
+
+    deletedCount += this.deleteMapEntriesByProjectPrefix(this.pendingInspirationSeeds, projectId);
+    deletedCount += this.deleteMapEntriesByProjectPrefix(this.pendingScriptOutlines, projectId);
+    deletedCount += this.deleteMapEntriesByProjectPrefix(this.pendingStoryStructures, projectId);
+    return deletedCount;
+  }
+
+  private deleteMapEntriesByProjectPrefix<T>(map: Map<string, T>, projectId: string): number {
+    let deletedCount = 0;
+    const projectPrefix = `${projectId}:`;
+    for (const key of map.keys()) {
+      if (!key.startsWith(projectPrefix)) {
+        continue;
+      }
+
+      map.delete(key);
+      deletedCount += 1;
+    }
+    return deletedCount;
+  }
+
   private toThreadDto(thread: LocalDialogueThread): DialogueThread {
     return {
       id: thread.id,
@@ -609,8 +655,8 @@ export class DialogueService {
       tool: "generate_project_characters",
       status: "succeeded",
       summary: [
-        `已提取 ${result.characters.length} 个项目角色，其中 ${requiredCount} 个需要四视图定稿。`,
-        "右侧项目角色库可以校正角色层级和设定；主角/常驻角色生成并确认四视图后，才能进入剧情结构。",
+        `已提取 ${result.characters.length} 个项目角色，其中 ${requiredCount} 个需要确认角色定稿图。`,
+        "右侧项目角色库会自动生成角色预览图；主角/常驻角色确认预览并完成定稿后，会在出图准备阶段作为候选图生成的参考图。",
       ].join("\n"),
       chapters: turn.snapshot.chapters,
       currentChapterId: turn.snapshot.currentChapter?.id ?? null,
@@ -768,7 +814,7 @@ export class DialogueService {
       toolCallId: randomUUID(),
       tool: "confirm_storyboard",
       status: "succeeded",
-      summary: `已确认「${result.chapter.title}」的分镜，并写入 ${result.storyboard.storyboardPath}。现在可以进入候选图工作台。`,
+      summary: `已确认「${result.chapter.title}」的分镜，并写入 ${result.storyboard.storyboardPath}。现在可以进入出图准备，检查角色参考图和镜头绑定。`,
       chapters: result.chapters,
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,
@@ -1379,7 +1425,7 @@ export class DialogueService {
     }
 
     const content = input.content.trim();
-    return /(帮我|给我|想|找|生成|来点|有没有).{0,10}(灵感|点子|创意|方向|题材|故事种子)|没有灵感|没想法|不知道写什么/.test(content);
+    return /(帮我|给我|给点|给些|给几个|想|找|生成|来点|来几个|有没有).{0,10}(灵感|点子|创意|方向|题材|故事种子)|没有灵感|没想法|不知道写什么/.test(content);
   }
 
   private shouldGenerateStoryStructure(input: SendDialogueMessageRequest): boolean {
@@ -2549,6 +2595,7 @@ export class DialogueService {
       .join("\n");
     const scriptBoundary = input.stepKey === "project_story" ? this.buildScriptStageBoundaryContract() : "";
     const projectCharactersBoundary = input.stepKey === "project_characters" ? this.buildProjectCharactersBoundaryContract(input.snapshot) : "";
+    const imagePreflightBoundary = input.stepKey === "image_preflight" ? this.buildImagePreflightBoundaryContract(input.snapshot) : "";
 
     return [
       "你是 AI漫游的漫画创作助手，当前运行在项目工作区的左侧对话框。",
@@ -2557,6 +2604,7 @@ export class DialogueService {
       `当前章节：${chapterTitle}`,
       scriptBoundary,
       projectCharactersBoundary,
+      imagePreflightBoundary,
       "工作原则：",
       "1. 回复使用中文，优先围绕当前步骤、漫画创作目标和用户正在编辑的产物。",
       "2. 没有明确写入权限或受控工具时，只能给建议、分析、问题清单或候选方案。",
@@ -2588,9 +2636,22 @@ export class DialogueService {
       "目标：提取项目级主角、常驻角色和可选本章重要角色，生成可供后续漫画候选图复用的角色视觉基准。",
       "事实源：已确认剧本大纲、已完成章节剧本和右侧项目角色库。",
       "写入规则：普通聊天不能直接写文件；只有调用系统受控工具后，才可把角色草稿写入 `shared/characters.json`。",
-      "图片规则：主角和常驻角色必须确认一张四视图定稿图；本章重要角色可选单张正面参考；临时/背景角色不生成定稿图。",
+      "图片规则：所有角色进入角色库后都应自动生成正面半身预览图；主角和常驻角色确认预览后必须生成并确认角色定稿图；本章重要角色可按需补定稿图；临时/背景角色只保留预览图。",
       "禁区：不要声称 OpenCode 自己调用图片模型或写入本地文件；图片生成必须由 AI漫游后端受控接口执行。",
-      `当前必需四视图角色数：${requiredCharacters.length}`,
+      `当前必需定稿角色数：${requiredCharacters.length}`,
+    ].join("\n");
+  }
+
+  private buildImagePreflightBoundaryContract(snapshot: WorkbenchSnapshot): string {
+    return [
+      "出图准备阶段边界契约：",
+      "",
+      "目标：检查当前章节正式分镜能否进入候选图生成。",
+      "检查项：正式 storyboard.json、镜头角色绑定、项目角色库匹配、主角/常驻角色定稿图、本章重要角色参考图、正在运行的角色图任务。",
+      "角色库定位：项目角色库是项目级资产入口，不是线性主流程步骤；缺图或未绑定角色只阻塞候选图，不阻塞剧情结构或分镜。",
+      "写入规则：只有用户在出图准备页确认、且后端 image-preflight/confirm API 返回成功后，才能声称已写入 preflight.json；未确认时只能解释阻塞项和补齐建议。",
+      `当前正式分镜镜头数：${snapshot.shots.length}`,
+      `当前项目角色数：${snapshot.characters.length}`,
     ].join("\n");
   }
 

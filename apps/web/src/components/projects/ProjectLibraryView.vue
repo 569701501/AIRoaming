@@ -43,8 +43,8 @@
           :key="project.id"
           :active="project.id === activeProjectId"
           :project="project"
-          @delete="requestDeleteProject"
           @open="openProject"
+          @request-delete="requestDeleteProject"
         />
       </div>
 
@@ -69,12 +69,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import { ChevronDown, FolderPlus, LayoutGrid, List } from "lucide-vue-next";
 import type { CreateProjectRequest, ProjectListItem, ProjectStatus } from "@airoaming/shared";
 import CreateProjectModal from "./CreateProjectModal.vue";
+import DeleteProjectDialog from "./DeleteProjectDialog.vue";
 import ProjectCard from "./ProjectCard.vue";
 import ProjectCommandPanel from "./ProjectCommandPanel.vue";
 import { projectRoute } from "../../router";
@@ -100,6 +101,10 @@ const filteredProjects = computed(() => {
     const matchedStatus = selectedFilter.value === "all" || project.status === selectedFilter.value;
     return matchedStatus;
   });
+});
+
+onMounted(() => {
+  void refresh();
 });
 
 async function refresh() {
@@ -129,7 +134,7 @@ async function confirmDeleteProject() {
   }
 
   await workbench.deleteProject(project.id);
-  if (!workbench.error) {
+  if (!workbench.projects.some((item) => item.id === project.id)) {
     projectPendingDelete.value = null;
   }
 }

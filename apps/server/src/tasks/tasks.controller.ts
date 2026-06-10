@@ -18,8 +18,8 @@ export class TasksController {
   }
 
   @Post()
-  create(@Body() body: CreateGenerationTaskRequest) {
-    return ok({ task: this.tasksService.create(body) });
+  async create(@Body() body: CreateGenerationTaskRequest) {
+    return ok({ task: await this.tasksService.create(body) });
   }
 
   @Post(":taskId/cancel")

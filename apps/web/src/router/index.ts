@@ -5,6 +5,7 @@ export const projectStepRouteMap = {
   characters: "project_characters",
   structure: "story_structure",
   storyboard: "storyboard",
+  preflight: "image_preflight",
   candidates: "image_candidates",
   layout: "layout_export",
   assets: "asset_package",
@@ -79,7 +80,7 @@ export const router = createRouter({
       }),
     },
     {
-      path: "/projects/:projectId/:step(script|characters|structure|storyboard|candidates|layout|assets)",
+      path: "/projects/:projectId/:step(script|characters|structure|storyboard|preflight|candidates|layout|assets)",
       name: "project-step",
       component: RouteStub,
     },

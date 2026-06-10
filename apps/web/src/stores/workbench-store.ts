@@ -4,6 +4,7 @@ import {
   type AIRuntimeModelItem,
   type AIRuntimeModelSelection,
   type ChapterDetail,
+  type ChapterImagePreflight,
   type ChapterListItem,
   type ChapterStoryboard,
   type CompleteChapterResponse,
@@ -20,6 +21,7 @@ import {
   type ProjectListItem,
   type ProjectWorkflowStepKey,
   type ProjectWorkflowStepStatus,
+  type ResolveImagePreflightCharacterRequest,
   type SaveChapterDraftRequest,
   type UpdateProjectCharacterRequest,
   type SendDialogueMessageRequest,
@@ -78,22 +80,83 @@ function isProjectCharacterLibraryReady(characters: ProjectCharacter[]): boolean
   return required.length > 0 && required.every((character) =>
     (character.status === "finalized" || character.status === "in_use")
     && Boolean(character.primaryReferenceAssetId)
-    && character.primaryReferenceKind === "turnaround_4view",
+    && character.primaryReferenceKind === "final_reference",
   );
 }
 
-function resolveWorkflowCurrentStepKey(chapter: ChapterDetail, charactersReady: boolean): ProjectWorkflowStepKey {
-  if (chapter.status !== "draft" && !charactersReady) {
-    return "project_characters";
+function isChapterImagePreflightReady(snapshot: WorkbenchSnapshot): boolean {
+  const imagePreflight = snapshot.imagePreflight;
+  const storyboard = snapshot.storyboard;
+  if (!imagePreflight?.preflightJson.ready || !storyboard) {
+    return false;
+  }
+  if (
+    imagePreflight.sourceStoryboardId !== storyboard.id
+    || imagePreflight.sourceStoryboardUpdatedAt !== storyboard.updatedAt
+  ) {
+    return false;
   }
 
+  const shots = snapshot.shots ?? [];
+  if (shots.length === 0) {
+    return false;
+  }
+
+  const characterById = new Map(snapshot.characters.map((character) => [character.id, character]));
+  const characterByName = new Map(snapshot.characters.map((character) => [character.name.trim().toLowerCase(), character]));
+  const appearanceCounts = new Map<string, number>();
+
+  for (const shot of shots) {
+    const seenInShot = new Set<string>();
+    for (const token of getShotCharacterTokens(shot)) {
+      const character = characterById.get(token) ?? characterByName.get(token.toLowerCase());
+      if (!character) {
+        return false;
+      }
+      seenInShot.add(character.id);
+    }
+    for (const characterId of seenInShot) {
+      appearanceCounts.set(characterId, (appearanceCounts.get(characterId) ?? 0) + 1);
+    }
+  }
+
+  for (const [characterId, count] of appearanceCounts) {
+    const character = characterById.get(characterId);
+    if (!character) {
+      return false;
+    }
+    if (isRequiredPreflightReferenceCharacter(character, count) && !hasFinalReference(character)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getShotCharacterTokens(shot: WorkbenchSnapshot["shots"][number]) {
+  return [...new Set(shot.characterIds
+    .map((item) => item.trim())
+    .filter((item) => item && !/^(无|无人|旁白|环境|背景)$/i.test(item)))];
+}
+
+function hasFinalReference(character: ProjectCharacter) {
+  return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
+}
+
+function isRequiredPreflightReferenceCharacter(character: ProjectCharacter, appearanceCount: number) {
+  return character.level === "lead"
+    || character.level === "recurring"
+    || (character.level === "chapter" && appearanceCount > 1);
+}
+
+function resolveWorkflowCurrentStepKey(chapter: ChapterDetail, snapshot: WorkbenchSnapshot): ProjectWorkflowStepKey {
   switch (chapter.status) {
     case "script_done":
       return "story_structure";
     case "structured":
       return "storyboard";
     case "storyboard_done":
-      return "image_candidates";
+      return isChapterImagePreflightReady(snapshot) ? "image_candidates" : "image_preflight";
     case "images_done":
       return "layout_export";
     case "layout_done":
@@ -109,7 +172,6 @@ function resolveWorkflowStepStatus(
   stepKey: ProjectWorkflowStepKey,
   currentStepKey: ProjectWorkflowStepKey,
   chapterStatus: ChapterDetail["status"],
-  charactersReady: boolean,
 ): ProjectWorkflowStepStatus {
   if (chapterStatus === "exported") {
     return "done";
@@ -122,9 +184,6 @@ function resolveWorkflowStepStatus(
   }
   if (stepIndex === currentIndex) {
     return "active";
-  }
-  if (stepKey === "story_structure" && chapterStatus !== "draft" && !charactersReady) {
-    return "blocked";
   }
   return "waiting";
 }
@@ -149,14 +208,14 @@ function getWorkflowStepSummary(
       return chapter.sourceText.trim()
         ? "当前章节已有草稿，保存后可点击完成本章。"
         : "补充当前章节剧本，保存草稿后继续推进。";
-    case "project_characters":
-      return "提取主角和常驻角色，并确认四视图角色定稿图。";
     case "story_structure":
       return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
     case "storyboard":
       return "当前章节剧情结构已就绪，可以生成和编辑分镜。";
+    case "image_preflight":
+      return "当前章节分镜已确认，检查角色参考图、镜头绑定和出图输入。";
     case "image_candidates":
-      return "当前章节分镜已就绪，可以生成候选图并锁定结果。";
+      return "出图准备已通过，可以生成候选图并锁定结果。";
     case "layout_export":
       return "当前章节图片结果已就绪，可以排版并导出。";
     case "asset_package":
@@ -168,12 +227,12 @@ function getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string {
   switch (stepKey) {
     case "project_story":
       return "章节剧本已完成并写入版本快照。";
-    case "project_characters":
-      return "项目角色库已完成。";
     case "story_structure":
       return "结构化剧情已完成。";
     case "storyboard":
       return "分镜已完成。";
+    case "image_preflight":
+      return "出图准备已完成。";
     case "image_candidates":
       return "候选图或锁定图已完成。";
     case "layout_export":
@@ -187,14 +246,14 @@ function getWorkflowWaitingSummary(stepKey: ProjectWorkflowStepKey): string {
   switch (stepKey) {
     case "project_story":
       return "等待进入剧本阶段。";
-    case "project_characters":
-      return "需要先完成当前章节剧本。";
     case "story_structure":
-      return "需要先完成项目角色库。";
+      return "需要先完成当前章节剧本。";
     case "storyboard":
       return "需要先完成当前章节剧情结构。";
+    case "image_preflight":
+      return "需要先确认当前章节分镜。";
     case "image_candidates":
-      return "需要先完成当前章节分镜。";
+      return "需要先通过出图准备。";
     case "layout_export":
       return "需要先锁定当前章节候选图。";
     case "asset_package":
@@ -206,12 +265,12 @@ function getWorkflowStepEvidence(projectId: string, chapter: ChapterDetail, step
   switch (stepKey) {
     case "project_story":
       return `/workspace/projects/${projectId}/chapters/${chapter.slug}/script.md`;
-    case "project_characters":
-      return `/workspace/projects/${projectId}/shared/characters.json`;
     case "story_structure":
       return `/workspace/projects/${projectId}/chapters/${chapter.slug}/structure.json`;
     case "storyboard":
       return `/workspace/projects/${projectId}/chapters/${chapter.slug}/storyboard.json`;
+    case "image_preflight":
+      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/preflight.json`;
     case "image_candidates":
       return `/workspace/projects/${projectId}/chapters/${chapter.slug}/candidates/`;
     case "layout_export":
@@ -222,10 +281,9 @@ function getWorkflowStepEvidence(projectId: string, chapter: ChapterDetail, step
 }
 
 function patchWorkflowForChapter(snapshot: WorkbenchSnapshot, chapter: ChapterDetail): WorkbenchSnapshot["workflow"] {
-  const charactersReady = isProjectCharacterLibraryReady(snapshot.characters);
-  const currentStepKey = resolveWorkflowCurrentStepKey(chapter, charactersReady);
+  const currentStepKey = resolveWorkflowCurrentStepKey(chapter, snapshot);
   const steps = snapshot.workflow.steps.map((step) => {
-    const status = resolveWorkflowStepStatus(step.key, currentStepKey, chapter.status, charactersReady);
+    const status = resolveWorkflowStepStatus(step.key, currentStepKey, chapter.status);
     return {
       ...step,
       status,
@@ -326,7 +384,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     error: null,
   }),
   getters: {
-    runningTaskCount: (state) => state.tasks.filter((task) => task.status === "queued" || task.status === "running").length,
+    runningTaskCount: (state) => state.tasks.filter((task) => task.status === "queued" || task.status === "running" || task.status === "retrying").length,
     completedTaskCount: (state) => state.tasks.filter((task) => task.status === "succeeded").length,
   },
   actions: {
@@ -365,7 +423,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       }
     },
     getActiveDialogueChapterId(): string | null {
-      return ["project_story", "story_structure", "storyboard", "image_candidates", "layout_export"].includes(this.activeStepKey)
+      return ["project_story", "story_structure", "storyboard", "image_preflight", "image_candidates", "layout_export"].includes(this.activeStepKey)
         ? this.activeChapterId
         : null;
     },
@@ -441,6 +499,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       const storyboard = this.snapshot.storyboard?.chapterId === chapter.id && chapter.status === "storyboard_done"
         ? this.snapshot.storyboard
         : null;
+      const imagePreflight = this.snapshot.imagePreflight?.chapterId === chapter.id
+        ? this.snapshot.imagePreflight
+        : null;
       this.snapshot = {
         ...this.snapshot,
         project: {
@@ -452,6 +513,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         currentChapter: chapter,
         storyStructure,
         storyboard,
+        imagePreflight,
         workflow,
         stages: workflow.steps,
         story: {
@@ -485,6 +547,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         storyStructure,
         storyboard: null,
         pendingStoryboard: null,
+        imagePreflight: null,
         shots: [],
         story: {
           ...this.snapshot.story,
@@ -506,12 +569,16 @@ export const useWorkbenchStore = defineStore("workbench", {
         return;
       }
 
-      this.snapshot = {
+      const nextSnapshot: WorkbenchSnapshot = {
         ...this.snapshot,
         storyboard,
         pendingStoryboard: null,
+        imagePreflight: null,
         shots: mapStoryboardShots(storyboard, this.snapshot.storyStructure, chapter.id),
       };
+      nextSnapshot.workflow = patchWorkflowForChapter(nextSnapshot, chapter);
+      nextSnapshot.stages = nextSnapshot.workflow.steps;
+      this.snapshot = nextSnapshot;
     },
     applyPendingStoryboardUpdate(storyboard: ChapterStoryboard, chapter: ChapterDetail | null = null, chapters: ChapterListItem[] | null = null) {
       if (chapter) {
@@ -547,6 +614,43 @@ export const useWorkbenchStore = defineStore("workbench", {
       }
       this.snapshot = nextSnapshot;
     },
+    mergeTasks(tasks: GenerationTaskItem[] = []) {
+      if (tasks.length === 0) {
+        return;
+      }
+
+      const byId = new Map(this.tasks.map((task) => [task.id, task]));
+      for (const task of tasks) {
+        byId.set(task.id, task);
+      }
+      this.tasks = [...byId.values()].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+    },
+    async refreshTasks() {
+      try {
+        const tasks = await api.listTasks();
+        this.tasks = tasks.items;
+      } catch {
+        // Task polling is a status convenience and should not interrupt the current workflow.
+      }
+    },
+    async refreshActiveProjectRuntime() {
+      const projectId = this.activeProjectId;
+      if (!projectId) {
+        return;
+      }
+
+      try {
+        const [tasks, workbench] = await Promise.all([
+          api.listTasks(),
+          api.workbench(projectId, this.activeChapterId),
+        ]);
+        this.tasks = tasks.items;
+        this.snapshot = workbench.snapshot;
+        this.activeChapterId = workbench.snapshot.currentChapter?.id ?? this.activeChapterId;
+      } catch {
+        // Runtime polling must not replace the user's visible error with a transient refresh failure.
+      }
+    },
     patchProjectPreviewFromChapter(chapter: ChapterDetail, chapterCount: number) {
       const exists = this.projects.some((project) => project.id === chapter.projectId);
       if (!exists) {
@@ -575,6 +679,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.error = null;
       try {
         await api.deleteProject(projectId);
+        this.projects = this.projects.filter((project) => project.id !== projectId);
         if (this.activeProjectId === projectId) {
           this.activeProjectId = null;
           this.activeChapterId = null;
@@ -664,6 +769,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         const result = await api.confirmChapterStoryStructure(projectId, chapterId, { structureJson });
         this.applyStoryStructureUpdate(result.storyStructure, result.chapter, result.chapters);
+        await this.refreshActiveProjectRuntime();
         this.dialogueNotice = `已确认「${result.chapter.title}」的剧情结构。`;
         return result.storyStructure;
       } catch (error) {
@@ -743,6 +849,64 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
+    async confirmImagePreflight(chapterId: string): Promise<ChapterImagePreflight | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.confirmChapterImagePreflight(projectId, chapterId, {});
+        this.applyChapterUpdate(result.chapter, result.chapters);
+        if (!this.snapshot) {
+          return result.imagePreflight;
+        }
+        const nextSnapshot: WorkbenchSnapshot = {
+          ...this.snapshot,
+          imagePreflight: result.imagePreflight,
+        };
+        nextSnapshot.workflow = patchWorkflowForChapter(nextSnapshot, result.chapter);
+        nextSnapshot.stages = nextSnapshot.workflow.steps;
+        this.snapshot = nextSnapshot;
+        this.dialogueNotice = `已确认「${result.chapter.title}」的出图准备。`;
+        return result.imagePreflight;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "确认出图准备失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async resolveImagePreflightCharacter(
+      chapterId: string,
+      input: ResolveImagePreflightCharacterRequest,
+    ): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.resolveImagePreflightCharacter(projectId, chapterId, input);
+        this.applyStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        if (this.snapshot) {
+          this.snapshot = {
+            ...this.snapshot,
+            imagePreflight: result.imagePreflight,
+          };
+        }
+        this.dialogueNotice = `已处理出镜角色「${input.token}」。`;
+        return result.character;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "处理出镜角色失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
     async extractProjectCharacters(): Promise<ProjectCharacter[] | null> {
       this.loading = true;
       this.error = null;
@@ -753,6 +917,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         const result = await api.extractProjectCharacters(projectId, { source: "auto" });
         this.applyProjectCharactersUpdate(result.characters, result.assets);
+        await this.refreshActiveProjectRuntime();
         this.dialogueNotice = `已提取 ${result.characters.length} 个项目角色。`;
         return result.characters;
       } catch (error) {
@@ -790,10 +955,92 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         const result = await api.generateCharacterReference(projectId, characterId, input);
         this.applyProjectCharactersUpdate(result.characters, result.assets);
-        this.dialogueNotice = `已生成「${result.character.name}」的角色参考图。`;
-        return result.character;
+        this.mergeTasks(result.tasks);
+        this.dialogueNotice = result.createdCount > 0 ? "已开始生成角色图。" : "角色图生成任务已在队列中。";
+        return this.snapshot?.characters.find((character) => character.id === characterId) ?? null;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "生成角色参考图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async updateAndGenerateCharacterReference(
+      characterId: string,
+      characterInput: UpdateProjectCharacterRequest,
+      referenceInput: GenerateCharacterReferenceRequest,
+    ): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const saved = await api.updateProjectCharacter(projectId, characterId, characterInput);
+        this.applyProjectCharactersUpdate(saved.characters, saved.assets);
+        const result = await api.generateCharacterReference(projectId, characterId, referenceInput);
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.mergeTasks(result.tasks);
+        this.dialogueNotice = result.createdCount > 0 ? "已开始生成角色图。" : "角色图生成任务已在队列中。";
+        return this.snapshot?.characters.find((character) => character.id === characterId) ?? null;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "生成角色参考图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async deleteCharacterReference(characterId: string, assetId: string): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.deleteCharacterReference(projectId, characterId, assetId);
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.dialogueNotice = "已删除当前角色图版本。";
+        return result.character;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "删除角色图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async ensureProjectCharacterPreviewTasks(): Promise<number> {
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.ensureProjectCharacterPreviewTasks(projectId);
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.mergeTasks(result.tasks);
+        return result.createdCount;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "补齐角色预览图任务失败";
+        return 0;
+      }
+    },
+    async confirmCharacterPreview(characterId: string, assetId: string): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.confirmCharacterPreview(projectId, characterId, { assetId });
+        this.applyProjectCharactersUpdate(result.characters, result.assets);
+        this.mergeTasks(result.tasks);
+        this.dialogueNotice = `已确认「${result.character.name}」的预览图，定稿图生成任务已准备好。`;
+        return result.character;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "确认角色预览图失败";
         return null;
       } finally {
         this.loading = false;
@@ -988,6 +1235,7 @@ export const useWorkbenchStore = defineStore("workbench", {
 
       if (toolResult.storyStructure && toolResult.status === "succeeded") {
         this.applyStoryStructureUpdate(toolResult.storyStructure, currentChapter, toolResult.chapters);
+        await this.refreshActiveProjectRuntime();
         return;
       }
 

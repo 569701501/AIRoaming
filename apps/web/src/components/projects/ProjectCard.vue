@@ -6,7 +6,13 @@
         <span class="status-badge" :class="`tone-${status.tone}`">{{ status.label }}</span>
       </div>
       <div class="project-cover-overlay"></div>
-      <button class="project-delete-btn" type="button" :aria-label="`删除项目 ${project.name}`" @click.stop="$emit('delete', project)">
+      <button
+        class="project-delete-btn"
+        type="button"
+        :aria-label="`删除项目 ${project.name}`"
+        @click.stop.prevent="$emit('request-delete', project)"
+        @pointerdown.stop
+      >
         <Trash2 :size="14" />
       </button>
     </div>
@@ -72,7 +78,7 @@ const props = defineProps<{
 
 defineEmits<{
   open: [projectId: string];
-  delete: [project: ProjectListItem];
+  "request-delete": [project: ProjectListItem];
 }>();
 
 const status = computed(() => projectStatusMeta[props.project.status]);

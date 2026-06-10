@@ -351,8 +351,19 @@ const dialogueCopy = computed(() => {
   if (props.activeStepKey === "project_characters") {
     return {
       title: "AI 角色定稿助手",
-      opening: "这一阶段会先提取项目级主角和常驻角色，再为必需角色生成四视图定稿图。确认定稿后，剧情结构和后续出图都会读取这里。",
+      opening: "这里是项目级角色资产入口。可以提取或整理主角、常驻角色和本章重要角色，确认后的角色定稿图会在出图准备和候选图阶段被读取。",
       placeholder: "输入“生成项目角色库”，或告诉我要调整哪个角色",
+      allowAttachments: false,
+      attachmentTitle: "",
+      emptyAttachmentContent: "",
+    };
+  }
+
+  if (props.activeStepKey === "image_preflight") {
+    return {
+      title: "AI 出图准备助手",
+      opening: "这一阶段会检查正式分镜里的出镜角色、项目角色库绑定和角色参考图。缺什么先补什么，确认无阻塞后再进入候选图。",
+      placeholder: "输入出图检查要求，或让我解释当前阻塞项",
       allowAttachments: false,
       attachmentTitle: "",
       emptyAttachmentContent: "",
