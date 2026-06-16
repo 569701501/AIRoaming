@@ -1,11 +1,8 @@
 <template>
   <main class="project-library">
     <ProjectCommandPanel
-      :completed-tasks="workbench.completedTaskCount"
-      :loading="loading"
-      :running-tasks="workbench.runningTaskCount"
+      :projects="projects"
       @create="isCreateOpen = true"
-      @refresh="refresh"
     />
 
     <section class="project-list-section" aria-label="项目列表">
@@ -18,16 +15,12 @@
             :class="{ 'is-active': selectedFilter === filter.key }"
             @click="selectedFilter = filter.key"
           >
-            {{ filter.label }}
+            {{ filter.label }} <span class="filter-count">{{ filter.count }}</span>
           </button>
         </div>
         <div class="sort-controls">
-          <span class="sort-label">排序: 最近编辑</span>
+          <span class="sort-label">最近编辑</span>
           <ChevronDown :size="14" class="sort-chevron" />
-          <div class="view-toggles">
-            <button type="button" class="view-btn is-active" aria-label="网格视图"><LayoutGrid :size="16" /></button>
-            <button type="button" class="view-btn" aria-label="列表视图"><List :size="16" /></button>
-          </div>
         </div>
       </div>
 
@@ -72,7 +65,7 @@
 import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
-import { ChevronDown, FolderPlus, LayoutGrid, List } from "lucide-vue-next";
+import { ChevronDown, FolderPlus } from "lucide-vue-next";
 import type { CreateProjectRequest, ProjectListItem, ProjectStatus } from "@airoaming/shared";
 import CreateProjectModal from "./CreateProjectModal.vue";
 import DeleteProjectDialog from "./DeleteProjectDialog.vue";
@@ -87,21 +80,36 @@ const { activeProjectId, error, loading, projects } = storeToRefs(workbench);
 
 const isCreateOpen = ref(false);
 const projectPendingDelete = ref<ProjectListItem | null>(null);
-const selectedFilter = ref<ProjectStatus | "all">("all");
 
-const filters: Array<{ key: ProjectStatus | "all"; label: string }> = [
-  { key: "all", label: "全部" },
-  { key: "draft", label: "进行中" },
-  { key: "story_ready", label: "草稿" },
-  { key: "exported", label: "已完成" },
-];
+type FilterKey = "all" | "creating" | "exported";
 
-const filteredProjects = computed(() => {
-  return projects.value.filter((project) => {
-    const matchedStatus = selectedFilter.value === "all" || project.status === selectedFilter.value;
-    return matchedStatus;
-  });
-});
+const selectedFilter = ref<FilterKey>("all");
+
+const filters = computed(() => [
+  { key: "all" as const, label: "全部", count: projects.value.length },
+  {
+    key: "creating" as const,
+    label: "创作中",
+    count: projects.value.filter((p) => p.status !== "exported").length,
+  },
+  {
+    key: "exported" as const,
+    label: "已导出",
+    count: projects.value.filter((p) => p.status === "exported").length,
+  },
+]);
+
+function matchesFilter(project: ProjectListItem): boolean {
+  if (selectedFilter.value === "all") {
+    return true;
+  }
+  if (selectedFilter.value === "exported") {
+    return project.status === "exported";
+  }
+  return project.status !== "exported";
+}
+
+const filteredProjects = computed(() => projects.value.filter(matchesFilter));
 
 onMounted(() => {
   void refresh();

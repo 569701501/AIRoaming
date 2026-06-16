@@ -437,7 +437,7 @@ body {
 
 /* ---- Project Grid ---- */
 .project-grid {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
   gap: 16px !important;
 }
 
@@ -746,8 +746,8 @@ body {
 
 .project-grid {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)) !important;
-  gap: 12px !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 16px !important;
   align-items: start !important;
 }
 
@@ -1044,9 +1044,6 @@ body {
   min-width: 0;
 }
 
-@media (max-width: 1180px) {
-  .project-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; }
-}
 @media (max-width: 860px) {
   .workflow-bar {
     align-items: stretch;
@@ -1057,12 +1054,8 @@ body {
     min-width: 0;
     overflow-x: auto;
   }
-
-  .project-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 @media (max-width: 560px) {
-  .project-grid { grid-template-columns: 1fr !important; }
-
   .hero-banner {
     height: auto !important;
     min-height: 218px;
@@ -1926,4 +1919,169 @@ html[data-theme="light"] .sort-label {
 }
 html[data-theme="light"] .sort-chevron {
   color: #7c3aed !important;
+}
+
+/* ============================================================
+   功能① 项目库 v2（2026-06-15 交互重设计）
+   - 卡片整体可点击
+   - 封面支持主角图 / 空态占位
+   - 进度改文字"当前 · 第 N 步"
+   - 删除假数据（浏览/评论/点赞/百分比/统计图标）
+   ============================================================ */
+
+/* 卡片整体可点击 */
+.project-card {
+  cursor: pointer;
+}
+
+/* 封面空态：主角图缺失时的占位 */
+.project-cover.is-empty {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.project-cover-placeholder {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.28);
+  letter-spacing: 0.02em;
+}
+
+/* 主角图填满封面 */
+.project-cover-image {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+
+/* 隐藏旧元素（假数据/百分比/进度条/统计/底部按钮） */
+.project-meta,
+.progress-row,
+.project-stat-row,
+.project-card-footer {
+  display: none !important;
+}
+
+/* 新底部行：当前步骤 + 时间 */
+.project-card-foot {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px;
+  margin-top: 12px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+.project-step {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #a78bfa !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-step.is-done {
+  color: #4ade80 !important;
+}
+.project-date {
+  font-size: 11px !important;
+  color: #6b7a94 !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 筛选 tab 计数 */
+.filter-tabs button .filter-count {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 6px;
+  min-width: 18px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+.filter-tabs button.is-active .filter-count {
+  background: rgba(139, 92, 246, 0.28);
+  color: #f1f5f9;
+}
+
+/* 浅色模式适配 */
+html[data-theme="light"] .project-card-foot {
+  border-top-color: rgba(15, 23, 42, 0.08) !important;
+}
+html[data-theme="light"] .project-step {
+  color: #7c3aed !important;
+}
+html[data-theme="light"] .project-step.is-done {
+  color: #16a34a !important;
+}
+html[data-theme="light"] .project-date {
+  color: #64748b !important;
+}
+html[data-theme="light"] .project-cover-placeholder {
+  color: rgba(15, 23, 42, 0.3);
+}
+html[data-theme="light"] .filter-tabs button .filter-count {
+  background: rgba(15, 23, 42, 0.06);
+  color: #64748b;
+}
+html[data-theme="light"] .filter-tabs button.is-active .filter-count {
+  background: rgba(124, 58, 237, 0.16);
+  color: #7c3aed;
+}
+
+/* ---- 项目库顶部标题区（替代旧 hero banner） ---- */
+.library-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 20px;
+}
+.library-hero-left h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.3;
+}
+.library-hero-left p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6b7a94;
+}
+.library-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 9px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+.library-hero-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.45);
+}
+
+/* 浅色模式适配 */
+html[data-theme="light"] .library-hero-left h3 {
+  color: #0f172a;
+}
+html[data-theme="light"] .library-hero-left p {
+  color: #64748b;
 }

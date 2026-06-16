@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>功能② 创建项目弹窗 · 现状 vs 新设计</title>
+<style>
+  :root {
+    --bg: #0b0f1c;
+    --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035);
+    --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08);
+    --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0;
+    --text-2: #94a3b8;
+    --text-3: #64748b;
+    --accent: #6366f1;
+    --accent-2: #818cf8;
+    --amber: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 0 120px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--accent-2); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 760px; }
+
+  .section { margin-bottom: 64px; }
+  .section-head { margin-bottom: 24px; }
+  .section-head .num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; margin-right: 10px; }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .compare-col { display: flex; flex-direction: column; gap: 10px; }
+  .compare-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+  .compare-label.now { background: rgba(148,163,184,0.12); color: #cbd5e1; }
+  .compare-label.good { background: rgba(34,197,94,0.12); color: #86efac; }
+
+  /* 弹窗模拟（半透明背景 + 居中卡片） */
+  .modal-stage { position: relative; min-height: 420px; border-radius: var(--radius); overflow: hidden;
+    background: radial-gradient(circle at 50% 30%, rgba(92,62,255,0.18), transparent 40%), rgba(2,6,16,0.6); display:flex; align-items:center; justify-content:center; padding: 24px; }
+
+  .modal {
+    width: 100%; max-width: 440px;
+    background: linear-gradient(180deg, rgba(13,21,39,0.98), rgba(6,12,26,0.98));
+    border: 1px solid rgba(105,88,255,0.24); border-radius: 16px;
+    box-shadow: 0 34px 90px rgba(0,0,0,0.56), inset 0 1px 0 rgba(255,255,255,0.05);
+    overflow: hidden;
+  }
+  .modal .mhead { display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 18px 20px; border-bottom: 1px solid rgba(123,104,255,0.14);
+    background: linear-gradient(90deg, rgba(123,104,255,0.14), transparent 58%), rgba(8,15,31,0.74); }
+  .modal .mhead .tg { display:flex; align-items:center; gap:12px; }
+  .modal .mhead .icon { width: 38px; height: 38px; border-radius: 11px; display:flex; align-items:center; justify-content:center;
+    color: #ded8ff; background: linear-gradient(135deg, rgba(124,58,237,0.95), rgba(79,70,229,0.92)); border:1px solid rgba(157,139,255,0.32);
+    font-size: 18px; box-shadow: 0 14px 30px rgba(91,69,255,0.32); }
+  .modal .mhead .tt span { color: #9c87ff; font-size: 12px; font-weight: 700; }
+  .modal .mhead .tt h2 { color: #f8fbff; font-size: 20px; font-weight: 800; margin-top: 3px; }
+  .modal .mhead .x { width:36px; height:36px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,0.04); border:1px solid rgba(206,216,244,0.16); color:#cbd6ee; font-size:18px; }
+
+  .modal .mbody { padding: 22px 20px; display:flex; flex-direction:column; gap: 18px; }
+  .field { display:flex; flex-direction:column; gap: 8px; }
+  .field .l { color:#e5ebf7; font-size:13px; font-weight:700; }
+  .field .l .hint { color: var(--text-3); font-weight: 400; font-size: 11px; margin-left: 6px; }
+  .field .in { position: relative; }
+  .field input { width:100%; min-height: 46px; border:1px solid rgba(206,216,244,0.14); border-radius:11px; outline:none;
+    background: rgba(255,255,255,0.045); color:#f8fbff; padding: 0 70px 0 14px; font-size:15px; font-family: inherit; }
+  .field input::placeholder { color:#6f7c94; }
+  .field input:focus { border-color: rgba(142,121,255,0.74); background: rgba(255,255,255,0.06); box-shadow: 0 0 0 4px rgba(124,58,237,0.16); }
+  .field .cc { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:#6f7c94; font-size:12px; }
+
+  .mfoot { display:flex; justify-content:flex-end; gap:10px; padding: 0 20px 20px; }
+  .btn { display:inline-flex; align-items:center; gap:7px; min-height:42px; border-radius:10px; padding:0 18px; font-size:14px; font-weight:700; cursor: default; }
+  .btn-sec { border:1px solid rgba(206,216,244,0.16); color:#d8e2f6; background: rgba(255,255,255,0.035); }
+  .btn-pri { gap:7px; border:1px solid rgba(255,255,255,0.13); color:#fff; background: linear-gradient(135deg,#7c3aed,#4f46e5 56%,#22c7a9); box-shadow: 0 16px 36px rgba(91,69,255,0.34); }
+
+  /* 新设计：更小、更聚焦 */
+  .modal-compact .mhead { padding: 16px 18px; min-height: auto; background: rgba(8,15,31,0.5); }
+  .modal-compact .mhead .icon { width: 32px; height: 32px; border-radius: 9px; font-size: 15px; box-shadow: none; }
+  .modal-compact .mhead .tt span { font-size: 11px; }
+  .modal-compact .mhead .tt h2 { font-size: 17px; }
+  .modal-compact .mhead .x { width: 30px; height: 30px; font-size: 16px; }
+  .modal-compact .mbody { padding: 18px; gap: 14px; }
+  .modal-compact .field input { min-height: 42px; font-size: 14px; }
+  .modal-compact .mfoot { padding: 0 18px 18px; }
+  .modal-compact .btn { min-height: 38px; padding: 0 16px; font-size: 13px; }
+
+  .next-hint { display:flex; align-items:center; gap:8px; padding: 10px 12px; border-radius:9px;
+    background: rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.18); font-size:12px; color: var(--text-2); }
+  .next-hint b { color: var(--accent-2); }
+
+  .note { margin-top:14px; padding:12px 14px; border-left:3px solid var(--accent); background: rgba(99,102,241,0.06); border-radius:0 8px 8px 0; font-size:13px; color: var(--text-2); }
+  .note b { color: var(--text); }
+  .note.warn { border-left-color: var(--amber); background: rgba(245,158,11,0.06); }
+  .note.ok { border-left-color: var(--green); background: rgba(34,197,94,0.06); }
+
+  .problems { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .problems .item { display:flex; gap:10px; padding:11px 13px; background: var(--card); border:1px solid var(--border); border-radius:9px; font-size:13px; }
+  .problems .item .tag { flex-shrink:0; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; height:fit-content; }
+  .problems .item .tag.fix { background: rgba(99,102,241,0.16); color:#a5b4fc; }
+  .problems .item .tag.del { background: rgba(239,68,68,0.14); color:#fca5a5; }
+  .problems .item .tag.keep { background: rgba(34,197,94,0.14); color:#86efac; }
+  .problems .item .txt { color: var(--text-2); }
+  .problems .item .txt b { color: var(--text); }
+
+  .ask { margin-top: 36px; padding: 22px; border: 1.5px dashed var(--accent); border-radius: var(--radius); background: rgba(99,102,241,0.04); }
+  .ask h3 { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ask .q { font-size:14px; color: var(--text); margin: 8px 0; padding-left: 22px; position:relative; }
+  .ask .q:before { content:"?"; position:absolute; left:0; top:0; width:16px; height:16px; border-radius:50%; background: var(--accent); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">功能 ② / 11</div>
+    <h1>创建项目弹窗 · 现状 vs 新设计</h1>
+    <p>从项目库点「新建项目」弹出来的窗口。现状已经按你 2026-05-25 的口径收口过——只填项目名称一个字段，不填剧本字段。这一版我重点评估：<b>这么轻量对不对？要不要再加点？还是干脆再砍？</b></p>
+  </header>
+
+  <!-- ============ 现状 vs 新设计 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">A</span><h2>现状 vs 新设计</h2>
+      <div class="desc">左边是你现在的样子（大 header + 单输入框）。右边是收紧后的版本（去掉装饰、加一句下一步提示）。</div>
+    </div>
+
+    <div class="compare">
+
+      <!-- 现状 -->
+      <div class="compare-col">
+        <span class="compare-label now">● 现状：大 header + 单字段</span>
+        <div class="modal-stage">
+          <div class="modal">
+            <div class="mhead">
+              <div class="tg">
+                <div class="icon">📂</div>
+                <div class="tt"><span>新建项目</span><h2>创建项目</h2></div>
+              </div>
+              <div class="x">×</div>
+            </div>
+            <div class="mbody">
+              <div class="field">
+                <span class="l">项目名称</span>
+                <div class="in">
+                  <input value="迷雾之城" />
+                  <span class="cc">3 / 30</span>
+                </div>
+              </div>
+            </div>
+            <div class="mfoot">
+              <div class="btn btn-sec">取消</div>
+              <div class="btn btn-pri">✨ 创建项目</div>
+            </div>
+          </div>
+        </div>
+        <div class="note warn">
+          <b>问题①：</b>header 占了 84px 高度，放了一个大图标 + 「新建项目」+「创建项目」两层标题（重复）+ 渐变背景。对于一个只有 1 个输入框的弹窗，header 比 body 还重，头重脚轻。
+        </div>
+        <div class="note warn">
+          <b>问题②：</b>用户点完「创建项目」之后<b>不知道会发生什么</b>。是停在项目库？还是进工作区？现状代码是直接跳工作区第 1 步，但弹窗里没有任何暗示，用户会犹豫。
+        </div>
+      </div>
+
+      <!-- 新设计 -->
+      <div class="compare-col">
+        <span class="compare-label good">● 新设计：收紧 header + 加下一步提示</span>
+        <div class="modal-stage">
+          <div class="modal modal-compact">
+            <div class="mhead">
+              <div class="tg">
+                <div class="icon">📂</div>
+                <div class="tt"><span>创建项目</span></div>
+              </div>
+              <div class="x">×</div>
+            </div>
+            <div class="mbody">
+              <div class="field">
+                <span class="l">项目名称 <span class="hint">必填</span></span>
+                <div class="in">
+                  <input placeholder="例如：迷雾之城" />
+                </div>
+              </div>
+              <div class="next-hint">
+                <span>→</span>
+                <span>创建后直接进入 <b>第 1 步 · 剧本</b>，在那里写故事正文</span>
+              </div>
+            </div>
+            <div class="mfoot">
+              <div class="btn btn-sec">取消</div>
+              <div class="btn btn-pri">创建项目</div>
+            </div>
+          </div>
+        </div>
+        <div class="note ok">
+          <b>改动①：</b>header 砍掉重复标题和渐变背景，只留一行小字「创建项目」+ 关闭按钮。视觉重心回到输入框本身。
+        </div>
+        <div class="note ok">
+          <b>改动②：</b>输入框下面加一句「创建后直接进入第 1 步·剧本」。<b>解决用户"点完去哪"的疑惑</b>，降低决策成本。
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 改动清单 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">B</span><h2>具体改了什么</h2>
+    </div>
+    <div class="problems">
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>只 1 个字段（项目名称）</b>——这是你 2026-05-25 定的口径，完全正确。创建动作只建记录，剧本字段后置到工作区第 1 步，不要加回来。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>30 字限制 + 字数计数</b>——保留，防止名字过长。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>创建成功直接跳工作区第 1 步</b>——产品口径已收口，不动。</span></div>
+      <div class="item"><span class="tag del">删</span><span class="txt"><b>header 重复标题</b>——「新建项目」+「创建项目」两层叠着，砍成一层「创建项目」。</span></div>
+      <div class="item"><span class="tag del">删</span><span class="txt"><b>header 渐变背景 + 大图标阴影</b>——header 视觉重量降到最低，让输入框成为焦点。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>主按钮文案</b>——「✨ 创建项目」去掉 emoji 闪粉，改成朴素的「创建项目」。内部工具不需要营销感。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>加一句"下一步提示"</b>——输入框下方告诉用户"创建后进入第 1 步剧本"，消除"点完去哪"的疑惑。</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 一个需要你拍板的问题 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">C</span><h2>要不要在创建时多问一句？</h2>
+      <div class="desc">这是唯一一个需要你拍板的产品问题。我倾向<b>不加</b>，但你要听一下权衡。</div>
+    </div>
+
+    <div class="compare">
+      <div class="compare-col">
+        <span class="compare-label good">选项 A：保持只填名称（推荐）</span>
+        <div class="note ok">
+          <b>理由：</b>创建动作要尽可能轻。用户点「新建项目」时，通常只想先把项目"立起来"，具体写什么、什么风格，等进了工作区对着 AI 对话框再决定。提前问"要写什么故事""什么画风"会让用户在<b>还没有上下文</b>的时候做承诺，容易卡住或填了又改。
+          <br><br>
+          而且你的产品口径已经定死：第 1 步剧本可以"AI 灵感种子生成"或"粘贴已有剧本"。所以创建时不需要任何故事信息。
+        </div>
+      </div>
+      <div class="compare-col">
+        <span class="compare-label now">选项 B：加一个"故事方向"可选输入</span>
+        <div class="modal-stage" style="min-height:280px">
+          <div class="modal modal-compact">
+            <div class="mhead">
+              <div class="tg">
+                <div class="icon">📂</div>
+                <div class="tt"><span>创建项目</span></div>
+              </div>
+              <div class="x">×</div>
+            </div>
+            <div class="mbody">
+              <div class="field">
+                <span class="l">项目名称 <span class="hint">必填</span></span>
+                <div class="in"><input value="迷雾之城" /></div>
+              </div>
+              <div class="field">
+                <span class="l">故事方向 <span class="hint">选填，帮 AI 灵感种子更准</span></span>
+                <div class="in"><input placeholder="例如：雨夜侦探 + 连环失踪" /></div>
+              </div>
+            </div>
+            <div class="mfoot">
+              <div class="btn btn-sec">取消</div>
+              <div class="btn btn-pri">创建项目</div>
+            </div>
+          </div>
+        </div>
+        <div class="note warn">
+          <b>风险：</b>多一个字段就多一次决策。而且这个"故事方向"在第 1 步剧本对话框里也能给 AI，重复了。除非你强烈觉得"创建时就该让用户描述想做什么"，否则不建议加。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 提问 ============ -->
+  <div class="ask">
+    <h3>功能② 创建项目弹窗，确认这几点</h3>
+    <div class="q">保持只填项目名称 1 个字段（不加故事方向），同意吗？</div>
+    <div class="q">header 收紧（去掉重复标题和渐变），方向 OK 吗？</div>
+    <div class="q">加一句"创建后进入第 1 步剧本"的提示，要吗？</div>
+    <div class="q">主按钮去掉 ✨ emoji，改成朴素"创建项目"，可以吗？</div>
+  </div>
+
+</div>
+
+</body>
+</html>

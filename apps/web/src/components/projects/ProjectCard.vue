@@ -1,8 +1,9 @@
 <template>
-  <article class="project-card" :class="{ 'is-active': active }">
+  <article class="project-card" :class="{ 'is-active': active }" @click="$emit('open', project.id)">
     <div class="project-cover-wrapper">
-      <div class="project-cover" :class="`project-cover-${accent}`">
-        <img class="project-cover-image" :src="coverSrc" :alt="`${project.name} 项目封面`" />
+      <div class="project-cover" :class="[`project-cover-${accent}`, { 'is-empty': !leadImageSrc }]">
+        <img v-if="leadImageSrc" class="project-cover-image" :src="leadImageSrc" :alt="`${project.name} 主角图`" />
+        <span v-else class="project-cover-placeholder">还没有主角图</span>
         <span class="status-badge" :class="`tone-${status.tone}`">{{ status.label }}</span>
       </div>
       <div class="project-cover-overlay"></div>
@@ -23,33 +24,9 @@
         <p>{{ digest }}</p>
       </div>
 
-      <div class="project-meta">
-        <div class="meta-left">
-          <span>最近编辑: {{ formatRelativeDate(project.updatedAt) }}</span>
-        </div>
-        <div class="meta-right">
-          <span class="progress-text">{{ progress }}%</span>
-        </div>
-      </div>
-
-      <div class="progress-row" aria-label="项目进度">
-        <span :style="{ width: `${progress}%` }"></span>
-      </div>
-
-      <div class="project-stat-row" aria-label="项目概览指标">
-        <div class="project-stats-icons">
-          <div class="stat-icon-item"><Eye :size="14" /> <span>38</span></div>
-          <div class="stat-icon-item"><MessageSquare :size="14" /> <span>15</span></div>
-          <div class="stat-icon-item"><Heart :size="14" /> <span>12</span></div>
-          <div class="stat-icon-item"><Users :size="14" /> <span>7</span></div>
-        </div>
-      </div>
-
-      <div class="project-card-footer">
-        <button class="continue-btn" type="button" @click="$emit('open', project.id)">
-          <span>{{ active ? "已选择" : "继续创作" }}</span>
-        </button>
-        <button class="more-btn" type="button"><MoreHorizontal :size="14" /></button>
+      <div class="project-card-foot">
+        <span class="project-step" :class="{ 'is-done': isExported }">{{ progressLabel }}</span>
+        <span class="project-date">{{ formatRelativeDate(project.updatedAt) }}</span>
       </div>
     </div>
   </article>
@@ -57,23 +34,21 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Eye, Heart, MessageSquare, MoreHorizontal, Trash2, Users } from "lucide-vue-next";
+import { Trash2 } from "lucide-vue-next";
 import type { ProjectListItem } from "@airoaming/shared";
-import coverMistTown from "../../assets/project-library/project-cover-mist-town.png";
-import coverRainCity from "../../assets/project-library/project-cover-rain-city.png";
-import coverSchoolNight from "../../assets/project-library/project-cover-school-night.png";
-import coverTransit from "../../assets/project-library/project-cover-transit.png";
 import {
   formatRelativeDate,
   getProjectAccent,
   getProjectDigest,
-  getProjectProgress,
+  getProjectStepLabel,
   projectStatusMeta,
 } from "../../utils/project-ui";
 
 const props = defineProps<{
   project: ProjectListItem;
   active: boolean;
+  /** 项目主角定稿图地址，现阶段前端无数据时传空即可，后续由角色库接入 */
+  leadImageSrc?: string;
 }>();
 
 defineEmits<{
@@ -82,9 +57,8 @@ defineEmits<{
 }>();
 
 const status = computed(() => projectStatusMeta[props.project.status]);
-const progress = computed(() => getProjectProgress(props.project));
 const digest = computed(() => getProjectDigest(props.project));
 const accent = computed(() => getProjectAccent(props.project.id));
-const coverImages = [coverRainCity, coverTransit, coverMistTown, coverSchoolNight] as const;
-const coverSrc = computed(() => coverImages[accent.value - 1]);
+const isExported = computed(() => props.project.status === "exported");
+const progressLabel = computed(() => getProjectStepLabel(props.project));
 </script>

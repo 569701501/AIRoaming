@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>功能③ 项目工作区外壳 · 现状 vs 新设计</title>
+<style>
+  :root {
+    --bg: #0b0f1c;
+    --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035);
+    --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08);
+    --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0;
+    --text-2: #94a3b8;
+    --text-3: #64748b;
+    --accent: #6366f1;
+    --accent-2: #818cf8;
+    --amber: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 0 120px;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--accent-2); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 760px; }
+
+  .section { margin-bottom: 56px; }
+  .section-head { margin-bottom: 20px; }
+  .section-head .num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; margin-right: 10px; }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  .note { margin-top:14px; padding:12px 14px; border-left:3px solid var(--accent); background: rgba(99,102,241,0.06); border-radius:0 8px 8px 0; font-size:13px; color: var(--text-2); }
+  .note b { color: var(--text); }
+  .note.ok { border-left-color: var(--green); background: rgba(34,197,94,0.06); }
+  .note.warn { border-left-color: var(--amber); background: rgba(245,158,11,0.06); }
+
+  /* 模拟工作区外壳 */
+  .wb-frame { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .wb-topbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+  .wb-back { color: var(--text-3); font-size: 13px; display:flex; align-items:center; gap:5px; }
+  .wb-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+  /* === 现状流程轨 === */
+  .rail-old { display:flex; align-items:center; justify-content:center; gap: 6px; padding: 8px 16px; background: rgba(15,20,36,0.8); border:1px solid rgba(255,255,255,0.06); border-radius: 16px; margin: 8px 16px; }
+  .rail-old .step { display:flex; align-items:center; gap:10px; padding: 6px 12px; border-radius: 12px; }
+  .rail-old .step .ico { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background: rgba(255,255,255,0.05); font-size:16px; }
+  .rail-old .step.done .ico { color: #94a3b8; }
+  .rail-old .step.current .ico { background: rgba(139,92,246,0.15); color: #c4b5fd; border:1px solid rgba(139,92,246,0.3); }
+  .rail-old .step.todo .ico { color: var(--text-3); }
+  .rail-old .step .txt { display:flex; flex-direction:column; gap:2px; }
+  .rail-old .step .lab { font-size:14px; font-weight:700; color: var(--text-2); }
+  .rail-old .step.current .lab { color: #fff; }
+  .rail-old .step.done .lab { color: #cbd5e1; }
+  .rail-old .step .stt { font-size:11px; color: var(--text-3); }
+  .rail-old .arr { color: var(--text-3); font-size:14px; }
+
+  /* === 新设计流程轨：更紧凑 === */
+  .rail-new { display:flex; align-items:center; justify-content:center; gap: 2px; padding: 6px 10px; background: rgba(15,20,36,0.6); border:1px solid rgba(255,255,255,0.05); border-radius: 12px; margin: 8px 16px; }
+  .rail-new .step { display:flex; align-items:center; gap:7px; padding: 6px 11px; border-radius: 8px; transition: background .15s; }
+  .rail-new .step:hover:not(.disabled) { background: rgba(255,255,255,0.04); }
+  .rail-new .step .num { width: 20px; height: 20px; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-size: 11px; font-weight: 700; flex-shrink:0; }
+  .rail-new .step.done .num { background: var(--green); color: #fff; }
+  .rail-new .step.current .num { background: var(--accent); color: #fff; box-shadow: 0 0 0 3px rgba(99,102,241,0.2); }
+  .rail-new .step.todo .num { background: rgba(255,255,255,0.06); color: var(--text-3); }
+  .rail-new .step .lab { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .rail-new .step.done .lab { color: var(--text-2); }
+  .rail-new .step.current .lab { color: #fff; }
+  .rail-new .step.todo .lab { color: var(--text-3); }
+  .rail-new .step.disabled { opacity: 0.5; }
+  .rail-new .arr { color: var(--text-3); font-size: 10px; opacity: 0.5; }
+
+  /* 三宫格主体 */
+  .wb-body { display: grid; grid-template-columns: 300px 1fr; gap: 12px; padding: 12px 16px 16px; min-height: 360px; }
+  .wb-dialogue { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display:flex; flex-direction:column; gap: 8px; }
+  .wb-dialogue .ttl { font-size: 12px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .wb-dialogue .msg { font-size: 12px; line-height: 1.5; color: var(--text); }
+  .wb-dialogue .msg.me { color: var(--accent-2); align-self: flex-end; }
+  .wb-dialogue .input { margin-top: auto; background: var(--card); border:1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--text-3); }
+  .wb-workspace { background: rgba(0,0,0,0.15); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display:flex; flex-direction:column; gap: 12px; }
+  .wb-workspace .ws-head { display:flex; align-items:center; justify-content:space-between; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .wb-workspace .ws-head .info { display:flex; align-items:center; gap:8px; font-size: 13px; }
+  .wb-workspace .ws-head .btn { padding: 6px 14px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; }
+  .wb-workspace .placeholder-content { color: var(--text-3); font-size: 13px; text-align: center; padding: 40px 0; }
+
+  .problems { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .problems .item { display:flex; gap:10px; padding:11px 13px; background: var(--card); border:1px solid var(--border); border-radius:9px; font-size:13px; }
+  .problems .item .tag { flex-shrink:0; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; height:fit-content; }
+  .problems .item .tag.fix { background: rgba(99,102,241,0.16); color:#a5b4fc; }
+  .problems .item .tag.del { background: rgba(239,68,68,0.14); color:#fca5a5; }
+  .problems .item .tag.keep { background: rgba(34,197,94,0.14); color:#86efac; }
+  .problems .item .txt { color: var(--text-2); }
+  .problems .item .txt b { color: var(--text); }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .compare-col { display: flex; flex-direction: column; gap: 10px; }
+  .compare-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+  .compare-label.now { background: rgba(148,163,184,0.12); color: #cbd5e1; }
+  .compare-label.good { background: rgba(34,197,94,0.12); color: #86efac; }
+
+  .ask { margin-top: 36px; padding: 22px; border: 1.5px dashed var(--accent); border-radius: var(--radius); background: rgba(99,102,241,0.04); }
+  .ask h3 { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ask .q { font-size:14px; color: var(--text); margin: 8px 0; padding-left: 22px; position:relative; }
+  .ask .q:before { content:"?"; position:absolute; left:0; top:0; width:16px; height:16px; border-radius:50%; background: var(--accent); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">功能 ③ / 11</div>
+    <h1>项目工作区外壳 + 7 步流程轨</h1>
+    <p>进入项目后的"容器"——顶部流程轨 + 左侧对话框 + 右侧工作区。后面所有步骤都在这个壳里渲染。<b>结论先说：骨架(三宫格)是对的，不动。需要调的主要是流程轨的视觉密度。</b></p>
+  </header>
+
+  <!-- ============ 结论：骨架 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">A</span><h2>骨架结论：三宫格保留，不动</h2>
+      <div class="desc">先说清楚哪些不动，免得返工。</div>
+    </div>
+    <div class="note ok">
+      <b>以下保留，不改动：</b><br>
+      ✓ <b>三宫格布局</b>——流程轨在顶部、对话框在左(35fr)、工作区在右(65fr)。这个结构是合理的，AI 对话和主工作内容并排，符合创作工作台的心智。<br>
+      ✓ <b>进入项目后隐藏全局左侧导航</b>——已实现，正确。<br>
+      ✓ <b>对话框按步骤隔离</b>——已实现，正确。<br>
+      ✓ <b>剧本步骤的中间列(章节列表+编辑器)</b>——结构合理，保留。
+    </div>
+  </section>
+
+  <!-- ============ 流程轨对比 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">B</span><h2>流程轨：偏重 vs 紧凑</h2>
+      <div class="desc">现状流程轨每个步骤是大图标(36px)+两行文字，7 个步骤加箭头，占空间不小。新设计改成小圆数字+单行文字，更紧凑。</div>
+    </div>
+
+    <div class="compare">
+      <!-- 现状 -->
+      <div class="compare-col">
+        <span class="compare-label now">● 现状：大图标 + 两行文字</span>
+        <div class="wb-frame">
+          <div class="wb-topbar">
+            <span class="wb-back">← 项目库</span>
+            <span class="wb-title">迷雾之城</span>
+          </div>
+          <div class="rail-old">
+            <div class="step done"><div class="ico">📖</div><div class="txt"><span class="lab">1 剧本</span><span class="stt">已完成</span></div></div>
+            <span class="arr">›</span>
+            <div class="step done"><div class="ico">🗂</div><div class="txt"><span class="lab">2 结构</span><span class="stt">已完成</span></div></div>
+            <span class="arr">›</span>
+            <div class="step current"><div class="ico">🎬</div><div class="txt"><span class="lab">3 分镜</span><span class="stt">进行中</span></div></div>
+            <span class="arr">›</span>
+            <div class="step todo"><div class="ico">✓</div><div class="txt"><span class="lab">4 出图准备</span><span class="stt">等待中</span></div></div>
+            <span class="arr">›</span>
+            <div class="step todo"><div class="ico">🖼</div><div class="txt"><span class="lab">5 候选图</span><span class="stt">等待中</span></div></div>
+          </div>
+        </div>
+        <div class="note warn">
+          <b>问题：</b>每个步骤 36px 大图标 + 两行文字(标签+状态)，7 步全展开很宽，窄屏还会挤。而且"已完成/进行中/等待中"这些状态文字其实图标颜色已经表达了，重复。
+        </div>
+      </div>
+
+      <!-- 新设计 -->
+      <div class="compare-col">
+        <span class="compare-label good">● 新设计：小圆数字 + 单行文字</span>
+        <div class="wb-frame">
+          <div class="wb-topbar">
+            <span class="wb-back">← 项目库</span>
+            <span class="wb-title">迷雾之城</span>
+          </div>
+          <div class="rail-new">
+            <div class="step done"><span class="num">✓</span><span class="lab">剧本</span></div>
+            <span class="arr">›</span>
+            <div class="step done"><span class="num">✓</span><span class="lab">结构</span></div>
+            <span class="arr">›</span>
+            <div class="step current"><span class="num">3</span><span class="lab">分镜</span></div>
+            <span class="arr">›</span>
+            <div class="step todo disabled"><span class="num">4</span><span class="lab">出图准备</span></div>
+            <span class="arr">›</span>
+            <div class="step todo disabled"><span class="num">5</span><span class="lab">候选图</span></div>
+            <span class="arr">›</span>
+            <div class="step todo disabled"><span class="num">6</span><span class="lab">排版</span></div>
+            <span class="arr">›</span>
+            <div class="step todo disabled"><span class="num">7</span><span class="lab">素材包</span></div>
+          </div>
+        </div>
+        <div class="note ok">
+          <b>改动：</b><br>
+          ✓ 图标换成<b>圆形序号</b>：已完成=绿底✓，当前=蓝底数字+光晕，未做=灰底数字。<br>
+          ✓ 去掉每步的"状态文字行"，颜色已经说明状态。<br>
+          ✓ 文字只留步骤名，更短。<br>
+          ✓ 整体高度从约 60px 降到约 36px，给工作区让空间。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 改动清单 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">C</span><h2>功能③ 具体改动</h2>
+    </div>
+    <div class="problems">
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>三宫格 grid 布局</b>——对话框 35fr + 工作区 65fr，保留。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>流程轨在顶部、整宽</b>——保留。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>步骤状态逻辑</b>(done/active/blocked/waiting)——保留，只改视觉呈现。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>流程轨视觉</b>——大图标(36px)换小圆数字(20px)，去掉状态文字行，紧凑化。</span></div>
+      <div class="item"><span class="tag del">删</span><span class="txt"><b>步骤状态副文字</b>("已完成/进行中/等待中")——颜色已表达，重复信息删掉。</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 整体预览 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">D</span><h2>工作区外壳整体（新设计）</h2>
+      <div class="desc">流程轨收紧后，三宫格的样子。</div>
+    </div>
+    <div class="wb-frame">
+      <div class="wb-topbar">
+        <span class="wb-back">← 项目库</span>
+        <span class="wb-title">迷雾之城</span>
+        <span style="margin-left:auto; font-size:11px; color:var(--text-3)">第二章 · 废墟</span>
+      </div>
+      <div class="rail-new">
+        <div class="step done"><span class="num">✓</span><span class="lab">剧本</span></div>
+        <span class="arr">›</span>
+        <div class="step done"><span class="num">✓</span><span class="lab">结构</span></div>
+        <span class="arr">›</span>
+        <div class="step current"><span class="num">3</span><span class="lab">分镜</span></div>
+        <span class="arr">›</span>
+        <div class="step todo disabled"><span class="num">4</span><span class="lab">出图准备</span></div>
+        <span class="arr">›</span>
+        <div class="step todo disabled"><span class="num">5</span><span class="lab">候选图</span></div>
+        <span class="arr">›</span>
+        <div class="step todo disabled"><span class="num">6</span><span class="lab">排版</span></div>
+        <span class="arr">›</span>
+        <div class="step todo disabled"><span class="num">7</span><span class="lab">素材包</span></div>
+      </div>
+      <div class="wb-body">
+        <div class="wb-dialogue">
+          <span class="ttl">AI 对话 · 分镜步骤</span>
+          <div class="msg">已根据本章结构生成 8 个分镜，请确认。</div>
+          <div class="msg me">镜头 5 节奏太快</div>
+          <div class="msg">好，已调整为 5s。</div>
+          <div class="input">输入消息…</div>
+        </div>
+        <div class="wb-workspace">
+          <div class="ws-head">
+            <div class="info"><span>分镜</span><span style="color:var(--text-3);font-size:12px">· 第二章 · 8 镜</span></div>
+            <span class="btn">编辑分镜</span>
+          </div>
+          <div class="placeholder-content">（右侧工作区——具体内容由各步骤决定，功能④开始逐个做）</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 提问 ============ -->
+  <div class="ask">
+    <h3>功能③，确认这几点</h3>
+    <div class="q">三宫格骨架(流程轨顶 + 对话框左 + 工作区右)保留不动，同意吗？</div>
+    <div class="q">流程轨从大图标改成小圆数字(✓/3/4)，紧凑化，可以吗？还是你想保留大图标？</div>
+    <div class="q">去掉每步的状态副文字("已完成/进行中")，只靠颜色区分，OK 吗？</div>
+  </div>
+
+</div>
+
+</body>
+</html>

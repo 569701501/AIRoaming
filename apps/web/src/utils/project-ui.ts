@@ -6,41 +6,41 @@ export const projectTypeLabels: Record<ProjectType, string> = {
   mixed: "混合项目",
 };
 
-export const projectStatusMeta: Record<ProjectStatus, { label: string; tone: string; progress: number }> = {
+export const projectStatusMeta: Record<ProjectStatus, { label: string; tone: string; step: string }> = {
   draft: {
-    label: "草稿",
-    tone: "neutral",
-    progress: 12,
+    label: "创作中",
+    tone: "amber",
+    step: "剧本",
   },
   story_ready: {
-    label: "剧情就绪",
+    label: "创作中",
     tone: "blue",
-    progress: 26,
+    step: "剧情结构",
   },
   characters_ready: {
-    label: "角色就绪",
+    label: "创作中",
     tone: "green",
-    progress: 34,
+    step: "角色库",
   },
   shots_ready: {
-    label: "分镜就绪",
+    label: "创作中",
     tone: "violet",
-    progress: 42,
+    step: "分镜",
   },
   images_ready: {
-    label: "候选图就绪",
+    label: "创作中",
     tone: "cyan",
-    progress: 64,
+    step: "候选图",
   },
   layout_ready: {
-    label: "可排版",
+    label: "创作中",
     tone: "amber",
-    progress: 82,
+    step: "排版导出",
   },
   exported: {
     label: "已导出",
     tone: "green",
-    progress: 100,
+    step: "",
   },
 };
 
@@ -78,8 +78,31 @@ export function formatRelativeDate(value: string) {
   }).format(date);
 }
 
-export function getProjectProgress(project: ProjectListItem) {
-  return projectStatusMeta[project.status]?.progress ?? 0;
+/**
+ * 返回项目卡上展示的"当前进度"文字。
+ * 已导出项目返回完成态文案，其余按当前步骤返回"当前 · 第 N 步 XXX"。
+ * 7 步顺序与 workflow 定义一致：剧本 → 剧情结构 → 分镜 → 出图准备 → 候选图 → 排版导出 → 素材包。
+ */
+const STATUS_STEP_INDEX: Record<ProjectStatus, number> = {
+  draft: 1,
+  story_ready: 2,
+  characters_ready: 2,
+  shots_ready: 3,
+  images_ready: 5,
+  layout_ready: 6,
+  exported: 7,
+};
+
+export function getProjectStepLabel(project: ProjectListItem) {
+  const meta = projectStatusMeta[project.status];
+  if (!meta) {
+    return "进度未知";
+  }
+  if (project.status === "exported") {
+    return "✓ 已完成";
+  }
+  const index = STATUS_STEP_INDEX[project.status] ?? 1;
+  return `当前 · 第 ${index} 步 ${meta.step}`;
 }
 
 export function getProjectDigest(project: ProjectListItem) {

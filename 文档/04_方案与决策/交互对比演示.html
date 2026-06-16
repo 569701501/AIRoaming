@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>交互设计对比演示 · 绘界漫画</title>
+<style>
+  :root {
+    --bg: #0b0f1c;
+    --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035);
+    --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08);
+    --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0;
+    --text-2: #94a3b8;
+    --text-3: #64748b;
+    --accent: #6366f1;
+    --accent-2: #818cf8;
+    --amber: #f59e0b;
+    --amber-bg: rgba(245,158,11,0.10);
+    --amber-border: rgba(245,158,11,0.45);
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 0 120px;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+
+  /* 页头 */
+  .hero {
+    padding: 56px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 56px;
+  }
+  .hero .eyebrow {
+    color: var(--accent-2);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 720px; }
+
+  /* section */
+  .section { margin-bottom: 72px; }
+  .section-head { margin-bottom: 24px; }
+  .section-head .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--accent); color: #fff; font-size: 14px; font-weight: 700;
+    margin-right: 10px;
+  }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  /* 对比容器 */
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+  .compare-col { display: flex; flex-direction: column; gap: 10px; }
+  .compare-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 6px 12px; border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  }
+  .compare-label.bad { background: rgba(239,68,68,0.12); color: #fca5a5; }
+  .compare-label.good { background: rgba(34,197,94,0.12); color: #86efac; }
+
+  /* 通用卡片样式（模拟项目深色 UI） */
+  .panel {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.015);
+  }
+  .toolbar .left { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-2); }
+  .pill {
+    padding: 4px 10px; border-radius: 6px; background: var(--card-2);
+    border: 1px solid var(--border); font-size: 12px; color: var(--text-2);
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: 1px solid transparent; cursor: default;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary.huge { padding: 12px 28px; font-size: 15px; width: 100%; justify-content: center; }
+  .btn-ghost { background: var(--card-2); border-color: var(--border); color: var(--text); }
+  .btn-text { color: var(--text-2); font-size: 12px; background: transparent; }
+
+  .body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* === 现状：14 字段平铺的分镜卡 === */
+  .shot-old {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px;
+  }
+  .shot-old .head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .shot-old .head .n { background: var(--card-2); padding: 3px 9px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+  .shot-old .head .t { font-weight: 600; font-size: 14px; }
+  .shot-old .head .s { color: var(--text-3); font-size: 12px; }
+  .shot-old .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .shot-old .field { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .shot-old .field .l { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .shot-old .field .v { font-size: 12px; color: var(--text); min-height: 14px; }
+  .shot-old .field.multiline .v { color: var(--text-2); }
+  .shot-old .group-label { font-size: 10px; color: var(--accent-2); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin: 6px 0 4px; }
+  .density-tag {
+    margin-top: 8px; font-size: 11px; color: #fca5a5; background: rgba(239,68,68,0.08);
+    padding: 4px 8px; border-radius: 6px; align-self: flex-start;
+  }
+
+  /* === 新设计：只读摘要卡 === */
+  .shot-new {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+    transition: border-color .15s;
+  }
+  .shot-new:hover { border-color: var(--border-2); }
+  .shot-new .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .shot-new .main { flex: 1; min-width: 0; }
+  .shot-new .main .t { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .shot-new .main .s { font-size: 12px; color: var(--text-3); }
+  .shot-new .edit { color: var(--text-3); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+
+  /* === 待确认态：弱 vs 强 === */
+  .pending-weak {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px;
+  }
+  .pending-weak .band {
+    font-size: 12px; color: var(--text-2); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pending-weak .btn { margin-top: 10px; }
+
+  .pending-strong {
+    border: 1.5px dashed var(--amber-border); border-radius: var(--radius);
+    background: var(--amber-bg); overflow: hidden;
+  }
+  .pending-strong .top {
+    background: var(--amber); color: #1a1206; font-weight: 700; font-size: 12px;
+    padding: 8px 14px; display: flex; align-items: center; gap: 6px;
+  }
+  .pending-strong .inner { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .pending-strong .mini-shot {
+    background: rgba(0,0,0,0.25); border: 1px dashed var(--amber-border);
+    border-radius: 8px; padding: 8px 12px; font-size: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .pending-strong .mini-shot .n { color: var(--amber); font-weight: 700; }
+  .pending-strong .mini-shot .t { color: var(--text); }
+
+  /* === 编辑抽屉 === */
+  .drawer {
+    background: var(--bg-2); border: 1px solid var(--border-2); border-radius: var(--radius);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4); overflow: hidden; max-width: 480px;
+  }
+  .drawer .dhead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .drawer .dhead .t { font-weight: 700; font-size: 15px; }
+  .drawer .dhead .x { color: var(--text-3); font-size: 18px; cursor: default; }
+  .drawer .tabs { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  .drawer .tab { padding: 6px 12px; border-radius: 6px; font-size: 12px; color: var(--text-3); }
+  .drawer .tab.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .drawer .dbody { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .drawer .row .l { font-size: 11px; color: var(--text-3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .drawer .row input {
+    width: 100%; background: rgba(0,0,0,0.25); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px;
+    font-family: inherit;
+  }
+  .drawer .collapse {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 13px; color: var(--text-2);
+  }
+  .drawer .collapse .cnt { font-size: 11px; color: var(--text-3); }
+  .drawer .dfoot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 16px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
+  }
+
+  /* === 整页预览 === */
+  .fullpage {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .fullpage .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+  }
+  .fullpage .topbar .back { color: var(--text-3); font-size: 13px; }
+  .fullpage .rail {
+    display: flex; align-items: center; gap: 4px; padding: 10px 16px;
+    border-bottom: 1px solid var(--border); overflow-x: auto;
+  }
+  .fullpage .rail .step {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; color: var(--text-3); white-space: nowrap;
+  }
+  .fullpage .rail .step.done { color: var(--text-2); }
+  .fullpage .rail .step.current { background: var(--accent); color: #fff; font-weight: 600; }
+  .fullpage .rail .arr { color: var(--text-3); font-size: 11px; }
+  .fullpage .cols { display: grid; grid-template-columns: 240px 1fr; min-height: 480px; }
+  .fullpage .dialogue {
+    border-right: 1px solid var(--border); padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    background: rgba(0,0,0,0.15);
+  }
+  .fullpage .dialogue .msg { font-size: 12px; line-height: 1.5; }
+  .fullpage .dialogue .msg.ai { color: var(--text); }
+  .fullpage .dialogue .msg.me { color: var(--accent-2); align-self: flex-end; text-align: right; }
+  .fullpage .dialogue .input {
+    margin-top: auto; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--text-3);
+  }
+  .fullpage .workspace { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .fullpage .ws-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  }
+  .fullpage .ws-head .info { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .fullpage .ws-head .info .ch { font-weight: 600; }
+  .fullpage .ws-head .info .st { color: var(--text-3); font-size: 12px; }
+  .fullpage .ws-list { display: flex; flex-direction: column; gap: 8px; }
+  .fullpage .aside-fold {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 12px; color: var(--text-3); margin-top: 4px;
+  }
+  .fullpage .aside-fold .arrow { font-size: 10px; }
+
+  /* 注解 */
+  .note {
+    margin-top: 14px; padding: 12px 14px; border-left: 3px solid var(--accent);
+    background: rgba(99,102,241,0.06); border-radius: 0 8px 8px 0;
+    font-size: 13px; color: var(--text-2);
+  }
+  .note b { color: var(--text); }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3); }
+  .legend .sw { width: 14px; height: 14px; border-radius: 4px; }
+
+  .footer-note {
+    margin-top: 48px; padding: 20px; border: 1px dashed var(--border); border-radius: var(--radius);
+    color: var(--text-3); font-size: 13px; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">交互设计基线 · 可视演示</div>
+    <h1>现状 vs 新设计，不用想象，直接看</h1>
+    <p>下面把 4 个关键问题全部画成真实样式。左边是<b>你现在页面的样子</b>，右边是<b>新设计的样子</b>。看完你就知道我在问什么了。</p>
+  </header>
+
+  <!-- ============ 对比 1：一张分镜卡片 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">1</span><h2>问题①：一张分镜卡，14 个字段平铺 vs 3 个字段摘要</h2>
+      <div class="desc">这是最核心的改动。看你纠结的根因——同一张卡，左边信息爆炸，右边干净。字段一个没少，只是默认收起来了。</div>
+    </div>
+    <div class="compare">
+      <!-- 现状 -->
+      <div class="compare-col">
+        <span class="compare-label bad">● 现状：14 字段全部常驻可编辑</span>
+        <div class="shot-old">
+          <div class="head">
+            <span class="n">镜头 3</span>
+            <span class="t">林晓走进废弃实验室</span>
+            <span class="s">实验室外景 · 紧张</span>
+            <span style="margin-left:auto;color:var(--text-3);font-size:12px">🗑</span>
+          </div>
+          <div class="grid2">
+            <div class="field"><div class="l">核心动作</div><div class="v">林晓走进废弃实验室</div></div>
+            <div class="field"><div class="l">情绪</div><div class="v">紧张</div></div>
+          </div>
+          <div class="group-label">漫画画格 · 5 字段</div>
+          <div class="grid2">
+            <div class="field multiline"><div class="l">画面描述</div><div class="v">阴雨夜，林晓推开生锈的铁门…</div></div>
+            <div class="field multiline"><div class="l">构图/景别</div><div class="v">中景，低角度</div></div>
+            <div class="field multiline"><div class="l">对白</div><div class="v">"这里就是那个地方…"</div></div>
+            <div class="field multiline"><div class="l">旁白</div><div class="v">三年了。</div></div>
+            <div class="field"><div class="l">画格节奏</div><div class="v">慢入</div></div>
+          </div>
+          <div class="group-label">漫剧镜头 · 7 字段</div>
+          <div class="grid2">
+            <div class="field multiline"><div class="l">画面描述</div><div class="v">镜头从脚下摇到门…</div></div>
+            <div class="field"><div class="l">构图设计</div><div class="v">纵深</div></div>
+            <div class="field"><div class="l">运镜调度</div><div class="v">推镜</div></div>
+            <div class="field"><div class="l">配音角色</div><div class="v">林晓</div></div>
+            <div class="field multiline"><div class="l">台词内容</div><div class="v">"终于找到了。"</div></div>
+            <div class="field"><div class="l">时长建议</div><div class="v">4s</div></div>
+            <div class="field"><div class="l">画面类型</div><div class="v">主镜头</div></div>
+          </div>
+        </div>
+        <div class="density-tag">⚠ 一张卡 14 字段 · 视线无落点 · 这就是"怎么改都不好看"的原因</div>
+      </div>
+
+      <!-- 新设计 -->
+      <div class="compare-col">
+        <span class="compare-label good">● 新设计：默认只 3 个字段，点开才编辑</span>
+        <div class="shot-new">
+          <span class="dot"></span>
+          <div class="main">
+            <div class="t">#3　林晓走进废弃实验室</div>
+            <div class="s">实验室外景 · 紧张 · 4s</div>
+          </div>
+          <span class="edit">编辑 ▸</span>
+        </div>
+        <div class="shot-new">
+          <span class="dot"></span>
+          <div class="main">
+            <div class="t">#4　林晓发现异常数据闪烁</div>
+            <div class="s">实验室内景 · 震惊 · 3s</div>
+          </div>
+          <span class="edit">编辑 ▸</span>
+        </div>
+        <div class="shot-new">
+          <span class="dot"></span>
+          <div class="main">
+            <div class="t">#5　警报骤响，林晓被围</div>
+            <div class="s">实验室内景 · 紧张 · 5s</div>
+          </div>
+          <span class="edit">编辑 ▸</span>
+        </div>
+        <div class="note">
+          <b>用户一眼能扫完 8 个镜头。</b>想改哪个，点「编辑」打开抽屉（见下），里面 14 个字段一个不少，分成「核心 / 漫画 / 漫剧」三组。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 对比 2：点编辑后的抽屉 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">2</span><h2>问题① 续：点「编辑」后，字段全在这个抽屉里</h2>
+      <div class="desc">14 个字段没删，分了 3 个 tab。默认显示「核心」3 个，另两组折叠。信息密度从 14 → 3。</div>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="drawer">
+        <div class="dhead">
+          <span class="t">编辑镜头 #3</span>
+          <span class="x">×</span>
+        </div>
+        <div class="tabs">
+          <span class="tab active">核心</span>
+          <span class="tab">漫画画格</span>
+          <span class="tab">漫剧镜头</span>
+        </div>
+        <div class="dbody">
+          <div class="row">
+            <div class="l">核心动作</div>
+            <input value="林晓走进废弃实验室" />
+          </div>
+          <div class="row">
+            <div class="l">情绪</div>
+            <input value="紧张" />
+          </div>
+          <div class="row">
+            <div class="l">场景</div>
+            <input value="实验室外景" />
+          </div>
+          <div class="collapse">
+            <span>▸ 漫画画格</span><span class="cnt">5 个字段</span>
+          </div>
+          <div class="collapse">
+            <span>▸ 漫剧镜头</span><span class="cnt">7 个字段</span>
+          </div>
+        </div>
+        <div class="dfoot">
+          <span class="btn btn-ghost">取消</span>
+          <span class="btn btn-primary">保存</span>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="max-width:480px;margin:14px auto 0">
+      <b>这就是"默认只读，点按编辑"。</b>不是删字段，是默认藏起来。你之前所有字段 inline 可编辑，所以每张卡都爆炸。
+    </div>
+  </section>
+
+  <!-- ============ 对比 3：待确认态 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">3</span><h2>问题②：AI 生成的"待确认"，弱提示 vs 强提示</h2>
+      <div class="desc">用户必须一眼分清"这是 AI 草案"还是"这是我已确认的"。左边是你现在的样子（几乎没区别），右边是强对比。</div>
+    </div>
+    <div class="compare">
+      <div class="compare-col">
+        <span class="compare-label bad">● 现状：待确认 vs 已确认，长得几乎一样</span>
+        <div class="pending-weak">
+          <div class="band">ⓘ 待确认预览</div>
+          <div class="shot-new" style="background:rgba(0,0,0,0.2)">
+            <div class="main"><div class="t">#3　林晓走进废弃实验室</div><div class="s">实验室外景 · 紧张</div></div>
+          </div>
+          <span class="btn btn-primary">确认分镜</span>
+        </div>
+        <div class="density-tag">⚠ 用户分不清这是 AI 草案还是自己的内容，不敢放心用</div>
+      </div>
+
+      <div class="compare-col">
+        <span class="compare-label good">● 新设计：琥珀横条 + 虚线 + 巨大按钮</span>
+        <div class="pending-strong">
+          <div class="top">⚠ 待确认预览 · 共 8 镜 · 不满意可重新生成</div>
+          <div class="inner">
+            <div class="mini-shot"><span class="n">#3</span><span class="t">林晓走进废弃实验室</span></div>
+            <div class="mini-shot"><span class="n">#4</span><span class="t">林晓发现异常数据闪烁</span></div>
+            <div class="mini-shot"><span class="n">#5</span><span class="t">警报骤响，林晓被围</span></div>
+            <div style="font-size:11px;color:var(--text-3);text-align:center">…还有 5 镜</div>
+            <span class="btn btn-primary huge" style="background:var(--amber);color:#1a1206">✓ 确认这 8 个分镜</span>
+          </div>
+        </div>
+        <div class="note">
+          <b>琥珀色 + 虚线边框 = "这是临时的"。</b>确认后变成右下图那颗小绿点的干净卡片。这个视觉跃迁越强，用户越敢让 AI 自动生成。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 对比 4：整页 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">4</span><h2>问题③：分镜工作台整页长什么样</h2>
+      <div class="desc">把前面 3 点合起来。这就是我建议的第一个样板页。已确认态——干净、可扫、一屏一焦点。</div>
+    </div>
+    <div class="fullpage">
+      <div class="topbar">
+        <span class="back">← 项目库</span>
+        <span class="pill">第二章 · 废墟</span>
+      </div>
+      <div class="rail">
+        <span class="step done">✓ 1 剧本</span><span class="arr">›</span>
+        <span class="step done">✓ 2 结构</span><span class="arr">›</span>
+        <span class="step current">3 分镜</span><span class="arr">›</span>
+        <span class="step">4 出图准备</span><span class="arr">›</span>
+        <span class="step">5 候选图</span><span class="arr">›</span>
+        <span class="step">6 排版</span><span class="arr">›</span>
+        <span class="step">7 素材包</span>
+      </div>
+      <div class="cols">
+        <div class="dialogue">
+          <div class="msg ai">已根据本章结构生成 8 个分镜，请确认。</div>
+          <div class="msg me">镜头 5 节奏太快了</div>
+          <div class="msg ai">好，已调整为 5s，可在卡片里编辑。</div>
+          <div class="input">输入消息…</div>
+        </div>
+        <div class="workspace">
+          <div class="ws-head">
+            <div class="info">
+              <span class="ch">分镜</span>
+              <span class="st">· 第二章 · 8 镜已确认 · 可进入出图准备</span>
+            </div>
+            <span class="btn btn-ghost">编辑分镜</span>
+          </div>
+          <div class="ws-list">
+            <div class="shot-new"><span class="dot"></span><div class="main"><div class="t">#1　开场：林晓收到神秘邮件</div><div class="s">卧室 · 平静 · 3s</div></div><span class="edit">编辑 ▸</span></div>
+            <div class="shot-new"><span class="dot"></span><div class="main"><div class="t">#2　潜入实验室外围</div><div class="s">街道 · 紧张 · 4s</div></div><span class="edit">编辑 ▸</span></div>
+            <div class="shot-new"><span class="dot"></span><div class="main"><div class="t">#3　林晓走进废弃实验室</div><div class="s">实验室外景 · 紧张 · 4s</div></div><span class="edit">编辑 ▸</span></div>
+            <div class="shot-new"><span class="dot"></span><div class="main"><div class="t">#4　林晓发现异常数据闪烁</div><div class="s">实验室内景 · 震惊 · 3s</div></div><span class="edit">编辑 ▸</span></div>
+            <div class="shot-new"><span class="dot"></span><div class="main"><div class="t">#5　警报骤响，林晓被围</div><div class="s">实验室内景 · 紧张 · 5s</div></div><span class="edit">编辑 ▸</span></div>
+          </div>
+          <div class="aside-fold"><span class="arrow">▾</span> 辅助信息（指标 / 检查项，默认折叠）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="item"><span class="sw" style="background:var(--green)"></span> 已确认镜头</div>
+      <div class="item"><span class="sw" style="background:var(--amber)"></span> 待确认（临时）</div>
+      <div class="item"><span class="sw" style="background:var(--accent)"></span> 当前步骤 / 主操作</div>
+      <div class="item"><span class="sw" style="background:var(--text-3)"></span> 灰 = 辅助/折叠</div>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    这就是规范里 5 条原则画出来的样子。你不用再"想象"了——<br>
+    看完告诉我：<b>这个方向对不对？</b>哪里不喜欢、哪里想改，直接指着说。<br>
+    确认后我再把它落成你项目里的 Vue 组件。
+  </div>
+
+</div>
+
+</body>
+</html>

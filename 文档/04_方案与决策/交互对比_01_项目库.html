@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>功能①项目库 · 现状 vs 新设计（v2）</title>
+<style>
+  :root {
+    --bg: #0b0f1c;
+    --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035);
+    --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08);
+    --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0;
+    --text-2: #94a3b8;
+    --text-3: #64748b;
+    --accent: #6366f1;
+    --accent-2: #818cf8;
+    --amber: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 0 120px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--accent-2); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 760px; }
+
+  .section { margin-bottom: 64px; }
+  .section-head { margin-bottom: 24px; }
+  .section-head .num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; margin-right: 10px; }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  .page-mock { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .page-mock .pad { padding: 18px; }
+
+  /* === 顶部区 === */
+  .new-hero { display:flex; align-items:center; justify-content:space-between; padding: 4px 0 18px; }
+  .new-hero .left h3 { font-size:18px; font-weight:700; }
+  .new-hero .left p { font-size:13px; color: var(--text-3); margin-top:3px; }
+  .new-hero .btn { display:inline-flex; align-items:center; gap:7px; padding: 10px 18px; border-radius:9px; background: var(--accent); color:#fff; font-weight:600; font-size:13px; }
+
+  /* === 筛选 === */
+  .filter-row { display:flex; align-items:center; justify-content:space-between; padding: 8px 0 16px; }
+  .filter-tabs { display:flex; gap:4px; }
+  .filter-tabs button { padding: 6px 14px; border-radius:8px; font-size:13px; color: var(--text-2); background: var(--card); border:1px solid var(--border); }
+  .filter-tabs button.active { background: var(--accent); color:#fff; }
+  .sort-area { display:flex; align-items:center; gap:10px; font-size:12px; color: var(--text-3); }
+
+  /* === 项目卡：保留你原来的封面图风格 === */
+  .card-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .proj-card { background: var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition: border-color .15s; }
+  .proj-card:hover { border-color: var(--border-2); }
+  .proj-cover { height: 120px; position: relative; background: linear-gradient(135deg,#1e1b4b,#312e81,#1e3a5f); overflow:hidden; }
+  .proj-cover .placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color: rgba(255,255,255,0.15); font-size:13px; }
+  .proj-cover img { width:100%; height:100%; object-fit:cover; }
+  .proj-cover .badge { position:absolute; top:8px; left:8px; background: rgba(0,0,0,0.6); padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600; backdrop-filter: blur(4px); }
+  .proj-cover .del { position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:7px; background: rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; font-size:12px; opacity:0; transition: opacity .15s; }
+  .proj-card:hover .del { opacity:1; }
+  .proj-body { padding: 12px 14px 14px; }
+  .proj-body strong { font-size:15px; font-weight:700; }
+  .proj-body .dig { font-size:12px; color: var(--text-3); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .proj-foot { display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+  .proj-foot .step { font-size:12px; color: var(--accent-2); font-weight:600; }
+  .proj-foot .step.done { color: var(--green); }
+  .proj-foot .date { font-size:11px; color: var(--text-3); }
+
+  /* 角色头像缩略组（封面右下角小图） */
+  .lead-avatars { position:absolute; bottom:8px; right:8px; display:flex; }
+  .lead-avatars .av { width:26px; height:26px; border-radius:50%; border:2px solid var(--bg-2); background: linear-gradient(135deg,#7c3aed,#4f46e5); margin-left:-6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; overflow:hidden; }
+  .lead-avatars .av img { width:100%; height:100%; object-fit:cover; }
+
+  .note { margin-top:14px; padding:12px 14px; border-left:3px solid var(--accent); background: rgba(99,102,241,0.06); border-radius:0 8px 8px 0; font-size:13px; color: var(--text-2); }
+  .note b { color: var(--text); }
+  .note.warn { border-left-color: var(--amber); background: rgba(245,158,11,0.06); }
+
+  .problems { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .problems .item { display:flex; gap:10px; padding:11px 13px; background: var(--card); border:1px solid var(--border); border-radius:9px; font-size:13px; }
+  .problems .item .tag { flex-shrink:0; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; height:fit-content; }
+  .problems .item .tag.fix { background: rgba(99,102,241,0.16); color:#a5b4fc; }
+  .problems .item .tag.del { background: rgba(239,68,68,0.14); color:#fca5a5; }
+  .problems .item .tag.keep { background: rgba(34,197,94,0.14); color:#86efac; }
+  .problems .item .txt { color: var(--text-2); }
+  .problems .item .txt b { color: var(--text); }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .compare-col { display: flex; flex-direction: column; gap: 10px; }
+  .compare-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+  .compare-label.bad { background: rgba(239,68,68,0.12); color: #fca5a5; }
+  .compare-label.good { background: rgba(34,197,94,0.12); color: #86efac; }
+
+  .ask { margin-top: 36px; padding: 22px; border: 1.5px dashed var(--accent); border-radius: var(--radius); background: rgba(99,102,241,0.04); }
+  .ask h3 { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ask .q { font-size:14px; color: var(--text); margin: 8px 0; padding-left: 22px; position:relative; }
+  .ask .q:before { content:"?"; position:absolute; left:0; top:0; width:16px; height:16px; border-radius:50%; background: var(--accent); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+
+  .lead-note { font-size:11px; color: var(--amber); margin-top:8px; padding: 6px 10px; background: rgba(245,158,11,0.06); border-radius:6px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">功能 ① / 11 · v2（按你的反馈调整）</div>
+    <h1>项目库 · 调整后</h1>
+    <p>根据你的反馈：① 卡片保留原来的封面图风格（不删）② 去掉假数据 ③ 进度改成文字"当前在第 X 步" ④ 封面区显示主角图（有就显示，没有就空）。</p>
+  </header>
+
+  <!-- ============ 卡片：保留封面图风格 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">A</span><h2>项目卡：保留封面图风格，只删假数据 + 改进度</h2>
+      <div class="desc">你喜欢原来的封面图卡片，所以卡片骨架不动。只做 3 件事：删假数据、进度改文字、封面主角图。</div>
+    </div>
+
+    <div class="card-grid">
+
+      <!-- 卡 1：有主角图 -->
+      <div class="proj-card">
+        <div class="proj-cover">
+          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=300&fit=crop&q=80" alt="" />
+          <span class="badge">创作中</span>
+          <span class="del">🗑</span>
+        </div>
+        <div class="proj-body">
+          <strong>迷雾之城</strong>
+          <div class="dig">一个侦探在雨夜调查连环失踪案…</div>
+          <div class="proj-foot">
+            <span class="step">当前 · 第 4 步 出图准备</span>
+            <span class="date">2 小时前</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡 2：有主角图 -->
+      <div class="proj-card">
+        <div class="proj-cover">
+          <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=300&fit=crop&q=80" alt="" />
+          <span class="badge">创作中</span>
+          <span class="del">🗑</span>
+        </div>
+        <div class="proj-body">
+          <strong>校园奇谭</strong>
+          <div class="dig">高三学生发现校园地下的秘密组织…</div>
+          <div class="proj-foot">
+            <span class="step">当前 · 第 1 步 剧本</span>
+            <span class="date">昨天</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡 3：没有主角图（空封面） -->
+      <div class="proj-card">
+        <div class="proj-cover">
+          <div class="placeholder">还没有主角图</div>
+          <span class="badge">创作中</span>
+          <span class="del">🗑</span>
+        </div>
+        <div class="proj-body">
+          <strong>深海回响</strong>
+          <div class="dig">深海科考站收到的神秘信号…</div>
+          <div class="proj-foot">
+            <span class="step">当前 · 第 3 步 分镜</span>
+            <span class="date">3 天前</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡 4：已导出 -->
+      <div class="proj-card">
+        <div class="proj-cover">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=300&fit=crop&q=80" alt="" />
+          <span class="badge">已导出</span>
+        </div>
+        <div class="proj-body">
+          <strong>星海漂流</strong>
+          <div class="dig">星际移民船在虫流中失联…</div>
+          <div class="proj-foot">
+            <span class="step done">✓ 已完成 · 全 12 章</span>
+            <span class="date">5 天前导出</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡 5：刚创建，剧本阶段 -->
+      <div class="proj-card">
+        <div class="proj-cover">
+          <div class="placeholder">还没有主角图</div>
+          <span class="badge">创作中</span>
+          <span class="del">🗑</span>
+        </div>
+        <div class="proj-body">
+          <strong>古董店诡事</strong>
+          <div class="dig">老街古董店每件物品都有一个故事…</div>
+          <div class="proj-foot">
+            <span class="step">当前 · 第 1 步 剧本</span>
+            <span class="date">刚刚</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡 6：排版导出阶段 -->
+      <div class="proj-card">
+        <div class="proj-cover">
+          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop&q=80" alt="" />
+          <span class="badge">创作中</span>
+          <span class="del">🗑</span>
+        </div>
+        <div class="proj-body">
+          <strong>云端之上</strong>
+          <div class="dig">漂浮在云海之上的失落王国…</div>
+          <div class="proj-foot">
+            <span class="step">当前 · 第 6 步 排版导出</span>
+            <span class="date">4 天前</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="lead-note">ℹ 主角头像用网络占位图演示。实际数据接通要等功能⑧角色库（那时才有"主角"概念），现在先定 UI 形态。</div>
+  </section>
+
+  <!-- ============ 改动清单 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">B</span><h2>具体改了什么（对照清单）</h2>
+      <div class="desc">保留 / 删除 / 修改 三类，每条都说清楚。</div>
+    </div>
+    <div class="problems">
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>封面图卡片骨架</b>——封面区 + 卡片正文 + hover 删除按钮。你喜欢的样子不动。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>项目摘要（dig）</b>——一句话故事简介，保留。数据来自 <code>sourceTextPreview</code>，真实。</span></div>
+      <div class="item"><span class="tag del">删</span><span class="txt"><b>假浏览/评论/点赞/角色数</b>（38/15/12/7）——内部工具没有这些，纯误导。</span></div>
+      <div class="item"><span class="tag del">删</span><span class="txt"><b>假百分比进度条</b>（42%）——没有依据。同时删 <code>projectStatusMeta.progress</code> 这套假数字。</span></div>
+      <div class="item"><span class="tag del">删</span><span class="txt"><b>"继续创作"+"⋯"双按钮</b>——整张卡都可点，底部不需要按钮，省一层冗余。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>进度改文字</b>——「当前 · 第 4 步 出图准备」。状态映射已有（draft=剧本/story_ready=结构/shots_ready=分镜…），直接用，不再造假。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>封面图改主角图</b>——有主角图就显示主角图（可多张叠头像在右下角），没有就显示"还没有主角图"占位。<b>不再用 4 张固定装饰图随机分配</b>。</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 主角图细节 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">C</span><h2>封面主角图的两种状态</h2>
+      <div class="desc">你说的"有就显示，没有就空"，具体长这样。</div>
+    </div>
+    <div class="compare">
+      <div class="compare-col">
+        <span class="compare-label good">有主角图</span>
+        <div class="proj-card">
+          <div class="proj-cover">
+            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=300&fit=crop&q=80" alt="" />
+            <span class="badge">创作中</span>
+          </div>
+          <div class="proj-body">
+            <strong>迷雾之城</strong>
+            <div class="proj-foot"><span class="step">当前 · 第 4 步</span></div>
+          </div>
+        </div>
+        <span class="compare-label good" style="margin-top:8px">封面大图 = 主角定稿图</span>
+      </div>
+      <div class="compare-col">
+        <span class="compare-label bad">没有主角图（空）</span>
+        <div class="proj-card">
+          <div class="proj-cover">
+            <div class="placeholder">还没有主角图</div>
+            <span class="badge">创作中</span>
+          </div>
+          <div class="proj-body">
+            <strong>深海回响</strong>
+            <div class="proj-foot"><span class="step">当前 · 第 3 步</span></div>
+          </div>
+        </div>
+        <span class="compare-label bad" style="margin-top:8px">灰色占位 + 一句话提示，不强行塞装饰图</span>
+      </div>
+    </div>
+
+    <div class="note warn" style="margin-top:16px">
+      <b>关于"主角"概念的实现时机：</b>现在 <code>ProjectListItem</code> 里没有主角字段，角色数据要等剧情结构步骤确认后才会产生。
+      所以封面主角图的<b>数据接通</b>会放到功能⑧角色库那一步一起做。
+      现在先把 UI 形态定下来（有图/无图两种状态），等角色库做完再回填数据——这符合你"先走通再打磨"的节奏。
+    </div>
+  </section>
+
+  <!-- ============ 整页 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">D</span><h2>整页合起来</h2>
+    </div>
+    <div class="page-mock">
+      <div class="pad" style="padding:24px">
+        <div class="new-hero">
+          <div class="left">
+            <h3>我的项目</h3>
+            <p>6 个项目 · 上次编辑 古董店诡事 · 刚刚</p>
+          </div>
+          <button class="btn">＋ 新建项目</button>
+        </div>
+        <div class="filter-row">
+          <div class="filter-tabs">
+            <button class="active">全部 6</button>
+            <button>创作中 5</button>
+            <button>已导出 1</button>
+          </div>
+          <div class="sort-area"><span>最近编辑 ▾</span></div>
+        </div>
+        <div class="card-grid">
+          <div class="proj-card">
+            <div class="proj-cover">
+              <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=300&fit=crop&q=80" alt="" />
+              <span class="badge">创作中</span>
+            </div>
+            <div class="proj-body">
+              <strong>迷雾之城</strong>
+              <div class="dig">一个侦探在雨夜调查连环失踪案…</div>
+              <div class="proj-foot"><span class="step">当前 · 第 4 步 出图准备</span><span class="date">2 小时前</span></div>
+            </div>
+          </div>
+          <div class="proj-card">
+            <div class="proj-cover">
+              <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=300&fit=crop&q=80" alt="" />
+              <span class="badge">创作中</span>
+            </div>
+            <div class="proj-body">
+              <strong>校园奇谭</strong>
+              <div class="dig">高三学生发现校园地下的秘密组织…</div>
+              <div class="proj-foot"><span class="step">当前 · 第 1 步 剧本</span><span class="date">昨天</span></div>
+            </div>
+          </div>
+          <div class="proj-card">
+            <div class="proj-cover">
+              <div class="placeholder">还没有主角图</div>
+              <span class="badge">创作中</span>
+            </div>
+            <div class="proj-body">
+              <strong>深海回响</strong>
+              <div class="dig">深海科考站收到的神秘信号…</div>
+              <div class="proj-foot"><span class="step">当前 · 第 3 步 分镜</span><span class="date">3 天前</span></div>
+            </div>
+          </div>
+          <div class="proj-card">
+            <div class="proj-cover">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=300&fit=crop&q=80" alt="" />
+              <span class="badge">已导出</span>
+            </div>
+            <div class="proj-body">
+              <strong>星海漂流</strong>
+              <div class="dig">星际移民船在虫流中失联…</div>
+              <div class="proj-foot"><span class="step done">✓ 已完成 · 全 12 章</span><span class="date">5 天前导出</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 提问 ============ -->
+  <div class="ask">
+    <h3>功能① v2，确认这几点就往下走</h3>
+    <div class="q">封面图保留、主角图有就显示没有就空占位——这个方案 OK 吗？</div>
+    <div class="q">进度用「当前 · 第 4 步 出图准备」文字，不要百分比不要 7 点，对吗？</div>
+    <div class="q">假数据（浏览/评论/点赞/百分比）全删，同意吗？</div>
+    <div class="q">主角图数据接通放到功能⑧角色库一起做，现在只定 UI，可以吗？</div>
+  </div>
+
+</div>
+
+</body>
+</html>
