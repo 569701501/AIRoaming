@@ -30,4 +30,13 @@ export class ToolCallbackController {
     this.toolCallbackService.assertToken(token);
     return ok(await this.toolCallbackService.generateCharacterFinal(body));
   }
+
+  @Post("generate_scene_image")
+  async generateSceneImage(
+    @Headers("x-airoaming-tool-token") token: string | undefined,
+    @Body() body: { projectId: string; chapterId: string; sceneId: string; prompt?: string },
+  ) {
+    this.toolCallbackService.assertToken(token);
+    return ok(await this.toolCallbackService.generateSceneImage(body));
+  }
 }

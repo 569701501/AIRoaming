@@ -97,6 +97,29 @@ export default async () => {
           })
         },
       }),
+
+      // 生成场景背景图
+      generate_scene_image: tool({
+        description:
+          "【生成场景背景图】为当前章节的某个场景生成一张背景图(横向16:9)。需要项目ID、章节ID和场景ID。生成是异步的,调用后进入任务队列。当用户说'给场景生成图''生成场景背景'时使用。",
+        args: {
+          projectId: tool.schema.string().describe("当前项目ID"),
+          chapterId: tool.schema.string().describe("当前章节ID(如 chapter_001)"),
+          sceneId: tool.schema.string().describe("要生成图的场景ID(如 scene_01,从剧情结构场景卡获取)"),
+          prompt: tool.schema
+            .string()
+            .optional()
+            .describe("可选,生图提示词。不传则用场景的名称/地点/氛围自动拼接"),
+        },
+        async execute(args) {
+          return callback("generate_scene_image", {
+            projectId: args.projectId,
+            chapterId: args.chapterId,
+            sceneId: args.sceneId,
+            prompt: args.prompt,
+          })
+        },
+      }),
     },
   }
 }

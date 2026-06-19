@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { QueueCharacterReferenceResponse } from "@airoaming/shared";
+import type { QueueCharacterReferenceResponse, QueueSceneReferenceResponse } from "@airoaming/shared";
 import { ProjectsService } from "../projects/projects.service.js";
 
 /**
@@ -62,5 +62,17 @@ export class ToolCallbackService {
       throw new NotFoundException(`CHARACTER_NOT_FOUND:${trimmed}`);
     }
     return matched.id;
+  }
+
+  /** 生成场景背景图:直接传 chapterId + sceneId,委托 queueSceneReference */
+  async generateSceneImage(input: {
+    projectId: string;
+    chapterId: string;
+    sceneId: string;
+    prompt?: string;
+  }): Promise<QueueSceneReferenceResponse> {
+    return this.projectsService.queueSceneReference(input.projectId, input.chapterId, input.sceneId, {
+      prompt: input.prompt,
+    });
   }
 }

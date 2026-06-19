@@ -150,6 +150,13 @@ source: 深思熟虑复核、AuroraPlatformWeb 架构参考、AIRoaming 现状�
 
 **阶段 A 结论(2026-06-19):真工具调用链路完全打通。** 从"用户对话"→"AI 决定调 echo"→"echo execute 执行"→"结果返回 AI"→"AI 组织语言回复",全链路验证通过。这是整个改造的地基,意味着后续所有业务工具(生成角色图/场景图/分镜等)都能用这个模式让 AI 自主调用。
 
+**阶段 B 结论(2026-06-19):第一个业务工具(生成角色图)完全跑通。**
+- 建成 tool-callback 网关(controller/service/module),Nest ESM 下用 @Inject 显式注入解决 DI 问题。
+- 写成 airoaming-tools 插件(generate_character_image + generate_character_final)。
+- 改 opencode-runtime spawn 注入工具回调环境变量(用 server 端口,非 OpenCode 端口)。
+- 验证:AI 真调 generate_character_image 生成白医生预览图,任务 34972db7 入队,完整链路通过。
+- 已提交 ef1d048 推送远程。
+
 ### 阶段 B:迁移第一个真业务工具(生成角色图)
 
 **目标**:用真工具调用实现"生成角色图",验证业务工具能跑通。
@@ -167,18 +174,57 @@ source: 深思熟虑复核、AuroraPlatformWeb 架构参考、AIRoaming 现状�
 
 ### 阶段 C:迁移其余生成类工具
 
-**目标**:把生成场景图、生成剧情结构、生成分镜等迁移为真工具。
+**目标**:把剩余生成能力迁移为真工具,AI 能自主调用。
 
-**任务**:
-- C1. `generate_scene_image.js` + 后端端点(委托 queueSceneReference)
-- C2. `generate_story_structure.js` + 后端端点(委托现有 story_structure 逻辑)
-- C3. `generate_storyboard.js` + 后端端点(委托现有 storyboard 逻辑)
-- C4. `extract_characters.js` + 后端端点(委托 extractProjectCharacters)
-- C5. `generate_inspiration.js` / `generate_outline.js` / `generate_chapter_script.js`(剧本阶段工具)
+**关键设计发现**:现有技能分两类,迁移难度不同。
+
+#### 类型 1:简单触发型(直接调方法 → 完成,容易迁移)
+
+这些工具和角色图一样,execute 回调后端一个方法即可:
+
+| 工具名 | 委托方法 | args | 难度 |
+| --- | --- | --- | --- |
+| `generate_scene_image` | `queueSceneReference(projectId, chapterId, sceneId, {})` | projectId, chapterId, sceneName(按名查id) | 低(和角色图同模式) |
+| `extract_characters` | `extractProjectCharacters(projectId, {})` | projectId | 低 |
+
+#### 类型 2:多轮交互型(AI 生成内容 → 用户确认 → 落库,需要设计)
+
+这些技能现在是"AI 在对话里生成文本 → 用户确认 → 后端落库"。真工具调用里,工具的 execute 做的是**落库动作**,生成内容靠 AI 对话本身。
+
+| 工具名 | 委托方法 | 用途 | 难点 |
+| --- | --- | --- | --- |
+| `confirm_story_structure` | `confirmChapterStoryStructure(projectId, chapterId, {structureJson})` | 确认剧情结构落库 | AI 要传 structureJson(从对话生成内容提取) |
+| `confirm_storyboard` | `confirmChapterStoryboard(projectId, chapterId)` | 确认分镜落库 | 依赖 pending storyboard 存在 |
+| `write_chapter_script` | `writeChapterDraftFromAI(projectId, chapterId, {sourceText, ...})` | 写入章节剧本 | AI 要传完整剧本文本 |
+| `save_script_outline` | `saveScriptOutlineFromAI(projectId, {sourceText, ...})` | 保存大纲 | AI 要传大纲文本 |
+
+**类型 2 的核心设计决策**:工具 execute 接收 AI 生成的文本/JSON,直接落库(跳过现在的"待确认"中间态)。或者保留"待确认",工具只负责触发生成,确认另做。
+
+#### 任务拆分
+
+**C-1:场景图工具(类型1,先做)**
+- 写 `generate_scene_image` 工具(execute 回调 tool-callback)
+- 后端 tool-callback 加端点(按 sceneName 查 sceneId,委托 queueSceneReference)
+- 验证:AI 说"给场景 X 生成图"→ 工具调 → 场景图生成
+
+**C-2:提取角色工具(类型1)**
+- 写 `extract_characters` 工具
+- 后端端点(委托 extractProjectCharacters)
+- 验证:AI 说"提取角色"→ 工具调 → 角色进库
+
+**C-3:类型2工具的确认类**
+- 写 `confirm_story_structure` / `confirm_storyboard` 工具
+- 后端端点(委托现有 confirm 方法)
+- 设计决策:AI 传 JSON 还是只触发确认?
+
+**C-4:类型2工具的写入类**
+- 写 `write_chapter_script` / `save_script_outline` 工具
+- 后端端点(委托 writeChapterDraftFromAI / saveScriptOutlineFromAI)
 
 **退出标准**:
-- 每个工具 AI 都能自主调用并成功执行
-- 业务产物(结构/分镜/图)正常落盘
+- 类型1工具全部可自主调用(场景图、提取角色)
+- 类型2工具至少一个跑通(确认剧情结构或写入剧本)
+- 每个工具的 args 设计清晰,AI 能正确传参
 
 ### 阶段 D:确认类工具 + 状态查询工具
 
