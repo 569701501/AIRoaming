@@ -88,6 +88,7 @@ $deep-think
 - 文件系统：本地 workspace 先行，后续可抽象对象存储。
 - 视频音频：FFmpeg、TTS 服务或本地 TTS。
 - Aurora 迁移原则：复用工作台、任务中心、workspace 路径、provider adapter 和 OpenCode 对话运行时经验；第一阶段选择 OpenCode 作为项目对话框 AI Runtime，但不迁移完整 Docker sandbox、计费、团队、Phaser 工具和 Aurora 专用闭环系统。详见 `文档/04_方案与决策/2026-05-25_OpenCode对话运行时移植方案.md`。
+- 真工具调用：2026-06-19 起，AI 对话(OpenCode 1.17.8)通过真 function calling 自主调用工具。工具插件在 `apps/server/opencodeAI/plugin/airoaming-tools.js`，后端网关在 `src/tool-callback/`。类型 1(执行动作:角色图/场景图/提取角色/状态查询)走真工具，类型 2(生成内容:结构/分镜/剧本)保持伪工具调用。详见 `ADR-0005_真工具调用架构改造.md`。
 
 ## 7. 当前代码入口
 
