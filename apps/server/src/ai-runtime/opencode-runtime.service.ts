@@ -361,9 +361,20 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       return;
     }
 
+    // 注入工具回调环境变量:让 OpenCode 插件工具能回调 AIRoaming 后端
+    // 注意:这里用 server 的端口(process.env.PORT),不是 OpenCode 的端口(this.port)
+    const serverPort = process.env.PORT ?? "4310";
+    const toolCallbackBase = process.env.AIROAMING_TOOL_CALLBACK_BASE_URL ?? `http://127.0.0.1:${serverPort}/api`;
+    const toolCallbackToken = process.env.AIROAMING_TOOL_CALLBACK_TOKEN ?? "";
+
     this.child = spawn("opencode", ["serve", "--port", String(this.port), "--hostname", this.host], {
       stdio: "ignore",
       detached: false,
+      env: {
+        ...process.env,
+        AIROAMING_TOOL_CALLBACK_BASE_URL: toolCallbackBase,
+        AIROAMING_TOOL_CALLBACK_TOKEN: toolCallbackToken,
+      },
     });
     this.child.once("exit", () => {
       this.child = null;

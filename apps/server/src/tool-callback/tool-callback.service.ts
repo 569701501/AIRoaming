@@ -1,0 +1,66 @@
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import type { QueueCharacterReferenceResponse } from "@airoaming/shared";
+import { ProjectsService } from "../projects/projects.service.js";
+
+/**
+ * 工具回调业务层:接收插件工具的回调,委托 ProjectsService 执行。
+ * 职责:token 鉴权 + 按角色名查 id + 委托业务方法。
+ */
+@Injectable()
+export class ToolCallbackService {
+  private readonly callbackToken: string | null;
+
+  constructor(@Inject(ProjectsService) private readonly projectsService: ProjectsService) {
+    this.callbackToken = process.env.AIROAMING_TOOL_CALLBACK_TOKEN?.trim() || null;
+  }
+
+  /** token 校验:配置了 token 时必须匹配,防止外部调用 */
+  assertToken(token: string | undefined): void {
+    if (this.callbackToken) {
+      if (!token || token !== this.callbackToken) {
+        throw new BadRequestException("TOOL_CALLBACK_TOKEN_INVALID");
+      }
+    }
+  }
+
+  /** 生成角色预览图(preview_front):按角色名查 id,委托 queueCharacterReference */
+  async generateCharacterImage(input: {
+    projectId: string;
+    characterName: string;
+    prompt?: string;
+  }): Promise<QueueCharacterReferenceResponse> {
+    const characterId = await this.resolveCharacterIdByName(input.projectId, input.characterName);
+    return this.projectsService.queueCharacterReference(input.projectId, characterId, {
+      referenceKind: "preview_front",
+      prompt: input.prompt,
+    });
+  }
+
+  /** 生成角色三向图(final_reference):按角色名查 id,委托 queueCharacterReference */
+  async generateCharacterFinal(input: {
+    projectId: string;
+    characterName: string;
+    prompt?: string;
+  }): Promise<QueueCharacterReferenceResponse> {
+    const characterId = await this.resolveCharacterIdByName(input.projectId, input.characterName);
+    return this.projectsService.queueCharacterReference(input.projectId, characterId, {
+      referenceKind: "final_reference",
+      prompt: input.prompt,
+    });
+  }
+
+  /** 按角色名查 characterId(大小写不敏感、去空格) */
+  private async resolveCharacterIdByName(projectId: string, characterName: string): Promise<string> {
+    const trimmed = characterName.trim();
+    if (!trimmed) {
+      throw new BadRequestException("CHARACTER_NAME_REQUIRED");
+    }
+    const characters = await this.projectsService.listProjectCharacters(projectId);
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const matched = characters.characters.find((c) => normalize(c.name) === normalize(trimmed));
+    if (!matched) {
+      throw new NotFoundException(`CHARACTER_NOT_FOUND:${trimmed}`);
+    }
+    return matched.id;
+  }
+}

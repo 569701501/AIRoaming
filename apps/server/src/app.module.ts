@@ -5,9 +5,10 @@ import { HealthModule } from "./health/health.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
 import { TasksModule } from "./tasks/tasks.module.js";
+import { ToolCallbackModule } from "./tool-callback/tool-callback.module.js";
 import { WorkspaceModule } from "./workspace/workspace.module.js";
 
 @Module({
-  imports: [HealthModule, WorkspaceModule, SettingsModule, AIRuntimeModule, ProjectsModule, TasksModule, DialogueModule],
+  imports: [HealthModule, WorkspaceModule, SettingsModule, AIRuntimeModule, ProjectsModule, TasksModule, DialogueModule, ToolCallbackModule],
 })
 export class AppModule {}
