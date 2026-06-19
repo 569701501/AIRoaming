@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { QueueCharacterReferenceResponse, QueueSceneReferenceResponse } from "@airoaming/shared";
+import type { ExtractProjectCharactersResponse, QueueCharacterReferenceResponse, QueueSceneReferenceResponse } from "@airoaming/shared";
 import { ProjectsService } from "../projects/projects.service.js";
 
 /**
@@ -74,5 +74,10 @@ export class ToolCallbackService {
     return this.projectsService.queueSceneReference(input.projectId, input.chapterId, input.sceneId, {
       prompt: input.prompt,
     });
+  }
+
+  /** 提取项目角色:从剧本大纲/剧情结构提取角色进项目角色库 */
+  async extractCharacters(input: { projectId: string }): Promise<ExtractProjectCharactersResponse> {
+    return this.projectsService.extractProjectCharacters(input.projectId, {});
   }
 }

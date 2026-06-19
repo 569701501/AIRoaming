@@ -120,6 +120,20 @@ export default async () => {
           })
         },
       }),
+
+      // 提取项目角色(从剧本大纲/剧情结构提取角色进项目角色库)
+      extract_characters: tool({
+        description:
+          "【提取项目角色】从项目剧本大纲或剧情结构中提取角色,自动创建项目角色库条目。新角色会建档(有名字无图,图需单独生成)。当用户说'提取角色''整理角色库''把角色加入角色库'时使用。",
+        args: {
+          projectId: tool.schema.string().describe("当前项目ID"),
+        },
+        async execute(args) {
+          return callback("extract_characters", {
+            projectId: args.projectId,
+          })
+        },
+      }),
     },
   }
 }
