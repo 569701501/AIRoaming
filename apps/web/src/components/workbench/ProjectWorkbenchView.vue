@@ -76,6 +76,7 @@
         @delete-character-reference="$emit('deleteCharacterReference', $event)"
         @confirm-character-preview="$emit('confirmCharacterPreview', $event)"
         @confirm-character-reference="$emit('confirmCharacterReference', $event)"
+        @generate-scene-reference="$emit('generateSceneReference', $event)"
       />
 
       <ProjectCharactersWorkspace
@@ -176,6 +177,7 @@ const emit = defineEmits<{
   deleteCharacterReference: [payload: { characterId: string; assetId: string }];
   confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
+  generateSceneReference: [payload: { chapterId: string; sceneId: string }];
   confirmStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   confirmStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];

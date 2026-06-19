@@ -182,6 +182,43 @@
             <EditableBlock :field-key="`scenes.${index}.timeOfDay`" label="时间" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.timeOfDay" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
             <EditableBlock :field-key="`scenes.${index}.atmosphere`" label="氛围" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.atmosphere" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
             <EditableBlock :field-key="`scenes.${index}.purpose`" label="剧情作用" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.purpose" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <div class="scene-reference">
+              <div v-if="getSceneAssetUrl(scene)" class="scene-image-wrap">
+                <button
+                  class="scene-image-btn"
+                  type="button"
+                  @click="openScenePreview(scene)"
+                >
+                  <img :src="getSceneAssetUrl(scene)!" :alt="`${scene.name} 场景图`" />
+                  <span class="scene-image-overlay"><ZoomIn :size="14" /> 查看</span>
+                </button>
+                <button
+                  v-if="!isSceneTaskActive(scene)"
+                  type="button"
+                  class="scene-regen-corner"
+                  title="重新生成场景图"
+                  :disabled="loading"
+                  @click.stop="requestSceneReference(scene)"
+                >
+                  <RotateCw :size="15" />
+                </button>
+                <span v-else class="scene-regen-loading"><LoaderCircle :size="14" /></span>
+              </div>
+              <div v-else-if="isSceneTaskActive(scene)" class="scene-image-pending">
+                <LoaderCircle :size="18" />
+                <span>生成中</span>
+              </div>
+              <button
+                v-else
+                class="scene-generate-btn"
+                type="button"
+                :disabled="loading"
+                @click="requestSceneReference(scene)"
+              >
+                <ImagePlus :size="14" />
+                <span>生成场景图</span>
+              </button>
+            </div>
           </article>
         </div>
       </section>
@@ -212,13 +249,24 @@
       <h2>当前章还没有剧情结构</h2>
       <p>左侧对话框请求生成后，这里会先显示待确认预览。</p>
     </div>
+
+    <Teleport to="body">
+      <div v-if="activeScenePreview" class="scene-preview-backdrop" role="dialog" aria-modal="true" @click.self="closeScenePreview">
+        <button class="scene-preview-close" type="button" aria-label="关闭" @click="closeScenePreview">
+          <X :size="20" />
+        </button>
+        <img :src="activeScenePreview.url" :alt="`${activeScenePreview.name} 场景图`" class="scene-preview-image" />
+        <span class="scene-preview-caption">{{ activeScenePreview.name }}</span>
+      </div>
+    </Teleport>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, defineComponent, h, ref, type PropType } from "vue";
-import { CheckCircle2, FileText, Lock, PencilLine, RefreshCw } from "lucide-vue-next";
-import type { ChapterListItem, ChapterStoryStructure, DialogueThread, GenerationTaskItem, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, PencilLine, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
+import type { ChapterListItem, ChapterStoryStructure, DialogueThread, GenerationTaskItem, StoryStructureJson, StoryStructureSceneCard, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { api } from "../../services/api";
 import CharacterImageList from "./CharacterImageList.vue";
 
 const EditableBlock = defineComponent({
@@ -283,10 +331,12 @@ const emit = defineEmits<{
   deleteCharacterReference: [payload: { characterId: string; assetId: string }];
   confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
+  generateSceneReference: [payload: { chapterId: string; sceneId: string }];
 }>();
 
 const editingKey = ref<string | null>(null);
 const editingValue = ref("");
+const activeScenePreview = ref<{ url: string; name: string } | null>(null);
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -396,6 +446,45 @@ function getBeatSceneName(sceneId: string | null) {
   }
 
   return structureJson.value.scenes.find((scene) => scene.id === sceneId)?.name ?? "未关联场景";
+}
+
+/** 场景背景图 URL:从 snapshot.assets 按 scene.referenceAssetId 取 */
+function getSceneAssetUrl(scene: StoryStructureSceneCard): string | null {
+  if (!scene.referenceAssetId) {
+    return null;
+  }
+  const asset = props.snapshot.assets?.find((item) => item.id === scene.referenceAssetId);
+  return asset ? api.projectAssetFileUrl(props.snapshot.project.id, asset.id) : null;
+}
+
+/** 该场景是否有活跃的生成任务 */
+function isSceneTaskActive(scene: StoryStructureSceneCard): boolean {
+  return props.tasks.some((task) =>
+    task.projectId === props.snapshot.project.id
+    && task.type === "scene_reference_generate"
+    && task.target?.type === "scene"
+    && task.target.id === scene.id
+    && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
+  );
+}
+
+function requestSceneReference(scene: StoryStructureSceneCard) {
+  const chapterId = currentChapterId.value;
+  if (!chapterId) {
+    return;
+  }
+  emit("generateSceneReference", { chapterId, sceneId: scene.id });
+}
+
+function openScenePreview(scene: StoryStructureSceneCard) {
+  const url = getSceneAssetUrl(scene);
+  if (url) {
+    activeScenePreview.value = { url, name: scene.name };
+  }
+}
+
+function closeScenePreview() {
+  activeScenePreview.value = null;
 }
 
 function normalizeCharacterKey(value: string) {
@@ -782,6 +871,180 @@ html[data-theme="light"] .entity-item {
 }
 .scene-card {
   border-top: 3px solid rgba(13, 148, 136, 0.7) !important;
+}
+
+.scene-reference {
+  display: grid;
+  margin-top: 8px;
+}
+
+.scene-image-btn {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.5);
+  padding: 0;
+  cursor: zoom-in;
+  aspect-ratio: 16 / 9;
+}
+
+.scene-image-wrap {
+  position: relative;
+}
+
+.scene-regen-corner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fbff;
+  opacity: 0.92;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.scene-regen-corner:hover {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+.scene-regen-corner:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scene-regen-loading {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fbff;
+}
+
+.scene-regen-loading svg {
+  animation: spin 1.2s linear infinite;
+}
+
+.scene-image-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scene-image-overlay {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fbff;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.scene-image-pending {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.4);
+  color: #94a3b8;
+  padding: 16px;
+  font-size: 12px;
+  aspect-ratio: 16 / 9;
+}
+
+.scene-image-pending svg {
+  animation: spin 1.2s linear infinite;
+}
+
+.scene-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 38px;
+  border: 1px dashed rgba(34, 199, 169, 0.4);
+  border-radius: 8px;
+  background: rgba(34, 199, 169, 0.08);
+  color: #8df0dc;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.scene-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scene-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  grid-auto-flow: row;
+  background: rgba(2, 6, 23, 0.88);
+  backdrop-filter: blur(12px);
+  padding: 32px;
+}
+
+.scene-preview-image {
+  max-width: min(92vw, 1200px);
+  max-height: 80vh;
+  border-radius: 10px;
+  object-fit: contain;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.scene-preview-caption {
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.scene-preview-close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fbff;
+}
+
+.scene-preview-close:hover {
+  background: rgba(15, 23, 42, 0.95);
 }
 
 .entity-item > strong {

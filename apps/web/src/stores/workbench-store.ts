@@ -10,6 +10,7 @@ import {
   type CompleteChapterResponse,
   type CompleteChapterRequest,
   type GenerateCharacterReferenceRequest,
+  type GenerateSceneReferenceRequest,
   type CreateProjectRequest,
   type DialogueMessageItem,
   type DialogueStreamEvent,
@@ -961,6 +962,32 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.error = error instanceof Error ? error.message : "生成角色参考图失败";
         return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async generateSceneReference(chapterId: string, sceneId: string, input: GenerateSceneReferenceRequest): Promise<void> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.generateSceneReference(projectId, chapterId, sceneId, input);
+        // 更新 assets(场景图资产 push 进资产池)和 storyStructure(scene.referenceAssetId 回写)
+        if (this.snapshot) {
+          const nextSnapshot: WorkbenchSnapshot = {
+            ...this.snapshot,
+            assets: result.assets,
+            storyStructure: result.storyStructure,
+          };
+          this.snapshot = nextSnapshot;
+        }
+        this.mergeTasks(result.tasks);
+        this.dialogueNotice = result.createdCount > 0 ? "已开始生成场景图。" : "场景图生成任务已在队列中。";
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "生成场景图失败";
       } finally {
         this.loading = false;
       }

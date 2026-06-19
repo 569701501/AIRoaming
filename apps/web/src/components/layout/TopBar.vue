@@ -100,6 +100,7 @@ function getTaskTypeLabel(type: GenerationTaskType) {
   const labels: Record<GenerationTaskType, string> = {
     story_parse: "剧情结构",
     character_reference_generate: "角色图生成",
+    scene_reference_generate: "场景图生成",
     shot_generate: "分镜生成",
     shot_prompt_generate: "提示词生成",
     image_generate: "候选图生成",

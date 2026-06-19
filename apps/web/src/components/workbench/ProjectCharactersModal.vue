@@ -14,16 +14,11 @@
 
         <ProjectCharactersWorkspace
           class="characters-modal-workspace"
+          readonly
           :initial-view="initialView"
           :loading="loading"
           :snapshot="snapshot"
           :tasks="tasks"
-          @extract-characters="$emit('extractCharacters')"
-          @ensure-previews="$emit('ensurePreviews')"
-          @regenerate-reference="$emit('regenerateReference', $event)"
-          @delete-reference="$emit('deleteReference', $event)"
-          @confirm-preview="$emit('confirmPreview', $event)"
-          @confirm-reference="$emit('confirmReference', $event)"
         />
       </section>
     </div>

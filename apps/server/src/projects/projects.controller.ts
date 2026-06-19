@@ -9,6 +9,7 @@ import type {
   CreateProjectRequest,
   ExtractProjectCharactersRequest,
   GenerateCharacterReferenceRequest,
+  GenerateSceneReferenceRequest,
   ResolveImagePreflightCharacterRequest,
   SaveChapterDraftRequest,
   UpdateProjectCharacterRequest,
@@ -184,6 +185,16 @@ export class ProjectsController {
     @Body() body: UpdateChapterStoryStructureRequest,
   ) {
     return ok(await this.projectsService.updateChapterStoryStructure(projectId, chapterId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/scenes/:sceneId/reference")
+  async queueSceneReference(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("sceneId") sceneId: string,
+    @Body() body: GenerateSceneReferenceRequest,
+  ) {
+    return ok(await this.projectsService.queueSceneReference(projectId, chapterId, sceneId, body));
   }
 
   @Get(":projectId/chapters/:chapterId/storyboard")

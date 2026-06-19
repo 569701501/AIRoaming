@@ -41,6 +41,7 @@
           @delete-character-reference="deleteCharacterReference"
           @confirm-character-preview="confirmCharacterPreview"
           @confirm-character-reference="confirmCharacterReference"
+          @generate-scene-reference="generateSceneReference"
           @confirm-story-structure="confirmStoryStructure"
           @confirm-storyboard="confirmStoryboard"
           @confirm-image-preflight="confirmImagePreflight"
@@ -249,6 +250,10 @@ async function regenerateCharacterReference(payload: {
   await workbench.updateAndGenerateCharacterReference(payload.characterId, payload.input, {
     referenceKind: payload.referenceKind,
   });
+}
+
+async function generateSceneReference(payload: { chapterId: string; sceneId: string }) {
+  await workbench.generateSceneReference(payload.chapterId, payload.sceneId, {});
 }
 
 async function deleteCharacterReference(payload: { characterId: string; assetId: string }) {

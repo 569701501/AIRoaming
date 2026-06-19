@@ -53,6 +53,8 @@ import {
   type ImagePreflightStyleCheck,
   type ListChaptersResponse,
   type QueueCharacterReferenceResponse,
+  type QueueSceneReferenceResponse,
+  type GenerateSceneReferenceRequest,
   type ResolveImagePreflightCharacterRequest,
   type ResolveImagePreflightCharacterResponse,
   type ProjectCharacter,
@@ -596,6 +598,196 @@ export class ProjectsService implements OnModuleInit {
       character: nextCharacter,
       asset,
     };
+  }
+
+  /**
+   * 场景背景图:排队生成入口(对称 queueCharacterReference,但更简单——纯文生图)
+   */
+  async queueSceneReference(
+    projectId: string,
+    chapterId: string,
+    sceneId: string,
+    input: GenerateSceneReferenceRequest = {},
+  ): Promise<QueueSceneReferenceResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    const storyStructure = chapter.storyStructure;
+    if (!storyStructure) {
+      throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
+    }
+    const scene = storyStructure.structureJson.scenes.find((item) => item.id === sceneId);
+    if (!scene) {
+      throw new BadRequestException("SCENE_NOT_FOUND");
+    }
+
+    const settings = this.settingsService.getRuntimeImageProviderSettings();
+    if (!settings.apiKey) {
+      throw new BadRequestException("IMAGE_PROVIDER_NOT_CONFIGURED");
+    }
+
+    // 已有同场景活跃任务则复用
+    const existing = this.tasksService.list().find((task) =>
+      task.projectId === project.id
+      && task.type === "scene_reference_generate"
+      && task.target?.type === "scene"
+      && task.target.id === sceneId
+      && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
+    );
+
+    let task: GenerationTaskItem | null = existing ?? null;
+    if (!task) {
+      task = await this.tasksService.createControlled({
+        projectId: project.id,
+        type: "scene_reference_generate",
+        target: { type: "scene", id: sceneId, chapterId },
+        input: {
+          sceneId,
+          chapterId,
+          sceneName: scene.name,
+          prompt: input.prompt ?? "",
+          size: input.size ?? "",
+        },
+        options: {
+          provider: settings.type === "doubao" ? "doubao_image" : "openai_image",
+        },
+      });
+      this.enqueueSceneReferenceTaskRun(task.id, project.id, chapterId, sceneId, input);
+    }
+
+    return {
+      storyStructure,
+      assets: project.assets,
+      tasks: task ? [task] : [],
+      createdCount: task && !existing ? 1 : 0,
+    };
+  }
+
+  /** 场景背景图:真正出图(同步,由任务队列调用) */
+  async generateSceneReference(
+    projectId: string,
+    chapterId: string,
+    sceneId: string,
+    input: GenerateSceneReferenceRequest & { sourceTaskId?: string } = {},
+  ): Promise<{ storyStructure: ChapterStoryStructure; asset: WorkbenchAsset }> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    const storyStructure = chapter.storyStructure;
+    if (!storyStructure) {
+      throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
+    }
+    const scene = storyStructure.structureJson.scenes.find((item) => item.id === sceneId);
+    if (!scene) {
+      throw new BadRequestException("SCENE_NOT_FOUND");
+    }
+
+    const settings = this.settingsService.getRuntimeImageProviderSettings();
+    const apiKey = settings.apiKey;
+    const baseUrl = settings.baseUrl ?? process.env.OPENAI_IMAGE_BASE_URL?.trim() ?? null;
+    if (!apiKey || !baseUrl) {
+      throw new BadRequestException("IMAGE_PROVIDER_NOT_CONFIGURED");
+    }
+
+    const prompt = input.prompt?.trim() || this.buildScenePrompt(scene);
+    const size = "2560x1440";
+    const model = settings.modelId || (settings.type === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2");
+
+    const generated = settings.type === "doubao"
+      ? await this.requestDoubaoImage({ apiKey, baseUrl, model, prompt, size })
+      : await this.requestOpenAiImage({ apiKey, baseUrl, model, prompt, size, quality: "high", outputFormat: "webp" });
+
+    const relativePath = `projects/${project.id}/chapters/${chapter.slug}/scenes/${sceneId}/background.webp`;
+    const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
+    await this.workspacePathService.ensureReady();
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, generated);
+
+    const now = new Date().toISOString();
+    const asset: WorkbenchAsset = {
+      id: `asset_${randomUUID()}`,
+      chapterId: chapter.id,
+      type: "image",
+      name: `${scene.name}-背景`,
+      path: relativePath,
+      sourceTaskId: input.sourceTaskId ?? null,
+      meta: JSON.stringify({
+        sceneId,
+        chapterId: chapter.id,
+        referenceKind: "scene_background",
+        provider: settings.type === "doubao" ? "doubao_image" : "openai_image",
+        model,
+        promptDigest: this.digestPrompt(prompt),
+        generationMode: "image_generation",
+        createdAt: now,
+      }),
+    };
+
+    // 回写 scene.referenceAssetId
+    const nextScenes = storyStructure.structureJson.scenes.map((item) =>
+      item.id === sceneId ? { ...item, referenceAssetId: asset.id } : item,
+    );
+    const nextStoryStructure: ChapterStoryStructure = {
+      ...storyStructure,
+      structureJson: { ...storyStructure.structureJson, scenes: nextScenes },
+      updatedAt: now,
+    };
+    const nextChapter: LocalChapter = { ...chapter, storyStructure: nextStoryStructure, updatedAt: now };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      assets: [...project.assets, asset],
+    }, nextChapter);
+    this.assertProjectStillActive(project.id);
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return { storyStructure: nextStoryStructure, asset };
+  }
+
+  /** 由场景字段拼成生图 prompt */
+  private buildScenePrompt(scene: { name: string; location: string; timeOfDay: string; atmosphere: string; purpose: string }): string {
+    return [scene.name, scene.location, scene.timeOfDay, scene.atmosphere, `画面用途:${scene.purpose}`]
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .join("，");
+  }
+
+  private enqueueSceneReferenceTaskRun(
+    taskId: string,
+    projectId: string,
+    chapterId: string,
+    sceneId: string,
+    input: GenerateSceneReferenceRequest,
+  ): void {
+    const run = () => this.runSceneReferenceTask(taskId, projectId, chapterId, sceneId, input);
+    this.characterReferenceQueue = this.characterReferenceQueue.then(run, run);
+    void this.characterReferenceQueue.catch((error) => {
+      this.logger.error(`Scene reference queue failed: ${this.getErrorMessage(error)}`);
+    });
+  }
+
+  private async runSceneReferenceTask(
+    taskId: string,
+    projectId: string,
+    chapterId: string,
+    sceneId: string,
+    input: GenerateSceneReferenceRequest,
+  ): Promise<void> {
+    const current = this.tasksService.peek(taskId);
+    if (!current || current.status === "cancelled") {
+      return;
+    }
+    this.tasksService.start(taskId, "image_provider_running");
+    try {
+      const result = await this.generateSceneReference(projectId, chapterId, sceneId, {
+        ...input,
+        sourceTaskId: taskId,
+      });
+      this.tasksService.succeed(taskId, { sceneId, chapterId, assetId: result.asset.id });
+    } catch (error) {
+      if (!this.tasksService.peek(taskId)) {
+        return;
+      }
+      this.tasksService.fail(taskId, "SCENE_REFERENCE_GENERATE_FAILED", this.getErrorMessage(error), true);
+    }
   }
 
   async queueCharacterReference(
@@ -3394,6 +3586,7 @@ export class ProjectsService implements OnModuleInit {
         timeOfDay: this.getStringField(item, "timeOfDay", ""),
         atmosphere: this.getStringField(item, "atmosphere", ""),
         purpose: this.getStringField(item, "purpose", ""),
+        referenceAssetId: this.getOptionalStringField(item, "referenceAssetId") ?? null,
       }));
   }
 

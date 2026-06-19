@@ -262,6 +262,8 @@ export interface StoryStructureSceneCard {
   timeOfDay: string;
   atmosphere: string;
   purpose: string;
+  /** 场景背景图资产 id(生成后回写),绑在章节级 scene 上 */
+  referenceAssetId?: string | null;
 }
 
 export interface StoryStructureBeat {
@@ -595,6 +597,24 @@ export interface GenerateCharacterReferenceResponse extends ProjectCharactersRes
 }
 
 export interface QueueCharacterReferenceResponse extends ProjectCharactersResponse {
+  tasks: GenerationTaskItem[];
+  createdCount: number;
+}
+
+/** 场景背景图生成请求(章节级,纯文生图) */
+export interface GenerateSceneReferenceRequest {
+  prompt?: string;
+  size?: string;
+}
+
+export interface GenerateSceneReferenceResponse {
+  storyStructure: ChapterStoryStructure;
+  asset: WorkbenchAsset;
+}
+
+export interface QueueSceneReferenceResponse {
+  storyStructure: ChapterStoryStructure;
+  assets: WorkbenchAsset[];
   tasks: GenerationTaskItem[];
   createdCount: number;
 }

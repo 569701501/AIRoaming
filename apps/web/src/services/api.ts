@@ -19,6 +19,7 @@ import type {
   ExtractProjectCharactersRequest,
   ExtractProjectCharactersResponse,
   GenerateCharacterReferenceRequest,
+  GenerateSceneReferenceRequest,
   CreateGenerationTaskRequest,
   GenerationTaskItem,
   GetChapterResponse,
@@ -27,6 +28,7 @@ import type {
   ProjectCharactersResponse,
   ProjectListItem,
   QueueCharacterReferenceResponse,
+  QueueSceneReferenceResponse,
   ResolveImagePreflightCharacterRequest,
   ResolveImagePreflightCharacterResponse,
   ResetProjectScriptResponse,
@@ -243,6 +245,18 @@ export const api = {
     input: GenerateCharacterReferenceRequest,
   ) => request<QueueCharacterReferenceResponse>(
     `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/reference`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  generateSceneReference: (
+    projectId: string,
+    chapterId: string,
+    sceneId: string,
+    input: GenerateSceneReferenceRequest,
+  ) => request<QueueSceneReferenceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/scenes/${encodeURIComponent(sceneId)}/reference`,
     {
       method: "POST",
       body: JSON.stringify(input),

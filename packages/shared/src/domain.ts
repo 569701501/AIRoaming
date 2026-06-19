@@ -107,6 +107,7 @@ export const PROJECT_WORKFLOW_STEPS = [
 
 export const GENERATION_TASK_TYPES = [
   "character_reference_generate",
+  "scene_reference_generate",
   "story_parse",
   "shot_generate",
   "shot_prompt_generate",
@@ -135,6 +136,7 @@ export const GENERATION_TASK_TARGET_TYPES = [
   "shot",
   "asset",
   "export",
+  "scene",
 ] as const;
 export type GenerationTaskTargetType = (typeof GENERATION_TASK_TARGET_TYPES)[number];
 
