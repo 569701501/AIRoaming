@@ -69,9 +69,14 @@ export interface AppImageProviderSettings {
   updatedAt: string | null;
 }
 
+/** 图片生成 provider 类型:OpenAI 协议 / 豆包协议,二选一 */
+export type ImageProviderType = "openai" | "doubao";
+
 export interface AppSettings {
   aiKey: AppAIKeySettings;
-  imageProvider: AppImageProviderSettings;
+  openaiImageProvider: AppImageProviderSettings;
+  doubaoImageProvider: AppImageProviderSettings;
+  activeImageProvider: ImageProviderType;
   appearance: AppAppearanceSettings;
   settingsPath: "/workspace/settings/app-settings.json";
   updatedAt: string;
@@ -101,7 +106,9 @@ export interface UpdateAppearanceSettingsRequest {
 
 export interface UpdateAppSettingsRequest {
   aiKey?: UpdateAIKeySettingsRequest;
-  imageProvider?: UpdateImageProviderSettingsRequest;
+  openaiImageProvider?: UpdateImageProviderSettingsRequest;
+  doubaoImageProvider?: UpdateImageProviderSettingsRequest;
+  activeImageProvider?: ImageProviderType;
   appearance?: UpdateAppearanceSettingsRequest;
 }
 

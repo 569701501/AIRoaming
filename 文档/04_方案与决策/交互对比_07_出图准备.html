@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>功能⑦ 出图准备 · 现状分析</title>
+<style>
+  :root {
+    --bg: #0b0f1c; --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035); --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0; --text-2: #94a3b8; --text-3: #64748b;
+    --accent: #6366f1; --accent-2: #818cf8;
+    --amber: #f59e0b; --green: #22c55e; --teal: #22c7a9; --red: #ef4444;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 0 0 120px; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--accent-2); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 760px; }
+
+  .section { margin-bottom: 48px; }
+  .section-head { margin-bottom: 20px; }
+  .section-head .num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; margin-right: 10px; }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  .note { padding:12px 14px; border-left:3px solid var(--accent); background: rgba(99,102,241,0.06); border-radius:0 8px 8px 0; font-size:13px; color: var(--text-2); margin-top: 14px; }
+  .note b { color: var(--text); }
+  .note.ok { border-left-color: var(--green); background: rgba(34,197,94,0.06); }
+  .note.warn { border-left-color: var(--amber); background: rgba(245,158,11,0.06); }
+  .note.bad { border-left-color: var(--red); background: rgba(239,68,68,0.06); }
+
+  .problems { display:flex; flex-direction:column; gap:10px; }
+  .problems .item { display:flex; gap:10px; padding:11px 13px; background: var(--card); border:1px solid var(--border); border-radius:9px; font-size:13px; }
+  .problems .item .tag { flex-shrink:0; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; height:fit-content; }
+  .problems .item .tag.fix { background: rgba(99,102,241,0.16); color:#a5b4fc; }
+  .problems .item .tag.del { background: rgba(239,68,68,0.14); color:#fca5a5; }
+  .problems .item .tag.keep { background: rgba(34,197,94,0.14); color:#86efac; }
+  .problems .item .tag.merge { background: rgba(245,158,11,0.16); color:#fbbf24; }
+  .problems .item .txt { color: var(--text-2); }
+  .problems .item .txt b { color: var(--text); }
+
+  /* 模拟出图准备页 */
+  .ws { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .ws-toolbar { display:flex; align-items:center; justify-content:space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .ws-toolbar .picker { display:flex; align-items:center; gap:8px; font-size:13px; color: var(--text-2); }
+  .ws-toolbar .picker select { background: rgba(13,18,33,0.4); border:1px solid var(--border); border-radius:8px; color:var(--text); padding: 6px 10px; font-size:13px; }
+  .ws-toolbar .actions { display:flex; gap:8px; }
+  .ws-toolbar .btn-sec { display:flex; align-items:center; gap:5px; padding: 7px 12px; border-radius:8px; background: var(--card-2); border:1px solid var(--border); color: var(--text); font-size:12px; }
+  .ws-toolbar .btn-pri { display:flex; align-items:center; gap:5px; padding: 7px 14px; border-radius:8px; background: var(--accent); color:#fff; font-size:12px; font-weight:600; }
+
+  .ws-scroll { padding: 12px 16px 16px; display:flex; flex-direction:column; gap: 12px; }
+
+  /* 各面板（标注序号，让"几块抢焦点"一目了然） */
+  .panel-tag { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color: var(--red); background: rgba(239,68,68,0.1); padding: 3px 8px; border-radius: 5px; margin-bottom: 6px; }
+
+  .p-hero { background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(34,199,169,0.04)); border:1px solid rgba(139,92,246,0.15); border-radius:12px; padding: 16px; }
+  .p-hero span { font-size:12px; color: var(--teal); font-weight:700; }
+  .p-hero h2 { font-size:18px; color:var(--text); margin: 4px 0 6px; }
+  .p-hero p { font-size:13px; color: var(--text-3); }
+
+  .p-next { border-radius:12px; padding: 14px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .p-next.amber { background: rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); }
+  .p-next span { font-size:11px; color: var(--text-3); }
+  .p-next h3 { font-size:15px; color:var(--text); margin: 3px 0 4px; }
+  .p-next p { font-size:12px; color: var(--text-2); }
+  .p-next button { padding: 8px 14px; border-radius:8px; background: var(--amber); color:#1a1206; font-weight:700; font-size:12px; flex-shrink:0; }
+
+  .p-metrics { display:grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .p-metrics .m { background: var(--card); border:1px solid var(--border); border-radius:8px; padding: 10px; text-align:center; }
+  .p-metrics .m span { font-size:10px; color: var(--text-3); display:block; }
+  .p-metrics .m strong { font-size:20px; color: var(--text); }
+  .p-metrics .m.warn strong { color: var(--amber); }
+
+  .p-checklist { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .p-checklist .ci { display:flex; gap:8px; padding: 10px; background: var(--card); border:1px solid var(--border); border-radius:8px; font-size:12px; }
+  .p-checklist .ci.ok { border-color: rgba(34,197,94,0.2); }
+  .p-checklist .ci.warn { border-color: rgba(245,158,11,0.2); }
+  .p-checklist .ci strong { color: var(--text); font-size:13px; }
+  .p-checklist .ci p { color: var(--text-3); font-size:11px; }
+  .p-checklist .ci .ic { font-size:16px; flex-shrink:0; }
+
+  .p-issue, .p-role, .p-scene { background: var(--card); border:1px solid var(--border); border-radius:12px; padding: 14px; }
+  .p-issue .ph, .p-role .ph, .p-scene .ph { display:flex; align-items:center; gap:8px; margin-bottom: 10px; }
+  .p-issue .ph h3, .p-role .ph h3, .p-scene .ph h3 { font-size:14px; color: var(--text); }
+  .token-card { background: rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; padding: 10px; margin-bottom: 8px; }
+  .token-card .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px; }
+  .token-card .top span { font-size:10px; color: var(--amber); }
+  .token-card .top strong { font-size:14px; }
+  .token-card .acts { display:flex; gap:5px; flex-wrap:wrap; }
+  .token-card .acts button { font-size:11px; padding: 4px 10px; border-radius:6px; background: var(--card-2); border:1px solid var(--border); color: var(--text-2); }
+
+  .role-card { display:flex; align-items:center; justify-content:space-between; padding: 8px 10px; background: rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; margin-bottom: 6px; }
+  .role-card .info span { font-size:10px; color: var(--text-3); }
+  .role-card .info h4 { font-size:13px; color: var(--text); }
+  .role-card .st { font-size:11px; padding: 3px 8px; border-radius:5px; }
+  .role-card .st.locked { background: rgba(34,197,94,0.12); color: #86efac; }
+  .role-card .st.missing { background: rgba(245,158,11,0.12); color: #fbbf24; }
+
+  .ask { margin-top: 36px; padding: 22px; border: 1.5px dashed var(--accent); border-radius: var(--radius); background: rgba(99,102,241,0.04); }
+  .ask h3 { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ask .q { font-size:14px; color: var(--text); margin: 8px 0; padding-left: 22px; position:relative; }
+  .ask .q:before { content:"?"; position:absolute; left:0; top:0; width:16px; height:16px; border-radius:50%; background: var(--accent); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">功能 ⑦ / 11</div>
+    <h1>出图准备步骤 · 现状分析</h1>
+    <p>第 4 步：进入候选图前，处理角色/场景/画风问题。<b>这是 11 个功能里信息密度问题最严重的——一屏 7 块平级面板抢焦点。但内容本身是对的，只是需要整合。</b></p>
+  </header>
+
+  <!-- ============ 现状全景 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">A</span><h2>现状全景：7 块平级面板</h2>
+      <div class="desc">每个红标就是一块"抢焦点"的面板。用户打开页面不知道先看哪个。</div>
+    </div>
+    <div class="ws">
+      <div class="ws-toolbar">
+        <div class="picker">
+          <span>📋</span>
+          <select><option>第二章 · 废墟 · 出图准备</option></select>
+        </div>
+        <div class="actions">
+          <span class="btn-sec">👥 查看角色库</span>
+          <span class="btn-pri">→ 生成参考图</span>
+        </div>
+      </div>
+      <div class="ws-scroll">
+
+        <div class="panel-tag">🔴 面板 1 · hero 大标题区</div>
+        <div class="p-hero">
+          <span>本章出图准备</span>
+          <h2>第二章 · 废墟 · 8 镜</h2>
+          <p>这里不会让你维护整套角色库，只处理当前章节进入候选图前必须解决的事情。</p>
+        </div>
+
+        <div class="panel-tag">🔴 面板 2 · "当前只需要"卡片</div>
+        <div class="p-next amber">
+          <div>
+            <span>当前只需要</span>
+            <h3>确认 2 个未识别角色</h3>
+            <p>这些名称出现在分镜里，但还没对应到角色库。</p>
+          </div>
+          <button>去确认</button>
+        </div>
+
+        <div class="panel-tag">🔴 面板 3 · 5 个指标数字</div>
+        <div class="p-metrics">
+          <div class="m"><span>分镜数</span><strong>8</strong></div>
+          <div class="m"><span>已识别</span><strong>3</strong></div>
+          <div class="m warn"><span>待确认</span><strong>2</strong></div>
+          <div class="m warn"><span>待锁定</span><strong>1</strong></div>
+          <div class="m"><span>场景问题</span><strong>0</strong></div>
+        </div>
+
+        <div class="panel-tag">🔴 面板 4 · 检查清单</div>
+        <div class="p-checklist">
+          <div class="ci ok"><span class="ic">✅</span><div><strong>分镜已确认</strong><p>8 个镜头</p></div></div>
+          <div class="ci warn"><span class="ic">⚠️</span><div><strong>角色未全部确认</strong><p>还有 2 个待确认</p></div></div>
+          <div class="ci warn"><span class="ic">⚠️</span><div><strong>角色参考图未锁定</strong><p>1 个主角缺参考图</p></div></div>
+          <div class="ci ok"><span class="ic">✅</span><div><strong>场景画风就绪</strong><p>无缺失</p></div></div>
+        </div>
+
+        <div class="panel-tag">🔴 面板 5 · 未识别角色处理</div>
+        <div class="p-issue">
+          <div class="ph"><span>⚠️</span><h3>先确认这些出镜名称是谁</h3></div>
+          <div class="token-card">
+            <div class="top"><span>未识别</span><strong>"黑衣人"</strong></div>
+            <div class="acts"><button>作为本章角色</button><button>设为临时角色</button><button>不参与出图</button></div>
+          </div>
+          <div class="token-card">
+            <div class="top"><span>未识别</span><strong>"小张"</strong></div>
+            <div class="acts"><button>作为本章角色</button><button>设为临时角色</button><button>不参与出图</button></div>
+          </div>
+        </div>
+
+        <div class="panel-tag">🔴 面板 6 · 角色锁定状态</div>
+        <div class="p-role">
+          <div class="ph"><span>👥</span><h3>本章角色锁定</h3></div>
+          <div class="role-card">
+            <div class="info"><span>主角 · 出镜 6 次</span><h4>林晓</h4></div>
+            <span class="st locked">已锁定</span>
+          </div>
+          <div class="role-card">
+            <div class="info"><span>常驻 · 出镜 3 次</span><h4>老周</h4></div>
+            <span class="st missing">待锁定</span>
+          </div>
+        </div>
+
+        <div class="panel-tag">🔴 面板 7 · 场景与画风</div>
+        <div class="p-scene">
+          <div class="ph"><span>🎨</span><h3>场景与画风</h3></div>
+          <div class="p-checklist" style="grid-template-columns:1fr 1fr">
+            <div class="ci ok"><div><strong>漫画形式</strong><p>条漫</p></div></div>
+            <div class="ci ok"><div><strong>美术风格</strong><p>赛博朋克</p></div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 问题诊断 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">B</span><h2>问题诊断</h2>
+    </div>
+    <div class="note bad">
+      <b>核心问题：</b>一屏 7 块平级面板，每块都在喊"看我看我"。用户打开页面，视线在 hero、next-card、metrics、checklist、issue 之间乱跳，<b>不知道先干什么</b>。这违反交互基线原则②（一屏一焦点）。
+    </div>
+    <div class="problems" style="margin-top:14px">
+      <div class="item"><span class="tag merge">合</span><span class="txt"><b>面板 1（hero）+ 面板 2（next-card）重复</b>——两者都在说"当前状态"，hero 说"本章出图准备"，next-card 说"当前只需要"。应该合并成一个：一句话状态 + 一个主操作。</span></div>
+      <div class="item"><span class="tag merge">合</span><span class="txt"><b>面板 3（metrics）+ 面板 4（checklist）重复</b>——metrics 的"待确认2/待锁定1"和 checklist 的"角色未确认/参考图未锁定"是同一件事的两种说法。应该只留一个。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>面板 5（issue）是真正的"主任务"</b>——"确认未识别角色"是这步用户必须做的事。它应该升到最显眼的位置，而不是被压在 4 块面板下面。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>面板 6（角色锁定）+ 面板 7（场景画风）</b>——内容对，只是位置靠后。整合后保留。</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 我的建议 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">C</span><h2>整合方案：7 块 → 3 区</h2>
+      <div class="desc">不是删功能，是把 7 块重组为 3 个清晰的层级。</div>
+    </div>
+    <div class="problems">
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>① 状态区（合并面板1+2+3）</b>——一句话"本章 X 镜，还有 Y 件事要处理" + 一个主操作按钮。metrics 的数字并进这句话里。用户 3 秒知道"现在什么情况、该干嘛"。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>② 任务区（原面板5，升到主位）</b>——"确认未识别角色"是这步的核心动作。它应该是最大的、最显眼的区域。处理完一个就少一个，有进度感。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>③ 检查区（合并面板4+6+7，折叠）</b>——角色锁定状态、场景画风、checklist 合并成一个可折叠的"检查清单"区，默认收起。用户需要时才展开。</span></div>
+    </div>
+    <div class="note ok">
+      <b>效果：</b>从"7 块抢焦点"变成"1 个状态 + 1 个主任务 + 1 个折叠检查"。用户打开页面：先看状态（3 秒），再做主任务（确认角色），最后扫一眼检查区。焦点清晰。
+    </div>
+  </section>
+
+  <!-- ============ 提问 ============ -->
+  <div class="ask">
+    <h3>功能⑦ 出图准备，确认方向</h3>
+    <div class="q">"7 块 → 3 区"的整合方向，你认可吗？（不是删功能，是重组层级）</div>
+    <div class="q">还是你觉得现在的 7 块平铺可以接受，想保持现状？</div>
+  </div>
+
+</div>
+
+</body>
+</html>

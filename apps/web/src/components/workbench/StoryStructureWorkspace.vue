@@ -136,12 +136,31 @@
       <section class="structure-section">
         <CharacterImageList
           compact
-          :characters="structureProjectCharacters"
+          lock-mode="fully-locked"
+          :characters="mainCharacters"
+          :loading="loading"
+          :snapshot="snapshot"
+          :tasks="tasks"
+          subtitle="项目角色库"
+          title="主角色"
+          empty-title="还没有主角色"
+          empty-text="确认剧本大纲后，主角和常驻角色会自动进入项目角色库。"
+          @regenerate-reference="$emit('regenerateCharacterReference', $event)"
+          @delete-reference="$emit('deleteCharacterReference', $event)"
+          @confirm-preview="$emit('confirmCharacterPreview', $event)"
+          @confirm-reference="$emit('confirmCharacterReference', $event)"
+        />
+      </section>
+
+      <section class="structure-section">
+        <CharacterImageList
+          compact
+          :characters="chapterCharacters"
           :loading="loading"
           :snapshot="snapshot"
           :tasks="tasks"
           subtitle="本章角色图"
-          title="角色图片"
+          title="本章新角色"
           empty-title="本章角色还没有进入角色库"
           empty-text="确认剧情结构后，本章角色会自动进入角色库并排队生成角色图。"
           @regenerate-reference="$emit('regenerateCharacterReference', $event)"
@@ -300,11 +319,17 @@ const hasStructure = computed(() => Boolean(pendingStructure.value || formalStru
 const canGenerate = computed(() => Boolean(currentChapter.value && currentChapter.value.status !== "draft"));
 const canEdit = computed(() => activeStructure.value?.status === "structured");
 const projectCharacterByName = computed(() => new Map(props.snapshot.characters.map((character) => [normalizeCharacterKey(character.name), character])));
-const structureProjectCharacters = computed(() => {
+/** 主角色/常驻角色:无条件展示(项目角色库已有),自动带入 */
+const mainCharacters = computed(() =>
+  props.snapshot.characters.filter((character) => character.level === "lead" || character.level === "recurring"),
+);
+/** 本章新角色:本章结构卡匹配到项目库,且非主角色 */
+const chapterCharacters = computed(() => {
+  const mainIds = new Set(mainCharacters.value.map((character) => character.id));
   const matched = new Map<string, WorkbenchSnapshot["characters"][number]>();
   structureJson.value.characters.forEach((character) => {
     const projectCharacter = projectCharacterByName.value.get(normalizeCharacterKey(character.name));
-    if (projectCharacter) {
+    if (projectCharacter && !mainIds.has(projectCharacter.id)) {
       matched.set(projectCharacter.id, projectCharacter);
     }
   });

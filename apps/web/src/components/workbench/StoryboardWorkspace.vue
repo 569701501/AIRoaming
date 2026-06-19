@@ -50,17 +50,20 @@
       </section>
 
       <div class="shot-list">
-        <article v-for="(shot, index) in workingJson.shots" :key="shot.id" class="shot-card">
-          <div class="shot-card-head">
+        <article v-for="(shot, index) in workingJson.shots" :key="shot.id" class="shot-card" :class="{ 'is-collapsed': !isShotExpanded(shot.id) }">
+          <div class="shot-card-head" @click="toggleShotExpand(shot.id)">
             <div class="shot-number">镜头 {{ shot.order }}</div>
             <div class="shot-head-text">
               <strong>{{ shot.coreAction || shot.comic.panelDescription || "未填写镜头动作" }}</strong>
               <span>{{ getShotSceneName(shot.sceneId) }} · {{ shot.emotion || "未填写情绪" }}</span>
             </div>
-            <button class="icon-action danger" type="button" title="删除镜头" @click="removeShot(index)">
+            <button class="icon-action danger" type="button" title="删除镜头" @click.stop="removeShot(index)">
               <Trash2 :size="14" />
             </button>
+            <span class="shot-expand-toggle" :class="{ 'is-open': isShotExpanded(shot.id) }">▾</span>
           </div>
+
+          <div v-show="isShotExpanded(shot.id)" class="shot-card-body">
 
           <div class="shot-core-grid">
             <EditableShotField :field-key="`shots.${index}.coreAction`" label="核心动作" :editing-key="editingKey" :editing-value="editingValue" :value="shot.coreAction" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
@@ -93,6 +96,7 @@
               <EditableShotField :field-key="`shots.${index}.motion.durationHint`" label="时长建议" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.durationHint" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
               <EditableShotField :field-key="`shots.${index}.motion.frameType`" label="画面类型" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.frameType" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
             </section>
+          </div>
           </div>
         </article>
       </div>
@@ -179,6 +183,7 @@ const editingKey = ref<string | null>(null);
 const editingValue = ref("");
 const workingJson = ref<StoryboardJson | null>(null);
 const workingSourceKey = ref("");
+const expandedShots = ref<Set<string>>(new Set());
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -278,6 +283,19 @@ function commitField(key: string) {
   editingKey.value = null;
   editingValue.value = "";
   persistIfFormal(next);
+}
+
+function toggleShotExpand(shotId: string) {
+  if (expandedShots.value.has(shotId)) {
+    expandedShots.value.delete(shotId);
+  } else {
+    expandedShots.value.add(shotId);
+  }
+  expandedShots.value = new Set(expandedShots.value);
+}
+
+function isShotExpanded(shotId: string) {
+  return expandedShots.value.has(shotId);
 }
 
 function addShot() {
@@ -692,6 +710,10 @@ html[data-theme="light"] .storyboard-summary p {
   padding: 20px;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
   border-left: 4px solid rgba(139, 92, 246, 0.5) !important;
+  transition: gap 0.2s, padding 0.2s;
+}
+.shot-card.is-collapsed {
+  gap: 0;
 }
 html[data-theme="light"] .shot-card {
   border-color: rgba(100, 116, 139, 0.08) !important;
@@ -702,14 +724,36 @@ html[data-theme="light"] .shot-card {
 
 .shot-card-head {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   padding-bottom: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 8px;
+  margin: -4px -8px 0;
+  padding: 4px 8px 12px;
+}
+.shot-card-head:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.shot-card.is-collapsed .shot-card-head {
+  border-bottom: none;
+  padding-bottom: 4px;
 }
 html[data-theme="light"] .shot-card-head {
   border-bottom-color: rgba(100, 116, 139, 0.06);
+}
+
+.shot-expand-toggle {
+  color: #64748b;
+  font-size: 14px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.shot-expand-toggle.is-open {
+  transform: rotate(180deg);
 }
 
 .shot-number {

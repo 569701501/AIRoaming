@@ -64,9 +64,9 @@
             <span>API Key</span>
             <input
               v-model.trim="aiForm.apiKey"
-              autocomplete="new-password"
+              autocomplete="off"
               placeholder="留空则保留当前密钥"
-              type="password"
+              spellcheck="false"
             />
           </label>
         </div>
@@ -98,67 +98,109 @@
         </div>
       </form>
 
-      <form v-else-if="activeTab === 'image-provider'" class="settings-panel" @submit.prevent="saveImageProvider">
+      <section v-else-if="activeTab === 'image-provider'" class="settings-panel">
         <div class="panel-title-row">
           <div>
             <span>角色与候选图</span>
             <h2>图片生成</h2>
           </div>
-          <span class="status-pill" :class="{ 'is-ready': imageProviderStatus.configured }">
-            {{ imageProviderStatus.configured ? "已配置" : "未配置" }}
+          <span class="status-pill" :class="{ 'is-ready': activeImageProviderStatus.configured }">
+            {{ activeImageProviderStatus.configured ? "已配置" : "未配置" }}
           </span>
         </div>
 
-        <div class="field-grid">
-          <label>
-            <span>服务商</span>
-            <input v-model.trim="imageForm.providerName" autocomplete="off" />
-          </label>
-          <label>
-            <span>模型</span>
-            <input v-model.trim="imageForm.modelId" autocomplete="off" placeholder="gpt-image-2" />
-          </label>
-          <label class="is-wide">
-            <span>Base URL</span>
-            <input v-model.trim="imageForm.baseUrl" autocomplete="off" placeholder="例如 https://api.example.com/v1" />
-          </label>
-          <label class="is-wide">
-            <span>API Key</span>
-            <input
-              v-model.trim="imageForm.apiKey"
-              autocomplete="new-password"
-              placeholder="留空则保留当前密钥"
-              type="password"
-            />
-          </label>
-        </div>
+        <label class="provider-switch">
+          <span>当前生效的服务商</span>
+          <select :value="settings.settings?.activeImageProvider" :disabled="settings.saving" @change="onSwitchProvider">
+            <option value="openai">OpenAI 图片生成</option>
+            <option value="doubao">豆包图片生成</option>
+          </select>
+        </label>
 
-        <div class="key-meta">
-          <div>
-            <span>当前密钥</span>
-            <strong>{{ imageProviderStatus.keyPreview ?? "未保存" }}</strong>
+        <form v-if="settings.settings?.activeImageProvider !== 'doubao'" class="provider-form" @submit.prevent="saveOpenaiProvider">
+          <div class="provider-form-head">
+            <strong>OpenAI 图片生成</strong>
+            <span class="status-pill" :class="{ 'is-ready': openaiImageProviderStatus.configured }">
+              {{ openaiImageProviderStatus.configured ? "已配置" : "未配置" }}
+            </span>
           </div>
-          <div>
-            <span>指纹</span>
-            <strong>{{ imageProviderStatus.keyFingerprint ?? "无" }}</strong>
+          <div class="field-grid">
+            <label>
+              <span>服务商</span>
+              <input v-model.trim="openaiImageForm.providerName" autocomplete="off" />
+            </label>
+            <label>
+              <span>模型</span>
+              <input v-model.trim="openaiImageForm.modelId" autocomplete="off" placeholder="gpt-image-2" />
+            </label>
+            <label class="is-wide">
+              <span>Base URL</span>
+              <input v-model.trim="openaiImageForm.baseUrl" autocomplete="off" placeholder="例如 https://api.example.com/v1" />
+            </label>
+            <label class="is-wide">
+              <span>API Key</span>
+              <input
+                v-model.trim="openaiImageForm.apiKey"
+                autocomplete="new-password"
+                placeholder="留空则保留当前密钥"
+                type="password"
+              />
+            </label>
           </div>
-          <div>
-            <span>更新时间</span>
-            <strong>{{ imageProviderStatus.updatedAt ? formatTime(imageProviderStatus.updatedAt) : "无" }}</strong>
+          <div class="settings-actions">
+            <button class="secondary-action" type="button" :disabled="settings.saving || !openaiImageProviderStatus.configured" @click="clearOpenaiProvider">
+              <Trash2 :size="16" />
+              <span>清除密钥</span>
+            </button>
+            <button class="primary-action" type="submit" :disabled="settings.saving">
+              <Save :size="16" />
+              <span>{{ settings.saving ? "保存中" : "保存 OpenAI 设置" }}</span>
+            </button>
           </div>
-        </div>
+        </form>
 
-        <div class="settings-actions">
-          <button class="secondary-action" type="button" :disabled="settings.saving || !imageProviderStatus.configured" @click="clearImageProvider">
-            <Trash2 :size="16" />
-            <span>清除密钥</span>
-          </button>
-          <button class="primary-action" type="submit" :disabled="settings.saving">
-            <Save :size="16" />
-            <span>{{ settings.saving ? "保存中" : "保存图片设置" }}</span>
-          </button>
-        </div>
-      </form>
+        <form v-else class="provider-form" @submit.prevent="saveDoubaoProvider">
+          <div class="provider-form-head">
+            <strong>豆包图片生成</strong>
+            <span class="status-pill" :class="{ 'is-ready': doubaoImageProviderStatus.configured }">
+              {{ doubaoImageProviderStatus.configured ? "已配置" : "未配置" }}
+            </span>
+          </div>
+          <div class="field-grid">
+            <label>
+              <span>服务商</span>
+              <input v-model.trim="doubaoImageForm.providerName" autocomplete="off" placeholder="豆包图片生成" />
+            </label>
+            <label>
+              <span>模型</span>
+              <input v-model.trim="doubaoImageForm.modelId" autocomplete="off" placeholder="doubao-seedream-4-5-251128" />
+            </label>
+            <label class="is-wide">
+              <span>Base URL</span>
+              <input v-model.trim="doubaoImageForm.baseUrl" autocomplete="off" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
+            </label>
+            <label class="is-wide">
+              <span>API Key</span>
+              <input
+                v-model.trim="doubaoImageForm.apiKey"
+                autocomplete="new-password"
+                placeholder="留空则保留当前密钥"
+                type="password"
+              />
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button class="secondary-action" type="button" :disabled="settings.saving || !doubaoImageProviderStatus.configured" @click="clearDoubaoProvider">
+              <Trash2 :size="16" />
+              <span>清除密钥</span>
+            </button>
+            <button class="primary-action" type="submit" :disabled="settings.saving">
+              <Save :size="16" />
+              <span>{{ settings.saving ? "保存中" : "保存豆包设置" }}</span>
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section v-else class="settings-panel">
         <div class="panel-title-row">
@@ -204,11 +246,18 @@ const aiForm = reactive({
   baseUrl: "",
   apiKey: "",
 });
-const imageForm = reactive({
+const openaiImageForm = reactive({
   providerId: "openai_image",
   providerName: "OpenAI 图片生成",
   modelId: "gpt-image-2",
   baseUrl: "",
+  apiKey: "",
+});
+const doubaoImageForm = reactive({
+  providerId: "doubao_image",
+  providerName: "豆包图片生成",
+  modelId: "doubao-seedream-4-5-251128",
+  baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
   apiKey: "",
 });
 
@@ -249,7 +298,7 @@ const aiKeyStatus = computed(() => settings.settings?.aiKey ?? {
   keyFingerprint: null,
   updatedAt: null,
 });
-const imageProviderStatus = computed(() => settings.settings?.imageProvider ?? {
+const openaiImageProviderStatus = computed(() => settings.settings?.openaiImageProvider ?? {
   providerId: "openai_image",
   providerName: "OpenAI 图片生成",
   modelId: "gpt-image-2",
@@ -259,6 +308,20 @@ const imageProviderStatus = computed(() => settings.settings?.imageProvider ?? {
   keyFingerprint: null,
   updatedAt: null,
 });
+const doubaoImageProviderStatus = computed(() => settings.settings?.doubaoImageProvider ?? {
+  providerId: "doubao_image",
+  providerName: "豆包图片生成",
+  modelId: "doubao-seedream-4-5-251128",
+  baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+  configured: false,
+  keyPreview: null,
+  keyFingerprint: null,
+  updatedAt: null,
+});
+/** 当前生效 provider 的状态(用于顶部标题徽章) */
+const activeImageProviderStatus = computed(() =>
+  settings.settings?.activeImageProvider === "doubao" ? doubaoImageProviderStatus.value : openaiImageProviderStatus.value,
+);
 
 watch(
   () => settings.settings?.aiKey,
@@ -276,16 +339,31 @@ watch(
 );
 
 watch(
-  () => settings.settings?.imageProvider,
-  (imageProvider) => {
-    if (!imageProvider) {
+  () => settings.settings?.openaiImageProvider,
+  (provider) => {
+    if (!provider) {
       return;
     }
-    imageForm.providerId = imageProvider.providerId;
-    imageForm.providerName = imageProvider.providerName;
-    imageForm.modelId = imageProvider.modelId;
-    imageForm.baseUrl = imageProvider.baseUrl ?? "";
-    imageForm.apiKey = "";
+    openaiImageForm.providerId = provider.providerId;
+    openaiImageForm.providerName = provider.providerName;
+    openaiImageForm.modelId = provider.modelId;
+    openaiImageForm.baseUrl = provider.baseUrl ?? "";
+    openaiImageForm.apiKey = "";
+  },
+  { immediate: true },
+);
+
+watch(
+  () => settings.settings?.doubaoImageProvider,
+  (provider) => {
+    if (!provider) {
+      return;
+    }
+    doubaoImageForm.providerId = provider.providerId;
+    doubaoImageForm.providerName = provider.providerName;
+    doubaoImageForm.modelId = provider.modelId;
+    doubaoImageForm.baseUrl = provider.baseUrl ?? "";
+    doubaoImageForm.apiKey = "";
   },
   { immediate: true },
 );
@@ -324,26 +402,53 @@ async function clearAIKey() {
   aiForm.apiKey = "";
 }
 
-async function saveImageProvider() {
-  await settings.saveImageProvider({
-    providerId: imageForm.providerId,
-    providerName: imageForm.providerName,
-    modelId: imageForm.modelId,
-    baseUrl: imageForm.baseUrl || null,
-    apiKey: imageForm.apiKey || undefined,
+async function saveOpenaiProvider() {
+  await settings.saveOpenaiImageProvider({
+    providerId: openaiImageForm.providerId,
+    providerName: openaiImageForm.providerName,
+    modelId: openaiImageForm.modelId,
+    baseUrl: openaiImageForm.baseUrl || null,
+    apiKey: openaiImageForm.apiKey || undefined,
   });
-  imageForm.apiKey = "";
+  openaiImageForm.apiKey = "";
 }
 
-async function clearImageProvider() {
-  await settings.saveImageProvider({
-    providerId: imageForm.providerId,
-    providerName: imageForm.providerName,
-    modelId: imageForm.modelId,
-    baseUrl: imageForm.baseUrl || null,
+async function clearOpenaiProvider() {
+  await settings.saveOpenaiImageProvider({
+    providerId: openaiImageForm.providerId,
+    providerName: openaiImageForm.providerName,
+    modelId: openaiImageForm.modelId,
+    baseUrl: openaiImageForm.baseUrl || null,
     clearApiKey: true,
   });
-  imageForm.apiKey = "";
+  openaiImageForm.apiKey = "";
+}
+
+async function saveDoubaoProvider() {
+  await settings.saveDoubaoImageProvider({
+    providerId: doubaoImageForm.providerId,
+    providerName: doubaoImageForm.providerName,
+    modelId: doubaoImageForm.modelId,
+    baseUrl: doubaoImageForm.baseUrl || null,
+    apiKey: doubaoImageForm.apiKey || undefined,
+  });
+  doubaoImageForm.apiKey = "";
+}
+
+async function clearDoubaoProvider() {
+  await settings.saveDoubaoImageProvider({
+    providerId: doubaoImageForm.providerId,
+    providerName: doubaoImageForm.providerName,
+    modelId: doubaoImageForm.modelId,
+    baseUrl: doubaoImageForm.baseUrl || null,
+    clearApiKey: true,
+  });
+  doubaoImageForm.apiKey = "";
+}
+
+async function onSwitchProvider(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  await settings.switchImageProvider(value === "doubao" ? "doubao" : "openai");
 }
 
 async function saveAppearance(theme: AppearanceTheme) {
@@ -382,6 +487,37 @@ function formatTime(value: string): string {
   align-content: start;
   gap: 6px;
   padding: 10px;
+}
+
+.provider-switch {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(204, 215, 245, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+}
+
+.provider-form {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(204, 215, 245, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 16px;
+}
+
+.provider-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.provider-form-head strong {
+  color: #f8fbff;
+  font-size: 15px;
+  font-weight: 900;
 }
 
 .settings-nav-btn {

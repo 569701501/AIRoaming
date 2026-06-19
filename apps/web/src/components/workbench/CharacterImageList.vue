@@ -16,64 +16,100 @@
 
     <div v-else class="image-grid">
       <article v-for="character in characters" :key="character.id" class="image-card">
-        <div class="image-frame">
-          <button
-            v-if="getDisplayAsset(character)"
-            class="image-preview"
-            type="button"
-            @click="openPreview(character)"
-          >
-            <img :src="assetUrl(getDisplayAsset(character)!.id)" :alt="`${character.name} 角色图`" />
-            <span class="view-badge"><ZoomIn :size="14" /> 查看</span>
-          </button>
-          <div v-else class="image-placeholder" :class="{ 'is-active': hasActiveTask(character) }">
-            <LoaderCircle v-if="hasActiveTask(character)" :size="20" />
-            <ImagePlus v-else :size="20" />
-            <strong>{{ getPlaceholderLabel(character) }}</strong>
+        <div class="image-frames">
+          <!-- 角色图(预览图)区:名字+按钮叠加在图上 -->
+          <div class="frame-slot">
+            <div class="image-frame is-primary">
+              <button
+                v-if="getReferenceAsset(character, 'preview_front')"
+                class="image-preview"
+                type="button"
+                @click="openPreviewFor(character, 'preview_front')"
+              >
+                <img :src="assetUrl(getReferenceAsset(character, 'preview_front')!.id)" :alt="`${character.name} 角色图`" />
+              </button>
+              <div v-else class="image-placeholder" :class="{ 'is-active': isReferenceTaskActive(character, 'preview_front') }">
+                <LoaderCircle v-if="isReferenceTaskActive(character, 'preview_front')" :size="22" />
+                <ImagePlus v-else :size="22" />
+                <strong>{{ isReferenceTaskActive(character, 'preview_front') ? '生成中' : '待生成' }}</strong>
+              </div>
+
+              <!-- 顶部叠加:名字 + 层级 -->
+              <div class="overlay-top">
+                <strong class="overlay-name">{{ character.name }}</strong>
+                <span class="overlay-level">{{ getLevelLabel(character.level) }}</span>
+              </div>
+
+              <!-- 状态 B(未定稿)右上角常驻🔄:重新生成角色图 -->
+              <button
+                v-if="isPendingFinalize(character)"
+                type="button"
+                class="icon-corner"
+                title="重新生成角色图"
+                @click="openEdit(character, 'preview_front')"
+              >
+                <RotateCw :size="15" />
+              </button>
+
+              <!-- 锁定标记:已定稿后角色图不可改 -->
+              <span v-if="isFinalized(character)" class="lock-badge" title="角色图已锁定"><Lock :size="13" /></span>
+
+              <!-- 底部叠加:操作按钮 -->
+              <div v-if="!isFullyLocked(character)" class="overlay-actions">
+                <button
+                  v-if="!getReferenceAsset(character, 'preview_front') && canGenerateReference(character, 'preview_front')"
+                  class="overlay-btn"
+                  type="button"
+                  :disabled="loading || hasActiveTask(character)"
+                  @click="openEdit(character, 'preview_front')"
+                >
+                  <ImagePlus :size="14" />
+                  <span>生成角色图</span>
+                </button>
+                <button
+                  v-if="canFinalizePreview(character)"
+                  class="overlay-btn is-primary"
+                  type="button"
+                  :disabled="loading || hasActiveTask(character)"
+                  @click="finalizePreview(character)"
+                >
+                  <CheckCircle2 :size="14" />
+                  <span>定稿</span>
+                </button>
+                <button
+                  v-if="canConfirmFinalReference(character)"
+                  class="overlay-btn is-primary"
+                  type="button"
+                  :disabled="loading"
+                  @click="confirmFinalReference(character)"
+                >
+                  <CheckCircle2 :size="14" />
+                  <span>锁定定稿</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div v-if="getDisplayAsset(character) && !isLocked(character)" class="image-hover-actions">
-            <button type="button" title="编辑生图描述" @click="openEdit(character, getDisplayKind(character))">
-              <Pencil :size="15" />
-            </button>
-            <button type="button" title="删除当前图片" @click="openDelete(character)">
-              <Trash2 :size="15" />
-            </button>
+          <!-- 三向图(定稿图)区 -->
+          <div class="frame-slot">
+            <div class="image-frame">
+              <button
+                v-if="getReferenceAsset(character, 'final_reference')"
+                class="image-preview"
+                type="button"
+                @click="onFinalReferenceClick(character)"
+              >
+                <img :src="assetUrl(getReferenceAsset(character, 'final_reference')!.id)" :alt="`${character.name} 三向图`" />
+                <span class="view-badge"><ZoomIn :size="14" /> 查看</span>
+              </button>
+              <div v-else class="image-placeholder" :class="{ 'is-active': isReferenceTaskActive(character, 'final_reference') }">
+                <LoaderCircle v-if="isReferenceTaskActive(character, 'final_reference')" :size="22" />
+                <ImagePlus v-else :size="22" />
+                <strong>{{ isReferenceTaskActive(character, 'final_reference') ? '生成中' : '未生成' }}</strong>
+              </div>
+              <span class="frame-tag">三向图</span>
+            </div>
           </div>
-        </div>
-
-        <div class="card-body">
-          <div class="card-title">
-            <strong>{{ character.name }}</strong>
-            <span>{{ getLevelLabel(character.level) }}</span>
-          </div>
-          <p>{{ getCharacterDescription(character) }}</p>
-          <em :class="{ 'is-warning': hasFailedTask(character), 'is-active': hasActiveTask(character) }">
-            {{ getCardStateLabel(character) }}
-          </em>
-        </div>
-
-        <div class="card-actions">
-          <button
-            v-if="canConfirmFinalReference(character)"
-            class="secondary-action"
-            type="button"
-            :disabled="loading"
-            @click="confirmFinalReference(character)"
-          >
-            <CheckCircle2 :size="14" />
-            <span>锁定定稿</span>
-          </button>
-          <button
-            v-if="canGenerateNextReference(character)"
-            class="ghost-action"
-            type="button"
-            :disabled="loading || hasActiveTask(character)"
-            @click="openEdit(character, getNextReferenceKind(character))"
-          >
-            <RotateCw :size="14" />
-            <span>{{ getGenerateActionLabel(character) }}</span>
-          </button>
         </div>
       </article>
     </div>
@@ -189,7 +225,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { CheckCircle2, ImagePlus, LoaderCircle, Pencil, RotateCw, Trash2, UserRound, X, ZoomIn } from "lucide-vue-next";
+import { CheckCircle2, ImagePlus, LoaderCircle, Lock, Pencil, RotateCw, Trash2, UserRound, X, ZoomIn } from "lucide-vue-next";
 import type {
   GenerationTaskItem,
   ProjectCharacter,
@@ -213,12 +249,15 @@ const props = withDefaults(defineProps<{
   emptyTitle?: string;
   emptyText?: string;
   compact?: boolean;
+  /** 锁定模式:none=正常可编辑;fully-locked=老角色纯展示,隐藏所有编辑/删除/生成入口 */
+  lockMode?: "none" | "fully-locked";
 }>(), {
   title: "",
   subtitle: "",
   emptyTitle: "还没有角色",
   emptyText: "先从剧本大纲或本章剧情结构里提取角色。",
   compact: false,
+  lockMode: "none",
 });
 
 const emit = defineEmits<{
@@ -259,21 +298,6 @@ function getReferenceAsset(character: ProjectCharacter, referenceKind: Reference
     ? assets.value.find((asset) => asset.id === character.primaryReferenceAssetId) ?? null
     : null;
   return latest ?? primary;
-}
-
-function getDisplayAsset(character: ProjectCharacter): WorkbenchAsset | null {
-  return getReferenceAsset(character, "final_reference") ?? getReferenceAsset(character, "preview_front");
-}
-
-function getDisplayKind(character: ProjectCharacter): ReferenceKind {
-  return getReferenceAsset(character, "final_reference") ? "final_reference" : "preview_front";
-}
-
-function getNextReferenceKind(character: ProjectCharacter): ReferenceKind {
-  if (getReferenceAsset(character, "preview_front") && character.level !== "extra") {
-    return "final_reference";
-  }
-  return "preview_front";
 }
 
 function getAssetReferenceKind(asset: WorkbenchAsset): ProjectCharacterReferenceKind | null {
@@ -335,6 +359,27 @@ function isLocked(character: ProjectCharacter) {
   return character.status === "in_use";
 }
 
+/**
+ * 老角色完全锁死:仅当 lockMode=fully-locked 且角色已有三向图(已定稿)时才锁死,纯展示🔒。
+ * 无图的角色(哪怕是主角/常驻,刚建档还没生成图)不锁,允许生成角色图。
+ */
+function isFullyLocked(character: ProjectCharacter) {
+  return props.lockMode === "fully-locked" && isFinalized(character);
+}
+
+/** 状态 B(新角色):有预览图、无三向图、未锁定 → 显示左上角🔄刷新 */
+function isPendingFinalize(character: ProjectCharacter) {
+  if (isLocked(character) || isFullyLocked(character)) {
+    return false;
+  }
+  return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
+}
+
+/** 状态 D(已定稿):有三向图 → 角色图锁定,但三向图保留编辑入口 */
+function isFinalized(character: ProjectCharacter) {
+  return Boolean(getReferenceAsset(character, "final_reference"));
+}
+
 function canGenerateReference(character: ProjectCharacter, referenceKind: ReferenceKind) {
   if (isLocked(character) || isReferenceTaskActive(character, referenceKind)) {
     return false;
@@ -343,10 +388,6 @@ function canGenerateReference(character: ProjectCharacter, referenceKind: Refere
     return false;
   }
   return true;
-}
-
-function canGenerateNextReference(character: ProjectCharacter) {
-  return canGenerateReference(character, getNextReferenceKind(character));
 }
 
 function canConfirmFinalReference(character: ProjectCharacter) {
@@ -358,6 +399,22 @@ function confirmFinalReference(character: ProjectCharacter) {
   const asset = getReferenceAsset(character, "final_reference");
   if (asset) {
     emit("confirmReference", { characterId: character.id, assetId: asset.id });
+  }
+}
+
+/** 状态 B 可定稿:有预览图、无三向图、非 extra、非锁定、无活跃任务 → 显示"定稿"主按钮 */
+function canFinalizePreview(character: ProjectCharacter) {
+  if (isLocked(character) || isFullyLocked(character) || character.level === "extra") {
+    return false;
+  }
+  return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
+}
+
+/** 定稿:锁定当前预览图 + 后端自动触发三向图生成 */
+function finalizePreview(character: ProjectCharacter) {
+  const asset = getReferenceAsset(character, "preview_front");
+  if (asset) {
+    emit("confirmPreview", { characterId: character.id, assetId: asset.id });
   }
 }
 
@@ -404,33 +461,23 @@ function getCardStateLabel(character: ProjectCharacter) {
   return "待生成角色图";
 }
 
-function getPlaceholderLabel(character: ProjectCharacter) {
-  if (hasActiveTask(character)) {
-    return "角色图生成中";
-  }
-  if (hasFailedTask(character)) {
-    return "生成失败";
-  }
-  return getNextReferenceKind(character) === "final_reference" ? "等待生成定稿图" : "等待生成角色图";
-}
-
-function getGenerateActionLabel(character: ProjectCharacter) {
-  const kind = getNextReferenceKind(character);
-  const asset = getReferenceAsset(character, kind);
-  if (kind === "final_reference") {
-    return asset ? "重生成稿" : "生成定稿";
-  }
-  return asset ? "重新生成" : "生成角色图";
-}
-
-function openPreview(character: ProjectCharacter) {
-  const asset = getDisplayAsset(character);
+function openPreviewFor(character: ProjectCharacter, referenceKind: ReferenceKind) {
+  const asset = getReferenceAsset(character, referenceKind);
   if (!asset) return;
   activePreview.value = {
     character,
     asset,
-    kind: getDisplayKind(character),
+    kind: referenceKind,
   };
+}
+
+/** 三向图点击:已定稿(角色图锁定)→ 弹编辑窗重生三向图;未定稿 → 仅查看预览 */
+function onFinalReferenceClick(character: ProjectCharacter) {
+  if (isFinalized(character)) {
+    openEdit(character, "final_reference");
+  } else {
+    openPreviewFor(character, "final_reference");
+  }
 }
 
 function openEdit(character: ProjectCharacter, referenceKind: ReferenceKind) {
@@ -465,7 +512,7 @@ function submitEdit() {
 }
 
 function openDelete(character: ProjectCharacter) {
-  const asset = getDisplayAsset(character);
+  const asset = getReferenceAsset(character, "preview_front");
   if (asset) {
     deleteTarget.value = { character, asset };
   }
@@ -512,12 +559,12 @@ function submitDelete() {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 .character-image-list.is-compact .image-grid {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .image-card,
@@ -531,17 +578,40 @@ function submitDelete() {
 }
 
 .image-card {
-  display: grid;
-  gap: 10px;
   padding: 10px;
+}
+
+.image-frames {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.frame-slot {
+  display: grid;
+  min-width: 0;
 }
 
 .image-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(2, 6, 23, 0.48);
-  aspect-ratio: 4 / 5;
+  height: 140px;
+}
+
+.lock-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #8df0dc;
 }
 
 .image-preview,
@@ -561,7 +631,7 @@ function submitDelete() {
 .image-preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .view-badge {
@@ -593,6 +663,109 @@ function submitDelete() {
 
 .image-placeholder.is-active svg {
   animation: spin 1s linear infinite;
+}
+
+/* 角色图上的叠加层 */
+.overlay-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(to bottom, rgba(2, 6, 23, 0.82), rgba(2, 6, 23, 0));
+  pointer-events: none;
+}
+
+.overlay-name {
+  color: #f8fbff;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.overlay-level {
+  flex: 0 0 auto;
+  border: 1px solid rgba(34, 199, 169, 0.4);
+  border-radius: 999px;
+  background: rgba(34, 199, 169, 0.16);
+  color: #8df0dc;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.icon-corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fbff;
+  opacity: 0.92;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.icon-corner:hover {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+.frame-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #8df0dc;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.overlay-actions {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.overlay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  min-height: 34px;
+  border: 1px solid rgba(204, 215, 245, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fbff;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  backdrop-filter: blur(4px);
+}
+
+.overlay-btn.is-primary {
+  border-color: rgba(34, 199, 169, 0.5);
+  background: rgba(34, 199, 169, 0.22);
+  color: #8df0dc;
+}
+
+.overlay-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .image-hover-actions {
@@ -652,16 +825,24 @@ function submitDelete() {
   font-weight: 900;
 }
 
-.card-body p {
+.card-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.card-desc {
   display: -webkit-box;
-  min-height: 42px;
   margin: 0;
   overflow: hidden;
   color: #cbd5e1;
   font-size: 12px;
   line-height: 1.55;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
 }
 
 .card-body em {

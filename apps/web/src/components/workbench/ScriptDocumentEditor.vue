@@ -3,6 +3,21 @@
 
 
     <div class="editor-content">
+      <button
+        v-if="canReset"
+        class="editor-more-btn"
+        type="button"
+        aria-label="编辑器更多操作"
+        @click="showMoreMenu = !showMoreMenu"
+      >
+        <MoreHorizontal :size="16" />
+      </button>
+      <div v-if="showMoreMenu" ref="moreMenuRef" class="editor-more-menu">
+        <button class="more-item danger" type="button" @click="handleResetClick">
+          <Trash2 :size="14" />
+          <span>清空本章</span>
+        </button>
+      </div>
       <MarkdownTextEditor
         ref="editorRef"
         v-model="sourceText"
@@ -13,11 +28,10 @@
 
     <footer class="editor-footer">
       <div class="footer-stats">
-        <span>字数 {{ sourceText.length }}</span>
-        <span>预估页数 {{ estimatedPages }} 页</span>
+        <span>{{ sourceText.length }} 字 · 约 {{ estimatedPages }} 页</span>
         <div v-if="lastScriptRevision" class="revision-status" :title="revisionTitle">
           <History :size="14" />
-          <span>AI 来源 {{ shortId(lastScriptRevision.messageId) }}：{{ lastScriptRevision.summary }}</span>
+          <span>{{ lastScriptRevision.summary }}</span>
         </div>
         <div class="save-status">
           <span>{{ saveStatusLabel }}</span>
@@ -25,10 +39,6 @@
         </div>
       </div>
       <div class="footer-actions">
-        <button class="reset-script-btn" type="button" :disabled="loading || !canReset" @click="submitReset">
-          <Trash2 :size="14" />
-          <span>清空本章</span>
-        </button>
         <button class="save-draft-btn" type="button" :disabled="loading || !hasChanges" @click="submitSave">
           <Save :size="14" />
           <span>保存草稿</span>
@@ -62,8 +72,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History, AlertTriangle } from "lucide-vue-next";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History, AlertTriangle, MoreHorizontal } from "lucide-vue-next";
 import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import MarkdownTextEditor from "./MarkdownTextEditor.vue";
@@ -85,6 +95,8 @@ const emit = defineEmits<{
 const editorRef = ref<MarkdownTextEditorHandle | null>(null);
 const sourceText = ref("");
 const showResetConfirm = ref(false);
+const showMoreMenu = ref(false);
+const moreMenuRef = ref<HTMLElement | null>(null);
 const currentChapterSourceText = computed(() => getCurrentChapterSourceText(props.snapshot));
 
 const estimatedPages = computed(() => {
@@ -153,10 +165,11 @@ function submitComplete() {
   });
 }
 
-function submitReset() {
+function handleResetClick() {
   if (!canReset.value) {
     return;
   }
+  showMoreMenu.value = false;
   showResetConfirm.value = true;
 }
 
@@ -165,9 +178,19 @@ function confirmReset() {
   showResetConfirm.value = false;
 }
 
-function shortId(id: string) {
-  return id.slice(0, 8);
+function closeMoreMenu(event: MouseEvent) {
+  if (moreMenuRef.value && !moreMenuRef.value.contains(event.target as Node)) {
+    showMoreMenu.value = false;
+  }
 }
+
+onMounted(() => {
+  document.addEventListener("click", closeMoreMenu);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("click", closeMoreMenu);
+});
 </script>
 
 <style scoped>
@@ -251,6 +274,72 @@ function shortId(id: string) {
   flex-direction: column;
   background: rgba(13, 18, 33, 0.6);
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.editor-more-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 5;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.editor-more-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.editor-more-menu {
+  position: absolute;
+  top: 46px;
+  right: 16px;
+  z-index: 10;
+  min-width: 140px;
+  background: rgba(15, 21, 38, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  backdrop-filter: blur(12px);
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.more-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.more-item.danger {
+  color: #fca5a5;
+}
+
+.more-item.danger:hover {
+  background: rgba(248, 113, 113, 0.1);
 }
 
 .editor-footer {
@@ -317,7 +406,6 @@ function shortId(id: string) {
   flex-shrink: 0;
 }
 
-.reset-script-btn,
 .save-draft-btn {
   display: flex;
   align-items: center;
@@ -332,17 +420,6 @@ function shortId(id: string) {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-}
-
-.reset-script-btn {
-  border-color: rgba(248, 113, 113, 0.28);
-  background: rgba(248, 113, 113, 0.08);
-  color: #fecaca;
-}
-
-.reset-script-btn:hover:not(:disabled) {
-  background: rgba(248, 113, 113, 0.14);
-  color: #fee2e2;
 }
 
 .save-draft-btn:hover:not(:disabled) {
@@ -373,7 +450,6 @@ function shortId(id: string) {
 }
 
 .next-step-btn:disabled,
-.reset-script-btn:disabled,
 .save-draft-btn:disabled {
   cursor: not-allowed;
   opacity: 0.48;

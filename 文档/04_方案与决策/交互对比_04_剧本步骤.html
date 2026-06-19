@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>功能④ 剧本步骤 · 现状分析</title>
+<style>
+  :root {
+    --bg: #0b0f1c; --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035); --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0; --text-2: #94a3b8; --text-3: #64748b;
+    --accent: #6366f1; --accent-2: #818cf8;
+    --amber: #f59e0b; --green: #22c55e; --teal: #22c7a9;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 0 0 120px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--accent-2); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 760px; }
+
+  .section { margin-bottom: 56px; }
+  .section-head { margin-bottom: 20px; }
+  .section-head .num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; margin-right: 10px; }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  .note { padding:12px 14px; border-left:3px solid var(--accent); background: rgba(99,102,241,0.06); border-radius:0 8px 8px 0; font-size:13px; color: var(--text-2); margin-top: 14px; }
+  .note b { color: var(--text); }
+  .note.ok { border-left-color: var(--green); background: rgba(34,197,94,0.06); }
+  .note.warn { border-left-color: var(--amber); background: rgba(245,158,11,0.06); }
+
+  .problems { display:flex; flex-direction:column; gap:10px; }
+  .problems .item { display:flex; gap:10px; padding:11px 13px; background: var(--card); border:1px solid var(--border); border-radius:9px; font-size:13px; }
+  .problems .item .tag { flex-shrink:0; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; height:fit-content; }
+  .problems .item .tag.fix { background: rgba(99,102,241,0.16); color:#a5b4fc; }
+  .problems .item .tag.del { background: rgba(239,68,68,0.14); color:#fca5a5; }
+  .problems .item .tag.keep { background: rgba(34,197,94,0.14); color:#86efac; }
+  .problems .item .txt { color: var(--text-2); }
+  .problems .item .txt b { color: var(--text); }
+
+  /* 模拟工作区 */
+  .wb { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .wb-rail { display:flex; align-items:center; justify-content:center; gap: 2px; padding: 6px 10px; background: rgba(15,20,36,0.6); border:1px solid rgba(255,255,255,0.05); border-radius: 12px; margin: 8px 16px; }
+  .wb-rail .rs { display:flex; align-items:center; gap:6px; padding: 5px 9px; }
+  .wb-rail .rs .n { width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; }
+  .wb-rail .rs.done .n { background: var(--green); color:#fff; }
+  .wb-rail .rs.cur .n { background: var(--accent); color:#fff; }
+  .wb-rail .rs.todo .n { background: rgba(255,255,255,0.06); color: var(--text-3); }
+  .wb-rail .rs .l { font-size:12px; font-weight:600; }
+  .wb-rail .rs.done .l { color: var(--text-2); }
+  .wb-rail .rs.cur .l { color:#fff; }
+  .wb-rail .rs.todo .l { color: var(--text-3); }
+  .wb-rail .ar { color: var(--text-3); font-size:9px; opacity:0.5; }
+
+  .wb-body { display: grid; grid-template-columns: 280px 1fr; gap: 12px; padding: 8px 16px 16px; min-height: 440px; }
+
+  /* 左侧对话框 */
+  .dlg { background: rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .dlg .ttl { font-size:11px; font-weight:700; color: var(--text-3); text-transform:uppercase; letter-spacing:0.05em; }
+  .dlg .msg { font-size:12px; line-height:1.5; color: var(--text); padding: 6px 9px; background: var(--card); border-radius:7px; }
+  .dlg .msg.ai { background: rgba(99,102,241,0.08); border-left: 2px solid var(--accent); }
+  .dlg .quick { display:flex; flex-wrap:wrap; gap:5px; margin: 6px 0; }
+  .dlg .quick span { font-size:11px; padding: 4px 9px; border-radius:6px; background: var(--card-2); border:1px solid var(--border); color: var(--text-2); }
+  .dlg .input { margin-top:auto; background: var(--card); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:12px; color: var(--text-3); }
+
+  /* 中间列 */
+  .mid { display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .chap-sel { display:flex; align-items:center; gap:10px; }
+  .chap-btn { display:flex; align-items:center; gap:10px; height:38px; background: rgba(13,18,33,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:10px; padding: 0 14px; color: var(--text); min-width: 220px; }
+  .chap-btn .ico { color: var(--accent-2); }
+  .chap-btn .t { font-size:13px; font-weight:700; flex:1; }
+  .chap-btn .st { font-size:11px; padding:2px 6px; border-radius:4px; background: rgba(148,163,184,0.15); color: var(--text-2); font-weight:800; }
+  .chap-btn .st.done { background: rgba(34,199,169,0.15); color: #8df0dc; }
+  .story-ttl { display:inline-flex; align-items:center; gap:6px; font-size:11px; color: var(--text-3); }
+  .story-ttl b { color: var(--text); font-size:13px; }
+
+  /* 完成提示条 */
+  .next-act { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid rgba(34,199,169,0.26); border-radius:12px; background: rgba(11,42,38,0.42); padding: 12px 14px; }
+  .next-act .info span { color:#8df0dc; font-size:12px; font-weight:900; }
+  .next-act .info strong { display:block; color:#f8fbff; font-size:14px; }
+  .next-act .btns { display:flex; gap:8px; }
+  .next-act .p { height:36px; border-radius:10px; padding:0 14px; font-size:13px; font-weight:900; border:1px solid rgba(34,199,169,0.34); background: linear-gradient(135deg, var(--teal), var(--accent)); color:#fff; display:flex; align-items:center; }
+  .next-act .s { height:36px; border-radius:10px; padding:0 12px; font-size:13px; font-weight:900; border:1px solid rgba(148,163,184,0.22); background: rgba(15,23,42,0.76); color:#d8e0f0; display:flex; align-items:center; }
+
+  /* 编辑器 */
+  .editor { flex:1; background: rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:10px; display:flex; flex-direction:column; overflow:hidden; }
+  .editor-area { flex:1; padding:18px; color: var(--text-2); font-size:14px; line-height:1.8; overflow-y:auto; }
+  .editor-area p { margin-bottom: 12px; }
+  .editor-foot { display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-top:1px solid var(--border); background: rgba(0,0,0,0.15); gap:10px; }
+  .ef-stats { display:flex; align-items:center; gap:14px; font-size:11px; color: var(--text-3); }
+  .ef-stats .ai-src { display:flex; align-items:center; gap:5px; color: var(--accent-2); }
+  .ef-stats .saved { display:flex; align-items:center; gap:5px; color: var(--green); }
+  .ef-actions { display:flex; gap:6px; }
+  .ef-actions button { height:32px; border-radius:8px; padding:0 12px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:5px; }
+  .ef-actions .reset { background: rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); color:#fca5a5; }
+  .ef-actions .save { background: var(--card-2); border:1px solid var(--border); color: var(--text); }
+  .ef-actions .next { background: linear-gradient(135deg, var(--teal), var(--accent)); color:#fff; border:1px solid rgba(255,255,255,0.1); }
+
+  .ask { margin-top: 36px; padding: 22px; border: 1.5px dashed var(--accent); border-radius: var(--radius); background: rgba(99,102,241,0.04); }
+  .ask h3 { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ask .q { font-size:14px; color: var(--text); margin: 8px 0; padding-left: 22px; position:relative; }
+  .ask .q:before { content:"?"; position:absolute; left:0; top:0; width:16px; height:16px; border-radius:50%; background: var(--accent); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">功能 ④ / 11</div>
+    <h1>剧本步骤 · 现状分析</h1>
+    <p>第 1 步：写章节剧本。<b>结论先说：这个步骤的结构是 11 个功能里最合理的之一，骨架不用动。只有几个小问题值得微调。</b></p>
+  </header>
+
+  <!-- ============ 现状全景 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">A</span><h2>剧本步骤现状全景</h2>
+      <div class="desc">这就是你现在进入项目第 1 步看到的样子。左对话框 + 右编辑器，顶部章节切换。</div>
+    </div>
+    <div class="wb">
+      <div class="wb-rail">
+        <div class="rs cur"><span class="n">1</span><span class="l">剧本</span></div><span class="ar">›</span>
+        <div class="rs todo"><span class="n">2</span><span class="l">结构</span></div><span class="ar">›</span>
+        <div class="rs todo"><span class="n">3</span><span class="l">分镜</span></div><span class="ar">›</span>
+        <div class="rs todo"><span class="n">4</span><span class="l">出图准备</span></div><span class="ar">›</span>
+        <div class="rs todo"><span class="n">5</span><span class="l">候选图</span></div><span class="ar">›</span>
+        <div class="rs todo"><span class="n">6</span><span class="l">排版</span></div><span class="ar">›</span>
+        <div class="rs todo"><span class="n">7</span><span class="l">素材包</span></div>
+      </div>
+      <div class="wb-body">
+        <!-- 左对话框 -->
+        <div class="dlg">
+          <span class="ttl">AI 对话 · 剧本步骤</span>
+          <div class="msg ai">我可以帮你整理剧本。你可以粘贴已有大纲，或让我生成灵感种子。</div>
+          <div class="quick">
+            <span>📝 导入整理</span>
+            <span>💡 灵感种子</span>
+            <span>✏️ 章节改写</span>
+          </div>
+          <div class="msg" style="background:var(--card-2);align-self:flex-end">帮我基于"雨夜侦探"生成 3 个灵感</div>
+          <div class="msg ai">已生成 3 个灵感方向，请选择…</div>
+          <div class="input">输入消息…</div>
+        </div>
+        <!-- 中间列 -->
+        <div class="mid">
+          <!-- 章节选择器 -->
+          <div class="chap-sel">
+            <div class="chap-btn">
+              <span class="ico">📖</span>
+              <span class="t">第二章 · 废墟</span>
+              <span class="st done">完成</span>
+              <span style="color:var(--text-3)">▾</span>
+            </div>
+            <div class="story-ttl"><span>剧本</span><b>迷雾之城</b></div>
+          </div>
+
+          <!-- 编辑器 -->
+          <div class="editor">
+            <div class="editor-area">
+              <p><b>第二章 · 废墟</b></p>
+              <p>雨下了三天。林晓站在废弃实验室的铁门前，雨水顺着她的发梢滴落在泥泞里。她深吸一口气，推开了那扇门——</p>
+              <p>门后的黑暗仿佛有生命般蠕动。手电筒的光束劈开黑暗，照亮了满地的碎玻璃和倒塌的实验台。墙上的屏幕还亮着，闪烁着诡异的蓝光……</p>
+              <p>"三年了。"她的声音很轻，"我终于找到了。"</p>
+            </div>
+            <div class="editor-foot">
+              <div class="ef-stats">
+                <span>字数 286</span>
+                <span>预估 1 页</span>
+                <span class="ai-src">⏱ AI 来源 a3f2：灵感种子</span>
+                <span class="saved">✓ 已保存</span>
+              </div>
+              <div class="ef-actions">
+                <button class="reset">🗑 清空本章</button>
+                <button class="save">💾 保存草稿</button>
+                <button class="next">完成本章 →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 评估 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">B</span><h2>评估：哪些对，哪些可调</h2>
+    </div>
+    <div class="problems">
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>左对话框 + 右编辑器的双栏结构</b>——写剧本时一边和 AI 聊、一边编辑正文，这个布局完全正确，符合创作工作流。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>章节下拉选择器</b>——用下拉而不是常驻列表是对的。写剧本时焦点应该在正文，章节切换是低频操作，不该常驻占空间。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>Markdown 编辑器主体</b>——正文写作的核心，保留。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>底部三按钮（清空/保存/完成）</b>——层级清晰：灰(清空)→中(保存)→主(完成)，保留。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>"完成本章"后弹出绿色提示条</b>（进结构/继续下一章）——这个引导是对的，保留。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>底部 footer 信息太密</b>——字数、页数、AI来源、保存状态、三个按钮全挤在一行。窄屏会挤爆。建议：字数页数合并成一条，AI来源可以收进 tooltip 或去掉 messageId。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>"清空本章"按钮位置危险</b>——破坏性操作(清空)和"保存"挨太近，容易误点。建议清空按钮挪到编辑器右上角的 ⋯ 菜单里，footer 只留保存+完成。</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 两个微调示意 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">C</span><h2>两个微调示意（footer 精简 + 清空按钮移位）</h2>
+      <div class="desc">只看底部那条的变化。左现状，右调整后。</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">● 现状：一行塞了 4 条信息 + 3 个按钮</div>
+        <div class="editor-foot" style="border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,0.15)">
+          <div class="ef-stats">
+            <span>字数 286</span>
+            <span>预估 1 页</span>
+            <span class="ai-src">⏱ AI 来源 a3f2：灵感种子</span>
+            <span class="saved">✓ 已保存</span>
+          </div>
+          <div class="ef-actions">
+            <button class="reset">🗑 清空本章</button>
+            <button class="save">💾 保存草稿</button>
+            <button class="next">完成本章 →</button>
+          </div>
+        </div>
+        <div class="note warn" style="margin-top:10px"><b>问题：</b>8 个元素挤一行，窄屏必乱。清空和保存相邻有误触风险。</div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#86efac;margin-bottom:8px">● 调整后：信息合并 + 清空移走</div>
+        <div class="editor-foot" style="border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,0.15)">
+          <div class="ef-stats">
+            <span>286 字 · 约 1 页</span>
+            <span class="saved">✓ 已自动保存</span>
+          </div>
+          <div class="ef-actions">
+            <button class="save">💾 保存草稿</button>
+            <button class="next">完成本章 →</button>
+          </div>
+        </div>
+        <div class="note ok" style="margin-top:10px"><b>改动：</b>① 字数+页数合并成"286字·约1页" ② AI来源去掉(messageId 对用户无意义，需要时看 tooltip) ③ 清空本章移到编辑器右上角 ⋯ 菜单，远离保存按钮。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 提问 ============ -->
+  <div class="ask">
+    <h3>功能④ 剧本步骤，确认这几点</h3>
+    <div class="q">双栏结构(对话框+编辑器)保留不动，同意吗？</div>
+    <div class="q">底部 footer 精简(字数页数合并、AI来源去掉 messageId、只留保存+完成)，可以吗？</div>
+    <div class="q">"清空本章"挪到编辑器右上角 ⋯ 菜单(远离保存，防误触)，同意吗？还是你想保留在底部？</div>
+  </div>
+
+</div>
+
+</body>
+</html>

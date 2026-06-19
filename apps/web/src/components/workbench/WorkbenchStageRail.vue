@@ -10,25 +10,20 @@
           :title="stage.summary"
           @click="$emit('selectStep', stage.key)"
         >
-          <div class="stage-icon-box">
-            <component :is="getStageIcon(index)" :size="18" />
-          </div>
-          <span class="stage-text">
-            <span class="stage-label">{{ index + 1 }} {{ stage.label }}</span>
-            <span class="stage-state">{{ stage.summary }}</span>
+          <span class="stage-num">
+            <Check :size="12" v-if="stage.status === 'done'" />
+            <template v-else>{{ index + 1 }}</template>
           </span>
+          <span class="stage-label">{{ stage.label }}</span>
         </button>
-        <div v-if="index < stages.length - 1" class="stage-connector">
-          <ChevronRight :size="14" />
-        </div>
-        <div v-if="index < stages.length - 1" class="stage-connector"></div>
+        <span v-if="index < stages.length - 1" class="stage-connector">›</span>
       </template>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { BookOpen, CheckSquare, ChevronRight, Image, LayoutDashboard, LayoutTemplate, ListTree, Package } from "lucide-vue-next";
+import { Check } from "lucide-vue-next";
 import type { WorkbenchStage } from "@airoaming/shared";
 
 defineProps<{
@@ -43,11 +38,6 @@ defineEmits<{
 function canSelectStage(stage: WorkbenchStage) {
   return stage.status === "done" || stage.status === "active";
 }
-
-const ICONS = [BookOpen, ListTree, LayoutTemplate, CheckSquare, Image, LayoutDashboard, Package];
-function getStageIcon(index: number) {
-  return ICONS[index % ICONS.length];
-}
 </script>
 
 <style scoped>
@@ -55,114 +45,121 @@ function getStageIcon(index: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 0 12px;
+  padding: 4px 0 8px;
   width: 100%;
 }
 
 .rail-container {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(15, 20, 36, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  padding: 6px 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  gap: 2px;
+  background: rgba(15, 20, 36, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 6px 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
 .stage-step {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 7px;
   background: transparent;
   border: none;
-  padding: 6px 12px;
-  border-radius: 12px;
+  padding: 6px 11px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s;
   text-align: left;
+}
+
+.stage-step:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .stage-step:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
-.stage-icon-box {
+.stage-num {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* done = 绿底 ✓ */
+.is-done .stage-num {
+  background: #22c55e;
+  color: #fff;
+}
+
+/* current = 蓝底数字 + 光晕 */
+.is-current .stage-num {
+  background: #6366f1;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* active 非 current（可点）= 蓝边 */
+.is-active:not(.is-current) .stage-num {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+/* waiting/blocked = 灰底 */
+.is-waiting .stage-num,
+.is-blocked .stage-num {
+  background: rgba(255, 255, 255, 0.06);
   color: #64748b;
-  transition: all 0.2s;
 }
 
-.stage-step.is-current .stage-icon-box {
-  background: rgba(139, 92, 246, 0.15);
-  color: #c4b5fd;
-  border: 1px solid rgba(139, 92, 246, 0.3);
-}
-
-.stage-step.is-done:not(.is-current) .stage-icon-box {
-  color: #94a3b8;
-}
-
-.stage-step.is-blocked .stage-icon-box {
+.is-blocked .stage-num {
   color: #f59e0b;
 }
 
-.stage-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .stage-label {
-  font-size: 14px;
-  font-weight: 700;
-  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.stage-step.is-current .stage-label {
+.is-current .stage-label {
   color: #ffffff;
 }
 
-.stage-step.is-done:not(.is-current) .stage-label {
+.is-done:not(.is-current) .stage-label {
   color: #cbd5e1;
 }
 
-.stage-state {
-  font-size: 11px;
-  font-weight: 500;
-  color: #475569;
-}
-
-.stage-step.is-current .stage-state {
+.is-active:not(.is-current):not(.is-done) .stage-label {
   color: #94a3b8;
 }
 
-.stage-step.is-done:not(.is-current) .stage-state {
+.is-waiting .stage-label,
+.is-blocked .stage-label {
   color: #64748b;
 }
 
 .stage-connector {
-  display: flex;
-  align-items: center;
   color: #475569;
+  font-size: 10px;
+  opacity: 0.5;
 }
 
 @media (max-width: 900px) {
-  .stage-state {
+  .stage-label {
     display: none;
   }
-}
-@media (max-width: 768px) {
-  .stage-step:not(.is-current) .stage-label {
-    display: none;
+  .stage-step.is-current .stage-label {
+    display: inline;
   }
 }
 </style>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>功能⑤ 剧情结构步骤 · 现状分析</title>
+<style>
+  :root {
+    --bg: #0b0f1c; --bg-2: #0f1424;
+    --card: rgba(255,255,255,0.035); --card-2: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.12);
+    --text: #e2e8f0; --text-2: #94a3b8; --text-3: #64748b;
+    --accent: #6366f1; --accent-2: #818cf8;
+    --amber: #f59e0b; --green: #22c55e; --teal: #22c7a9;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 0 0 120px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--accent-2); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; }
+  .hero p { color: var(--text-2); font-size: 15px; max-width: 760px; }
+
+  .section { margin-bottom: 56px; }
+  .section-head { margin-bottom: 20px; }
+  .section-head .num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; margin-right: 10px; }
+  .section-head h2 { display: inline; font-size: 22px; font-weight: 700; vertical-align: middle; }
+  .section-head .desc { color: var(--text-2); font-size: 14px; margin-top: 8px; margin-left: 38px; }
+
+  .note { padding:12px 14px; border-left:3px solid var(--accent); background: rgba(99,102,241,0.06); border-radius:0 8px 8px 0; font-size:13px; color: var(--text-2); margin-top: 14px; }
+  .note b { color: var(--text); }
+  .note.ok { border-left-color: var(--green); background: rgba(34,197,94,0.06); }
+  .note.warn { border-left-color: var(--amber); background: rgba(245,158,11,0.06); }
+
+  .problems { display:flex; flex-direction:column; gap:10px; }
+  .problems .item { display:flex; gap:10px; padding:11px 13px; background: var(--card); border:1px solid var(--border); border-radius:9px; font-size:13px; }
+  .problems .item .tag { flex-shrink:0; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; height:fit-content; }
+  .problems .item .tag.fix { background: rgba(99,102,241,0.16); color:#a5b4fc; }
+  .problems .item .tag.del { background: rgba(239,68,68,0.14); color:#fca5a5; }
+  .problems .item .tag.keep { background: rgba(34,197,94,0.14); color:#86efac; }
+  .problems .item .txt { color: var(--text-2); }
+  .problems .item .txt b { color: var(--text); }
+
+  /* 模拟结构页 */
+  .ws { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .ws-toolbar { display:flex; align-items:center; justify-content:space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .ws-toolbar .picker { display:flex; align-items:center; gap:8px; font-size:13px; color: var(--text-2); }
+  .ws-toolbar .picker select { background: rgba(13,18,33,0.4); border:1px solid var(--border); border-radius:8px; color:var(--text); padding: 6px 10px; font-size:13px; }
+  .ws-toolbar .btn-gen { display:flex; align-items:center; gap:6px; padding: 7px 14px; border-radius:8px; background: var(--accent); color:#fff; font-size:13px; font-weight:600; }
+
+  /* 状态横条 */
+  .status-band { display:flex; align-items:center; justify-content:space-between; margin: 12px 16px 0; padding: 10px 14px; border-radius:10px; }
+  .status-band.confirmed { background: rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.15); }
+  .status-band.pending { background: rgba(245,158,11,0.1); border:1.5px dashed rgba(245,158,11,0.4); }
+  .status-band .left span { font-size:12px; color: var(--text-3); }
+  .status-band.confirmed .left span { color: var(--green); }
+  .status-band.pending .left span { color: var(--amber); font-weight:700; }
+  .status-band .left strong { display:block; color:var(--text); font-size:14px; }
+  .status-band .confirm-btn { padding: 8px 18px; border-radius:8px; background: var(--amber); color:#1a1206; font-weight:700; font-size:13px; }
+
+  .ws-scroll { padding: 8px 16px 16px; display:flex; flex-direction:column; gap:16px; }
+
+  .struct-section { }
+  .struct-section .heading { display:flex; flex-direction:column; gap:2px; margin-bottom: 10px; }
+  .struct-section .heading span { font-size:11px; color: var(--accent-2); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }
+  .struct-section .heading h3 { font-size:16px; font-weight:700; color: var(--text); }
+
+  /* EditableBlock 模拟（只读态） */
+  .ef { display:flex; flex-direction:column; gap:3px; margin-bottom: 8px; }
+  .ef .lab { font-size:11px; color: var(--text-3); font-weight:600; }
+  .ef .val { font-size:13px; color: var(--text); line-height:1.5; }
+
+  /* 摘要区 */
+  .synopsis-box { background: var(--card); border:1px solid var(--border); border-radius:10px; padding: 14px; margin-bottom: 10px; }
+  .direction-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* 实体卡 */
+  .entity-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .entity-card { background: var(--card); border:1px solid var(--border); border-radius:10px; padding: 12px; }
+  .entity-card strong { display:block; font-size:14px; color:var(--text); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+  /* 节拍 */
+  .beat-list { display:flex; flex-direction:column; gap:10px; }
+  .beat-item { display:flex; gap:12px; background: var(--card); border:1px solid var(--border); border-radius:10px; padding: 12px; }
+  .beat-order { width:28px; height:28px; border-radius:8px; background: var(--card-2); display:flex; align-items:center; justify-content:center; font-weight:700; color: var(--accent-2); flex-shrink:0; }
+  .beat-body { flex:1; min-width:0; }
+  .beat-body strong { font-size:13px; color: var(--text); }
+  .beat-body .scene { font-size:11px; color: var(--text-3); }
+
+  .ask { margin-top: 36px; padding: 22px; border: 1.5px dashed var(--accent); border-radius: var(--radius); background: rgba(99,102,241,0.04); }
+  .ask h3 { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ask .q { font-size:14px; color: var(--text); margin: 8px 0; padding-left: 22px; position:relative; }
+  .ask .q:before { content:"?"; position:absolute; left:0; top:0; width:16px; height:16px; border-radius:50%; background: var(--accent); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+
+  .count-box { display:inline-flex; gap:8px; margin: 8px 0; flex-wrap:wrap; }
+  .count-box .cb { padding: 6px 12px; border-radius:8px; background: var(--card); border:1px solid var(--border); font-size:12px; }
+  .count-box .cb b { color: var(--accent-2); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">功能 ⑤ / 11</div>
+    <h1>剧情结构步骤 · 现状分析</h1>
+    <p>第 2 步：把剧本拆成结构化数据（摘要/角色/场景/节拍）。<b>好消息：这一页的 EditableBlock 默认是只读文本（点击才编辑），不像分镜那样全部输入框。所以密度问题比分镜轻。但仍有优化空间。</b></p>
+  </header>
+
+  <!-- ============ 字段统计 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">A</span><h2>字段密度统计</h2>
+      <div class="desc">假设 3 角色 + 2 场景 + 5 节拍的典型章节。</div>
+    </div>
+    <div class="count-box">
+      <div class="cb">摘要区：<b>6 个</b>字段</div>
+      <div class="cb">角色卡：3×4 = <b>12 个</b></div>
+      <div class="cb">场景卡：2×4 = <b>8 个</b></div>
+      <div class="cb">节拍：5×4 = <b>20 个</b></div>
+      <div class="cb" style="border-color:var(--amber)">合计 ≈ <b>46 个</b>字段</div>
+    </div>
+    <div class="note ok">
+      <b>但比想象的好——</b>EditableBlock 默认渲染 <code>&lt;p&gt;</code> 只读文本（第 235 行），只有点「编辑」按钮才变 textarea。所以这一页<b>已经是"默认只读、点按编辑"模式</b>，符合交互基线原则①。问题主要在"卡片内部字段还是偏多"+ 待确认态对比不够。
+    </div>
+  </section>
+
+  <!-- ============ 现状全景 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">B</span><h2>现状全景（已确认态）</h2>
+      <div class="desc">用户确认结构后看到的样子。大量字段平铺，但因为默认只读，视觉上是一堆文本，不是一堆输入框。</div>
+    </div>
+    <div class="ws">
+      <div class="ws-toolbar">
+        <div class="picker">
+          <span>📄</span>
+          <select><option>第二章 · 废墟 · 结构</option></select>
+          <span style="color:var(--text-3);font-size:11px">剧本：迷雾之城</span>
+        </div>
+        <span class="btn-gen">↻ 重新生成</span>
+      </div>
+
+      <div class="status-band confirmed">
+        <div class="left"><span>✓ 已确认</span><strong>第二章 · 废墟</strong></div>
+      </div>
+
+      <div class="ws-scroll">
+        <!-- 摘要 -->
+        <div class="struct-section">
+          <div class="heading"><span>摘要</span><h3>本章方向</h3></div>
+          <div class="synopsis-box">
+            <div class="ef"><span class="lab">本章摘要</span><span class="val">林晓深入废弃实验室，发现三年前失踪案的真相，却被神秘组织发现并围堵。</span></div>
+          </div>
+          <div class="direction-grid">
+            <div class="ef"><span class="lab">一句话梗概</span><span class="val">真相浮出水面</span></div>
+            <div class="ef"><span class="lab">本章目标</span><span class="val">揭示核心谜题</span></div>
+            <div class="ef"><span class="lab">核心冲突</span><span class="val">林晓 vs 神秘组织</span></div>
+            <div class="ef"><span class="lab">情绪走向</span><span class="val">紧张→震惊→危机</span></div>
+            <div class="ef"><span class="lab">结尾钩子</span><span class="val">被围堵的悬念</span></div>
+          </div>
+        </div>
+
+        <!-- 角色 -->
+        <div class="struct-section">
+          <div class="heading"><span>本章结构卡</span><h3>角色</h3></div>
+          <div class="entity-grid">
+            <div class="entity-card">
+              <strong>林晓</strong>
+              <div class="ef"><span class="lab">职能</span><span class="val">主角</span></div>
+              <div class="ef"><span class="lab">动机</span><span class="val">寻找三年前真相</span></div>
+              <div class="ef"><span class="lab">关系</span><span class="val">失踪者之女</span></div>
+              <div class="ef"><span class="lab">视觉特征</span><span class="val">短发、风衣、坚毅</span></div>
+            </div>
+            <div class="entity-card">
+              <strong>老周</strong>
+              <div class="ef"><span class="lab">职能</span><span class="val">导师</span></div>
+              <div class="ef"><span class="lab">动机</span><span class="val">赎罪</span></div>
+              <div class="ef"><span class="lab">关系</span><span class="val">林晓父亲旧友</span></div>
+              <div class="ef"><span class="lab">视觉特征</span><span class="val">白发、烟斗</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 场景 -->
+        <div class="struct-section">
+          <div class="heading"><span>本章结构卡</span><h3>场景</h3></div>
+          <div class="entity-grid">
+            <div class="entity-card">
+              <strong>废弃实验室</strong>
+              <div class="ef"><span class="lab">地点</span><span class="val">城郊工业区</span></div>
+              <div class="ef"><span class="lab">时间</span><span class="val">深夜</span></div>
+              <div class="ef"><span class="lab">氛围</span><span class="val">阴森、危险</span></div>
+              <div class="ef"><span class="lab">剧情作用</span><span class="val">揭示真相</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 节拍 -->
+        <div class="struct-section">
+          <div class="heading"><span>关键事件</span><h3>剧情节拍</h3></div>
+          <div class="beat-list">
+            <div class="beat-item">
+              <div class="beat-order">1</div>
+              <div class="beat-body">
+                <strong>潜入实验室</strong>
+                <span class="scene">废弃实验室</span>
+                <div class="ef"><span class="lab">事件</span><span class="val">林晓找到入口潜入</span></div>
+                <div class="ef"><span class="lab">冲突</span><span class="val">破解安保系统</span></div>
+                <div class="ef"><span class="lab">画面重点</span><span class="val">阴雨、铁门</span></div>
+                <div class="ef"><span class="lab">结果</span><span class="val">成功进入</span></div>
+              </div>
+            </div>
+            <div class="beat-item">
+              <div class="beat-order">2</div>
+              <div class="beat-body">
+                <strong>发现真相</strong>
+                <span class="scene">实验室内部</span>
+                <div class="ef"><span class="lab">事件</span><span class="val">屏幕上的数据</span></div>
+                <div class="ef"><span class="lab">冲突</span><span class="val">心理冲击</span></div>
+                <div class="ef"><span class="lab">画面重点</span><span class="val">蓝光屏幕</span></div>
+                <div class="ef"><span class="lab">结果</span><span class="val">真相揭露</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 评估 ============ -->
+  <section class="section">
+    <div class="section-head">
+      <span class="num">C</span><h2>评估</h2>
+    </div>
+    <div class="problems">
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>EditableBlock 默认只读模式</b>——点击才编辑，已经是正确模式，不动。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>toolbar（章节选择+生成按钮）</b>——简洁，保留。</span></div>
+      <div class="item"><span class="tag keep">留</span><span class="txt"><b>分区结构（摘要/角色/场景/节拍）</b>——逻辑清晰，保留。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>待确认态对比不够强</b>——现状 status-band 只是换了个文案和淡色边框，用户分不清"这是 AI 草案"还是"已确认"。应该用更强的琥珀横条+虚线边框（和分镜一致）。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>节拍卡 4 字段全展开</b>——节拍数量多（5-8个），每个全展开页面太长。建议节拍卡默认只显示「序号+标题+场景+一句事件」，其余 3 字段（冲突/画面重点/结果）折叠，点开才看。</span></div>
+      <div class="item"><span class="tag fix">改</span><span class="txt"><b>摘要区 direction 5 字段</b>——梗概/目标/冲突/情绪/钩子，在已确认态信息密度高。建议保持（这些字段短，平铺可接受），但待确认态可以折叠。</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 提问 ============ -->
+  <div class="ask">
+    <h3>功能⑤ 剧情结构，确认这几点</h3>
+    <div class="q">EditableBlock 默认只读模式保留不动（已经是对的），同意吗？</div>
+    <div class="q">待确认态加强视觉对比（琥珀横条+虚线边框，和分镜一致），可以吗？</div>
+    <div class="q">节拍卡默认只显示「标题+场景+一句事件」，其余 3 字段折叠，点开才看——同意吗？还是你想全部展开？</div>
+    <div class="q">分区结构（摘要/角色/场景/节拍）保留，只是优化密度，对吗？</div>
+  </div>
+
+</div>
+
+</body>
+</html>

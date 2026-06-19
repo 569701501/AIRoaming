@@ -413,7 +413,6 @@ export class ProjectsService implements OnModuleInit {
     };
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
-    void this.ensureProjectCharacterPreviewTasks(nextProject.id);
 
     return {
       ...this.toProjectCharactersResponse(nextProject),
@@ -467,7 +466,6 @@ export class ProjectsService implements OnModuleInit {
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, updatedAt);
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
-    void this.ensureProjectCharacterPreviewTasks(nextProject.id);
     return {
       ...this.toProjectCharactersResponse(nextProject),
       character: nextCharacter,
@@ -505,26 +503,46 @@ export class ProjectsService implements OnModuleInit {
     const referenceSource = referenceKind === "final_reference"
       ? await this.getConfirmedPreviewReferenceSource(project, character)
       : null;
+    // 豆包 size:用 WIDTHxHEIGHT 指定比例(豆包不支持 '2K 16:9' 写法,且要求 ≥3686400 像素)。
+    // 三向图用 16:9 横图(正面/侧面/背面横排),角色预览图用 1:1 方图。
+    const doubaoSize = referenceKind === "final_reference" ? "2560x1440" : "1920x1920";
     const generated = referenceSource
-      ? await this.requestOpenAiImageEdit({
-          apiKey,
-          baseUrl,
-          model: settings.modelId || "gpt-image-2",
-          prompt,
-          size: input.size?.trim() || "3072x1536",
-          quality: input.quality ?? "high",
-          outputFormat: input.outputFormat ?? "webp",
-          referenceImage: referenceSource,
-        })
-      : await this.requestOpenAiImage({
-          apiKey,
-          baseUrl,
-          model: settings.modelId || "gpt-image-2",
-          prompt,
-          size: input.size?.trim() || (referenceKind === "final_reference" ? "3072x1536" : "1536x2048"),
-          quality: input.quality ?? "high",
-          outputFormat: input.outputFormat ?? "webp",
-        });
+      ? (settings.type === "doubao"
+        ? await this.requestDoubaoImageEdit({
+            apiKey,
+            baseUrl,
+            model: settings.modelId || "doubao-seedream-4-5-251128",
+            prompt,
+            size: doubaoSize,
+            referenceImage: referenceSource,
+          })
+        : await this.requestOpenAiImageEdit({
+            apiKey,
+            baseUrl,
+            model: settings.modelId || "gpt-image-2",
+            prompt,
+            size: input.size?.trim() || "3072x1536",
+            quality: input.quality ?? "high",
+            outputFormat: input.outputFormat ?? "webp",
+            referenceImage: referenceSource,
+          }))
+      : (settings.type === "doubao"
+        ? await this.requestDoubaoImage({
+            apiKey,
+            baseUrl,
+            model: settings.modelId || "doubao-seedream-4-5-251128",
+            prompt,
+            size: doubaoSize,
+          })
+        : await this.requestOpenAiImage({
+            apiKey,
+            baseUrl,
+            model: settings.modelId || "gpt-image-2",
+            prompt,
+            size: input.size?.trim() || (referenceKind === "final_reference" ? "3072x1536" : "1536x2048"),
+            quality: input.quality ?? "high",
+            outputFormat: input.outputFormat ?? "webp",
+          }));
 
     this.assertProjectStillActive(project.id);
     await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -541,8 +559,8 @@ export class ProjectsService implements OnModuleInit {
       meta: JSON.stringify({
         characterId: character.id,
         referenceKind,
-        provider: "openai_image",
-        model: settings.modelId || "gpt-image-2",
+        provider: settings.type === "doubao" ? "doubao_image" : "openai_image",
+        model: settings.modelId || (settings.type === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2"),
         promptDigest: this.digestPrompt(prompt),
         generationMode: referenceSource ? "image_edit" : "image_generation",
         sourceReferenceAssetId: referenceSource?.asset.id ?? null,
@@ -642,19 +660,20 @@ export class ProjectsService implements OnModuleInit {
     }
 
     const now = new Date().toISOString();
+    // ADR-0004 规则 9:点定稿 = 锁定角色图 + 自动生成三向图,对所有非 extra 层级生效
+    const shouldFinalize = character.level !== "extra";
     const nextCharacter: ProjectCharacter = {
       ...character,
       previewReferenceAssetId: asset.id,
       previewConfirmedAt: now,
-      status: character.level === "lead" || character.level === "recurring" ? "needs_reference" : character.status,
+      status: shouldFinalize ? "needs_reference" : character.status,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, now);
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
 
-    const shouldQueueFinalReference = nextCharacter.level === "lead" || nextCharacter.level === "recurring";
-    const task = shouldQueueFinalReference
+    const task = shouldFinalize
       ? this.queueMissingCharacterReferenceTask(nextProject, nextCharacter, "final_reference")
       : null;
     return {
@@ -1142,7 +1161,6 @@ export class ProjectsService implements OnModuleInit {
 
     await this.writeProjectFiles(nextProject);
     this.projects.set(nextProject.id, nextProject);
-    void this.ensureProjectCharacterPreviewTasks(nextProject.id);
 
     return {
       storyStructure,
@@ -3661,7 +3679,7 @@ export class ProjectsService implements OnModuleInit {
         outputFormat: input.outputFormat,
       },
       options: {
-        provider: "openai_image",
+        provider: this.settingsService.getRuntimeImageProviderSettings().type === "doubao" ? "doubao_image" : "openai_image",
       },
     });
     this.enqueueCharacterReferenceTaskRun(task.id, project.id, character.id, referenceKind, input);
@@ -4286,6 +4304,97 @@ export class ProjectsService implements OnModuleInit {
     }
 
     throw new BadRequestException("IMAGE_PROVIDER_EDIT_EMPTY_RESPONSE");
+  }
+
+  /**
+   * 豆包 doubao-seedream 文生图
+   * endpoint: {baseUrl}/images/generations (JSON),响应取 data[0].url 下载
+   */
+  private async requestDoubaoImage(input: {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    prompt: string;
+    size: string;
+  }): Promise<Buffer> {
+    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
+    const response = await this.fetchWithTimeout(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: input.model,
+        prompt: input.prompt,
+        size: input.size,
+        response_format: "url",
+        watermark: true,
+        stream: false,
+        sequential_image_generation: "disabled",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException(`IMAGE_PROVIDER_FAILED:${response.status}`);
+    }
+
+    return this.downloadDoubaoImageResponse(response);
+  }
+
+  /**
+   * 豆包 doubao-seedream 图生图
+   * endpoint: {baseUrl}/images/generations (JSON),image 字段传 data:image/<fmt>;base64,<...>
+   */
+  private async requestDoubaoImageEdit(input: {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    prompt: string;
+    size: string;
+    referenceImage: ProjectAssetFile;
+  }): Promise<Buffer> {
+    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
+    const base64Image = input.referenceImage.buffer.toString("base64");
+    const response = await this.fetchWithTimeout(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: input.model,
+        prompt: input.prompt,
+        image: `data:${input.referenceImage.mimeType};base64,${base64Image}`,
+        size: input.size,
+        response_format: "url",
+        watermark: true,
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException(`IMAGE_PROVIDER_EDIT_FAILED:${response.status}`);
+    }
+
+    return this.downloadDoubaoImageResponse(response);
+  }
+
+  /** 豆包响应统一处理:取 data[0].url 下载成 Buffer(豆包默认返回 url 格式) */
+  private async downloadDoubaoImageResponse(response: Response): Promise<Buffer> {
+    const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
+    const first = data.data?.[0];
+    if (first?.b64_json) {
+      return Buffer.from(first.b64_json, "base64");
+    }
+    if (first?.url) {
+      const imageResponse = await this.fetchWithTimeout(first.url);
+      if (!imageResponse.ok) {
+        throw new BadRequestException(`IMAGE_PROVIDER_URL_FAILED:${imageResponse.status}`);
+      }
+      return Buffer.from(await imageResponse.arrayBuffer());
+    }
+    throw new BadRequestException("IMAGE_PROVIDER_EMPTY_RESPONSE");
   }
 
   private async fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 300_000): Promise<Response> {

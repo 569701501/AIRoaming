@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { AppSettings, AppearanceTheme, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest, UpdateImageProviderSettingsRequest } from "@airoaming/shared";
+import type { AppSettings, AppearanceTheme, ImageProviderType, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest, UpdateImageProviderSettingsRequest } from "@airoaming/shared";
 import { api } from "../services/api";
 
 export type SettingsNoticeScope = "ai-key" | "image-provider" | "appearance";
@@ -79,13 +79,64 @@ export const useSettingsStore = defineStore("settings", {
       this.notice = null;
       this.noticeScope = null;
       try {
-        this.settings = await api.updateSettings({ imageProvider: input });
+        this.settings = await api.updateSettings({ openaiImageProvider: input });
         applyAppearance(this.settings.appearance.theme);
         this.notice = input.clearApiKey ? "图片生成密钥已清除" : "图片生成设置已保存";
         this.noticeScope = "image-provider";
       } catch (error) {
         this.noticeScope = null;
         this.error = error instanceof Error ? error.message : "图片生成设置保存失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async saveOpenaiImageProvider(input: UpdateImageProviderSettingsRequest) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.updateSettings({ openaiImageProvider: input });
+        applyAppearance(this.settings.appearance.theme);
+        this.notice = input.clearApiKey ? "OpenAI 图片密钥已清除" : "OpenAI 图片设置已保存";
+        this.noticeScope = "image-provider";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "OpenAI 图片设置保存失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async saveDoubaoImageProvider(input: UpdateImageProviderSettingsRequest) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.updateSettings({ doubaoImageProvider: input });
+        applyAppearance(this.settings.appearance.theme);
+        this.notice = input.clearApiKey ? "豆包图片密钥已清除" : "豆包图片设置已保存";
+        this.noticeScope = "image-provider";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "豆包图片设置保存失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async switchImageProvider(type: ImageProviderType) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.updateSettings({ activeImageProvider: type });
+        applyAppearance(this.settings.appearance.theme);
+        this.notice = type === "doubao" ? "已切换到豆包图片生成" : "已切换到 OpenAI 图片生成";
+        this.noticeScope = "image-provider";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "图片生成切换失败";
       } finally {
         this.saving = false;
       }

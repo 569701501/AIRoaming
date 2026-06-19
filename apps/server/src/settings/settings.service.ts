@@ -8,6 +8,7 @@ import {
   type AppAppearanceSettings,
   type AppImageProviderSettings,
   type AppSettings,
+  type ImageProviderType,
   type UpdateAIKeySettingsRequest,
   type UpdateImageProviderSettingsRequest,
   type UpdateAppSettingsRequest,
@@ -28,7 +29,9 @@ interface StoredAIKeySettings {
 interface StoredAppSettings {
   version: 1;
   aiKey: StoredAIKeySettings;
-  imageProvider: StoredAIKeySettings;
+  openaiImageProvider: StoredAIKeySettings;
+  doubaoImageProvider: StoredAIKeySettings;
+  activeImageProvider: ImageProviderType;
   appearance: AppAppearanceSettings;
   updatedAt: string;
 }
@@ -41,6 +44,8 @@ export interface RuntimeAIKeySettings {
 }
 
 export interface RuntimeImageProviderSettings {
+  /** 当前生效的 provider 类型,供生成代码分支 */
+  type: ImageProviderType;
   providerId: string;
   modelId: string;
   baseUrl: string | null;
@@ -48,6 +53,9 @@ export interface RuntimeImageProviderSettings {
 }
 
 const SETTINGS_VIRTUAL_PATH = "/workspace/settings/app-settings.json" as const;
+/** 豆包默认配置(选豆包时预填) */
+const DOUBAO_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
+const DOUBAO_DEFAULT_MODEL = "doubao-seedream-4-5-251128";
 const PROVIDER_NAME_BY_ID: Record<string, string> = {
   self: "自定义 OpenAI 兼容",
   aurora: "Aurora GPT 对话",
@@ -56,6 +64,7 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
   mimo: "Xiaomi MiMo 对话",
   custom: "自定义 OpenAI 兼容",
   openai_image: "OpenAI 图片生成",
+  doubao_image: "豆包图片生成",
 };
 
 @Injectable()
@@ -78,11 +87,14 @@ export class SettingsService implements OnModuleInit {
   }
 
   getRuntimeImageProviderSettings(): RuntimeImageProviderSettings {
+    const active = this.settings.activeImageProvider;
+    const stored = active === "doubao" ? this.settings.doubaoImageProvider : this.settings.openaiImageProvider;
     return {
-      providerId: this.settings.imageProvider.providerId,
-      modelId: this.settings.imageProvider.modelId,
-      baseUrl: this.settings.imageProvider.baseUrl,
-      apiKey: this.settings.imageProvider.apiKey,
+      type: active,
+      providerId: stored.providerId,
+      modelId: stored.modelId,
+      baseUrl: stored.baseUrl,
+      apiKey: stored.apiKey,
     };
   }
 
@@ -97,9 +109,13 @@ export class SettingsService implements OnModuleInit {
     const next: StoredAppSettings = {
       ...current,
       aiKey: input.aiKey ? this.updateAIKeySettings(current.aiKey, input.aiKey, now) : current.aiKey,
-      imageProvider: input.imageProvider
-        ? this.updateImageProviderSettings(current.imageProvider, input.imageProvider, now)
-        : current.imageProvider,
+      openaiImageProvider: input.openaiImageProvider
+        ? this.updateImageProviderSettings(current.openaiImageProvider, input.openaiImageProvider, now)
+        : current.openaiImageProvider,
+      doubaoImageProvider: input.doubaoImageProvider
+        ? this.updateImageProviderSettings(current.doubaoImageProvider, input.doubaoImageProvider, now)
+        : current.doubaoImageProvider,
+      activeImageProvider: input.activeImageProvider ?? current.activeImageProvider,
       appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
       updatedAt: now,
     };
@@ -200,17 +216,24 @@ export class SettingsService implements OnModuleInit {
     await writeFile(filePath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
   }
 
-  private normalizeStoredSettings(input: Partial<StoredAppSettings>): StoredAppSettings {
+  private normalizeStoredSettings(input: Partial<StoredAppSettings> & { imageProvider?: unknown }): StoredAppSettings {
     const defaults = this.defaultSettings();
     const aiKey = input.aiKey ?? defaults.aiKey;
-    const imageProvider = input.imageProvider ?? defaults.imageProvider;
+    // 迁移:旧版只有单一 imageProvider 字段。若没有 openaiImageProvider 但有旧的 imageProvider,则把旧的迁过来。
+    const legacyImageProvider = (input as { imageProvider?: unknown }).imageProvider;
+    const openaiSource = (input.openaiImageProvider ?? (legacyImageProvider && !input.openaiImageProvider ? legacyImageProvider : defaults.openaiImageProvider)) as StoredAIKeySettings;
+    const doubaoSource = (input.doubaoImageProvider ?? defaults.doubaoImageProvider) as StoredAIKeySettings;
+
     const providerId = this.normalizeProviderId(aiKey.providerId ?? defaults.aiKey.providerId);
-    const imageProviderId = this.normalizeProviderId(imageProvider.providerId ?? defaults.imageProvider.providerId);
+    const openaiProviderId = this.normalizeProviderId(openaiSource.providerId ?? defaults.openaiImageProvider.providerId);
+    const doubaoProviderId = this.normalizeProviderId(doubaoSource.providerId ?? defaults.doubaoImageProvider.providerId);
     const apiKey = typeof aiKey.apiKey === "string" && aiKey.apiKey.trim() ? aiKey.apiKey.trim() : null;
-    const imageApiKey = typeof imageProvider.apiKey === "string" && imageProvider.apiKey.trim() ? imageProvider.apiKey.trim() : null;
+    const openaiApiKey = typeof openaiSource.apiKey === "string" && openaiSource.apiKey.trim() ? openaiSource.apiKey.trim() : null;
+    const doubaoApiKey = typeof doubaoSource.apiKey === "string" && doubaoSource.apiKey.trim() ? doubaoSource.apiKey.trim() : null;
     const theme = input.appearance?.theme && APPEARANCE_THEMES.includes(input.appearance.theme)
       ? input.appearance.theme
       : defaults.appearance.theme;
+    const activeImageProvider: ImageProviderType = input.activeImageProvider === "doubao" ? "doubao" : "openai";
 
     return {
       version: 1,
@@ -223,18 +246,31 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : null,
         updatedAt: typeof aiKey.updatedAt === "string" ? aiKey.updatedAt : null,
       },
-      imageProvider: {
-        providerId: imageProviderId,
+      openaiImageProvider: {
+        providerId: openaiProviderId,
         providerName: this.normalizeProviderName(
-          imageProvider.providerName ?? this.resolveProviderName(imageProviderId),
-          imageProviderId,
+          openaiSource.providerName ?? this.resolveProviderName(openaiProviderId),
+          openaiProviderId,
         ),
-        modelId: this.normalizeModelId(imageProvider.modelId ?? defaults.imageProvider.modelId),
-        baseUrl: this.normalizeBaseUrl(imageProvider.baseUrl ?? defaults.imageProvider.baseUrl),
-        apiKey: imageApiKey,
-        keyFingerprint: imageApiKey ? this.fingerprintKey(imageApiKey) : null,
-        updatedAt: typeof imageProvider.updatedAt === "string" ? imageProvider.updatedAt : null,
+        modelId: this.normalizeModelId(openaiSource.modelId ?? defaults.openaiImageProvider.modelId),
+        baseUrl: this.normalizeBaseUrl(openaiSource.baseUrl ?? defaults.openaiImageProvider.baseUrl),
+        apiKey: openaiApiKey,
+        keyFingerprint: openaiApiKey ? this.fingerprintKey(openaiApiKey) : null,
+        updatedAt: typeof openaiSource.updatedAt === "string" ? openaiSource.updatedAt : null,
       },
+      doubaoImageProvider: {
+        providerId: doubaoProviderId,
+        providerName: this.normalizeProviderName(
+          doubaoSource.providerName ?? this.resolveProviderName(doubaoProviderId),
+          doubaoProviderId,
+        ),
+        modelId: this.normalizeModelId(doubaoSource.modelId ?? defaults.doubaoImageProvider.modelId),
+        baseUrl: this.normalizeBaseUrl(doubaoSource.baseUrl ?? defaults.doubaoImageProvider.baseUrl),
+        apiKey: doubaoApiKey,
+        keyFingerprint: doubaoApiKey ? this.fingerprintKey(doubaoApiKey) : null,
+        updatedAt: typeof doubaoSource.updatedAt === "string" ? doubaoSource.updatedAt : null,
+      },
+      activeImageProvider,
       appearance: { theme },
       updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : defaults.updatedAt,
     };
@@ -243,10 +279,10 @@ export class SettingsService implements OnModuleInit {
   private defaultSettings(): StoredAppSettings {
     const providerId = process.env.OPENCODE_PROVIDER_ID?.trim() || "self";
     const modelId = process.env.OPENCODE_MODEL_ID?.trim() || "gpt-5.5";
-    const imageProviderId = process.env.OPENAI_IMAGE_PROVIDER_ID?.trim() || "openai_image";
-    const imageModelId = process.env.OPENAI_IMAGE_MODEL_ID?.trim() || "gpt-image-2";
-    const imageBaseUrl = process.env.OPENAI_IMAGE_BASE_URL?.trim() || null;
-    const imageApiKey = process.env.OPENAI_IMAGE_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || null;
+    const openaiImageProviderId = process.env.OPENAI_IMAGE_PROVIDER_ID?.trim() || "openai_image";
+    const openaiImageModelId = process.env.OPENAI_IMAGE_MODEL_ID?.trim() || "gpt-image-2";
+    const openaiImageBaseUrl = process.env.OPENAI_IMAGE_BASE_URL?.trim() || null;
+    const openaiImageApiKey = process.env.OPENAI_IMAGE_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || null;
     const now = new Date().toISOString();
 
     return {
@@ -260,15 +296,25 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: null,
         updatedAt: null,
       },
-      imageProvider: {
-        providerId: imageProviderId,
-        providerName: this.resolveProviderName(imageProviderId),
-        modelId: imageModelId,
-        baseUrl: this.normalizeBaseUrl(imageBaseUrl),
-        apiKey: imageApiKey,
-        keyFingerprint: imageApiKey ? this.fingerprintKey(imageApiKey) : null,
-        updatedAt: imageApiKey || imageBaseUrl ? now : null,
+      openaiImageProvider: {
+        providerId: openaiImageProviderId,
+        providerName: this.resolveProviderName(openaiImageProviderId),
+        modelId: openaiImageModelId,
+        baseUrl: this.normalizeBaseUrl(openaiImageBaseUrl),
+        apiKey: openaiImageApiKey,
+        keyFingerprint: openaiImageApiKey ? this.fingerprintKey(openaiImageApiKey) : null,
+        updatedAt: openaiImageApiKey || openaiImageBaseUrl ? now : null,
       },
+      doubaoImageProvider: {
+        providerId: "doubao_image",
+        providerName: this.resolveProviderName("doubao_image"),
+        modelId: DOUBAO_DEFAULT_MODEL,
+        baseUrl: DOUBAO_DEFAULT_BASE_URL,
+        apiKey: null,
+        keyFingerprint: null,
+        updatedAt: null,
+      },
+      activeImageProvider: "openai",
       appearance: {
         theme: "dark",
       },
@@ -279,7 +325,9 @@ export class SettingsService implements OnModuleInit {
   private toPublicSettings(settings: StoredAppSettings): AppSettings {
     return {
       aiKey: this.toPublicAIKey(settings.aiKey),
-      imageProvider: this.toPublicImageProvider(settings.imageProvider),
+      openaiImageProvider: this.toPublicImageProvider(settings.openaiImageProvider),
+      doubaoImageProvider: this.toPublicImageProvider(settings.doubaoImageProvider),
+      activeImageProvider: settings.activeImageProvider,
       appearance: settings.appearance,
       settingsPath: SETTINGS_VIRTUAL_PATH,
       updatedAt: settings.updatedAt,
