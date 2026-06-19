@@ -134,6 +134,55 @@ export default async () => {
           })
         },
       }),
+
+      // 查询项目状态(给 AI 自主决策用:决定下一步该做什么)
+      get_project_status: tool({
+        description:
+          "【查询项目状态】返回当前项目的状态摘要:当前章节、workflow进度、角色列表(含是否有图/三向图)、场景列表(含是否有背景图)、分镜数量。当需要判断'下一步该做什么''哪些角色还没图''哪些场景还没图'时使用。",
+        args: {
+          projectId: tool.schema.string().describe("当前项目ID"),
+        },
+        async execute(args) {
+          if (!SERVER_URL) {
+            return "错误:AIROAMING_TOOL_CALLBACK_BASE_URL 未配置。"
+          }
+          try {
+            const response = await fetch(`${SERVER_URL}/tool-callback/get_project_status`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-airoaming-tool-token": CALLBACK_TOKEN,
+              },
+              body: JSON.stringify({ projectId: args.projectId }),
+            })
+            const text = await response.text()
+            let data
+            try {
+              data = JSON.parse(text)
+            } catch {
+              return `查询失败:后端响应非JSON(HTTP ${response.status})。`
+            }
+            if (!response.ok) {
+              return `查询失败:${data?.error?.message || data?.message || response.status}`
+            }
+            const s = data?.data ?? data
+            // 格式化状态摘要给 AI 看
+            const lines = [
+              `项目:${s.projectName}`,
+              `当前章节:${s.currentChapter ? s.currentChapter.title + "(" + s.currentChapter.status + ")" : "无"}`,
+              `workflow步骤:${s.workflowStep}`,
+              `分镜数量:${s.storyboardShotCount}`,
+              `角色(${s.characters?.length ?? 0}个):`,
+              ...(s.characters ?? []).map((c) => `  - ${c.name} / ${c.level} / 预览图:${c.hasImage ? "有" : "无"} / 三向图:${c.hasFinal ? "有" : "无"}`),
+              `场景(${s.scenes?.length ?? 0}个):`,
+              ...(s.scenes ?? []).map((sc) => `  - ${sc.name} (id:${sc.id}) / 背景图:${sc.hasImage ? "有" : "无"}`),
+            ]
+            return lines.join("\n")
+          } catch (error) {
+            return `查询异常:${error instanceof Error ? error.message : String(error)}`
+          }
+        },
+      }),
     },
   }
 }

@@ -226,6 +226,25 @@ source: 深思熟虑复核、AuroraPlatformWeb 架构参考、AIRoaming 现状�
 - 类型2工具至少一个跑通(确认剧情结构或写入剧本)
 - 每个工具的 args 设计清晰,AI 能正确传参
 
+**阶段 C 结论(2026-06-19):类型1全部完成,类型2经判断不迁工具。**
+
+类型1(简单触发型)已验证:
+- `generate_scene_image` ✅(委托 queueSceneReference,AI 自主调)
+- `extract_characters` ✅(委托 extractProjectCharacters,AI 自主调)
+
+类型2(多轮交互型)经分析决定**保持伪工具调用,不迁真工具**:
+- 根本原因:类型2是"AI 生成大量内容(结构/分镜/剧本 JSON)→ 存待确认 → 用户确认落库"。生成类内容天然适合对话输出,不适合作为工具参数搬运(AI 要先输出一大段 JSON 再作为参数传入,双重负担且可能超模型输出限制)。
+- 现有伪工具调用(对话解析 AI 输出 → 存 pending → 用户确认)工作良好,强行工具化无收益。
+- 最终格局:类型1(执行动作)走真工具,类型2(生成内容)走伪工具调用,两套并存各管所长。
+
+当前 AI 能自主调用的真工具(4个):
+| 工具 | 用途 |
+| --- | --- |
+| `generate_character_image` | 生成角色预览图 |
+| `generate_character_final` | 生成角色三向图 |
+| `generate_scene_image` | 生成场景背景图 |
+| `extract_characters` | 提取项目角色 |
+
 ### 阶段 D:确认类工具 + 状态查询工具
 
 **目标**:补上"确认"类动作和"查状态"类工具,让 AI 能完成完整闭环。

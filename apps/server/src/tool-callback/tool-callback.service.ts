@@ -80,4 +80,41 @@ export class ToolCallbackService {
   async extractCharacters(input: { projectId: string }): Promise<ExtractProjectCharactersResponse> {
     return this.projectsService.extractProjectCharacters(input.projectId, {});
   }
+
+  /**
+   * 查询项目状态摘要(给 AI 自主决策用):
+   * 当前章节、workflow 进度、角色图状态(哪些有图/没图)、场景图状态。
+   */
+  async getProjectStatus(projectId: string): Promise<{
+    projectName: string;
+    currentChapter: { id: string; title: string; status: string } | null;
+    characters: Array<{ id: string; name: string; level: string; hasImage: boolean; hasFinal: boolean }>;
+    scenes: Array<{ id: string; name: string; hasImage: boolean }>;
+    storyboardShotCount: number;
+    workflowStep: string;
+  }> {
+    const snapshot = await this.projectsService.getWorkbenchSnapshot(projectId);
+    const characters = snapshot.characters.map((c) => ({
+      id: c.id,
+      name: c.name,
+      level: c.level,
+      hasImage: Boolean(c.previewReferenceAssetId),
+      hasFinal: c.primaryReferenceKind === "final_reference" && Boolean(c.primaryReferenceAssetId),
+    }));
+    const scenes = (snapshot.storyStructure?.structureJson.scenes ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      hasImage: Boolean(s.referenceAssetId),
+    }));
+    return {
+      projectName: snapshot.project.name,
+      currentChapter: snapshot.currentChapter
+        ? { id: snapshot.currentChapter.id, title: snapshot.currentChapter.title, status: snapshot.currentChapter.status }
+        : null,
+      characters,
+      scenes,
+      storyboardShotCount: snapshot.shots.length,
+      workflowStep: snapshot.workflow?.currentStepKey ?? "unknown",
+    };
+  }
 }

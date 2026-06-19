@@ -48,4 +48,13 @@ export class ToolCallbackController {
     this.toolCallbackService.assertToken(token);
     return ok(await this.toolCallbackService.extractCharacters(body));
   }
+
+  @Post("get_project_status")
+  async getProjectStatus(
+    @Headers("x-airoaming-tool-token") token: string | undefined,
+    @Body() body: { projectId: string },
+  ) {
+    this.toolCallbackService.assertToken(token);
+    return ok(await this.toolCallbackService.getProjectStatus(body.projectId));
+  }
 }
