@@ -36,7 +36,7 @@ export class ToolCallbackService {
     });
   }
 
-  /** 生成角色三向图(final_reference):按角色名查 id,委托 queueCharacterReference */
+  /** 生成角色三视图(final_reference):按角色名查 id,委托 queueCharacterReference */
   async generateCharacterFinal(input: {
     projectId: string;
     characterName: string;

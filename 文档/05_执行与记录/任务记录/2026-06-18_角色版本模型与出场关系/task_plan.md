@@ -88,7 +88,7 @@ source: ADR-0004、2026-06-18 角色库交互规则对齐实施
 | --- | --- |
 | T8 类型与存储 | `ProjectCharacter` 同级新增 `appearances` 数组;持久化进 `characters.json` |
 | T9 写入触发 | `confirmChapterStoryStructure`(projects.service.ts:1115)确认剧情结构时,从 structureJson 提取本章角色,写 `CharacterAppearance` 记录 |
-| T10 出图准备读取 | `imagePreflight` 改为读 appearances + versions,判断本章出场必需角色是否有有效版本三向图 |
+| T10 出图准备读取 | `imagePreflight` 改为读 appearances + versions,判断本章出场必需角色是否有有效版本三视图 |
 | T11 级联清理 | 章节删除时清理对应 appearance 记录 |
 
 ## 5. 影响面参考(2026-06-18 探索结果)
@@ -102,7 +102,7 @@ source: ADR-0004、2026-06-18 角色库交互规则对齐实施
 
 - 老项目数据迁移后角色不丢失,versions[0] 正确生成。
 - 创建新版本后,旧章节仍显示旧版本图,新章节显示新版本。
-- 出图准备能正确识别本章出场角色并检查三向图。
+- 出图准备能正确识别本章出场角色并检查三视图。
 - 章节删除后 appearance 记录级联清理。
 - typecheck/build 通过。
 

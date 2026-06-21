@@ -90,7 +90,7 @@
             </div>
           </div>
 
-          <!-- 三向图(定稿图)区 -->
+          <!-- 三视图(定稿图)区 -->
           <div class="frame-slot">
             <div class="image-frame">
               <button
@@ -99,7 +99,7 @@
                 type="button"
                 @click="onFinalReferenceClick(character)"
               >
-                <img :src="assetUrl(getReferenceAsset(character, 'final_reference')!.id)" :alt="`${character.name} 三向图`" />
+                <img :src="assetUrl(getReferenceAsset(character, 'final_reference')!.id)" :alt="`${character.name} 三视图`" />
                 <span class="view-badge"><ZoomIn :size="14" /> 查看</span>
               </button>
               <div v-else class="image-placeholder" :class="{ 'is-active': isReferenceTaskActive(character, 'final_reference') }">
@@ -107,7 +107,7 @@
                 <ImagePlus v-else :size="22" />
                 <strong>{{ isReferenceTaskActive(character, 'final_reference') ? '生成中' : '未生成' }}</strong>
               </div>
-              <span class="frame-tag">三向图</span>
+              <span class="frame-tag">三视图</span>
             </div>
           </div>
         </div>
@@ -360,14 +360,14 @@ function isLocked(character: ProjectCharacter) {
 }
 
 /**
- * 老角色完全锁死:仅当 lockMode=fully-locked 且角色已有三向图(已定稿)时才锁死,纯展示🔒。
+ * 老角色完全锁死:仅当 lockMode=fully-locked 且角色已有三视图(已定稿)时才锁死,纯展示🔒。
  * 无图的角色(哪怕是主角/常驻,刚建档还没生成图)不锁,允许生成角色图。
  */
 function isFullyLocked(character: ProjectCharacter) {
   return props.lockMode === "fully-locked" && isFinalized(character);
 }
 
-/** 状态 B(新角色):有预览图、无三向图、未锁定 → 显示左上角🔄刷新 */
+/** 状态 B(新角色):有预览图、无三视图、未锁定 → 显示左上角🔄刷新 */
 function isPendingFinalize(character: ProjectCharacter) {
   if (isLocked(character) || isFullyLocked(character)) {
     return false;
@@ -375,7 +375,7 @@ function isPendingFinalize(character: ProjectCharacter) {
   return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
 }
 
-/** 状态 D(已定稿):有三向图 → 角色图锁定,但三向图保留编辑入口 */
+/** 状态 D(已定稿):有三视图 → 角色图锁定,但三视图保留编辑入口 */
 function isFinalized(character: ProjectCharacter) {
   return Boolean(getReferenceAsset(character, "final_reference"));
 }
@@ -402,7 +402,7 @@ function confirmFinalReference(character: ProjectCharacter) {
   }
 }
 
-/** 状态 B 可定稿:有预览图、无三向图、非 extra、非锁定、无活跃任务 → 显示"定稿"主按钮 */
+/** 状态 B 可定稿:有预览图、无三视图、非 extra、非锁定、无活跃任务 → 显示"定稿"主按钮 */
 function canFinalizePreview(character: ProjectCharacter) {
   if (isLocked(character) || isFullyLocked(character) || character.level === "extra") {
     return false;
@@ -410,7 +410,7 @@ function canFinalizePreview(character: ProjectCharacter) {
   return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
 }
 
-/** 定稿:锁定当前预览图 + 后端自动触发三向图生成 */
+/** 定稿:锁定当前预览图 + 后端自动触发三视图生成 */
 function finalizePreview(character: ProjectCharacter) {
   const asset = getReferenceAsset(character, "preview_front");
   if (asset) {
@@ -471,7 +471,7 @@ function openPreviewFor(character: ProjectCharacter, referenceKind: ReferenceKin
   };
 }
 
-/** 三向图点击:已定稿(角色图锁定)→ 弹编辑窗重生三向图;未定稿 → 仅查看预览 */
+/** 三视图点击:已定稿(角色图锁定)→ 弹编辑窗重生三视图;未定稿 → 仅查看预览 */
 function onFinalReferenceClick(character: ProjectCharacter) {
   if (isFinalized(character)) {
     openEdit(character, "final_reference");

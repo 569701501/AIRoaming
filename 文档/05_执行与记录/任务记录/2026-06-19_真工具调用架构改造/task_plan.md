@@ -241,7 +241,7 @@ source: 深思熟虑复核、AuroraPlatformWeb 架构参考、AIRoaming 现状�
 | 工具 | 用途 |
 | --- | --- |
 | `generate_character_image` | 生成角色预览图 |
-| `generate_character_final` | 生成角色三向图 |
+| `generate_character_final` | 生成角色三视图 |
 | `generate_scene_image` | 生成场景背景图 |
 | `extract_characters` | 提取项目角色 |
 

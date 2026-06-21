@@ -77,17 +77,17 @@ export default async () => {
         },
       }),
 
-      // 生成角色三向图(定稿图:正面/侧面/背面组合)
+      // 生成角色三视图(定稿图:正面/侧面/背面组合)
       generate_character_final: tool({
         description:
-          "【生成角色三向图(定稿)】为已生成预览图的角色生成定稿三向图,包含正面半身、正面全身、侧面全身、背面全身的组合设定图。需要角色名和项目ID。三向图的提示词与预览图不同,这是独立的技能。当用户说'生成定稿''生成三向图''定稿角色'时使用。",
+          "【生成角色三视图(定稿)】为已生成预览图的角色生成定稿三视图,包含正面半身、正面全身、侧面全身、背面全身的组合设定图。需要角色名和项目ID。三视图的提示词与预览图不同,这是独立的技能。当用户说'生成定稿''生成三视图''定稿角色'时使用。",
         args: {
           projectId: tool.schema.string().describe("当前项目ID"),
-          characterName: tool.schema.string().describe("要生成三向图的角色名(必须已生成过预览图)"),
+          characterName: tool.schema.string().describe("要生成三视图的角色名(必须已生成过预览图)"),
           prompt: tool.schema
             .string()
             .optional()
-            .describe("可选,三向图生图提示词。不传则用角色档案的默认描述"),
+            .describe("可选,三视图生图提示词。不传则用角色档案的默认描述"),
         },
         async execute(args) {
           return callback("generate_character_final", {
@@ -138,7 +138,7 @@ export default async () => {
       // 查询项目状态(给 AI 自主决策用:决定下一步该做什么)
       get_project_status: tool({
         description:
-          "【查询项目状态】返回当前项目的状态摘要:当前章节、workflow进度、角色列表(含是否有图/三向图)、场景列表(含是否有背景图)、分镜数量。当需要判断'下一步该做什么''哪些角色还没图''哪些场景还没图'时使用。",
+          "【查询项目状态】返回当前项目的状态摘要:当前章节、workflow进度、角色列表(含是否有图/三视图)、场景列表(含是否有背景图)、分镜数量。当需要判断'下一步该做什么''哪些角色还没图''哪些场景还没图'时使用。",
         args: {
           projectId: tool.schema.string().describe("当前项目ID"),
         },
@@ -173,7 +173,7 @@ export default async () => {
               `workflow步骤:${s.workflowStep}`,
               `分镜数量:${s.storyboardShotCount}`,
               `角色(${s.characters?.length ?? 0}个):`,
-              ...(s.characters ?? []).map((c) => `  - ${c.name} / ${c.level} / 预览图:${c.hasImage ? "有" : "无"} / 三向图:${c.hasFinal ? "有" : "无"}`),
+              ...(s.characters ?? []).map((c) => `  - ${c.name} / ${c.level} / 预览图:${c.hasImage ? "有" : "无"} / 三视图:${c.hasFinal ? "有" : "无"}`),
               `场景(${s.scenes?.length ?? 0}个):`,
               ...(s.scenes ?? []).map((sc) => `  - ${sc.name} (id:${sc.id}) / 背景图:${sc.hasImage ? "有" : "无"}`),
             ]

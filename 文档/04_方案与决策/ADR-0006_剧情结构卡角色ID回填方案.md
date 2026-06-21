@@ -39,7 +39,7 @@ source: 2026-06-21 剧情结构 StoryStructure 字段调整讨论(1.md)、grill-
 
 给 `StoryStructureCharacterCard` 增加 `projectCharacterId: string | null` 字段，指向项目角色库 `ProjectCharacter.id`。
 
-- 项目角色库(`ProjectCharacter`)是角色身份事实源：角色长什么样、角色图、三向图、服装、层级、状态，都以它为准。
+- 项目角色库(`ProjectCharacter`)是角色身份事实源：角色长什么样、角色图、三视图、服装、层级、状态，都以它为准。
 - 结构卡(`StoryStructureCharacterCard`)只描述"这个角色在本章中的作用、动机、关系、视觉提示"，身份锚点用 `projectCharacterId`。
 
 ### 3.2 id 的唯一填入时机 = 确认剧情结构

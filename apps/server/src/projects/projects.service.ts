@@ -518,7 +518,7 @@ export class ProjectsService implements OnModuleInit {
       ? await this.getConfirmedPreviewReferenceSource(project, character)
       : null;
     // 豆包 size:用 WIDTHxHEIGHT 指定比例(豆包不支持 '2K 16:9' 写法,且要求 ≥3686400 像素)。
-    // 三向图用 16:9 横图(正面/侧面/背面横排),角色预览图用 1:1 方图。
+    // 三视图用 16:9 横图(正面/侧面/背面横排),角色预览图用 1:1 方图。
     const doubaoSize = referenceKind === "final_reference" ? "2560x1440" : "1920x1920";
     const generated = referenceSource
       ? (settings.type === "doubao"
@@ -864,7 +864,7 @@ export class ProjectsService implements OnModuleInit {
     }
 
     const now = new Date().toISOString();
-    // ADR-0004 规则 9:点定稿 = 锁定角色图 + 自动生成三向图,对所有非 extra 层级生效
+    // ADR-0004 规则 9:点定稿 = 锁定角色图 + 自动生成三视图,对所有非 extra 层级生效
     const shouldFinalize = character.level !== "extra";
     const nextCharacter: ProjectCharacter = {
       ...character,

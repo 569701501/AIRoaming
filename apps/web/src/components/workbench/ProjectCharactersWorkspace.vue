@@ -31,7 +31,7 @@
             <p class="row-desc">{{ getCharacterDescription(character) }}</p>
           </div>
 
-          <!-- 右侧:角色图 + 三向图 并排 -->
+          <!-- 右侧:角色图 + 三视图 并排 -->
           <div class="row-images">
             <div class="row-image-slot">
               <button
@@ -56,9 +56,9 @@
                 v-if="getReferenceAsset(character, 'final_reference')"
                 class="row-image-frame is-clickable"
                 type="button"
-                @click="openPreview(getReferenceAsset(character, 'final_reference')!, `${character.name} 三向图`)"
+                @click="openPreview(getReferenceAsset(character, 'final_reference')!, `${character.name} 三视图`)"
               >
-                <img :src="assetUrl(getReferenceAsset(character, 'final_reference')!.id)" :alt="`${character.name} 三向图`" />
+                <img :src="assetUrl(getReferenceAsset(character, 'final_reference')!.id)" :alt="`${character.name} 三视图`" />
               </button>
               <div v-else class="row-image-frame">
                 <div class="row-image-empty">
@@ -66,7 +66,7 @@
                   <span>未生成</span>
                 </div>
               </div>
-              <span class="row-image-label">三向图</span>
+              <span class="row-image-label">三视图</span>
             </div>
           </div>
         </li>
