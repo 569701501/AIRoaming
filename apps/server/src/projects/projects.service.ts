@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import * as wsJson from "./workspace-json.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import {
@@ -2637,15 +2638,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private async readOptionalDirectory(dirPath: string) {
-    try {
-      return await readdir(dirPath, { withFileTypes: true });
-    } catch (error) {
-      if (this.isNotFoundError(error)) {
-        return [];
-      }
-
-      throw error;
-    }
+    return wsJson.readOptionalDirectory(dirPath);
   }
 
   private normalizeGenreTags(input: string[] | undefined): string[] {
@@ -3699,48 +3692,27 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private async readOptionalTextFile(filePath: string): Promise<string | null> {
-    try {
-      return await readFile(filePath, "utf8");
-    } catch (error) {
-      if (this.isNotFoundError(error)) {
-        return null;
-      }
-
-      throw error;
-    }
+    return wsJson.readOptionalTextFile(filePath);
   }
 
   private parseJsonRecord(content: string, filePath: string): Record<string, unknown> {
-    const value = JSON.parse(content) as unknown;
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      throw new Error(`${filePath} must contain a JSON object`);
-    }
-
-    return value as Record<string, unknown>;
+    return wsJson.parseJsonRecord(content, filePath);
   }
 
   private getStringField(record: Record<string, unknown>, key: string, fallback: string): string {
-    const value = record[key];
-    return typeof value === "string" ? value : fallback;
+    return wsJson.getStringField(record, key, fallback);
   }
 
   private getOptionalStringField(record: Record<string, unknown>, key: string): string | null {
-    const value = record[key];
-    return typeof value === "string" && value.trim() ? value : null;
+    return wsJson.getOptionalStringField(record, key);
   }
 
   private getStringArrayField(record: Record<string, unknown>, key: string): string[] {
-    const value = record[key];
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((item): item is string => typeof item === "string");
+    return wsJson.getStringArrayField(record, key);
   }
 
   private getNumberField(record: Record<string, unknown>, key: string, fallback: number): number {
-    const value = record[key];
-    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    return wsJson.getNumberField(record, key, fallback);
   }
 
   private normalizeStoryStructureJson(
@@ -4942,7 +4914,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private isNotFoundError(error: unknown): boolean {
-    return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+    return wsJson.isNotFoundError(error);
   }
 
   private getErrorMessage(error: unknown): string {

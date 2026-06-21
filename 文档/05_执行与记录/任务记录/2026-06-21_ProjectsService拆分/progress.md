@@ -1,0 +1,18 @@
+# 进度时间线
+
+## 阶段 0:基线(2026-06-21)
+- 测试现状:**无单测/e2e**(Glob `*.spec.ts`/`*.test.ts` 均无)。验证靠 typecheck + 手动关键流程。
+- 基线行数:`projects.service.ts` 5236 行。
+- 基线 typecheck:三包通过(已验证)。
+- 手动验证清单(每阶段后跑):项目创建 → 剧本/大纲 → 剧情结构 → 分镜 → 出图准备 → 候选图。
+
+## 阶段 1:抽 ProjectRepository(进行中)
+
+### 子步 1a:抽 fs/JSON 辅助 util(2026-06-21 完成)
+- 新建 `apps/server/src/projects/workspace-json.util.ts`,导出 `readOptionalTextFile` / `readOptionalDirectory` / `parseJsonRecord` / `getStringField` / `getOptionalStringField` / `getStringArrayField` / `getNumberField` / `isNotFoundError`。
+- ProjectsService `import * as wsJson`,8 个 private 方法改为薄委托(零调用点改动)。
+- 踩坑:NodeNext ESM 要求相对 import 带 `.js` 扩展名(`./workspace-json.util.js`),首次 typecheck 报 `Cannot find module`,加 `.js` 后通过。
+- typecheck 三包通过。行为不变(纯委托)。
+
+### 子步 1b:抽 Repository 加载链+缓存(待办)
+### 子步 1c:抽 Repository 写入链(待办)
