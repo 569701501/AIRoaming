@@ -377,9 +377,9 @@ function isPendingFinalize(character: ProjectCharacter) {
   return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
 }
 
-/** 状态 D(已定稿):有三视图 → 角色图锁定,但三视图保留编辑入口 */
+/** 状态 D(已定稿):primary 已锁定到三视图(final_reference)才算定稿;有定稿图资产但没锁定 primary 不算,仍可操作。 */
 function isFinalized(character: ProjectCharacter) {
-  return Boolean(getReferenceAsset(character, "final_reference"));
+  return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
 }
 
 function canGenerateReference(character: ProjectCharacter, referenceKind: ReferenceKind) {

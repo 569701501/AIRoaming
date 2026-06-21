@@ -45,7 +45,6 @@
           @confirm-story-structure="confirmStoryStructure"
           @confirm-storyboard="confirmStoryboard"
           @confirm-image-preflight="confirmImagePreflight"
-          @resolve-image-preflight-character="resolveImagePreflightCharacter"
           @dismiss-completion-prompt="workbench.clearChapterCompletionPrompt"
           @reset-script="clearCurrentChapterScript"
           @confirm-pending-source="confirmPendingSource"
@@ -91,7 +90,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CompleteChapterRequest, GenerateCharacterReferenceRequest, ResolveImagePreflightCharacterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CompleteChapterRequest, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -292,10 +291,6 @@ async function confirmStoryboard(payload: { chapterId: string; storyboardJson: S
 
 async function confirmImagePreflight(chapterId: string) {
   await workbench.confirmImagePreflight(chapterId);
-}
-
-async function resolveImagePreflightCharacter(payload: { chapterId: string; input: ResolveImagePreflightCharacterRequest }) {
-  await workbench.resolveImagePreflightCharacter(payload.chapterId, payload.input);
 }
 
 async function updateStoryboard(payload: { chapterId: string; storyboardJson: StoryboardJson }) {

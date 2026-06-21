@@ -1818,6 +1818,9 @@ export class DialogueService {
     const snapshot = turn.snapshot;
     const currentChapter = snapshot.currentChapter;
     const structure = snapshot.storyStructure?.structureJson;
+    const availableCharacterNames = Array.isArray(structure?.characters)
+      ? structure.characters.map((card) => card?.name).filter((name): name is string => typeof name === "string" && name.trim() !== "")
+      : [];
     const beatCount = Array.isArray(structure?.beats) ? structure.beats.length : 0;
     const targetShotRange = beatCount > 0
       ? `${beatCount}-${Math.min(Math.max(beatCount * 2, beatCount), 24)}`
@@ -1835,6 +1838,7 @@ export class DialogueService {
       "- M1 可以默认一个 Shot 对应一个漫画画格和一个基础漫剧镜头，但不要在文案中声称未来永远一一对应。",
       "- 不要生成最终图片 Prompt；promptDraft 只能是给后续候选图阶段的草稿摘要。",
       "- 不要生成候选图、TTS、字幕、视频或排版。",
+      `- characterIds 必须从已确认剧情结构的角色名里选(可用角色名：${availableCharacterNames.join("、") || "暂无"})，不要自创新名字、用别名或简称。`,
       `- 本章建议生成 ${targetShotRange} 个 Shot；每个剧情节拍默认拆 1-2 个 Shot，除非关键动作/情绪转折必须拆开。`,
       "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
       "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",

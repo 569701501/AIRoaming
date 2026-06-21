@@ -115,7 +115,6 @@
         @select-chapter="$emit('selectChapter', $event)"
         @open-characters="$emit('openCharacters')"
         @confirm-preflight="$emit('confirmImagePreflight', $event)"
-        @resolve-character="$emit('resolveImagePreflightCharacter', $event)"
         @go-candidates="$emit('selectStep', 'image_candidates')"
       />
 
@@ -130,7 +129,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, ResolveImagePreflightCharacterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -188,7 +187,6 @@ const emit = defineEmits<{
   updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   confirmImagePreflight: [chapterId: string];
-  resolveImagePreflightCharacter: [payload: { chapterId: string; input: ResolveImagePreflightCharacterRequest }];
 }>();
 
 const currentStageIndex = computed(() => {
