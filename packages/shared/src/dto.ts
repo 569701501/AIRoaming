@@ -287,6 +287,16 @@ export interface StoryStructureCharacterCard {
   projectCharacterId: string | null;
   name: string;
   role: string;
+  /**
+   * 角色层级。AI 显式输出(lead/recurring/chapter/minor/extra),见 task 2026-06-21_角色分层双维度。
+   * null 表示 AI 未输出,后端 inferCharacterLevel 兜底。
+   */
+  level: ProjectCharacterLevel | null;
+  /**
+   * 角色存在形态。AI 显式输出(human/creature/group/voice)。
+   * null 表示 AI 未输出,后端默认 human。
+   */
+  entityType: ProjectCharacterEntityType | null;
   motivation: string;
   relationship: string;
   visualTraits: string;
@@ -616,9 +626,15 @@ export interface ResolveImagePreflightCharacterRequest {
   promptFragment?: string;
 }
 
-export type ProjectCharacterLevel = "lead" | "recurring" | "chapter" | "extra";
+export type ProjectCharacterLevel = "lead" | "recurring" | "chapter" | "minor" | "extra";
 export type ProjectCharacterStatus = "draft" | "needs_reference" | "finalized" | "in_use";
 export type ProjectCharacterReferenceKind = "preview_front" | "final_reference" | "none";
+/**
+ * 角色存在形态(见 task 2026-06-21_角色分层双维度)。
+ * human:人类角色(默认,现有生图正常走);creature:怪物/异常体;group:群体角色;voice:纯声音角色。
+ * 第一批只 human 走通生图,creature/group/voice 占位 fallback 到 human prompt。
+ */
+export type ProjectCharacterEntityType = "human" | "creature" | "group" | "voice";
 
 export interface ProjectCharacter {
   id: string;
@@ -626,6 +642,7 @@ export interface ProjectCharacter {
   name: string;
   role: string;
   level: ProjectCharacterLevel;
+  entityType: ProjectCharacterEntityType;
   status: ProjectCharacterStatus;
   appearance: string;
   personality: string;

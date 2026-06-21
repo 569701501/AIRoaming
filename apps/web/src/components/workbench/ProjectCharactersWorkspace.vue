@@ -132,9 +132,10 @@ function closePreview() {
 
 const LEVEL_LABELS: Record<ProjectCharacterLevel, string> = {
   lead: "主角",
-  recurring: "常驻",
-  chapter: "本章",
-  extra: "临时",
+  recurring: "重要配角",
+  chapter: "本章关键",
+  minor: "小角色",
+  extra: "背景路人",
 };
 
 function assetUrl(assetId: string) {

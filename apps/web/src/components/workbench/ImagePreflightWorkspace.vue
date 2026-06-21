@@ -614,9 +614,10 @@ function getCharacterDescription(character: ProjectCharacter) {
 function getLevelLabel(level: ProjectCharacter["level"]) {
   const labels: Record<ProjectCharacter["level"], string> = {
     lead: "主角",
-    recurring: "常驻角色",
-    chapter: "本章重要",
-    extra: "临时/背景",
+    recurring: "重要配角",
+    chapter: "本章关键",
+    minor: "小角色",
+    extra: "背景路人",
   };
   return labels[level];
 }

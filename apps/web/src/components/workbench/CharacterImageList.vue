@@ -38,6 +38,7 @@
               <div class="overlay-top">
                 <strong class="overlay-name">{{ character.name }}</strong>
                 <span class="overlay-level">{{ getLevelLabel(character.level) }}</span>
+                <span v-if="character.entityType !== 'human'" class="overlay-entity">{{ getEntityTypeLabel(character.entityType) }}</span>
               </div>
 
               <!-- 状态 B(未定稿)右上角常驻🔄:重新生成角色图 -->
@@ -229,6 +230,7 @@ import { CheckCircle2, ImagePlus, LoaderCircle, Lock, Pencil, RotateCw, Trash2, 
 import type {
   GenerationTaskItem,
   ProjectCharacter,
+  ProjectCharacterEntityType,
   ProjectCharacterLevel,
   ProjectCharacterReferenceKind,
   UpdateProjectCharacterRequest,
@@ -433,11 +435,22 @@ function getPromptDescription(character: ProjectCharacter) {
 function getLevelLabel(level: ProjectCharacterLevel) {
   const labels: Record<ProjectCharacterLevel, string> = {
     lead: "主角",
-    recurring: "常驻",
-    chapter: "本章",
-    extra: "临时",
+    recurring: "重要配角",
+    chapter: "本章关键",
+    minor: "小角色",
+    extra: "背景路人",
   };
   return labels[level];
+}
+
+function getEntityTypeLabel(entityType: ProjectCharacterEntityType) {
+  const labels: Record<ProjectCharacterEntityType, string> = {
+    human: "人类",
+    creature: "怪物",
+    group: "群体",
+    voice: "声音",
+  };
+  return labels[entityType];
 }
 
 function getCardStateLabel(character: ProjectCharacter) {
@@ -758,9 +771,19 @@ function submitDelete() {
 }
 
 .overlay-btn.is-primary {
-  border-color: rgba(34, 199, 169, 0.5);
-  background: rgba(34, 199, 169, 0.22);
-  color: #8df0dc;
+  border-color: #22c7a9;
+  background: linear-gradient(180deg, #2eebc4, #1fb89a);
+  color: #06231d;
+  font-weight: 900;
+  box-shadow: 0 4px 14px rgba(34, 199, 169, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.overlay-btn.is-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #43f0cf, #28c9a9);
+  border-color: #43f0cf;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(34, 199, 169, 0.5);
 }
 
 .overlay-btn:disabled {

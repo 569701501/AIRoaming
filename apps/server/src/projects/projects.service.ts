@@ -61,6 +61,7 @@ import {
   type ResolveImagePreflightCharacterRequest,
   type ResolveImagePreflightCharacterResponse,
   type ProjectCharacter,
+  type ProjectCharacterEntityType,
   type ProjectCharacterLevel,
   type ProjectCharacterReferenceKind,
   type ProjectCharacterStatus,
@@ -85,6 +86,7 @@ import {
   type ScriptRevisionItem,
   type StoryboardJson,
   type StoryboardShot,
+  type StoryStructureCharacterCard,
   type StoryStructureJson,
   type UpdateChapterStoryboardRequest,
   type UpdateChapterStoryStructureRequest,
@@ -112,9 +114,18 @@ const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
   PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
 );
-const characterLevels: ProjectCharacterLevel[] = ["lead", "recurring", "chapter", "extra"];
+const characterLevels: ProjectCharacterLevel[] = ["lead", "recurring", "chapter", "minor", "extra"];
+const characterEntityTypes: ProjectCharacterEntityType[] = ["human", "creature", "group", "voice"];
 const characterStatuses: ProjectCharacterStatus[] = ["draft", "needs_reference", "finalized", "in_use"];
 const characterReferenceKinds: ProjectCharacterReferenceKind[] = ["preview_front", "final_reference", "none"];
+/** 角色层级重要性顺序(数字越小越重要)。sort 和 resolveMoreImportantCharacterLevel 共用,避免漂移(见 task 2026-06-21_角色分层双维度)。 */
+const CHARACTER_LEVEL_ORDER: Record<ProjectCharacterLevel, number> = {
+  lead: 0,
+  recurring: 1,
+  chapter: 2,
+  minor: 3,
+  extra: 4,
+};
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
 interface LocalChapterScriptVersion extends ChapterScriptVersionItem {
@@ -3280,8 +3291,9 @@ export class ProjectsService implements OnModuleInit {
       id: `char_${randomUUID()}`,
       projectId: project.id,
       name,
-      role: input.role?.trim() || (level === "extra" ? "临时/背景角色" : "本章角色"),
+      role: input.role?.trim() || this.getDefaultRoleForLevel(level),
       level,
+      entityType: "human",
       status: level === "lead" || level === "recurring" ? "needs_reference" : "draft",
       appearance: description,
       personality: input.personality?.trim() || "",
@@ -3326,7 +3338,7 @@ export class ProjectsService implements OnModuleInit {
       const name = this.normalizeCharacterName(rawName);
       const key = this.normalizeCharacterNameKey(name);
       const description = this.buildStoryStructureCharacterPrompt(card);
-      const inferredLevel = this.inferCharacterLevel(name, card.role, description, index);
+      const inferredLevel = this.resolveCardLevel(card, name, description, index);
       const existing = existingByName.get(key);
 
       if (existing) {
@@ -3346,12 +3358,17 @@ export class ProjectsService implements OnModuleInit {
         const nextAppearance = existing.appearance || description;
         const nextPersonality = existing.personality || card.motivation.trim();
         const nextPromptFragment = existing.promptFragment || description;
+        // entityType: AI 显式输出就用 AI 的(走 normalizeEntityType 校验),AI 没给(含旧数据 null)保留 existing。
+        const nextEntityType = typeof card.entityType === "string"
+          ? this.normalizeEntityType(card.entityType)
+          : existing.entityType;
         const hasChanges = existing.role !== nextRole
           || existing.level !== level
           || existing.status !== nextStatus
           || existing.appearance !== nextAppearance
           || existing.personality !== nextPersonality
           || existing.promptFragment !== nextPromptFragment
+          || existing.entityType !== nextEntityType
           || existing.primaryReferenceAssetId !== primary.primaryReferenceAssetId
           || existing.primaryReferenceKind !== primary.primaryReferenceKind
           || existing.finalizedAt !== primary.finalizedAt;
@@ -3366,6 +3383,7 @@ export class ProjectsService implements OnModuleInit {
           appearance: nextAppearance,
           personality: nextPersonality,
           promptFragment: nextPromptFragment,
+          entityType: nextEntityType,
           primaryReferenceAssetId: primary.primaryReferenceAssetId,
           primaryReferenceKind: primary.primaryReferenceKind,
           finalizedAt: primary.finalizedAt,
@@ -3386,6 +3404,7 @@ export class ProjectsService implements OnModuleInit {
         name,
         role: card.role.trim() || this.getDefaultRoleForLevel(inferredLevel),
         level: inferredLevel,
+        entityType: this.resolveCardEntityType(card),
         status: inferredLevel === "lead" || inferredLevel === "recurring" ? "needs_reference" : "draft",
         appearance: description,
         personality: card.motivation.trim(),
@@ -3437,18 +3456,22 @@ export class ProjectsService implements OnModuleInit {
       return "主角";
     }
     if (level === "recurring") {
-      return "常驻角色";
+      return "重要配角";
+    }
+    if (level === "minor") {
+      return "小角色";
     }
     if (level === "extra") {
-      return "临时/背景角色";
+      return "背景路人";
     }
-    return "本章角色";
+    return "本章关键角色";
   }
 
   private isRequiredPreflightReferenceCharacter(character: ProjectCharacter, appearanceCount: number): boolean {
+    // lead/recurring 必须有定稿参考图;chapter 与 minor 出场多次(>1)时也要求参考图(minor 与 chapter 同档)。
     return character.level === "lead"
       || character.level === "recurring"
-      || (character.level === "chapter" && appearanceCount > 1);
+      || ((character.level === "chapter" || character.level === "minor") && appearanceCount > 1);
   }
 
   private toProjectListItem(project: LocalProject): ProjectListItem {
@@ -3769,6 +3792,8 @@ export class ProjectsService implements OnModuleInit {
         projectCharacterId: this.getOptionalStringField(item, "projectCharacterId"),
         name: this.getStringField(item, "name", `角色 ${index + 1}`),
         role: this.getStringField(item, "role", ""),
+        level: this.getOptionalStringField(item, "level") as StoryStructureCharacterCard["level"],
+        entityType: this.getOptionalStringField(item, "entityType") as StoryStructureCharacterCard["entityType"],
         motivation: this.getStringField(item, "motivation", ""),
         relationship: this.getStringField(item, "relationship", ""),
         visualTraits: this.getStringField(item, "visualTraits", ""),
@@ -4187,6 +4212,7 @@ export class ProjectsService implements OnModuleInit {
       name: this.normalizeCharacterName(this.getStringField(item, "name", `角色 ${index + 1}`)),
       role: this.getStringField(item, "role", ""),
       level,
+      entityType: this.normalizeEntityType(item.entityType),
       status,
       appearance: this.getStringField(item, "appearance", ""),
       personality: this.getStringField(item, "personality", ""),
@@ -4224,11 +4250,38 @@ export class ProjectsService implements OnModuleInit {
     return characterReferenceKinds.includes(value as ProjectCharacterReferenceKind) ? value as ProjectCharacterReferenceKind : "none";
   }
 
+  private normalizeEntityType(value: unknown): ProjectCharacterEntityType {
+    return typeof value === "string" && characterEntityTypes.includes(value as ProjectCharacterEntityType)
+      ? value as ProjectCharacterEntityType
+      : "human";
+  }
+
+  /** 结构卡 entityType 优先用 AI 输出,AI 没给(含旧数据 null)默认 human。 */
+  private resolveCardEntityType(card: StoryStructureJson["characters"][number]): ProjectCharacterEntityType {
+    return this.normalizeEntityType(card.entityType);
+  }
+
+  /**
+   * 结构卡 level 优先用 AI 输出(card.level),AI 没给才回落 inferCharacterLevel(见 task 2026-06-21_角色分层双维度)。
+   * 保留 inferCharacterLevel 作兜底:① 旧 structure.json 无 level;② AI 偶发漏填;③ 剧本导入链路继续用。
+   */
+  private resolveCardLevel(
+    card: StoryStructureJson["characters"][number],
+    name: string,
+    description: string,
+    index: number,
+  ): ProjectCharacterLevel {
+    if (card.level) {
+      return this.normalizeCharacterLevel(card.level);
+    }
+    return this.inferCharacterLevel(name, card.role, description, index);
+  }
+
   private defaultReferenceKindForLevel(level: ProjectCharacterLevel): ProjectCharacterReferenceKind {
     if (level === "lead" || level === "recurring") {
       return "final_reference";
     }
-    if (level === "chapter" || level === "extra") {
+    if (level === "chapter" || level === "minor" || level === "extra") {
       return "preview_front";
     }
     return "none";
@@ -4310,14 +4363,8 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private sortProjectCharacters(characters: ProjectCharacter[]): ProjectCharacter[] {
-    const order: Record<ProjectCharacterLevel, number> = {
-      lead: 0,
-      recurring: 1,
-      chapter: 2,
-      extra: 3,
-    };
     return [...characters].sort((left, right) => {
-      const levelDelta = order[left.level] - order[right.level];
+      const levelDelta = CHARACTER_LEVEL_ORDER[left.level] - CHARACTER_LEVEL_ORDER[right.level];
       if (levelDelta !== 0) return levelDelta;
       return left.createdAt.localeCompare(right.createdAt);
     });
@@ -4339,13 +4386,7 @@ export class ProjectsService implements OnModuleInit {
     left: ProjectCharacterLevel,
     right: ProjectCharacterLevel,
   ): ProjectCharacterLevel {
-    const order: Record<ProjectCharacterLevel, number> = {
-      lead: 0,
-      recurring: 1,
-      chapter: 2,
-      extra: 3,
-    };
-    return order[left] <= order[right] ? left : right;
+    return CHARACTER_LEVEL_ORDER[left] <= CHARACTER_LEVEL_ORDER[right] ? left : right;
   }
 
   private extractCharactersFromProjectSource(
@@ -4382,6 +4423,7 @@ export class ProjectsService implements OnModuleInit {
         name: parsed.name,
         role: parsed.role,
         level,
+        entityType: "human",
         status: level === "lead" || level === "recurring" ? "needs_reference" : "draft",
         appearance: parsed.description,
         personality: "",
@@ -4442,8 +4484,15 @@ export class ProjectsService implements OnModuleInit {
     if (/常驻|主要|反派|男二|女二|伙伴|搭档|摄政王|长期|宿敌/u.test(text)) {
       return "recurring";
     }
-    if (/路人|背景|群众|侍卫|店员|司机/u.test(text)) {
+    // extra/minor 只看显式身份(name+role),不看 description:
+    // description 里"背景/群众/司机"等词常指设定(如"不展开额外背景"),会误判 extra 卡住定稿按钮。
+    // 兜底宁可漏判落到 chapter(有定稿按钮、用户可控),也不误判 extra(卡住)。
+    const identity = `${name} ${role}`;
+    if (/路人|背景|群众|侍卫|店员|司机/u.test(identity)) {
       return "extra";
+    }
+    if (/护士|门卫|卫兵|守卫|小卒|手下|喽啰|仆人|丫鬟|传令|信使|邮差|差役/u.test(identity)) {
+      return "minor";
     }
     return "chapter";
   }
