@@ -2,6 +2,8 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException, typ
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import * as wsJson from "./workspace-json.util.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
+import * as wsDomain from "./project-domain.util.js";
+import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import {
@@ -108,10 +110,6 @@ import { SettingsService } from "../settings/settings.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 
-const DEFAULT_CHAPTER_ID = "chapter_001";
-const DEFAULT_CHAPTER_SLUG = "chapter-001";
-const getDefaultChapterTitle = (order: number): string => `第 ${order} 章`;
-const DEFAULT_CHAPTER_TITLE = getDefaultChapterTitle(1);
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
   PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
@@ -120,14 +118,6 @@ const characterLevels: ProjectCharacterLevel[] = ["lead", "recurring", "chapter"
 const characterEntityTypes: ProjectCharacterEntityType[] = ["human", "creature", "group", "voice"];
 const characterStatuses: ProjectCharacterStatus[] = ["draft", "needs_reference", "finalized", "in_use"];
 const characterReferenceKinds: ProjectCharacterReferenceKind[] = ["preview_front", "final_reference", "none"];
-/** 角色层级重要性顺序(数字越小越重要)。sort 和 resolveMoreImportantCharacterLevel 共用,避免漂移(见 task 2026-06-21_角色分层双维度)。 */
-const CHARACTER_LEVEL_ORDER: Record<ProjectCharacterLevel, number> = {
-  lead: 0,
-  recurring: 1,
-  chapter: 2,
-  minor: 3,
-  extra: 4,
-};
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
 // LocalChapter / LocalProject / LocalChapterScriptVersion 已抽到 ./local-types.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre)。
@@ -2603,19 +2593,19 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private normalizeProjectType(input: unknown): ProjectType {
-    return typeof input === "string" && PROJECT_TYPES.includes(input as ProjectType) ? input as ProjectType : "comic";
+    return wsDomain.normalizeProjectType(input);
   }
 
   private normalizeComicFormat(input: ComicFormat | undefined): ComicFormat {
-    return input && COMIC_FORMATS.includes(input) ? input : "vertical_scroll";
+    return wsDomain.normalizeComicFormat(input);
   }
 
   private normalizeArtStyle(input: ArtStyle | undefined): ArtStyle {
-    return input && ART_STYLES.includes(input) ? input : "dark_realistic";
+    return wsDomain.normalizeArtStyle(input);
   }
 
   private normalizeChapterStatus(input: unknown): ChapterStatus {
-    return typeof input === "string" && CHAPTER_STATUSES.includes(input as ChapterStatus) ? input as ChapterStatus : "draft";
+    return wsDomain.normalizeChapterStatus(input);
   }
 
   private parseProvidedScriptChapters(sourceText: string): ParsedScriptChapter[] {
@@ -3568,28 +3558,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private createDefaultChapter(projectId: string, sourceText: string, now: string): LocalChapter {
-    return {
-      id: DEFAULT_CHAPTER_ID,
-      projectId,
-      slug: DEFAULT_CHAPTER_SLUG,
-      order: 1,
-      title: DEFAULT_CHAPTER_TITLE,
-      status: "draft",
-      currentScriptVersionId: null,
-      currentStoryVersionId: null,
-      sourceText,
-      summary: "",
-      storyStructure: null,
-      storyboard: null,
-      pendingStoryboard: null,
-      pendingSourceText: null,
-      imagePreflight: null,
-      createdAt: now,
-      updatedAt: now,
-      completedAt: null,
-      scriptVersions: [],
-      lastScriptRevision: null,
-    };
+    return wsDomain.createDefaultChapter(projectId, sourceText, now);
   }
 
   private updateCurrentChapterSource(project: LocalProject, sourceText: string, updatedAt: string): LocalChapter[] {
@@ -4291,11 +4260,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private sortProjectCharacters(characters: ProjectCharacter[]): ProjectCharacter[] {
-    return [...characters].sort((left, right) => {
-      const levelDelta = CHARACTER_LEVEL_ORDER[left.level] - CHARACTER_LEVEL_ORDER[right.level];
-      if (levelDelta !== 0) return levelDelta;
-      return left.createdAt.localeCompare(right.createdAt);
-    });
+    return wsDomain.sortProjectCharacters(characters);
   }
 
   private normalizeCharacterName(value: string): string {
@@ -4878,9 +4843,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private getCurrentChapter(project: LocalProject): LocalChapter | null {
-    return project.chapters.find((chapter) => chapter.id === project.currentChapterId)
-      ?? project.chapters[0]
-      ?? null;
+    return wsDomain.getCurrentChapter(project);
   }
 
   private assertProjectStillActive(projectId: string): void {
@@ -5111,7 +5074,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private sortChapters(chapters: LocalChapter[]): LocalChapter[] {
-    return [...chapters].sort((left, right) => left.order - right.order);
+    return wsDomain.sortChapters(chapters);
   }
 
   private toChapterListItem(chapter: LocalChapter): ChapterListItem {

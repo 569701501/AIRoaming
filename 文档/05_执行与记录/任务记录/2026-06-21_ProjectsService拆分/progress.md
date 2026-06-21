@@ -19,6 +19,10 @@
 - 为 domain util / ProjectRepository 解决循环依赖(类型共享)。确认这三个类型无外部 import,安全抽。
 - typecheck 三包通过,行为不变。
 
-### 子步 1b-pre-1:抽 domain util(待办)
+### 子步 1b-pre-1:抽 domain util(2026-06-21 完成)
+- 新建 `apps/server/src/projects/project-domain.util.ts`,导出 sortChapters/sortProjectCharacters/normalizeProjectType/normalizeComicFormat/normalizeArtStyle/normalizeChapterStatus/createDefaultChapter/getCurrentChapter + 常量 CHARACTER_LEVEL_ORDER/DEFAULT_CHAPTER_ID/SLUG/TITLE/getDefaultChapterTitle。
+- ProjectsService 8 个 private 方法改薄委托 + 常量改 import(零调用点,行为不变)。
+- typecheck 三包通过。
+
 ### 子步 1b:抽 Repository 加载链+缓存(待办)
 ### 子步 1c:抽 Repository 写入链(待办)
