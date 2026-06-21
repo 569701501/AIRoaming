@@ -4,7 +4,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-06-06
+updated: 2026-06-21
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -141,4 +141,8 @@ corepack pnpm dev
 - 2026-05-29 剧本阶段最终输出格式已收口：用户上传/粘贴剧本或选择 AI 灵感种子后，写入右侧编辑器的用户可见产物统一为固定格式「章节剧本」；格式包含 `第 X 章：章节标题`，并同步为 `Chapter.title`；`剧本名称/剧集名称` 是项目级作品名，显示在章节下拉框右侧，不写进章节正文；灵感技能每次生成 3 个种子，用户可选择其一或重新生成 3 个；最终章节剧本不输出主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号、图片 Prompt 或 JSON，这些后置到剧情结构、分镜工作台和候选图阶段。
 - 2026-05-24 项目删除链路已落地，2026-06-02 补齐清理边界：项目卡片右上角删除按钮二次确认后调用 `DELETE /projects/{projectId}`，删除项目记录、本地 workspace 项目目录、该项目生成任务和项目级对话运行态缓存。
 - 2026-05-24 项目工作区外壳已落地：创建或打开项目后进入项目工作区，显示返回项目库、项目标题、当时的 6 步流程和“剧本”面板；故事草稿可通过 `PATCH /projects/{projectId}` 保存并写回 workspace。当前产品口径已更新为 7 步。
+- 2026-06-21 剧情结构卡角色 ID 回填已落地：`StoryStructureCharacterCard` 新增 `projectCharacterId`，指向项目角色库 `ProjectCharacter.id`。AI 生成结构卡时不填(为 null)，由后端在用户确认剧情结构时按 name 匹配/新建项目角色后回填，作为稳定外键；因项目角色不可删除，回填后的 id 永远有效，无需失效兜底。name 仍是跨章节关联的二级线索。详见 `文档/04_方案与决策/ADR-0006_剧情结构卡角色ID回填方案.md`。角色档案编辑能力(改 name/role/level 等)后端接口已存在但前端无 UI，暂不补，为已知限制。
+- 2026-06-21 分镜字段拆分与枚举升级已落地：`StoryboardShot` 共同核心层新增 `shotType`(景别)和 `cameraAngle`(机位角度)，comic 和 motion 共用一份；`comic.panelRhythm`、`motion.cameraMovement`、`motion.frameType` 从自由文本升为受控枚举；`motion.durationHint` 拆出 `durationMs`(毫秒数字)；`motion.voiceRole`+`line` 替换为 `motion.voiceLines[]`(支持多人对话、用 characterId)。枚举兜底逻辑抽到 `packages/shared/src/storyboard-normalize.ts`，两份 normalize 共用。兼容用 normalize 读时兜底，不写迁移脚本。前端展示也已落地：枚举字段用中文下拉、durationMs 数字输入、voiceLines 只读列表。详见 `文档/04_方案与决策/ADR-0007_分镜字段拆分与枚举升级.md` 和 `文档/05_执行与记录/功能完成记录/2026-06-21_分镜字段前端展示.md`。
+- 2026-06-21 章节正文草稿缓冲与 AI 批量生成已落地：章节正文新增草稿缓冲层（`chapter.pendingSourceText`，落 `script-pending.json`，仿分镜 pending）。AI 生成正文写入 pending 不碰正式 sourceText，用户“采用草稿”确认后才转正式、“丢弃”则删。AI 批量生成整本走“边生成边建章”循环（`ensureChapterExists` + 碰正式非空停 + 写 pending），上限 20 章防失控。不改 ADR-0005 真工具边界，走伪工具调用（正文不当参数传）。详见 `文档/04_方案与决策/ADR-0008_章节正文草稿缓冲与批量生成.md`。
+- 2026-06-21 直接题材生成大纲已落地：剧本阶段新增第 3 条链路。用户给出明确题材（如"生成全职猎人暗黑大陆篇"）时，绕过灵感种子直接生成项目级大纲（`generateScriptOutlineFromTopicWithAI`，题材来自用户输入，不依赖 seed）。判断依据：`shouldGenerateInspirationSeeds` 返回 `{trigger, mode}`，命中"生成/写/编 + 故事/篇/章/剧本"的 directContentMatch 时 mode=topic。"找灵感/点子/创意"仍走 3 选 1（现状不变）。大纲 status=draft，用户确认后才继续生成章节。详见 `文档/05_执行与记录/功能完成记录/2026-06-21_直接题材生成大纲.md`。
 - 历史 UI 试错文档已移至 `文档/98_历史归档/`，不再默认阅读。

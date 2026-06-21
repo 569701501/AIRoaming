@@ -48,6 +48,8 @@
           @resolve-image-preflight-character="resolveImagePreflightCharacter"
           @dismiss-completion-prompt="workbench.clearChapterCompletionPrompt"
           @reset-script="clearCurrentChapterScript"
+          @confirm-pending-source="confirmPendingSource"
+          @discard-pending-source="discardPendingSource"
           @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
           @select-dialogue-model="selectDialogueModel"
@@ -215,6 +217,14 @@ onBeforeUnmount(() => {
 
 async function saveChapterDraft(payload: { chapterId: string; input: SaveChapterDraftRequest }) {
   await workbench.saveChapterDraft(payload.chapterId, payload.input);
+}
+
+async function confirmPendingSource(chapterId: string) {
+  await workbench.confirmChapterPendingSource(chapterId);
+}
+
+async function discardPendingSource(chapterId: string) {
+  await workbench.discardChapterPendingSource(chapterId);
 }
 
 async function completeChapter(payload: { chapterId: string; input: CompleteChapterRequest }) {

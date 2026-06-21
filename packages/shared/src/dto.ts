@@ -177,6 +177,28 @@ export interface ChapterListItem {
 export interface ChapterDetail extends ChapterListItem {
   sourceText: string;
   scriptPath: string;
+  /** AI 生成的章节正文草稿缓冲(见 ADR-0008)。确认前不覆盖正式 sourceText。 */
+  pendingSourceText: ChapterPendingSourceText | null;
+}
+
+/**
+ * 章节正文草稿缓冲。AI 生成正文时写入此处(落 script.pending.md),
+ * 用户确认后才覆盖正式 chapter.sourceText。仿分镜 storyboard.pending 机制。
+ * 单草稿:一个章节同时只有一份 pending,新生成覆盖旧的。
+ */
+export interface ChapterPendingSourceText {
+  /** 草稿正文文本。 */
+  sourceText: string;
+  /** 生成该草稿的来源对话消息 id,用于追溯。 */
+  threadId: string;
+  messageId: string;
+  toolCallId: string;
+  /** 生成操作类型。 */
+  operation: "generate_script_from_seed" | "generate_script_from_outline" | "update_chapter_draft";
+  /** 生成时间。 */
+  createdAt: string;
+  /** 最近一次更新时间。 */
+  updatedAt: string;
 }
 
 export interface ChapterScriptVersionItem {
@@ -230,6 +252,16 @@ export interface ClearChapterScriptResponse {
   chapters: ChapterListItem[];
 }
 
+export interface ConfirmChapterPendingSourceResponse {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
+export interface DiscardChapterPendingSourceResponse {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
 export interface ResetProjectScriptResponse {
   chapter: ChapterDetail;
   chapters: ChapterListItem[];
@@ -247,6 +279,12 @@ export interface StoryStructureDirection {
 
 export interface StoryStructureCharacterCard {
   id: string;
+  /**
+   * 指向项目角色库 ProjectCharacter.id。
+   * AI 生成结构卡时不填(为 null),由后端在确认剧情结构时
+   * 按 name 匹配/新建项目角色后回填(见 ADR-0006)。
+   */
+  projectCharacterId: string | null;
   name: string;
   role: string;
   motivation: string;
@@ -328,22 +366,80 @@ export interface SaveChapterStoryStructureResponse {
 export type ChapterStoryboardStatus = "pending_confirmation" | "storyboard_done";
 export type StoryboardShotStatus = "draft" | "ready_for_image" | "image_generated" | "locked" | "needs_revision";
 
+/**
+ * 景别。共同核心层,comic 和 motion 共用一份。
+ * 决定镜头离主体的远近,是出图最关键参数之一(见 ADR-0007)。
+ */
+export type ShotType =
+  | "establishing"
+  | "wide"
+  | "full"
+  | "medium"
+  | "close_up"
+  | "extreme_close_up";
+
+/**
+ * 机位角度。共同核心层,comic 和 motion 共用一份。
+ * 决定摄像机俯仰关系,和景别是两个独立维度(见 ADR-0007)。
+ */
+export type CameraAngle =
+  | "eye_level"
+  | "high_angle"
+  | "low_angle"
+  | "over_shoulder"
+  | "top_down"
+  | "dutch_angle";
+
+/** 画格节奏。漫画阅读节奏,影响排版与停顿感。 */
+export type PanelRhythm = "slow" | "normal" | "fast" | "impact" | "transition";
+
+/** 运镜方式。漫剧镜头的运动方式,做视频时直接解析。 */
+export type CameraMovement =
+  | "static"
+  | "push_in"
+  | "pull_out"
+  | "pan_left"
+  | "pan_right"
+  | "tilt_up"
+  | "tilt_down"
+  | "track_left"
+  | "track_right"
+  | "slow_zoom"
+  | "handheld"
+  | "none";
+
+/** 镜头类型。镜头在叙事中的功能分类。 */
+export type FrameType = "atmosphere" | "dialogue" | "action" | "reaction" | "detail" | "transition";
+
+/** 配音台词。一个镜头可含多人对话,characterId 与 projectCharacterId 思路对齐。 */
+export interface StoryboardShotVoiceLine {
+  characterId: string | null;
+  name: string;
+  line: string;
+  voiceStyle: string;
+}
+
 export interface StoryboardShotComic {
   panelDescription: string;
+  /** 构图说明。只描述人物/场景的摆放与重心,景别和机位已移到 Shot 顶层。 */
   composition: string;
   dialogue: string;
   caption: string;
-  panelRhythm: string;
+  panelRhythm: PanelRhythm;
 }
 
 export interface StoryboardShotMotion {
   visualDescription: string;
+  /** 构图设计。只描述动态画面的构图关系,景别和机位已移到 Shot 顶层。 */
   compositionDesign: string;
-  cameraMovement: string;
-  voiceRole: string;
-  line: string;
+  cameraMovement: CameraMovement;
+  frameType: FrameType;
+  /** 镜头时长,毫秒。给程序算时间线用(见 ADR-0007)。 */
+  durationMs: number;
+  /** 时长展示文本。给人看,如"约 3-4s"。 */
   durationHint: string;
-  frameType: string;
+  /** 配音台词数组,替换旧 voiceRole+line(见 ADR-0007)。 */
+  voiceLines: StoryboardShotVoiceLine[];
 }
 
 export interface StoryboardShot {
@@ -354,6 +450,10 @@ export interface StoryboardShot {
   characterIds: string[];
   coreAction: string;
   emotion: string;
+  /** 景别,共同核心层字段(见 ADR-0007)。 */
+  shotType: ShotType;
+  /** 机位角度,共同核心层字段(见 ADR-0007)。 */
+  cameraAngle: CameraAngle;
   comic: StoryboardShotComic;
   motion: StoryboardShotMotion;
   promptDraft: string;
@@ -792,8 +892,10 @@ export interface DialogueToolResult {
     | "import_script_to_chapters"
     | "generate_inspiration_seeds"
     | "generate_script_outline_from_seed"
+    | "generate_script_outline_from_topic"
     | "generate_script_from_outline"
     | "generate_script_from_seed"
+    | "generate_multiple_chapters"
     | "update_chapter_draft"
     | "generate_story_structure"
     | "confirm_story_structure"

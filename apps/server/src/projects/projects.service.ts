@@ -18,12 +18,15 @@ import {
   stripChapterScriptName,
   type ChapterDetail,
   type ChapterListItem,
+  type ChapterPendingSourceText,
   type ChapterScriptVersionItem,
   type ChapterImagePreflight,
   type ChapterStoryboard,
   type ChapterStoryStructure,
   type ChapterStatus,
   type ClearChapterScriptResponse,
+  type ConfirmChapterPendingSourceResponse,
+  type DiscardChapterPendingSourceResponse,
   type ArtStyle,
   type ComicFormat,
   type ConfirmCharacterPreviewRequest,
@@ -89,6 +92,13 @@ import {
   type UpdateProjectDraftRequest,
   type WorkbenchAsset,
   type WorkbenchSnapshot,
+  normalizeCameraAngle,
+  normalizeCameraMovement,
+  normalizeFrameType,
+  normalizePanelRhythm,
+  normalizeShotType,
+  normalizeVoiceLines,
+  parseDurationHintToMs,
 } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
@@ -125,6 +135,8 @@ interface LocalChapter {
   storyStructure: ChapterStoryStructure | null;
   storyboard: ChapterStoryboard | null;
   pendingStoryboard?: ChapterStoryboard | null;
+  /** AI 生成的章节正文草稿缓冲(见 ADR-0008)。确认前不覆盖正式 sourceText。 */
+  pendingSourceText: ChapterPendingSourceText | null;
   imagePreflight: ChapterImagePreflight | null;
   createdAt: string;
   updatedAt: string;
@@ -1047,6 +1059,7 @@ export class ProjectsService implements OnModuleInit {
       status: "script_done",
       currentScriptVersionId: scriptVersion.id,
       pendingStoryboard: null,
+      pendingSourceText: null,
       imagePreflight: null,
       updatedAt: completedAt,
       completedAt,
@@ -1107,6 +1120,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: null,
       storyboard: null,
       pendingStoryboard: null,
+      pendingSourceText: null,
       imagePreflight: null,
       updatedAt,
       completedAt: null,
@@ -1127,6 +1141,137 @@ export class ProjectsService implements OnModuleInit {
       chapter: this.toChapterDetail(nextChapter),
       chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
     };
+  }
+
+  /**
+   * 确认章节正文草稿:把 pendingSourceText 覆盖到正式 sourceText,清掉 pending。
+   * 仿 confirmChapterStoryboard(见 ADR-0008)。
+   */
+  async confirmChapterPendingSource(
+    projectId: string,
+    chapterId: string,
+  ): Promise<ConfirmChapterPendingSourceResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    if (!chapter.pendingSourceText) {
+      throw new BadRequestException("CHAPTER_PENDING_SOURCE_NOT_FOUND");
+    }
+
+    const now = new Date().toISOString();
+    const sourceText = chapter.pendingSourceText.sourceText;
+    const parsedChapterTitle = extractChapterScriptTitle(sourceText);
+    const revision: ScriptRevisionItem = {
+      id: randomUUID(),
+      projectId,
+      chapterId: chapter.id,
+      source: "ai_tool",
+      threadId: chapter.pendingSourceText.threadId,
+      messageId: chapter.pendingSourceText.messageId,
+      toolCallId: chapter.pendingSourceText.toolCallId,
+      operation: chapter.pendingSourceText.operation,
+      summary: `确认草稿:${chapter.pendingSourceText.operation}`,
+      createdAt: now,
+    };
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      title: parsedChapterTitle || chapter.title,
+      sourceText,
+      pendingSourceText: null,
+      lastScriptRevision: revision,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      sourceText: nextChapter.sourceText,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  /**
+   * 丢弃章节正文草稿:删除 pendingSourceText,正式 sourceText 不变。
+   */
+  async discardChapterPendingSource(
+    projectId: string,
+    chapterId: string,
+  ): Promise<DiscardChapterPendingSourceResponse> {
+    const project = await this.getReadyProject(projectId);
+    const chapter = this.findChapter(project, chapterId);
+    if (!chapter.pendingSourceText) {
+      throw new BadRequestException("CHAPTER_PENDING_SOURCE_NOT_FOUND");
+    }
+
+    const now = new Date().toISOString();
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      pendingSourceText: null,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return {
+      chapter: this.toChapterDetail(nextChapter),
+      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
+    };
+  }
+
+  /**
+   * 内部:写入/覆盖章节正文草稿缓冲(不碰正式 sourceText)。
+   * 给 writeChapterDraftFromAI 和三期批量生成调用。
+   */
+  private async applyChapterPendingSource(
+    project: LocalProject,
+    chapter: LocalChapter,
+    input: WriteChapterDraftFromAIInput,
+  ): Promise<LocalProject> {
+    const now = new Date().toISOString();
+    const rawSourceText = input.sourceText.trim();
+    const sourceText = stripChapterScriptName(rawSourceText);
+    if (!sourceText) {
+      throw new BadRequestException("AI_CHAPTER_DRAFT_REQUIRED");
+    }
+    const previous = chapter.pendingSourceText;
+    const pendingSourceText: ChapterPendingSourceText = {
+      sourceText,
+      threadId: input.threadId,
+      messageId: input.messageId,
+      toolCallId: input.toolCallId,
+      operation: input.operation,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+    };
+    const parsedChapterTitle = extractChapterScriptTitle(sourceText);
+    const nextChapter: LocalChapter = {
+      ...chapter,
+      title: input.title?.trim() || parsedChapterTitle || chapter.title,
+      summary: input.summary.trim() || chapter.summary,
+      pendingSourceText,
+      updatedAt: now,
+    };
+    const nextProject = this.withUpdatedChapter({
+      ...project,
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    }, nextChapter);
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+    return nextProject;
   }
 
   async importScriptToChapters(
@@ -1172,6 +1317,7 @@ export class ProjectsService implements OnModuleInit {
         storyStructure: null,
         storyboard: null,
         pendingStoryboard: null,
+        pendingSourceText: null,
         imagePreflight: null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
@@ -1205,6 +1351,33 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
+  /**
+   * 确保指定 order 的章节存在(边生成边建章,见 ADR-0008 三期)。
+   * 存在则返回原章节;不存在则按 order 建一个空章节并落盘。
+   * 用于批量逐章生成时,每生成一章前确保目标章节已就位。
+   */
+  async ensureChapterExists(projectId: string, order: number, title?: string): Promise<ChapterDetail> {
+    const project = await this.getReadyProject(projectId);
+    const existing = project.chapters.find((chapter) => chapter.order === order);
+    if (existing) {
+      return this.toChapterDetail(existing);
+    }
+
+    const now = new Date().toISOString();
+    const nextChapter = this.createNextChapter(project.id, project.chapters, now, title);
+    const nextProject: LocalProject = {
+      ...project,
+      chapters: [...project.chapters, nextChapter],
+      currentChapterId: nextChapter.id,
+      updatedAt: now,
+    };
+
+    await this.writeProjectFiles(nextProject);
+    this.projects.set(nextProject.id, nextProject);
+
+    return this.toChapterDetail(nextChapter);
+  }
+
   async writeChapterDraftFromAI(
     projectId: string,
     chapterId: string,
@@ -1212,45 +1385,22 @@ export class ProjectsService implements OnModuleInit {
   ): Promise<WriteChapterDraftFromAIResult> {
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
-    const rawSourceText = input.sourceText.trim();
-    const sourceText = stripChapterScriptName(rawSourceText);
-    if (!sourceText) {
-      throw new BadRequestException("AI_CHAPTER_DRAFT_REQUIRED");
-    }
-
-    const updatedAt = new Date().toISOString();
-    const parsedChapterTitle = extractChapterScriptTitle(sourceText);
-    const parsedStoryTitle = extractChapterScriptName(rawSourceText);
+    const nextProject = await this.applyChapterPendingSource(project, chapter, input);
+    const nextChapter = this.findChapter(nextProject, chapterId);
+    const now = new Date().toISOString();
+    // 草稿写入记录(非正式 sourceText 的 revision;正式 revision 在确认草稿时产生)。
     const revision: ScriptRevisionItem = {
       id: randomUUID(),
       projectId,
-      chapterId: chapter.id,
+      chapterId: nextChapter.id,
       source: "ai_tool",
       threadId: input.threadId,
       messageId: input.messageId,
       toolCallId: input.toolCallId,
       operation: input.operation,
-      summary: input.summary,
-      createdAt: updatedAt,
+      summary: `${input.summary}(草稿缓冲,待确认)`,
+      createdAt: now,
     };
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      title: input.title?.trim() || parsedChapterTitle || chapter.title,
-      summary: input.summary.trim() || chapter.summary,
-      sourceText,
-      updatedAt,
-      lastScriptRevision: revision,
-    };
-    const nextProject = this.withUpdatedChapter({
-      ...project,
-      currentChapterId: nextChapter.id,
-      storyTitle: parsedStoryTitle || project.storyTitle,
-      sourceText: nextChapter.sourceText,
-      updatedAt,
-    }, nextChapter);
-
-    await this.writeProjectFiles(nextProject);
-    this.projects.set(nextProject.id, nextProject);
 
     return {
       chapter: this.toChapterDetail(nextChapter),
@@ -1335,18 +1485,18 @@ export class ProjectsService implements OnModuleInit {
     const now = new Date().toISOString();
     const previousVersion = chapter.storyStructure?.version ?? 0;
     const storyStructure = this.createChapterStoryStructure(project.id, chapter, input.structureJson, previousVersion + 1, now);
-    const projectWithCharacters = this.syncStoryStructureCharacters(project, storyStructure.structureJson, now);
+    const synced = this.syncStoryStructureCharacters(project, storyStructure.structureJson, now);
     const nextChapter: LocalChapter = {
       ...chapter,
       status: "structured",
       currentStoryVersionId: storyStructure.id,
-      storyStructure,
+      storyStructure: { ...storyStructure, structureJson: synced.structureJson },
       pendingStoryboard: null,
       imagePreflight: null,
       updatedAt: now,
     };
     const nextProject = this.withUpdatedChapter({
-      ...projectWithCharacters,
+      ...synced.project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
@@ -1389,6 +1539,7 @@ export class ProjectsService implements OnModuleInit {
       currentStoryVersionId: storyStructure.id,
       storyStructure,
       pendingStoryboard: null,
+      pendingSourceText: null,
       imagePreflight: null,
       updatedAt: now,
     };
@@ -2236,6 +2387,9 @@ export class ProjectsService implements OnModuleInit {
         path.join(chapterDir, "storyboard.pending.json"),
         updatedAt,
       ),
+      pendingSourceText: await this.readPendingChapterSourceText(
+        path.join(chapterDir, "script-pending.json"),
+      ),
       imagePreflight: await this.readChapterImagePreflight(
         projectId,
         chapterId,
@@ -2387,6 +2541,39 @@ export class ProjectsService implements OnModuleInit {
       createdAt,
       updatedAt,
       confirmedAt: null,
+    };
+  }
+
+  private async readPendingChapterSourceText(
+    filePath: string,
+  ): Promise<ChapterPendingSourceText | null> {
+    const content = await this.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return null;
+    }
+
+    const record = this.parseJsonRecord(content, filePath);
+    const sourceText = this.getStringField(record, "sourceText", "");
+    if (!sourceText.trim()) {
+      return null;
+    }
+
+    const createdAt = this.getStringField(record, "createdAt", new Date().toISOString());
+    const operation = this.getStringField(record, "operation", "generate_script_from_outline");
+    const validOperation = operation === "generate_script_from_seed"
+      || operation === "generate_script_from_outline"
+      || operation === "update_chapter_draft"
+      ? operation
+      : "generate_script_from_outline";
+
+    return {
+      sourceText,
+      threadId: this.getStringField(record, "threadId", ""),
+      messageId: this.getStringField(record, "messageId", ""),
+      toolCallId: this.getStringField(record, "toolCallId", ""),
+      operation: validOperation,
+      createdAt,
+      updatedAt: this.getStringField(record, "updatedAt", createdAt),
     };
   }
 
@@ -3120,13 +3307,15 @@ export class ProjectsService implements OnModuleInit {
     project: LocalProject,
     structureJson: StoryStructureJson,
     now: string,
-  ): LocalProject {
+  ): { project: LocalProject; structureJson: StoryStructureJson } {
     const existingByName = new Map(project.characters.map((character) => [
       this.normalizeCharacterNameKey(character.name),
       character,
     ]));
     const nextCharacters = [...project.characters];
-    let changed = false;
+    // 结构角色卡浅拷贝,用于回填 projectCharacterId(见 ADR-0006)
+    const nextCards = structureJson.characters.map((card) => ({ ...card }));
+    let charactersChanged = false;
 
     structureJson.characters.forEach((card, index) => {
       const rawName = card.name.trim();
@@ -3141,6 +3330,10 @@ export class ProjectsService implements OnModuleInit {
       const existing = existingByName.get(key);
 
       if (existing) {
+        // 回填项目角色 id,独立于角色库是否有变更:
+        // 旧结构重新确认时角色库可能无变化,但结构卡的 projectCharacterId 仍需补全。
+        nextCards[index].projectCharacterId = existing.id;
+
         const level = this.resolveMoreImportantCharacterLevel(existing.level, inferredLevel);
         const primary = this.resolvePrimaryReferenceForLevel(existing, level);
         const nextRole = existing.role || card.role.trim() || this.getDefaultRoleForLevel(level);
@@ -3182,7 +3375,7 @@ export class ProjectsService implements OnModuleInit {
         if (characterIndex >= 0) {
           nextCharacters[characterIndex] = nextCharacter;
           existingByName.set(key, nextCharacter);
-          changed = true;
+          charactersChanged = true;
         }
         return;
       }
@@ -3210,17 +3403,21 @@ export class ProjectsService implements OnModuleInit {
       };
       nextCharacters.push(character);
       existingByName.set(key, character);
-      changed = true;
+      nextCards[index].projectCharacterId = character.id;
+      charactersChanged = true;
     });
 
-    if (!changed) {
-      return project;
-    }
+    const nextProject = charactersChanged
+      ? {
+          ...project,
+          characters: this.sortProjectCharacters(nextCharacters),
+          updatedAt: now,
+        }
+      : project;
 
     return {
-      ...project,
-      characters: this.sortProjectCharacters(nextCharacters),
-      updatedAt: now,
+      project: nextProject,
+      structureJson: { ...structureJson, characters: nextCards },
     };
   }
 
@@ -3360,6 +3557,11 @@ export class ProjectsService implements OnModuleInit {
 
     await writeFile(path.join(chapterDir, "chapter.json"), `${JSON.stringify(this.toChapterDetail(chapter), null, 2)}\n`, "utf8");
     await writeFile(path.join(chapterDir, "script.md"), chapter.sourceText, "utf8");
+    if (chapter.pendingSourceText) {
+      await writeFile(path.join(chapterDir, "script-pending.json"), `${JSON.stringify(chapter.pendingSourceText, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "script-pending.json"), { force: true });
+    }
     if (chapter.storyStructure) {
       await writeFile(path.join(chapterDir, "structure.json"), `${JSON.stringify(chapter.storyStructure, null, 2)}\n`, "utf8");
     } else {
@@ -3408,6 +3610,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: null,
       storyboard: null,
       pendingStoryboard: null,
+      pendingSourceText: null,
       imagePreflight: null,
       createdAt: now,
       updatedAt: now,
@@ -3563,6 +3766,7 @@ export class ProjectsService implements OnModuleInit {
       .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
       .map((item, index) => ({
         id: this.getStringField(item, "id", `character_${String(index + 1).padStart(2, "0")}`),
+        projectCharacterId: this.getOptionalStringField(item, "projectCharacterId"),
         name: this.getStringField(item, "name", `角色 ${index + 1}`),
         role: this.getStringField(item, "role", ""),
         motivation: this.getStringField(item, "motivation", ""),
@@ -3662,21 +3866,27 @@ export class ProjectsService implements OnModuleInit {
       characterIds: this.getStringArrayField(item, "characterIds"),
       coreAction: this.getStringField(item, "coreAction", this.getStringField(item, "action", "")),
       emotion: this.getStringField(item, "emotion", ""),
+      shotType: normalizeShotType(this.getOptionalStringField(item, "shotType")),
+      cameraAngle: normalizeCameraAngle(this.getOptionalStringField(item, "cameraAngle")),
       comic: {
         panelDescription: this.getStringField(comic, "panelDescription", this.getStringField(item, "action", "")),
         composition: this.getStringField(comic, "composition", this.getStringField(item, "composition", this.getStringField(item, "camera", ""))),
         dialogue: this.getStringField(comic, "dialogue", this.getStringField(item, "dialogue", "")),
         caption: this.getStringField(comic, "caption", this.getStringField(item, "caption", "")),
-        panelRhythm: this.getStringField(comic, "panelRhythm", ""),
+        panelRhythm: normalizePanelRhythm(this.getStringField(comic, "panelRhythm", "")),
       },
       motion: {
         visualDescription: this.getStringField(motion, "visualDescription", this.getStringField(item, "action", "")),
         compositionDesign: this.getStringField(motion, "compositionDesign", this.getStringField(item, "camera", "")),
-        cameraMovement: this.getStringField(motion, "cameraMovement", ""),
-        voiceRole: this.getStringField(motion, "voiceRole", ""),
-        line: this.getStringField(motion, "line", this.getStringField(item, "dialogue", "")),
+        cameraMovement: normalizeCameraMovement(this.getStringField(motion, "cameraMovement", "")),
+        frameType: normalizeFrameType(this.getStringField(motion, "frameType", "")),
+        durationMs: this.getNumberField(
+          motion,
+          "durationMs",
+          parseDurationHintToMs(this.getStringField(motion, "durationHint", "")),
+        ),
         durationHint: this.getStringField(motion, "durationHint", ""),
-        frameType: this.getStringField(motion, "frameType", ""),
+        voiceLines: normalizeVoiceLines(motion),
       },
       promptDraft: this.getStringField(item, "promptDraft", ""),
       lockedCandidateId: this.getOptionalStringField(item, "lockedCandidateId"),
@@ -4769,6 +4979,7 @@ export class ProjectsService implements OnModuleInit {
       storyStructure: null,
       storyboard: null,
       pendingStoryboard: null,
+      pendingSourceText: null,
       imagePreflight: null,
       createdAt: now,
       updatedAt: now,
@@ -4952,6 +5163,12 @@ export class ProjectsService implements OnModuleInit {
     return {
       ...this.toChapterListItem(chapter),
       sourceText,
+      pendingSourceText: chapter.pendingSourceText
+        ? {
+            ...chapter.pendingSourceText,
+            sourceText: stripChapterScriptName(chapter.pendingSourceText.sourceText),
+          }
+        : null,
       scriptPath: `projects/${chapter.projectId}/chapters/${chapter.slug}/script.md`,
     };
   }

@@ -244,7 +244,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { ArrowUp, Bot, Brain, CheckCircle2, ChevronsLeft, CircleAlert, FileText, Loader2, Paperclip, Sparkles, Wrench, Zap, Users, Lightbulb, Search } from "lucide-vue-next";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, StoryboardJson, WorkbenchSnapshot } from "@airoaming/shared";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -303,6 +303,7 @@ const skillTools = new Set<DialogueToolResult["tool"]>([
   "generate_script_outline_from_seed",
   "generate_script_from_outline",
   "generate_script_from_seed",
+  "generate_multiple_chapters",
   "update_chapter_draft",
   "generate_story_structure",
   "confirm_story_structure",
@@ -315,8 +316,10 @@ const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
   import_script_to_chapters: "import_script_to_chapters",
   generate_inspiration_seeds: "script-inspiration-seeding",
   generate_script_outline_from_seed: "script-outline-drafting",
+  generate_script_outline_from_topic: "script-outline-drafting",
   generate_script_from_outline: "script-chapter-drafting",
   generate_script_from_seed: "script-chapter-drafting",
+  generate_multiple_chapters: "script-chapter-drafting",
   update_chapter_draft: "script-chapter-editing",
   generate_story_structure: "structure-story-parse",
   confirm_story_structure: "confirm-story-structure",
@@ -654,7 +657,7 @@ function formatStoryStructurePreview(structure: { synopsis: string; beats: Array
   ].join("\n").trim();
 }
 
-function formatStoryboardPreview(storyboard: { shots: Array<{ order: number; coreAction: string; comic: { panelDescription: string }; motion: { frameType: string; cameraMovement: string } }> }) {
+function formatStoryboardPreview(storyboard: StoryboardJson) {
   return storyboard.shots
     .map((shot) => `${shot.order}. ${shot.coreAction || shot.comic.panelDescription}\n漫画：${shot.comic.panelDescription}\n漫剧：${shot.motion.frameType || "未设置"} · ${shot.motion.cameraMovement || "无运镜"}`)
     .join("\n\n")

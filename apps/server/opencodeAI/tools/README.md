@@ -2,7 +2,7 @@
 
 该目录用于后续放置暴露给 OpenCode runtime 的受控业务工具封装。
 
-第一阶段不直接搬 Aurora 的工具。AI漫游工具应转发到本项目后端 API，并遵守以下边界：
+AI漫游工具应转发到本项目后端 API，并遵守以下边界：
 
 - 不暴露本地物理路径。
 - 不允许 agent 直接写 `workspace/projects/*`。

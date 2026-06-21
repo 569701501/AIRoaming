@@ -155,6 +155,22 @@ export class ProjectsController {
     return ok(await this.projectsService.saveChapterDraft(projectId, chapterId, body));
   }
 
+  @Post(":projectId/chapters/:chapterId/source-pending/confirm")
+  async confirmChapterPendingSource(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.confirmChapterPendingSource(projectId, chapterId));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/source-pending")
+  async discardChapterPendingSource(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.discardChapterPendingSource(projectId, chapterId));
+  }
+
   @Post(":projectId/chapters/:chapterId/complete")
   async completeChapter(
     @Param("projectId") projectId: string,

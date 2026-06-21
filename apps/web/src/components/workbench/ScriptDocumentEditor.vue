@@ -1,6 +1,25 @@
 <template>
   <section class="script-editor" aria-label="剧本">
 
+    <div v-if="pendingSourceText" class="pending-source-banner">
+      <div class="pending-banner-head">
+        <FileText :size="15" />
+        <strong>AI 草稿待确认</strong>
+        <span class="pending-source-tag">{{ pendingOperationLabel }}</span>
+      </div>
+      <p class="pending-source-preview">{{ pendingSourcePreview || "（草稿为空）" }}</p>
+      <div class="pending-banner-actions">
+        <button class="pending-adopt-btn" type="button" :disabled="loading" @click="submitConfirmPendingSource">
+          <CheckCircle2 :size="14" />
+          <span>采用草稿</span>
+        </button>
+        <button class="pending-discard-btn" type="button" :disabled="loading" @click="submitDiscardPendingSource">
+          <Trash2 :size="14" />
+          <span>丢弃</span>
+        </button>
+      </div>
+      <p class="pending-source-hint">采用后会覆盖当前正式正文；丢弃后正式正文不变。</p>
+    </div>
 
     <div class="editor-content">
       <button
@@ -73,7 +92,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History, AlertTriangle, MoreHorizontal } from "lucide-vue-next";
+import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History, AlertTriangle, MoreHorizontal, FileText } from "lucide-vue-next";
 import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import MarkdownTextEditor from "./MarkdownTextEditor.vue";
@@ -90,6 +109,8 @@ const emit = defineEmits<{
   completeChapter: [input: CompleteChapterRequest];
   updateSourceText: [value: string];
   resetScript: [];
+  confirmPendingSource: [];
+  discardPendingSource: [];
 }>();
 
 const editorRef = ref<MarkdownTextEditorHandle | null>(null);
@@ -113,6 +134,28 @@ const canSave = computed(() => hasChanges.value);
 const canComplete = computed(() => sourceText.value.trim().length > 0);
 const canReset = computed(() => sourceText.value.trim().length > 0 || props.snapshot.currentChapter?.status !== "draft");
 const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScriptRevision ?? null);
+const pendingSourceText = computed(() => props.snapshot.currentChapter?.pendingSourceText ?? null);
+const pendingSourcePreview = computed(() => {
+  const pending = pendingSourceText.value;
+  if (!pending) {
+    return "";
+  }
+  const text = pending.sourceText;
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+});
+const pendingOperationLabel = computed(() => {
+  const operation = pendingSourceText.value?.operation;
+  switch (operation) {
+    case "generate_script_from_seed":
+      return "灵感种子生成";
+    case "generate_script_from_outline":
+      return "大纲生成";
+    case "update_chapter_draft":
+      return "AI 改写";
+    default:
+      return "AI 生成";
+  }
+});
 const revisionTitle = computed(() => {
   const revision = lastScriptRevision.value;
   if (!revision) {
@@ -165,6 +208,20 @@ function submitComplete() {
   });
 }
 
+function submitConfirmPendingSource() {
+  if (!pendingSourceText.value) {
+    return;
+  }
+  emit("confirmPendingSource");
+}
+
+function submitDiscardPendingSource() {
+  if (!pendingSourceText.value) {
+    return;
+  }
+  emit("discardPendingSource");
+}
+
 function handleResetClick() {
   if (!canReset.value) {
     return;
@@ -194,6 +251,106 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.pending-source-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 12px;
+  background: rgba(34, 211, 238, 0.08);
+}
+html[data-theme="light"] .pending-source-banner {
+  border-color: rgba(8, 145, 178, 0.3);
+  background: rgba(8, 145, 178, 0.06);
+}
+.pending-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #22d3ee;
+  font-size: 13px;
+}
+html[data-theme="light"] .pending-banner-head {
+  color: #0891b2;
+}
+.pending-source-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(34, 211, 238, 0.15);
+  font-size: 11px;
+  color: #67e8f9;
+}
+html[data-theme="light"] .pending-source-tag {
+  background: rgba(8, 145, 178, 0.1);
+  color: #0e7490;
+}
+.pending-source-preview {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #cbd5e1;
+  max-height: 96px;
+  overflow: hidden;
+}
+html[data-theme="light"] .pending-source-preview {
+  color: #475569;
+}
+.pending-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+.pending-adopt-btn,
+.pending-discard-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.pending-adopt-btn {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+.pending-adopt-btn:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.28);
+}
+.pending-discard-btn {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+.pending-discard-btn:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.25);
+}
+.pending-adopt-btn:disabled,
+.pending-discard-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+html[data-theme="light"] .pending-adopt-btn {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+html[data-theme="light"] .pending-discard-btn {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+.pending-source-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+html[data-theme="light"] .pending-source-hint {
+  color: #64748b;
+}
+
 .script-editor {
   display: flex;
   flex-direction: column;

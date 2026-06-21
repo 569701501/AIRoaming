@@ -760,6 +760,40 @@ export const useWorkbenchStore = defineStore("workbench", {
     clearChapterCompletionPrompt() {
       this.chapterCompletionPrompt = null;
     },
+    async confirmChapterPendingSource(chapterId: string): Promise<void> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.confirmChapterPendingSource(projectId, chapterId);
+        this.applyChapterUpdate(result.chapter, result.chapters);
+        this.dialogueNotice = `已采用「${result.chapter.title}」的草稿，正式正文已更新。`;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "采用草稿失败";
+      } finally {
+        this.loading = false;
+      }
+    },
+    async discardChapterPendingSource(chapterId: string): Promise<void> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const result = await api.discardChapterPendingSource(projectId, chapterId);
+        this.applyChapterUpdate(result.chapter, result.chapters);
+        this.dialogueNotice = `已丢弃「${result.chapter.title}」的草稿。`;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "丢弃草稿失败";
+      } finally {
+        this.loading = false;
+      }
+    },
     async confirmStoryStructure(chapterId: string, structureJson: StoryStructureJson): Promise<ChapterStoryStructure | null> {
       this.loading = true;
       this.error = null;
@@ -1181,6 +1215,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             "import_script_to_chapters",
             "generate_script_from_outline",
             "generate_script_from_seed",
+            "generate_multiple_chapters",
             "update_chapter_draft",
             "confirm_story_structure",
             "confirm_storyboard",

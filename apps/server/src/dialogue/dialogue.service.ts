@@ -15,6 +15,7 @@ import type {
   ChapterListItem,
   ChapterStoryboard,
   ChapterStoryStructure,
+  ScriptRevisionItem,
   StoryboardJson,
   StoryboardShot,
   StoryStructureJson,
@@ -31,6 +32,13 @@ import {
   getScriptOutlineFormatPrompt,
   isChapterScriptDocument,
   isScriptOutlineDocument,
+  normalizeCameraAngle,
+  normalizeCameraMovement,
+  normalizeFrameType,
+  normalizePanelRhythm,
+  normalizeShotType,
+  normalizeVoiceLines,
+  parseDurationHintToMs,
   stripChapterScriptName,
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
@@ -76,8 +84,10 @@ interface PendingInspirationSeeds {
 
 interface PendingScriptOutline {
   outline: ProjectScriptOutline;
-  seed: ScriptInspirationSeed;
-  seedPrompt: string;
+  /** 来源模式:seed=灵感种子生成,topic=直接题材生成(见 task 2026-06-21_直接题材生成大纲)。 */
+  source: "seed" | "topic";
+  seed?: ScriptInspirationSeed;
+  seedPrompt?: string;
   chapterId: string | null;
   createdAt: string;
 }
@@ -87,6 +97,9 @@ interface PendingStoryStructure {
   chapterId: string;
   createdAt: string;
 }
+
+/** 批量生成章节的上限保护,防止 AI 失控无限生成(见 ADR-0008 三期)。 */
+const MAX_BATCH_CHAPTERS = 20;
 
 const STEP_LABELS: Record<string, string> = {
   project_story: "剧本",
@@ -1051,8 +1064,14 @@ export class DialogueService {
       );
     }
 
-    if (!this.shouldGenerateInspirationSeeds(input)) {
+    const inspirationDecision = this.shouldGenerateInspirationSeeds(input);
+    if (!inspirationDecision.trigger) {
       return null;
+    }
+
+    // 题材明确时绕过灵感种子,直接生成大纲(见 task 2026-06-21_直接题材生成大纲)
+    if (inspirationDecision.mode === "topic") {
+      return this.createGenerateScriptOutlineFromTopicToolResult(turn, input, signal);
     }
 
     let seeds: ScriptInspirationSeed[];
@@ -1088,8 +1107,12 @@ export class DialogueService {
       return null;
     }
 
-    if (input.intent === "generate_script_from_outline" || this.isConfirmingScriptOutline(input.content)) {
+    const batchRange = this.resolveBatchChapterRange(input.content);
+    if (input.intent === "generate_script_from_outline" || this.isConfirmingScriptOutline(input.content) || batchRange) {
       this.pendingScriptOutlines.delete(pendingKey);
+      if (batchRange) {
+        return this.createGenerateMultipleChaptersToolResult(turn, input, outline, batchRange, signal);
+      }
       return this.createGenerateScriptFromOutlineToolResult(turn, input, outline, signal);
     }
 
@@ -1107,7 +1130,11 @@ export class DialogueService {
       return null;
     }
 
-    return this.createGenerateScriptOutlineFromSeedToolResult(turn, input, pending.seed, pending.seedPrompt, outline, signal);
+    // 按来源模式路由重新生成:seed 走种子,topic 走直接题材(见 task 2026-06-21_直接题材生成大纲)
+    if (pending.source === "topic") {
+      return this.createGenerateScriptOutlineFromTopicToolResult(turn, input, signal);
+    }
+    return this.createGenerateScriptOutlineFromSeedToolResult(turn, input, pending.seed!, pending.seedPrompt ?? "", outline, signal);
   }
 
   private async createGenerateScriptOutlineFromSeedToolResult(
@@ -1139,6 +1166,7 @@ export class DialogueService {
 
     this.pendingScriptOutlines.set(this.getPendingScriptOutlineKey(turn.thread.projectId, turn.normalizedStepKey), {
       outline,
+      source: "seed",
       seed,
       seedPrompt,
       chapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
@@ -1150,6 +1178,53 @@ export class DialogueService {
       outline,
       [
         `已根据方向「${seed.title}」生成项目级剧本大纲，并保存到 ${outline.outlinePath}。`,
+        "请确认这份大纲是否可以继续生成第 1 章。确认就回复“确认大纲”或点击按钮；不满意请直接说修改要求，我会重新生成大纲。",
+        "",
+        outline.sourceText.trim(),
+      ].join("\n"),
+      "needs_user_confirmation",
+    );
+  }
+
+  /**
+   * 直接题材生成大纲的 tool result 组装(绕过灵感种子,见 task 2026-06-21_直接题材生成大纲)。
+   */
+  private async createGenerateScriptOutlineFromTopicToolResult(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
+  ): Promise<DialogueToolResult> {
+    const toolCallId = randomUUID();
+    let sourceText: string;
+    try {
+      sourceText = await this.generateScriptOutlineFromTopicWithAI(turn, input, signal);
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_script_outline_from_topic",
+        `剧本大纲生成失败：${this.getErrorMessage(error)}。本次没有写入章节。`,
+      );
+    }
+
+    const outline = await this.projectsService.saveScriptOutlineFromAI(turn.thread.projectId, {
+      sourceText,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId,
+    });
+
+    this.pendingScriptOutlines.set(this.getPendingScriptOutlineKey(turn.thread.projectId, turn.normalizedStepKey), {
+      outline,
+      source: "topic",
+      chapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
+      createdAt: new Date().toISOString(),
+    });
+
+    return this.createGenerateScriptOutlineToolResult(
+      turn,
+      outline,
+      [
+        `已根据你给定的题材生成项目级剧本大纲，并保存到 ${outline.outlinePath}。`,
         "请确认这份大纲是否可以继续生成第 1 章。确认就回复“确认大纲”或点击按钮；不满意请直接说修改要求，我会重新生成大纲。",
         "",
         outline.sourceText.trim(),
@@ -1205,7 +1280,7 @@ export class DialogueService {
       toolCallId,
       tool: "generate_script_from_outline",
       status: "succeeded",
-      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${result.chapter.title}。来源：${this.formatRevisionSource(result.revision)}`,
+      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${result.chapter.title} 的草稿。草稿在右侧待确认，采用后才会覆盖正式正文。来源：${this.formatRevisionSource(result.revision)}`,
       chapters: result.chapters,
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,
@@ -1213,6 +1288,111 @@ export class DialogueService {
       inspirationSeeds: null,
       scriptOutline: confirmedOutline,
       revision: result.revision,
+      createdAt: now,
+    };
+  }
+
+  /**
+   * 多章批量生成(见 ADR-0008 三期)。
+   * 从 start 开始连续生成 count 章:每章 ensureChapterExists → 检查正式非空停 → AI 生成 → 写 pending。
+   * 碰已有正式正文的章节停下,返回已停位置;AI 生成失败也停下。
+   * 正文写入 pending 缓冲,不覆盖正式 sourceText;用户事后逐章确认。
+   */
+  private async createGenerateMultipleChaptersToolResult(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    outline: ProjectScriptOutline,
+    range: { start: number; count: number },
+    signal?: AbortSignal,
+  ): Promise<DialogueToolResult> {
+    const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId);
+    const toolCallId = randomUUID();
+    const generatedChapters: ChapterListItem[] = [];
+    const summaries: string[] = [];
+    let stoppedAt: { order: number; title: string } | null = null;
+    let failedAt: { order: number; reason: string } | null = null;
+    let lastChapterId: string | null = null;
+    let lastRevision: ScriptRevisionItem | null = null;
+
+    for (let offset = 0; offset < range.count; offset += 1) {
+      const order = range.start + offset;
+
+      // 确保章节存在(边生成边建章)
+      const ensured = await this.projectsService.ensureChapterExists(
+        turn.thread.projectId,
+        order,
+        `第 ${order} 章`,
+      );
+
+      // 碰正式非空章节停下(保护用户已有内容)
+      if (ensured.sourceText.trim().length > 0) {
+        stoppedAt = { order, title: ensured.title };
+        summaries.push(`第 ${order} 章「${ensured.title}」已有正式正文,已停止,未覆盖。`);
+        lastChapterId = ensured.id;
+        break;
+      }
+
+      // AI 生成该章正文
+      let sourceText: string;
+      try {
+        sourceText = await this.generateScriptFromOutlineWithAI(turn, input, confirmedOutline, ensured.title, signal);
+      } catch (error) {
+        failedAt = { order, reason: this.getErrorMessage(error) };
+        summaries.push(`第 ${order} 章「${ensured.title}」生成失败:${this.getErrorMessage(error)}。`);
+        lastChapterId = ensured.id;
+        break;
+      }
+
+      // 写入 pending 缓冲(不碰正式 sourceText)
+      const chapterTitle = extractChapterScriptTitle(sourceText) ?? ensured.title;
+      const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, ensured.id, {
+        sourceText,
+        title: chapterTitle,
+        summary: `批量生成第 ${order} 章「${chapterTitle}」草稿。`,
+        threadId: turn.thread.id,
+        messageId: turn.assistantMessage.id,
+        toolCallId,
+        operation: "generate_script_from_outline",
+      });
+      generatedChapters.push(result.chapter);
+      lastChapterId = result.chapter.id;
+      lastRevision = result.revision;
+      summaries.push(`第 ${order} 章「${result.chapter.title}」草稿已生成(待确认)。`);
+    }
+
+    const now = new Date().toISOString();
+    const succeededCount = generatedChapters.length;
+    const status: DialogueToolResult["status"] = succeededCount > 0 ? "succeeded" : "failed";
+
+    let summaryText: string;
+    if (succeededCount === 0) {
+      summaryText = failedAt
+        ? `批量生成失败,第 ${failedAt.order} 章生成出错:${failedAt.reason}。本次没有写入任何草稿。`
+        : `批量生成未开始:第 ${stoppedAt?.order} 章已有正式正文。`;
+    } else if (stoppedAt) {
+      summaryText = `已生成 ${succeededCount} 章草稿(第 ${range.start} - ${range.start + succeededCount - 1} 章),在第 ${stoppedAt.order} 章「${stoppedAt.title}」处停止(已有正式正文)。草稿在右侧待确认,采用后才覆盖正式正文。`;
+    } else if (failedAt) {
+      summaryText = `已生成 ${succeededCount} 章草稿,在第 ${failedAt.order} 章处因生成出错停止(${failedAt.reason})。已生成的草稿在右侧待确认。`;
+    } else {
+      summaryText = `已生成 ${succeededCount} 章草稿(第 ${range.start} - ${range.start + succeededCount - 1} 章)。草稿在右侧待确认,采用后才覆盖正式正文。`;
+    }
+
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId,
+      tool: "generate_multiple_chapters",
+      status,
+      summary: [summaryText, "", ...summaries].join("\n"),
+      chapters: generatedChapters,
+      currentChapterId: lastChapterId,
+      currentChapter: null,
+      analysis: null,
+      inspirationSeeds: null,
+      scriptOutline: confirmedOutline,
+      revision: lastRevision,
       createdAt: now,
     };
   }
@@ -1287,7 +1467,7 @@ export class DialogueService {
       toolCallId,
       tool: "generate_script_from_seed",
       status: "succeeded",
-      summary: `已选择方向「${seed.title}」，并生成 ${result.chapter.title} 草稿。来源：${this.formatRevisionSource(result.revision)}`,
+      summary: `已选择方向「${seed.title}」，并生成 ${result.chapter.title} 的草稿。草稿在右侧待确认，采用后才会覆盖正式正文。来源：${this.formatRevisionSource(result.revision)}`,
       chapters: result.chapters,
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,
@@ -1351,7 +1531,7 @@ export class DialogueService {
       toolCallId,
       tool: "update_chapter_draft",
       status: "succeeded",
-      summary: `已通过受控工具更新当前章节草稿：${summary} 来源：${this.formatRevisionSource(result.revision)}`,
+      summary: `已通过受控工具更新当前章节草稿（待确认）：${summary} 采用后才覆盖正式正文。来源：${this.formatRevisionSource(result.revision)}`,
       chapters: result.chapters,
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,
@@ -1419,13 +1599,25 @@ export class DialogueService {
     };
   }
 
-  private shouldGenerateInspirationSeeds(input: SendDialogueMessageRequest): boolean {
+  private shouldGenerateInspirationSeeds(input: SendDialogueMessageRequest): { trigger: boolean; mode: "inspiration" | "topic" } {
     if (input.intent === "generate_inspiration_seeds") {
-      return true;
+      return { trigger: true, mode: "inspiration" };
     }
 
     const content = input.content.trim();
-    return /(帮我|给我|给点|给些|给几个|想|找|生成|来点|来几个|有没有).{0,10}(灵感|点子|创意|方向|题材|故事种子)|没有灵感|没想法|不知道写什么/.test(content);
+    // 寻求创意类:找我灵感/点子/方向 → 走 3 选 1
+    const inspirationMatch = /(帮我|给我|给点|给些|给几个|想|找|生成|来点|来几个|有没有).{0,10}(灵感|点子|创意|方向|题材|故事种子)|没有灵感|没想法|不知道写什么/.test(content);
+    if (inspirationMatch) {
+      return { trigger: true, mode: "inspiration" };
+    }
+    // 直接要内容类:生成 XX 篇/写个故事/生成 N 章/编个剧本 → 绕过种子直接生成大纲(见 task 2026-06-21_直接题材生成大纲)
+    // 限定含故事/篇/章/剧本/剧情等内容词,避免误触别阶段(如"生成角色图")。
+    const directContentMatch = /(生成|写|编|来|弄).{0,12}(故事|篇|章|剧本|剧情|小说|番外)/.test(content)
+      || /(故事|篇|章|剧本|剧情).{0,6}(大纲|梗概|骨架|框架)/.test(content);
+    if (directContentMatch) {
+      return { trigger: true, mode: "topic" };
+    }
+    return { trigger: false, mode: "inspiration" };
   }
 
   private shouldGenerateStoryStructure(input: SendDialogueMessageRequest): boolean {
@@ -1519,6 +1711,7 @@ export class DialogueService {
       "- 只生成当前章节的剧情结构，不要生成整部作品结构。",
       "- 剧情结构不是章节剧本正文，也不是分镜稿。",
       "- 角色卡和场景卡默认都是本章结构卡，不要声称已创建项目级角色库或场景库。",
+      "- 角色卡里的 projectCharacterId 字段由后端在确认结构时按角色名匹配项目角色库后回填，你不要输出它。",
       "- 剧情节拍按关键剧情事件切分，粒度要比分镜粗；不要输出镜头编号、景别、机位、构图、图片 Prompt 或 JSON 以外的 Markdown 正文。",
       "- visualFocus 只能写轻量画面重点，不能写镜头语言。",
       "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
@@ -1639,6 +1832,17 @@ export class DialogueService {
       "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
       "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
       "",
+      "枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：",
+      "- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up",
+      "- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle",
+      "- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition",
+      "- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none",
+      "- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition",
+      "- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。",
+      "- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。",
+      "- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。",
+      "- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。",
+      "",
       "JSON 结构必须是：",
       "```json",
       JSON.stringify({
@@ -1650,21 +1854,30 @@ export class DialogueService {
             characterIds: ["角色名"],
             coreAction: "镜头核心动作",
             emotion: "情绪",
+            shotType: "medium",
+            cameraAngle: "eye_level",
             comic: {
               panelDescription: "漫画画格画面描述",
-              composition: "漫画构图/景别/阅读重点",
-              dialogue: "对白",
-              caption: "旁白",
-              panelRhythm: "画格节奏",
+              composition: "构图（人物位置/视觉重心，不含景别机位）",
+              dialogue: "对白气泡文字，没有就空字符串",
+              caption: "旁白，没有就空字符串",
+              panelRhythm: "slow",
             },
             motion: {
-              visualDescription: "漫剧画面描述",
-              compositionDesign: "构图设计",
-              cameraMovement: "运镜调度",
-              voiceRole: "配音角色",
-              line: "台词内容",
-              durationHint: "约 2-4s",
-              frameType: "对口型/氛围镜头/动作镜头/反应镜头",
+              visualDescription: "漫剧动态画面描述",
+              compositionDesign: "动态构图设计",
+              cameraMovement: "push_in",
+              frameType: "atmosphere",
+              durationMs: 3000,
+              durationHint: "约 3s",
+              voiceLines: [
+                {
+                  characterId: null,
+                  name: "角色名",
+                  line: "台词内容",
+                  voiceStyle: "声音风格，如低声、克制",
+                },
+              ],
             },
             promptDraft: "给后续图片提示词生成的简短草稿，不是最终 Prompt",
           },
@@ -1750,21 +1963,24 @@ export class DialogueService {
         : this.getRecordStringArray(item, "characters"),
       coreAction: this.getOptionalRecordString(item, "coreAction") ?? this.getOptionalRecordString(item, "action") ?? "",
       emotion: this.getOptionalRecordString(item, "emotion") ?? "",
+      shotType: normalizeShotType(this.getOptionalRecordString(item, "shotType")),
+      cameraAngle: normalizeCameraAngle(this.getOptionalRecordString(item, "cameraAngle")),
       comic: {
         panelDescription: this.getOptionalRecordString(comic, "panelDescription") ?? this.getOptionalRecordString(item, "action") ?? "",
         composition: this.getOptionalRecordString(comic, "composition") ?? this.getOptionalRecordString(item, "composition") ?? "",
         dialogue: this.getOptionalRecordString(comic, "dialogue") ?? this.getOptionalRecordString(item, "dialogue") ?? "",
         caption: this.getOptionalRecordString(comic, "caption") ?? this.getOptionalRecordString(item, "caption") ?? "",
-        panelRhythm: this.getOptionalRecordString(comic, "panelRhythm") ?? "",
+        panelRhythm: normalizePanelRhythm(this.getOptionalRecordString(comic, "panelRhythm") ?? ""),
       },
       motion: {
         visualDescription: this.getOptionalRecordString(motion, "visualDescription") ?? this.getOptionalRecordString(item, "action") ?? "",
         compositionDesign: this.getOptionalRecordString(motion, "compositionDesign") ?? this.getOptionalRecordString(item, "camera") ?? "",
-        cameraMovement: this.getOptionalRecordString(motion, "cameraMovement") ?? "",
-        voiceRole: this.getOptionalRecordString(motion, "voiceRole") ?? "",
-        line: this.getOptionalRecordString(motion, "line") ?? this.getOptionalRecordString(item, "dialogue") ?? "",
+        cameraMovement: normalizeCameraMovement(this.getOptionalRecordString(motion, "cameraMovement") ?? ""),
+        frameType: normalizeFrameType(this.getOptionalRecordString(motion, "frameType") ?? ""),
+        durationMs: this.getOptionalRecordNumber(motion, "durationMs")
+          ?? parseDurationHintToMs(this.getOptionalRecordString(motion, "durationHint")),
         durationHint: this.getOptionalRecordString(motion, "durationHint") ?? "",
-        frameType: this.getOptionalRecordString(motion, "frameType") ?? "",
+        voiceLines: normalizeVoiceLines(motion),
       },
       promptDraft: this.getOptionalRecordString(item, "promptDraft") ?? "",
       lockedCandidateId: this.getOptionalRecordString(item, "lockedCandidateId"),
@@ -1818,6 +2034,7 @@ export class DialogueService {
       .filter((item) => Object.keys(item).length > 0)
       .map((item, index) => ({
         id: this.getOptionalRecordString(item, "id") ?? `character_${String(index + 1).padStart(2, "0")}`,
+        projectCharacterId: this.getOptionalRecordString(item, "projectCharacterId"),
         name: this.getOptionalRecordString(item, "name") ?? `角色 ${index + 1}`,
         role: this.getOptionalRecordString(item, "role") ?? "",
         motivation: this.getOptionalRecordString(item, "motivation") ?? "",
@@ -2191,6 +2408,44 @@ export class DialogueService {
     return null;
   }
 
+  /**
+   * 识别批量生成章节意图,返回 { start, count } 或 null。
+   * 支持:"生成整本/全部章节"(默认从 1 开始,上限 MAX_BATCH_CHAPTERS)、
+   * "生成前 N 章"、"生成 N 章"、"从第 X 章生成到第 Y 章"。
+   * start 从 1 起;count 为要生成的章数。
+   */
+  private resolveBatchChapterRange(content: string): { start: number; count: number } | null {
+    const text = content.trim();
+
+    // 从第 X 章生成到第 Y 章 / 第 X-Y 章
+    const rangeMatch = text.match(/(?:从\s*)?第?\s*([0-9一二三四五六七八九十]+)\s*[章话]?\s*(?:到|至|-|~|—)\s*第?\s*([0-9一二三四五六七八九十]+)\s*[章话]/);
+    if (rangeMatch) {
+      const startOrder = this.parseChineseOrder(rangeMatch[1]);
+      const endOrder = this.parseChineseOrder(rangeMatch[2]);
+      if (startOrder && endOrder && endOrder >= startOrder) {
+        return { start: startOrder, count: endOrder - startOrder + 1 };
+      }
+    }
+
+    // 前N章 / 生成N章 / 后续N章
+    const countMatch = text.match(/(?:前|生成|后续|接下去|接着生成|连续生成)\s*([0-9一二三四五六七八九十]+)\s*章/);
+    if (countMatch) {
+      const count = this.parseChineseOrder(countMatch[1]);
+      if (count && count > 0) {
+        const startOrder = text.match(/从\s*第?\s*([0-9一二三四五六七八九十]+)\s*章/);
+        const start = startOrder ? (this.parseChineseOrder(startOrder[1]) ?? 1) : 1;
+        return { start, count };
+      }
+    }
+
+    // 整本 / 全部 / 所有章节
+    if (/(整本|全部章节|所有章节|全部生成|生成全部|批量生成|连续生成)/.test(text)) {
+      return { start: 1, count: MAX_BATCH_CHAPTERS };
+    }
+
+    return null;
+  }
+
   private async generateScriptOutlineFromSeedWithAI(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
@@ -2208,6 +2463,56 @@ export class DialogueService {
     });
 
     return this.ensureScriptOutlineMarkdown(response.content, seed.title);
+  }
+
+  /**
+   * 直接题材生成大纲(绕过灵感种子,见 task 2026-06-21_直接题材生成大纲)。
+   * 题材来自用户输入(input.content),不依赖 seed。
+   */
+  private async generateScriptOutlineFromTopicWithAI(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot, signal);
+    const response = await this.openCodeRuntimeService.sendMessage({
+      sessionId: openCodeSessionId,
+      model: input.model,
+      content: this.buildScriptOutlineFromTopicPrompt(turn, input),
+      signal,
+    });
+
+    return this.ensureScriptOutlineMarkdown(response.content, turn.snapshot.project.storyTitle || turn.snapshot.project.name);
+  }
+
+  private buildScriptOutlineFromTopicPrompt(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+  ): string {
+    return [
+      "你正在为 AI漫游执行剧本阶段 skill：script-outline-drafting。",
+      "任务：用户已给出明确题材/方向,直接生成或重生成项目级「剧本大纲」,不需要灵感种子。",
+      this.buildScriptStageBoundaryContract(),
+      "",
+      "硬性规则：",
+      "- 只返回剧本大纲 Markdown 正文,不要返回 JSON,不要包代码块。",
+      "- 必须按「剧本大纲」固定格式输出,不要改名、删块或合并块。",
+      "- 剧集名称优先使用用户题材里提到的作品名或篇章名;如果没有,用一个贴合题材的标题。",
+      "- 大纲是项目级产物,用于让用户确认故事方向;不要写章节正文。",
+      "- 情节概要按漫剧集数段落写,例如「第 1 - 2 集：...」,内容必须紧扣用户给定的题材。",
+      "- 剧集章数要说明每集对应多少漫画章节或每组集数覆盖的章节范围;如果用户明确说了章数(如 10-12 章),按用户说的规划。",
+      "- 不要套用提示中示例的人名、剧情或设定,只参考格式。",
+      "- 不要声称你直接操作本地文件;保存由后端受控工具完成。",
+      "",
+      getScriptOutlineFormatPrompt(),
+      "",
+      `项目名称：${turn.snapshot.project.name}`,
+      `题材标签：${turn.snapshot.project.genreTags.length > 0 ? turn.snapshot.project.genreTags.join("、") : "未设置"}`,
+      `画幅：${turn.snapshot.project.comicFormat}`,
+      `画风：${turn.snapshot.project.artStyle}`,
+      "用户给定的题材/方向(直接据此生成大纲,不要偏题)：",
+      input.content,
+    ].join("\n");
   }
 
   private buildScriptOutlineFromSeedPrompt(

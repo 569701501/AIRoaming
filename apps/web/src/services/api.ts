@@ -5,6 +5,7 @@ import type {
   AppSettings,
   CompleteChapterRequest,
   CompleteChapterResponse,
+  ConfirmChapterPendingSourceResponse,
   ConfirmCharacterPreviewRequest,
   ConfirmCharacterPreviewResponse,
   ConfirmCharacterReferenceRequest,
@@ -14,6 +15,7 @@ import type {
   CreateProjectRequest,
   ClearChapterScriptResponse,
   DeleteProjectResponse,
+  DiscardChapterPendingSourceResponse,
   DialogueStreamEvent,
   DialogueThread,
   ExtractProjectCharactersRequest,
@@ -308,6 +310,18 @@ export const api = {
     {
       method: "POST",
       body: JSON.stringify(input),
+    },
+  ),
+  confirmChapterPendingSource: (projectId: string, chapterId: string) => request<ConfirmChapterPendingSourceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/source-pending/confirm`,
+    {
+      method: "POST",
+    },
+  ),
+  discardChapterPendingSource: (projectId: string, chapterId: string) => request<DiscardChapterPendingSourceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/source-pending`,
+    {
+      method: "DELETE",
     },
   ),
   confirmChapterStoryStructure: (

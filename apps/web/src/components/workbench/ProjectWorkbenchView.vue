@@ -56,6 +56,8 @@
             @save-draft="emitChapterDraft"
             @complete-chapter="emitCompleteChapter"
             @reset-script="$emit('resetScript')"
+            @confirm-pending-source="emitConfirmPendingSource"
+            @discard-pending-source="emitDiscardPendingSource"
             @update-source-text="scriptDraft = $event"
           />
         </div>
@@ -164,6 +166,8 @@ const emit = defineEmits<{
   saveChapterDraft: [payload: { chapterId: string; input: SaveChapterDraftRequest }];
   completeChapter: [payload: { chapterId: string; input: CompleteChapterRequest }];
   resetScript: [];
+  confirmPendingSource: [chapterId: string];
+  discardPendingSource: [chapterId: string];
   selectChapter: [chapterId: string];
   selectStep: [stepKey: string];
   dismissCompletionPrompt: [];
@@ -243,6 +247,20 @@ function emitCompleteChapter(input: CompleteChapterRequest) {
     chapterId: currentChapterId.value,
     input,
   });
+}
+
+function emitConfirmPendingSource() {
+  if (!currentChapterId.value) {
+    return;
+  }
+  emit("confirmPendingSource", currentChapterId.value);
+}
+
+function emitDiscardPendingSource() {
+  if (!currentChapterId.value) {
+    return;
+  }
+  emit("discardPendingSource", currentChapterId.value);
 }
 
 function emitDialogue(input: SendDialogueMessageRequest) {
