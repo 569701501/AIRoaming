@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import * as wsJson from "./workspace-json.util.js";
+import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import {
@@ -129,52 +130,7 @@ const CHARACTER_LEVEL_ORDER: Record<ProjectCharacterLevel, number> = {
 };
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
-interface LocalChapterScriptVersion extends ChapterScriptVersionItem {
-  sourceText: string;
-}
-
-interface LocalChapter {
-  id: string;
-  projectId: string;
-  slug: string;
-  order: number;
-  title: string;
-  status: ChapterStatus;
-  currentScriptVersionId: string | null;
-  currentStoryVersionId: string | null;
-  sourceText: string;
-  summary: string;
-  storyStructure: ChapterStoryStructure | null;
-  storyboard: ChapterStoryboard | null;
-  pendingStoryboard?: ChapterStoryboard | null;
-  /** AI 生成的章节正文草稿缓冲(见 ADR-0008)。确认前不覆盖正式 sourceText。 */
-  pendingSourceText: ChapterPendingSourceText | null;
-  imagePreflight: ChapterImagePreflight | null;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  scriptVersions: LocalChapterScriptVersion[];
-  lastScriptRevision: ScriptRevisionItem | null;
-}
-
-interface LocalProject {
-  id: string;
-  name: string;
-  type: ProjectType;
-  currentChapterId: string | null;
-  storyTitle: string;
-  genreTags: string[];
-  comicFormat: ComicFormat;
-  artStyle: ArtStyle;
-  description: string;
-  sourceText: string;
-  scriptOutline: ProjectScriptOutline | null;
-  characters: ProjectCharacter[];
-  assets: WorkbenchAsset[];
-  chapters: LocalChapter[];
-  createdAt: string;
-  updatedAt: string;
-}
+// LocalChapter / LocalProject / LocalChapterScriptVersion 已抽到 ./local-types.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre)。
 
 interface ProjectAssetFile {
   buffer: Buffer;

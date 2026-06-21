@@ -14,5 +14,11 @@
 - 踩坑:NodeNext ESM 要求相对 import 带 `.js` 扩展名(`./workspace-json.util.js`),首次 typecheck 报 `Cannot find module`,加 `.js` 后通过。
 - typecheck 三包通过。行为不变(纯委托)。
 
+### 子步 1b-pre-0:抽 LocalChapter/LocalProject 类型(2026-06-21 完成)
+- 新建 `apps/server/src/projects/local-types.ts`,把 `LocalChapterScriptVersion`/`LocalChapter`/`LocalProject` 从 projects.service 抽出。
+- 为 domain util / ProjectRepository 解决循环依赖(类型共享)。确认这三个类型无外部 import,安全抽。
+- typecheck 三包通过,行为不变。
+
+### 子步 1b-pre-1:抽 domain util(待办)
 ### 子步 1b:抽 Repository 加载链+缓存(待办)
 ### 子步 1c:抽 Repository 写入链(待办)

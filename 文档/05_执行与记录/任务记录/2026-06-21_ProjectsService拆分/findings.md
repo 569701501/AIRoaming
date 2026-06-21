@@ -65,3 +65,18 @@
 - **1b**:抽 Repository 加载链 + 缓存,Service 改 `projects.get/set` + `ensureLoaded`。
 - **1c**:抽 Repository 写入链,Service 改 `writeProjectFiles` → `saveProject`。
 - 每子步独立 commit + typecheck + 手动验证。
+
+## 5. 阶段①子步1b 依赖评估(2026-06-21 Worker 读码后)
+
+### 5.1 readChapter*/readProject* 只加载链内部用(利好)
+- grep 确认:`readChapter*`/`readProject*`/`readPending*`/`readLatest*` 全部只在 `loadProjectsFromWorkspace`→`readProjectFromWorkspace`→`readChaptersFromWorkspace`→`readChapterFromWorkspace` 链内调用。业务方法从缓存 `project` 读,不直调。
+- 所以 Repository public 只需 6 个缓存方法(`ensureLoaded`/`getProject`/`getAllProjects`/`setProject`/`deleteProject`/`hasProject`),加载链 13 个 read* 全 private。1b 调用点改动缩到 ~35 处(`this.projects` 33 + `ensureLoaded`)。
+
+### 5.2 但 readProjectFromWorkspace 依赖业务共用辅助(新问题)
+- `readProjectFromWorkspace` 依赖:`createDefaultChapter` / `sortChapters` / `normalizeProjectType`/`normalizeComicFormat`/`normalizeArtStyle` / `sortProjectCharacters` / `getCurrentChapter` / `extractChapterScriptName`(import)。
+- grep 确认这些辅助被**业务方法大量调用**(不只加载链):`sortChapters` 在 ~20 处业务方法用,`normalize*` 在 createProject/updateProjectDraft 等用,`createDefaultChapter` 在多处业务用。
+- 所以不能简单搬进 Repository(业务还要调)。
+
+### 5.3 1b 需先抽 domain util
+- 这些辅助(`sortChapters`/`sortProjectCharacters`/`normalize*`/`createDefaultChapter`/`getCurrentChapter`)是**纯函数**,本就该是 domain util(不属于 Service 状态)。
+- 1b 拆:**1b-pre** 抽 domain util(纯函数)+ **1b** 搬加载链(Repository 用 domain util)。
