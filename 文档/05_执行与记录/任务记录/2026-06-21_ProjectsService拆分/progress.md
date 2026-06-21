@@ -24,5 +24,9 @@
 - ProjectsService 8 个 private 方法改薄委托 + 常量改 import(零调用点,行为不变)。
 - typecheck 三包通过。
 
-### 子步 1b:抽 Repository 加载链+缓存(待办)
+### 子步 1b:抽 Repository 加载链+缓存(暂停,下次续)
+- 读加载链(~490 行)完成。发现 normalize 依赖(findings §6):`normalizeStoryStructureJson`/`normalizeStoryboardJson` 业务共用 → 需 1b-pre-2 抽 domain util;`normalizeImagePreflightJson`(180行)/`normalizeProjectCharacter`/`parseScriptRevision`/`getOrderFromChapterSlug` 只加载链用 → 搬 Repository 私有。
+- **下次会话续**:1b-pre-2(抽 normalize util)→ 1b(Repository:缓存+加载链+4 normalize)→ 1c(写入链)。
+- 暂停点:1b-pre 完成(commit `282f678`),3 个子步独立、typecheck 过、行为不变,干净可回滚。
+
 ### 子步 1c:抽 Repository 写入链(待办)

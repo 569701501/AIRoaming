@@ -80,3 +80,11 @@
 ### 5.3 1b 需先抽 domain util
 - 这些辅助(`sortChapters`/`sortProjectCharacters`/`normalize*`/`createDefaultChapter`/`getCurrentChapter`)是**纯函数**,本就该是 domain util(不属于 Service 状态)。
 - 1b 拆:**1b-pre** 抽 domain util(纯函数)+ **1b** 搬加载链(Repository 用 domain util)。
+
+## 6. 阶段①子步1b normalize 依赖发现(2026-06-22 Worker 读码后)
+
+- 读加载链(~490 行,`ensureProjectsLoaded` → `readProjectFromWorkspace` → 各 `readChapter*`)发现还依赖 6 个 Service 方法:
+  - `normalizeStoryStructureJson` / `normalizeStoryboardJson`:**业务 + 加载链共用**(updateChapterStoryStructure / confirmChapterStoryboard 等业务也调,grep 多处)→ 要抽 domain util(1b-pre-2)。
+  - `normalizeImagePreflightJson`(180 行)/ `normalizeProjectCharacter` / `parseScriptRevision` / `getOrderFromChapterSlug`:**只加载链用**(grep 仅在加载链)→ 搬进 Repository 私有。
+- 1b 实际含 **1b-pre-2**(normalize util:normalizeStoryStructureJson/normalizeStoryboardJson)+ **1b**(Repository:加载链 + 缓存 + 搬 4 个只加载链用的 normalize)。
+- 深坑继续:每剥一层发现 normalize/类型/常量/函数依赖。Repository ① 是跨多次会话的超深工程。
