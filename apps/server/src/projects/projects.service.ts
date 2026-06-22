@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import * as wsJson from "./workspace-json.util.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
@@ -9,13 +9,9 @@ import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAUL
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import {
-  ART_STYLES,
-  CHAPTER_STATUSES,
-  COMIC_FORMATS,
   PROJECT_WORKFLOW_SCHEMA_VERSION,
   PROJECT_WORKFLOW_STEP_KEYS,
   PROJECT_WORKFLOW_STEPS,
-  PROJECT_TYPES,
   extractChapterScriptName,
   extractChapterScriptTitle,
   extractScriptOutlineTitle,

@@ -44,4 +44,18 @@
 - typecheck 三包通过。projects.service.ts ~5236 → ~4452 行(-784)。
 - 已知清理项:Service 可能残留未使用 import(加载链删后),tsc 未报(noUnusedLocals 未开),后续清理。
 
-### 子步 1c:抽 Repository 写入链(待办)
+### 子步 1b-clean:清理 Service 残留 import(2026-06-22 完成)
+- 删除加载链删后未使用的 import:`readdir`(node:fs/promises)+ `ART_STYLES`/`CHAPTER_STATUSES`/`COMIC_FORMATS`/`PROJECT_TYPES`(@airoaming/shared)。
+- 保留:readFile(getProjectAssetFile 用)/extractScriptOutlineTitle(writeScriptOutline 用)/extractChapterScriptName|Title。
+- typecheck 三包通过。
+
+### 子步 1c:抽 Repository 写入链(阻塞,依赖候选 E)
+- 写入链(`writeProjectFiles`/`writeChapterFiles`/`clearProjectChaptersDir`/`clearLegacyStoryDir`)依赖 `buildProjectWorkflow`(工作流状态机,候选 E)+ `toChapterDetail`(业务方法)。
+- 强行搬进 Repository 会引入 Repository→Service 反向依赖。**1c 需先抽 `buildProjectWorkflow`/`toChapterDetail` 成独立 util**(候选 E 工作流状态机 + toChapterDetail)。
+- 1c 搁置,待候选 E 启动后一并处理。
+
+### 阶段①总结(2026-06-22)
+- Repository ① 主体(缓存+加载链)完成,纯收口,行为不变。
+- projects.service.ts:~5236 → ~4440 行(-796)。
+- 抽出 6 个独立文件:workspace-json.util / local-types / project-domain.util / story-normalize.util / character-domain.util / project-repository.service。
+- 1c(写入链)阻塞于候选 E(工作流状态机),记录待续。
