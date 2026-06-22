@@ -7,6 +7,7 @@ import * as storyNormalize from "./story-normalize.util.js";
 import * as wsCharacter from "./character-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
+import * as referencePromptUtil from "./reference-prompt.util.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -461,7 +462,7 @@ export class ProjectsService implements OnModuleInit {
     const fileName = referenceKind === "final_reference" ? "final-reference.webp" : "preview.webp";
     const relativePath = `projects/${project.id}/assets/characters/${character.id}/visual-v${String(nextVisualVersion).padStart(3, "0")}/${fileName}`;
     const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
-    const prompt = input.prompt?.trim() || this.buildCharacterReferencePrompt(project, character, referenceKind);
+    const prompt = input.prompt?.trim() || referencePromptUtil.buildCharacterReferencePrompt(project, character, referenceKind);
     const referenceSource = referenceKind === "final_reference"
       ? await this.getConfirmedPreviewReferenceSource(project, character)
       : null;
@@ -647,7 +648,7 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("IMAGE_PROVIDER_NOT_CONFIGURED");
     }
 
-    const prompt = input.prompt?.trim() || this.buildScenePrompt(scene);
+    const prompt = input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene);
     const size = "2560x1440";
     const model = settings.modelId || (settings.type === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2");
 
@@ -703,13 +704,6 @@ export class ProjectsService implements OnModuleInit {
   }
 
   /** 由场景字段拼成生图 prompt */
-  private buildScenePrompt(scene: { name: string; location: string; timeOfDay: string; atmosphere: string; purpose: string }): string {
-    return [scene.name, scene.location, scene.timeOfDay, scene.atmosphere, `画面用途:${scene.purpose}`]
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .join("，");
-  }
-
   private enqueueSceneReferenceTaskRun(
     taskId: string,
     projectId: string,
@@ -807,7 +801,7 @@ export class ProjectsService implements OnModuleInit {
     if (!character.referenceAssetIds.includes(asset.id)) {
       throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
     }
-    if (this.getAssetReferenceKind(asset) !== "preview_front") {
+    if (referencePromptUtil.getAssetReferenceKind(asset) !== "preview_front") {
       throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
     }
 
@@ -856,7 +850,7 @@ export class ProjectsService implements OnModuleInit {
     if (!character.referenceAssetIds.includes(asset.id)) {
       throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
     }
-    const referenceKind = this.getAssetReferenceKind(asset) ?? character.primaryReferenceKind;
+    const referenceKind = referencePromptUtil.getAssetReferenceKind(asset) ?? character.primaryReferenceKind;
     if (!wsCharacter.isPrimaryReferenceCompatible(asset.id, referenceKind)) {
       throw new BadRequestException("CHARACTER_REFERENCE_KIND_MISMATCH");
     }
@@ -2836,18 +2830,9 @@ export class ProjectsService implements OnModuleInit {
     return project.assets
       .filter((asset) =>
         ids.has(asset.id)
-        && this.getAssetReferenceKind(asset) === referenceKind,
+        && referencePromptUtil.getAssetReferenceKind(asset) === referenceKind,
       )
-      .sort((left, right) => Date.parse(this.getAssetCreatedAt(right)) - Date.parse(this.getAssetCreatedAt(left)));
-  }
-
-  private getAssetCreatedAt(asset: WorkbenchAsset): string {
-    try {
-      const value = JSON.parse(asset.meta) as { createdAt?: unknown };
-      return typeof value.createdAt === "string" ? value.createdAt : "1970-01-01T00:00:00.000Z";
-    } catch {
-      return "1970-01-01T00:00:00.000Z";
-    }
+      .sort((left, right) => Date.parse(referencePromptUtil.getAssetCreatedAt(right)) - Date.parse(referencePromptUtil.getAssetCreatedAt(left)));
   }
 
   private normalizeProjectCharacter(
@@ -3135,65 +3120,6 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
-  private buildCharacterReferencePrompt(
-    project: LocalProject,
-    character: ProjectCharacter,
-    referenceKind: ProjectCharacterReferenceKind,
-  ): string {
-    const styleGuide = this.buildCharacterReferenceStyleGuide(project);
-    const base = [
-      `项目类型：${this.getProjectTypeLabel(project.type)}。This is a comic/manhua production project, not a live-action casting project.`,
-      `作品名：${project.storyTitle || project.name}`,
-      project.genreTags.length > 0 ? `题材标签：${project.genreTags.join("、")}` : "",
-      `漫画形式：${this.getComicFormatLabel(project.comicFormat)}`,
-      `美术风格：${this.getArtStyleLabel(project.artStyle)}`,
-      "风格硬约束：必须是绘制感漫画/条漫/漫画角色设定图，不能生成真人照片、真人演员定妆照、摄影棚肖像、电影剧照、cosplay 照片或 3D 渲染。",
-      styleGuide,
-      `角色名：${character.name}`,
-      `角色身份：${character.role || character.level}`,
-      `外貌设定：${character.appearance || "根据项目风格补全，但保持简洁稳定"}`,
-      `性格气质：${character.personality || "符合角色身份"}`,
-      character.promptFragment ? `提示词片段：${character.promptFragment}` : "",
-    ].filter(Boolean).join("\n");
-
-    if (referenceKind === "final_reference") {
-      return [
-        "Create a clean final character reference sheet for a comic/manhua production pipeline using the provided preview image as the strict character identity reference.",
-        "Preserve the same face, hairstyle, outfit, age, body proportions, and overall temperament from the preview image.",
-        "Drawn illustration style only. One same character, same outfit, same proportions, neutral expression, plain light background.",
-        "The single image must contain four panels: front half-body portrait, front full-body, side full-body, back full-body.",
-        "No text labels, no logo, no watermark, no extra characters, no dramatic pose changes.",
-        base,
-      ].join("\n");
-    }
-
-    return [
-      "Create a clean front preview portrait for a comic/manhua character library.",
-      "Drawn illustration style only. One character, front view, half-body portrait, clear face and costume cues, plain light background.",
-      "No text labels, no logo, no watermark, no extra characters.",
-      base,
-    ].join("\n");
-  }
-
-  private buildCharacterReferenceStyleGuide(project: Pick<LocalProject, "artStyle" | "comicFormat">): string {
-    const artStyle = this.getArtStyleLabel(project.artStyle);
-    const comicFormat = this.getComicFormatLabel(project.comicFormat);
-    return [
-      `Style guide: ${artStyle}; ${comicFormat}.`,
-      "Use stylized comic linework, controlled cel shading or painterly comic shading, clean readable silhouette, and production-ready character consistency.",
-      "Even if the story is realistic or dark, interpret realism as comic realism, not photorealism.",
-    ].join("\n");
-  }
-
-  private getProjectTypeLabel(type: ProjectType): string {
-    const labels: Record<ProjectType, string> = {
-      comic: "漫画",
-      light_motion: "漫剧",
-      mixed: "漫画 + 漫剧",
-    };
-    return labels[type] ?? "漫画";
-  }
-
   private getComicFormatLabel(format: ComicFormat): string {
     return wsDomain.getComicFormatLabel(format);
   }
@@ -3217,7 +3143,7 @@ export class ProjectsService implements OnModuleInit {
     if (!character.referenceAssetIds.includes(asset.id)) {
       throw new BadRequestException("CHARACTER_REFERENCE_ASSET_MISMATCH");
     }
-    if (this.getAssetReferenceKind(asset) !== "preview_front") {
+    if (referencePromptUtil.getAssetReferenceKind(asset) !== "preview_front") {
       throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
     }
 
@@ -3474,15 +3400,6 @@ export class ProjectsService implements OnModuleInit {
 
   private digestPrompt(prompt: string): string {
     return createHash("sha256").update(prompt).digest("hex").slice(0, 12);
-  }
-
-  private getAssetReferenceKind(asset: WorkbenchAsset): ProjectCharacterReferenceKind | null {
-    try {
-      const value = JSON.parse(asset.meta) as { referenceKind?: unknown };
-      return typeof value.referenceKind === "string" ? this.normalizeCharacterReferenceKind(value.referenceKind) : null;
-    } catch {
-      return null;
-    }
   }
 
   private inferMimeType(filePath: string): string {

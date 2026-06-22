@@ -68,6 +68,27 @@
 ### 阶段①完成总结(2026-06-22)
 - Repository ① 全部完成:缓存 + 加载链 + 写入链 收口到 ProjectRepository。
 - projects.service.ts:~5236 → ~4133 行(−1103 行)。
-- 抽出 7 个独立文件:workspace-json.util / local-types / project-domain.util / story-normalize.util / character-domain.util / workflow.util / project-repository.service。
 - 纯收口,行为不变,调用面不变(ADR-0005 不破)。
-- 后续:候选②③(ImagePreflight/CharacterReference)待启动。
+
+### 候选 B:抽出图准备纯逻辑(2026-06-22 完成)
+- 新建 `image-preflight.util.ts`:buildImagePreflightJson/isChapterImagePreflightReady/buildImagePreflightStyleCheck/getShotCharacterTokens/resolveStoryboardCharacterIds/resolveOrCreatePreflightCharacter。
+- buildImagePreflightJson/isChapterImagePreflightReady 接受 isReferenceTaskRunning 回调(避免依赖 tasksService)。
+- character-domain.util 补 normalizeCharacterNameKey/getDefaultRoleForLevel/isRequiredPreflightReferenceCharacter/isPrimaryReferenceCompatible。
+- Service 删 10 个方法,confirm/resolve/getChapterImagePreflight 留 Service(深度依赖 Service 状态,门面)。
+- typecheck 三包通过。
+
+### 候选 C:抽参考图 prompt 构造 + asset 解析(2026-06-22 完成)
+- 新建 `reference-prompt.util.ts`:buildCharacterReferencePrompt/buildCharacterReferenceStyleGuide/buildScenePrompt/getProjectTypeLabel/getAssetCreatedAt/getAssetReferenceKind。
+- 参考图生成的状态编排(queue/run/confirm/delete)留 Service(依赖 tasksService/settingsService/repository/fetch)。
+- Service 删 6 个纯函数方法,调用点改 util。
+- typecheck 三包通过。
+
+### 整个拆分工程完成总结(2026-06-22)
+- projects.service.ts:**~5236 → ~3721 行(−1515 行)**。
+- 抽出 **9 个独立文件**:
+  - workspace-json.util / local-types / project-domain.util / story-normalize.util / character-domain.util(领域纯函数与类型)
+  - workflow.util(工作流状态机)/ image-preflight.util(出图准备纯逻辑)/ reference-prompt.util(prompt 构造)
+  - project-repository.service(缓存+加载链+写入链)
+- 纯收口,行为不变,调用面不变(ADR-0005 不破)。
+- 候选 D(剧本导入分析纯算法)未单独抽——它在 Service 内聚度高、调用面单一,收益中等,留作后续按需。
+- 验证:typecheck 三包通过(无单测/e2e,需用户 runtime 验证关键流程不回归)。
