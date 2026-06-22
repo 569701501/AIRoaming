@@ -2771,125 +2771,19 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private async writeProjectFiles(project: LocalProject): Promise<void> {
-    await this.workspacePathService.ensureReady();
-
-    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
     const currentChapter = this.getCurrentChapter(project) ?? this.createDefaultChapter(project.id, project.sourceText, project.createdAt);
-    await mkdir(path.join(projectDir, "shared"), { recursive: true });
-    await mkdir(path.join(projectDir, "assets"), { recursive: true });
-    await mkdir(path.join(projectDir, "assets", "characters"), { recursive: true });
-    await mkdir(path.join(projectDir, "tasks"), { recursive: true });
-    await mkdir(path.join(projectDir, "exports"), { recursive: true });
-
-    const metadata = {
-      id: project.id,
-      name: project.name,
-      type: project.type,
-      status: "draft",
-      currentChapterId: project.currentChapterId,
-      storyTitle: project.storyTitle,
-      genreTags: project.genreTags,
-      comicFormat: project.comicFormat,
-      artStyle: project.artStyle,
-      description: project.description,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-    };
-    await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
-    await writeFile(path.join(projectDir, "workflow.json"), `${JSON.stringify(this.buildProjectWorkflow(project, currentChapter), null, 2)}\n`, "utf8");
-    await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({
-      projectId: project.id,
-      characters: this.sortProjectCharacters(project.characters),
-      updatedAt: project.updatedAt,
-    }, null, 2)}\n`, "utf8");
-    await writeFile(path.join(projectDir, "shared", "assets.json"), `${JSON.stringify({
-      projectId: project.id,
-      assets: project.assets,
-      updatedAt: project.updatedAt,
-    }, null, 2)}\n`, "utf8");
-    if (project.scriptOutline) {
-      await writeFile(path.join(projectDir, "script-outline.md"), project.scriptOutline.sourceText, "utf8");
-      await writeFile(path.join(projectDir, "script-outline.json"), `${JSON.stringify({
-        id: project.scriptOutline.id,
-        projectId: project.scriptOutline.projectId,
-        status: project.scriptOutline.status,
-        title: project.scriptOutline.title,
-        outlinePath: project.scriptOutline.outlinePath,
-        createdAt: project.scriptOutline.createdAt,
-        updatedAt: project.scriptOutline.updatedAt,
-        confirmedAt: project.scriptOutline.confirmedAt,
-      }, null, 2)}\n`, "utf8");
-    }
-    for (const chapter of this.sortChapters(project.chapters.length > 0 ? project.chapters : [currentChapter])) {
-      await this.writeChapterFiles(projectDir, chapter);
-    }
+    const workflow = workflowUtil.buildProjectWorkflow(project, currentChapter, this.isChapterImagePreflightReady(project, currentChapter));
+    await this.repository.saveProject(project, workflow);
   }
 
   private async clearProjectChaptersDir(projectId: string): Promise<void> {
-    await this.workspacePathService.ensureReady();
-    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
-    await rm(path.join(projectDir, "chapters"), { recursive: true, force: true });
+    await this.repository.clearProjectChaptersDir(projectId);
   }
 
   private async clearLegacyStoryDir(projectId: string): Promise<void> {
-    await this.workspacePathService.ensureReady();
-    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
-    await rm(path.join(projectDir, "story"), { recursive: true, force: true });
+    await this.repository.clearLegacyStoryDir(projectId);
   }
 
-  private async writeChapterFiles(projectDir: string, chapter: LocalChapter): Promise<void> {
-    const chapterDir = path.join(projectDir, "chapters", chapter.slug);
-    const versionsDir = path.join(chapterDir, "script.versions");
-    const revisionsDir = path.join(chapterDir, "script.revisions");
-    await mkdir(chapterDir, { recursive: true });
-    if (chapter.scriptVersions.length > 0) {
-      await mkdir(versionsDir, { recursive: true });
-    } else {
-      await rm(versionsDir, { recursive: true, force: true });
-    }
-    await mkdir(path.join(chapterDir, "candidates"), { recursive: true });
-    await mkdir(path.join(chapterDir, "layout"), { recursive: true });
-    await mkdir(path.join(chapterDir, "exports"), { recursive: true });
-
-    await writeFile(path.join(chapterDir, "chapter.json"), `${JSON.stringify(this.toChapterDetail(chapter), null, 2)}\n`, "utf8");
-    await writeFile(path.join(chapterDir, "script.md"), chapter.sourceText, "utf8");
-    if (chapter.pendingSourceText) {
-      await writeFile(path.join(chapterDir, "script-pending.json"), `${JSON.stringify(chapter.pendingSourceText, null, 2)}\n`, "utf8");
-    } else {
-      await rm(path.join(chapterDir, "script-pending.json"), { force: true });
-    }
-    if (chapter.storyStructure) {
-      await writeFile(path.join(chapterDir, "structure.json"), `${JSON.stringify(chapter.storyStructure, null, 2)}\n`, "utf8");
-    } else {
-      await rm(path.join(chapterDir, "structure.json"), { force: true });
-    }
-    if (chapter.storyboard) {
-      await writeFile(path.join(chapterDir, "storyboard.json"), `${JSON.stringify(chapter.storyboard, null, 2)}\n`, "utf8");
-    } else {
-      await rm(path.join(chapterDir, "storyboard.json"), { force: true });
-    }
-    if (chapter.pendingStoryboard) {
-      await writeFile(path.join(chapterDir, "storyboard.pending.json"), `${JSON.stringify(chapter.pendingStoryboard, null, 2)}\n`, "utf8");
-    } else {
-      await rm(path.join(chapterDir, "storyboard.pending.json"), { force: true });
-    }
-    if (chapter.imagePreflight) {
-      await writeFile(path.join(chapterDir, "preflight.json"), `${JSON.stringify(chapter.imagePreflight, null, 2)}\n`, "utf8");
-    } else {
-      await rm(path.join(chapterDir, "preflight.json"), { force: true });
-    }
-    if (chapter.lastScriptRevision) {
-      await mkdir(revisionsDir, { recursive: true });
-      await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
-    } else {
-      await rm(revisionsDir, { recursive: true, force: true });
-    }
-    if (chapter.scriptVersions.length > 0) {
-      for (const version of chapter.scriptVersions) {
-        await writeFile(path.join(versionsDir, `script-v${String(version.version).padStart(3, "0")}.md`), version.sourceText, "utf8");
-      }
-    }
-  }
 
   private createDefaultChapter(projectId: string, sourceText: string, now: string): LocalChapter {
     return wsDomain.createDefaultChapter(projectId, sourceText, now);
@@ -4225,50 +4119,14 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private toChapterListItem(chapter: LocalChapter): ChapterListItem {
-    const sourceText = stripChapterScriptName(chapter.sourceText);
-    return {
-      id: chapter.id,
-      projectId: chapter.projectId,
-      slug: chapter.slug,
-      order: chapter.order,
-      title: chapter.title,
-      status: chapter.status,
-      storyboardStatus: chapter.pendingStoryboard?.status ?? chapter.storyboard?.status ?? null,
-      currentScriptVersionId: chapter.currentScriptVersionId,
-      currentStoryVersionId: chapter.currentStoryVersionId,
-      summary: chapter.summary,
-      sourceTextPreview: sourceText.slice(0, 96),
-      lastScriptRevision: chapter.lastScriptRevision,
-      createdAt: chapter.createdAt,
-      updatedAt: chapter.updatedAt,
-      completedAt: chapter.completedAt,
-    };
+    return wsDomain.toChapterListItem(chapter);
   }
 
   private toChapterDetail(chapter: LocalChapter): ChapterDetail {
-    const sourceText = stripChapterScriptName(chapter.sourceText);
-    return {
-      ...this.toChapterListItem(chapter),
-      sourceText,
-      pendingSourceText: chapter.pendingSourceText
-        ? {
-            ...chapter.pendingSourceText,
-            sourceText: stripChapterScriptName(chapter.pendingSourceText.sourceText),
-          }
-        : null,
-      scriptPath: `projects/${chapter.projectId}/chapters/${chapter.slug}/script.md`,
-    };
+    return wsDomain.toChapterDetail(chapter);
   }
 
   private toChapterScriptVersionItem(version: LocalChapterScriptVersion): ChapterScriptVersionItem {
-    return {
-      id: version.id,
-      projectId: version.projectId,
-      chapterId: version.chapterId,
-      version: version.version,
-      sourcePath: version.sourcePath,
-      status: version.status,
-      createdAt: version.createdAt,
-    };
+    return wsDomain.toChapterScriptVersionItem(version);
   }
 }

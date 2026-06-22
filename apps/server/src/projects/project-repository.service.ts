@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import {
   extractChapterScriptName,
@@ -23,6 +23,7 @@ import {
   type ProjectCharacterReferenceKind,
   type ProjectCharacterStatus,
   type ProjectScriptOutline,
+  type ProjectWorkflow,
   type ScriptRevisionItem,
   type WorkbenchAsset,
 } from "@airoaming/shared";
@@ -81,6 +82,130 @@ export class ProjectRepository {
 
   hasProject(projectId: string): boolean {
     return this.projects.has(projectId);
+  }
+
+  // ====== 写入链 ======
+
+  /** 落盘整棵项目树。workflow 由调用方算好传入(依赖 buildImagePreflightJson 业务判断,见候选②)。 */
+  async saveProject(project: LocalProject, workflow: ProjectWorkflow): Promise<void> {
+    await this.workspacePathService.ensureReady();
+
+    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
+    const currentChapter = wsDomain.getCurrentChapter(project) ?? wsDomain.createDefaultChapter(project.id, project.sourceText, project.createdAt);
+    await mkdir(path.join(projectDir, "shared"), { recursive: true });
+    await mkdir(path.join(projectDir, "assets"), { recursive: true });
+    await mkdir(path.join(projectDir, "assets", "characters"), { recursive: true });
+    await mkdir(path.join(projectDir, "tasks"), { recursive: true });
+    await mkdir(path.join(projectDir, "exports"), { recursive: true });
+
+    const metadata = {
+      id: project.id,
+      name: project.name,
+      type: project.type,
+      status: "draft",
+      currentChapterId: project.currentChapterId,
+      storyTitle: project.storyTitle,
+      genreTags: project.genreTags,
+      comicFormat: project.comicFormat,
+      artStyle: project.artStyle,
+      description: project.description,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    };
+    await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+    await writeFile(path.join(projectDir, "workflow.json"), `${JSON.stringify(workflow, null, 2)}\n`, "utf8");
+    await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({
+      projectId: project.id,
+      characters: wsDomain.sortProjectCharacters(project.characters),
+      updatedAt: project.updatedAt,
+    }, null, 2)}\n`, "utf8");
+    await writeFile(path.join(projectDir, "shared", "assets.json"), `${JSON.stringify({
+      projectId: project.id,
+      assets: project.assets,
+      updatedAt: project.updatedAt,
+    }, null, 2)}\n`, "utf8");
+    if (project.scriptOutline) {
+      await writeFile(path.join(projectDir, "script-outline.md"), project.scriptOutline.sourceText, "utf8");
+      await writeFile(path.join(projectDir, "script-outline.json"), `${JSON.stringify({
+        id: project.scriptOutline.id,
+        projectId: project.scriptOutline.projectId,
+        status: project.scriptOutline.status,
+        title: project.scriptOutline.title,
+        outlinePath: project.scriptOutline.outlinePath,
+        createdAt: project.scriptOutline.createdAt,
+        updatedAt: project.scriptOutline.updatedAt,
+        confirmedAt: project.scriptOutline.confirmedAt,
+      }, null, 2)}\n`, "utf8");
+    }
+    for (const chapter of wsDomain.sortChapters(project.chapters.length > 0 ? project.chapters : [currentChapter])) {
+      await this.writeChapterFiles(projectDir, chapter);
+    }
+  }
+
+  async clearProjectChaptersDir(projectId: string): Promise<void> {
+    await this.workspacePathService.ensureReady();
+    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
+    await rm(path.join(projectDir, "chapters"), { recursive: true, force: true });
+  }
+
+  async clearLegacyStoryDir(projectId: string): Promise<void> {
+    await this.workspacePathService.ensureReady();
+    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
+    await rm(path.join(projectDir, "story"), { recursive: true, force: true });
+  }
+
+  private async writeChapterFiles(projectDir: string, chapter: LocalChapter): Promise<void> {
+    const chapterDir = path.join(projectDir, "chapters", chapter.slug);
+    const versionsDir = path.join(chapterDir, "script.versions");
+    const revisionsDir = path.join(chapterDir, "script.revisions");
+    await mkdir(chapterDir, { recursive: true });
+    if (chapter.scriptVersions.length > 0) {
+      await mkdir(versionsDir, { recursive: true });
+    } else {
+      await rm(versionsDir, { recursive: true, force: true });
+    }
+    await mkdir(path.join(chapterDir, "candidates"), { recursive: true });
+    await mkdir(path.join(chapterDir, "layout"), { recursive: true });
+    await mkdir(path.join(chapterDir, "exports"), { recursive: true });
+
+    await writeFile(path.join(chapterDir, "chapter.json"), `${JSON.stringify(wsDomain.toChapterDetail(chapter), null, 2)}\n`, "utf8");
+    await writeFile(path.join(chapterDir, "script.md"), chapter.sourceText, "utf8");
+    if (chapter.pendingSourceText) {
+      await writeFile(path.join(chapterDir, "script-pending.json"), `${JSON.stringify(chapter.pendingSourceText, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "script-pending.json"), { force: true });
+    }
+    if (chapter.storyStructure) {
+      await writeFile(path.join(chapterDir, "structure.json"), `${JSON.stringify(chapter.storyStructure, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "structure.json"), { force: true });
+    }
+    if (chapter.storyboard) {
+      await writeFile(path.join(chapterDir, "storyboard.json"), `${JSON.stringify(chapter.storyboard, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "storyboard.json"), { force: true });
+    }
+    if (chapter.pendingStoryboard) {
+      await writeFile(path.join(chapterDir, "storyboard.pending.json"), `${JSON.stringify(chapter.pendingStoryboard, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "storyboard.pending.json"), { force: true });
+    }
+    if (chapter.imagePreflight) {
+      await writeFile(path.join(chapterDir, "preflight.json"), `${JSON.stringify(chapter.imagePreflight, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "preflight.json"), { force: true });
+    }
+    if (chapter.lastScriptRevision) {
+      await mkdir(revisionsDir, { recursive: true });
+      await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
+    } else {
+      await rm(revisionsDir, { recursive: true, force: true });
+    }
+    if (chapter.scriptVersions.length > 0) {
+      for (const version of chapter.scriptVersions) {
+        await writeFile(path.join(versionsDir, `script-v${String(version.version).padStart(3, "0")}.md`), version.sourceText, "utf8");
+      }
+    }
   }
 
   // ====== 加载链 ======

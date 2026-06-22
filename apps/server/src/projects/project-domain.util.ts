@@ -3,14 +3,18 @@ import {
   CHAPTER_STATUSES,
   COMIC_FORMATS,
   PROJECT_TYPES,
+  stripChapterScriptName,
   type ArtStyle,
+  type ChapterDetail,
+  type ChapterListItem,
+  type ChapterScriptVersionItem,
   type ChapterStatus,
   type ComicFormat,
   type ProjectCharacter,
   type ProjectCharacterLevel,
   type ProjectType,
 } from "@airoaming/shared";
-import type { LocalChapter, LocalProject } from "./local-types.js";
+import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
 
 /**
  * 项目领域纯函数与常量(从 projects.service 抽出,供 ProjectRepository / Service 共用)。
@@ -109,4 +113,52 @@ export function getArtStyleLabel(style: ArtStyle): string {
     custom: "自定义漫画美术 / custom comic illustration style",
   };
   return labels[style] ?? "漫画风格 / clean comic and manhua illustration";
+}
+
+export function toChapterListItem(chapter: LocalChapter): ChapterListItem {
+  const sourceText = stripChapterScriptName(chapter.sourceText);
+  return {
+    id: chapter.id,
+    projectId: chapter.projectId,
+    slug: chapter.slug,
+    order: chapter.order,
+    title: chapter.title,
+    status: chapter.status,
+    storyboardStatus: chapter.pendingStoryboard?.status ?? chapter.storyboard?.status ?? null,
+    currentScriptVersionId: chapter.currentScriptVersionId,
+    currentStoryVersionId: chapter.currentStoryVersionId,
+    summary: chapter.summary,
+    sourceTextPreview: sourceText.slice(0, 96),
+    lastScriptRevision: chapter.lastScriptRevision,
+    createdAt: chapter.createdAt,
+    updatedAt: chapter.updatedAt,
+    completedAt: chapter.completedAt,
+  };
+}
+
+export function toChapterDetail(chapter: LocalChapter): ChapterDetail {
+  const sourceText = stripChapterScriptName(chapter.sourceText);
+  return {
+    ...toChapterListItem(chapter),
+    sourceText,
+    pendingSourceText: chapter.pendingSourceText
+      ? {
+          ...chapter.pendingSourceText,
+          sourceText: stripChapterScriptName(chapter.pendingSourceText.sourceText),
+        }
+      : null,
+    scriptPath: `projects/${chapter.projectId}/chapters/${chapter.slug}/script.md`,
+  };
+}
+
+export function toChapterScriptVersionItem(version: LocalChapterScriptVersion): ChapterScriptVersionItem {
+  return {
+    id: version.id,
+    projectId: version.projectId,
+    chapterId: version.chapterId,
+    version: version.version,
+    sourcePath: version.sourcePath,
+    status: version.status,
+    createdAt: version.createdAt,
+  };
 }

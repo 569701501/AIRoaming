@@ -49,13 +49,25 @@
 - 保留:readFile(getProjectAssetFile 用)/extractScriptOutlineTitle(writeScriptOutline 用)/extractChapterScriptName|Title。
 - typecheck 三包通过。
 
-### 子步 1c:抽 Repository 写入链(阻塞,依赖候选 E)
-- 写入链(`writeProjectFiles`/`writeChapterFiles`/`clearProjectChaptersDir`/`clearLegacyStoryDir`)依赖 `buildProjectWorkflow`(工作流状态机,候选 E)+ `toChapterDetail`(业务方法)。
-- 强行搬进 Repository 会引入 Repository→Service 反向依赖。**1c 需先抽 `buildProjectWorkflow`/`toChapterDetail` 成独立 util**(候选 E 工作流状态机 + toChapterDetail)。
-- 1c 搁置,待候选 E 启动后一并处理。
+### 候选 E:抽工作流状态机(2026-06-22 完成)
+- 新建 `workflow.util.ts`:buildProjectWorkflow + 内部方法组(resolve/toWorkflowStep/Summary/Done/Waiting/Evidence)。
+- isChapterImagePreflightReady 留 Service(依赖 buildImagePreflightJson 候选②),buildProjectWorkflow 接受 isPreflightReady 参数。
+- Service 删工作流方法组(~170行)+ workflowStepOrder 常量 + 2 import,buildProjectWorkflow 委托。
+- typecheck 三包通过。解锁 1c。
 
-### 阶段①总结(2026-06-22)
-- Repository ① 主体(缓存+加载链)完成,纯收口,行为不变。
-- projects.service.ts:~5236 → ~4440 行(-796)。
-- 抽出 6 个独立文件:workspace-json.util / local-types / project-domain.util / story-normalize.util / character-domain.util / project-repository.service。
-- 1c(写入链)阻塞于候选 E(工作流状态机),记录待续。
+### toChapter 抽取(2026-06-22 完成,1c 前置)
+- toChapterDetail/toChapterListItem/toChapterScriptVersionItem 抽进 project-domain.util.ts(纯函数,业务共用 10+ 处)。
+- Service 3 方法薄委托。
+
+### 子步 1c:搬写入链进 Repository(2026-06-22 完成)
+- Repository 加 public:saveProject(project, workflow)/clearProjectChaptersDir/clearLegacyStoryDir + private writeChapterFiles。
+- saveProject 接受 workflow 参数(由 Service 算好传入,因 workflow 依赖 buildImagePreflightJson 业务判断)。
+- Service 删 writeProjectFiles/writeChapterFiles/clear*(~120行),writeProjectFiles 改委托(算 workflow + 调 saveProject),clear* 委托。
+- typecheck 三包通过。
+
+### 阶段①完成总结(2026-06-22)
+- Repository ① 全部完成:缓存 + 加载链 + 写入链 收口到 ProjectRepository。
+- projects.service.ts:~5236 → ~4133 行(−1103 行)。
+- 抽出 7 个独立文件:workspace-json.util / local-types / project-domain.util / story-normalize.util / character-domain.util / workflow.util / project-repository.service。
+- 纯收口,行为不变,调用面不变(ADR-0005 不破)。
+- 后续:候选②③(ImagePreflight/CharacterReference)待启动。
