@@ -59,3 +59,39 @@ export function defaultReferenceKindForLevel(level: ProjectCharacterLevel): Proj
   }
   return "none";
 }
+
+export function normalizeCharacterNameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+export function getDefaultRoleForLevel(level: ProjectCharacterLevel): string {
+  if (level === "lead") {
+    return "主角";
+  }
+  if (level === "recurring") {
+    return "重要配角";
+  }
+  if (level === "minor") {
+    return "小角色";
+  }
+  if (level === "extra") {
+    return "背景路人";
+  }
+  return "本章关键角色";
+}
+
+export function isRequiredPreflightReferenceCharacter(character: { level: ProjectCharacterLevel }, appearanceCount: number): boolean {
+  return character.level === "lead"
+    || character.level === "recurring"
+    || ((character.level === "chapter" || character.level === "minor") && appearanceCount > 1);
+}
+
+export function isPrimaryReferenceCompatible(
+  primaryReferenceAssetId: string | null,
+  primaryReferenceKind: ProjectCharacterReferenceKind,
+): boolean {
+  if (!primaryReferenceAssetId) {
+    return false;
+  }
+  return primaryReferenceKind === "final_reference";
+}
