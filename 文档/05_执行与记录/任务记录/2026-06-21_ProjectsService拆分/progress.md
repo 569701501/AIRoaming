@@ -35,8 +35,13 @@
 - typecheck 三包通过,行为不变。
 - **Repository 依赖全清**:fs / 类型 / domain / story normalize / 角色 normalize 都独立。加载链只剩 4 个只加载链用方法(normalizeImagePreflightJson/normalizeProjectCharacter/parseScriptRevision/getOrderFromChapterSlug)→ 搬 Repository 私有。
 
-### 子步 1b:建 Repository 主体(待办,依赖全清,建议新会话)
-- 加载链依赖全清。建 `ProjectRepository`(缓存 + 加载链 490 行 + 4 私有 normalize + 6 public)+ 改 ~35 调用点(this.projects 33 + ensureProjectsLoaded)。
-- 超大工程(~700 行 Repository + 35 调用点),建议新会话 context 充足时一次做完。
+### 子步 1b:建 Repository 主体(2026-06-22 完成)
+- 新建 `apps/server/src/projects/project-repository.service.ts`(~680 行):缓存状态 + 6 public(ensureLoaded/getProject/getAllProjects/setProject/deleteProject/hasProject)+ 加载链 13 方法 + 4 私有 normalize。
+- projects.module.ts 注册 ProjectRepository provider。
+- ProjectsService 注入 `@Inject(ProjectRepository) repository`,删缓存字段 + 加载链块(~490 行)+ 4 私有 normalize,保留 `ensureProjectsLoaded()` 薄委托。
+- 34 处 `this.projects.xxx` → `repository.{setProject/getProject/deleteProject/hasProject/getAllProjects}`(语义命名)。
+- label 函数抽进 project-domain.util(1b-pre-1 延伸),Service 薄委托。
+- typecheck 三包通过。projects.service.ts ~5236 → ~4452 行(-784)。
+- 已知清理项:Service 可能残留未使用 import(加载链删后),tsc 未报(noUnusedLocals 未开),后续清理。
 
 ### 子步 1c:抽 Repository 写入链(待办)

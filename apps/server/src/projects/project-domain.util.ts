@@ -89,3 +89,24 @@ export function getCurrentChapter(project: LocalProject): LocalChapter | null {
     ?? project.chapters[0]
     ?? null;
 }
+
+export function getComicFormatLabel(format: ComicFormat): string {
+  const labels: Record<ComicFormat, string> = {
+    vertical_scroll: "竖版条漫 / vertical scrolling webcomic",
+    page_horizontal: "页漫 / page-based comic",
+    four_panel: "四格漫画 / four-panel comic",
+  };
+  return labels[format] ?? "竖版条漫 / vertical scrolling webcomic";
+}
+
+export function getArtStyleLabel(style: ArtStyle): string {
+  const labels: Record<ArtStyle, string> = {
+    dark_realistic: "暗调漫画写实 / dark cinematic comic realism, non-photorealistic",
+    semi_realistic: "半写实漫画 / semi-realistic comic illustration, non-photorealistic",
+    japanese_realistic: "日系漫画写实 / Japanese manga-realistic illustration, non-photorealistic",
+    comic_style: "漫画风格 / clean comic and manhua illustration",
+    cyberpunk: "赛博朋克漫画 / cyberpunk comic illustration",
+    custom: "自定义漫画美术 / custom comic illustration style",
+  };
+  return labels[style] ?? "漫画风格 / clean comic and manhua illustration";
+}
