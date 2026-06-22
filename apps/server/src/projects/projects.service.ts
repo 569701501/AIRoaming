@@ -4,6 +4,7 @@ import * as wsJson from "./workspace-json.util.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as storyNormalize from "./story-normalize.util.js";
+import * as wsCharacter from "./character-domain.util.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -115,10 +116,6 @@ const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
   PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
 );
-const characterLevels: ProjectCharacterLevel[] = ["lead", "recurring", "chapter", "minor", "extra"];
-const characterEntityTypes: ProjectCharacterEntityType[] = ["human", "creature", "group", "voice"];
-const characterStatuses: ProjectCharacterStatus[] = ["draft", "needs_reference", "finalized", "in_use"];
-const characterReferenceKinds: ProjectCharacterReferenceKind[] = ["preview_front", "final_reference", "none"];
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
 // LocalChapter / LocalProject / LocalChapterScriptVersion 已抽到 ./local-types.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre)。
@@ -3975,27 +3972,19 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private normalizeCharacterLevel(value: string): ProjectCharacterLevel {
-    return characterLevels.includes(value as ProjectCharacterLevel) ? value as ProjectCharacterLevel : "chapter";
+    return wsCharacter.normalizeCharacterLevel(value);
   }
 
   private normalizeCharacterStatus(value: string): ProjectCharacterStatus {
-    return characterStatuses.includes(value as ProjectCharacterStatus) ? value as ProjectCharacterStatus : "draft";
+    return wsCharacter.normalizeCharacterStatus(value);
   }
 
   private normalizeCharacterReferenceKind(value: string): ProjectCharacterReferenceKind {
-    if (value === "turnaround_4view") {
-      return "final_reference";
-    }
-    if (value === "single_front") {
-      return "preview_front";
-    }
-    return characterReferenceKinds.includes(value as ProjectCharacterReferenceKind) ? value as ProjectCharacterReferenceKind : "none";
+    return wsCharacter.normalizeCharacterReferenceKind(value);
   }
 
   private normalizeEntityType(value: unknown): ProjectCharacterEntityType {
-    return typeof value === "string" && characterEntityTypes.includes(value as ProjectCharacterEntityType)
-      ? value as ProjectCharacterEntityType
-      : "human";
+    return wsCharacter.normalizeEntityType(value);
   }
 
   /** 结构卡 entityType 优先用 AI 输出,AI 没给(含旧数据 null)默认 human。 */
@@ -4020,13 +4009,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private defaultReferenceKindForLevel(level: ProjectCharacterLevel): ProjectCharacterReferenceKind {
-    if (level === "lead" || level === "recurring") {
-      return "final_reference";
-    }
-    if (level === "chapter" || level === "minor" || level === "extra") {
-      return "preview_front";
-    }
-    return "none";
+    return wsCharacter.defaultReferenceKindForLevel(level);
   }
 
   private normalizeRequestedReferenceKind(
@@ -4109,11 +4092,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private normalizeCharacterName(value: string): string {
-    const name = value.trim().replace(/^[-*•\d.\s]+/u, "");
-    if (!name) {
-      throw new BadRequestException("CHARACTER_NAME_REQUIRED");
-    }
-    return name.slice(0, 60);
+    return wsCharacter.normalizeCharacterName(value);
   }
 
   private normalizeCharacterNameKey(name: string): string {

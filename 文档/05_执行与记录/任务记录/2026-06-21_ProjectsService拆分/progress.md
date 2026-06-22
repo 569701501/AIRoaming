@@ -29,15 +29,14 @@
 - Service 2 个业务入口(normalizeStoryStructureJson/normalizeStoryboardJson)薄委托,5 个内部方法删除(搬走)。
 - typecheck 三包通过,行为不变。
 
-### 子步 1b-pre-3:抽角色 normalize domain util(待办,下次续)
-- `normalizeProjectCharacter` 依赖角色normalize组(`normalizeCharacterLevel`/`Name`/`Status`/`ReferenceKind`/`EntityType`/`defaultReferenceKindForLevel`),业务共用 ~25 处。
-- **非纯**:`normalizeCharacterName` throw `BadRequestException`,需处理(见 findings §7)。
-- 依赖常量 `characterLevels`/`characterStatuses`/`characterReferenceKinds`/`characterEntityTypes`。
+### 子步 1b-pre-3:抽角色 normalize domain util(2026-06-22 完成)
+- 新建 `apps/server/src/projects/character-domain.util.ts`,normalizeCharacterLevel/Status/ReferenceKind/EntityType/Name/defaultReferenceKindForLevel + 常量抽出。
+- normalizeCharacterName 保持 throw `BadRequestException`(domain util import @nestjs/common,保持 400 行为)。
+- typecheck 三包通过,行为不变。
+- **Repository 依赖全清**:fs / 类型 / domain / story normalize / 角色 normalize 都独立。加载链只剩 4 个只加载链用方法(normalizeImagePreflightJson/normalizeProjectCharacter/parseScriptRevision/getOrderFromChapterSlug)→ 搬 Repository 私有。
 
-### 子步 1b:抽 Repository 加载链+缓存(待办,依赖大部分已清空)
-- 加载链依赖已大部分独立:1a fs、1b-pre-0 类型、1b-pre-1 domain、1b-pre-2 story normalize。1b-pre-3 完成后全清。
-- 加载链剩余 4 个只加载链用方法(`normalizeImagePreflightJson` 180行/`normalizeProjectCharacter`/`parseScriptRevision`/`getOrderFromChapterSlug`)→ 搬 Repository 私有。
-- 下一步:1b-pre-3 → 建 `ProjectRepository`(缓存+加载链+4 方法)→ 改 ~35 调用点。
-- **暂停点(2026-06-22)**:1b-pre 完成(4 commit:`09d1455`/`454b3a1`/`282f678`/`a032701`),干净可回滚。下次会话续 1b-pre-3 + 1b。
+### 子步 1b:建 Repository 主体(待办,依赖全清,建议新会话)
+- 加载链依赖全清。建 `ProjectRepository`(缓存 + 加载链 490 行 + 4 私有 normalize + 6 public)+ 改 ~35 调用点(this.projects 33 + ensureProjectsLoaded)。
+- 超大工程(~700 行 Repository + 35 调用点),建议新会话 context 充足时一次做完。
 
 ### 子步 1c:抽 Repository 写入链(待办)
