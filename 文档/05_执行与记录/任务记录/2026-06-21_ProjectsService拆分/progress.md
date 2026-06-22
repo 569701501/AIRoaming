@@ -92,3 +92,30 @@
 - 纯收口,行为不变,调用面不变(ADR-0005 不破)。
 - 候选 D(剧本导入分析纯算法)未单独抽——它在 Service 内聚度高、调用面单一,收益中等,留作后续按需。
 - 验证:typecheck 三包通过(无单测/e2e,需用户 runtime 验证关键流程不回归)。
+
+## Scrutiny Review 静态复核(2026-06-22)
+
+**结论:通过(纯收口,契约/路径/调用面未变)。**
+
+| 复核项 | 结果 | 证据 |
+| --- | --- | --- |
+| 代码改动与 task_plan 目标一致 | ✅ | 阶段①+候选B+C 全部完成,纯收口 |
+| workspace 文件路径契约未变 | ✅ | `/workspace/projects/`、`chapters/*/storyboard.json`/`structure.json`/`preflight.json`、`shared/characters.json`/`assets.json` 路径全部保留(project-repository.service.ts grep 确认) |
+| 调用面零变更(ADR-0005) | ✅ | `git diff 09d1455~1 HEAD -- projects.controller.ts dialogue.service.ts tool-callback.service.ts` 为空(三处调用方代码未改) |
+| typecheck 三包通过 | ✅ | shared/web/server 三包 Done |
+| 行为不变 | ✅ | 加载链/写入链/normalize 原样搬进 Repository/util,Service 薄委托 |
+
+**残留风险:**
+- 无单测/e2e,Scrutiny 只做静态复核,runtime 回归需用户验证(见 Runtime/User Review 清单)。
+- buildImagePreflightJson/isChapterImagePreflightReady 改为接受 isReferenceTaskRunning 回调(行为等价,但调用形态变化,需 runtime 确认出图准备检查正常)。
+
+## Runtime/User Review 清单(待用户执行)
+
+用户在本地启动 server + web,跑以下关键流程,确认拆分无回归:
+1. 项目创建 → 项目库出现新项目(workspace 加载链正常)。
+2. 剧本编辑 → 保存草稿 → 完成本章(写入链 saveProject 正常)。
+3. 剧情结构生成 → 确认(syncStoryStructureCharacters + writeProjectFiles 正常)。
+4. 分镜生成 → 确认(写入链正常)。
+5. 出图准备 → 角色锁定检查 → 确认出图准备(buildImagePreflightJson + isChapterImagePreflightReady 正常)。
+6. 候选图生成入口(workflow 推进正常)。
+7. 重启 server → 项目恢复(workspace 加载链 + 缓存正常)。
