@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import * as wsJson from "./workspace-json.util.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
+import * as storyNormalize from "./story-normalize.util.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -3646,95 +3647,10 @@ export class ProjectsService implements OnModuleInit {
     fallbackChapterTitle: string,
     overrides: Partial<Pick<StoryStructureJson, "sourceScriptVersionId" | "createdAt" | "updatedAt">> = {},
   ): StoryStructureJson {
-    const record = typeof input === "object" && input !== null && !Array.isArray(input)
-      ? input as Record<string, unknown>
-      : {};
-    const now = new Date().toISOString();
-    const directionRecord = typeof record.direction === "object" && record.direction !== null && !Array.isArray(record.direction)
-      ? record.direction as Record<string, unknown>
-      : {};
-
-    return {
-      schemaVersion: 1,
-      chapterId,
-      chapterTitle: this.getStringField(record, "chapterTitle", fallbackChapterTitle || "当前章节"),
-      sourceScriptVersionId: overrides.sourceScriptVersionId
-        ?? (typeof record.sourceScriptVersionId === "string" && record.sourceScriptVersionId.trim() ? record.sourceScriptVersionId : null),
-      synopsis: this.getStringField(record, "synopsis", ""),
-      direction: {
-        logline: this.getStringField(directionRecord, "logline", ""),
-        chapterGoal: this.getStringField(directionRecord, "chapterGoal", ""),
-        coreConflict: this.getStringField(directionRecord, "coreConflict", ""),
-        emotionalArc: this.getStringField(directionRecord, "emotionalArc", ""),
-        endingHook: this.getStringField(directionRecord, "endingHook", ""),
-      },
-      characters: this.normalizeStoryStructureCharacters(record.characters),
-      scenes: this.normalizeStoryStructureScenes(record.scenes),
-      beats: this.normalizeStoryStructureBeats(record.beats),
-      notes: this.getStringField(record, "notes", ""),
-      createdAt: overrides.createdAt ?? this.getStringField(record, "createdAt", now),
-      updatedAt: overrides.updatedAt ?? this.getStringField(record, "updatedAt", now),
-    };
+    return storyNormalize.normalizeStoryStructureJson(input, chapterId, fallbackChapterTitle, overrides);
   }
 
-  private normalizeStoryStructureCharacters(input: unknown): StoryStructureJson["characters"] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item, index) => ({
-        id: this.getStringField(item, "id", `character_${String(index + 1).padStart(2, "0")}`),
-        projectCharacterId: this.getOptionalStringField(item, "projectCharacterId"),
-        name: this.getStringField(item, "name", `角色 ${index + 1}`),
-        role: this.getStringField(item, "role", ""),
-        level: this.getOptionalStringField(item, "level") as StoryStructureCharacterCard["level"],
-        entityType: this.getOptionalStringField(item, "entityType") as StoryStructureCharacterCard["entityType"],
-        motivation: this.getStringField(item, "motivation", ""),
-        relationship: this.getStringField(item, "relationship", ""),
-        visualTraits: this.getStringField(item, "visualTraits", ""),
-        notes: this.getStringField(item, "notes", ""),
-      }));
-  }
-
-  private normalizeStoryStructureScenes(input: unknown): StoryStructureJson["scenes"] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item, index) => ({
-        id: this.getStringField(item, "id", `scene_${String(index + 1).padStart(2, "0")}`),
-        name: this.getStringField(item, "name", `场景 ${index + 1}`),
-        location: this.getStringField(item, "location", ""),
-        timeOfDay: this.getStringField(item, "timeOfDay", ""),
-        atmosphere: this.getStringField(item, "atmosphere", ""),
-        purpose: this.getStringField(item, "purpose", ""),
-        referenceAssetId: this.getOptionalStringField(item, "referenceAssetId") ?? null,
-      }));
-  }
-
-  private normalizeStoryStructureBeats(input: unknown): StoryStructureJson["beats"] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item, index) => ({
-        id: this.getStringField(item, "id", `beat_${String(index + 1).padStart(2, "0")}`),
-        order: this.getNumberField(item, "order", index + 1),
-        title: this.getStringField(item, "title", `节拍 ${index + 1}`),
-        summary: this.getStringField(item, "summary", ""),
-        conflict: this.getStringField(item, "conflict", ""),
-        characters: this.getStringArrayField(item, "characters"),
-        sceneId: this.getOptionalStringField(item, "sceneId"),
-        visualFocus: this.getStringField(item, "visualFocus", ""),
-        outcome: this.getStringField(item, "outcome", ""),
-      }));
-  }
+  // normalizeStoryStructureCharacters/Scenes/Beats 已抽到 ./story-normalize.util.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre-2)。
 
   private normalizeStoryboardJson(
     input: unknown,
@@ -3742,81 +3658,10 @@ export class ProjectsService implements OnModuleInit {
     fallbackChapterTitle: string,
     overrides: Partial<Pick<StoryboardJson, "sourceStoryVersionId" | "createdAt" | "updatedAt">> = {},
   ): StoryboardJson {
-    const record = typeof input === "object" && input !== null && !Array.isArray(input)
-      ? input as Record<string, unknown>
-      : {};
-    const now = new Date().toISOString();
-
-    return {
-      schemaVersion: 1,
-      chapterId,
-      chapterTitle: this.getStringField(record, "chapterTitle", fallbackChapterTitle || "当前章节"),
-      sourceStoryVersionId: overrides.sourceStoryVersionId
-        ?? (typeof record.sourceStoryVersionId === "string" && record.sourceStoryVersionId.trim() ? record.sourceStoryVersionId : null),
-      shots: this.normalizeStoryboardShots(record.shots),
-      notes: this.getStringField(record, "notes", ""),
-      createdAt: overrides.createdAt ?? this.getStringField(record, "createdAt", now),
-      updatedAt: overrides.updatedAt ?? this.getStringField(record, "updatedAt", now),
-    };
+    return storyNormalize.normalizeStoryboardJson(input, chapterId, fallbackChapterTitle, overrides);
   }
 
-  private normalizeStoryboardShots(input: unknown): StoryboardJson["shots"] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item, index) => this.normalizeStoryboardShot(item, index))
-      .sort((left, right) => left.order - right.order);
-  }
-
-  private normalizeStoryboardShot(item: Record<string, unknown>, index: number): StoryboardShot {
-    const comic = typeof item.comic === "object" && item.comic !== null && !Array.isArray(item.comic)
-      ? item.comic as Record<string, unknown>
-      : {};
-    const motion = typeof item.motion === "object" && item.motion !== null && !Array.isArray(item.motion)
-      ? item.motion as Record<string, unknown>
-      : {};
-    const status = this.getStringField(item, "status", "draft");
-
-    return {
-      id: this.getStringField(item, "id", `shot_${String(index + 1).padStart(3, "0")}`),
-      order: this.getNumberField(item, "order", this.getNumberField(item, "shotNumber", index + 1)),
-      beatId: this.getOptionalStringField(item, "beatId"),
-      sceneId: this.getOptionalStringField(item, "sceneId"),
-      characterIds: this.getStringArrayField(item, "characterIds"),
-      coreAction: this.getStringField(item, "coreAction", this.getStringField(item, "action", "")),
-      emotion: this.getStringField(item, "emotion", ""),
-      shotType: normalizeShotType(this.getOptionalStringField(item, "shotType")),
-      cameraAngle: normalizeCameraAngle(this.getOptionalStringField(item, "cameraAngle")),
-      comic: {
-        panelDescription: this.getStringField(comic, "panelDescription", this.getStringField(item, "action", "")),
-        composition: this.getStringField(comic, "composition", this.getStringField(item, "composition", this.getStringField(item, "camera", ""))),
-        dialogue: this.getStringField(comic, "dialogue", this.getStringField(item, "dialogue", "")),
-        caption: this.getStringField(comic, "caption", this.getStringField(item, "caption", "")),
-        panelRhythm: normalizePanelRhythm(this.getStringField(comic, "panelRhythm", "")),
-      },
-      motion: {
-        visualDescription: this.getStringField(motion, "visualDescription", this.getStringField(item, "action", "")),
-        compositionDesign: this.getStringField(motion, "compositionDesign", this.getStringField(item, "camera", "")),
-        cameraMovement: normalizeCameraMovement(this.getStringField(motion, "cameraMovement", "")),
-        frameType: normalizeFrameType(this.getStringField(motion, "frameType", "")),
-        durationMs: this.getNumberField(
-          motion,
-          "durationMs",
-          parseDurationHintToMs(this.getStringField(motion, "durationHint", "")),
-        ),
-        durationHint: this.getStringField(motion, "durationHint", ""),
-        voiceLines: normalizeVoiceLines(motion),
-      },
-      promptDraft: this.getStringField(item, "promptDraft", ""),
-      lockedCandidateId: this.getOptionalStringField(item, "lockedCandidateId"),
-      status: status === "ready_for_image" || status === "image_generated" || status === "locked" || status === "needs_revision"
-        ? status
-        : "draft",
-    };
-  }
+  // normalizeStoryboardShots/Shot 已抽到 ./story-normalize.util.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre-2)。
 
   private normalizeImagePreflightJson(input: unknown, chapterId: string, fallbackChapterTitle: string): ImagePreflightJson {
     const record = typeof input === "object" && input !== null && !Array.isArray(input)
