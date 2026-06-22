@@ -29,9 +29,15 @@
 - Service 2 个业务入口(normalizeStoryStructureJson/normalizeStoryboardJson)薄委托,5 个内部方法删除(搬走)。
 - typecheck 三包通过,行为不变。
 
-### 子步 1b:抽 Repository 加载链+缓存(待办,依赖已清空)
-- 加载链依赖已全部独立:1a fs/JSON util、1b-pre-0 类型、1b-pre-1 domain util、1b-pre-2 story normalize。
-- 加载链剩余 4 个只加载链用的方法(normalizeImagePreflightJson/normalizeProjectCharacter/parseScriptRevision/getOrderFromChapterSlug)→ 搬 Repository 私有。
-- 下一步:建 ProjectRepository 类(缓存+加载链+4 方法),改 ~35 调用点(this.projects/ensureProjectsLoaded)。
+### 子步 1b-pre-3:抽角色 normalize domain util(待办,下次续)
+- `normalizeProjectCharacter` 依赖角色normalize组(`normalizeCharacterLevel`/`Name`/`Status`/`ReferenceKind`/`EntityType`/`defaultReferenceKindForLevel`),业务共用 ~25 处。
+- **非纯**:`normalizeCharacterName` throw `BadRequestException`,需处理(见 findings §7)。
+- 依赖常量 `characterLevels`/`characterStatuses`/`characterReferenceKinds`/`characterEntityTypes`。
+
+### 子步 1b:抽 Repository 加载链+缓存(待办,依赖大部分已清空)
+- 加载链依赖已大部分独立:1a fs、1b-pre-0 类型、1b-pre-1 domain、1b-pre-2 story normalize。1b-pre-3 完成后全清。
+- 加载链剩余 4 个只加载链用方法(`normalizeImagePreflightJson` 180行/`normalizeProjectCharacter`/`parseScriptRevision`/`getOrderFromChapterSlug`)→ 搬 Repository 私有。
+- 下一步:1b-pre-3 → 建 `ProjectRepository`(缓存+加载链+4 方法)→ 改 ~35 调用点。
+- **暂停点(2026-06-22)**:1b-pre 完成(4 commit:`09d1455`/`454b3a1`/`282f678`/`a032701`),干净可回滚。下次会话续 1b-pre-3 + 1b。
 
 ### 子步 1c:抽 Repository 写入链(待办)

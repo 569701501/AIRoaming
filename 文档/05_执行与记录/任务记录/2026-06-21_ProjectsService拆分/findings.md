@@ -88,3 +88,12 @@
   - `normalizeImagePreflightJson`(180 行)/ `normalizeProjectCharacter` / `parseScriptRevision` / `getOrderFromChapterSlug`:**只加载链用**(grep 仅在加载链)→ 搬进 Repository 私有。
 - 1b 实际含 **1b-pre-2**(normalize util:normalizeStoryStructureJson/normalizeStoryboardJson)+ **1b**(Repository:加载链 + 缓存 + 搬 4 个只加载链用的 normalize)。
 - 深坑继续:每剥一层发现 normalize/类型/常量/函数依赖。Repository ① 是跨多次会话的超深工程。
+
+## 7. 阶段①子步1b-pre-3 角色normalize 依赖发现(2026-06-22)
+
+- `normalizeProjectCharacter`(加载链用)依赖一组角色 normalize:`normalizeCharacterLevel`/`Name`/`Status`/`ReferenceKind`/`EntityType`/`defaultReferenceKindForLevel`。
+- grep 确认这组**业务 + 加载链大量共用**(~25 处:updateProjectCharacter / extractProjectCharacters / syncStoryStructureCharacters 等)→ 要抽 domain util(1b-pre-3)。
+- **非纯函数问题**:`normalizeCharacterName`(4111) throw `BadRequestException("CHARACTER_NAME_REQUIRED")`。抽 domain util 要么让它 throw(领域层不该有 HTTP 异常),要么改 throw `Error` + Service catch 转 `BadRequestException`。**需设计决策**。
+- 依赖常量 `characterLevels`/`characterStatuses`/`characterReferenceKinds`/`characterEntityTypes`(Service 本地 118-121)。
+- `normalizeImagePreflightJson`(180 行)依赖未查,1b 主体时查。
+- **下次会话续**:1b-pre-3(角色normalize domain util,处理非纯 throw)→ 1b(Repository 主体:缓存+加载链+4 私有 normalize+35 调用点)→ 1c(写入链)。
