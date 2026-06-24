@@ -156,6 +156,7 @@ export function buildImagePreflightJson(
   const characterById = new Map(project.characters.map((character) => [character.id, character]));
   const characterByName = new Map(project.characters.map((character) => [character.name.trim().toLowerCase(), character]));
   const appearanceCounts = new Map<string, number>();
+  const dialogueCharacterIds = new Set<string>();
   const unresolvedCharacters = new Set<string>();
   const structureScenes = chapter.storyStructure?.structureJson.scenes ?? [];
   const sceneById = new Map(structureScenes.map((scene) => [scene.id, scene]));
@@ -174,6 +175,18 @@ export function buildImagePreflightJson(
 
     for (const characterId of seenInShot) {
       appearanceCounts.set(characterId, (appearanceCounts.get(characterId) ?? 0) + 1);
+    }
+
+    // 统计角色台词:从 comic.dialogue 文本(格式"角色名：台词")匹配出场角色名。
+    // 有台词的角色(chapter/minor/extra)需要定稿图;无台词的纯背景角色不需要。
+    const dialogue = shot.comic?.dialogue?.trim() ?? "";
+    if (dialogue) {
+      for (const character of project.characters) {
+        if (!seenInShot.has(character.id)) continue;
+        if (dialogue.includes(character.name.trim())) {
+          dialogueCharacterIds.add(character.id);
+        }
+      }
     }
 
     const sceneId = shot.sceneId?.trim() ?? "";
@@ -217,7 +230,8 @@ export function buildImagePreflightJson(
     if (!character) {
       continue;
     }
-    const requiredReference = wsCharacter.isRequiredPreflightReferenceCharacter(character, appearanceCount);
+    const hasDialogue = dialogueCharacterIds.has(characterId);
+    const requiredReference = wsCharacter.isRequiredPreflightReferenceCharacter(character, appearanceCount, hasDialogue);
     const referenceReady = wsCharacter.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind);
     const runningReferenceTask = isReferenceTaskRunning(project.id, character.id);
     let status: ImagePreflightCharacterCheck["status"] = "ok";

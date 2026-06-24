@@ -80,10 +80,13 @@ export function getDefaultRoleForLevel(level: ProjectCharacterLevel): string {
   return "本章关键角色";
 }
 
-export function isRequiredPreflightReferenceCharacter(character: { level: ProjectCharacterLevel }, appearanceCount: number): boolean {
-  return character.level === "lead"
-    || character.level === "recurring"
-    || ((character.level === "chapter" || character.level === "minor") && appearanceCount > 1);
+export function isRequiredPreflightReferenceCharacter(character: { level: ProjectCharacterLevel }, appearanceCount: number, hasDialogue = false): boolean {
+  // 主角/常驻:不管有没有台词都需要定稿图。
+  if (character.level === "lead" || character.level === "recurring") {
+    return true;
+  }
+  // chapter/minor/extra:有台词(comic.dialogue 中出现)才需要定稿图。
+  return hasDialogue;
 }
 
 export function isPrimaryReferenceCompatible(

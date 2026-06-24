@@ -280,6 +280,33 @@ const deleteTarget = ref<{ character: ProjectCharacter; asset: WorkbenchAsset } 
 
 const assets = computed(() => props.snapshot.assets ?? []);
 
+/** 统计本章分镜中有台词(comic.dialogue 出现角色名)的角色 ID 集合。
+ *  用于判断 chapter/minor/extra 角色是否需要定稿图(有台词才需要)。
+ *  与后端 buildImagePreflightJson 的 dialogueCharacterIds 逻辑一致。 */
+const dialogueCharacterIds = computed(() => {
+  const result = new Set<string>();
+  const shots = props.snapshot.shots ?? [];
+  const characters = props.snapshot.characters ?? [];
+  for (const shot of shots) {
+    const dialogue = shot.comic?.dialogue?.trim() ?? "";
+    if (!dialogue) continue;
+    for (const char of characters) {
+      if (shot.characterIds.includes(char.id) || shot.characterIds.includes(char.name)) {
+        if (dialogue.includes(char.name.trim())) {
+          result.add(char.id);
+        }
+      }
+    }
+  }
+  return result;
+});
+
+/** 角色是否需要定稿图:主角/常驻必须;其余看有没有台词。 */
+function requiresFinalReference(character: ProjectCharacter): boolean {
+  if (character.level === "lead" || character.level === "recurring") return true;
+  return dialogueCharacterIds.value.has(character.id);
+}
+
 function getReferenceAssets(character: ProjectCharacter, referenceKind: ReferenceKind): WorkbenchAsset[] {
   const ids = new Set(character.referenceAssetIds);
   return assets.value
@@ -386,7 +413,7 @@ function canGenerateReference(character: ProjectCharacter, referenceKind: Refere
   if (isLocked(character) || isReferenceTaskActive(character, referenceKind)) {
     return false;
   }
-  if (referenceKind === "final_reference" && (!getReferenceAsset(character, "preview_front") || character.level === "extra")) {
+  if (referenceKind === "final_reference" && (!getReferenceAsset(character, "preview_front") || !requiresFinalReference(character))) {
     return false;
   }
   return true;
@@ -404,9 +431,9 @@ function confirmFinalReference(character: ProjectCharacter) {
   }
 }
 
-/** 状态 B 可定稿:有预览图、无三视图、非 extra、非锁定、无活跃任务 → 显示"定稿"主按钮 */
+/** 状态 B 可定稿:有预览图、无三视图、需要定稿(主角/常驻或有台词)、非锁定、无活跃任务 → 显示"定稿"主按钮 */
 function canFinalizePreview(character: ProjectCharacter) {
-  if (isLocked(character) || isFullyLocked(character) || character.level === "extra") {
+  if (isLocked(character) || isFullyLocked(character) || !requiresFinalReference(character)) {
     return false;
   }
   return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
@@ -469,7 +496,7 @@ function getCardStateLabel(character: ProjectCharacter) {
   }
   const previewAsset = getReferenceAsset(character, "preview_front");
   if (previewAsset) {
-    return character.level === "extra" ? "已有角色图" : "待生成定稿";
+    return requiresFinalReference(character) ? "待生成定稿" : "已有角色图";
   }
   return "待生成角色图";
 }
