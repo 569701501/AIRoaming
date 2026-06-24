@@ -9,6 +9,7 @@
     "dev:server": "pnpm --filter @airoaming/shared build && pnpm --filter @airoaming/server dev",
     "dev:web": "pnpm --filter @airoaming/shared build && pnpm --filter @airoaming/web dev",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --parallel --filter @airoaming/shared --filter @airoaming/server test",
     "prisma:validate": "pnpm --filter @airoaming/server prisma:validate"
   },
   "devDependencies": {

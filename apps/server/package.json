@@ -8,6 +8,8 @@
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prisma:validate": "DATABASE_URL=file:./dev.db prisma validate --schema prisma/schema.prisma"
   },
   "dependencies": {
@@ -23,6 +25,7 @@
     "@types/node": "^22.0.0",
     "prisma": "^6.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.0"
   }
 }
