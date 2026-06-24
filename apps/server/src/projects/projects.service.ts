@@ -8,6 +8,8 @@ import * as wsCharacter from "./character-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
 import * as referencePromptUtil from "./reference-prompt.util.js";
+import * as scriptImportUtil from "./script-import.util.js";
+import type { AnalyzeScriptImportInput } from "./script-import.util.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -16,8 +18,6 @@ import {
   extractChapterScriptName,
   extractChapterScriptTitle,
   extractScriptOutlineTitle,
-  formatChapterScriptDocument,
-  isChapterScriptDocument,
   stripChapterScriptName,
   type ChapterDetail,
   type ChapterListItem,
@@ -160,36 +160,6 @@ export interface SaveScriptOutlineFromAIInput {
   threadId: string;
   messageId: string;
   toolCallId: string;
-}
-
-export interface AnalyzeScriptImportInput {
-  sourceText: string;
-  sourceName: string;
-  userConfirmedOverwrite?: boolean;
-}
-
-interface ParsedScriptChapter {
-  title: string;
-  sourceText: string;
-  summary: string;
-  boundary: ScriptImportChapterBoundary;
-}
-
-interface ChapterBoundaryMatch {
-  index: number;
-  title: string;
-  boundary: ScriptImportChapterBoundary;
-}
-
-interface ScriptTextSignals {
-  nonEmptyLineCount: number;
-  averageLineLength: number;
-  bulletRatio: number;
-  dialogueLineCount: number;
-  sceneLineCount: number;
-  storySentenceCount: number;
-  outlineWordCount: number;
-  worldbuildingWordCount: number;
 }
 
 type ProjectDeletedListener = (projectId: string) => number | void;
@@ -1237,7 +1207,7 @@ export class ProjectsService implements OnModuleInit {
     }
 
     const now = new Date().toISOString();
-    const parsedChapters = this.parseProvidedScriptChapters(sourceText);
+    const parsedChapters = scriptImportUtil.parseProvidedScriptChapters(sourceText);
     const revision: ScriptRevisionItem = {
       id: randomUUID(),
       projectId: project.id,
@@ -1917,8 +1887,8 @@ export class ProjectsService implements OnModuleInit {
       };
     }
 
-    const parsedChapters = this.parseProvidedScriptChapters(sourceText);
-    const contentType = this.inferScriptImportContentType(sourceText);
+    const parsedChapters = scriptImportUtil.parseProvidedScriptChapters(sourceText);
+    const contentType = scriptImportUtil.inferScriptImportContentType(sourceText);
     const chapterPlans = parsedChapters.map((chapter, index): ScriptImportChapterPlan => ({
       order: index + 1,
       title: chapter.title,
@@ -1930,7 +1900,7 @@ export class ProjectsService implements OnModuleInit {
     const hasNonEmptyExistingChapters = project.chapters.some((chapter) => chapter.sourceText.trim().length > 0);
 
     if (contentType === "invalid") {
-      return this.createScriptImportAnalysis({
+      return scriptImportUtil.createScriptImportAnalysis({
         decision: "reject",
         contentType,
         reason: "这份内容太短或缺少连续剧情，暂时不像可导入的剧本。",
@@ -1940,7 +1910,7 @@ export class ProjectsService implements OnModuleInit {
     }
 
     if (contentType === "outline" || contentType === "worldbuilding") {
-      return this.createScriptImportAnalysis({
+      return scriptImportUtil.createScriptImportAnalysis({
         decision: "reject",
         contentType,
         reason: contentType === "outline"
@@ -1951,8 +1921,8 @@ export class ProjectsService implements OnModuleInit {
       });
     }
 
-    if (hasNumericBoundaries && !this.areNumericBoundariesCredible(parsedChapters)) {
-      return this.createScriptImportAnalysis({
+    if (hasNumericBoundaries && !scriptImportUtil.areNumericBoundariesCredible(parsedChapters)) {
+      return scriptImportUtil.createScriptImportAnalysis({
         decision: "reject",
         contentType,
         reason: "识别到数字编号，但这些编号后面的正文不够像剧本章节，不能直接按 1、2、3 拆章。",
@@ -1962,7 +1932,7 @@ export class ProjectsService implements OnModuleInit {
     }
 
     if (hasOnlySingleFallbackChapter) {
-      return this.createScriptImportAnalysis({
+      return scriptImportUtil.createScriptImportAnalysis({
         decision: "needs_user_confirmation",
         contentType,
         reason: "这份内容像故事或剧本，但没有识别到明确章节边界。",
@@ -1972,7 +1942,7 @@ export class ProjectsService implements OnModuleInit {
     }
 
     if (hasNonEmptyExistingChapters && !input.userConfirmedOverwrite) {
-      return this.createScriptImportAnalysis({
+      return scriptImportUtil.createScriptImportAnalysis({
         decision: "needs_user_confirmation",
         contentType,
         reason: "当前项目里已经有非空章节，导入会用新内容替换同序号章节草稿。",
@@ -1981,7 +1951,7 @@ export class ProjectsService implements OnModuleInit {
       });
     }
 
-    return this.createScriptImportAnalysis({
+    return scriptImportUtil.createScriptImportAnalysis({
       decision: "ready_to_import",
       contentType,
       reason: `识别到 ${parsedChapters.length} 个可信章节边界，内容可以整理为章节草稿。`,
@@ -2113,188 +2083,6 @@ export class ProjectsService implements OnModuleInit {
 
   private normalizeChapterStatus(input: unknown): ChapterStatus {
     return wsDomain.normalizeChapterStatus(input);
-  }
-
-  private parseProvidedScriptChapters(sourceText: string): ParsedScriptChapter[] {
-    const lines = sourceText.replace(/\r\n/g, "\n").split("\n");
-    const chapterStarts: ChapterBoundaryMatch[] = [];
-
-    lines.forEach((line, index) => {
-      const boundary = this.extractChapterBoundary(line);
-      if (boundary) {
-        chapterStarts.push({ index, ...boundary });
-      }
-    });
-
-    if (chapterStarts.length === 0) {
-      return [{
-        title: DEFAULT_CHAPTER_TITLE,
-        sourceText: this.formatChapterSource(DEFAULT_CHAPTER_TITLE, sourceText),
-        summary: this.summarizeScript(sourceText),
-        boundary: "single_chapter",
-      }];
-    }
-
-    return chapterStarts.map((start, index) => {
-      const end = chapterStarts[index + 1]?.index ?? lines.length;
-      const body = lines.slice(start.index + 1, end).join("\n").trim();
-      return {
-        title: start.title,
-        sourceText: this.formatChapterSource(start.title, body),
-        summary: this.summarizeScript(body || start.title),
-        boundary: start.boundary,
-      };
-    });
-  }
-
-  private extractChapterBoundary(line: string): Omit<ChapterBoundaryMatch, "index"> | null {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      return null;
-    }
-
-    const markdownMatch = trimmed.match(/^#{1,3}\s+(.+)$/);
-    const candidate = markdownMatch ? markdownMatch[1]?.trim() ?? "" : trimmed;
-
-    if (/^第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回话幕]/.test(candidate)) {
-      return {
-        title: candidate.replace(/[:：]\s*$/, ""),
-        boundary: "explicit_chapter_heading",
-      };
-    }
-
-    const numericMatch = candidate.match(/^(\d{1,3}|[一二三四五六七八九十百千万零〇两]{1,4})[.、．)]?$/);
-    if (numericMatch) {
-      return {
-        title: `第 ${numericMatch[1]} 章`,
-        boundary: "numeric_heading",
-      };
-    }
-
-    return null;
-  }
-
-  private createScriptImportAnalysis(input: {
-    decision: ScriptImportAnalysis["decision"];
-    contentType: ScriptImportContentType;
-    reason: string;
-    chapters: ScriptImportChapterPlan[];
-    risk: string | null;
-  }): ScriptImportAnalysis {
-    return {
-      decision: input.decision,
-      contentType: input.contentType,
-      reason: input.reason,
-      chapters: input.chapters,
-      risk: input.risk,
-      nextTool: input.decision === "ready_to_import" ? "import_script_to_chapters" : null,
-    };
-  }
-
-  private inferScriptImportContentType(sourceText: string): ScriptImportContentType {
-    const text = sourceText.trim();
-    if (text.length < 80) {
-      return "invalid";
-    }
-
-    const signals = this.getScriptTextSignals(text);
-    if (
-      signals.worldbuildingWordCount >= 2
-      && signals.storySentenceCount < 3
-      && signals.dialogueLineCount === 0
-    ) {
-      return "worldbuilding";
-    }
-
-    if (
-      signals.outlineWordCount >= 2
-      || (signals.bulletRatio > 0.45 && signals.averageLineLength < 80 && signals.storySentenceCount < 4)
-    ) {
-      return "outline";
-    }
-
-    if (signals.dialogueLineCount >= 2 || signals.sceneLineCount >= 1) {
-      return "script";
-    }
-
-    if (signals.storySentenceCount >= 4 || (text.length >= 500 && signals.storySentenceCount >= 2)) {
-      return "story_prose";
-    }
-
-    return "invalid";
-  }
-
-  private getScriptTextSignals(sourceText: string): ScriptTextSignals {
-    const lines = sourceText
-      .replace(/\r\n/g, "\n")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const nonEmptyLineCount = lines.length;
-    const totalLineLength = lines.reduce((sum, line) => sum + line.length, 0);
-    const bulletLineCount = lines.filter((line) => /^([-*+]|\d+[.、．)]|[一二三四五六七八九十]+[.、．)])\s*\S+/.test(line)).length;
-    const dialogueLineCount = lines.filter((line) => /^.{1,16}[：:]\s*\S+/.test(line) || /[“"].+[”"]/.test(line)).length;
-    const sceneLineCount = lines.filter((line) => /^(场景|地点|时间|内景|外景|INT\.|EXT\.)/i.test(line)).length;
-    const storySentenceCount = (sourceText.match(/[。！？!?]/g) ?? []).length
-      + lines.filter((line) => /(走|看|说|问|发现|推开|冲|站|回头|听见|醒来|追|逃|笑|哭|沉默|望向|拿起|打开)/.test(line)).length;
-    const outlineWordCount = (sourceText.match(/(大纲|提纲|梗概|章节梗概|待补|TODO|主题|卖点|目标用户)/g) ?? []).length;
-    const worldbuildingWordCount = (sourceText.match(/(世界观|角色设定|人物设定|设定|能力|技能|阵营|规则|素材|画风|参考图|提示词)/g) ?? []).length;
-
-    return {
-      nonEmptyLineCount,
-      averageLineLength: nonEmptyLineCount === 0 ? 0 : totalLineLength / nonEmptyLineCount,
-      bulletRatio: nonEmptyLineCount === 0 ? 0 : bulletLineCount / nonEmptyLineCount,
-      dialogueLineCount,
-      sceneLineCount,
-      storySentenceCount,
-      outlineWordCount,
-      worldbuildingWordCount,
-    };
-  }
-
-  private areNumericBoundariesCredible(chapters: ParsedScriptChapter[]): boolean {
-    const numericChapters = chapters.filter((chapter) => chapter.boundary === "numeric_heading");
-    if (numericChapters.length === 0) {
-      return true;
-    }
-
-    if (chapters.length < 2) {
-      return false;
-    }
-
-    return chapters.every((chapter) => {
-      const text = chapter.sourceText.replace(/^#{1,3}\s+.+\n?/, "").trim();
-      const signals = this.getScriptTextSignals(text);
-      return text.length >= 80 && (
-        signals.dialogueLineCount > 0
-        || signals.sceneLineCount > 0
-        || signals.storySentenceCount >= 2
-      );
-    });
-  }
-
-  private formatChapterSource(title: string, rawText: string): string {
-    const text = rawText.trim();
-    if (!text) {
-      return formatChapterScriptDocument({ chapterTitle: title });
-    }
-
-    if (isChapterScriptDocument(text)) {
-      return stripChapterScriptName(text);
-    }
-
-    return formatChapterScriptDocument({
-      chapterTitle: title,
-      sourceText: text,
-    });
-  }
-
-  private summarizeScript(sourceText: string): string {
-    const firstLine = sourceText
-      .split("\n")
-      .map((line) => line.replace(/^#{1,3}\s+/, "").trim())
-      .find((line) => line.length > 0);
-    return (firstLine ?? "").slice(0, 120);
   }
 
   private buildProjectWorkflow(project: LocalProject, currentChapter: LocalChapter | null): ProjectWorkflow {
