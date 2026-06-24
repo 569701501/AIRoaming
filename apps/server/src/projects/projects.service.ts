@@ -14,6 +14,9 @@ import { ImageProviderService } from "./image-provider.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
+import { StoryboardService } from "./storyboard.service.js";
+import { StoryStructureService } from "./story-structure.service.js";
+import { ImagePreflightService } from "./image-preflight.service.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -183,6 +186,9 @@ export class ProjectsService implements OnModuleInit {
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
     @Inject(CharacterReferenceService) private readonly characterRef: CharacterReferenceService,
     @Inject(ChapterScriptService) private readonly chapterScript: ChapterScriptService,
+    @Inject(StoryboardService) private readonly storyboard: StoryboardService,
+    @Inject(StoryStructureService) private readonly storyStructure: StoryStructureService,
+    @Inject(ImagePreflightService) private readonly imagePreflight: ImagePreflightService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -430,281 +436,44 @@ export class ProjectsService implements OnModuleInit {
     return this.chapterScript.confirmScriptOutline(projectId);
   }
 
-  async getChapterStoryStructure(projectId: string, chapterId: string): Promise<GetChapterStoryStructureResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    return {
-      storyStructure: chapter.storyStructure,
-    };
+  async getChapterStoryStructure(projectId: string, chapterId: string) : Promise<GetChapterStoryStructureResponse> {
+    return this.storyStructure.getChapterStoryStructure(projectId, chapterId);
   }
 
-  async confirmChapterStoryStructure(
-    projectId: string,
+  async confirmChapterStoryStructure(projectId: string,
     chapterId: string,
-    input: ConfirmChapterStoryStructureRequest,
-  ): Promise<SaveChapterStoryStructureResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    this.assertChapterCanSaveStoryStructure(chapter);
-
-    const now = new Date().toISOString();
-    const previousVersion = chapter.storyStructure?.version ?? 0;
-    const storyStructure = this.createChapterStoryStructure(project.id, chapter, input.structureJson, previousVersion + 1, now);
-    const synced = this.syncStoryStructureCharacters(project, storyStructure.structureJson, now);
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      status: "structured",
-      currentStoryVersionId: storyStructure.id,
-      storyStructure: { ...storyStructure, structureJson: synced.structureJson },
-      pendingStoryboard: null,
-      imagePreflight: null,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...synced.project,
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      storyStructure,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-    };
+    input: ConfirmChapterStoryStructureRequest,) : Promise<SaveChapterStoryStructureResponse> {
+    return this.storyStructure.confirmChapterStoryStructure(projectId, chapterId, input);
   }
 
-  async updateChapterStoryStructure(
-    projectId: string,
+  async updateChapterStoryStructure(projectId: string,
     chapterId: string,
-    input: UpdateChapterStoryStructureRequest,
-  ): Promise<SaveChapterStoryStructureResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    if (!chapter.storyStructure) {
-      throw new BadRequestException("STORY_STRUCTURE_NOT_CONFIRMED");
-    }
-
-    const now = new Date().toISOString();
-    const structureJson = this.normalizeStoryStructureJson(input.structureJson, chapter.id, chapter.title, {
-      sourceScriptVersionId: chapter.storyStructure.sourceScriptVersionId,
-      createdAt: chapter.storyStructure.structureJson.createdAt,
-      updatedAt: now,
-    });
-    const storyStructure: ChapterStoryStructure = {
-      ...chapter.storyStructure,
-      sourceScriptVersionId: structureJson.sourceScriptVersionId,
-      structureJson,
-      updatedAt: now,
-    };
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      currentStoryVersionId: storyStructure.id,
-      storyStructure,
-      pendingStoryboard: null,
-      pendingSourceText: null,
-      imagePreflight: null,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...project,
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      storyStructure,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-    };
+    input: UpdateChapterStoryStructureRequest,) : Promise<SaveChapterStoryStructureResponse> {
+    return this.storyStructure.updateChapterStoryStructure(projectId, chapterId, input);
   }
 
-  async getChapterStoryboard(projectId: string, chapterId: string): Promise<GetChapterStoryboardResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    return {
-      storyboard: chapter.storyboard,
-      pendingStoryboard: chapter.pendingStoryboard ?? null,
-    };
+  async getChapterStoryboard(projectId: string, chapterId: string) : Promise<GetChapterStoryboardResponse> {
+    return this.storyboard.getChapterStoryboard(projectId, chapterId);
   }
 
-  async getChapterImagePreflight(projectId: string, chapterId: string): Promise<GetChapterImagePreflightResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    return {
-      imagePreflight: chapter.imagePreflight,
-    };
+  async getChapterImagePreflight(projectId: string, chapterId: string) : Promise<GetChapterImagePreflightResponse> {
+    return this.imagePreflight.getChapterImagePreflight(projectId, chapterId);
   }
 
-  async confirmChapterImagePreflight(
-    projectId: string,
+  async confirmChapterImagePreflight(projectId: string,
     chapterId: string,
-    input: ConfirmChapterImagePreflightRequest = {},
-  ): Promise<SaveChapterImagePreflightResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    if (!chapter.storyboard) {
-      throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
-    }
-
-    const now = new Date().toISOString();
-    const preflightJson = imagePreflightUtil.buildImagePreflightJson(project, chapter, input.notes?.trim() ?? "", now, (pid, cid) => this.characterRef.hasActiveCharacterReferenceTask(pid, cid, "final_reference"));
-    if (!preflightJson.ready) {
-      throw new BadRequestException("IMAGE_PREFLIGHT_BLOCKED");
-    }
-
-    const version = (chapter.imagePreflight?.version ?? 0) + 1;
-    const imagePreflight: ChapterImagePreflight = {
-      id: `${chapter.id}_image_preflight_v${String(version).padStart(3, "0")}`,
-      projectId,
-      chapterId: chapter.id,
-      version,
-      status: "confirmed",
-      preflightPath: `projects/${projectId}/chapters/${chapter.slug}/preflight.json`,
-      sourceStoryboardId: chapter.storyboard.id,
-      sourceStoryboardUpdatedAt: chapter.storyboard.updatedAt,
-      preflightJson,
-      createdAt: chapter.imagePreflight?.createdAt ?? now,
-      updatedAt: now,
-      confirmedAt: now,
-    };
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      imagePreflight,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...project,
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      imagePreflight,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-    };
+    input: ConfirmChapterImagePreflightRequest = {},) : Promise<SaveChapterImagePreflightResponse> {
+    return this.imagePreflight.confirmChapterImagePreflight(projectId, chapterId, input);
   }
 
-  async resolveImagePreflightCharacter(
-    projectId: string,
+  async resolveImagePreflightCharacter(projectId: string,
     chapterId: string,
-    input: ResolveImagePreflightCharacterRequest,
-  ): Promise<ResolveImagePreflightCharacterResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    if (!chapter.storyboard) {
-      throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
-    }
-
-    const token = input.token?.trim();
-    if (!token) {
-      throw new BadRequestException("IMAGE_PREFLIGHT_CHARACTER_TOKEN_REQUIRED");
-    }
-
-    const storyboard = chapter.storyboard;
-    const tokenExists = storyboard.storyboardJson.shots.some((shot) =>
-      imagePreflightUtil.getShotCharacterTokens(shot.characterIds).some((item) => wsCharacter.normalizeCharacterNameKey(item) === wsCharacter.normalizeCharacterNameKey(token)),
-    );
-    if (!tokenExists) {
-      throw new BadRequestException("IMAGE_PREFLIGHT_CHARACTER_TOKEN_NOT_FOUND");
-    }
-
-    const now = new Date().toISOString();
-    let nextCharacters = project.characters;
-    let character: ProjectCharacter | null = null;
-    let replacementCharacterId: string | null = null;
-
-    switch (input.action) {
-      case "add_to_library": {
-        const result = imagePreflightUtil.resolveOrCreatePreflightCharacter(project, nextCharacters, token, input.level ?? "chapter", input, now);
-        nextCharacters = result.characters;
-        character = result.character;
-        replacementCharacterId = result.character.id;
-        break;
-      }
-      case "mark_temporary": {
-        const result = imagePreflightUtil.resolveOrCreatePreflightCharacter(project, nextCharacters, token, "extra", {
-          ...input,
-          role: input.role || "临时/背景角色",
-        }, now);
-        nextCharacters = result.characters;
-        character = result.character;
-        replacementCharacterId = result.character.id;
-        break;
-      }
-      case "merge_existing": {
-        if (!input.targetCharacterId?.trim()) {
-          throw new BadRequestException("TARGET_CHARACTER_ID_REQUIRED");
-        }
-        character = this.characterRef.findProjectCharacter({ ...project, characters: nextCharacters }, input.targetCharacterId);
-        replacementCharacterId = character.id;
-        break;
-      }
-      case "ignore": {
-        replacementCharacterId = null;
-        break;
-      }
-      default:
-        throw new BadRequestException("IMAGE_PREFLIGHT_CHARACTER_ACTION_INVALID");
-    }
-
-    const storyboardJson = this.normalizeStoryboardJson({
-      ...storyboard.storyboardJson,
-      shots: storyboard.storyboardJson.shots.map((shot) => ({
-        ...shot,
-        characterIds: imagePreflightUtil.resolveStoryboardCharacterIds(shot.characterIds, token, replacementCharacterId),
-      })),
-    }, chapter.id, chapter.title, {
-      sourceStoryVersionId: storyboard.sourceStoryVersionId,
-      createdAt: storyboard.storyboardJson.createdAt,
-      updatedAt: now,
-    });
-    const nextStoryboard: ChapterStoryboard = {
-      ...storyboard,
-      storyboardJson,
-      updatedAt: now,
-    };
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      storyboard: nextStoryboard,
-      imagePreflight: null,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...project,
-      characters: wsDomain.sortProjectCharacters(nextCharacters),
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      storyboard: nextStoryboard,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-      characters: wsDomain.sortProjectCharacters(nextProject.characters),
-      assets: nextProject.assets,
-      ready: this.characterRef.isProjectCharacterLibraryReady(nextProject),
-      imagePreflight: null,
-      character,
-    };
+    input: ResolveImagePreflightCharacterRequest,) : Promise<ResolveImagePreflightCharacterResponse> {
+    return this.imagePreflight.resolveImagePreflightCharacter(projectId, chapterId, input);
   }
 
-  async getPendingChapterStoryboard(projectId: string, chapterId: string): Promise<ChapterStoryboard | null> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    return chapter.pendingStoryboard ?? null;
+  async getPendingChapterStoryboard(projectId: string, chapterId: string) : Promise<ChapterStoryboard | null> {
+    return this.storyboard.getPendingChapterStoryboard(projectId, chapterId);
   }
 
   private async guardGenerationTaskCreate(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest | void> {
@@ -779,118 +548,22 @@ export class ProjectsService implements OnModuleInit {
     }
   }
 
-  async savePendingChapterStoryboard(
-    projectId: string,
+  async savePendingChapterStoryboard(projectId: string,
     chapterId: string,
-    input: UpdateChapterStoryboardRequest,
-  ): Promise<SaveChapterStoryboardResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    this.assertChapterCanSaveStoryboard(chapter);
-
-    const now = new Date().toISOString();
-    const version = chapter.pendingStoryboard?.version ?? (chapter.storyboard?.version ?? 0) + 1;
-    const storyboard = this.createPendingChapterStoryboard(project.id, chapter, input.storyboardJson, version, now);
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      pendingStoryboard: storyboard,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...project,
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      storyboard,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-    };
+    input: UpdateChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    return this.storyboard.savePendingChapterStoryboard(projectId, chapterId, input);
   }
 
-  async confirmChapterStoryboard(
-    projectId: string,
+  async confirmChapterStoryboard(projectId: string,
     chapterId: string,
-    input: ConfirmChapterStoryboardRequest,
-  ): Promise<SaveChapterStoryboardResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    this.assertChapterCanSaveStoryboard(chapter);
-
-    const now = new Date().toISOString();
-    const previousVersion = chapter.storyboard?.version ?? 0;
-    const storyboard = this.createChapterStoryboard(project.id, chapter, input.storyboardJson, previousVersion + 1, now);
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      status: "storyboard_done",
-      storyboard,
-      pendingStoryboard: null,
-      imagePreflight: null,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...project,
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      storyboard,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-    };
+    input: ConfirmChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    return this.storyboard.confirmChapterStoryboard(projectId, chapterId, input);
   }
 
-  async updateChapterStoryboard(
-    projectId: string,
+  async updateChapterStoryboard(projectId: string,
     chapterId: string,
-    input: UpdateChapterStoryboardRequest,
-  ): Promise<SaveChapterStoryboardResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    if (!chapter.storyboard) {
-      throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
-    }
-
-    const now = new Date().toISOString();
-    const storyboardJson = this.normalizeStoryboardJson(input.storyboardJson, chapter.id, chapter.title, {
-      sourceStoryVersionId: chapter.storyboard.sourceStoryVersionId,
-      createdAt: chapter.storyboard.storyboardJson.createdAt,
-      updatedAt: now,
-    });
-    const storyboard: ChapterStoryboard = {
-      ...chapter.storyboard,
-      sourceStoryVersionId: storyboardJson.sourceStoryVersionId,
-      storyboardJson,
-      updatedAt: now,
-    };
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      storyboard,
-      imagePreflight: null,
-      updatedAt: now,
-    };
-    const nextProject = this.projectStore.withUpdatedChapter({
-      ...project,
-      currentChapterId: nextChapter.id,
-      updatedAt: now,
-    }, nextChapter);
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    return {
-      storyboard,
-      chapter: this.toChapterDetail(nextChapter),
-      chapters: this.sortChapters(nextProject.chapters).map((item) => this.toChapterListItem(item)),
-    };
+    input: UpdateChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    return this.storyboard.updateChapterStoryboard(projectId, chapterId, input);
   }
 
   async resetProjectScript(projectId: string) : Promise<ResetProjectScriptResponse> {
@@ -1026,142 +699,6 @@ export class ProjectsService implements OnModuleInit {
     return workflowUtil.buildProjectWorkflow(project, currentChapter, imagePreflightUtil.isChapterImagePreflightReady(project, currentChapter, (pid, cid) => this.characterRef.hasActiveCharacterReferenceTask(pid, cid, "final_reference")));
   }
 
-  private syncStoryStructureCharacters(
-    project: LocalProject,
-    structureJson: StoryStructureJson,
-    now: string,
-  ): { project: LocalProject; structureJson: StoryStructureJson } {
-    const existingByName = new Map(project.characters.map((character) => [
-      wsCharacter.normalizeCharacterNameKey(character.name),
-      character,
-    ]));
-    const nextCharacters = [...project.characters];
-    // 结构角色卡浅拷贝,用于回填 projectCharacterId(见 ADR-0006)
-    const nextCards = structureJson.characters.map((card) => ({ ...card }));
-    let charactersChanged = false;
-
-    structureJson.characters.forEach((card, index) => {
-      const rawName = card.name.trim();
-      if (!rawName) {
-        return;
-      }
-
-      const name = wsCharacter.normalizeCharacterName(rawName);
-      const key = wsCharacter.normalizeCharacterNameKey(name);
-      const description = this.buildStoryStructureCharacterPrompt(card);
-      const inferredLevel = this.resolveCardLevel(card, name, description, index);
-      const existing = existingByName.get(key);
-
-      if (existing) {
-        // 回填项目角色 id,独立于角色库是否有变更:
-        // 旧结构重新确认时角色库可能无变化,但结构卡的 projectCharacterId 仍需补全。
-        nextCards[index].projectCharacterId = existing.id;
-
-        const level = this.characterRef.resolveMoreImportantCharacterLevel(existing.level, inferredLevel);
-        const primary = this.characterRef.resolvePrimaryReferenceForLevel(existing, level);
-        const nextRole = existing.role || card.role.trim() || wsCharacter.getDefaultRoleForLevel(level);
-        const nextStatus = this.characterRef.resolveCharacterStatusForReference(
-          level,
-          primary.primaryReferenceAssetId,
-          existing.status === "in_use",
-          primary.primaryReferenceKind,
-        );
-        const nextAppearance = existing.appearance || description;
-        const nextPersonality = existing.personality || card.motivation.trim();
-        const nextPromptFragment = existing.promptFragment || description;
-        // entityType: AI 显式输出就用 AI 的(走 normalizeEntityType 校验),AI 没给(含旧数据 null)保留 existing。
-        const nextEntityType = typeof card.entityType === "string"
-          ? wsCharacter.normalizeEntityType(card.entityType)
-          : existing.entityType;
-        const hasChanges = existing.role !== nextRole
-          || existing.level !== level
-          || existing.status !== nextStatus
-          || existing.appearance !== nextAppearance
-          || existing.personality !== nextPersonality
-          || existing.promptFragment !== nextPromptFragment
-          || existing.entityType !== nextEntityType
-          || existing.primaryReferenceAssetId !== primary.primaryReferenceAssetId
-          || existing.primaryReferenceKind !== primary.primaryReferenceKind
-          || existing.finalizedAt !== primary.finalizedAt;
-        if (!hasChanges) {
-          return;
-        }
-        const nextCharacter: ProjectCharacter = {
-          ...existing,
-          role: nextRole,
-          level,
-          status: nextStatus,
-          appearance: nextAppearance,
-          personality: nextPersonality,
-          promptFragment: nextPromptFragment,
-          entityType: nextEntityType,
-          primaryReferenceAssetId: primary.primaryReferenceAssetId,
-          primaryReferenceKind: primary.primaryReferenceKind,
-          finalizedAt: primary.finalizedAt,
-          updatedAt: now,
-        };
-        const characterIndex = nextCharacters.findIndex((item) => item.id === existing.id);
-        if (characterIndex >= 0) {
-          nextCharacters[characterIndex] = nextCharacter;
-          existingByName.set(key, nextCharacter);
-          charactersChanged = true;
-        }
-        return;
-      }
-
-      const character: ProjectCharacter = {
-        id: `char_${randomUUID()}`,
-        projectId: project.id,
-        name,
-        role: card.role.trim() || wsCharacter.getDefaultRoleForLevel(inferredLevel),
-        level: inferredLevel,
-        entityType: this.resolveCardEntityType(card),
-        status: inferredLevel === "lead" || inferredLevel === "recurring" ? "needs_reference" : "draft",
-        appearance: description,
-        personality: card.motivation.trim(),
-        promptFragment: description,
-        referenceAssetIds: [],
-        previewReferenceAssetId: null,
-        previewConfirmedAt: null,
-        primaryReferenceAssetId: null,
-        primaryReferenceKind: wsCharacter.defaultReferenceKindForLevel(inferredLevel),
-        visualVersion: 0,
-        source: "story_structure",
-        createdAt: now,
-        updatedAt: now,
-        finalizedAt: null,
-      };
-      nextCharacters.push(character);
-      existingByName.set(key, character);
-      nextCards[index].projectCharacterId = character.id;
-      charactersChanged = true;
-    });
-
-    const nextProject = charactersChanged
-      ? {
-          ...project,
-          characters: wsDomain.sortProjectCharacters(nextCharacters),
-          updatedAt: now,
-        }
-      : project;
-
-    return {
-      project: nextProject,
-      structureJson: { ...structureJson, characters: nextCards },
-    };
-  }
-
-  private buildStoryStructureCharacterPrompt(card: StoryStructureJson["characters"][number]): string {
-    const parts = [
-      card.visualTraits.trim(),
-      card.role.trim() ? `${card.name.trim()}，${card.role.trim()}` : "",
-      card.relationship.trim(),
-      card.motivation.trim(),
-      card.notes.trim(),
-    ].filter(Boolean);
-    return parts.join("；") || `${card.name.trim()}，本章出镜角色。`;
-  }
-
   private toProjectListItem(project: LocalProject): ProjectListItem {
     const currentChapter = this.getCurrentChapter(project);
     const sourceText = currentChapter?.sourceText ?? project.sourceText;
@@ -1246,145 +783,9 @@ export class ProjectsService implements OnModuleInit {
     return wsJson.getNumberField(record, key, fallback);
   }
 
-  private normalizeStoryStructureJson(
-    input: unknown,
-    chapterId: string,
-    fallbackChapterTitle: string,
-    overrides: Partial<Pick<StoryStructureJson, "sourceScriptVersionId" | "createdAt" | "updatedAt">> = {},
-  ): StoryStructureJson {
-    return storyNormalize.normalizeStoryStructureJson(input, chapterId, fallbackChapterTitle, overrides);
-  }
-
   // normalizeStoryStructureCharacters/Scenes/Beats 已抽到 ./story-normalize.util.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre-2)。
 
-  private normalizeStoryboardJson(
-    input: unknown,
-    chapterId: string,
-    fallbackChapterTitle: string,
-    overrides: Partial<Pick<StoryboardJson, "sourceStoryVersionId" | "createdAt" | "updatedAt">> = {},
-  ): StoryboardJson {
-    return storyNormalize.normalizeStoryboardJson(input, chapterId, fallbackChapterTitle, overrides);
-  }
-
   // normalizeStoryboardShots/Shot 已抽到 ./story-normalize.util.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre-2)。
-
-  private normalizeImagePreflightJson(input: unknown, chapterId: string, fallbackChapterTitle: string): ImagePreflightJson {
-    const record = typeof input === "object" && input !== null && !Array.isArray(input)
-      ? input as Record<string, unknown>
-      : {};
-    const now = new Date().toISOString();
-    const sourceStoryboardId = this.getOptionalStringField(record, "sourceStoryboardId");
-    const sourceStoryboardUpdatedAt = this.getOptionalStringField(record, "sourceStoryboardUpdatedAt");
-    const issues = this.normalizeImagePreflightIssues(record.issues);
-    const unresolvedCharacters = this.getStringArrayField(record, "unresolvedCharacters").map((item) => item.trim()).filter(Boolean);
-    const characterChecks = this.normalizeImagePreflightCharacterChecks(record.characterChecks);
-    const sceneChecks = this.normalizeImagePreflightSceneChecks(record.sceneChecks);
-    const styleCheck = this.normalizeImagePreflightStyleCheck(record.styleCheck);
-
-    return {
-      schemaVersion: 1,
-      chapterId,
-      chapterTitle: this.getStringField(record, "chapterTitle", fallbackChapterTitle || "当前章节"),
-      sourceStoryboardId,
-      sourceStoryboardUpdatedAt,
-      shotCount: this.getNumberField(record, "shotCount", 0),
-      unresolvedCharacters,
-      characterChecks,
-      sceneChecks,
-      styleCheck,
-      issues,
-      ready: typeof record.ready === "boolean" ? record.ready : issues.length === 0,
-      notes: this.getStringField(record, "notes", ""),
-      createdAt: this.getStringField(record, "createdAt", now),
-      updatedAt: this.getStringField(record, "updatedAt", now),
-    };
-  }
-
-  private normalizeImagePreflightCharacterChecks(input: unknown): ImagePreflightCharacterCheck[] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item) => {
-        const status = this.normalizeImagePreflightStatus(this.getStringField(item, "status", "ok"));
-        return {
-          characterId: this.getStringField(item, "characterId", ""),
-          name: this.getStringField(item, "name", "未命名角色"),
-          level: wsCharacter.normalizeCharacterLevel(this.getStringField(item, "level", "extra")),
-          appearanceCount: this.getNumberField(item, "appearanceCount", 0),
-          requiredReference: Boolean(item.requiredReference),
-          referenceReady: Boolean(item.referenceReady),
-          referenceAssetId: this.getOptionalStringField(item, "referenceAssetId"),
-          status,
-          note: this.getStringField(item, "note", ""),
-        };
-      });
-  }
-
-  private normalizeImagePreflightSceneChecks(input: unknown): ImagePreflightSceneCheck[] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item) => ({
-        sceneId: this.getStringField(item, "sceneId", ""),
-        name: this.getStringField(item, "name", "未命名场景"),
-        shotCount: this.getNumberField(item, "shotCount", 0),
-        status: this.normalizeImagePreflightStatus(this.getStringField(item, "status", "ok")),
-        note: this.getStringField(item, "note", ""),
-      }));
-  }
-
-  private normalizeImagePreflightStyleCheck(input: unknown): ImagePreflightStyleCheck {
-    const record = typeof input === "object" && input !== null && !Array.isArray(input)
-      ? input as Record<string, unknown>
-      : {};
-    const comicFormat = this.normalizeComicFormat(this.getStringField(record, "comicFormat", "vertical_scroll") as ComicFormat);
-    const artStyle = this.normalizeArtStyle(this.getStringField(record, "artStyle", "comic_style") as ArtStyle);
-    return {
-      comicFormat,
-      comicFormatLabel: this.getStringField(record, "comicFormatLabel", this.getComicFormatLabel(comicFormat)),
-      artStyle,
-      artStyleLabel: this.getStringField(record, "artStyleLabel", this.getArtStyleLabel(artStyle)),
-      status: this.normalizeImagePreflightStatus(this.getStringField(record, "status", "ok")),
-      note: this.getStringField(record, "note", ""),
-    };
-  }
-
-  private normalizeImagePreflightIssues(input: unknown): ImagePreflightIssue[] {
-    if (!Array.isArray(input)) {
-      return [];
-    }
-
-    return input
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
-      .map((item) => {
-        const type = this.getStringField(item, "type", "unresolved_character");
-        return {
-          type: type === "missing_storyboard"
-            || type === "missing_reference"
-            || type === "running_reference_task"
-            || type === "missing_scene"
-            || type === "missing_style_context"
-            ? type
-            : "unresolved_character",
-          status: this.normalizeImagePreflightStatus(this.getStringField(item, "status", "blocked")) === "warning" ? "warning" : "blocked",
-          message: this.getStringField(item, "message", ""),
-          relatedName: this.getOptionalStringField(item, "relatedName") ?? undefined,
-          relatedCharacterId: this.getOptionalStringField(item, "relatedCharacterId") ?? undefined,
-          relatedSceneId: this.getOptionalStringField(item, "relatedSceneId") ?? undefined,
-          relatedShotId: this.getOptionalStringField(item, "relatedShotId") ?? undefined,
-        };
-      });
-  }
-
-  private normalizeImagePreflightStatus(value: string): ImagePreflightCharacterCheck["status"] {
-    return value === "warning" || value === "blocked" ? value : "ok";
-  }
 
   private normalizeProjectCharacter(
     item: Record<string, unknown>,
@@ -1423,25 +824,10 @@ export class ProjectsService implements OnModuleInit {
   }
 
   /** 结构卡 entityType 优先用 AI 输出,AI 没给(含旧数据 null)默认 human。 */
-  private resolveCardEntityType(card: StoryStructureJson["characters"][number]): ProjectCharacterEntityType {
-    return wsCharacter.normalizeEntityType(card.entityType);
-  }
-
   /**
    * 结构卡 level 优先用 AI 输出(card.level),AI 没给才回落 inferCharacterLevel(见 task 2026-06-21_角色分层双维度)。
    * 保留 inferCharacterLevel 作兜底:① 旧 structure.json 无 level;② AI 偶发漏填;③ 剧本导入链路继续用。
    */
-  private resolveCardLevel(
-    card: StoryStructureJson["characters"][number],
-    name: string,
-    description: string,
-    index: number,
-  ): ProjectCharacterLevel {
-    if (card.level) {
-      return wsCharacter.normalizeCharacterLevel(card.level);
-    }
-    return this.characterRef.inferCharacterLevel(name, card.role, description, index);
-  }
   private getComicFormatLabel(format: ComicFormat): string {
     return wsDomain.getComicFormatLabel(format);
   }
@@ -1504,112 +890,6 @@ export class ProjectsService implements OnModuleInit {
 
   private getCurrentChapter(project: LocalProject): LocalChapter | null {
     return wsDomain.getCurrentChapter(project);
-  }
-
-  private assertChapterCanSaveStoryStructure(chapter: LocalChapter): void {
-    if (!chapter.sourceText.trim()) {
-      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
-    }
-
-    if (chapter.status === "draft") {
-      throw new BadRequestException("CHAPTER_SCRIPT_NOT_COMPLETED");
-    }
-  }
-
-  private assertChapterCanSaveStoryboard(chapter: LocalChapter): void {
-    if (!chapter.storyStructure || !chapter.currentStoryVersionId) {
-      throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
-    }
-
-    if (chapter.status === "draft" || chapter.status === "script_done") {
-      throw new BadRequestException("STORY_STRUCTURE_NOT_COMPLETED");
-    }
-  }
-
-  private createChapterStoryStructure(
-    projectId: string,
-    chapter: LocalChapter,
-    input: StoryStructureJson,
-    version: number,
-    now: string,
-  ): ChapterStoryStructure {
-    const id = `${chapter.id}_story_v${String(version).padStart(3, "0")}`;
-    const structureJson = this.normalizeStoryStructureJson(input, chapter.id, chapter.title, {
-      sourceScriptVersionId: chapter.currentScriptVersionId,
-      createdAt: input.createdAt || now,
-      updatedAt: now,
-    });
-
-    return {
-      id,
-      projectId,
-      chapterId: chapter.id,
-      version,
-      status: "structured",
-      structurePath: `projects/${projectId}/chapters/${chapter.slug}/structure.json`,
-      sourceScriptVersionId: structureJson.sourceScriptVersionId,
-      structureJson,
-      createdAt: chapter.storyStructure?.createdAt ?? now,
-      updatedAt: now,
-      confirmedAt: now,
-    };
-  }
-
-  private createChapterStoryboard(
-    projectId: string,
-    chapter: LocalChapter,
-    input: StoryboardJson,
-    version: number,
-    now: string,
-  ): ChapterStoryboard {
-    const id = `${chapter.id}_storyboard_v${String(version).padStart(3, "0")}`;
-    const storyboardJson = this.normalizeStoryboardJson(input, chapter.id, chapter.title, {
-      sourceStoryVersionId: chapter.currentStoryVersionId,
-      createdAt: input.createdAt || now,
-      updatedAt: now,
-    });
-
-    return {
-      id,
-      projectId,
-      chapterId: chapter.id,
-      version,
-      status: "storyboard_done",
-      storyboardPath: `projects/${projectId}/chapters/${chapter.slug}/storyboard.json`,
-      sourceStoryVersionId: storyboardJson.sourceStoryVersionId,
-      storyboardJson,
-      createdAt: chapter.storyboard?.createdAt ?? now,
-      updatedAt: now,
-      confirmedAt: now,
-    };
-  }
-
-  private createPendingChapterStoryboard(
-    projectId: string,
-    chapter: LocalChapter,
-    input: StoryboardJson,
-    version: number,
-    now: string,
-  ): ChapterStoryboard {
-    const storyboardJson = this.normalizeStoryboardJson(input, chapter.id, chapter.title, {
-      sourceStoryVersionId: chapter.currentStoryVersionId,
-      createdAt: input.createdAt || now,
-      updatedAt: now,
-    });
-
-    return {
-      id: chapter.pendingStoryboard?.id ?? `${chapter.id}_storyboard_pending_v${String(version).padStart(3, "0")}`,
-      projectId,
-      chapterId: chapter.id,
-      version,
-      status: "pending_confirmation",
-      storyboardPath: `projects/${projectId}/chapters/${chapter.slug}/storyboard.pending.json`,
-      sourceStoryVersionId: storyboardJson.sourceStoryVersionId,
-      storyboardJson,
-      createdAt: chapter.pendingStoryboard?.createdAt ?? now,
-      updatedAt: now,
-      confirmedAt: null,
-    };
   }
 
   private toWorkbenchShots(chapter: LocalChapter | null): WorkbenchSnapshot["shots"] {

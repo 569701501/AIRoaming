@@ -87,7 +87,12 @@ export class ProjectStore {
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
     const chapterScriptPath = path.join(projectDir, "chapters", defaultChapter.slug, "script.md");
     const chapterSourceText = await wsJson.readOptionalTextFile(chapterScriptPath);
-    const sourceText = chapterSourceText ?? defaultChapter.sourceText ?? project.sourceText;
+    // 空字符串兜底:script.md 为空文件(0字节)时,?? 不会触发(空串非 null),
+    // 会导致空串传播到 chapter.sourceText 并写回,形成数据损坏死循环。
+    // 改用显式空判断,空串时回退到 defaultChapter/project 的 sourceText。
+    const sourceText = chapterSourceText && chapterSourceText.trim()
+      ? chapterSourceText
+      : (defaultChapter.sourceText || project.sourceText);
     const updatedAt = sourceText === defaultChapter.sourceText ? defaultChapter.updatedAt : new Date().toISOString();
     const readyChapter: LocalChapter = {
       ...defaultChapter,

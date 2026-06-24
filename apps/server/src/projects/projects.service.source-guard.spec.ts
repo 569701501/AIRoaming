@@ -10,6 +10,9 @@ import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
+import { StoryboardService } from "./storyboard.service.js";
+import { StoryStructureService } from "./story-structure.service.js";
+import { ImagePreflightService } from "./image-preflight.service.js";
 import { ProjectsService } from "./projects.service.js";
 import type { SettingsService } from "../settings/settings.service.js";
 import type { TasksService } from "../tasks/tasks.service.js";
@@ -138,6 +141,9 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
           throw new Error("mock not configured for non-empty");
         }),
       } as unknown as ChapterScriptService,
+      {} as unknown as StoryboardService,
+      {} as unknown as StoryStructureService,
+      {} as unknown as ImagePreflightService,
     );
   });
 
