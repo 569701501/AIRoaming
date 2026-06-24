@@ -10,6 +10,7 @@ import * as imagePreflightUtil from "./image-preflight.util.js";
 import * as referencePromptUtil from "./reference-prompt.util.js";
 import * as scriptImportUtil from "./script-import.util.js";
 import type { AnalyzeScriptImportInput } from "./script-import.util.js";
+import { ImageProviderService } from "./image-provider.service.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -175,6 +176,7 @@ export class ProjectsService implements OnModuleInit {
     @Inject(TasksService) private readonly tasksService: TasksService,
     @Inject(SettingsService) private readonly settingsService: SettingsService,
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
+    @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -425,13 +427,6 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
     }
 
-    const settings = this.settingsService.getRuntimeImageProviderSettings();
-    const apiKey = settings.apiKey?.trim();
-    const baseUrl = settings.baseUrl?.trim() || process.env.OPENAI_IMAGE_BASE_URL?.trim() || "";
-    if (!apiKey || !baseUrl) {
-      throw new BadRequestException("IMAGE_PROVIDER_NOT_CONFIGURED");
-    }
-
     const nextVisualVersion = Math.max(1, character.visualVersion + 1);
     const fileName = referenceKind === "final_reference" ? "final-reference.webp" : "preview.webp";
     const relativePath = `projects/${project.id}/assets/characters/${character.id}/visual-v${String(nextVisualVersion).padStart(3, "0")}/${fileName}`;
@@ -442,44 +437,24 @@ export class ProjectsService implements OnModuleInit {
       : null;
     // 豆包 size:用 WIDTHxHEIGHT 指定比例(豆包不支持 '2K 16:9' 写法,且要求 ≥3686400 像素)。
     // 三视图用 16:9 横图(正面/侧面/背面横排),角色预览图用 1:1 方图。
-    const doubaoSize = referenceKind === "final_reference" ? "2560x1440" : "1920x1920";
+    const providerType = this.imageProvider.getActiveProviderType();
+    const size = providerType === "doubao"
+      ? (referenceKind === "final_reference" ? "2560x1440" : "1920x1920")
+      : (input.size?.trim() || (referenceKind === "final_reference" ? "3072x1536" : "1536x2048"));
     const generated = referenceSource
-      ? (settings.type === "doubao"
-        ? await this.requestDoubaoImageEdit({
-            apiKey,
-            baseUrl,
-            model: settings.modelId || "doubao-seedream-4-5-251128",
-            prompt,
-            size: doubaoSize,
-            referenceImage: referenceSource,
-          })
-        : await this.requestOpenAiImageEdit({
-            apiKey,
-            baseUrl,
-            model: settings.modelId || "gpt-image-2",
-            prompt,
-            size: input.size?.trim() || "3072x1536",
-            quality: input.quality ?? "high",
-            outputFormat: input.outputFormat ?? "webp",
-            referenceImage: referenceSource,
-          }))
-      : (settings.type === "doubao"
-        ? await this.requestDoubaoImage({
-            apiKey,
-            baseUrl,
-            model: settings.modelId || "doubao-seedream-4-5-251128",
-            prompt,
-            size: doubaoSize,
-          })
-        : await this.requestOpenAiImage({
-            apiKey,
-            baseUrl,
-            model: settings.modelId || "gpt-image-2",
-            prompt,
-            size: input.size?.trim() || (referenceKind === "final_reference" ? "3072x1536" : "1536x2048"),
-            quality: input.quality ?? "high",
-            outputFormat: input.outputFormat ?? "webp",
-          }));
+      ? await this.imageProvider.editImage({
+          prompt,
+          size,
+          quality: input.quality,
+          outputFormat: input.outputFormat,
+          referenceImage: referenceSource,
+        })
+      : await this.imageProvider.generateImage({
+          prompt,
+          size,
+          quality: input.quality,
+          outputFormat: input.outputFormat,
+        });
 
     this.assertProjectStillActive(project.id);
     await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -496,8 +471,8 @@ export class ProjectsService implements OnModuleInit {
       meta: JSON.stringify({
         characterId: character.id,
         referenceKind,
-        provider: settings.type === "doubao" ? "doubao_image" : "openai_image",
-        model: settings.modelId || (settings.type === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2"),
+        provider: providerType === "doubao" ? "doubao_image" : "openai_image",
+        model: providerType === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2",
         promptDigest: this.digestPrompt(prompt),
         generationMode: referenceSource ? "image_edit" : "image_generation",
         sourceReferenceAssetId: referenceSource?.asset.id ?? null,
@@ -615,20 +590,9 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("SCENE_NOT_FOUND");
     }
 
-    const settings = this.settingsService.getRuntimeImageProviderSettings();
-    const apiKey = settings.apiKey;
-    const baseUrl = settings.baseUrl ?? process.env.OPENAI_IMAGE_BASE_URL?.trim() ?? null;
-    if (!apiKey || !baseUrl) {
-      throw new BadRequestException("IMAGE_PROVIDER_NOT_CONFIGURED");
-    }
-
     const prompt = input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene);
     const size = "2560x1440";
-    const model = settings.modelId || (settings.type === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2");
-
-    const generated = settings.type === "doubao"
-      ? await this.requestDoubaoImage({ apiKey, baseUrl, model, prompt, size })
-      : await this.requestOpenAiImage({ apiKey, baseUrl, model, prompt, size, quality: "high", outputFormat: "webp" });
+    const generated = await this.imageProvider.generateImage({ prompt, size, quality: "high", outputFormat: "webp" });
 
     const relativePath = `projects/${project.id}/chapters/${chapter.slug}/scenes/${sceneId}/background.webp`;
     const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
@@ -648,8 +612,7 @@ export class ProjectsService implements OnModuleInit {
         sceneId,
         chapterId: chapter.id,
         referenceKind: "scene_background",
-        provider: settings.type === "doubao" ? "doubao_image" : "openai_image",
-        model,
+        provider: this.imageProvider.getActiveProviderType() === "doubao" ? "doubao_image" : "openai_image",
         promptDigest: this.digestPrompt(prompt),
         generationMode: "image_generation",
         createdAt: now,
@@ -2984,215 +2947,6 @@ export class ProjectsService implements OnModuleInit {
       await rm(absolutePath, { force: true });
     } catch (error) {
       this.logger.warn(`Failed to remove project asset file ${safePath}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  private async requestOpenAiImage(input: {
-    apiKey: string;
-    baseUrl: string;
-    model: string;
-    prompt: string;
-    size: string;
-    quality: "auto" | "low" | "medium" | "high";
-    outputFormat: "webp" | "png" | "jpeg";
-  }): Promise<Buffer> {
-    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
-    const response = await this.fetchWithTimeout(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${input.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: input.model,
-        prompt: input.prompt,
-        n: 1,
-        size: input.size,
-        quality: input.quality,
-        output_format: input.outputFormat,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new BadRequestException(`IMAGE_PROVIDER_FAILED:${response.status}`);
-    }
-
-    const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
-    const first = data.data?.[0];
-    if (first?.b64_json) {
-      return Buffer.from(first.b64_json, "base64");
-    }
-    if (first?.url) {
-      const imageResponse = await this.fetchWithTimeout(first.url);
-      if (!imageResponse.ok) {
-        throw new BadRequestException(`IMAGE_PROVIDER_URL_FAILED:${imageResponse.status}`);
-      }
-      return Buffer.from(await imageResponse.arrayBuffer());
-    }
-
-    throw new BadRequestException("IMAGE_PROVIDER_EMPTY_RESPONSE");
-  }
-
-  private async requestOpenAiImageEdit(input: {
-    apiKey: string;
-    baseUrl: string;
-    model: string;
-    prompt: string;
-    size: string;
-    quality: "auto" | "low" | "medium" | "high";
-    outputFormat: "webp" | "png" | "jpeg";
-    referenceImage: ProjectAssetFile;
-  }): Promise<Buffer> {
-    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/edits`;
-    const form = new FormData();
-    const referenceBytes = new Uint8Array(input.referenceImage.buffer.length);
-    referenceBytes.set(input.referenceImage.buffer);
-    form.set("model", input.model);
-    form.set("prompt", input.prompt);
-    form.set("n", "1");
-    form.set("size", input.size);
-    form.set("quality", input.quality);
-    form.set("output_format", input.outputFormat);
-    form.set(
-      "image",
-      new Blob([referenceBytes], { type: input.referenceImage.mimeType }),
-      input.referenceImage.fileName,
-    );
-
-    const response = await this.fetchWithTimeout(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-      },
-      body: form,
-    });
-
-    if (!response.ok) {
-      throw new BadRequestException(`IMAGE_PROVIDER_EDIT_FAILED:${response.status}`);
-    }
-
-    const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
-    const first = data.data?.[0];
-    if (first?.b64_json) {
-      return Buffer.from(first.b64_json, "base64");
-    }
-    if (first?.url) {
-      const imageResponse = await this.fetchWithTimeout(first.url);
-      if (!imageResponse.ok) {
-        throw new BadRequestException(`IMAGE_PROVIDER_EDIT_URL_FAILED:${imageResponse.status}`);
-      }
-      return Buffer.from(await imageResponse.arrayBuffer());
-    }
-
-    throw new BadRequestException("IMAGE_PROVIDER_EDIT_EMPTY_RESPONSE");
-  }
-
-  /**
-   * 豆包 doubao-seedream 文生图
-   * endpoint: {baseUrl}/images/generations (JSON),响应取 data[0].url 下载
-   */
-  private async requestDoubaoImage(input: {
-    apiKey: string;
-    baseUrl: string;
-    model: string;
-    prompt: string;
-    size: string;
-  }): Promise<Buffer> {
-    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
-    const response = await this.fetchWithTimeout(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${input.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: input.model,
-        prompt: input.prompt,
-        size: input.size,
-        response_format: "url",
-        watermark: true,
-        stream: false,
-        sequential_image_generation: "disabled",
-      }),
-    });
-
-    if (!response.ok) {
-      throw new BadRequestException(`IMAGE_PROVIDER_FAILED:${response.status}`);
-    }
-
-    return this.downloadDoubaoImageResponse(response);
-  }
-
-  /**
-   * 豆包 doubao-seedream 图生图
-   * endpoint: {baseUrl}/images/generations (JSON),image 字段传 data:image/<fmt>;base64,<...>
-   */
-  private async requestDoubaoImageEdit(input: {
-    apiKey: string;
-    baseUrl: string;
-    model: string;
-    prompt: string;
-    size: string;
-    referenceImage: ProjectAssetFile;
-  }): Promise<Buffer> {
-    const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
-    const base64Image = input.referenceImage.buffer.toString("base64");
-    const response = await this.fetchWithTimeout(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${input.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: input.model,
-        prompt: input.prompt,
-        image: `data:${input.referenceImage.mimeType};base64,${base64Image}`,
-        size: input.size,
-        response_format: "url",
-        watermark: true,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new BadRequestException(`IMAGE_PROVIDER_EDIT_FAILED:${response.status}`);
-    }
-
-    return this.downloadDoubaoImageResponse(response);
-  }
-
-  /** 豆包响应统一处理:取 data[0].url 下载成 Buffer(豆包默认返回 url 格式) */
-  private async downloadDoubaoImageResponse(response: Response): Promise<Buffer> {
-    const data = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
-    const first = data.data?.[0];
-    if (first?.b64_json) {
-      return Buffer.from(first.b64_json, "base64");
-    }
-    if (first?.url) {
-      const imageResponse = await this.fetchWithTimeout(first.url);
-      if (!imageResponse.ok) {
-        throw new BadRequestException(`IMAGE_PROVIDER_URL_FAILED:${imageResponse.status}`);
-      }
-      return Buffer.from(await imageResponse.arrayBuffer());
-    }
-    throw new BadRequestException("IMAGE_PROVIDER_EMPTY_RESPONSE");
-  }
-
-  private async fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 300_000): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, {
-        ...init,
-        signal: init.signal ?? controller.signal,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new BadRequestException("IMAGE_PROVIDER_TIMEOUT");
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
     }
   }
 
