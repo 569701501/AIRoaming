@@ -8,6 +8,7 @@ import type { LocalChapter, LocalProject } from "./local-types.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
+import { CharacterReferenceService } from "./character-reference.service.js";
 import { ProjectsService } from "./projects.service.js";
 import type { SettingsService } from "../settings/settings.service.js";
 import type { TasksService } from "../tasks/tasks.service.js";
@@ -125,6 +126,7 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
         ensureDefaultChapterReady: vi.fn((p: LocalProject) => p),
         findChapter: vi.fn((p: LocalProject, id: string) => p.chapters.find((c) => c.id === id)),
       } as unknown as ProjectStore,
+      { hasActiveCharacterReferenceTask: vi.fn(() => false) } as unknown as CharacterReferenceService,
     );
   });
 
