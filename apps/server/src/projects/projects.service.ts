@@ -11,6 +11,7 @@ import * as referencePromptUtil from "./reference-prompt.util.js";
 import * as scriptImportUtil from "./script-import.util.js";
 import type { AnalyzeScriptImportInput } from "./script-import.util.js";
 import { ImageProviderService } from "./image-provider.service.js";
+import { ProjectStore } from "./project-store.service.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -177,15 +178,17 @@ export class ProjectsService implements OnModuleInit {
     @Inject(SettingsService) private readonly settingsService: SettingsService,
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
+    @Inject(ProjectStore) private readonly projectStore: ProjectStore,
   ) {}
 
   async onModuleInit(): Promise<void> {
     this.tasksService.setCreateGuard((input) => this.guardGenerationTaskCreate(input));
-    await this.ensureProjectsLoaded();
+    this.projectStore.setReferenceTaskChecker((pid, cid, kind) => this.hasActiveCharacterReferenceTask(pid, cid, kind));
+    await this.projectStore.ensureProjectsLoaded();
   }
 
   async listProjects(): Promise<ProjectListItem[]> {
-    await this.ensureProjectsLoaded();
+    await this.projectStore.ensureProjectsLoaded();
     return this.repository.getAllProjects()
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
       .map((project) => this.toProjectListItem(project));
@@ -199,7 +202,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async createProject(input: CreateProjectRequest): Promise<ProjectListItem> {
-    await this.ensureProjectsLoaded();
+    await this.projectStore.ensureProjectsLoaded();
     const now = new Date().toISOString();
     const name = input.name.trim();
     if (!name) {
@@ -233,13 +236,13 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
 
-    await this.writeProjectFiles(project);
+    await this.projectStore.writeProjectFiles(project);
     this.repository.setProject(project);
     return this.toProjectListItem(project);
   }
 
   async updateProjectDraft(projectId: string, input: UpdateProjectDraftRequest): Promise<ProjectListItem> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
 
     const nextName = input.name === undefined ? project.name : input.name.trim();
     if (!nextName) {
@@ -269,13 +272,13 @@ export class ProjectsService implements OnModuleInit {
       updatedAt,
     };
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return this.toProjectListItem(nextProject);
   }
 
   async listChapters(projectId: string): Promise<ListChaptersResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     return {
       chapters: this.sortChapters(project.chapters).map((chapter) => this.toChapterListItem(chapter)),
       currentChapterId: project.currentChapterId,
@@ -283,20 +286,20 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getChapter(projectId: string, chapterId: string): Promise<GetChapterResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     return {
       chapter: this.toChapterDetail(chapter),
     };
   }
 
   async listProjectCharacters(projectId: string): Promise<ProjectCharactersResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     return this.toProjectCharactersResponse(project);
   }
 
   async ensureProjectCharacterPreviewTasks(projectId: string): Promise<QueueCharacterReferenceResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const tasks = project.characters
       .map((character) => this.queueMissingCharacterReferenceTask(project, character, "preview_front"))
       .filter((task): task is NonNullable<typeof task> => Boolean(task));
@@ -311,7 +314,7 @@ export class ProjectsService implements OnModuleInit {
     projectId: string,
     input: ExtractProjectCharactersRequest = {},
   ): Promise<ExtractProjectCharactersResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const now = new Date().toISOString();
     const extracted = this.extractCharactersFromProjectSource(project, input.source ?? "auto", now);
     const existingByName = new Map(project.characters.map((character) => [wsCharacter.normalizeCharacterNameKey(character.name), character]));
@@ -350,7 +353,7 @@ export class ProjectsService implements OnModuleInit {
       characters: this.sortProjectCharacters(nextCharacters),
       updatedAt: now,
     };
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -365,7 +368,7 @@ export class ProjectsService implements OnModuleInit {
     characterId: string,
     input: UpdateProjectCharacterRequest,
   ): Promise<SaveProjectCharacterResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -403,7 +406,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt,
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, updatedAt);
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return {
       ...this.toProjectCharactersResponse(nextProject),
@@ -416,7 +419,7 @@ export class ProjectsService implements OnModuleInit {
     characterId: string,
     input: GenerateCharacterReferenceRequest & { sourceTaskId?: string } = {},
   ): Promise<GenerateCharacterReferenceResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -456,7 +459,7 @@ export class ProjectsService implements OnModuleInit {
           outputFormat: input.outputFormat,
         });
 
-    this.assertProjectStillActive(project.id);
+    this.projectStore.assertProjectStillActive(project.id);
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, generated);
 
@@ -499,8 +502,8 @@ export class ProjectsService implements OnModuleInit {
       ...project,
       assets: [...project.assets, asset],
     }, nextCharacter, now);
-    this.assertProjectStillActive(project.id);
-    await this.writeProjectFiles(nextProject);
+    this.projectStore.assertProjectStillActive(project.id);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -519,8 +522,8 @@ export class ProjectsService implements OnModuleInit {
     sceneId: string,
     input: GenerateSceneReferenceRequest = {},
   ): Promise<QueueSceneReferenceResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     const storyStructure = chapter.storyStructure;
     if (!storyStructure) {
       throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
@@ -579,8 +582,8 @@ export class ProjectsService implements OnModuleInit {
     sceneId: string,
     input: GenerateSceneReferenceRequest & { sourceTaskId?: string } = {},
   ): Promise<{ storyStructure: ChapterStoryStructure; asset: WorkbenchAsset }> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     const storyStructure = chapter.storyStructure;
     if (!storyStructure) {
       throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
@@ -629,12 +632,12 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
     const nextChapter: LocalChapter = { ...chapter, storyStructure: nextStoryStructure, updatedAt: now };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       assets: [...project.assets, asset],
     }, nextChapter);
-    this.assertProjectStillActive(project.id);
-    await this.writeProjectFiles(nextProject);
+    this.projectStore.assertProjectStillActive(project.id);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return { storyStructure: nextStoryStructure, asset };
@@ -686,7 +689,7 @@ export class ProjectsService implements OnModuleInit {
     characterId: string,
     input: GenerateCharacterReferenceRequest = {},
   ): Promise<QueueCharacterReferenceResponse> {
-    let project = await this.getReadyProject(projectId);
+    let project = await this.projectStore.getReadyProject(projectId);
     let character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -709,7 +712,7 @@ export class ProjectsService implements OnModuleInit {
         updatedAt: now,
       };
       project = this.withUpdatedProjectCharacter(project, character, now);
-      await this.writeProjectFiles(project);
+      await this.projectStore.writeProjectFiles(project);
       this.repository.setProject(project);
     }
     const alreadyActive = this.hasActiveCharacterReferenceTask(project.id, character.id, referenceKind);
@@ -726,7 +729,7 @@ export class ProjectsService implements OnModuleInit {
     characterId: string,
     input: ConfirmCharacterPreviewRequest,
   ): Promise<ConfirmCharacterPreviewResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -753,7 +756,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, now);
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     const task = shouldFinalize
@@ -771,7 +774,7 @@ export class ProjectsService implements OnModuleInit {
     characterId: string,
     input: ConfirmCharacterReferenceRequest,
   ): Promise<SaveProjectCharacterResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use" && character.primaryReferenceAssetId !== input.assetId) {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -802,7 +805,7 @@ export class ProjectsService implements OnModuleInit {
       finalizedAt: now,
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, now);
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return {
       ...this.toProjectCharactersResponse(nextProject),
@@ -815,7 +818,7 @@ export class ProjectsService implements OnModuleInit {
     characterId: string,
     assetId: string,
   ): Promise<SaveProjectCharacterResponse & { deletedAssetId: string }> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use" && character.primaryReferenceAssetId === assetId) {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -856,7 +859,7 @@ export class ProjectsService implements OnModuleInit {
       ...project,
       assets: project.assets.filter((item) => item.id !== asset.id),
     }, nextCharacter, now);
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     await this.removeProjectAssetFile(project, asset);
 
@@ -868,7 +871,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getProjectAssetFile(projectId: string, assetId: string): Promise<ProjectAssetFile> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const asset = project.assets.find((item) => item.id === assetId);
     if (!asset) {
       throw new NotFoundException("PROJECT_ASSET_NOT_FOUND");
@@ -888,8 +891,8 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
     }
 
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     const updatedAt = new Date().toISOString();
     const parsedStoryTitle = extractChapterScriptName(input.sourceText);
     const sourceText = stripChapterScriptName(input.sourceText);
@@ -901,7 +904,7 @@ export class ProjectsService implements OnModuleInit {
       sourceText,
       updatedAt,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       storyTitle: parsedStoryTitle || project.storyTitle,
@@ -909,7 +912,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -923,8 +926,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: CompleteChapterRequest,
   ): Promise<CompleteChapterResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     const completedAt = new Date().toISOString();
     const payload = input ?? ({} as CompleteChapterRequest);
     const sourceTextInput = typeof payload.sourceText === "string" ? payload.sourceText : chapter.sourceText;
@@ -978,7 +981,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: completedAt,
     };
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -991,8 +994,8 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async clearChapterScript(projectId: string, chapterId: string): Promise<ClearChapterScriptResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     const updatedAt = new Date().toISOString();
     const nextChapter: LocalChapter = {
       ...chapter,
@@ -1012,14 +1015,14 @@ export class ProjectsService implements OnModuleInit {
       scriptVersions: [],
       lastScriptRevision: null,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       sourceText: nextChapter.sourceText,
       updatedAt,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1036,8 +1039,8 @@ export class ProjectsService implements OnModuleInit {
     projectId: string,
     chapterId: string,
   ): Promise<ConfirmChapterPendingSourceResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.pendingSourceText) {
       throw new BadRequestException("CHAPTER_PENDING_SOURCE_NOT_FOUND");
     }
@@ -1065,14 +1068,14 @@ export class ProjectsService implements OnModuleInit {
       lastScriptRevision: revision,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       sourceText: nextChapter.sourceText,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1088,8 +1091,8 @@ export class ProjectsService implements OnModuleInit {
     projectId: string,
     chapterId: string,
   ): Promise<DiscardChapterPendingSourceResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.pendingSourceText) {
       throw new BadRequestException("CHAPTER_PENDING_SOURCE_NOT_FOUND");
     }
@@ -1100,13 +1103,13 @@ export class ProjectsService implements OnModuleInit {
       pendingSourceText: null,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1148,13 +1151,13 @@ export class ProjectsService implements OnModuleInit {
       pendingSourceText,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return nextProject;
   }
@@ -1163,7 +1166,7 @@ export class ProjectsService implements OnModuleInit {
     projectId: string,
     input: ImportScriptToChaptersInput,
   ): Promise<ImportScriptToChaptersResult> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const sourceText = input.sourceText.trim();
     if (!sourceText) {
       throw new BadRequestException("SCRIPT_SOURCE_REQUIRED");
@@ -1226,7 +1229,7 @@ export class ProjectsService implements OnModuleInit {
     };
 
     await this.clearProjectChaptersDir(nextProject.id);
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1242,7 +1245,7 @@ export class ProjectsService implements OnModuleInit {
    * 用于批量逐章生成时,每生成一章前确保目标章节已就位。
    */
   async ensureChapterExists(projectId: string, order: number, title?: string): Promise<ChapterDetail> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const existing = project.chapters.find((chapter) => chapter.order === order);
     if (existing) {
       return this.toChapterDetail(existing);
@@ -1257,7 +1260,7 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return this.toChapterDetail(nextChapter);
@@ -1268,10 +1271,10 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: WriteChapterDraftFromAIInput,
   ): Promise<WriteChapterDraftFromAIResult> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     const nextProject = await this.applyChapterPendingSource(project, chapter, input);
-    const nextChapter = this.findChapter(nextProject, chapterId);
+    const nextChapter = this.projectStore.findChapter(nextProject, chapterId);
     const now = new Date().toISOString();
     // 草稿写入记录(非正式 sourceText 的 revision;正式 revision 在确认草稿时产生)。
     const revision: ScriptRevisionItem = {
@@ -1295,7 +1298,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async saveScriptOutlineFromAI(projectId: string, input: SaveScriptOutlineFromAIInput): Promise<ProjectScriptOutline> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const sourceText = input.sourceText.trim();
     if (!sourceText) {
       throw new BadRequestException("AI_SCRIPT_OUTLINE_REQUIRED");
@@ -1321,13 +1324,13 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return outline;
   }
 
   async confirmScriptOutline(projectId: string): Promise<ProjectScriptOutline> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     if (!project.scriptOutline) {
       throw new BadRequestException("SCRIPT_OUTLINE_REQUIRED");
     }
@@ -1345,14 +1348,14 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return outline;
   }
 
   async getChapterStoryStructure(projectId: string, chapterId: string): Promise<GetChapterStoryStructureResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     return {
       storyStructure: chapter.storyStructure,
     };
@@ -1363,8 +1366,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: ConfirmChapterStoryStructureRequest,
   ): Promise<SaveChapterStoryStructureResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     this.assertChapterCanSaveStoryStructure(chapter);
 
     const now = new Date().toISOString();
@@ -1380,13 +1383,13 @@ export class ProjectsService implements OnModuleInit {
       imagePreflight: null,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...synced.project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1401,8 +1404,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: UpdateChapterStoryStructureRequest,
   ): Promise<SaveChapterStoryStructureResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.storyStructure) {
       throw new BadRequestException("STORY_STRUCTURE_NOT_CONFIRMED");
     }
@@ -1428,13 +1431,13 @@ export class ProjectsService implements OnModuleInit {
       imagePreflight: null,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1445,8 +1448,8 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getChapterStoryboard(projectId: string, chapterId: string): Promise<GetChapterStoryboardResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     return {
       storyboard: chapter.storyboard,
       pendingStoryboard: chapter.pendingStoryboard ?? null,
@@ -1454,8 +1457,8 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getChapterImagePreflight(projectId: string, chapterId: string): Promise<GetChapterImagePreflightResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     return {
       imagePreflight: chapter.imagePreflight,
     };
@@ -1466,8 +1469,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: ConfirmChapterImagePreflightRequest = {},
   ): Promise<SaveChapterImagePreflightResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.storyboard) {
       throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
     }
@@ -1498,13 +1501,13 @@ export class ProjectsService implements OnModuleInit {
       imagePreflight,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1519,8 +1522,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: ResolveImagePreflightCharacterRequest,
   ): Promise<ResolveImagePreflightCharacterResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.storyboard) {
       throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
     }
@@ -1599,14 +1602,14 @@ export class ProjectsService implements OnModuleInit {
       imagePreflight: null,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       characters: this.sortProjectCharacters(nextCharacters),
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1622,8 +1625,8 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getPendingChapterStoryboard(projectId: string, chapterId: string): Promise<ChapterStoryboard | null> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     return chapter.pendingStoryboard ?? null;
   }
 
@@ -1637,9 +1640,9 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("GENERATION_TASK_PROJECT_ID_REQUIRED");
     }
 
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const chapterId = this.getGenerationTaskChapterId(input);
-    const chapter = this.findChapter(project, chapterId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!imagePreflightUtil.isChapterImagePreflightReady(project, chapter, (pid, cid) => this.hasActiveCharacterReferenceTask(pid, cid, "final_reference"))) {
       throw new BadRequestException("IMAGE_PREFLIGHT_NOT_CONFIRMED");
     }
@@ -1704,8 +1707,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: UpdateChapterStoryboardRequest,
   ): Promise<SaveChapterStoryboardResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     this.assertChapterCanSaveStoryboard(chapter);
 
     const now = new Date().toISOString();
@@ -1716,13 +1719,13 @@ export class ProjectsService implements OnModuleInit {
       pendingStoryboard: storyboard,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1737,8 +1740,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: ConfirmChapterStoryboardRequest,
   ): Promise<SaveChapterStoryboardResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     this.assertChapterCanSaveStoryboard(chapter);
 
     const now = new Date().toISOString();
@@ -1752,13 +1755,13 @@ export class ProjectsService implements OnModuleInit {
       imagePreflight: null,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1773,8 +1776,8 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: UpdateChapterStoryboardRequest,
   ): Promise<SaveChapterStoryboardResponse> {
-    const project = await this.getReadyProject(projectId);
-    const chapter = this.findChapter(project, chapterId);
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.storyboard) {
       throw new BadRequestException("STORYBOARD_NOT_CONFIRMED");
     }
@@ -1797,13 +1800,13 @@ export class ProjectsService implements OnModuleInit {
       imagePreflight: null,
       updatedAt: now,
     };
-    const nextProject = this.withUpdatedChapter({
+    const nextProject = this.projectStore.withUpdatedChapter({
       ...project,
       currentChapterId: nextChapter.id,
       updatedAt: now,
     }, nextChapter);
 
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1814,7 +1817,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async resetProjectScript(projectId: string): Promise<ResetProjectScriptResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const now = new Date().toISOString();
     const chapter = this.createDefaultChapter(project.id, "", now);
     const nextProject: LocalProject = {
@@ -1827,7 +1830,7 @@ export class ProjectsService implements OnModuleInit {
 
     await this.clearProjectChaptersDir(nextProject.id);
     await this.clearLegacyStoryDir(nextProject.id);
-    await this.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
 
     return {
@@ -1837,7 +1840,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async analyzeScriptImport(projectId: string, input: AnalyzeScriptImportInput): Promise<ScriptImportAnalysis> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
     const sourceText = input.sourceText.trim();
     if (!sourceText) {
       return {
@@ -1924,7 +1927,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async deleteProject(projectId: string): Promise<DeleteProjectResponse> {
-    const project = await this.getReadyProject(projectId);
+    const project = await this.projectStore.getReadyProject(projectId);
 
     await this.workspacePathService.ensureReady();
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
@@ -1953,7 +1956,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getWorkbenchSnapshot(projectId: string, chapterId?: string): Promise<WorkbenchSnapshot> {
-    const readyProject = await this.selectCurrentChapter(await this.getReadyProject(projectId), chapterId);
+    const readyProject = await this.projectStore.selectCurrentChapter(await this.projectStore.getReadyProject(projectId), chapterId);
     const currentChapter = this.getCurrentChapter(readyProject);
     const sourceText = stripChapterScriptName(currentChapter?.sourceText ?? readyProject.sourceText);
     const hasStory = sourceText.trim().length > 0;
@@ -2023,10 +2026,6 @@ export class ProjectsService implements OnModuleInit {
   }
 
   /** 加载链已抽到 ProjectRepository(见任务 2026-06-21_ProjectsService拆分 1b)。 */
-  private async ensureProjectsLoaded(): Promise<void> {
-    await this.repository.ensureLoaded();
-  }
-
   private normalizeGenreTags(input: string[] | undefined): string[] {
     const tags = input?.map((tag) => tag.trim()).filter(Boolean) ?? [];
     return [...new Set(tags)].slice(0, 12);
@@ -2211,12 +2210,6 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
-  private async writeProjectFiles(project: LocalProject): Promise<void> {
-    const currentChapter = this.getCurrentChapter(project) ?? this.createDefaultChapter(project.id, project.sourceText, project.createdAt);
-    const workflow = workflowUtil.buildProjectWorkflow(project, currentChapter, imagePreflightUtil.isChapterImagePreflightReady(project, currentChapter, (pid, cid) => this.hasActiveCharacterReferenceTask(pid, cid, "final_reference")));
-    await this.repository.saveProject(project, workflow);
-  }
-
   private async clearProjectChaptersDir(projectId: string): Promise<void> {
     await this.repository.clearProjectChaptersDir(projectId);
   }
@@ -2252,36 +2245,6 @@ export class ProjectsService implements OnModuleInit {
     return foundCurrentChapter
       ? nextChapters
       : [this.createDefaultChapter(project.id, sourceText, updatedAt), ...nextChapters];
-  }
-
-  private async ensureDefaultChapterReady(project: LocalProject): Promise<LocalProject> {
-    const current = this.getCurrentChapter(project);
-    const defaultChapter = current ?? this.createDefaultChapter(project.id, project.sourceText, project.createdAt);
-    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
-    const chapterScriptPath = path.join(projectDir, "chapters", defaultChapter.slug, "script.md");
-    const chapterSourceText = await this.readOptionalTextFile(chapterScriptPath);
-    const sourceText = chapterSourceText ?? defaultChapter.sourceText ?? project.sourceText;
-    const updatedAt = sourceText === defaultChapter.sourceText ? defaultChapter.updatedAt : new Date().toISOString();
-    const readyChapter: LocalChapter = {
-      ...defaultChapter,
-      sourceText,
-      updatedAt,
-      scriptVersions: defaultChapter.scriptVersions ?? [],
-    };
-    const chapters = project.chapters.some((chapter) => chapter.id === readyChapter.id)
-      ? project.chapters.map((chapter) => (chapter.id === readyChapter.id ? readyChapter : chapter))
-      : [readyChapter, ...project.chapters];
-    const readyProject: LocalProject = {
-      ...project,
-      currentChapterId: project.currentChapterId ?? readyChapter.id,
-      sourceText,
-      chapters,
-      updatedAt: sourceText === project.sourceText ? project.updatedAt : updatedAt,
-    };
-
-    await this.writeProjectFiles(readyProject);
-    this.repository.setProject(readyProject);
-    return readyProject;
   }
 
   private async readOptionalTextFile(filePath: string): Promise<string | null> {
@@ -3025,57 +2988,6 @@ export class ProjectsService implements OnModuleInit {
 
   private getCurrentChapter(project: LocalProject): LocalChapter | null {
     return wsDomain.getCurrentChapter(project);
-  }
-
-  private assertProjectStillActive(projectId: string): void {
-    if (!this.repository.hasProject(projectId)) {
-      throw new NotFoundException("PROJECT_NOT_FOUND");
-    }
-  }
-
-  private async getReadyProject(projectId: string): Promise<LocalProject> {
-    await this.ensureProjectsLoaded();
-    const project = this.repository.getProject(projectId);
-    if (!project) {
-      throw new NotFoundException("PROJECT_NOT_FOUND");
-    }
-
-    return this.ensureDefaultChapterReady(project);
-  }
-
-  private async selectCurrentChapter(project: LocalProject, chapterId: string | undefined): Promise<LocalProject> {
-    if (!chapterId || project.currentChapterId === chapterId) {
-      return project;
-    }
-
-    this.findChapter(project, chapterId);
-    const currentChapter = project.chapters.find((chapter) => chapter.id === chapterId);
-    const nextProject: LocalProject = {
-      ...project,
-      currentChapterId: chapterId,
-      sourceText: currentChapter?.sourceText ?? project.sourceText,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await this.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-    return nextProject;
-  }
-
-  private findChapter(project: LocalProject, chapterId: string): LocalChapter {
-    const chapter = project.chapters.find((item) => item.id === chapterId);
-    if (!chapter) {
-      throw new NotFoundException("CHAPTER_NOT_FOUND");
-    }
-
-    return chapter;
-  }
-
-  private withUpdatedChapter(project: LocalProject, chapter: LocalChapter): LocalProject {
-    return {
-      ...project,
-      chapters: this.sortChapters(project.chapters.map((item) => (item.id === chapter.id ? chapter : item))),
-    };
   }
 
   private createNextChapter(
