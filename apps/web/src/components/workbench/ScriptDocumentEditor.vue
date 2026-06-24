@@ -130,7 +130,9 @@ const estimatedPages = computed(() => {
 });
 
 const hasChanges = computed(() => sourceText.value !== currentChapterSourceText.value);
-const canSave = computed(() => hasChanges.value);
+// 保存草稿必须同时满足"有变化"和"非空":
+// 切章瞬间编辑器尚未同步时会误判 hasChanges=true,若不判空会让空内容覆盖正式正文。
+const canSave = computed(() => hasChanges.value && sourceText.value.trim().length > 0);
 const canComplete = computed(() => sourceText.value.trim().length > 0);
 const canReset = computed(() => sourceText.value.trim().length > 0 || props.snapshot.currentChapter?.status !== "draft");
 const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScriptRevision ?? null);

@@ -276,6 +276,10 @@ export class ProjectsService implements OnModuleInit {
 
     const nextStoryTitle = input.storyTitle === undefined ? project.storyTitle : input.storyTitle.trim();
     const nextDescription = input.description === undefined ? project.description : input.description.trim();
+    // 非空校验:显式传入空 sourceText 会用空内容覆盖当前章节正文(与 saveChapterDraft 一致)。
+    if (input.sourceText !== undefined && !input.sourceText.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
     const nextSourceText = input.sourceText === undefined ? project.sourceText : input.sourceText;
     const updatedAt = new Date().toISOString();
     const nextChapters = this.updateCurrentChapterSource(project, nextSourceText, updatedAt);
@@ -945,6 +949,12 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: SaveChapterDraftRequest,
   ): Promise<SaveChapterDraftResponse> {
+    // 非空校验:空 sourceText 会用空内容覆盖正式正文(与 completeChapter 一致)。
+    // 切章竞态/前端空态误触发保存时,拒绝落盘,避免数据损坏。
+    if (!input.sourceText?.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
+
     const project = await this.getReadyProject(projectId);
     const chapter = this.findChapter(project, chapterId);
     const updatedAt = new Date().toISOString();
