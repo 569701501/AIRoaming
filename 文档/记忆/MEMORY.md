@@ -94,3 +94,4 @@
 - 对话过程展示已参考 AuroraPlatformWeb：`DialogueThread.toolResults` 保存 AI 受控工具/技能结果，前端按 `messageId` 挂回 assistant 消息；过程卡片只表达技能/工具状态和结构化详情，`DialogueMessageItem.content` 作为面向用户的最终回复用独立气泡自然展开，正文气泡不做内部滚动，避免工具结果混入普通正文或让用户误以为没有最终回复。前端刷新项目工作台时需先读取 workbench 得到当前章节，再加载 `projectId + stepKey + chapterId` 对话线程，避免默认读到空的项目级线程。
 - 剧本文档编辑器的滚动契约：`ProjectWorkbenchView -> ScriptDocumentEditor -> MarkdownTextEditor -> CodeMirror` 这条 flex 高度链路必须逐层保留 `min-height: 0` 和合适的 `overflow`，由 CodeMirror `.cm-scroller` 接管正文内部滚动，避免长剧本撑开工作台。
 - 参考 AuroraPlatformWeb 的灵感文档设计：左侧对话推动流程，右侧固定文档承载持久事实；附件和用户输入只是临时上下文，正式事实必须落到工作区稳定路径，并通过状态/文件事件同步 UI。
+- 2026-06-23 项目进度锚点：代码和本地样例显示当前整体处于「M1 基本完成，M2 前半段进行中」。项目库、设置、项目工作区、章节剧本、AI 对话、剧本导入/灵感/大纲/章节生成、剧情结构、角色库、角色图任务、分镜工作台、出图准备检查单已有实现和落盘契约；候选图工作台、候选图选择锁定、漫画排版导出、素材包仍未形成真实业务闭环。`corepack pnpm typecheck` 与 `corepack pnpm build` 均通过，build 仅有 Vite chunk 大小警告。
