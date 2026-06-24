@@ -17,3 +17,18 @@ source: 任务 2026-06-24_角色编排Service抽取第二轮
 - 写 findings + task_plan。
 
 **下一步**:Worker 阶段 1(创建 CharacterReferenceService)。
+
+### 2026-06-24 Worker 执行(实际完成)
+
+**CharacterReferenceService 抽取完成**(原计划推到新会话,实际在当前会话完成):
+
+- 新增 character-reference.service.ts(902 行):12 编排方法 + 18 私有辅助 + 角色纯函数委托 + characterReferenceQueue。
+- ProjectsService:12 门面方法改薄委托;删除 32 个迁走的私有方法;注入 CharacterReferenceService。
+- onModuleInit:referenceTaskChecker 改转发 this.characterRef.hasActiveCharacterReferenceTask。
+- resolveImagePreflightCharacter 留 Service(耦合分镜 normalizeStoryboardJson/toChapterDetail)。
+- 6 个辅助方法(findProjectCharacter/hasActive/inferCharacterLevel/resolve*)改 public,供 Service 留方法(syncStoryStructureCharacters/resolveImagePreflightCharacter)调用。
+- Service 行数:3184 → 2212(-972 行)。
+
+**验证**:typecheck 三包通过;61 tests 全绿;无残留已删方法。
+
+**任务状态:完成。**
