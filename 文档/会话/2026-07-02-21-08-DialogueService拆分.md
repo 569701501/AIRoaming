@@ -45,9 +45,24 @@
 
 # todo
 
-- [ ] 轮次1: 抽类型 + 纯函数 util → service ~1650行
-- [ ] 轮次2: 抽 ScriptDialogueService(剧本工具链) → service ~600行
-- [ ] 轮次3: 抽 StoryStructureDialogueService → service ~450行
-- [ ] 轮次4: 抽 StoryboardDialogueService → service ~350行
-- [ ] 轮次5: 评估角色工具 + 收口编排
-- [ ] 轮次6: 文档同步 + 完成记录 + 长期记忆
+- [x] 轮次1: 抽类型 + 纯函数 util 基建(6 文件)
+- [x] 轮次2: 抽 ScriptDialogueService(剧本工具链) → 1562行
+- [x] 轮次3: 抽 StoryStructureDialogueService(剧情结构) → 1143行
+- [x] 轮次4: 抽 StoryboardDialogueService(分镜) → 676行
+- [x] 轮次5: 清理重复 prompt/边界/意图方法 → 515行
+- [x] 轮次6: 文档同步 + 完成记录 + 长期记忆
+
+# 最终总结
+
+dialogue.service.ts 从 **3014 → 515 行**(−83%),超额完成 ≤600 行目标。
+
+产出:
+- 3 个子 service:script-dialogue(1023) / story-structure-dialogue(270) / storyboard-dialogue(231)
+- 6 个 util:dialogue-types(76) / intent(338) / prompt(562) / json(278) / text(160) / key(22)
+
+验证:typecheck 三包通过,46 tests 全绿。运行时对话链路待人工验证(灵感/大纲/章节/结构/分镜)。
+
+提交链:
+- 13c85cc 轮次1+2(util 基建 + ScriptDialogueService)
+- d0343f1 轮次3+4(剧情结构 + 分镜)
+- d6cfb18 轮次5(清理重复方法)
