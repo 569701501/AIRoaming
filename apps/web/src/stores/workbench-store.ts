@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 import {
-  PROJECT_WORKFLOW_STEP_KEYS,
   type AIRuntimeModelItem,
   type AIRuntimeModelSelection,
   type ChapterDetail,
@@ -20,8 +19,6 @@ import {
   type HealthResponse,
   type ProjectCharacter,
   type ProjectListItem,
-  type ProjectWorkflowStepKey,
-  type ProjectWorkflowStepStatus,
   type ResolveImagePreflightCharacterRequest,
   type SaveChapterDraftRequest,
   type UpdateProjectCharacterRequest,
@@ -34,306 +31,24 @@ import {
   type WorkspaceInfo,
 } from "@airoaming/shared";
 import { api } from "../services/api";
-import { getCurrentChapterId, getCurrentChapterSourceText } from "../utils/workbench-chapter";
+import {
+  getCurrentChapterId,
+  getCurrentChapterSourceText,
+  getProjectStatusFromChapter,
+  getSceneName,
+  mapStoryboardShots,
+  resolveChapterList,
+  toChapterListItem,
+} from "../utils/workbench-chapter";
+import {
+  isChapterImagePreflightReady,
+  isProjectCharacterLibraryReady,
+} from "../utils/workbench-preflight";
+import {
+  patchWorkflowForChapter,
+} from "../utils/workbench-workflow";
 
-const workflowStepOrder = new Map<ProjectWorkflowStepKey, number>(
-  PROJECT_WORKFLOW_STEP_KEYS.map((key, index) => [key, index]),
-);
 
-function toChapterListItem(chapter: ChapterDetail): ChapterListItem {
-  return {
-    id: chapter.id,
-    projectId: chapter.projectId,
-    slug: chapter.slug,
-    order: chapter.order,
-    title: chapter.title,
-    status: chapter.status,
-    storyboardStatus: chapter.storyboardStatus,
-    currentScriptVersionId: chapter.currentScriptVersionId,
-    currentStoryVersionId: chapter.currentStoryVersionId,
-    summary: chapter.summary,
-    sourceTextPreview: chapter.sourceTextPreview,
-    lastScriptRevision: chapter.lastScriptRevision,
-    createdAt: chapter.createdAt,
-    updatedAt: chapter.updatedAt,
-    completedAt: chapter.completedAt,
-  };
-}
-
-function resolveChapterList(
-  existingChapters: ChapterListItem[],
-  nextChapters: ChapterListItem[] | null,
-  currentChapter: ChapterDetail,
-): ChapterListItem[] {
-  if (nextChapters && nextChapters.length > 0) {
-    return nextChapters
-      .map((chapter) => (chapter.id === currentChapter.id ? toChapterListItem(currentChapter) : chapter))
-      .sort((left, right) => left.order - right.order);
-  }
-
-  const byId = new Map(existingChapters.map((chapter) => [chapter.id, chapter]));
-  byId.set(currentChapter.id, toChapterListItem(currentChapter));
-  return [...byId.values()].sort((left, right) => left.order - right.order);
-}
-
-function isProjectCharacterLibraryReady(characters: ProjectCharacter[]): boolean {
-  const required = characters.filter((character) => character.level === "lead" || character.level === "recurring");
-  return required.length > 0 && required.every((character) =>
-    (character.status === "finalized" || character.status === "in_use")
-    && Boolean(character.primaryReferenceAssetId)
-    && character.primaryReferenceKind === "final_reference",
-  );
-}
-
-function isChapterImagePreflightReady(snapshot: WorkbenchSnapshot): boolean {
-  const imagePreflight = snapshot.imagePreflight;
-  const storyboard = snapshot.storyboard;
-  if (!imagePreflight?.preflightJson.ready || !storyboard) {
-    return false;
-  }
-  if (
-    imagePreflight.sourceStoryboardId !== storyboard.id
-    || imagePreflight.sourceStoryboardUpdatedAt !== storyboard.updatedAt
-  ) {
-    return false;
-  }
-
-  const shots = snapshot.shots ?? [];
-  if (shots.length === 0) {
-    return false;
-  }
-
-  const characterById = new Map(snapshot.characters.map((character) => [character.id, character]));
-  const characterByName = new Map(snapshot.characters.map((character) => [character.name.trim().toLowerCase(), character]));
-  const appearanceCounts = new Map<string, number>();
-
-  for (const shot of shots) {
-    const seenInShot = new Set<string>();
-    for (const token of getShotCharacterTokens(shot)) {
-      const character = characterById.get(token) ?? characterByName.get(token.toLowerCase());
-      if (!character) {
-        return false;
-      }
-      seenInShot.add(character.id);
-    }
-    for (const characterId of seenInShot) {
-      appearanceCounts.set(characterId, (appearanceCounts.get(characterId) ?? 0) + 1);
-    }
-  }
-
-  for (const [characterId, count] of appearanceCounts) {
-    const character = characterById.get(characterId);
-    if (!character) {
-      return false;
-    }
-    if (isRequiredPreflightReferenceCharacter(character, count) && !hasFinalReference(character)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function getShotCharacterTokens(shot: WorkbenchSnapshot["shots"][number]) {
-  return [...new Set(shot.characterIds
-    .map((item) => item.trim())
-    .filter((item) => item && !/^(无|无人|旁白|环境|背景)$/i.test(item)))];
-}
-
-function hasFinalReference(character: ProjectCharacter) {
-  return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
-}
-
-function isRequiredPreflightReferenceCharacter(character: ProjectCharacter, appearanceCount: number) {
-  return character.level === "lead"
-    || character.level === "recurring"
-    || (character.level === "chapter" && appearanceCount > 1);
-}
-
-function resolveWorkflowCurrentStepKey(chapter: ChapterDetail, snapshot: WorkbenchSnapshot): ProjectWorkflowStepKey {
-  switch (chapter.status) {
-    case "script_done":
-      return "story_structure";
-    case "structured":
-      return "storyboard";
-    case "storyboard_done":
-      return isChapterImagePreflightReady(snapshot) ? "image_candidates" : "image_preflight";
-    case "images_done":
-      return "layout_export";
-    case "layout_done":
-    case "exported":
-      return "asset_package";
-    case "draft":
-    default:
-      return "project_story";
-  }
-}
-
-function resolveWorkflowStepStatus(
-  stepKey: ProjectWorkflowStepKey,
-  currentStepKey: ProjectWorkflowStepKey,
-  chapterStatus: ChapterDetail["status"],
-): ProjectWorkflowStepStatus {
-  if (chapterStatus === "exported") {
-    return "done";
-  }
-
-  const stepIndex = workflowStepOrder.get(stepKey) ?? 0;
-  const currentIndex = workflowStepOrder.get(currentStepKey) ?? 0;
-  if (stepIndex < currentIndex) {
-    return "done";
-  }
-  if (stepIndex === currentIndex) {
-    return "active";
-  }
-  return "waiting";
-}
-
-function getWorkflowStepSummary(
-  stepKey: ProjectWorkflowStepKey,
-  status: ProjectWorkflowStepStatus,
-  chapter: ChapterDetail,
-): string {
-  if (status === "done") {
-    return getWorkflowDoneSummary(stepKey);
-  }
-  if (status === "waiting") {
-    return getWorkflowWaitingSummary(stepKey);
-  }
-  if (status === "blocked") {
-    return getWorkflowWaitingSummary(stepKey);
-  }
-
-  switch (stepKey) {
-    case "project_story":
-      return chapter.sourceText.trim()
-        ? "当前章节已有草稿，保存后可点击完成本章。"
-        : "补充当前章节剧本，保存草稿后继续推进。";
-    case "story_structure":
-      return "当前章节剧本已完成，可以运行 story_parse 生成结构化剧情。";
-    case "storyboard":
-      return "当前章节剧情结构已就绪，可以生成和编辑分镜。";
-    case "image_preflight":
-      return "当前章节分镜已确认，检查角色参考图、镜头绑定和出图输入。";
-    case "image_candidates":
-      return "出图准备已通过，可以生成候选图并锁定结果。";
-    case "layout_export":
-      return "当前章节图片结果已就绪，可以排版并导出。";
-    case "asset_package":
-      return "当前章节或项目导出已就绪，可以归档素材包。";
-  }
-}
-
-function getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string {
-  switch (stepKey) {
-    case "project_story":
-      return "章节剧本已完成并写入版本快照。";
-    case "story_structure":
-      return "结构化剧情已完成。";
-    case "storyboard":
-      return "分镜已完成。";
-    case "image_preflight":
-      return "出图准备已完成。";
-    case "image_candidates":
-      return "候选图或锁定图已完成。";
-    case "layout_export":
-      return "排版导出已完成。";
-    case "asset_package":
-      return "素材包已归档。";
-  }
-}
-
-function getWorkflowWaitingSummary(stepKey: ProjectWorkflowStepKey): string {
-  switch (stepKey) {
-    case "project_story":
-      return "等待进入剧本阶段。";
-    case "story_structure":
-      return "需要先完成当前章节剧本。";
-    case "storyboard":
-      return "需要先完成当前章节剧情结构。";
-    case "image_preflight":
-      return "需要先确认当前章节分镜。";
-    case "image_candidates":
-      return "需要先通过出图准备。";
-    case "layout_export":
-      return "需要先锁定当前章节候选图。";
-    case "asset_package":
-      return "需要先完成章节排版和导出。";
-  }
-}
-
-function getWorkflowStepEvidence(projectId: string, chapter: ChapterDetail, stepKey: ProjectWorkflowStepKey): string {
-  switch (stepKey) {
-    case "project_story":
-      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/script.md`;
-    case "story_structure":
-      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/structure.json`;
-    case "storyboard":
-      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/storyboard.json`;
-    case "image_preflight":
-      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/preflight.json`;
-    case "image_candidates":
-      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/candidates/`;
-    case "layout_export":
-      return `/workspace/projects/${projectId}/chapters/${chapter.slug}/layout/`;
-    case "asset_package":
-      return `/workspace/projects/${projectId}/exports/packages/`;
-  }
-}
-
-function patchWorkflowForChapter(snapshot: WorkbenchSnapshot, chapter: ChapterDetail): WorkbenchSnapshot["workflow"] {
-  const currentStepKey = resolveWorkflowCurrentStepKey(chapter, snapshot);
-  const steps = snapshot.workflow.steps.map((step) => {
-    const status = resolveWorkflowStepStatus(step.key, currentStepKey, chapter.status);
-    return {
-      ...step,
-      status,
-      summary: getWorkflowStepSummary(step.key, status, chapter),
-      evidence: getWorkflowStepEvidence(snapshot.project.id, chapter, step.key),
-    };
-  });
-
-  return {
-    ...snapshot.workflow,
-    currentChapterId: chapter.id,
-    currentStepKey,
-    steps,
-    updatedAt: chapter.updatedAt,
-  };
-}
-
-function getProjectStatusFromChapter(chapter: ChapterDetail, charactersReady = false): ProjectListItem["status"] {
-  if (charactersReady) {
-    return "characters_ready";
-  }
-  return chapter.sourceText.trim().length > 0 ? "story_ready" : "draft";
-}
-
-function getSceneName(storyStructure: ChapterStoryStructure | null, sceneId: string | null): string {
-  if (!storyStructure || !sceneId) {
-    return "";
-  }
-
-  return storyStructure.structureJson.scenes.find((scene) => scene.id === sceneId)?.name ?? "";
-}
-
-function mapStoryboardShots(storyboard: ChapterStoryboard | null, storyStructure: ChapterStoryStructure | null, chapterId: string): WorkbenchSnapshot["shots"] {
-  if (!storyboard) {
-    return [];
-  }
-
-  return storyboard.storyboardJson.shots.map((shot) => {
-    const scene = storyStructure?.structureJson.scenes.find((item) => item.id === shot.sceneId) ?? null;
-    const beat = storyStructure?.structureJson.beats.find((item) => item.id === shot.beatId) ?? null;
-    return {
-      ...shot,
-      chapterId,
-      sceneName: scene?.name ?? "",
-      characterIds: shot.characterIds,
-      characters: shot.characterIds.length > 0 ? shot.characterIds : beat?.characters ?? [],
-    };
-  });
-}
 
 interface WorkbenchState {
   health: HealthResponse | null;
