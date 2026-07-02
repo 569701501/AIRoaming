@@ -66,10 +66,10 @@
           <div v-show="isShotExpanded(shot.id)" class="shot-card-body">
 
           <div class="shot-core-grid">
-            <EditableShotField :field-key="`shots.${index}.coreAction`" label="核心动作" :editing-key="editingKey" :editing-value="editingValue" :value="shot.coreAction" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableShotField :field-key="`shots.${index}.emotion`" label="情绪" :editing-key="editingKey" :editing-value="editingValue" :value="shot.emotion" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableShotSelect :field-key="`shots.${index}.shotType`" label="景别" :value="shot.shotType" :options="SHOT_TYPE_OPTIONS" @commit="commitSelectField" />
-            <EditableShotSelect :field-key="`shots.${index}.cameraAngle`" label="机位" :value="shot.cameraAngle" :options="CAMERA_ANGLE_OPTIONS" @commit="commitSelectField" />
+            <EditableField :field-key="`shots.${index}.coreAction`" label="核心动作" :editing-key="editingKey" :editing-value="editingValue" :value="shot.coreAction" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`shots.${index}.emotion`" label="情绪" :editing-key="editingKey" :editing-value="editingValue" :value="shot.emotion" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`shots.${index}.shotType`" label="景别" :value="shot.shotType" :options="SHOT_TYPE_OPTIONS" @commit="commitSelectField" />
+            <EditableField :field-key="`shots.${index}.cameraAngle`" label="机位" :value="shot.cameraAngle" :options="CAMERA_ANGLE_OPTIONS" @commit="commitSelectField" />
           </div>
 
           <div class="shot-expression-grid">
@@ -78,11 +78,11 @@
                 <span>漫画画格</span>
                 <strong>comic</strong>
               </div>
-              <EditableShotField :field-key="`shots.${index}.comic.panelDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.panelDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableShotField :field-key="`shots.${index}.comic.composition`" label="构图" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.composition" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableShotField :field-key="`shots.${index}.comic.dialogue`" label="对白" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.dialogue" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableShotField :field-key="`shots.${index}.comic.caption`" label="旁白" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.caption" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableShotSelect :field-key="`shots.${index}.comic.panelRhythm`" label="画格节奏" :value="shot.comic.panelRhythm" :options="PANEL_RHYTHM_OPTIONS" @commit="commitSelectField" />
+              <EditableField :field-key="`shots.${index}.comic.panelDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.panelDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.comic.composition`" label="构图" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.composition" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.comic.dialogue`" label="对白" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.dialogue" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.comic.caption`" label="旁白" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.caption" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.comic.panelRhythm`" label="画格节奏" :value="shot.comic.panelRhythm" :options="PANEL_RHYTHM_OPTIONS" @commit="commitSelectField" />
             </section>
 
             <section class="shot-expression motion-column">
@@ -90,10 +90,10 @@
                 <span>漫剧镜头</span>
                 <strong>motion</strong>
               </div>
-              <EditableShotField :field-key="`shots.${index}.motion.visualDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.visualDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableShotField :field-key="`shots.${index}.motion.compositionDesign`" label="构图设计" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.compositionDesign" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableShotSelect :field-key="`shots.${index}.motion.cameraMovement`" label="运镜调度" :value="shot.motion.cameraMovement" :options="CAMERA_MOVEMENT_OPTIONS" @commit="commitSelectField" />
-              <EditableShotSelect :field-key="`shots.${index}.motion.frameType`" label="镜头类型" :value="shot.motion.frameType" :options="FRAME_TYPE_OPTIONS" @commit="commitSelectField" />
+              <EditableField :field-key="`shots.${index}.motion.visualDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.visualDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.motion.compositionDesign`" label="构图设计" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.compositionDesign" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.motion.cameraMovement`" label="运镜调度" :value="shot.motion.cameraMovement" :options="CAMERA_MOVEMENT_OPTIONS" @commit="commitSelectField" />
+              <EditableField :field-key="`shots.${index}.motion.frameType`" label="镜头类型" :value="shot.motion.frameType" :options="FRAME_TYPE_OPTIONS" @commit="commitSelectField" />
               <div class="editable-shot-field">
                 <span class="editable-shot-label">时长(毫秒)</span>
                 <div class="editable-shot-value">
@@ -107,7 +107,7 @@
                   />
                 </div>
               </div>
-              <EditableShotField :field-key="`shots.${index}.motion.durationHint`" label="时长说明" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.durationHint" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${index}.motion.durationHint`" label="时长说明" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.durationHint" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
               <div class="editable-shot-field">
                 <span class="editable-shot-label">配音台词</span>
                 <div class="editable-shot-value">
@@ -142,135 +142,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, watch, type PropType } from "vue";
-import { CheckCircle2, Lock, PanelsTopLeft, PencilLine, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { CheckCircle2, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
 import type { ChapterListItem, ChapterStoryboard, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchSnapshot } from "@airoaming/shared";
-
-interface ShotSelectOption {
-  value: string;
-  label: string;
-}
-
-const SHOT_TYPE_OPTIONS: ShotSelectOption[] = [
-  { value: "establishing", label: "建立镜头" },
-  { value: "wide", label: "远景" },
-  { value: "full", label: "全景" },
-  { value: "medium", label: "中景" },
-  { value: "close_up", label: "特写" },
-  { value: "extreme_close_up", label: "大特写" },
-];
-
-const CAMERA_ANGLE_OPTIONS: ShotSelectOption[] = [
-  { value: "eye_level", label: "平视" },
-  { value: "high_angle", label: "俯拍" },
-  { value: "low_angle", label: "仰拍" },
-  { value: "over_shoulder", label: "过肩" },
-  { value: "top_down", label: "顶视" },
-  { value: "dutch_angle", label: "荷兰角" },
-];
-
-const PANEL_RHYTHM_OPTIONS: ShotSelectOption[] = [
-  { value: "slow", label: "慢节奏" },
-  { value: "normal", label: "常规" },
-  { value: "fast", label: "快节奏" },
-  { value: "impact", label: "冲击格" },
-  { value: "transition", label: "过渡格" },
-];
-
-const CAMERA_MOVEMENT_OPTIONS: ShotSelectOption[] = [
-  { value: "static", label: "固定不动" },
-  { value: "push_in", label: "推进" },
-  { value: "pull_out", label: "拉远" },
-  { value: "pan_left", label: "向左横摇" },
-  { value: "pan_right", label: "向右横摇" },
-  { value: "tilt_up", label: "向上摇" },
-  { value: "tilt_down", label: "向下摇" },
-  { value: "track_left", label: "向左跟拍" },
-  { value: "track_right", label: "向右跟拍" },
-  { value: "slow_zoom", label: "缓慢变焦" },
-  { value: "handheld", label: "手持感" },
-  { value: "none", label: "不指定" },
-];
-
-const FRAME_TYPE_OPTIONS: ShotSelectOption[] = [
-  { value: "atmosphere", label: "氛围镜头" },
-  { value: "dialogue", label: "对话镜头" },
-  { value: "action", label: "动作镜头" },
-  { value: "reaction", label: "反应镜头" },
-  { value: "detail", label: "细节镜头" },
-  { value: "transition", label: "过渡镜头" },
-];
-
-const EditableShotField = defineComponent({
-  props: {
-    fieldKey: { type: String, required: true },
-    label: { type: String, required: true },
-    value: { type: String, required: true },
-    editingKey: { type: String as PropType<string | null>, default: null },
-    editingValue: { type: String, default: "" },
-    multiline: { type: Boolean, default: false },
-  },
-  emits: ["start", "input", "commit"],
-  setup(props, { emit }) {
-    return () => {
-      const isEditing = props.editingKey === props.fieldKey;
-      return h("div", { class: "editable-shot-field" }, [
-        h("span", { class: "editable-shot-label" }, props.label),
-        h("div", { class: "editable-shot-value" }, [
-          isEditing
-            ? h("textarea", {
-                value: props.editingValue,
-                rows: props.multiline ? 4 : 2,
-                onInput: (event: Event) => emit("input", (event.target as HTMLInputElement | HTMLTextAreaElement).value),
-                onBlur: () => emit("commit", props.fieldKey),
-                onKeydown: (event: KeyboardEvent) => {
-                  if (!props.multiline && event.key === "Enter") {
-                    event.preventDefault();
-                    (event.target as HTMLTextAreaElement).blur();
-                  }
-                },
-              })
-            : h("p", props.value || "未填写"),
-          !isEditing
-            ? h("button", {
-                type: "button",
-                title: "编辑",
-                class: "edit-field-btn",
-                onClick: () => emit("start", props.fieldKey, props.value),
-              }, [h(PencilLine, { size: 13 })])
-            : null,
-        ]),
-      ]);
-    };
-  },
-});
-
-const EditableShotSelect = defineComponent({
-  props: {
-    fieldKey: { type: String, required: true },
-    label: { type: String, required: true },
-    value: { type: String, required: true },
-    options: { type: Array as PropType<ShotSelectOption[]>, required: true },
-  },
-  emits: {
-    commit: (key: string, value: string) => typeof key === "string" && typeof value === "string",
-  },
-  setup(props, { emit }) {
-    return () => h("div", { class: "editable-shot-field" }, [
-      h("span", { class: "editable-shot-label" }, props.label),
-      h("div", { class: "editable-shot-value" }, [
-        h("select", {
-          value: props.value,
-          class: "shot-select",
-          onChange: (event: Event) => {
-            const target = event.target as HTMLSelectElement;
-            emit("commit", props.fieldKey, target.value);
-          },
-        }, props.options.map((option) => h("option", { value: option.value }, option.label))),
-      ]),
-    ]);
-  },
-});
+import EditableField from "./EditableField.vue";
+import {
+  CAMERA_ANGLE_OPTIONS,
+  CAMERA_MOVEMENT_OPTIONS,
+  FRAME_TYPE_OPTIONS,
+  PANEL_RHYTHM_OPTIONS,
+  SHOT_TYPE_OPTIONS,
+} from "../../utils/storyboard-options";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -953,25 +835,25 @@ html[data-theme="light"] .shot-head-text span {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
-.shot-core-grid :deep(.editable-shot-field) {
+.shot-core-grid :deep(.editable-shot-field), .shot-core-grid :deep(.editable-field) {
   background: rgba(30, 41, 59, 0.18);
   border: 1px solid rgba(139, 92, 246, 0.05);
   border-radius: 10px;
   padding: 12px;
 }
-html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field) {
+html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field), .shot-core-grid :deep(.editable-field) {
   background: rgba(240, 244, 250, 0.4);
   border-color: rgba(100, 116, 139, 0.06);
 }
 
 /* Editable field styling for Shot Workspace */
-:deep(.editable-shot-field) {
+:deep(.editable-shot-field), :deep(.editable-field) {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-:deep(.editable-shot-label) {
+:deep(.editable-shot-label), :deep(.editable-field .editable-label) {
   color: #a78bfa !important;
   font-size: 11px;
   font-weight: 800;
@@ -979,56 +861,56 @@ html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field) {
   letter-spacing: 0.05em;
   display: block;
 }
-html[data-theme="light"] :deep(.editable-shot-label) {
+html[data-theme="light"] :deep(.editable-shot-label), :deep(.editable-field .editable-label) {
   color: #7c3aed !important;
 }
 
 /* Column specific label styles to reflect the purple/teal colors */
-.comic-column :deep(.editable-shot-label) {
+.comic-column :deep(.editable-shot-label), .comic-column :deep(.editable-field .editable-label) {
   color: #c084fc !important;
 }
-html[data-theme="light"] .comic-column :deep(.editable-shot-label) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-label), .comic-column :deep(.editable-field .editable-label) {
   color: #7c3aed !important;
 }
 
-.motion-column :deep(.editable-shot-label) {
+.motion-column :deep(.editable-shot-label), .motion-column :deep(.editable-field .editable-label) {
   color: #2dd4bf !important;
 }
-html[data-theme="light"] .motion-column :deep(.editable-shot-label) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-label), .motion-column :deep(.editable-field .editable-label) {
   color: #0d9488 !important;
 }
 
-:deep(.editable-shot-value) {
+:deep(.editable-shot-value), :deep(.editable-field .editable-value) {
   position: relative;
   min-width: 0;
   border-left: 2px solid rgba(139, 92, 246, 0.25) !important;
   background: rgba(139, 92, 246, 0.02) !important;
   border-radius: 0 4px 4px 0;
 }
-html[data-theme="light"] :deep(.editable-shot-value) {
+html[data-theme="light"] :deep(.editable-shot-value), :deep(.editable-field .editable-value) {
   border-left-color: rgba(124, 58, 237, 0.35) !important;
   background: rgba(124, 58, 237, 0.02) !important;
 }
 
-.comic-column :deep(.editable-shot-value) {
+.comic-column :deep(.editable-shot-value), .comic-column :deep(.editable-field .editable-value) {
   border-left-color: rgba(168, 85, 247, 0.25) !important;
   background: rgba(168, 85, 247, 0.02) !important;
 }
-html[data-theme="light"] .comic-column :deep(.editable-shot-value) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-value), .comic-column :deep(.editable-field .editable-value) {
   border-left-color: rgba(147, 51, 234, 0.35) !important;
   background: rgba(147, 51, 234, 0.02) !important;
 }
 
-.motion-column :deep(.editable-shot-value) {
+.motion-column :deep(.editable-shot-value), .motion-column :deep(.editable-field .editable-value) {
   border-left-color: rgba(13, 148, 136, 0.25) !important;
   background: rgba(13, 148, 136, 0.02) !important;
 }
-html[data-theme="light"] .motion-column :deep(.editable-shot-value) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-value), .motion-column :deep(.editable-field .editable-value) {
   border-left-color: rgba(13, 148, 136, 0.35) !important;
   background: rgba(13, 148, 136, 0.02) !important;
 }
 
-:deep(.editable-shot-value p) {
+:deep(.editable-shot-value p), :deep(.editable-field .editable-value p) {
   margin: 0;
   min-height: 28px;
   color: #cbd5e1;
@@ -1038,13 +920,13 @@ html[data-theme="light"] .motion-column :deep(.editable-shot-value) {
   word-break: break-all;
   padding: 6px 30px 6px 10px;
 }
-html[data-theme="light"] :deep(.editable-shot-value p) {
+html[data-theme="light"] :deep(.editable-shot-value p), :deep(.editable-field .editable-value p) {
   color: #334155;
 }
 
 :deep(.editable-shot-value input),
-:deep(.editable-shot-value textarea),
-:deep(.editable-shot-value select) {
+:deep(.editable-shot-value textarea), :deep(.editable-field .editable-value textarea),
+:deep(.editable-shot-value select), :deep(.editable-field .editable-value select) {
   width: 100%;
   border: 1px solid rgba(139, 92, 246, 0.3) !important;
   border-radius: 6px;
@@ -1057,10 +939,10 @@ html[data-theme="light"] :deep(.editable-shot-value p) {
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-:deep(.editable-shot-value textarea) {
+:deep(.editable-shot-value textarea), :deep(.editable-field .editable-value textarea) {
   resize: vertical;
 }
-:deep(.editable-shot-value select) {
+:deep(.editable-shot-value select), :deep(.editable-field .editable-value select) {
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -1072,22 +954,22 @@ html[data-theme="light"] :deep(.editable-shot-value p) {
 }
 
 :deep(.editable-shot-value input:focus),
-:deep(.editable-shot-value textarea:focus),
-:deep(.editable-shot-value select:focus) {
+:deep(.editable-shot-value textarea:focus), :deep(.editable-field .editable-value textarea:focus),
+:deep(.editable-shot-value select:focus), :deep(.editable-field .editable-value select:focus) {
   border-color: rgba(139, 92, 246, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
 }
 
 html[data-theme="light"] :deep(.editable-shot-value input),
-html[data-theme="light"] :deep(.editable-shot-value textarea),
-html[data-theme="light"] :deep(.editable-shot-value select) {
+html[data-theme="light"] :deep(.editable-shot-value textarea), :deep(.editable-field .editable-value textarea),
+html[data-theme="light"] :deep(.editable-shot-value select), :deep(.editable-field .editable-value select) {
   background: #ffffff !important;
   color: #1e293b !important;
   border-color: rgba(124, 58, 237, 0.25) !important;
 }
 html[data-theme="light"] :deep(.editable-shot-value input:focus),
-html[data-theme="light"] :deep(.editable-shot-value textarea:focus),
-html[data-theme="light"] :deep(.editable-shot-value select:focus) {
+html[data-theme="light"] :deep(.editable-shot-value textarea:focus), :deep(.editable-field .editable-value textarea:focus),
+html[data-theme="light"] :deep(.editable-shot-value select:focus), :deep(.editable-field .editable-value select:focus) {
   border-color: rgba(124, 58, 237, 0.5) !important;
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08) !important;
 }
@@ -1135,39 +1017,39 @@ html[data-theme="light"] :deep(.voice-lines-list li em) {
 
 /* Specific input fields inside comic/motion columns */
 .comic-column :deep(.editable-shot-value input),
-.comic-column :deep(.editable-shot-value textarea) {
+.comic-column :deep(.editable-shot-value textarea), .comic-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(168, 85, 247, 0.3) !important;
 }
 .comic-column :deep(.editable-shot-value input:focus),
-.comic-column :deep(.editable-shot-value textarea:focus) {
+.comic-column :deep(.editable-shot-value textarea:focus), .comic-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(168, 85, 247, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1) !important;
 }
 html[data-theme="light"] .comic-column :deep(.editable-shot-value input),
-html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea), .comic-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(147, 51, 234, 0.25) !important;
 }
 html[data-theme="light"] .comic-column :deep(.editable-shot-value input:focus),
-html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea:focus) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea:focus), .comic-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(147, 51, 234, 0.5) !important;
   box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.08) !important;
 }
 
 .motion-column :deep(.editable-shot-value input),
-.motion-column :deep(.editable-shot-value textarea) {
+.motion-column :deep(.editable-shot-value textarea), .motion-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(13, 148, 136, 0.3) !important;
 }
 .motion-column :deep(.editable-shot-value input:focus),
-.motion-column :deep(.editable-shot-value textarea:focus) {
+.motion-column :deep(.editable-shot-value textarea:focus), .motion-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(13, 148, 136, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
 }
 html[data-theme="light"] .motion-column :deep(.editable-shot-value input),
-html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea), .motion-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(13, 148, 136, 0.25) !important;
 }
 html[data-theme="light"] .motion-column :deep(.editable-shot-value input:focus),
-html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea:focus) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea:focus), .motion-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(13, 148, 136, 0.5) !important;
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.08) !important;
 }

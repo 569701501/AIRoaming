@@ -46,7 +46,7 @@
           <span>摘要</span>
           <h2>本章方向</h2>
         </div>
-        <EditableBlock
+        <EditableField
           field-key="synopsis"
           label="本章摘要"
           :editable="canEdit"
@@ -59,7 +59,7 @@
           @commit="commitField"
         />
         <div class="direction-grid">
-          <EditableBlock
+          <EditableField
             field-key="direction.logline"
             label="一句话梗概"
             :editable="canEdit"
@@ -70,7 +70,7 @@
             @input="editingValue = $event"
             @commit="commitField"
           />
-          <EditableBlock
+          <EditableField
             field-key="direction.chapterGoal"
             label="本章目标"
             :editable="canEdit"
@@ -81,7 +81,7 @@
             @input="editingValue = $event"
             @commit="commitField"
           />
-          <EditableBlock
+          <EditableField
             field-key="direction.coreConflict"
             label="核心冲突"
             :editable="canEdit"
@@ -92,7 +92,7 @@
             @input="editingValue = $event"
             @commit="commitField"
           />
-          <EditableBlock
+          <EditableField
             field-key="direction.emotionalArc"
             label="情绪走向"
             :editable="canEdit"
@@ -103,7 +103,7 @@
             @input="editingValue = $event"
             @commit="commitField"
           />
-          <EditableBlock
+          <EditableField
             field-key="direction.endingHook"
             label="结尾钩子"
             :editable="canEdit"
@@ -125,10 +125,10 @@
         <div class="entity-grid">
           <article v-for="(character, index) in structureJson.characters" :key="character.id" class="entity-item character-card">
             <strong>{{ character.name }}</strong>
-            <EditableBlock :field-key="`characters.${index}.role`" label="职能" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.role" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableBlock :field-key="`characters.${index}.motivation`" label="动机" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.motivation" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableBlock :field-key="`characters.${index}.relationship`" label="关系" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.relationship" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableBlock :field-key="`characters.${index}.visualTraits`" label="视觉特征" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.visualTraits" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`characters.${index}.role`" label="职能" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.role" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`characters.${index}.motivation`" label="动机" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.motivation" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`characters.${index}.relationship`" label="关系" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.relationship" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`characters.${index}.visualTraits`" label="视觉特征" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="character.visualTraits" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
           </article>
         </div>
       </section>
@@ -178,10 +178,10 @@
         <div class="entity-grid">
           <article v-for="(scene, index) in structureJson.scenes" :key="scene.id" class="entity-item scene-card">
             <strong>{{ scene.name }}</strong>
-            <EditableBlock :field-key="`scenes.${index}.location`" label="地点" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.location" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableBlock :field-key="`scenes.${index}.timeOfDay`" label="时间" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.timeOfDay" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableBlock :field-key="`scenes.${index}.atmosphere`" label="氛围" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.atmosphere" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableBlock :field-key="`scenes.${index}.purpose`" label="剧情作用" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.purpose" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`scenes.${index}.location`" label="地点" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.location" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`scenes.${index}.timeOfDay`" label="时间" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.timeOfDay" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`scenes.${index}.atmosphere`" label="氛围" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.atmosphere" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`scenes.${index}.purpose`" label="剧情作用" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="scene.purpose" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
             <div class="scene-reference">
               <div v-if="getSceneAssetUrl(scene)" class="scene-image-wrap">
                 <button
@@ -234,10 +234,10 @@
             <div class="beat-content">
               <strong>{{ beat.title }}</strong>
               <span>{{ getBeatSceneName(beat.sceneId) }}</span>
-              <EditableBlock :field-key="`beats.${index}.summary`" label="事件" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.summary" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableBlock :field-key="`beats.${index}.conflict`" label="冲突" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.conflict" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableBlock :field-key="`beats.${index}.visualFocus`" label="画面重点" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.visualFocus" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableBlock :field-key="`beats.${index}.outcome`" label="结果" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.outcome" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`beats.${index}.summary`" label="事件" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.summary" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`beats.${index}.conflict`" label="冲突" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.conflict" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`beats.${index}.visualFocus`" label="画面重点" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.visualFocus" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`beats.${index}.outcome`" label="结果" :editable="canEdit" :editing-key="editingKey" :editing-value="editingValue" :value="beat.outcome" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
             </div>
           </article>
         </div>
@@ -263,56 +263,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, type PropType } from "vue";
-import { CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, PencilLine, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import { CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
 import type { ChapterListItem, ChapterStoryStructure, DialogueThread, GenerationTaskItem, StoryStructureJson, StoryStructureSceneCard, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { api } from "../../services/api";
 import CharacterImageList from "./CharacterImageList.vue";
-
-const EditableBlock = defineComponent({
-  props: {
-    fieldKey: { type: String, required: true },
-    label: { type: String, required: true },
-    value: { type: String, required: true },
-    editingKey: { type: String as PropType<string | null>, default: null },
-    editingValue: { type: String, default: "" },
-    editable: { type: Boolean, default: false },
-    multiline: { type: Boolean, default: false },
-  },
-  emits: ["start", "input", "commit"],
-  setup(props, { emit }) {
-    return () => {
-      const isEditing = props.editingKey === props.fieldKey;
-      return h("div", { class: "editable-field" }, [
-        h("span", { class: "editable-label" }, props.label),
-        h("div", { class: "editable-value" }, [
-          isEditing
-            ? h("textarea", {
-                value: props.editingValue,
-                rows: props.multiline ? 4 : 2,
-                onInput: (event: Event) => emit("input", (event.target as HTMLInputElement | HTMLTextAreaElement).value),
-                onBlur: () => emit("commit", props.fieldKey),
-                onKeydown: (event: KeyboardEvent) => {
-                  if (!props.multiline && event.key === "Enter") {
-                    event.preventDefault();
-                    (event.target as HTMLTextAreaElement).blur();
-                  }
-                },
-              })
-            : h("p", props.value || "未填写"),
-          props.editable && !isEditing
-            ? h("button", {
-                type: "button",
-                title: "编辑",
-                class: "edit-field-btn",
-                onClick: () => emit("start", props.fieldKey, props.value),
-              }, [h(PencilLine, { size: 13 })])
-            : null,
-        ]),
-      ]);
-    };
-  },
-});
+import EditableField from "./EditableField.vue";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
