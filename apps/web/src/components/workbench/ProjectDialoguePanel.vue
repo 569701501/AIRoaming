@@ -97,13 +97,13 @@
                         <pre class="script-outline-preview">{{ toolResult.scriptOutline.sourceText }}</pre>
                         <button
                           v-if="toolResult.status === 'needs_user_confirmation'"
-                          class="seed-select-btn"
+                          class="tool-confirm-btn"
                           type="button"
                           :disabled="dialogueSending"
                           title="确认大纲并生成当前章节"
                           @click="confirmScriptOutline(toolResult.scriptOutline)"
                         >
-                          <CheckCircle2 :size="12" />
+                          <CheckCircle2 :size="14" />
                           <span>确认并生成当前章</span>
                         </button>
                       </div>
@@ -113,13 +113,13 @@
                         <pre class="script-outline-preview">{{ formatStoryStructurePreview(toolResult.storyStructure.structureJson) }}</pre>
                         <button
                           v-if="toolResult.status === 'needs_user_confirmation'"
-                          class="seed-select-btn"
+                          class="tool-confirm-btn"
                           type="button"
                           :disabled="dialogueSending"
                           title="确认剧情结构"
                           @click="confirmStoryStructure"
                         >
-                          <CheckCircle2 :size="12" />
+                          <CheckCircle2 :size="14" />
                           <span>确认结构</span>
                         </button>
                       </div>
@@ -129,7 +129,7 @@
                         <pre class="script-outline-preview">{{ formatStoryboardPreview(toolResult.storyboard.storyboardJson) }}</pre>
                         <button
                           v-if="toolResult.status === 'needs_user_confirmation'"
-                          class="seed-select-btn"
+                          class="tool-confirm-btn"
                           type="button"
                           :disabled="dialogueSending"
                           title="确认分镜"
@@ -1160,6 +1160,35 @@ function getImportDecisionLabel(decision: string) {
 .seed-select-btn:disabled {
   cursor: not-allowed;
   opacity: 0.54;
+}
+
+/* 对话卡片里的确认主操作按钮(大纲/结构/分镜):全宽、大尺寸、高对比度,
+   替代原来隐蔽的 seed-select-btn 小按钮。 */
+.tool-confirm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px;
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #8b5cf6, #745fff);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.tool-confirm-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.tool-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .dialogue-quick-actions {
