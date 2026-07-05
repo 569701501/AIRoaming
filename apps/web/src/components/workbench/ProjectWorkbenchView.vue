@@ -31,24 +31,6 @@
             :story-title="snapshot.project.storyTitle"
             @select="$emit('selectChapter', $event)"
           />
-          <div v-if="pendingOutline" class="pending-outline-actions">
-            <div class="pending-outline-info">
-              <CheckCircle2 :size="16" class="pending-outline-icon" />
-              <div class="pending-outline-text">
-                <span class="pending-outline-title">{{ pendingOutline.title }}</span>
-                <span class="pending-outline-hint">剧本大纲已生成，确认后生成当前章节</span>
-              </div>
-            </div>
-            <button
-              class="pending-outline-confirm"
-              type="button"
-              :disabled="dialogueSending"
-              title="确认大纲并生成当前章节"
-              @click="confirmPendingOutline"
-            >
-              {{ dialogueSending ? "生成中…" : "确认并生成当前章" }}
-            </button>
-          </div>
           <div v-if="activeCompletionPrompt" class="chapter-next-actions">
             <div>
               <span>本章剧本已完成</span>
@@ -147,8 +129,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { CheckCircle2 } from "lucide-vue-next";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, ProjectScriptOutline, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -227,19 +208,6 @@ const isStoryboardStep = computed(() => props.activeStepKey === "storyboard");
 const isPreflightStep = computed(() => props.activeStepKey === "image_preflight");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
-
-/** 待确认剧本大纲:从对话 toolResults 反查最新 needs_user_confirmation 的大纲。 */
-const pendingOutline = computed<ProjectScriptOutline | null>(() => {
-  if (!isScriptStep.value) {
-    return null;
-  }
-  const result = [...(props.dialogueThread?.toolResults ?? [])]
-    .reverse()
-    .find((item) => item.tool === "generate_script_outline_from_seed"
-      && item.status === "needs_user_confirmation"
-      && item.scriptOutline);
-  return result?.scriptOutline ?? null;
-});
 const completionPrimaryActionLabel = computed(() => "进入本章剧情结构");
 const activeCompletionPrompt = computed(() => {
   if (!props.chapterCompletionPrompt || props.chapterCompletionPrompt.completedChapterId !== currentChapterId.value) {
@@ -306,17 +274,6 @@ function emitDialogue(input: SendDialogueMessageRequest) {
       ...input.context,
       sourceText: scriptDraft.value,
     },
-  });
-}
-
-/** 确认待确认大纲并生成当前章节(显眼 banner 入口,不必进对话框找按钮)。 */
-function confirmPendingOutline() {
-  if (props.dialogueSending || !pendingOutline.value) {
-    return;
-  }
-  emitDialogue({
-    content: `确认大纲：${pendingOutline.value.title}，生成当前章节`,
-    intent: "generate_script_from_outline",
   });
 }
 
@@ -420,74 +377,6 @@ function continueNextChapter() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 待确认剧本大纲显眼 banner(替代埋在对话框里的隐蔽按钮) */
-.pending-outline-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid rgba(139, 92, 246, 0.38);
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(116, 95, 255, 0.08));
-  padding: 12px 14px;
-}
-
-.pending-outline-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.pending-outline-icon {
-  flex: 0 0 auto;
-  color: #c4b5fd;
-}
-
-.pending-outline-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.pending-outline-title {
-  color: #f8fbff;
-  font-size: 14px;
-  font-weight: 900;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pending-outline-hint {
-  color: #c4b5fd;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pending-outline-confirm {
-  flex: 0 0 auto;
-  min-height: 38px;
-  border: 1px solid rgba(139, 92, 246, 0.5);
-  border-radius: 10px;
-  background: linear-gradient(135deg, #8b5cf6, #745fff);
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 900;
-  padding: 0 16px;
-  cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
-}
-
-.pending-outline-confirm:hover:not(:disabled) {
-  filter: brightness(1.12);
-}
-
-.pending-outline-confirm:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .chapter-next-buttons {
