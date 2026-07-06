@@ -77,6 +77,8 @@ export interface AppSettings {
   openaiImageProvider: AppImageProviderSettings;
   doubaoImageProvider: AppImageProviderSettings;
   activeImageProvider: ImageProviderType;
+  /** 候选图系统级 prompt 模板；null 表示使用内置默认模板（DEFAULT_IMAGE_PROMPT_TEMPLATE）。 */
+  imagePromptTemplate: string | null;
   appearance: AppAppearanceSettings;
   settingsPath: "/workspace/settings/app-settings.json";
   updatedAt: string;
@@ -109,6 +111,8 @@ export interface UpdateAppSettingsRequest {
   openaiImageProvider?: UpdateImageProviderSettingsRequest;
   doubaoImageProvider?: UpdateImageProviderSettingsRequest;
   activeImageProvider?: ImageProviderType;
+  /** 传空字符串或 null 表示恢复内置默认模板。 */
+  imagePromptTemplate?: string | null;
   appearance?: UpdateAppearanceSettingsRequest;
 }
 

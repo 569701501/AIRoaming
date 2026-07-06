@@ -32,6 +32,8 @@ interface StoredAppSettings {
   openaiImageProvider: StoredAIKeySettings;
   doubaoImageProvider: StoredAIKeySettings;
   activeImageProvider: ImageProviderType;
+  /** 候选图系统级 prompt 模板；null = 用内置默认（见 shared DEFAULT_IMAGE_PROMPT_TEMPLATE）。 */
+  imagePromptTemplate: string | null;
   appearance: AppAppearanceSettings;
   updatedAt: string;
 }
@@ -86,6 +88,11 @@ export class SettingsService implements OnModuleInit {
     };
   }
 
+  /** 候选图系统级模板；null 表示用内置默认。每次生成时读，修改即时生效。 */
+  getRuntimeImagePromptTemplate(): string | null {
+    return this.settings.imagePromptTemplate;
+  }
+
   getRuntimeImageProviderSettings(): RuntimeImageProviderSettings {
     const active = this.settings.activeImageProvider;
     const stored = active === "doubao" ? this.settings.doubaoImageProvider : this.settings.openaiImageProvider;
@@ -116,6 +123,9 @@ export class SettingsService implements OnModuleInit {
         ? this.updateImageProviderSettings(current.doubaoImageProvider, input.doubaoImageProvider, now)
         : current.doubaoImageProvider,
       activeImageProvider: input.activeImageProvider ?? current.activeImageProvider,
+      imagePromptTemplate: input.imagePromptTemplate === undefined
+        ? current.imagePromptTemplate
+        : this.normalizeImagePromptTemplate(input.imagePromptTemplate),
       appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
       updatedAt: now,
     };
@@ -271,9 +281,15 @@ export class SettingsService implements OnModuleInit {
         updatedAt: typeof doubaoSource.updatedAt === "string" ? doubaoSource.updatedAt : null,
       },
       activeImageProvider,
+      imagePromptTemplate: this.normalizeImagePromptTemplate(input.imagePromptTemplate ?? null),
       appearance: { theme },
       updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : defaults.updatedAt,
     };
+  }
+
+  /** 空白/非字符串归一化为 null（= 用内置默认模板）。 */
+  private normalizeImagePromptTemplate(value: unknown): string | null {
+    return typeof value === "string" && value.trim() ? value : null;
   }
 
   private defaultSettings(): StoredAppSettings {
@@ -315,6 +331,7 @@ export class SettingsService implements OnModuleInit {
         updatedAt: null,
       },
       activeImageProvider: "openai",
+      imagePromptTemplate: null,
       appearance: {
         theme: "dark",
       },
@@ -328,6 +345,7 @@ export class SettingsService implements OnModuleInit {
       openaiImageProvider: this.toPublicImageProvider(settings.openaiImageProvider),
       doubaoImageProvider: this.toPublicImageProvider(settings.doubaoImageProvider),
       activeImageProvider: settings.activeImageProvider,
+      imagePromptTemplate: settings.imagePromptTemplate,
       appearance: settings.appearance,
       settingsPath: SETTINGS_VIRTUAL_PATH,
       updatedAt: settings.updatedAt,
