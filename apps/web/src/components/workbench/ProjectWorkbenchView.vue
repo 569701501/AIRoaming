@@ -118,6 +118,21 @@
         @go-candidates="$emit('selectStep', 'image_candidates')"
       />
 
+      <ImageCandidatesWorkspace
+        v-else-if="isCandidatesStep"
+        :loading="loading"
+        :snapshot="snapshot"
+        :tasks="tasks"
+        :candidates-data="candidatesData ?? null"
+        @select-chapter="$emit('selectChapter', $event)"
+        @generate-shot="$emit('generateShotCandidates', $event)"
+        @lock-candidate="onLockCandidate"
+        @skip-shot="$emit('skipShot', $event)"
+        @reset-decision="$emit('resetShotDecision', $event)"
+        @discard-candidate="onDiscardCandidate"
+        @confirm-candidates="$emit('confirmCandidates')"
+      />
+
       <div v-else class="step-placeholder">
         <span>STEP {{ currentStageIndex + 1 }}</span>
         <h2>{{ currentStageLabel }}</h2>
@@ -129,7 +144,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, ChapterCandidates, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -137,6 +152,7 @@ import ProjectCharactersWorkspace from "./ProjectCharactersWorkspace.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
 import ImagePreflightWorkspace from "./ImagePreflightWorkspace.vue";
+import ImageCandidatesWorkspace from "./ImageCandidatesWorkspace.vue";
 import StoryboardWorkspace from "./StoryboardWorkspace.vue";
 import StoryStructureWorkspace from "./StoryStructureWorkspace.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
@@ -155,6 +171,7 @@ const props = defineProps<{
   runtimeModels: AIRuntimeModelItem[];
   selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
+  candidatesData?: ChapterCandidates | null;
 }>();
 
 const scriptDraft = ref("");
@@ -187,6 +204,12 @@ const emit = defineEmits<{
   updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   confirmImagePreflight: [chapterId: string];
+  generateShotCandidates: [shotId: string];
+  lockShotCandidate: [shotId: string, candidateId: string];
+  skipShot: [shotId: string];
+  resetShotDecision: [shotId: string];
+  discardShotCandidate: [shotId: string, candidateId: string];
+  confirmCandidates: [];
 }>();
 
 const currentStageIndex = computed(() => {
@@ -206,6 +229,7 @@ const isCharactersStep = computed(() => props.activeStepKey === "project_charact
 const isStructureStep = computed(() => props.activeStepKey === "story_structure");
 const isStoryboardStep = computed(() => props.activeStepKey === "storyboard");
 const isPreflightStep = computed(() => props.activeStepKey === "image_preflight");
+const isCandidatesStep = computed(() => props.activeStepKey === "image_candidates");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
 const completionPrimaryActionLabel = computed(() => "进入本章剧情结构");
@@ -297,6 +321,14 @@ function emitGenerateStoryboard(payload: { chapterId: string; regenerate: boolea
       sourceText: getCurrentChapterSourceText(props.snapshot),
     },
   });
+}
+
+function onLockCandidate(shotId: string, candidateId: string) {
+  emit("lockShotCandidate", shotId, candidateId);
+}
+
+function onDiscardCandidate(shotId: string, candidateId: string) {
+  emit("discardShotCandidate", shotId, candidateId);
 }
 
 function enterCompletedChapterStructure() {

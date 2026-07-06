@@ -49,6 +49,14 @@ import type {
   UpdateProjectDraftRequest,
   WorkspaceInfo,
   WorkbenchSnapshot,
+  GetChapterCandidatesResponse,
+  GenerateShotCandidatesRequest,
+  GenerateShotCandidatesResponse,
+  LockShotCandidateRequest,
+  SkipShotCandidateRequest,
+  DiscardShotCandidateRequest,
+  SaveChapterCandidatesResponse,
+  UpdateShotPromptOverrideRequest,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -439,6 +447,46 @@ export const api = {
     },
     onEvent,
   ),
+  // === 候选图工作台 ===
+  getChapterCandidates: (projectId: string, chapterId: string) =>
+    request<GetChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates`,
+    ),
+  updateShotPromptOverride: (projectId: string, chapterId: string, shotId: string, input: UpdateShotPromptOverrideRequest) =>
+    request<GetChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/shots/${encodeURIComponent(shotId)}/prompt`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  generateShotCandidates: (projectId: string, chapterId: string, shotId: string, input: GenerateShotCandidatesRequest) =>
+    request<GenerateShotCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/shots/${encodeURIComponent(shotId)}/generate`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  lockShotCandidate: (projectId: string, chapterId: string, shotId: string, input: LockShotCandidateRequest) =>
+    request<GetChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/shots/${encodeURIComponent(shotId)}/lock`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  skipShot: (projectId: string, chapterId: string, shotId: string, input: SkipShotCandidateRequest) =>
+    request<GetChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/shots/${encodeURIComponent(shotId)}/skip`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  resetShotDecision: (projectId: string, chapterId: string, shotId: string) =>
+    request<GetChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/shots/${encodeURIComponent(shotId)}/reset`,
+      { method: "POST" },
+    ),
+  discardShotCandidate: (projectId: string, chapterId: string, shotId: string, input: DiscardShotCandidateRequest) =>
+    request<GetChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/shots/${encodeURIComponent(shotId)}/discard`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  confirmChapterCandidates: (projectId: string, chapterId: string) =>
+    request<SaveChapterCandidatesResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/confirm`,
+      { method: "POST" },
+    ),
   listTasks: () => request<{ items: GenerationTaskItem[] }>("/tasks"),
   createTask: (input: CreateGenerationTaskRequest) => request<{ task: GenerationTaskItem }>("/tasks", {
     method: "POST",

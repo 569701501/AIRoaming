@@ -29,6 +29,13 @@ import {
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
   type WorkspaceInfo,
+  type ChapterCandidates,
+  type GetChapterCandidatesResponse,
+  type GenerateShotCandidatesRequest,
+  type LockShotCandidateRequest,
+  type SkipShotCandidateRequest,
+  type DiscardShotCandidateRequest,
+  type UpdateShotPromptOverrideRequest,
 } from "@airoaming/shared";
 import { api } from "../services/api";
 import {
@@ -67,6 +74,7 @@ interface WorkbenchState {
   selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
   tasks: GenerationTaskItem[];
+  candidatesData: ChapterCandidates | null;
   loading: boolean;
   error: string | null;
 }
@@ -96,6 +104,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     selectedDialogueModel: null,
     runtimeModelError: null,
     tasks: [],
+    candidatesData: null,
     loading: false,
     error: null,
   }),
@@ -180,6 +189,10 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.chapterCompletionPrompt = null;
       }
       await this.refresh();
+      // 候选图工作台首次进入：refresh 之后 activeChapterId 已解析，拉取候选文档。
+      if (this.activeStepKey === "image_candidates" && this.activeChapterId) {
+        await this.loadChapterCandidates(this.activeChapterId);
+      }
     },
     async loadRuntimeModels() {
       this.runtimeModelError = null;
@@ -363,6 +376,10 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.tasks = tasks.items;
         this.snapshot = workbench.snapshot;
         this.activeChapterId = workbench.snapshot.currentChapter?.id ?? this.activeChapterId;
+        // 候选图工作台轮询：任务执行中需要刷新 candidates.json 落盘状态。
+        if (this.activeStepKey === "image_candidates" && this.activeChapterId) {
+          await this.loadChapterCandidates(this.activeChapterId);
+        }
       } catch {
         // Runtime polling must not replace the user's visible error with a transient refresh failure.
       }
@@ -653,6 +670,153 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.error = error instanceof Error ? error.message : "处理出镜角色失败";
         return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    /** 拉取当前章节候选图文档（进入 image_candidates 步骤或轮询时调用）。 */
+    async loadChapterCandidates(chapterId: string): Promise<void> {
+      const projectId = this.activeProjectId;
+      if (!projectId) {
+        return;
+      }
+      try {
+        const result = await api.getChapterCandidates(projectId, chapterId);
+        this.candidatesData = result.candidates;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "获取候选图失败";
+      }
+    },
+    async getChapterCandidates(chapterId: string): Promise<GetChapterCandidatesResponse | null> {
+      const projectId = this.activeProjectId;
+      if (!projectId) {
+        this.error = "请先进入项目";
+        return null;
+      }
+      try {
+        const result = await api.getChapterCandidates(projectId, chapterId);
+        this.candidatesData = result.candidates;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "获取候选图失败";
+        return null;
+      }
+    },
+    async updateShotPromptOverride(chapterId: string, shotId: string, input: UpdateShotPromptOverrideRequest): Promise<GetChapterCandidatesResponse | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.updateShotPromptOverride(projectId, chapterId, shotId, input);
+        this.candidatesData = result.candidates;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "更新提示词失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async generateShotCandidates(chapterId: string, shotId: string, input: GenerateShotCandidatesRequest = {}): Promise<GetChapterCandidatesResponse | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.generateShotCandidates(projectId, chapterId, shotId, input);
+        this.candidatesData = result.candidates;
+        return { candidates: result.candidates, promptPreviews: {} };
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "生成候选图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async lockShotCandidate(chapterId: string, shotId: string, input: LockShotCandidateRequest): Promise<GetChapterCandidatesResponse | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.lockShotCandidate(projectId, chapterId, shotId, input);
+        this.candidatesData = result.candidates;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "锁定候选图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async skipShot(chapterId: string, shotId: string, input: SkipShotCandidateRequest = {}): Promise<GetChapterCandidatesResponse | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.skipShot(projectId, chapterId, shotId, input);
+        this.candidatesData = result.candidates;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "跳过分镜失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async resetShotDecision(chapterId: string, shotId: string): Promise<GetChapterCandidatesResponse | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.resetShotDecision(projectId, chapterId, shotId);
+        this.candidatesData = result.candidates;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "重置决策失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async discardShotCandidate(chapterId: string, shotId: string, candidateId: string): Promise<GetChapterCandidatesResponse | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.discardShotCandidate(projectId, chapterId, shotId, { candidateId });
+        this.candidatesData = result.candidates;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "废弃候选图失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async confirmChapterCandidates(chapterId: string): Promise<boolean> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) throw new Error("请先进入项目");
+        const result = await api.confirmChapterCandidates(projectId, chapterId);
+        this.applyChapterUpdate(result.chapter, result.chapters);
+        this.candidatesData = result.candidates;
+        if (this.snapshot) {
+          this.snapshot = { ...this.snapshot };
+          this.snapshot.workflow = patchWorkflowForChapter(this.snapshot, result.chapter);
+          this.snapshot.stages = this.snapshot.workflow.steps;
+        }
+        this.dialogueNotice = `「${result.chapter.title}」候选图已完成，进入下一阶段。`;
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "完成候选图失败";
+        return false;
       } finally {
         this.loading = false;
       }
@@ -1031,6 +1195,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.dialogueThread = null;
       this.dialogueError = null;
       this.dialogueNotice = null;
+      this.candidatesData = null;
     },
     async createMockStoryTask() {
       this.loading = true;

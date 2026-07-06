@@ -2,6 +2,11 @@ import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Res, 
 import type {
   CompleteChapterRequest,
   ConfirmCharacterPreviewRequest,
+  DiscardShotCandidateRequest,
+  GenerateShotCandidatesRequest,
+  LockShotCandidateRequest,
+  SkipShotCandidateRequest,
+  UpdateShotPromptOverrideRequest,
   ConfirmCharacterReferenceRequest,
   ConfirmChapterImagePreflightRequest,
   ConfirmChapterStoryboardRequest,
@@ -19,10 +24,14 @@ import type {
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
+import { ChapterCandidatesService } from "./chapter-candidates.service.js";
 
 @Controller("projects")
 export class ProjectsController {
-  constructor(@Inject(ProjectsService) private readonly projectsService: ProjectsService) {}
+  constructor(
+    @Inject(ProjectsService) private readonly projectsService: ProjectsService,
+    @Inject(ChapterCandidatesService) private readonly candidatesService: ChapterCandidatesService,
+  ) {}
 
   @Get()
   async list() {
@@ -216,6 +225,77 @@ export class ProjectsController {
   @Get(":projectId/chapters/:chapterId/storyboard")
   async getChapterStoryboard(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
     return ok(await this.projectsService.getChapterStoryboard(projectId, chapterId));
+  }
+
+  // ====== 候选图工作台（见 2026-07-06_候选图工作台MVP方案 5.6） ======
+
+  @Get(":projectId/chapters/:chapterId/candidates")
+  async getChapterCandidates(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.candidatesService.getChapterCandidates(projectId, chapterId));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/candidates/shots/:shotId/prompt")
+  async updateShotPromptOverride(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: UpdateShotPromptOverrideRequest,
+  ) {
+    return ok(await this.candidatesService.updateShotPromptOverride(projectId, chapterId, shotId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/candidates/shots/:shotId/generate")
+  async generateShotCandidates(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: GenerateShotCandidatesRequest,
+  ) {
+    return ok(await this.candidatesService.generateShotCandidates(projectId, chapterId, shotId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/candidates/shots/:shotId/lock")
+  async lockShotCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: LockShotCandidateRequest,
+  ) {
+    return ok(await this.candidatesService.lockShotCandidate(projectId, chapterId, shotId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/candidates/shots/:shotId/skip")
+  async skipShotCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: SkipShotCandidateRequest,
+  ) {
+    return ok(await this.candidatesService.skipShot(projectId, chapterId, shotId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/candidates/shots/:shotId/reset")
+  async resetShotCandidateDecision(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+  ) {
+    return ok(await this.candidatesService.resetShotDecision(projectId, chapterId, shotId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/candidates/shots/:shotId/discard")
+  async discardShotCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: DiscardShotCandidateRequest,
+  ) {
+    return ok(await this.candidatesService.discardShotCandidate(projectId, chapterId, shotId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/candidates/confirm")
+  async confirmChapterCandidates(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.candidatesService.confirmChapterCandidates(projectId, chapterId));
   }
 
   @Get(":projectId/chapters/:chapterId/image-preflight")

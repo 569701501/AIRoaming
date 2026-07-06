@@ -13,6 +13,7 @@ import type {
   ProjectStatus,
   ProjectType,
 } from "./domain.js";
+import type { CandidatesJson, ShotPromptSnapshot } from "./image-candidates.js";
 
 export interface ApiEnvelope<T> {
   success: true;
@@ -609,6 +610,58 @@ export interface ConfirmChapterImagePreflightRequest {
 
 export interface SaveChapterImagePreflightResponse {
   imagePreflight: ChapterImagePreflight;
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+}
+
+// ===== 候选图工作台（见 image-candidates.ts 与 2026-07-06 方案） =====
+
+export interface ChapterCandidates {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  candidatesPath: string;
+  candidatesJson: CandidatesJson;
+  /** 当前正式分镜是否与文档 sourceStoryboardId/updatedAt 匹配（不匹配时 UI 提示基于旧分镜）。 */
+  storyboardInSync: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GetChapterCandidatesResponse {
+  candidates: ChapterCandidates | null;
+  /** 每个 shot 的当前 prompt 预览（自动拼装或 override），键为 shotId。 */
+  promptPreviews: Record<string, ShotPromptSnapshot>;
+}
+
+export interface UpdateShotPromptOverrideRequest {
+  /** null/空白 = 清除 override，回到自动拼装。 */
+  userPromptOverride: string | null;
+}
+
+export interface GenerateShotCandidatesRequest {
+  candidateCount?: number;
+}
+
+export interface GenerateShotCandidatesResponse {
+  task: GenerationTaskItem;
+  candidates: ChapterCandidates;
+}
+
+export interface LockShotCandidateRequest {
+  candidateId: string;
+}
+
+export interface SkipShotCandidateRequest {
+  note?: string;
+}
+
+export interface DiscardShotCandidateRequest {
+  candidateId: string;
+}
+
+export interface SaveChapterCandidatesResponse {
+  candidates: ChapterCandidates;
   chapter: ChapterDetail;
   chapters: ChapterListItem[];
 }

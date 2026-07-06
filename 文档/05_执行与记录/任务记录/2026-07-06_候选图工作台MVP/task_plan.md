@@ -23,9 +23,9 @@ source: 文档/04_方案与决策/2026-07-06_候选图工作台MVP方案.md
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | P1 契约 | shared DTO（CandidatesJson 等）、prompt 拼装纯函数 + 单测、settings 增 imagePromptTemplate | in_progress |
-| P2 后端 | ImageTaskQueue 抽取、candidates 读写 service、image_generate worker、candidates API、confirm → images_done | pending |
-| P3 前端 | ImageCandidatesWorkspace.vue、路由、SSE 进度、锁定/跳过/确认交互 | pending |
-| P4 收尾 | 文档同步（方案第 6 节清单）、功能完成记录、端到端验证 | pending |
+| P2 后端 | ImageTaskQueue 抽取、candidates 读写 service、image_generate worker、candidates API、confirm → images_done | done |
+| P3 前端 | ImageCandidatesWorkspace.vue、路由、SSE 进度、锁定/跳过/确认交互 | done |
+| P4 收尾 | 文档同步（方案第 6 节清单）、功能完成记录、端到端验证 | in_progress |
 
 ## 4. 已做决策
 

@@ -40,6 +40,7 @@ import { ProjectStore } from "./project-store.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { SettingsService } from "../settings/settings.service.js";
+import { ImageTaskQueue } from "./image-task-queue.service.js";
 
 interface ProjectAssetFile {
   buffer: Buffer;
@@ -65,7 +66,6 @@ interface CharacterReferenceSource extends ProjectAssetFile {
 @Injectable()
 export class CharacterReferenceService {
   private readonly logger = new Logger(CharacterReferenceService.name);
-  private characterReferenceQueue: Promise<void> = Promise.resolve();
 
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
@@ -74,6 +74,7 @@ export class CharacterReferenceService {
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
     @Inject(TasksService) private readonly tasksService: TasksService,
     @Inject(SettingsService) private readonly settingsService: SettingsService,
+    @Inject(ImageTaskQueue) private readonly imageQueue: ImageTaskQueue,
   ) {}
 
   // ====== 角色纯函数薄委托(内联,委托 wsCharacter/wsDomain) ======
@@ -527,11 +528,8 @@ export class CharacterReferenceService {
     referenceKind: ProjectCharacterReferenceKind,
     input: GenerateCharacterReferenceRequest,
   ): void {
-    const run = () => this.runCharacterReferenceTask(taskId, projectId, characterId, referenceKind, input);
-    this.characterReferenceQueue = this.characterReferenceQueue.then(run, run);
-    void this.characterReferenceQueue.catch((error) => {
-      this.logger.error(`Character reference queue failed: ${this.getErrorMessage(error)}`);
-    });
+    // 共用串行图片队列（角色/场景/候选图统一 429 预算，见 2026-07-06 候选图方案 5.5）。
+    this.imageQueue.enqueue(() => this.runCharacterReferenceTask(taskId, projectId, characterId, referenceKind, input));
   }
 
   private async runCharacterReferenceTask(
@@ -875,11 +873,7 @@ export class CharacterReferenceService {
   }
 
   private enqueueSceneReferenceTaskRun(taskId: string, projectId: string, chapterId: string, sceneId: string, input: GenerateSceneReferenceRequest): void {
-    const run = () => this.runSceneReferenceTask(taskId, projectId, chapterId, sceneId, input);
-    this.characterReferenceQueue = this.characterReferenceQueue.then(run, run);
-    void this.characterReferenceQueue.catch((error) => {
-      this.logger.error(`Scene reference queue failed: ${this.getErrorMessage(error)}`);
-    });
+    this.imageQueue.enqueue(() => this.runSceneReferenceTask(taskId, projectId, chapterId, sceneId, input));
   }
 
   private async runSceneReferenceTask(taskId: string, projectId: string, chapterId: string, sceneId: string, input: GenerateSceneReferenceRequest): Promise<void> {

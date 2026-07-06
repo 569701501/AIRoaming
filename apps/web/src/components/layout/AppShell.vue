@@ -28,6 +28,7 @@
           :selected-dialogue-model="selectedDialogueModel"
           :snapshot="snapshot"
           :tasks="tasks"
+          :candidates-data="candidatesData"
           @send-dialogue="sendDialogue"
           @back="goProjectLibrary"
           @open-characters="openCharacterLibrary"
@@ -55,6 +56,12 @@
           @update-story-structure="updateStoryStructure"
           @update-storyboard="updateStoryboard"
           @save-pending-storyboard="savePendingStoryboard"
+          @generate-shot-candidates="generateShotCandidates"
+          @lock-shot-candidate="lockShotCandidate"
+          @skip-shot="skipShot"
+          @reset-shot-decision="resetShotDecision"
+          @discard-shot-candidate="discardShotCandidate"
+          @confirm-candidates="confirmCandidates"
         />
         <main v-else-if="isProjectRoute" class="route-loading" aria-label="项目加载中">
           <div v-if="error" class="route-error">
@@ -105,6 +112,7 @@ const route = useRoute();
 const router = useRouter();
 const {
   activeStepKey,
+  candidatesData,
   chapterCompletionPrompt,
   dialogueError,
   dialogueNotice,
@@ -291,6 +299,59 @@ async function confirmStoryboard(payload: { chapterId: string; storyboardJson: S
 
 async function confirmImagePreflight(chapterId: string) {
   await workbench.confirmImagePreflight(chapterId);
+}
+
+async function generateShotCandidates(shotId: string) {
+  const chapterId = workbench.activeChapterId;
+  if (!chapterId) {
+    return;
+  }
+  await workbench.generateShotCandidates(chapterId, shotId, {});
+}
+
+async function lockShotCandidate(shotId: string, candidateId: string) {
+  const chapterId = workbench.activeChapterId;
+  if (!chapterId) {
+    return;
+  }
+  await workbench.lockShotCandidate(chapterId, shotId, { candidateId });
+}
+
+async function skipShot(shotId: string) {
+  const chapterId = workbench.activeChapterId;
+  if (!chapterId) {
+    return;
+  }
+  await workbench.skipShot(chapterId, shotId, {});
+}
+
+async function resetShotDecision(shotId: string) {
+  const chapterId = workbench.activeChapterId;
+  if (!chapterId) {
+    return;
+  }
+  await workbench.resetShotDecision(chapterId, shotId);
+}
+
+async function discardShotCandidate(shotId: string, candidateId: string) {
+  const chapterId = workbench.activeChapterId;
+  if (!chapterId) {
+    return;
+  }
+  await workbench.discardShotCandidate(chapterId, shotId, candidateId);
+}
+
+async function confirmCandidates() {
+  const chapterId = workbench.activeChapterId;
+  if (!chapterId || !routeProjectId.value) {
+    return;
+  }
+  const ok = await workbench.confirmChapterCandidates(chapterId);
+  if (!ok) {
+    return;
+  }
+  // 候选完成 → 推进到下一阶段（layout_export 占位）。当前章节保持，步驟切换。
+  await router.push(projectRoute(routeProjectId.value, "layout", chapterId));
 }
 
 async function updateStoryboard(payload: { chapterId: string; storyboardJson: StoryboardJson }) {

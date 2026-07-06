@@ -4,6 +4,8 @@ import { TasksModule } from "../tasks/tasks.module.js";
 import { WorkspaceModule } from "../workspace/workspace.module.js";
 import { ProjectsController } from "./projects.controller.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
+import { ChapterCandidatesService } from "./chapter-candidates.service.js";
+import { ImageTaskQueue } from "./image-task-queue.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
 import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
@@ -16,7 +18,7 @@ import { ProjectsService } from "./projects.service.js";
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule],
   controllers: [ProjectsController],
-  providers: [ProjectRepository, ImageProviderService, ProjectStore, CharacterReferenceService, ChapterScriptService, StoryboardService, StoryStructureService, ImagePreflightService, ProjectsService],
+  providers: [ProjectRepository, ImageProviderService, ImageTaskQueue, ProjectStore, CharacterReferenceService, ChapterCandidatesService, ChapterScriptService, StoryboardService, StoryStructureService, ImagePreflightService, ProjectsService],
   exports: [ProjectsService],
 })
 export class ProjectsModule {}
