@@ -126,6 +126,7 @@
         :tasks="tasks"
         @select-chapter="$emit('selectChapter', $event)"
         @generate-candidates="$emit('generateImageCandidates', $event)"
+        @generate-all-unlocked="$emit('generateAllUnlocked')"
         @lock-candidate="$emit('lockCandidate', $event)"
         @complete-images="$emit('completeImages')"
         @go-preflight="$emit('selectStep', 'image_preflight')"
@@ -223,6 +224,7 @@ const emit = defineEmits<{
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   confirmImagePreflight: [chapterId: string];
   generateImageCandidates: [payload: { shotId: string; candidateCount: number }];
+  generateAllUnlocked: [];
   lockCandidate: [candidateId: string];
   completeImages: [];
   buildLayout: [];

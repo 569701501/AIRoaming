@@ -46,6 +46,7 @@
           @confirm-storyboard="confirmStoryboard"
           @confirm-image-preflight="confirmImagePreflight"
           @generate-image-candidates="generateImageCandidates"
+          @generate-all-unlocked="generateAllUnlocked"
           @lock-candidate="lockCandidate"
           @complete-images="completeImages"
           @build-layout="buildLayout"
@@ -301,6 +302,10 @@ async function confirmImagePreflight(chapterId: string) {
 
 async function generateImageCandidates(payload: { shotId: string; candidateCount: number }) {
   await workbench.generateImageCandidates(payload.shotId, payload.candidateCount);
+}
+
+async function generateAllUnlocked() {
+  await workbench.generateAllUnlockedShots(1);
 }
 
 async function lockCandidate(candidateId: string) {

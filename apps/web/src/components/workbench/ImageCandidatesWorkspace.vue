@@ -12,13 +12,15 @@
       </div>
 
       <div class="candidate-actions">
-        <button class="secondary-action" type="button" :disabled="loading" @click="$emit('goPreflight')">
-          <ListChecks :size="15" />
-          <span>出图准备</span>
-        </button>
-        <button class="primary-action" type="button" :disabled="!canGenerateSelected || loading" @click="generateSelectedShot">
-          <Wand2 :size="15" />
-          <span>生成候选</span>
+        <button
+          class="secondary-action"
+          type="button"
+          :disabled="!isPreflightConfirmed || loading || unlockedShotCount === 0"
+          :title="unlockedShotCount === 0 ? '本章镜头已全部锁定' : `为 ${unlockedShotCount} 个未锁定镜头各生成 1 张`"
+          @click="$emit('generateAllUnlocked')"
+        >
+          <Layers :size="15" />
+          <span>批量生成{{ unlockedShotCount > 0 ? `(${unlockedShotCount})` : "" }}</span>
         </button>
         <button class="primary-action" type="button" :disabled="!canCompleteChapter || loading" @click="$emit('completeImages')">
           <CheckCircle2 :size="15" />
@@ -73,14 +75,25 @@
             <span>镜头 {{ selectedShot.order }}</span>
             <h2>{{ selectedShot.coreAction || selectedShot.comic.panelDescription || "未填写镜头动作" }}</h2>
           </div>
-          <div class="candidate-count-control" aria-label="候选数量">
-            <button type="button" aria-label="减少候选数量" :disabled="candidateCount <= 1 || loading" @click="candidateCount -= 1">
-              <Minus :size="15" />
+          <div class="generate-group">
+            <button
+              class="generate-btn"
+              type="button"
+              :disabled="!canGenerateSelected || loading"
+              @click="generateSelectedShot"
+            >
+              <Wand2 :size="16" />
+              <span>生成候选图</span>
             </button>
-            <strong>{{ candidateCount }}</strong>
-            <button type="button" aria-label="增加候选数量" :disabled="candidateCount >= 6 || loading" @click="candidateCount += 1">
-              <Plus :size="15" />
-            </button>
+            <div class="candidate-count-control" aria-label="候选数量">
+              <button type="button" aria-label="减少候选数量" :disabled="candidateCount <= 1 || loading" @click="candidateCount -= 1">
+                <Minus :size="15" />
+              </button>
+              <strong>{{ candidateCount }}</strong>
+              <button type="button" aria-label="增加候选数量" :disabled="candidateCount >= 6 || loading" @click="candidateCount += 1">
+                <Plus :size="15" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -103,16 +116,33 @@
           </article>
         </div>
 
+        <!-- 出图 prompt 预览(P0 任务C):生成前可看到完整 prompt,不可编辑 -->
+        <section v-if="selectedShot" class="prompt-preview-panel">
+          <button class="prompt-toggle" type="button" @click="promptExpanded = !promptExpanded">
+            <ChevronDown :size="14" :class="{ 'is-rotated': !promptExpanded }" />
+            <span>出图 Prompt</span>
+            <small>{{ promptExpanded ? "点击折叠" : "点击查看完整提示词" }}</small>
+          </button>
+          <div v-if="promptExpanded" class="prompt-preview-body">
+            <div class="prompt-sections">
+              <div v-for="section in promptSections" :key="section.label" class="prompt-section-item">
+                <span>{{ section.label }}</span>
+                <p>{{ section.value }}</p>
+              </div>
+            </div>
+            <div class="prompt-full">
+              <span>完整 prompt</span>
+              <pre>{{ fullPromptText }}</pre>
+            </div>
+          </div>
+        </section>
+
         <section class="task-panel">
           <div class="panel-heading">
             <div>
               <span>生成任务</span>
               <strong>{{ selectedShotTasks.length }} 个记录</strong>
             </div>
-            <button class="primary-action compact" type="button" :disabled="!canGenerateSelected || loading" @click="generateSelectedShot">
-              <Wand2 :size="14" />
-              <span>{{ selectedShotTasks.length > 0 ? "再生成一组" : "生成候选图" }}</span>
-            </button>
           </div>
 
           <div v-if="selectedShotTasks.length === 0" class="task-empty">
@@ -138,7 +168,7 @@
           <div class="panel-heading">
             <div>
               <span>候选结果</span>
-              <strong>{{ selectedCandidates.length }} 张</strong>
+              <strong>{{ selectedCandidates.length }} 张 · {{ candidateBatches.length }} 批</strong>
             </div>
             <span class="lock-progress">已锁定 {{ lockedShotCount }}/{{ shots.length }}</span>
           </div>
@@ -146,41 +176,81 @@
           <div v-if="selectedCandidates.length === 0" class="candidate-grid-empty">
             <ImageIcon :size="22" />
             <h3>还没有候选图</h3>
-            <p>点击「生成候选图」创建真实 image_generate 任务；成功后会落盘并出现在这里。</p>
+            <p>点击「生成候选图」创建真实 image_generate 任务；成功后会落盘并出现在这里。不满意可「重新生成」，旧批保留为历史。</p>
           </div>
 
-          <article
-            v-for="candidate in selectedCandidates"
-            :key="candidate.id"
-            class="candidate-card"
-            :class="{ 'is-locked': candidate.status === 'locked' }"
-          >
-            <div class="candidate-thumb">
-              <img
-                v-if="getCandidatePreviewUrl(candidate.assetId)"
-                :src="getCandidatePreviewUrl(candidate.assetId)!"
-                :alt="candidate.label"
-              />
-              <ImageIcon v-else :size="24" />
-            </div>
-            <div class="candidate-meta">
-              <strong>{{ candidate.label }}</strong>
-              <span>{{ getCandidateStatusLabel(candidate.status) }}</span>
-              <button
-                class="lock-action"
-                type="button"
-                :disabled="loading || candidate.status === 'locked'"
-                @click="$emit('lockCandidate', candidate.id)"
+          <!-- 候选按批次(taskId)分组:最新批次展开,旧批次可折叠 -->
+          <div v-for="batch in candidateBatches" :key="batch.taskId" class="candidate-batch" :class="{ 'is-collapsed': collapsedBatchIds.has(batch.taskId) }">
+            <button class="batch-toggle" type="button" @click="toggleBatch(batch.taskId)">
+              <ChevronDown :size="14" />
+              <strong>{{ batch.label }}</strong>
+              <span>{{ batch.candidates.length }} 张</span>
+            </button>
+            <div v-show="!collapsedBatchIds.has(batch.taskId)" class="candidate-grid">
+              <article
+                v-for="candidate in batch.candidates"
+                :key="candidate.id"
+                class="candidate-card"
+                :class="[`is-${candidate.status}`, { 'is-locked': candidate.status === 'locked' }]"
               >
-                <Lock :size="13" />
-                <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
-              </button>
+                <button
+                  v-if="getCandidatePreviewUrl(candidate.assetId)"
+                  class="candidate-thumb"
+                  type="button"
+                  @click="openCandidatePreview(candidate)"
+                >
+                  <img :src="getCandidatePreviewUrl(candidate.assetId)!" :alt="candidate.label" />
+                  <span class="thumb-zoom-hint"><ZoomIn :size="16" /> 点击放大</span>
+                </button>
+                <div v-else class="candidate-thumb is-empty">
+                  <ImageIcon :size="24" />
+                </div>
+                <div class="candidate-meta">
+                  <div class="candidate-meta-top">
+                    <strong>{{ candidate.label }}</strong>
+                    <span class="candidate-status">{{ getCandidateStatusLabel(candidate.status) }}</span>
+                  </div>
+                  <span v-if="candidate.promptDigest" class="digest-tag" :title="`prompt 摘要 ${candidate.promptDigest}`">{{ candidate.promptDigest.slice(0, 6) }}</span>
+                  <button
+                    class="lock-action"
+                    type="button"
+                    :disabled="loading || candidate.status === 'locked'"
+                    @click="$emit('lockCandidate', candidate.id)"
+                  >
+                    <Lock :size="13" />
+                    <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+                  </button>
+                </div>
+              </article>
             </div>
-          </article>
+          </div>
         </section>
       </section>
     </div>
   </section>
+
+  <!-- 候选图放大预览 -->
+  <Teleport to="body">
+    <div v-if="previewCandidate" class="candidate-preview-backdrop" @click.self="previewCandidate = null">
+      <div class="candidate-preview-modal">
+        <button class="preview-close" type="button" @click="previewCandidate = null"><X :size="20" /></button>
+        <img :src="getCandidatePreviewUrl(previewCandidate.assetId)!" :alt="previewCandidate.label" />
+        <div class="preview-info">
+          <strong>{{ previewCandidate.label }}</strong>
+          <span>{{ getCandidateStatusLabel(previewCandidate.status) }}</span>
+          <button
+            class="preview-lock-btn"
+            type="button"
+            :disabled="loading || previewCandidate.status === 'locked'"
+            @click="$emit('lockCandidate', previewCandidate.id); previewCandidate = null"
+          >
+            <Lock :size="15" />
+            <span>{{ previewCandidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -188,8 +258,10 @@ import { computed, ref, watch } from "vue";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Image as ImageIcon,
   Images,
+  Layers,
   ListChecks,
   Loader2,
   Lock,
@@ -197,6 +269,8 @@ import {
   Plus,
   ShieldAlert,
   Wand2,
+  X,
+  ZoomIn,
 } from "lucide-vue-next";
 import type {
   ArtStyle,
@@ -205,9 +279,11 @@ import type {
   ComicFormat,
   GenerationTaskItem,
   GenerationTaskStatus,
+  WorkbenchCandidate,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { api } from "../../services/api";
+import { buildCandidatePositivePrompt, buildPromptPreviewSections } from "../../utils/candidate-prompt";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -218,6 +294,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectChapter: [chapterId: string];
   generateCandidates: [payload: { shotId: string; candidateCount: number }];
+  generateAllUnlocked: [];
   lockCandidate: [candidateId: string];
   completeImages: [];
   goPreflight: [];
@@ -225,6 +302,8 @@ const emit = defineEmits<{
 
 const selectedShotId = ref<string | null>(null);
 const candidateCount = ref(4);
+const promptExpanded = ref(false);
+const previewCandidate = ref<WorkbenchCandidate | null>(null);
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -232,6 +311,8 @@ const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
 const selectedShot = computed(() => shots.value.find((shot) => shot.id === selectedShotId.value) ?? shots.value[0] ?? null);
+const promptSections = computed(() => selectedShot.value ? buildPromptPreviewSections(selectedShot.value, props.snapshot) : []);
+const fullPromptText = computed(() => selectedShot.value ? buildCandidatePositivePrompt(selectedShot.value, props.snapshot) : "");
 const isPreflightConfirmed = computed(() => {
   const preflight = props.snapshot.imagePreflight;
   const storyboard = props.snapshot.storyboard;
@@ -252,6 +333,7 @@ const canGenerateSelected = computed(() => Boolean(
   && currentChapter.value?.status !== "exported",
 ));
 const lockedShotCount = computed(() => shots.value.filter((shot) => Boolean(shot.lockedCandidateId)).length);
+const unlockedShotCount = computed(() => shots.value.filter((shot) => !shot.lockedCandidateId).length);
 const canCompleteChapter = computed(() =>
   isPreflightConfirmed.value
   && shots.value.length > 0
@@ -270,7 +352,7 @@ const selectedShotTasks = computed(() => {
   }
   return chapterImageTasks.value.filter((task) => getTaskShotId(task) === shotId);
 });
-const selectedCandidates = computed(() => {
+const selectedShotCandidates = computed(() => {
   const shotId = selectedShot.value?.id;
   if (!shotId) {
     return [];
@@ -279,6 +361,58 @@ const selectedCandidates = computed(() => {
     .filter((candidate) => candidate.shotId === shotId)
     .slice()
     .sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
+});
+
+interface CandidateBatch {
+  taskId: string;
+  label: string;
+  createdAt: string;
+  candidates: typeof selectedShotCandidates.value;
+}
+
+/** 候选按生成任务(taskId)分批:一次"生成/重画"=一个任务=一批候选。
+ *  最新批次排在前(数组索引0),旧批次在后。无 taskId 的候选归入"早期"批次。 */
+const candidateBatches = computed<CandidateBatch[]>(() => {
+  const candidates = selectedShotCandidates.value;
+  if (candidates.length === 0) {
+    return [];
+  }
+  const byTask = new Map<string, typeof candidates>();
+  for (const candidate of candidates) {
+    const key = candidate.taskId ?? "__early__";
+    const list = byTask.get(key);
+    if (list) {
+      list.push(candidate);
+    } else {
+      byTask.set(key, [candidate]);
+    }
+  }
+  const taskMeta = new Map(selectedShotTasks.value.map((task) => [task.id, task]));
+  const batches: CandidateBatch[] = [...byTask.entries()].map(([taskId, list]) => {
+    const task = taskMeta.get(taskId);
+    const createdAt = task?.createdAt ?? list[0]?.createdAt ?? "";
+    return { taskId, label: taskId, createdAt, candidates: list };
+  });
+  // 按创建时间倒序:最新批次在前
+  batches.sort((left, right) => Date.parse(right.createdAt || "0") - Date.parse(left.createdAt || "0"));
+  // 给批次打可读标签:最新=第1次,其余递增
+  const total = batches.length;
+  batches.forEach((batch, index) => {
+    batch.label = `第 ${total - index} 次生成`;
+  });
+  return batches;
+});
+/** 平铺候选(兼容旧引用) */
+const selectedCandidates = computed(() => candidateBatches.value.flatMap((batch) => batch.candidates));
+/** 折叠的批次 taskId 集合(最新批次默认展开,旧批默认折叠) */
+const collapsedBatchIds = ref<Set<string>>(new Set());
+watch(candidateBatches, (batches) => {
+  // 旧批次(非第0个)默认折叠;最新批次保持展开
+  const next = new Set<string>();
+  for (let i = 1; i < batches.length; i += 1) {
+    next.add(batches[i].taskId);
+  }
+  collapsedBatchIds.value = next;
 });
 
 watch(
@@ -306,6 +440,20 @@ function generateSelectedShot() {
     shotId: selectedShot.value.id,
     candidateCount: candidateCount.value,
   });
+}
+
+function toggleBatch(taskId: string) {
+  const next = new Set(collapsedBatchIds.value);
+  if (next.has(taskId)) {
+    next.delete(taskId);
+  } else {
+    next.add(taskId);
+  }
+  collapsedBatchIds.value = next;
+}
+
+function openCandidatePreview(candidate: WorkbenchCandidate) {
+  previewCandidate.value = candidate;
 }
 
 function getChapterCandidatesLabel(chapter: ChapterListItem): string {
@@ -451,8 +599,8 @@ function getArtStyleLabel(value: ArtStyle): string {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: #f7f4ed;
-  color: #1f2937;
+  background: transparent;
+  color: #e8eefc;
 }
 
 .candidates-toolbar {
@@ -461,9 +609,9 @@ function getArtStyleLabel(value: ArtStyle): string {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid rgba(31, 41, 55, 0.1);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
   padding: 0 22px;
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(15, 23, 42, 0.64);
 }
 
 .chapter-picker,
@@ -477,17 +625,17 @@ function getArtStyleLabel(value: ArtStyle): string {
 .chapter-picker {
   min-width: 0;
   gap: 10px;
-  color: #475569;
+  color: #94a3b8;
 }
 
 .chapter-picker select {
   min-width: 180px;
   max-width: 280px;
   height: 38px;
-  border: 1px solid rgba(31, 41, 55, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
-  background: #fff;
-  color: #111827;
+  background: rgba(8, 13, 26, 0.92);
+  color: #f8fbff;
   padding: 0 34px 0 12px;
   font-size: 13px;
   font-weight: 800;
@@ -495,7 +643,7 @@ function getArtStyleLabel(value: ArtStyle): string {
 
 .story-title {
   overflow: hidden;
-  color: #64748b;
+  color: #8df0dc;
   font-size: 12px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -521,9 +669,9 @@ function getArtStyleLabel(value: ArtStyle): string {
 }
 
 .primary-action {
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #fff;
+  border: 1px solid rgba(34, 199, 169, 0.4);
+  background: linear-gradient(135deg, #22c7a9, #1fb89a);
+  color: #06231d;
 }
 
 .primary-action.compact {
@@ -534,9 +682,9 @@ function getArtStyleLabel(value: ArtStyle): string {
 
 .secondary-action,
 .empty-action {
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.72);
+  color: #dbe7ff;
 }
 
 button:disabled {
@@ -553,12 +701,12 @@ button:disabled {
   gap: 10px;
   padding: 24px;
   text-align: center;
-  color: #64748b;
+  color: #8a98b8;
 }
 
 .candidate-empty h2 {
   margin: 0;
-  color: #111827;
+  color: #f8fbff;
   font-size: 20px;
 }
 
@@ -582,9 +730,9 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
   overflow: auto;
-  border-right: 1px solid rgba(31, 41, 55, 0.1);
+  border-right: 1px solid rgba(148, 163, 184, 0.16);
   padding: 16px;
-  background: rgba(255, 255, 255, 0.46);
+  background: rgba(15, 23, 42, 0.46);
 }
 
 .shot-rail-summary {
@@ -597,14 +745,14 @@ button:disabled {
 .shot-rail-summary span,
 .panel-heading span,
 .shot-context-grid span {
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 900;
 }
 
 .shot-rail-summary strong,
 .panel-heading strong {
-  color: #111827;
+  color: #f8fbff;
   font-size: 14px;
 }
 
@@ -615,17 +763,17 @@ button:disabled {
   grid-template-columns: 34px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.62);
   padding: 10px;
-  color: #111827;
+  color: #e8eefc;
   text-align: left;
 }
 
 .shot-row.is-active {
-  border-color: rgba(37, 99, 235, 0.46);
-  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.12);
+  border-color: rgba(34, 199, 169, 0.46);
+  box-shadow: 0 8px 22px rgba(34, 199, 169, 0.12);
 }
 
 .shot-index {
@@ -634,8 +782,8 @@ button:disabled {
   height: 30px;
   place-items: center;
   border-radius: 8px;
-  background: #e0f2fe;
-  color: #075985;
+  background: rgba(139, 92, 246, 0.16);
+  color: #a78bfa;
   font-size: 13px;
   font-weight: 950;
 }
@@ -647,7 +795,7 @@ button:disabled {
 .shot-row-main strong {
   display: block;
   overflow: hidden;
-  color: #111827;
+  color: #f8fbff;
   font-size: 13px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -658,7 +806,7 @@ button:disabled {
   display: block;
   overflow: hidden;
   margin-top: 5px;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -666,7 +814,7 @@ button:disabled {
 }
 
 .locked-icon {
-  color: #16a34a;
+  color: #34d399;
 }
 
 .candidate-detail {
@@ -679,9 +827,9 @@ button:disabled {
 .task-panel,
 .candidate-grid-panel,
 .shot-context-grid article {
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.62);
 }
 
 .candidate-hero {
@@ -693,16 +841,55 @@ button:disabled {
 }
 
 .candidate-hero span {
-  color: #2563eb;
+  color: #8df0dc;
   font-size: 12px;
   font-weight: 950;
 }
 
 .candidate-hero h2 {
   margin: 5px 0 0;
-  color: #111827;
+  color: #f8fbff;
   font-size: 20px;
   line-height: 1.35;
+}
+
+.generate-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff !important;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.generate-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+}
+
+.generate-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.generate-btn span {
+  color: #ffffff;
 }
 
 .candidate-count-control {
@@ -710,9 +897,9 @@ button:disabled {
   grid-template-columns: 34px 42px 34px;
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgba(31, 41, 55, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
-  background: #f8fafc;
+  background: rgba(2, 6, 23, 0.48);
 }
 
 .candidate-count-control button {
@@ -721,11 +908,12 @@ button:disabled {
   place-items: center;
   border: 0;
   background: transparent;
-  color: #1d4ed8;
+  color: #8df0dc;
 }
 
 .candidate-count-control strong {
   text-align: center;
+  color: #f8fbff;
 }
 
 .shot-context-grid {
@@ -741,7 +929,7 @@ button:disabled {
 
 .shot-context-grid p {
   margin: 6px 0 0;
-  color: #1f2937;
+  color: #cbd5e1;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -750,6 +938,103 @@ button:disabled {
 .candidate-grid-panel {
   margin-top: 14px;
   padding: 16px;
+}
+
+.prompt-preview-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.62);
+  padding: 12px 16px;
+}
+
+.prompt-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #e8eefc;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.prompt-toggle svg {
+  transition: transform 0.15s ease;
+  color: #8a98b8;
+}
+
+.prompt-toggle svg.is-rotated {
+  transform: rotate(-90deg);
+}
+
+.prompt-toggle small {
+  margin-left: auto;
+  color: #8a98b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.prompt-preview-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.prompt-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.prompt-section-item {
+  display: grid;
+  gap: 3px;
+}
+
+.prompt-section-item span {
+  color: #8a98b8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prompt-section-item p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 12.5px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.prompt-full {
+  display: grid;
+  gap: 5px;
+}
+
+.prompt-full span {
+  color: #8a98b8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prompt-full pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.56);
+  color: #93a0bd;
+  font-size: 11.5px;
+  line-height: 1.6;
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
 }
 
 .panel-heading {
@@ -769,9 +1054,9 @@ button:disabled {
   place-items: center;
   gap: 8px;
   min-height: 110px;
-  border: 1px dashed rgba(31, 41, 55, 0.16);
+  border: 1px dashed rgba(148, 163, 184, 0.18);
   border-radius: 8px;
-  color: #64748b;
+  color: #8a98b8;
   text-align: center;
 }
 
@@ -782,14 +1067,14 @@ button:disabled {
 
 .candidate-grid-empty h3 {
   margin: 0;
-  color: #111827;
+  color: #f8fbff;
   font-size: 15px;
 }
 
 .candidate-grid-empty p {
   max-width: 460px;
   margin: 0;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -797,9 +1082,9 @@ button:disabled {
 .task-card {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
-  background: #f8fafc;
+  background: rgba(2, 6, 23, 0.42);
   padding: 12px;
 }
 
@@ -809,16 +1094,17 @@ button:disabled {
 
 .task-card-head {
   gap: 8px;
-  color: #334155;
+  color: #c4cfe5;
 }
 
 .task-card-head strong {
   font-size: 13px;
+  color: #e8eefc;
 }
 
 .task-card-head span {
   margin-left: auto;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 800;
 }
@@ -833,19 +1119,19 @@ button:disabled {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.18);
 }
 
 .task-progress span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #2563eb;
+  background: #22c7a9;
 }
 
 .task-card p {
   margin: 0;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 12px;
 }
 
@@ -854,80 +1140,305 @@ button:disabled {
   gap: 10px;
 }
 
+.candidate-batch {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.candidate-batch + .candidate-batch {
+  margin-top: 4px;
+}
+
+.batch-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #c4cfe5;
+  padding: 4px 6px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.batch-toggle svg {
+  transition: transform 0.15s ease;
+  flex: 0 0 auto;
+  color: #8a98b8;
+}
+
+.candidate-batch.is-collapsed .batch-toggle svg {
+  transform: rotate(-90deg);
+}
+
+.batch-toggle span {
+  color: #8a98b8;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
 .candidate-grid-panel .panel-heading {
   display: flex;
   align-items: end;
 }
 
 .lock-progress {
-  color: #0369a1 !important;
+  color: #8df0dc !important;
   font-size: 12px !important;
 }
 
 .candidate-card {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  gap: 12px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
-  border-radius: 8px;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.5);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .candidate-card.is-locked {
-  border-color: rgba(5, 150, 105, 0.45);
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.12);
+  border-color: rgba(52, 211, 153, 0.5);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.15);
+}
+
+.candidate-card.is-selected {
+  border-color: rgba(94, 234, 212, 0.4);
+}
+
+.candidate-card.is-rejected {
+  opacity: 0.4;
+}
+
+.candidate-card.is-rejected .candidate-thumb {
+  filter: grayscale(0.8);
+}
+
+.candidate-card.is-superseded {
+  opacity: 0.45;
 }
 
 .candidate-thumb {
+  position: relative;
   display: grid;
+  width: 100%;
   aspect-ratio: 4 / 5;
   place-items: center;
   overflow: hidden;
-  border-radius: 8px;
-  background: #e2e8f0;
-  color: #64748b;
+  border: 0;
+  border-radius: 0;
+  background: rgba(2, 6, 23, 0.48);
+  color: #8a98b8;
+  cursor: zoom-in;
+  padding: 0;
 }
 
 .candidate-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.candidate-thumb:hover img {
+  transform: scale(1.04);
+}
+
+.thumb-zoom-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.78);
+  color: #c4cfe5;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.candidate-thumb:hover .thumb-zoom-hint {
+  opacity: 1;
+}
+
+.candidate-thumb.is-empty {
+  cursor: default;
 }
 
 .candidate-meta {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  padding: 10px 12px;
 }
 
-.candidate-card strong,
-.candidate-card span {
-  display: block;
+.candidate-meta-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.candidate-card strong {
-  color: #111827;
+.candidate-card .candidate-meta strong {
+  color: #f8fbff;
   font-size: 13px;
 }
 
-.candidate-card span {
+.candidate-status {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.candidate-card.is-locked .candidate-status {
+  background: rgba(52, 211, 153, 0.16);
+  color: #34d399;
+}
+
+.candidate-card.is-selected .candidate-status {
+  background: rgba(94, 234, 212, 0.14);
+  color: #5eead4;
+}
+
+.candidate-card.is-rejected .candidate-status {
+  background: rgba(100, 116, 139, 0.18);
+  color: #8a98b8;
+}
+
+.candidate-card.is-superseded .candidate-status {
+  background: rgba(100, 116, 139, 0.12);
   color: #64748b;
-  font-size: 12px;
+}
+
+.digest-tag {
+  display: inline-block;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
 }
 
 .lock-action {
   display: inline-flex;
-  width: fit-content;
+  width: 100%;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  margin-top: 6px;
-  border: 1px solid rgba(37, 99, 235, 0.28);
+  margin-top: 4px;
+  border: 1px solid rgba(34, 199, 169, 0.32);
   border-radius: 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: rgba(34, 199, 169, 0.1);
+  color: #8df0dc;
   padding: 7px 10px;
   font-size: 12px;
   font-weight: 800;
+}
+
+/* 候选图放大预览 modal */
+.candidate-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.86);
+  backdrop-filter: blur(12px);
+  padding: 24px;
+}
+
+.candidate-preview-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 80vw;
+  max-height: 90vh;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  padding: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.candidate-preview-modal img {
+  width: 100%;
+  max-height: calc(90vh - 80px);
+  border-radius: 8px;
+  object-fit: contain;
+  background: rgba(2, 6, 23, 0.6);
+}
+
+.preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #e8eefc;
+  z-index: 1;
+}
+
+.preview-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.preview-info strong {
+  color: #f8fbff;
+  font-size: 15px;
+}
+
+.preview-info span {
+  color: #8a98b8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.preview-lock-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.preview-lock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @keyframes spin {

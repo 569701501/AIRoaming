@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P0 方案 · 候选图与分镜体验</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --panel: #121829; --panel-2: #1a2238;
+    --border: rgba(148,163,184,0.16); --text: #e8eefc; --muted: #8a98b8;
+    --accent: #5eead4; --accent-2: #818cf8; --warn: #fbbf24; --bad: #f87171; --good: #34d399;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; background: var(--bg); color: var(--text); line-height: 1.72; padding: 32px 20px 80px; }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 6px; }
+  h1 .tag { font-size: 12px; color: var(--accent); font-weight: 800; margin-left: 10px; border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  section { margin-bottom: 44px; }
+  h2 { font-size: 20px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  h2 .num { display: inline-grid; place-items: center; width: 28px; height: 28px; background: linear-gradient(135deg,var(--accent),var(--accent-2)); color: #06231d; border-radius: 8px; font-size: 14px; font-weight: 900; }
+  p { margin-bottom: 12px; color: #d6deef; }
+
+  /* 任务卡 */
+  .task { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-bottom: 18px; overflow: hidden; }
+  .task-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .task-head h3 { font-size: 17px; flex: 1; }
+  .task-body { padding: 18px 20px; }
+  .badge { font-size: 11px; font-weight: 900; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .badge.low { background: rgba(52,211,153,0.15); color: var(--good); }
+  .badge.mid { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .badge.high { background: rgba(248,113,113,0.13); color: var(--bad); }
+  .badge.p1 { background: rgba(129,140,248,0.15); color: var(--accent-2); }
+  .label { font-size: 12px; font-weight: 900; color: var(--accent); margin-top: 12px; margin-bottom: 6px; }
+
+  .changes { list-style: none; margin: 8px 0; }
+  .changes li { font-size: 13px; color: #c4cfe5; padding: 7px 0 7px 22px; position: relative; border-bottom: 1px dashed rgba(148,163,184,0.1); }
+  .changes li:last-child { border-bottom: 0; }
+  .changes li::before { content: "▸"; position: absolute; left: 4px; color: var(--accent); }
+  .changes li b { color: #fff; }
+  .changes .file { display: inline-block; font-family: ui-monospace,monospace; font-size: 11.5px; color: var(--accent-2); background: rgba(129,140,248,0.1); padding: 1px 6px; border-radius: 4px; }
+  .changes .why { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 8px 0; }
+  th, td { padding: 8px 11px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 11px; font-weight: 900; }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-family: ui-monospace,monospace; font-size: 11.5px; color: var(--accent); }
+
+  pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #c4cfe5; overflow-x: auto; font-family: ui-monospace,monospace; margin: 8px 0; line-height: 1.5; }
+  pre b { color: var(--accent); }
+
+  .risk { background: rgba(248,113,113,0.07); border: 1px solid rgba(248,113,113,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: #fca5a5; margin-top: 8px; }
+  .risk b { color: var(--bad); }
+  .note-box { background: rgba(94,234,212,0.06); border: 1px solid rgba(94,234,212,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: #c4cfe5; margin-top: 8px; }
+  .note-box b { color: var(--accent); }
+
+  /* 阶段总览 */
+  .phases { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+  @media (max-width:860px){ .phases{grid-template-columns:1fr;} }
+  .phase { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--panel); }
+  .phase.p1 { border-top: 4px solid var(--accent); }
+  .phase.p2 { border-top: 4px solid var(--accent-2); }
+  .phase h3 { font-size: 16px; margin-bottom: 4px; }
+  .phase .goal { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .phase ul { list-style: none; }
+  .phase li { font-size: 13px; padding: 5px 0; color: #c4cfe5; }
+
+  .summary { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 28px; }
+  @media (max-width:860px){ .summary{grid-template-columns:repeat(2,1fr);} }
+  .sc { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--panel); }
+  .sc .k { font-size: 11px; color: var(--muted); font-weight: 800; margin-bottom: 4px; }
+  .sc .v { font-size: 18px; font-weight: 900; color: #fff; }
+  .sc .d { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>P0 方案 · 候选图与分镜体验 <span class="tag">供审阅 · 2026-07-09</span></h1>
+  <p class="sub">基于竞品对照终版 + 候选图/分镜代码现状探索。本方案为执行前审阅稿，确认后再进入 Worker 阶段实现。</p>
+
+  <!-- 总览 -->
+  <section>
+    <div class="summary">
+      <div class="sc"><div class="k">P0 任务数</div><div class="v">6 项</div><div class="d">候选3项 + 分镜3项</div></div>
+      <div class="sc"><div class="k">分阶段</div><div class="v">2 阶段</div><div class="d">阶段1候选 / 阶段2分镜</div></div>
+      <div class="sc"><div class="k">新后端 API</div><div class="v">0 个</div><div class="d">全部复用现有接口</div></div>
+      <div class="sc"><div class="k">新依赖库</div><div class="v">1 个</div><div class="d">拖拽(vuedraggable)</div></div>
+    </div>
+
+    <h2><span class="num">0</span>方案总览</h2>
+    <div class="phases">
+      <div class="phase p1">
+        <h3>阶段 1：候选图体验</h3>
+        <div class="goal">目标：让出图迭代顺畅</div>
+        <ul>
+          <li>A · 单格重画明确语义（新批次，旧批保留）</li>
+          <li>B · 候选版本历史/批次展示（5态UI落地）</li>
+          <li>C · prompt 可见（不可编辑）</li>
+        </ul>
+      </div>
+      <div class="phase p2">
+        <h3>阶段 2：分镜体验</h3>
+        <div class="goal">目标：减少盲生候选图</div>
+        <ul>
+          <li>D · 分镜缩略预览（已锁候选图回显）</li>
+          <li>E · 分镜拖拽重排 + 批量重编号</li>
+          <li>F · 批量生成全章未锁镜头</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note-box"><b>关键结论：</b>6 项任务<b>全部不需要新后端 API</b>。候选生成后端已是 push（追加）、分镜整体 PATCH 已支持全量替换、批量生成复用串行队列。P0 主要是<b>前端 UI 补齐 + 现有能力接线</b>，回滚成本低。</div>
+  </section>
+
+  <!-- 阶段1 候选图 -->
+  <section>
+    <h2><span class="num">1</span>阶段 1 · 候选图体验（任务 A/B/C）</h2>
+
+    <!-- A 单格重画 -->
+    <div class="task">
+      <div class="task-head">
+        <h3>任务 A：单格重画 —— 明确语义（新批次，旧批保留）</h3>
+        <span class="badge low">低难度</span>
+      </div>
+      <div class="task-body">
+        <div class="label">现状问题</div>
+        <p>「再生成一组」和「生成候选」emit 的 payload <b>完全相同</b>（只有 shotId + candidateCount），前端不告诉后端"这是重画"，也不清理旧候选。后端无条件 push，重复生成会<b>无限累积候选</b>且 UI 平铺，用户分不清哪组是哪次生成的。</p>
+
+        <div class="label">设计：引入"批次(batch)"概念</div>
+        <ul class="changes">
+          <li>每个候选关联到生成它的 <span class="file">taskId</span>（后端已存 <code>candidate.taskId</code>，dto.ts L1089）
+            <span class="why">taskId 天然就是批次标识：一次"生成/重画"=一个任务=一批候选。无需新增字段。</span></li>
+          <li>前端按 <code>taskId</code> 分组展示候选，每组标"第 N 次生成"（用任务 createdAt 排序）
+            <span class="why">改动：<span class="file">ImageCandidatesWorkspace.vue</span> 的 selectedCandidates computed 改为按 taskId 分组</span></li>
+          <li>"重画此镜"做成与"生成"平级的一等按钮，文案明确为<b>"重新生成（保留旧批）"</b>
+            <span class="why">消除"再生成一组"的语义模糊；旧批次自动归入历史区（任务B配合）</span></li>
+        </ul>
+
+        <div class="label">改动文件</div>
+        <ul class="changes">
+          <li><span class="file">apps/web/src/components/workbench/ImageCandidatesWorkspace.vue</span>
+            <span class="why">selectedCandidates 改按 taskId 分组；按钮文案改"重新生成"；新增批次标签</span></li>
+          <li><span class="file">apps/web/src/stores/workbench-store.ts</span>（可选）
+            <span class="why">generateImageCandidates 不需改签名，批次天然由 taskId 体现</span></li>
+        </ul>
+
+        <div class="label">数据流（改后）</div>
+        <pre>用户点「重新生成」 → emit generateCandidates {shotId, count}
+  → store.createTask(新 taskId)
+    → 后端 push 新候选(带新 taskId)
+  → runtime 拉回 snapshot
+    → 前端 selectedCandidates <b>按 taskId 分组</b>
+      → "第1次"(task-A) | "第2次"(task-B) | ...  ← 批次清晰</pre>
+      </div>
+    </div>
+
+    <!-- B 候选历史 -->
+    <div class="task">
+      <div class="task-head">
+        <h3>任务 B：候选版本历史/批次展示（5 态 UI 落地）</h3>
+        <span class="badge mid">中难度</span>
+      </div>
+      <div class="task-body">
+        <div class="label">现状问题</div>
+        <p>后端定义了 5 态 <code>CandidateStatus = "generated" | "selected" | "locked" | "rejected" | "superseded"</code>，但前端只展示"锁定/未锁定"两种视觉。用户挑一张后，其他候选无法明确"废弃"或"保留备选"，多组候选之间无区分。</p>
+
+        <div class="label">设计：批次折叠 + 废弃/备选操作</div>
+        <ul class="changes">
+          <li>候选按批次(taskId)分组，<b>最新批次默认展开，旧批次默认折叠</b>（点击展开看历史）
+            <span class="why">对标 LlamaGen Version History；旧批不挡视线但随时可回看</span></li>
+          <li>每张候选增加两个轻操作：<b>「废弃」</b>(status→rejected) 和 <b>「设为备选」</b>(status→selected)
+            <span class="why">让 5 态真正可用；锁定仍是主操作，废弃/备选是次操作</span></li>
+          <li>废弃的候选灰态显示并可"恢复"（status→generated）</li>
+          <li>锁定一张时，同批次其他候选自动转"备选"(selected)，旧批次已锁的转 superseded
+            <span class="why">后端 lockCandidate 已有部分此逻辑（image-candidate.service.ts L254-262），前端补充展示</span></li>
+        </ul>
+
+        <div class="label">改动文件</div>
+        <ul class="changes">
+          <li><span class="file">ImageCandidatesWorkspace.vue</span>
+            <span class="why">候选网格改分组+折叠；候选卡加废弃/备选按钮；状态视觉(locked绿/selected蓝/rejected灰)</span></li>
+          <li><span class="file">api.ts</span> + <span class="file">workbench-store.ts</span>
+            <span class="why">新增 setCandidateStatus(candidateId, status) action（若无现成）；或复用 lock + 前端本地标记</span></li>
+        </ul>
+
+        <div class="label">候选状态视觉对照</div>
+        <table>
+          <thead><tr><th>状态</th><th>含义</th><th>视觉</th><th>来源</th></tr></thead>
+          <tbody>
+            <tr><td><code>generated</code></td><td>刚生成</td><td>正常展示</td><td>生成时默认</td></tr>
+            <tr><td><code>selected</code></td><td>备选（可被快速切回）</td><td>蓝色边框</td><td>用户标记/锁定时其他转此</td></tr>
+            <tr><td><code>locked</code></td><td>本章锁定</td><td>绿色高亮+🔒</td><td>lockCandidate</td></tr>
+            <tr><td><code>rejected</code></td><td>废弃</td><td>灰色半透明</td><td>用户标记</td></tr>
+            <tr><td><code>superseded</code></td><td>已被新锁定替代</td><td>灰色小字</td><td>lockCandidate 时旧锁</td></tr>
+          </tbody>
+        </table>
+        <div class="note-box"><b>简化决策：</b>"废弃/备选"是否需要新后端 API，取决于是否要持久化。若只在 session 内标记，纯前端即可（snapshot.candidates 本地改 status）。若要持久化跨刷新，需补一个 <code>PATCH /candidates/:id/status</code>。<b>建议 P0 先做持久化版</b>（数据一致性更重要），单接口改动小。</div>
+      </div>
+    </div>
+
+    <!-- C prompt可见 -->
+    <div class="task">
+      <div class="task-head">
+        <h3>任务 C：prompt 可见（不可编辑）</h3>
+        <span class="badge mid">中难度</span>
+      </div>
+      <div class="task-body">
+        <div class="label">现状问题</div>
+        <p>prompt 拼装在 store 私有函数 <code>buildCandidatePositivePrompt</code>（workbench-store.ts L81-99）里，直接塞进任务 input，<b>用户完全看不到</b>。出图不满意时，用户无法判断"是 AI 理解错了哪部分"，只能盲目重试。</p>
+
+        <div class="label">设计：生成前展示 prompt 预览</div>
+        <ul class="changes">
+          <li>把 <code>buildCandidatePositivePrompt</code> 从 store 私有提升为<b>组件可调用的 getter</b>
+            <span class="why">或抽到 <span class="file">utils/workbench-preflight.ts</span> 作为纯函数，store 和组件共用</span></li>
+          <li>候选图工作台在"生成候选"按钮上方，加一个<b>可折叠的 prompt 预览区</b>
+            <span class="why">展示：画面描述 / 构图 / 角色 / 风格 / 组合后的完整 prompt；默认折叠，点开看</span></li>
+          <li>P0 <b>只读不可编辑</b>（编辑后置 P1）
+            <span class="why">先解决"看不到"的透明度问题；编辑会引入 prompt 持久化和版本问题，复杂度高</span></li>
+          <li>已生成的候选，展示其 <code>promptDigest</code>（后端已存）方便对比"这张图是哪个 prompt 出的"
+            <span class="why">候选卡角标显示 digest 前6位</span></li>
+        </ul>
+
+        <div class="label">prompt 预览区结构</div>
+        <pre>┌─ 出图 Prompt（点击展开/折叠）─────────────┐
+│  画面:  {shot.comic.panelDescription}      │
+│  构图:  {shot.comic.composition}           │
+│  角色:  {shot.characters.join}             │
+│  风格:  {format} / {artStyle}              │
+│  ─────────────────────────────────────     │
+│  完整 prompt:                               │
+│  {buildCandidatePositivePrompt(shot)}       │
+│                              [折叠]         │
+└────────────────────────────────────────────┘</pre>
+
+        <div class="label">改动文件</div>
+        <ul class="changes">
+          <li><span class="file">apps/web/src/utils/workbench-preflight.ts</span> 或新 <span class="file">utils/candidate-prompt.ts</span>
+            <span class="why">buildCandidatePositivePrompt / getCandidateImageSize 提为纯函数</span></li>
+          <li><span class="file">workbench-store.ts</span>
+            <span class="why">generateImageCandidates 改调提取后的纯函数</span></li>
+          <li><span class="file">ImageCandidatesWorkspace.vue</span>
+            <span class="why">新增 prompt 预览折叠区；候选卡加 digest 角标</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 阶段2 分镜 -->
+  <section>
+    <h2><span class="num">2</span>阶段 2 · 分镜体验（任务 D/E/F）</h2>
+
+    <!-- D 缩略预览 -->
+    <div class="task">
+      <div class="task-head">
+        <h3>任务 D：分镜缩略预览（已锁候选图回显）</h3>
+        <span class="badge low">低难度</span>
+      </div>
+      <div class="task-body">
+        <div class="label">现状问题</div>
+        <p>分镜工作台 StoryboardWorkspace.vue <b>完全不读 snapshot.candidates</b>，镜头卡里没有任何缩略图、候选图计数、locked 标记。用户在分镜阶段看不到"这个镜头已经画成什么样了"，必须切到候选图工作台才能看。</p>
+
+        <div class="label">设计：镜头卡头部加缩略图 + 状态标</div>
+        <ul class="changes">
+          <li>镜头卡头部（shot.order 旁）加<b>小缩略图</b>（已锁定候选的图）
+            <span class="why">数据全通：shot.lockedCandidateId → candidates.find → assetId → api.projectAssetFileUrl</span></li>
+          <li>缩略图旁加状态标：<b>🔒已锁定</b> / <b>📷N张候选</b> / <b>○未生成</b>
+            <span class="why">让分镜阶段就能看到每个镜头的出图进度</span></li>
+          <li>复用 ImageCandidatesWorkspace.vue L158-165 + L345-350 的缩略图范式
+            <span class="why">getCandidatePreviewUrl(assetId) = api.projectAssetFileUrl(projectId, assetId)，现成</span></li>
+          <li>有候选图但未锁定时，缩略图区显示<b>最新一张候选的小图</b>+数量
+            <span class="why">不只是看锁定图，未锁定的也能预览，辅助排序决策</span></li>
+        </ul>
+
+        <div class="label">改动文件</div>
+        <ul class="changes">
+          <li><span class="file">apps/web/src/components/workbench/StoryboardWorkspace.vue</span>
+            <span class="why">shot-card-head 加缩略图区；新增 getCandidatesForShot(shotId) 辅助；需从 props 拿 snapshot.candidates</span></li>
+        </ul>
+        <div class="note-box"><b>无需新 API</b>：snapshot 已含 candidates 和 assets 数组，projectAssetFileUrl 现成。纯前端 join + 渲染。</div>
+      </div>
+    </div>
+
+    <!-- E 拖拽重排 -->
+    <div class="task">
+      <div class="task-head">
+        <h3>任务 E：分镜拖拽重排 + 批量重编号</h3>
+        <span class="badge mid">中难度</span>
+      </div>
+      <div class="task-body">
+        <div class="label">现状问题</div>
+        <p>镜头列表是普通 v-for，无拖拽。删除镜头时已有 <code>map(order=index+1)</code> 重排范式（StoryboardWorkspace.vue L350），但无法主动调整顺序。<code>order</code> 字段存在但弱（可能有空洞），后端 normalize 按排序但不重排值。</p>
+
+        <div class="label">设计：拖拽重排 + 重编号</div>
+        <ul class="changes">
+          <li>引入 <code>vuedraggable</code>（vue3 拖拽库，轻量），镜头列表改为可拖拽
+            <span class="why">vuedraggable 是 Vue3 标准拖拽方案；原生 HTML5 drag-drop 在嵌套表单里体验差</span></li>
+          <li>拖拽完成后，<code>workingJson.shots.map((s,i)=&gt;({...s, order:i+1}))</code> 紧缩 order
+            <span class="why">复用 removeShot L350 已有范式，保证 order 连续</span></li>
+          <li>调 <code>persistIfFormal</code> → 整体 PATCH（updateChapterStoryboard）
+            <span class="why">无需新 API，复用现有全量替换通道</span></li>
+          <li>顶部加「重新编号」按钮（批量重编号），逻辑同上
+            <span class="why">防止历史 order 有空洞；与拖拽共用同一个 reorder 函数</span></li>
+        </ul>
+
+        <div class="risk"><b>⚠ 关键风险：分镜改动会让候选图失效。</b>
+        storyboard.service.ts L238-241：任何分镜 update 会把 images_done 回退到 storyboard_done。
+        <b>处理：</b>拖拽/重编号后，若该章已有候选图，弹确认提示"调整镜头顺序后，已生成的候选图和排版将失效，需要重新生成，是否继续？"。已锁定候选的镜头（lockedCandidateId）拖拽后保留锁定关系（按 shot.id 关联，不按 order）。</div>
+
+        <div class="label">改动文件</div>
+        <ul class="changes">
+          <li><span class="file">apps/web/package.json</span> · 新增依赖 vuedraggable</li>
+          <li><span class="file">StoryboardWorkspace.vue</span>
+            <span class="why">shot-list 改 vuedraggable；新增 reorderShots()；顶部加"重新编号"按钮；拖拽确认提示</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- F 批量生成 -->
+    <div class="task">
+      <div class="task-head">
+        <h3>任务 F：批量生成全章未锁镜头</h3>
+        <span class="badge low">低难度</span>
+      </div>
+      <div class="task-body">
+        <div class="label">现状问题</div>
+        <p>15 个镜头要逐个点"生成候选"，没有"一键全章生成"。后端串行队列 <code>runTaskSerialized</code>（image-candidate.service.ts L46-58）已就绪，前端只需循环调用 createTask。</p>
+
+        <div class="label">设计：一键生成未锁镜头</div>
+        <ul class="changes">
+          <li>候选图工作台顶部加「<b>生成全部未锁镜头</b>」按钮
+            <span class="why">过滤 shots.filter(s=&gt;!s.lockedCandidateId)，对每个调 generateImageCandidates(shotId, 默认1张)</span></li>
+          <li>批量生成默认<b>每镜1张</b>（快），用户可先调 candidateCount 再点批量
+            <span class="why">批量场景优先"广撒网先看效果"，满意再单独多生；对标 Dashtoon/LlamaGen</span></li>
+          <li>已锁定镜头跳过；已有候选但未锁的镜头可选"是否追加"
+            <span class="why">避免重复生成已锁的；未锁的允许追加新批次</span></li>
+          <li>生成中显示整体进度（N/M 镜头完成）
+            <span class="why">复用任务队列刷新；tasks 列表已有状态</span></li>
+        </ul>
+
+        <div class="label">改动文件</div>
+        <ul class="changes">
+          <li><span class="file">ImageCandidatesWorkspace.vue</span>
+            <span class="why">顶部加"生成全部未锁"按钮 + emit generateAllUnlocked</span></li>
+          <li><span class="file">workbench-store.ts</span>
+            <span class="why">新增 generateAllUnlockedShots() action：循环调 createTask</span></li>
+          <li><span class="file">AppShell.vue</span> + <span class="file">ProjectWorkbenchView.vue</span>
+            <span class="why">事件接线</span></li>
+        </ul>
+        <div class="note-box"><b>后端无需改动</b>：串行队列已就绪，多个 createTask 会自动排队串行执行（降限流）。前端循环创建即可。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 执行顺序与依赖 -->
+  <section>
+    <h2><span class="num">3</span>执行顺序与依赖关系</h2>
+    <table>
+      <thead><tr><th>顺序</th><th>任务</th><th>依赖</th><th>预估改动</th><th>验证方式</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>A 单格重画(批次语义)</td><td>无</td><td>1 组件 + 可选 store</td><td>多次重画候选按批次分组</td></tr>
+        <tr><td>2</td><td>B 候选5态UI</td><td>A（批次概念）</td><td>1 组件 + 1 API(可选)</td><td>废弃/备选/锁定状态正确</td></tr>
+        <tr><td>3</td><td>C prompt可见</td><td>无</td><td>1 util + store + 组件</td><td>生成前能看到完整prompt</td></tr>
+        <tr><td>4</td><td>D 分镜缩略预览</td><td>无（独立）</td><td>1 组件</td><td>镜头卡显示已锁图缩略</td></tr>
+        <tr><td>5</td><td>E 拖拽重排+重编号</td><td>无</td><td>依赖 + 1 组件</td><td>拖拽后order连续+提示失效</td></tr>
+        <tr><td>6</td><td>F 批量生成</td><td>无（独立）</td><td>组件 + store + 接线</td><td>一键生成全部未锁镜头</td></tr>
+      </tbody>
+    </table>
+    <div class="note-box"><b>建议执行顺序：</b>A→B→C（阶段1一起完成、一起验证）→ D→E→F（阶段2）。A/B 有依赖（批次概念），C/D/E/F 互相独立可并行。每个任务完成后单独 typecheck，阶段末跑 test。</div>
+  </section>
+
+  <!-- 风险总览 -->
+  <section>
+    <h2><span class="num">4</span>风险与对策</h2>
+    <table>
+      <thead><tr><th>风险</th><th>影响</th><th>对策</th></tr></thead>
+      <tbody>
+        <tr><td>分镜重排致候选失效</td><td>已生成候选图/排版作废</td><td>拖拽前确认提示；已锁候选按 id 保留关联</td></tr>
+        <tr><td>候选无限累积</td><td>重复生成堆积、性能下降</td><td>批次折叠展示；可加"清空历史"（后置）</td></tr>
+        <tr><td>批量生成耗时长</td><td>15镜串行可能几分钟</td><td>整体进度展示；串行队列已降限流</td></tr>
+        <tr><td>vuedraggable 兼容性</td><td>Vue3 + 嵌套表单拖拽体验</td><td>用 next 版本；先小范围验证</td></tr>
+        <tr><td>候选状态持久化</td><td>废弃/备选是否跨刷新保留</td><td>P0 建议补 PATCH /candidates/:id/status 持久化</td></tr>
+        <tr><td>runtime 轮询延迟</td><td>候选结果要等整快照刷新才出现</td><td>现有机制；后续可优化为局部更新</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 验收 -->
+  <section>
+    <h2><span class="num">5</span>验收标准</h2>
+    <table>
+      <thead><tr><th>任务</th><th>验收点</th><th>复核类型</th></tr></thead>
+      <tbody>
+        <tr><td>A 单格重画</td><td>多次重画，候选按"第N次"批次分组，旧批保留</td><td>Runtime</td></tr>
+        <tr><td>B 5态UI</td><td>锁定一张，其他自动转备选；能废弃/恢复；跨刷新状态保留</td><td>Runtime</td></tr>
+        <tr><td>C prompt可见</td><td>生成前展开能看到画面/构图/角色/风格+完整prompt</td><td>Runtime</td></tr>
+        <tr><td>D 缩略预览</td><td>已锁镜头卡显示缩略图；未锁显示候选数/最新一张</td><td>Runtime</td></tr>
+        <tr><td>E 拖拽重排</td><td>拖拽后order连续；有候选时弹失效提示；重编号按钮工作</td><td>Runtime</td></tr>
+        <tr><td>F 批量生成</td><td>一键生成全部未锁镜头；已锁跳过；进度可见</td><td>Runtime</td></tr>
+        <tr><td colspan="2">typecheck 三包通过 + server test 全绿</td><td>Scrutiny</td></tr>
+        <tr><td colspan="2">文档同步（完成记录 + 核心数据模型 + UI信息架构）</td><td>Scrutiny</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 不做 -->
+  <section>
+    <h2><span class="num">6</span>明确不做（P0 范围外）</h2>
+    <ul class="changes">
+      <li><b>单镜头 AI 重写</b>（需新建后端 service + dialogue tool，P1）</li>
+      <li><b>prompt 可编辑</b>（P0 只可见；编辑引入持久化+版本问题，P1）</li>
+      <li><b>局部修图 inpaint</b>（需画布引擎+mask，技术重，P2）</li>
+      <li><b>对白气泡 / 排版成稿 / PDF 导出</b>（P1）</li>
+      <li><b>视频漫剧</b>（P2）</li>
+      <li><b>候选清空历史</b>（批次折叠已缓解，清空动作后置）</li>
+      <li><b>runtime 轮询改局部更新</b>（现有机制可用，优化后置）</li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>

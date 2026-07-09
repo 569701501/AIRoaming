@@ -72,3 +72,111 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 下拉框深色主题基础样式(父组件 :deep 覆盖颜色,这里兜底结构)。
+ * 注意:<option> 弹出层在多数浏览器是系统原生控件,CSS 对其有限;
+ * 通过给 select 和 option 都设深色背景,在支持的浏览器(Chrome/Firefox)生效。 */
+.field-select {
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  border-radius: 6px;
+  background-color: rgba(5, 9, 18, 0.7) !important;
+  color: #f8fbff !important;
+  padding: 7px 28px 7px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  outline: none;
+  /* 自定义下拉箭头 */
+  background-image:
+    linear-gradient(45deg, transparent 50%, #a78bfa 50%),
+    linear-gradient(135deg, #a78bfa 50%, transparent 50%) !important;
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50% !important;
+  background-size: 5px 5px, 5px 5px !important;
+  background-repeat: no-repeat !important;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field-select:focus {
+  border-color: rgba(139, 92, 246, 0.6);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+
+.field-select option {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* textarea 深色兜底(父组件 :deep 覆盖颜色,这里兜底避免白底) */
+.editable-value textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  border-radius: 6px;
+  background-color: rgba(5, 9, 18, 0.7) !important;
+  color: #f8fbff !important;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.editable-value textarea:focus {
+  border-color: rgba(139, 92, 246, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12) !important;
+}
+
+html[data-theme="light"] .editable-value textarea {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border-color: rgba(124, 58, 237, 0.25) !important;
+}
+
+html[data-theme="light"] .field-select {
+  background-color: #ffffff;
+  color: #1e293b;
+  border-color: rgba(124, 58, 237, 0.25);
+  background-image:
+    linear-gradient(45deg, transparent 50%, #7c3aed 50%),
+    linear-gradient(135deg, #7c3aed 50%, transparent 50%);
+}
+
+html[data-theme="light"] .field-select option {
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+.edit-field-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.editable-value:hover .edit-field-btn {
+  opacity: 0.7;
+}
+
+.edit-field-btn:hover {
+  opacity: 1 !important;
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.1);
+}
+</style>
