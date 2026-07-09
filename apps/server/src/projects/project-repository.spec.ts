@@ -55,6 +55,8 @@ describe("ProjectRepository 写入→重载往返一致性", () => {
       pendingStoryboard: null,
       pendingSourceText: null,
       imagePreflight: null,
+      candidates: [],
+      layout: null,
       createdAt: NOW,
       updatedAt: NOW,
       completedAt: null,

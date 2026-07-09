@@ -11,11 +11,13 @@ const chapterScopedTaskTypes = new Set<string>(CHAPTER_SCOPED_GENERATION_TASK_TY
 type CreateGenerationTaskGuard = (
   input: CreateGenerationTaskRequest,
 ) => CreateGenerationTaskRequest | void | Promise<CreateGenerationTaskRequest | void>;
+export type GenerationTaskWorker = (task: GenerationTaskItem) => Promise<void>;
 
 @Injectable()
 export class TasksService {
   private readonly tasks = new Map<string, GenerationTaskItem>();
   private createGuard: CreateGenerationTaskGuard | null = null;
+  private readonly workers = new Map<string, GenerationTaskWorker>();
 
   list(): GenerationTaskItem[] {
     return [...this.tasks.values()].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
@@ -37,10 +39,19 @@ export class TasksService {
     this.createGuard = guard;
   }
 
+  setWorker(type: string, worker: GenerationTaskWorker): void {
+    this.workers.set(type, worker);
+  }
+
   async create(input: CreateGenerationTaskRequest): Promise<GenerationTaskItem> {
     const guardedInput = await this.applyCreateGuard(input);
     const task = this.createQueuedTask(guardedInput);
-    this.runMockTask(task.id);
+    const worker = this.workers.get(task.type);
+    if (worker) {
+      void this.runRegisteredWorker(task.id, worker);
+    } else {
+      void this.runMockTask(task.id);
+    }
     return task;
   }
 
@@ -187,6 +198,27 @@ export class TasksService {
       }
     }
     return deletedCount;
+  }
+
+  private async runRegisteredWorker(taskId: string, worker: GenerationTaskWorker): Promise<void> {
+    const current = this.tasks.get(taskId);
+    if (!current || current.status === "cancelled") {
+      return;
+    }
+
+    try {
+      await worker(this.get(taskId));
+    } catch (error) {
+      if (!this.peek(taskId) || this.isTerminal(this.get(taskId).status)) {
+        return;
+      }
+      this.fail(
+        taskId,
+        "TASK_WORKER_FAILED",
+        error instanceof Error ? error.message : String(error),
+        true,
+      );
+    }
   }
 
   private async runMockTask(taskId: string): Promise<void> {

@@ -171,7 +171,7 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 
 ## 7. 当前实现状态
 
-更新时间：2026-06-02
+更新时间：2026-07-08
 
 | 页面或能力 | 实现状态 | 说明 |
 | --- | --- | --- |
@@ -186,6 +186,7 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 | 剧情结构 | current | 已实现第一版：剧情结构按当前章节逐章生成；页面提供章节下拉/切换器并展示章节结构状态，`draft` 章节禁用生成；左侧公共对话框在剧情结构步骤触发 `structure-story-parse` 生成待确认预览；右侧展示待确认预览，用户确认后通过章节级 API 写入 `chapters/{chapterSlug}/structure.json`，章节推进到 `structured`；正式结构以元素化结构表展示，可编辑字段通过小笔图标进入输入框，失焦后保存 |
 | 分镜工作台 | current/partial | 已实现第一版：分镜按当前章节逐章生成；左侧公共对话框在分镜步骤触发 `storyboard-shot-generate` 生成待确认预览；右侧以镜头卡展示 `Shot` 核心、`comic` 漫画画格字段和 `motion` 基础漫剧镜头字段，支持小笔编辑、新增和删除镜头；待确认预览写入 `chapters/{chapterSlug}/storyboard.pending.json`，刷新或热重载后可恢复，用户确认后通过章节级 API 写入正式 `chapters/{chapterSlug}/storyboard.json` 并删除 pending 文件，章节推进到 `storyboard_done`；章节下拉通过每章 `storyboardStatus` 展示待确认/已完成/可生成，不只看当前章节。当前尚未实现镜头缩略预览、拖拽重排、单镜头重写、批量重编号和正式候选图入口 |
 | 出图准备 | current/partial | 已实现章节级确认页：读取已确认分镜、剧情结构场景卡、项目角色库和任务队列，检查本章出镜角色绑定、必需角色定稿图、正在生成的角色图任务、镜头场景绑定和画风上下文；当前实现仍直接展示加入角色库、合并到已有角色、标记临时或忽略，后续应收敛为异常/高级处理，普通路径改为角色图卡片和图片生成弹窗；用户确认通过后写入 `chapters/{chapterSlug}/preflight.json`，workflow 仅在确认记录与当前分镜匹配且派生检查仍通过时推进到候选图。后续可继续资产化场景参考图和风格板 |
+| 候选图工作台 | current/partial | 已实现第一版真实工作区：进入 `/projects/:projectId/candidates` 后展示章节下拉、正式分镜列表、当前镜头出图上下文、候选数量控制和按镜头聚合的 `image_generate` 任务状态；未确认正式分镜或未通过出图准备时显示阻塞态；生成候选入口复用通用 `POST /api/tasks`，由后端 guard 校验 `preflight.json` 并注入 `imagePreflightId/sourceStoryboardId` 等追溯字段。当前尚未实现候选图资产落库、候选网格真实图片展示、选择/锁定和进入排版导出 |
 | 章节工作流 | current/needs_update | 已实现章节列表、`/projects/:projectId/script/:chapterId` 章节路由、章节级保存草稿、完成本章并创建下一章草稿；完成后优先展示进入本章剧情结构/继续下一章，角色库待处理项只提示不阻塞剧情结构；当前仍未实现手动新建章节、章节重命名表单、章节删除和后续产物失效提示 |
 | 对话过程展示 | current | 已参考 AuroraPlatformWeb 的 reasoning/tool 展示模式：消息区独立滚动，长正文局部滚动，AI 思考、技能调用和工具结果以紧凑过程卡片展示 |
 | 设置 | current | 首页全局左侧导航可进入 `/settings`；设置页参考 AuroraPlatformWeb 的分组形态，当前保留 `AI 密钥` 和 `外观设置` 两个分组。AI 密钥由后端保存到 workspace 全局设置，前端只展示掩码和指纹；外观可切换深色、浅色和跟随系统 |

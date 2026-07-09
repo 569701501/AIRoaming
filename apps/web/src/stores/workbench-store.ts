@@ -78,6 +78,42 @@ export interface ChapterCompletionPrompt {
   nextChapterTitle: string | null;
 }
 
+function buildCandidatePositivePrompt(shot: WorkbenchSnapshot["shots"][number], snapshot: WorkbenchSnapshot): string {
+  return [
+    "comic panel",
+    snapshot.currentChapter?.title ? `chapter: ${snapshot.currentChapter.title}` : "",
+    shot.promptDraft,
+    shot.comic.panelDescription,
+    shot.comic.composition,
+    shot.comic.dialogue ? `dialogue: ${shot.comic.dialogue}` : "",
+    shot.comic.caption ? `caption: ${shot.comic.caption}` : "",
+    shot.motion.visualDescription,
+    shot.sceneName ? `scene: ${shot.sceneName}` : "",
+    shot.characters.length > 0 ? `characters: ${shot.characters.join(", ")}` : "",
+    `format: ${snapshot.project.comicFormat}`,
+    `style: ${snapshot.project.artStyle}`,
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function getCandidateImageSize(snapshot: WorkbenchSnapshot): { width: number; height: number } {
+  if (snapshot.project.comicFormat === "page_horizontal") {
+    return { width: 1536, height: 1024 };
+  }
+  if (snapshot.project.comicFormat === "four_panel") {
+    return { width: 1024, height: 1024 };
+  }
+  return { width: 1024, height: 1536 };
+}
+
+function getPreflightReferenceAssetIds(snapshot: WorkbenchSnapshot): string[] {
+  return snapshot.imagePreflight?.preflightJson.characterChecks
+    .map((check) => check.referenceAssetId)
+    .filter((assetId): assetId is string => Boolean(assetId)) ?? [];
+}
+
 export const useWorkbenchStore = defineStore("workbench", {
   state: (): WorkbenchState => ({
     health: null,
@@ -624,6 +660,200 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.error = error instanceof Error ? error.message : "确认出图准备失败";
         return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async generateImageCandidates(shotId: string, candidateCount: number): Promise<GenerationTaskItem | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        const snapshot = this.snapshot;
+        if (!snapshot) {
+          throw new Error("项目快照还没有加载");
+        }
+        const chapterId = getCurrentChapterId(snapshot);
+        if (!chapterId) {
+          throw new Error("请先打开一个章节");
+        }
+        const shot = snapshot.shots.find((item) => item.id === shotId);
+        if (!shot) {
+          throw new Error("未找到当前镜头");
+        }
+
+        const result = await api.createTask({
+          projectId,
+          type: "image_generate",
+          target: {
+            type: "shot",
+            id: shot.id,
+            chapterId,
+          },
+          input: {
+            chapterId,
+            shotId: shot.id,
+            positivePrompt: buildCandidatePositivePrompt(shot, snapshot),
+            negativePrompt: "low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+            referenceAssetIds: getPreflightReferenceAssetIds(snapshot),
+            candidateCount,
+            image: getCandidateImageSize(snapshot),
+          },
+          options: {
+            candidateCount,
+            provider: "default",
+          },
+        });
+        this.mergeTasks([result.task]);
+        this.dialogueNotice = `已为镜头 ${shot.order} 创建 ${candidateCount} 张候选图生成任务。`;
+        // 生图可能较久，启动后立即进入 runtime 轮询刷新候选
+        return result.task;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "候选图任务创建失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async lockChapterCandidate(candidateId: string): Promise<boolean> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
+        if (!projectId || !chapterId || !this.snapshot) {
+          throw new Error("请先打开章节");
+        }
+        const result = await api.lockChapterCandidate(projectId, chapterId, candidateId);
+        this.snapshot = {
+          ...this.snapshot,
+          candidates: result.candidates,
+          shots: result.shots,
+          storyboard: result.storyboard,
+          assets: result.assets,
+          currentChapter: result.chapter,
+          chapters: result.chapters,
+        };
+        this.snapshot.workflow = patchWorkflowForChapter(this.snapshot, result.chapter);
+        this.snapshot.stages = this.snapshot.workflow.steps;
+        this.dialogueNotice = `已锁定候选「${result.candidate.label}」。`;
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "锁定候选图失败";
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async completeChapterImages(): Promise<boolean> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
+        if (!projectId || !chapterId || !this.snapshot) {
+          throw new Error("请先打开章节");
+        }
+        const result = await api.completeChapterImages(projectId, chapterId);
+        this.snapshot = {
+          ...this.snapshot,
+          currentChapter: result.chapter,
+          chapters: result.chapters,
+          candidates: result.candidates,
+          shots: result.shots,
+          storyboard: result.storyboard,
+          workflow: result.workflow,
+          stages: result.workflow.steps,
+        };
+        this.dialogueNotice = `「${result.chapter.title}」候选图已完成，可进入排版导出。`;
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "完成本章候选图失败";
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async buildChapterLayout(): Promise<boolean> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
+        if (!projectId || !chapterId || !this.snapshot) {
+          throw new Error("请先打开章节");
+        }
+        const result = await api.buildChapterLayout(projectId, chapterId);
+        this.snapshot = {
+          ...this.snapshot,
+          chapterLayout: result.layout,
+          currentChapter: result.chapter,
+          chapters: result.chapters,
+          assets: result.assets,
+        };
+        this.dialogueNotice = `已生成 ${result.layout.pages.length} 页排版草稿。`;
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "生成排版失败";
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async exportChapterLayout(): Promise<boolean> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
+        if (!projectId || !chapterId || !this.snapshot) {
+          throw new Error("请先打开章节");
+        }
+        const result = await api.exportChapterLayout(projectId, chapterId);
+        this.snapshot = {
+          ...this.snapshot,
+          chapterLayout: result.layout,
+          currentChapter: result.chapter,
+          chapters: result.chapters,
+          assets: result.assets,
+          workflow: result.workflow,
+          stages: result.workflow.steps,
+        };
+        this.dialogueNotice = `已导出 ${result.exportAssets.length} 页漫画图，可进入素材包。`;
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "导出排版失败";
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    async exportAssetPackage(): Promise<boolean> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
+        if (!projectId || !chapterId || !this.snapshot) {
+          throw new Error("请先打开章节");
+        }
+        const result = await api.exportAssetPackage(projectId, chapterId);
+        this.snapshot = {
+          ...this.snapshot,
+          currentChapter: result.chapter,
+          chapters: result.chapters,
+          assets: result.assets,
+          workflow: result.workflow,
+          stages: result.workflow.steps,
+        };
+        this.dialogueNotice = `素材包已导出：${result.packagePath}`;
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "导出素材包失败";
+        return false;
       } finally {
         this.loading = false;
       }

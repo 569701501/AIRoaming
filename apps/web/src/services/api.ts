@@ -22,11 +22,16 @@ import type {
   ExtractProjectCharactersResponse,
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
+  BuildChapterLayoutResponse,
+  CompleteChapterImagesResponse,
   CreateGenerationTaskRequest,
+  ExportAssetPackageResponse,
+  ExportChapterLayoutResponse,
   GenerationTaskItem,
   GetChapterResponse,
   HealthResponse,
   ListChaptersResponse,
+  LockChapterCandidateResponse,
   ProjectCharactersResponse,
   ProjectListItem,
   QueueCharacterReferenceResponse,
@@ -438,6 +443,36 @@ export const api = {
       body: JSON.stringify(input),
     },
     onEvent,
+  ),
+  lockChapterCandidate: (projectId: string, chapterId: string, candidateId: string) => request<LockChapterCandidateResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/${encodeURIComponent(candidateId)}/lock`,
+    {
+      method: "POST",
+    },
+  ),
+  completeChapterImages: (projectId: string, chapterId: string) => request<CompleteChapterImagesResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/images/complete`,
+    {
+      method: "POST",
+    },
+  ),
+  buildChapterLayout: (projectId: string, chapterId: string) => request<BuildChapterLayoutResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/build`,
+    {
+      method: "POST",
+    },
+  ),
+  exportChapterLayout: (projectId: string, chapterId: string) => request<ExportChapterLayoutResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/export`,
+    {
+      method: "POST",
+    },
+  ),
+  exportAssetPackage: (projectId: string, chapterId: string) => request<ExportAssetPackageResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/asset-package/export`,
+    {
+      method: "POST",
+    },
   ),
   listTasks: () => request<{ items: GenerationTaskItem[] }>("/tasks"),
   createTask: (input: CreateGenerationTaskRequest) => request<{ task: GenerationTaskItem }>("/tasks", {

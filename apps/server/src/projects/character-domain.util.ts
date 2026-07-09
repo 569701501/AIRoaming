@@ -80,13 +80,15 @@ export function getDefaultRoleForLevel(level: ProjectCharacterLevel): string {
   return "本章关键角色";
 }
 
-export function isRequiredPreflightReferenceCharacter(character: { level: ProjectCharacterLevel }, appearanceCount: number, hasDialogue = false): boolean {
-  // 主角/常驻:不管有没有台词都需要定稿图。
+export function isRequiredPreflightReferenceCharacter(character: { level: ProjectCharacterLevel }, appearanceCount: number, _hasDialogue = false): boolean {
+  // 主角 / 常驻:不论本章出镜几次,必须锁定定稿图(final_reference)。
   if (character.level === "lead" || character.level === "recurring") {
     return true;
   }
-  // chapter/minor/extra:有台词(comic.dialogue 中出现)才需要定稿图。
-  return hasDialogue;
+  // chapter / minor / extra:按本章实际出镜次数判断 —— 出镜 ≥2 次(反复出现)的角色需要稳定形象,
+  // 只出镜 1 次的路人当背景处理,不强制定稿(默认只需 preview_front 预览图)。
+  // 这保证"是否要定稿图"由剧情内容(出镜次数)驱动,而非 level 一刀切。
+  return appearanceCount > 1;
 }
 
 export function isPrimaryReferenceCompatible(

@@ -109,6 +109,8 @@ export class ImagePreflightService {
         sceneId: wsJson.getStringField(item, "sceneId", ""),
         name: wsJson.getStringField(item, "name", "未命名场景"),
         shotCount: wsJson.getNumberField(item, "shotCount", 0),
+        referenceAssetId: wsJson.getOptionalStringField(item, "referenceAssetId"),
+        referenceReady: Boolean(item.referenceReady),
         status: this.normalizeImagePreflightStatus(wsJson.getStringField(item, "status", "ok")),
         note: wsJson.getStringField(item, "note", ""),
       }));

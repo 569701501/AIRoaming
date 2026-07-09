@@ -17,6 +17,9 @@ import { ChapterScriptService } from "./chapter-script.service.js";
 import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
 import { ImagePreflightService } from "./image-preflight.service.js";
+import { ImageCandidateService } from "./image-candidate.service.js";
+import { LayoutExportService } from "./layout-export.service.js";
+import { AssetPackageService } from "./asset-package.service.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -47,9 +50,15 @@ import {
   type ConfirmChapterImagePreflightRequest,
   type CompleteChapterRequest,
   type CompleteChapterResponse,
+  type CompleteChapterImagesResponse,
   type CreateGenerationTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectResponse,
+  type BuildChapterLayoutResponse,
+  type ExportChapterLayoutResponse,
+  type ExportAssetPackageResponse,
+  type LockChapterCandidateRequest,
+  type LockChapterCandidateResponse,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
   type GenerateCharacterReferenceRequest,
@@ -189,10 +198,14 @@ export class ProjectsService implements OnModuleInit {
     @Inject(StoryboardService) private readonly storyboard: StoryboardService,
     @Inject(StoryStructureService) private readonly storyStructure: StoryStructureService,
     @Inject(ImagePreflightService) private readonly imagePreflight: ImagePreflightService,
+    @Inject(ImageCandidateService) private readonly imageCandidate: ImageCandidateService,
+    @Inject(LayoutExportService) private readonly layoutExport: LayoutExportService,
+    @Inject(AssetPackageService) private readonly assetPackage: AssetPackageService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     this.tasksService.setCreateGuard((input) => this.guardGenerationTaskCreate(input));
+    this.tasksService.setWorker("image_generate", (task) => this.imageCandidate.runTaskSerialized(task));
     this.projectStore.setReferenceTaskChecker((pid, cid, kind) => this.characterRef.hasActiveCharacterReferenceTask(pid, cid, kind));
     await this.projectStore.ensureProjectsLoaded();
   }
@@ -566,6 +579,30 @@ export class ProjectsService implements OnModuleInit {
     return this.storyboard.updateChapterStoryboard(projectId, chapterId, input);
   }
 
+  async lockChapterCandidate(
+    projectId: string,
+    chapterId: string,
+    input: LockChapterCandidateRequest,
+  ): Promise<LockChapterCandidateResponse> {
+    return this.imageCandidate.lockCandidate(projectId, chapterId, input);
+  }
+
+  async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
+    return this.imageCandidate.completeChapterImages(projectId, chapterId);
+  }
+
+  async buildChapterLayout(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
+    return this.layoutExport.buildChapterLayout(projectId, chapterId);
+  }
+
+  async exportChapterLayout(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
+    return this.layoutExport.exportChapterLayout(projectId, chapterId);
+  }
+
+  async exportAssetPackage(projectId: string, chapterId?: string): Promise<ExportAssetPackageResponse> {
+    return this.assetPackage.exportAssetPackage(projectId, chapterId);
+  }
+
   async resetProjectScript(projectId: string) : Promise<ResetProjectScriptResponse> {
     return this.chapterScript.resetProjectScript(projectId);
   }
@@ -650,8 +687,9 @@ export class ProjectsService implements OnModuleInit {
           characterNames: beat.characters,
         })),
       },
-      shots: this.toWorkbenchShots(currentChapter),
-      candidates: [],
+      shots: this.imageCandidate.toWorkbenchShots(currentChapter),
+      candidates: (currentChapter?.candidates ?? []).map((item) => this.imageCandidate.toWorkbenchCandidate(item)),
+      chapterLayout: currentChapter?.layout ?? null,
       assets: readyProject.assets,
       aiNotes: [
         {

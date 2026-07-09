@@ -62,7 +62,7 @@ import { computed } from "vue";
 import { AlertCircle, ArrowRight, CheckCircle2, ListChecks, Lock, UsersRound } from "lucide-vue-next";
 import type { ChapterListItem, GenerationTaskItem, ProjectCharacter, WorkbenchShot, WorkbenchSnapshot } from "@airoaming/shared";
 
-type NextActionAction = "characters" | "confirm" | "candidates" | "wait";
+type NextActionAction = "characters" | "confirm" | "candidates" | "wait" | "structure";
 
 interface ChecklistItem {
   key: string;
@@ -84,6 +84,7 @@ const emit = defineEmits<{
   openCharacters: [];
   confirmPreflight: [chapterId: string];
   goCandidates: [];
+  goStructure: [];
   selectChapter: [chapterId: string];
 }>();
 
@@ -146,6 +147,14 @@ const characterChecks = computed(() => matchedCharacters.value.map((character) =
   const required = isRequiredReferenceCharacter(character, appearanceCount);
   const running = isReferenceTaskActive(character);
   const ready = hasFinalReference(character);
+  const hasPreview = hasPreviewReference(character);
+  // 区分待锁定角色卡在哪一步,引导用户去剧情结构页执行下一步动作。
+  let nextStep = "";
+  if (!ready && !running && required) {
+    nextStep = hasPreview
+      ? "已有角色图，在剧情结构页点「定稿」生成三视图"
+      : "还没有角色图，在剧情结构页先生成角色图";
+  }
   return {
     character,
     appearanceCount,
@@ -154,6 +163,7 @@ const characterChecks = computed(() => matchedCharacters.value.map((character) =
     running,
     state: ready ? "ready" : running ? "running" : required ? "missing" : "optional",
     label: ready ? "已锁定" : running ? "锁定中" : required ? "待锁定" : "可直接出图",
+    nextStep,
   };
 }));
 
@@ -179,6 +189,22 @@ const missingSceneReferences = computed(() => shots.value
     return null;
   })
   .filter((item): item is { shotId: string; label: string } => Boolean(item)));
+/** 本章被镜头引用、但还没生成参考图(场景背景图)的场景集合。仅提示,不阻塞出图。 */
+const scenesWithoutReference = computed(() => {
+  const usedSceneIds = new Set<string>();
+  for (const shot of shots.value) {
+    const sceneId = shot.sceneId?.trim();
+    if (sceneId && sceneById.value.has(sceneId)) {
+      usedSceneIds.add(sceneId);
+    }
+  }
+  return [...usedSceneIds]
+    .map((sceneId) => {
+      const scene = sceneById.value.get(sceneId);
+      return scene && !scene.referenceAssetId ? { sceneId, name: scene.name || sceneId } : null;
+    })
+    .filter((item): item is { sceneId: string; name: string } => Boolean(item));
+});
 const isPreflightConfirmed = computed(() => {
   const preflight = props.snapshot.imagePreflight;
   const storyboard = props.snapshot.storyboard;
@@ -265,9 +291,11 @@ const checklist = computed<ChecklistItem[]>(() => [
       : runningReferenceTasks.value.length > 0
         ? `还有 ${runningReferenceTasks.value.length} 个角色正在生成图。`
         : "本章需要稳定形象的角色已经锁定。",
-    action: missingRequiredReferences.value.length > 0 ? "characters" : null,
-    actionLabel: missingRequiredReferences.value.length > 0 ? "去角色库" : null,
-    hint: null,
+    action: missingRequiredReferences.value.length > 0 ? "structure" : null,
+    actionLabel: missingRequiredReferences.value.length > 0 ? "去剧情结构" : null,
+    hint: missingRequiredReferences.value.length > 0
+      ? missingRequiredReferences.value.map((item) => `「${item.character.name}」${item.nextStep ? `：${item.nextStep}` : ""}`).join("；")
+      : null,
   },
   {
     key: "scenes",
@@ -279,6 +307,17 @@ const checklist = computed<ChecklistItem[]>(() => [
     action: null,
     actionLabel: null,
     hint: missingSceneReferences.value.length > 0 ? "请回分镜工作台补齐镜头 sceneId" : null,
+  },
+  {
+    key: "sceneReferences",
+    title: "场景参考图",
+    status: scenesWithoutReference.value.length === 0 ? "ok" : "warn",
+    description: scenesWithoutReference.value.length === 0
+      ? "本章用到的场景均已生成参考图。"
+      : `还有 ${scenesWithoutReference.value.length} 个场景没有参考图，不阻塞出图，但建议补充。`,
+    action: null,
+    actionLabel: null,
+    hint: scenesWithoutReference.value.length > 0 ? `缺图场景：${scenesWithoutReference.value.map((item) => item.name).join("、")}。可在剧情结构页生成` : null,
   },
   {
     key: "style",
@@ -313,6 +352,9 @@ function runAction(action: NextActionAction | null | undefined) {
   switch (action) {
     case "characters":
       emit("openCharacters");
+      return;
+    case "structure":
+      emit("goStructure");
       return;
     case "confirm":
       confirmPreflight();
@@ -354,10 +396,33 @@ function hasFinalReference(character: ProjectCharacter) {
   return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
 }
 
+/** 角色是否已生成预览图(preview_front)资产。用于区分待锁定角色卡在"缺角色图"还是"缺定稿"。 */
+function hasPreviewReference(character: ProjectCharacter): boolean {
+  if (!character.referenceAssetIds || character.referenceAssetIds.length === 0) {
+    return false;
+  }
+  const ids = new Set(character.referenceAssetIds);
+  return (props.snapshot.assets ?? []).some((asset) => {
+    if (!ids.has(asset.id)) {
+      return false;
+    }
+    try {
+      const meta = JSON.parse(asset.meta) as { referenceKind?: unknown };
+      return meta.referenceKind === "single_front" || meta.referenceKind === "preview_front";
+    } catch {
+      return false;
+    }
+  });
+}
+
 function isRequiredReferenceCharacter(character: ProjectCharacter, appearanceCount: number) {
-  return character.level === "lead"
-    || character.level === "recurring"
-    || ((character.level === "chapter" || character.level === "minor") && appearanceCount > 1);
+  // lead / recurring 必锁(不论本章出镜几次);
+  // chapter / minor / extra 按本章出镜次数判断:出镜 ≥2 次才要求定稿,只出镜 1 次的路人不强制。
+  // 与后端 character-domain.util.ts 口径一致。
+  if (character.level === "lead" || character.level === "recurring") {
+    return true;
+  }
+  return appearanceCount > 1;
 }
 
 function isReferenceTaskActive(character: ProjectCharacter) {

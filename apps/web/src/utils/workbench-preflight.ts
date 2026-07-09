@@ -78,9 +78,13 @@ export function hasFinalReference(character: ProjectCharacter) {
   return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
 }
 
-/** 角色是否需要出图准备阶段锁定定稿图(主角/常驻必锁,chapter 出场>1 锁)。 */
+/** 角色是否需要出图准备阶段锁定定稿图(final_reference):
+ *  - lead / recurring 必锁(不论本章出镜几次);
+ *  - chapter / minor / extra 按本章出镜次数判断:出镜 ≥2 次(appearanceCount > 1)才要求定稿,只出镜 1 次的路人不强制。
+ *  与后端 character-domain.util.ts 口径一致。 */
 export function isRequiredPreflightReferenceCharacter(character: ProjectCharacter, appearanceCount: number) {
-  return character.level === "lead"
-    || character.level === "recurring"
-    || (character.level === "chapter" && appearanceCount > 1);
+  if (character.level === "lead" || character.level === "recurring") {
+    return true;
+  }
+  return appearanceCount > 1;
 }

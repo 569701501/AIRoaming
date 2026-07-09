@@ -45,6 +45,12 @@
           @confirm-story-structure="confirmStoryStructure"
           @confirm-storyboard="confirmStoryboard"
           @confirm-image-preflight="confirmImagePreflight"
+          @generate-image-candidates="generateImageCandidates"
+          @lock-candidate="lockCandidate"
+          @complete-images="completeImages"
+          @build-layout="buildLayout"
+          @export-layout="exportLayout"
+          @export-package="exportPackage"
           @dismiss-completion-prompt="workbench.clearChapterCompletionPrompt"
           @reset-script="clearCurrentChapterScript"
           @confirm-pending-source="confirmPendingSource"
@@ -293,6 +299,36 @@ async function confirmImagePreflight(chapterId: string) {
   await workbench.confirmImagePreflight(chapterId);
 }
 
+async function generateImageCandidates(payload: { shotId: string; candidateCount: number }) {
+  await workbench.generateImageCandidates(payload.shotId, payload.candidateCount);
+}
+
+async function lockCandidate(candidateId: string) {
+  await workbench.lockChapterCandidate(candidateId);
+}
+
+async function completeImages() {
+  const ok = await workbench.completeChapterImages();
+  if (ok) {
+    await goProjectStep("layout_export");
+  }
+}
+
+async function buildLayout() {
+  await workbench.buildChapterLayout();
+}
+
+async function exportLayout() {
+  const ok = await workbench.exportChapterLayout();
+  if (ok) {
+    await goProjectStep("asset_package");
+  }
+}
+
+async function exportPackage() {
+  await workbench.exportAssetPackage();
+}
+
 async function updateStoryboard(payload: { chapterId: string; storyboardJson: StoryboardJson }) {
   await workbench.updateStoryboard(payload.chapterId, payload.storyboardJson);
 }
@@ -367,6 +403,7 @@ function startRuntimePolling() {
     return;
   }
   runtimePoller = setInterval(() => {
+    // 候选图/角色图运行时需要连同 snapshot 一起刷新，才能看到新候选与锁定状态
     void workbench.refreshActiveProjectRuntime();
   }, 1800);
 }

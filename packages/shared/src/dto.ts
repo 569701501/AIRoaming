@@ -533,6 +533,10 @@ export interface ImagePreflightSceneCheck {
   sceneId: string;
   name: string;
   shotCount: number;
+  /** 场景卡绑定的参考图资产 id(场景背景图);无图时为 null。 */
+  referenceAssetId: string | null;
+  /** 场景是否已生成参考图(referenceAssetId 存在)。 */
+  referenceReady: boolean;
   status: ImagePreflightCheckStatus;
   note: string;
 }
@@ -553,6 +557,7 @@ export interface ImagePreflightIssue {
     | "missing_reference"
     | "running_reference_task"
     | "missing_scene"
+    | "missing_scene_reference"
     | "missing_style_context";
   status: Exclude<ImagePreflightCheckStatus, "ok">;
   message: string;
@@ -1057,15 +1062,148 @@ export interface WorkbenchShot {
   lockedCandidateId: string | null;
 }
 
+export type CandidateStatus = "generated" | "selected" | "locked" | "rejected" | "superseded";
+
 export interface WorkbenchCandidate {
   id: string;
   chapterId?: string;
   shotId: string;
   label: string;
-  status: "generated" | "selected" | "locked" | "rejected" | "superseded";
+  status: CandidateStatus;
   assetId: string;
+  taskId?: string | null;
+  index?: number;
   palette: string;
   promptDigest: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** 章节候选图正式记录，落盘 chapters/{slug}/candidates.json */
+export interface ProjectCandidate {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  shotId: string;
+  taskId: string;
+  assetId: string;
+  index: number;
+  status: CandidateStatus;
+  label: string;
+  promptDigest: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChapterCandidates {
+  schemaVersion: 1;
+  projectId: string;
+  chapterId: string;
+  candidates: ProjectCandidate[];
+  updatedAt: string;
+}
+
+export interface LockChapterCandidateRequest {
+  candidateId: string;
+}
+
+export interface LockChapterCandidateResponse {
+  candidate: WorkbenchCandidate;
+  candidates: WorkbenchCandidate[];
+  shots: WorkbenchShot[];
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  storyboard: ChapterStoryboard;
+  assets: WorkbenchAsset[];
+}
+
+export interface CompleteChapterImagesResponse {
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  candidates: WorkbenchCandidate[];
+  shots: WorkbenchShot[];
+  storyboard: ChapterStoryboard | null;
+  workflow: ProjectWorkflow;
+}
+
+export interface PanelPlacement {
+  shotId: string;
+  candidateId: string;
+  assetId: string;
+  order: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface LayoutPage {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  pageNumber: number;
+  format: "vertical_comic" | "page_horizontal" | "four_panel";
+  width: number;
+  height: number;
+  placements: PanelPlacement[];
+  exportAssetId: string | null;
+}
+
+export interface ChapterLayout {
+  schemaVersion: 1;
+  id: string;
+  projectId: string;
+  chapterId: string;
+  pages: LayoutPage[];
+  exportAssetIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt: string | null;
+}
+
+export interface BuildChapterLayoutResponse {
+  layout: ChapterLayout;
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  assets: WorkbenchAsset[];
+}
+
+export interface ExportChapterLayoutResponse {
+  layout: ChapterLayout;
+  exportAssets: WorkbenchAsset[];
+  chapter: ChapterDetail;
+  chapters: ChapterListItem[];
+  assets: WorkbenchAsset[];
+  workflow: ProjectWorkflow;
+}
+
+export interface AssetPackageManifestFile {
+  path: string;
+  type: string;
+  chapterId?: string | null;
+  shotId?: string | null;
+  candidateId?: string | null;
+  assetId?: string | null;
+}
+
+export interface AssetPackageManifest {
+  schemaVersion: 1;
+  packageId: string;
+  projectId: string;
+  chapterIds: string[];
+  createdAt: string;
+  files: AssetPackageManifestFile[];
+}
+
+export interface ExportAssetPackageResponse {
+  packageId: string;
+  packagePath: string;
+  manifest: AssetPackageManifest;
+  asset: WorkbenchAsset;
+  chapter: ChapterDetail | null;
+  chapters: ChapterListItem[];
+  assets: WorkbenchAsset[];
+  workflow: ProjectWorkflow;
 }
 
 export interface WorkbenchAsset {
@@ -1098,6 +1236,7 @@ export interface WorkbenchSnapshot {
   storyboard: ChapterStoryboard | null;
   pendingStoryboard: ChapterStoryboard | null;
   imagePreflight: ChapterImagePreflight | null;
+  chapterLayout: ChapterLayout | null;
   characters: ProjectCharacter[];
   workflow: ProjectWorkflow;
   stages: WorkbenchStage[];

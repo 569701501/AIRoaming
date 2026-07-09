@@ -184,6 +184,8 @@ export class StoryboardService {
       storyboard,
       pendingStoryboard: null,
       imagePreflight: null,
+      candidates: [],
+      layout: null,
       updatedAt: now,
     };
     const nextProject = this.projectStore.withUpdatedChapter({
@@ -231,6 +233,12 @@ export class StoryboardService {
       ...chapter,
       storyboard,
       imagePreflight: null,
+      candidates: [],
+      layout: null,
+      // 分镜改动后候选与排版失效，回退到 storyboard_done 之前的可编辑态
+      status: chapter.status === "draft" || chapter.status === "script_done" || chapter.status === "structured"
+        ? chapter.status
+        : "storyboard_done",
       updatedAt: now,
     };
     const nextProject = this.projectStore.withUpdatedChapter({

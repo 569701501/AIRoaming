@@ -80,6 +80,8 @@ export function createDefaultChapter(projectId: string, sourceText: string, now:
     pendingStoryboard: null,
     pendingSourceText: null,
     imagePreflight: null,
+    candidates: [],
+    layout: null,
     createdAt: now,
     updatedAt: now,
     completedAt: null,

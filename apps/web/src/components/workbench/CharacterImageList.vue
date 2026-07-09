@@ -280,31 +280,36 @@ const deleteTarget = ref<{ character: ProjectCharacter; asset: WorkbenchAsset } 
 
 const assets = computed(() => props.snapshot.assets ?? []);
 
-/** 统计本章分镜中有台词(comic.dialogue 出现角色名)的角色 ID 集合。
- *  用于判断 chapter/minor/extra 角色是否需要定稿图(有台词才需要)。
- *  与后端 buildImagePreflightJson 的 dialogueCharacterIds 逻辑一致。 */
-const dialogueCharacterIds = computed(() => {
-  const result = new Set<string>();
+/** 统计本章分镜中每个角色的出镜次数(按 shot 去重,每个 shot 只计一次)。
+ *  用于判断 chapter/minor/extra 角色是否需要定稿图:出镜 ≥2 次才需要稳定形象。
+ *  与出图准备 ImagePreflightWorkspace / workbench-preflight.ts 口径一致。 */
+const appearanceCounts = computed(() => {
+  const counts = new Map<string, number>();
   const shots = props.snapshot.shots ?? [];
   const characters = props.snapshot.characters ?? [];
+  const charByName = new Map(characters.map((c) => [c.name.trim().toLowerCase(), c]));
   for (const shot of shots) {
-    const dialogue = shot.comic?.dialogue?.trim() ?? "";
-    if (!dialogue) continue;
-    for (const char of characters) {
-      if (shot.characterIds.includes(char.id) || shot.characterIds.includes(char.name)) {
-        if (dialogue.includes(char.name.trim())) {
-          result.add(char.id);
-        }
+    const seenInShot = new Set<string>();
+    for (const token of (shot.characterIds ?? [])
+      .map((item) => item.trim())
+      .filter((item) => item && !/^(无|无人|旁白|环境|背景)$/i.test(item))) {
+      const char = characters.find((c) => c.id === token) ?? charByName.get(token.toLowerCase());
+      if (char) {
+        seenInShot.add(char.id);
       }
     }
+    for (const characterId of seenInShot) {
+      counts.set(characterId, (counts.get(characterId) ?? 0) + 1);
+    }
   }
-  return result;
+  return counts;
 });
 
-/** 角色是否需要定稿图:主角/常驻必须;其余看有没有台词。 */
+/** 角色是否需要定稿图:主角/常驻必锁(不论出镜几次);其余按本章出镜次数判断,出镜 ≥2 次才需要。
+ *  与出图准备 ImagePreflightWorkspace / workbench-preflight.ts 口径一致。 */
 function requiresFinalReference(character: ProjectCharacter): boolean {
   if (character.level === "lead" || character.level === "recurring") return true;
-  return dialogueCharacterIds.value.has(character.id);
+  return (appearanceCounts.value.get(character.id) ?? 0) > 1;
 }
 
 function getReferenceAssets(character: ProjectCharacter, referenceKind: ReferenceKind): WorkbenchAsset[] {
@@ -326,7 +331,10 @@ function getReferenceAsset(character: ProjectCharacter, referenceKind: Reference
   const primary = character.primaryReferenceAssetId
     ? assets.value.find((asset) => asset.id === character.primaryReferenceAssetId) ?? null
     : null;
-  return latest ?? primary;
+  // 锁定优先:已定稿(primary 指向被锁定的三视图)时始终以 primary 为准,
+  // 避免重新生成 final_reference 后 latest 变成新资产导致"锁定定稿"按钮错误地重新出现。
+  // 未定稿(primaryReferenceAssetId 为 null)时 fallback 到最新生成的资产。
+  return primary ?? latest;
 }
 
 function getAssetReferenceKind(asset: WorkbenchAsset): ProjectCharacterReferenceKind | null {

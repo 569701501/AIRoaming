@@ -195,6 +195,27 @@ export class ProjectRepository {
     } else {
       await rm(path.join(chapterDir, "preflight.json"), { force: true });
     }
+    if (chapter.candidates && chapter.candidates.length > 0) {
+      await writeFile(
+        path.join(chapterDir, "candidates.json"),
+        `${JSON.stringify({
+          schemaVersion: 1,
+          projectId: chapter.projectId,
+          chapterId: chapter.id,
+          candidates: chapter.candidates,
+          updatedAt: chapter.updatedAt,
+        }, null, 2)}\n`,
+        "utf8",
+      );
+    } else {
+      await rm(path.join(chapterDir, "candidates.json"), { force: true });
+    }
+    if (chapter.layout) {
+      await mkdir(path.join(chapterDir, "layout"), { recursive: true });
+      await writeFile(path.join(chapterDir, "layout", "layout.json"), `${JSON.stringify(chapter.layout, null, 2)}\n`, "utf8");
+    } else {
+      await rm(path.join(chapterDir, "layout", "layout.json"), { force: true });
+    }
     if (chapter.lastScriptRevision) {
       await mkdir(revisionsDir, { recursive: true });
       await writeFile(path.join(revisionsDir, "latest.json"), `${JSON.stringify(chapter.lastScriptRevision, null, 2)}\n`, "utf8");
@@ -456,12 +477,80 @@ export class ProjectRepository {
         path.join(chapterDir, "preflight.json"),
         updatedAt,
       ),
+      candidates: await this.readChapterCandidates(
+        projectId,
+        chapterId,
+        path.join(chapterDir, "candidates.json"),
+      ),
+      layout: await this.readChapterLayout(
+        path.join(chapterDir, "layout", "layout.json"),
+      ),
       createdAt,
       updatedAt,
       completedAt: wsJson.getOptionalStringField(metadata, "completedAt"),
       scriptVersions,
       lastScriptRevision,
     };
+  }
+
+  private async readChapterCandidates(
+    projectId: string,
+    chapterId: string,
+    filePath: string,
+  ): Promise<import("@airoaming/shared").ProjectCandidate[]> {
+    const content = await wsJson.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return [];
+    }
+    try {
+      const record = wsJson.parseJsonRecord(content, filePath);
+      const input = Array.isArray(record.candidates) ? record.candidates : [];
+      return input
+        .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
+        .map((item, index): import("@airoaming/shared").ProjectCandidate => {
+          const status: import("@airoaming/shared").CandidateStatus = item.status === "selected"
+            || item.status === "locked"
+            || item.status === "rejected"
+            || item.status === "superseded"
+            ? item.status
+            : "generated";
+          return {
+            id: wsJson.getStringField(item, "id", `candidate_${index + 1}`),
+            projectId: wsJson.getStringField(item, "projectId", projectId),
+            chapterId: wsJson.getStringField(item, "chapterId", chapterId),
+            shotId: wsJson.getStringField(item, "shotId", ""),
+            taskId: wsJson.getStringField(item, "taskId", ""),
+            assetId: wsJson.getStringField(item, "assetId", ""),
+            index: wsJson.getNumberField(item, "index", index + 1),
+            status,
+            label: wsJson.getStringField(item, "label", `候选 ${index + 1}`),
+            promptDigest: wsJson.getStringField(item, "promptDigest", ""),
+            createdAt: wsJson.getStringField(item, "createdAt", new Date().toISOString()),
+            updatedAt: wsJson.getStringField(item, "updatedAt", new Date().toISOString()),
+          };
+        })
+        .filter((item) => item.shotId && item.assetId);
+    } catch {
+      return [];
+    }
+  }
+
+  private async readChapterLayout(
+    filePath: string,
+  ): Promise<import("@airoaming/shared").ChapterLayout | null> {
+    const content = await wsJson.readOptionalTextFile(filePath);
+    if (content === null || !content.trim()) {
+      return null;
+    }
+    try {
+      const record = JSON.parse(content) as import("@airoaming/shared").ChapterLayout;
+      if (!record || record.schemaVersion !== 1 || !Array.isArray(record.pages)) {
+        return null;
+      }
+      return record;
+    } catch {
+      return null;
+    }
   }
 
   private async readChapterScriptVersions(
@@ -831,6 +920,8 @@ export class ProjectRepository {
         sceneId: wsJson.getStringField(item, "sceneId", ""),
         name: wsJson.getStringField(item, "name", "未命名场景"),
         shotCount: wsJson.getNumberField(item, "shotCount", 0),
+        referenceAssetId: wsJson.getOptionalStringField(item, "referenceAssetId"),
+        referenceReady: Boolean(item.referenceReady),
         status: this.normalizeImagePreflightStatus(wsJson.getStringField(item, "status", "ok")),
         note: wsJson.getStringField(item, "note", ""),
       }));

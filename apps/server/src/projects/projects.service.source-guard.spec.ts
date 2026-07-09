@@ -53,6 +53,8 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
       pendingStoryboard: null,
       pendingSourceText: null,
       imagePreflight: null,
+      candidates: [],
+      layout: null,
       createdAt: "2026-06-01T00:00:00.000Z",
       updatedAt: "2026-06-01T00:00:00.000Z",
       completedAt: null,
@@ -114,6 +116,7 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
     } as unknown as WorkspacePathService;
     const mockTasks = {
       setCreateGuard: vi.fn(),
+      setWorker: vi.fn(),
     } as unknown as TasksService;
     const mockSettings = {} as SettingsService;
 
@@ -144,6 +147,9 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
       {} as unknown as StoryboardService,
       {} as unknown as StoryStructureService,
       {} as unknown as ImagePreflightService,
+      {} as never,
+      {} as never,
+      {} as never,
     );
   });
 

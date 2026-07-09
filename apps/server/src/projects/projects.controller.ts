@@ -267,4 +267,45 @@ export class ProjectsController {
   ) {
     return ok(await this.projectsService.updateChapterStoryboard(projectId, chapterId, body));
   }
+
+  @Post(":projectId/chapters/:chapterId/candidates/:candidateId/lock")
+  async lockChapterCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("candidateId") candidateId: string,
+  ) {
+    return ok(await this.projectsService.lockChapterCandidate(projectId, chapterId, { candidateId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/images/complete")
+  async completeChapterImages(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.completeChapterImages(projectId, chapterId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/build")
+  async buildChapterLayout(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.buildChapterLayout(projectId, chapterId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/export")
+  async exportChapterLayout(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.exportChapterLayout(projectId, chapterId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/asset-package/export")
+  async exportChapterAssetPackage(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.exportAssetPackage(projectId, chapterId));
+  }
 }

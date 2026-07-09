@@ -1,12 +1,14 @@
 import type {
   ArtStyle,
   ChapterImagePreflight,
+  ChapterLayout,
   ChapterPendingSourceText,
   ChapterScriptVersionItem,
   ChapterStatus,
   ChapterStoryboard,
   ChapterStoryStructure,
   ComicFormat,
+  ProjectCandidate,
   ProjectCharacter,
   ProjectScriptOutline,
   ProjectType,
@@ -40,6 +42,10 @@ export interface LocalChapter {
   /** AI 生成的章节正文草稿缓冲(见 ADR-0008)。确认前不覆盖正式 sourceText。 */
   pendingSourceText: ChapterPendingSourceText | null;
   imagePreflight: ChapterImagePreflight | null;
+  /** 本章候选图正式记录，对应 candidates.json */
+  candidates: ProjectCandidate[];
+  /** 本章排版，对应 layout/layout.json */
+  layout: ChapterLayout | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;

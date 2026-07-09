@@ -116,6 +116,38 @@
         @open-characters="$emit('openCharacters')"
         @confirm-preflight="$emit('confirmImagePreflight', $event)"
         @go-candidates="$emit('selectStep', 'image_candidates')"
+        @go-structure="$emit('selectStep', 'story_structure')"
+      />
+
+      <ImageCandidatesWorkspace
+        v-else-if="isCandidatesStep"
+        :loading="loading"
+        :snapshot="snapshot"
+        :tasks="tasks"
+        @select-chapter="$emit('selectChapter', $event)"
+        @generate-candidates="$emit('generateImageCandidates', $event)"
+        @lock-candidate="$emit('lockCandidate', $event)"
+        @complete-images="$emit('completeImages')"
+        @go-preflight="$emit('selectStep', 'image_preflight')"
+      />
+
+      <LayoutExportWorkspace
+        v-else-if="isLayoutStep"
+        :loading="loading"
+        :snapshot="snapshot"
+        @select-chapter="$emit('selectChapter', $event)"
+        @build-layout="$emit('buildLayout')"
+        @export-layout="$emit('exportLayout')"
+        @go-candidates="$emit('selectStep', 'image_candidates')"
+      />
+
+      <AssetPackageWorkspace
+        v-else-if="isAssetPackageStep"
+        :loading="loading"
+        :snapshot="snapshot"
+        @select-chapter="$emit('selectChapter', $event)"
+        @export-package="$emit('exportPackage')"
+        @go-layout="$emit('selectStep', 'layout_export')"
       />
 
       <div v-else class="step-placeholder">
@@ -136,7 +168,10 @@ import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ProjectCharactersWorkspace from "./ProjectCharactersWorkspace.vue";
 import ScriptChapterList from "./ScriptChapterList.vue";
 import ScriptDocumentEditor from "./ScriptDocumentEditor.vue";
+import ImageCandidatesWorkspace from "./ImageCandidatesWorkspace.vue";
 import ImagePreflightWorkspace from "./ImagePreflightWorkspace.vue";
+import LayoutExportWorkspace from "./LayoutExportWorkspace.vue";
+import AssetPackageWorkspace from "./AssetPackageWorkspace.vue";
 import StoryboardWorkspace from "./StoryboardWorkspace.vue";
 import StoryStructureWorkspace from "./StoryStructureWorkspace.vue";
 import WorkbenchStageRail from "./WorkbenchStageRail.vue";
@@ -187,6 +222,12 @@ const emit = defineEmits<{
   updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   confirmImagePreflight: [chapterId: string];
+  generateImageCandidates: [payload: { shotId: string; candidateCount: number }];
+  lockCandidate: [candidateId: string];
+  completeImages: [];
+  buildLayout: [];
+  exportLayout: [];
+  exportPackage: [];
 }>();
 
 const currentStageIndex = computed(() => {
@@ -206,6 +247,9 @@ const isCharactersStep = computed(() => props.activeStepKey === "project_charact
 const isStructureStep = computed(() => props.activeStepKey === "story_structure");
 const isStoryboardStep = computed(() => props.activeStepKey === "storyboard");
 const isPreflightStep = computed(() => props.activeStepKey === "image_preflight");
+const isCandidatesStep = computed(() => props.activeStepKey === "image_candidates");
+const isLayoutStep = computed(() => props.activeStepKey === "layout_export");
+const isAssetPackageStep = computed(() => props.activeStepKey === "asset_package");
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
 const completionPrimaryActionLabel = computed(() => "进入本章剧情结构");

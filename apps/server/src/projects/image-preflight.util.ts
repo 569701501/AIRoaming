@@ -278,12 +278,28 @@ export function buildImagePreflightJson(
   const sceneChecks: ImagePreflightSceneCheck[] = [...sceneAppearanceCounts.entries()]
     .map(([sceneId, shotCount]) => {
       const scene = sceneById.get(sceneId);
+      const referenceAssetId = scene?.referenceAssetId ?? null;
+      const referenceReady = Boolean(referenceAssetId);
+      // 场景参考图(背景图)缺失只给 warning 提示,不阻塞出图;候选图可继续用文字描述生成。
+      if (!referenceReady) {
+        issues.push({
+          type: "missing_scene_reference",
+          status: "warning",
+          message: `场景「${scene?.name || sceneId}」还没有生成参考图，建议在剧情结构页补充，不阻塞当前出图。`,
+          relatedName: scene?.name || sceneId,
+          relatedSceneId: sceneId,
+        });
+      }
       return {
         sceneId,
         name: scene?.name || sceneId,
         shotCount,
-        status: "ok" as const,
-        note: "场景已绑定到本章剧情结构场景卡，可供候选图提示词读取。",
+        referenceAssetId,
+        referenceReady,
+        status: referenceReady ? ("ok" as const) : ("warning" as const),
+        note: referenceReady
+          ? "场景已绑定参考图，可供候选图提示词读取。"
+          : "场景已绑定到本章剧情结构场景卡，但还没有参考图。可用文字描述进入候选图，建议补充场景参考图。",
       };
     })
     .sort((left, right) => right.shotCount - left.shotCount || left.name.localeCompare(right.name));
