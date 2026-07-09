@@ -47,6 +47,7 @@ import {
 import {
   patchWorkflowForChapter,
 } from "../utils/workbench-workflow";
+import * as candidatePromptUtil from "../utils/candidate-prompt";
 
 
 
@@ -79,39 +80,15 @@ export interface ChapterCompletionPrompt {
 }
 
 function buildCandidatePositivePrompt(shot: WorkbenchSnapshot["shots"][number], snapshot: WorkbenchSnapshot): string {
-  return [
-    "comic panel",
-    snapshot.currentChapter?.title ? `chapter: ${snapshot.currentChapter.title}` : "",
-    shot.promptDraft,
-    shot.comic.panelDescription,
-    shot.comic.composition,
-    shot.comic.dialogue ? `dialogue: ${shot.comic.dialogue}` : "",
-    shot.comic.caption ? `caption: ${shot.comic.caption}` : "",
-    shot.motion.visualDescription,
-    shot.sceneName ? `scene: ${shot.sceneName}` : "",
-    shot.characters.length > 0 ? `characters: ${shot.characters.join(", ")}` : "",
-    `format: ${snapshot.project.comicFormat}`,
-    `style: ${snapshot.project.artStyle}`,
-  ]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join("\n");
+  return candidatePromptUtil.buildCandidatePositivePrompt(shot, snapshot);
 }
 
 function getCandidateImageSize(snapshot: WorkbenchSnapshot): { width: number; height: number } {
-  if (snapshot.project.comicFormat === "page_horizontal") {
-    return { width: 1536, height: 1024 };
-  }
-  if (snapshot.project.comicFormat === "four_panel") {
-    return { width: 1024, height: 1024 };
-  }
-  return { width: 1024, height: 1536 };
+  return candidatePromptUtil.getCandidateImageSize(snapshot);
 }
 
 function getPreflightReferenceAssetIds(snapshot: WorkbenchSnapshot): string[] {
-  return snapshot.imagePreflight?.preflightJson.characterChecks
-    .map((check) => check.referenceAssetId)
-    .filter((assetId): assetId is string => Boolean(assetId)) ?? [];
+  return candidatePromptUtil.getPreflightReferenceAssetIds(snapshot);
 }
 
 export const useWorkbenchStore = defineStore("workbench", {
@@ -714,6 +691,57 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.error = error instanceof Error ? error.message : "候选图任务创建失败";
         return null;
+      } finally {
+        this.loading = false;
+      }
+    },
+    /** 批量生成本章所有未锁定镜头的候选图(每镜默认1张,已锁跳过)。
+     *  复用现有 createTask + 后端串行队列,无需新后端 API。 */
+    async generateAllUnlockedShots(candidateCount = 1): Promise<number> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const snapshot = this.snapshot;
+        if (!projectId || !snapshot) {
+          throw new Error("请先进入项目");
+        }
+        const chapterId = getCurrentChapterId(snapshot);
+        if (!chapterId) {
+          throw new Error("请先打开一个章节");
+        }
+        const unlocked = snapshot.shots.filter((shot) => !shot.lockedCandidateId);
+        if (unlocked.length === 0) {
+          this.dialogueNotice = "本章镜头已全部锁定,无需批量生成。";
+          return 0;
+        }
+        let created = 0;
+        const referenceAssetIds = getPreflightReferenceAssetIds(snapshot);
+        const imageSize = getCandidateImageSize(snapshot);
+        for (const shot of unlocked) {
+          const result = await api.createTask({
+            projectId,
+            type: "image_generate",
+            target: { type: "shot", id: shot.id, chapterId },
+            input: {
+              chapterId,
+              shotId: shot.id,
+              positivePrompt: buildCandidatePositivePrompt(shot, snapshot),
+              negativePrompt: "low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+              referenceAssetIds,
+              candidateCount,
+              image: imageSize,
+            },
+            options: { candidateCount, provider: "default" },
+          });
+          this.mergeTasks([result.task]);
+          created += 1;
+        }
+        this.dialogueNotice = `已为 ${created} 个未锁定镜头创建候选图任务,正在串行生成。`;
+        return created;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "批量生成候选图失败";
+        return 0;
       } finally {
         this.loading = false;
       }

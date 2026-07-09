@@ -50,9 +50,34 @@
       </section>
 
       <div class="shot-list">
-        <article v-for="(shot, index) in workingJson.shots" :key="shot.id" class="shot-card" :class="{ 'is-collapsed': !isShotExpanded(shot.id) }">
+        <article
+          v-for="(shot, index) in workingJson.shots"
+          :key="shot.id"
+          class="shot-card"
+          :class="{
+            'is-collapsed': !isShotExpanded(shot.id),
+            'is-dragging': dragIndex === index,
+            'is-drag-over': dragOverIndex === index && dragIndex !== index,
+          }"
+          @dragover="onDragOver($event, index)"
+          @drop="onDrop(index)"
+          @dragend="onDragEnd"
+        >
           <div class="shot-card-head" @click="toggleShotExpand(shot.id)">
+            <span
+              class="drag-handle"
+              title="拖拽调整顺序"
+              draggable="true"
+              @click.stop
+              @dragstart="onDragStart(index)"
+            ><GripVertical :size="18" /></span>
             <div class="shot-number">镜头 {{ shot.order }}</div>
+            <!-- 候选图缩略预览(P0 任务D):有图才显示,无图不占位避免分镜阶段噪音 -->
+            <div v-if="shotThumbMap.get(shot.id)" class="shot-thumb" :class="{ 'is-locked': shotThumbMap.get(shot.id)?.locked }">
+              <img :src="shotThumbMap.get(shot.id)!.url" :alt="`镜头 ${shot.order} 候选`" loading="lazy" />
+              <Lock v-if="shotThumbMap.get(shot.id)?.locked" :size="11" class="shot-thumb-lock" />
+              <span v-else-if="(shotThumbMap.get(shot.id)?.count ?? 0) > 1" class="shot-thumb-count">{{ shotThumbMap.get(shot.id)?.count }}</span>
+            </div>
             <div class="shot-head-text">
               <strong>{{ shot.coreAction || shot.comic.panelDescription || "未填写镜头动作" }}</strong>
               <span>{{ getShotSceneName(shot.sceneId) }} · {{ shot.emotion || "未填写情绪" }}</span>
@@ -143,8 +168,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { CheckCircle2, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
-import type { ChapterListItem, ChapterStoryboard, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchSnapshot } from "@airoaming/shared";
+import { CheckCircle2, GripVertical, Image as ImageIcon, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
+import type { ChapterListItem, ChapterStoryboard, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchCandidate, WorkbenchSnapshot } from "@airoaming/shared";
+import { api } from "../../services/api";
 import EditableField from "./EditableField.vue";
 import {
   CAMERA_ANGLE_OPTIONS,
@@ -174,8 +200,38 @@ const editingValue = ref("");
 const workingJson = ref<StoryboardJson | null>(null);
 const workingSourceKey = ref("");
 const expandedShots = ref<Set<string>>(new Set());
+const dragIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
+
+/** 镜头的候选缩略信息:已锁定的候选优先,否则取最新一张候选。按 shotId 缓存到 computed map(P0 任务D)。 */
+const shotThumbMap = computed(() => {
+  const candidates = props.snapshot.candidates ?? [];
+  const projectId = props.snapshot.project.id;
+  const byShot = new Map<string, WorkbenchCandidate[]>();
+  for (const candidate of candidates) {
+    const list = byShot.get(candidate.shotId);
+    if (list) {
+      list.push(candidate);
+    } else {
+      byShot.set(candidate.shotId, [candidate]);
+    }
+  }
+  const result = new Map<string, { url: string; locked: boolean; count: number }>();
+  for (const [shotId, list] of byShot) {
+    const locked = list.find((c) => c.status === "locked");
+    const target = locked ?? [...list].sort((a, b) => Date.parse(b.createdAt ?? "0") - Date.parse(a.createdAt ?? "0"))[0];
+    if (target?.assetId) {
+      result.set(shotId, {
+        url: api.projectAssetFileUrl(projectId, target.assetId),
+        locked: Boolean(locked),
+        count: list.length,
+      });
+    }
+  }
+  return result;
+});
 const currentChapter = computed(() => props.snapshot.currentChapter);
 const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const formalStoryboard = computed(() => props.snapshot.storyboard);
@@ -351,6 +407,55 @@ function removeShot(index: number) {
   next.updatedAt = new Date().toISOString();
   workingJson.value = next;
   persistIfFormal(next);
+}
+
+/** 拖拽重排:把 fromIndex 的镜头移到 toIndex 位置,重编 order 并持久化(P0 任务E)。 */
+function reorderShots(fromIndex: number, toIndex: number) {
+  if (!workingJson.value || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
+    return;
+  }
+  const shots = workingJson.value.shots;
+  if (fromIndex >= shots.length || toIndex >= shots.length) {
+    return;
+  }
+  // 已有候选图/排版时,重排会让它们失效,需用户确认
+  const hasCandidates = (props.snapshot.candidates ?? []).some((c) => shots.some((s) => s.id === c.shotId));
+  if (hasCandidates && !window.confirm("调整镜头顺序后,已生成的候选图和排版将需要重新生成,是否继续?")) {
+    return;
+  }
+  const next = cloneStoryboard(workingJson.value);
+  const [moved] = next.shots.splice(fromIndex, 1);
+  next.shots.splice(toIndex, 0, moved);
+  next.shots = next.shots.map((shot, shotIndex) => ({ ...shot, order: shotIndex + 1 }));
+  next.updatedAt = new Date().toISOString();
+  workingJson.value = next;
+  persistIfFormal(next);
+}
+
+function onDragStart(index: number) {
+  dragIndex.value = index;
+}
+
+function onDragOver(event: DragEvent, index: number) {
+  if (dragIndex.value === null || dragIndex.value === index) {
+    return;
+  }
+  event.preventDefault();
+  dragOverIndex.value = index;
+}
+
+function onDrop(index: number) {
+  if (dragIndex.value === null) {
+    return;
+  }
+  reorderShots(dragIndex.value, index);
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
+
+function onDragEnd() {
+  dragIndex.value = null;
+  dragOverIndex.value = null;
 }
 
 function persistIfFormal(storyboardJson: StoryboardJson) {
@@ -746,6 +851,13 @@ html[data-theme="light"] .storyboard-summary p {
 .shot-card.is-collapsed {
   gap: 0;
 }
+
+/* 镜头卡内容区:展开后给足内边距和子区间距,避免字段堆叠 */
+.shot-card-body {
+  display: grid;
+  gap: 16px;
+  padding: 14px 4px 4px;
+}
 html[data-theme="light"] .shot-card {
   border-color: rgba(100, 116, 139, 0.08) !important;
   background: #ffffff !important;
@@ -754,12 +866,10 @@ html[data-theme="light"] .shot-card {
 }
 
 .shot-card-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  padding-bottom: 12px;
   cursor: pointer;
   transition: background 0.15s;
   border-radius: 8px;
@@ -788,6 +898,7 @@ html[data-theme="light"] .shot-card-head {
 }
 
 .shot-number {
+  flex-shrink: 0;
   border-radius: 999px;
   background: rgba(139, 92, 246, 0.12) !important;
   border: 1px solid rgba(139, 92, 246, 0.2) !important;
@@ -803,7 +914,95 @@ html[data-theme="light"] .shot-number {
   color: #7c3aed !important;
 }
 
+.shot-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.48);
+  display: grid;
+  place-items: center;
+  color: #64748b;
+}
+
+.shot-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shot-thumb.is-locked {
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.shot-thumb-lock {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  color: #22c55e;
+  background: rgba(2, 6, 23, 0.7);
+  border-radius: 3px;
+  padding: 1px;
+}
+
+.shot-thumb-count {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 9px;
+  font-weight: 900;
+  color: #fff;
+  background: rgba(2, 6, 23, 0.78);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.shot-thumb.is-empty {
+  color: #475569;
+}
+
+.drag-handle {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  cursor: grab;
+  color: #475569;
+  user-select: none;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.drag-handle:hover {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+html[data-theme="light"] .drag-handle {
+  color: #94a3b8;
+}
+html[data-theme="light"] .drag-handle:hover {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+}
+
+.shot-card.is-dragging {
+  opacity: 0.4;
+}
+
+.shot-card.is-drag-over {
+  border-top: 2px solid #22c7a9 !important;
+}
+
 .shot-head-text {
+  flex: 1;
   display: grid;
   min-width: 0;
   gap: 4px;
@@ -836,12 +1035,13 @@ html[data-theme="light"] .shot-head-text span {
   gap: 14px;
 }
 .shot-core-grid :deep(.editable-shot-field), .shot-core-grid :deep(.editable-field) {
-  background: rgba(30, 41, 59, 0.18);
-  border: 1px solid rgba(139, 92, 246, 0.05);
+  background: rgba(30, 41, 59, 0.3);
+  border: 1px solid rgba(139, 92, 246, 0.08);
   border-radius: 10px;
-  padding: 12px;
+  padding: 12px 14px;
 }
-html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field), .shot-core-grid :deep(.editable-field) {
+html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field),
+html[data-theme="light"] .shot-core-grid :deep(.editable-field) {
   background: rgba(240, 244, 250, 0.4);
   border-color: rgba(100, 116, 139, 0.06);
 }
@@ -849,7 +1049,7 @@ html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field), .shot-core
 /* Editable field styling for Shot Workspace */
 :deep(.editable-shot-field), :deep(.editable-field) {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -861,7 +1061,7 @@ html[data-theme="light"] .shot-core-grid :deep(.editable-shot-field), .shot-core
   letter-spacing: 0.05em;
   display: block;
 }
-html[data-theme="light"] :deep(.editable-shot-label), :deep(.editable-field .editable-label) {
+html[data-theme="light"] :deep(.editable-shot-label), html[data-theme="light"] :deep(.editable-field .editable-label) {
   color: #7c3aed !important;
 }
 
@@ -869,14 +1069,14 @@ html[data-theme="light"] :deep(.editable-shot-label), :deep(.editable-field .edi
 .comic-column :deep(.editable-shot-label), .comic-column :deep(.editable-field .editable-label) {
   color: #c084fc !important;
 }
-html[data-theme="light"] .comic-column :deep(.editable-shot-label), .comic-column :deep(.editable-field .editable-label) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-label), html[data-theme="light"] .comic-column :deep(.editable-field .editable-label) {
   color: #7c3aed !important;
 }
 
 .motion-column :deep(.editable-shot-label), .motion-column :deep(.editable-field .editable-label) {
   color: #2dd4bf !important;
 }
-html[data-theme="light"] .motion-column :deep(.editable-shot-label), .motion-column :deep(.editable-field .editable-label) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-label), html[data-theme="light"] .motion-column :deep(.editable-field .editable-label) {
   color: #0d9488 !important;
 }
 
@@ -887,7 +1087,7 @@ html[data-theme="light"] .motion-column :deep(.editable-shot-label), .motion-col
   background: rgba(139, 92, 246, 0.02) !important;
   border-radius: 0 4px 4px 0;
 }
-html[data-theme="light"] :deep(.editable-shot-value), :deep(.editable-field .editable-value) {
+html[data-theme="light"] :deep(.editable-shot-value), html[data-theme="light"] :deep(.editable-field .editable-value) {
   border-left-color: rgba(124, 58, 237, 0.35) !important;
   background: rgba(124, 58, 237, 0.02) !important;
 }
@@ -896,7 +1096,7 @@ html[data-theme="light"] :deep(.editable-shot-value), :deep(.editable-field .edi
   border-left-color: rgba(168, 85, 247, 0.25) !important;
   background: rgba(168, 85, 247, 0.02) !important;
 }
-html[data-theme="light"] .comic-column :deep(.editable-shot-value), .comic-column :deep(.editable-field .editable-value) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-value), html[data-theme="light"] .comic-column :deep(.editable-field .editable-value) {
   border-left-color: rgba(147, 51, 234, 0.35) !important;
   background: rgba(147, 51, 234, 0.02) !important;
 }
@@ -905,7 +1105,7 @@ html[data-theme="light"] .comic-column :deep(.editable-shot-value), .comic-colum
   border-left-color: rgba(13, 148, 136, 0.25) !important;
   background: rgba(13, 148, 136, 0.02) !important;
 }
-html[data-theme="light"] .motion-column :deep(.editable-shot-value), .motion-column :deep(.editable-field .editable-value) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-value), html[data-theme="light"] .motion-column :deep(.editable-field .editable-value) {
   border-left-color: rgba(13, 148, 136, 0.35) !important;
   background: rgba(13, 148, 136, 0.02) !important;
 }
@@ -914,13 +1114,13 @@ html[data-theme="light"] .motion-column :deep(.editable-shot-value), .motion-col
   margin: 0;
   min-height: 28px;
   color: #cbd5e1;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.65;
   white-space: pre-wrap;
-  word-break: break-all;
-  padding: 6px 30px 6px 10px;
+  word-break: break-word;
+  padding: 8px 30px 8px 12px;
 }
-html[data-theme="light"] :deep(.editable-shot-value p), :deep(.editable-field .editable-value p) {
+html[data-theme="light"] :deep(.editable-shot-value p), html[data-theme="light"] :deep(.editable-field .editable-value p) {
   color: #334155;
 }
 
@@ -961,15 +1161,19 @@ html[data-theme="light"] :deep(.editable-shot-value p), :deep(.editable-field .e
 }
 
 html[data-theme="light"] :deep(.editable-shot-value input),
-html[data-theme="light"] :deep(.editable-shot-value textarea), :deep(.editable-field .editable-value textarea),
-html[data-theme="light"] :deep(.editable-shot-value select), :deep(.editable-field .editable-value select) {
+html[data-theme="light"] :deep(.editable-shot-value textarea),
+html[data-theme="light"] :deep(.editable-field .editable-value textarea),
+html[data-theme="light"] :deep(.editable-shot-value select),
+html[data-theme="light"] :deep(.editable-field .editable-value select) {
   background: #ffffff !important;
   color: #1e293b !important;
   border-color: rgba(124, 58, 237, 0.25) !important;
 }
 html[data-theme="light"] :deep(.editable-shot-value input:focus),
-html[data-theme="light"] :deep(.editable-shot-value textarea:focus), :deep(.editable-field .editable-value textarea:focus),
-html[data-theme="light"] :deep(.editable-shot-value select:focus), :deep(.editable-field .editable-value select:focus) {
+html[data-theme="light"] :deep(.editable-shot-value textarea:focus),
+html[data-theme="light"] :deep(.editable-field .editable-value textarea:focus),
+html[data-theme="light"] :deep(.editable-shot-value select:focus),
+html[data-theme="light"] :deep(.editable-field .editable-value select:focus) {
   border-color: rgba(124, 58, 237, 0.5) !important;
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08) !important;
 }
@@ -981,17 +1185,18 @@ html[data-theme="light"] :deep(.editable-shot-value select:focus), :deep(.editab
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 :deep(.voice-lines-list li) {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(139, 92, 246, 0.08);
-  font-size: 12px;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.1);
+  font-size: 12.5px;
+  line-height: 1.6;
   color: #cbd5e1;
 }
 :deep(.voice-lines-list li strong) {
@@ -1026,11 +1231,11 @@ html[data-theme="light"] :deep(.voice-lines-list li em) {
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1) !important;
 }
 html[data-theme="light"] .comic-column :deep(.editable-shot-value input),
-html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea), .comic-column :deep(.editable-field .editable-value textarea) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea), html[data-theme="light"] .comic-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(147, 51, 234, 0.25) !important;
 }
 html[data-theme="light"] .comic-column :deep(.editable-shot-value input:focus),
-html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea:focus), .comic-column :deep(.editable-field .editable-value textarea:focus) {
+html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea:focus), html[data-theme="light"] .comic-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(147, 51, 234, 0.5) !important;
   box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.08) !important;
 }
@@ -1039,17 +1244,40 @@ html[data-theme="light"] .comic-column :deep(.editable-shot-value textarea:focus
 .motion-column :deep(.editable-shot-value textarea), .motion-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(13, 148, 136, 0.3) !important;
 }
+
+/* 时长 number input 显式深色兜底(不依赖穿透) */
+.shot-number-input {
+  width: 100%;
+  border: 1px solid rgba(13, 148, 136, 0.3) !important;
+  border-radius: 6px;
+  background-color: rgba(5, 9, 18, 0.7) !important;
+  color: #f8fbff !important;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.shot-number-input:focus {
+  border-color: rgba(13, 148, 136, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
+}
+html[data-theme="light"] .shot-number-input {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border-color: rgba(13, 148, 136, 0.25) !important;
+}
 .motion-column :deep(.editable-shot-value input:focus),
 .motion-column :deep(.editable-shot-value textarea:focus), .motion-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(13, 148, 136, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
 }
 html[data-theme="light"] .motion-column :deep(.editable-shot-value input),
-html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea), .motion-column :deep(.editable-field .editable-value textarea) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea), html[data-theme="light"] .motion-column :deep(.editable-field .editable-value textarea) {
   border-color: rgba(13, 148, 136, 0.25) !important;
 }
 html[data-theme="light"] .motion-column :deep(.editable-shot-value input:focus),
-html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea:focus), .motion-column :deep(.editable-field .editable-value textarea:focus) {
+html[data-theme="light"] .motion-column :deep(.editable-shot-value textarea:focus), html[data-theme="light"] .motion-column :deep(.editable-field .editable-value textarea:focus) {
   border-color: rgba(13, 148, 136, 0.5) !important;
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.08) !important;
 }
@@ -1123,6 +1351,7 @@ html[data-theme="light"] .motion-column :deep(.edit-field-btn:hover) {
 
 /* Trash actions */
 .icon-action {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1170,12 +1399,12 @@ html[data-theme="light"] .icon-action.danger:hover {
 .shot-expression {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
-  border: 1px solid rgba(139, 92, 246, 0.06) !important;
+  border: 1px solid rgba(139, 92, 246, 0.1) !important;
   border-radius: 12px;
-  background: rgba(30, 41, 59, 0.12) !important;
-  padding: 14px;
+  background: rgba(30, 41, 59, 0.28) !important;
+  padding: 16px;
 }
 html[data-theme="light"] .shot-expression {
   background: rgba(240, 244, 250, 0.3) !important;
@@ -1194,12 +1423,14 @@ html[data-theme="light"] .shot-expression {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
 }
 
 .expression-heading span {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }

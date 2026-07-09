@@ -20,6 +20,16 @@
           <Wand2 :size="15" />
           <span>生成候选</span>
         </button>
+        <button
+          class="secondary-action"
+          type="button"
+          :disabled="!isPreflightConfirmed || loading || unlockedShotCount === 0"
+          :title="unlockedShotCount === 0 ? '本章镜头已全部锁定' : `为 ${unlockedShotCount} 个未锁定镜头各生成 1 张`"
+          @click="$emit('generateAllUnlocked')"
+        >
+          <Layers :size="15" />
+          <span>批量生成{{ unlockedShotCount > 0 ? `(${unlockedShotCount})` : "" }}</span>
+        </button>
         <button class="primary-action" type="button" :disabled="!canCompleteChapter || loading" @click="$emit('completeImages')">
           <CheckCircle2 :size="15" />
           <span>完成本章候选图</span>
@@ -103,6 +113,27 @@
           </article>
         </div>
 
+        <!-- 出图 prompt 预览(P0 任务C):生成前可看到完整 prompt,不可编辑 -->
+        <section v-if="selectedShot" class="prompt-preview-panel">
+          <button class="prompt-toggle" type="button" @click="promptExpanded = !promptExpanded">
+            <ChevronDown :size="14" :class="{ 'is-rotated': !promptExpanded }" />
+            <span>出图 Prompt</span>
+            <small>{{ promptExpanded ? "点击折叠" : "点击查看完整提示词" }}</small>
+          </button>
+          <div v-if="promptExpanded" class="prompt-preview-body">
+            <div class="prompt-sections">
+              <div v-for="section in promptSections" :key="section.label" class="prompt-section-item">
+                <span>{{ section.label }}</span>
+                <p>{{ section.value }}</p>
+              </div>
+            </div>
+            <div class="prompt-full">
+              <span>完整 prompt</span>
+              <pre>{{ fullPromptText }}</pre>
+            </div>
+          </div>
+        </section>
+
         <section class="task-panel">
           <div class="panel-heading">
             <div>
@@ -111,7 +142,7 @@
             </div>
             <button class="primary-action compact" type="button" :disabled="!canGenerateSelected || loading" @click="generateSelectedShot">
               <Wand2 :size="14" />
-              <span>{{ selectedShotTasks.length > 0 ? "再生成一组" : "生成候选图" }}</span>
+              <span>{{ selectedShotTasks.length > 0 ? "重新生成（保留旧批）" : "生成候选图" }}</span>
             </button>
           </div>
 
@@ -138,7 +169,7 @@
           <div class="panel-heading">
             <div>
               <span>候选结果</span>
-              <strong>{{ selectedCandidates.length }} 张</strong>
+              <strong>{{ selectedCandidates.length }} 张 · {{ candidateBatches.length }} 批</strong>
             </div>
             <span class="lock-progress">已锁定 {{ lockedShotCount }}/{{ shots.length }}</span>
           </div>
@@ -146,37 +177,50 @@
           <div v-if="selectedCandidates.length === 0" class="candidate-grid-empty">
             <ImageIcon :size="22" />
             <h3>还没有候选图</h3>
-            <p>点击「生成候选图」创建真实 image_generate 任务；成功后会落盘并出现在这里。</p>
+            <p>点击「生成候选图」创建真实 image_generate 任务；成功后会落盘并出现在这里。不满意可「重新生成」，旧批保留为历史。</p>
           </div>
 
-          <article
-            v-for="candidate in selectedCandidates"
-            :key="candidate.id"
-            class="candidate-card"
-            :class="{ 'is-locked': candidate.status === 'locked' }"
-          >
-            <div class="candidate-thumb">
-              <img
-                v-if="getCandidatePreviewUrl(candidate.assetId)"
-                :src="getCandidatePreviewUrl(candidate.assetId)!"
-                :alt="candidate.label"
-              />
-              <ImageIcon v-else :size="24" />
-            </div>
-            <div class="candidate-meta">
-              <strong>{{ candidate.label }}</strong>
-              <span>{{ getCandidateStatusLabel(candidate.status) }}</span>
-              <button
-                class="lock-action"
-                type="button"
-                :disabled="loading || candidate.status === 'locked'"
-                @click="$emit('lockCandidate', candidate.id)"
+          <!-- 候选按批次(taskId)分组:最新批次展开,旧批次可折叠 -->
+          <div v-for="batch in candidateBatches" :key="batch.taskId" class="candidate-batch" :class="{ 'is-collapsed': collapsedBatchIds.has(batch.taskId) }">
+            <button class="batch-toggle" type="button" @click="toggleBatch(batch.taskId)">
+              <ChevronDown :size="14" />
+              <strong>{{ batch.label }}</strong>
+              <span>{{ batch.candidates.length }} 张</span>
+            </button>
+            <div v-show="!collapsedBatchIds.has(batch.taskId)" class="candidate-grid">
+              <article
+                v-for="candidate in batch.candidates"
+                :key="candidate.id"
+                class="candidate-card"
+                :class="[`is-${candidate.status}`, { 'is-locked': candidate.status === 'locked' }]"
               >
-                <Lock :size="13" />
-                <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
-              </button>
+                <div class="candidate-thumb">
+                  <img
+                    v-if="getCandidatePreviewUrl(candidate.assetId)"
+                    :src="getCandidatePreviewUrl(candidate.assetId)!"
+                    :alt="candidate.label"
+                  />
+                  <ImageIcon v-else :size="24" />
+                </div>
+                <div class="candidate-meta">
+                  <strong>{{ candidate.label }}</strong>
+                  <span class="candidate-status">{{ getCandidateStatusLabel(candidate.status) }}</span>
+                  <span v-if="candidate.promptDigest" class="digest-tag" :title="`prompt 摘要 ${candidate.promptDigest}`">prompt {{ candidate.promptDigest.slice(0, 6) }}</span>
+                  <div class="candidate-actions">
+                    <button
+                      class="lock-action"
+                      type="button"
+                      :disabled="loading || candidate.status === 'locked'"
+                      @click="$emit('lockCandidate', candidate.id)"
+                    >
+                      <Lock :size="13" />
+                      <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+                    </button>
+                  </div>
+                </div>
+              </article>
             </div>
-          </article>
+          </div>
         </section>
       </section>
     </div>
@@ -188,8 +232,10 @@ import { computed, ref, watch } from "vue";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Image as ImageIcon,
   Images,
+  Layers,
   ListChecks,
   Loader2,
   Lock,
@@ -208,6 +254,7 @@ import type {
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { api } from "../../services/api";
+import { buildCandidatePositivePrompt, buildPromptPreviewSections } from "../../utils/candidate-prompt";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -218,6 +265,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectChapter: [chapterId: string];
   generateCandidates: [payload: { shotId: string; candidateCount: number }];
+  generateAllUnlocked: [];
   lockCandidate: [candidateId: string];
   completeImages: [];
   goPreflight: [];
@@ -225,6 +273,7 @@ const emit = defineEmits<{
 
 const selectedShotId = ref<string | null>(null);
 const candidateCount = ref(4);
+const promptExpanded = ref(false);
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -232,6 +281,8 @@ const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
 const selectedShot = computed(() => shots.value.find((shot) => shot.id === selectedShotId.value) ?? shots.value[0] ?? null);
+const promptSections = computed(() => selectedShot.value ? buildPromptPreviewSections(selectedShot.value, props.snapshot) : []);
+const fullPromptText = computed(() => selectedShot.value ? buildCandidatePositivePrompt(selectedShot.value, props.snapshot) : "");
 const isPreflightConfirmed = computed(() => {
   const preflight = props.snapshot.imagePreflight;
   const storyboard = props.snapshot.storyboard;
@@ -252,6 +303,7 @@ const canGenerateSelected = computed(() => Boolean(
   && currentChapter.value?.status !== "exported",
 ));
 const lockedShotCount = computed(() => shots.value.filter((shot) => Boolean(shot.lockedCandidateId)).length);
+const unlockedShotCount = computed(() => shots.value.filter((shot) => !shot.lockedCandidateId).length);
 const canCompleteChapter = computed(() =>
   isPreflightConfirmed.value
   && shots.value.length > 0
@@ -270,7 +322,7 @@ const selectedShotTasks = computed(() => {
   }
   return chapterImageTasks.value.filter((task) => getTaskShotId(task) === shotId);
 });
-const selectedCandidates = computed(() => {
+const selectedShotCandidates = computed(() => {
   const shotId = selectedShot.value?.id;
   if (!shotId) {
     return [];
@@ -279,6 +331,58 @@ const selectedCandidates = computed(() => {
     .filter((candidate) => candidate.shotId === shotId)
     .slice()
     .sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
+});
+
+interface CandidateBatch {
+  taskId: string;
+  label: string;
+  createdAt: string;
+  candidates: typeof selectedShotCandidates.value;
+}
+
+/** 候选按生成任务(taskId)分批:一次"生成/重画"=一个任务=一批候选。
+ *  最新批次排在前(数组索引0),旧批次在后。无 taskId 的候选归入"早期"批次。 */
+const candidateBatches = computed<CandidateBatch[]>(() => {
+  const candidates = selectedShotCandidates.value;
+  if (candidates.length === 0) {
+    return [];
+  }
+  const byTask = new Map<string, typeof candidates>();
+  for (const candidate of candidates) {
+    const key = candidate.taskId ?? "__early__";
+    const list = byTask.get(key);
+    if (list) {
+      list.push(candidate);
+    } else {
+      byTask.set(key, [candidate]);
+    }
+  }
+  const taskMeta = new Map(selectedShotTasks.value.map((task) => [task.id, task]));
+  const batches: CandidateBatch[] = [...byTask.entries()].map(([taskId, list]) => {
+    const task = taskMeta.get(taskId);
+    const createdAt = task?.createdAt ?? list[0]?.createdAt ?? "";
+    return { taskId, label: taskId, createdAt, candidates: list };
+  });
+  // 按创建时间倒序:最新批次在前
+  batches.sort((left, right) => Date.parse(right.createdAt || "0") - Date.parse(left.createdAt || "0"));
+  // 给批次打可读标签:最新=第1次,其余递增
+  const total = batches.length;
+  batches.forEach((batch, index) => {
+    batch.label = `第 ${total - index} 次生成`;
+  });
+  return batches;
+});
+/** 平铺候选(兼容旧引用) */
+const selectedCandidates = computed(() => candidateBatches.value.flatMap((batch) => batch.candidates));
+/** 折叠的批次 taskId 集合(最新批次默认展开,旧批默认折叠) */
+const collapsedBatchIds = ref<Set<string>>(new Set());
+watch(candidateBatches, (batches) => {
+  // 旧批次(非第0个)默认折叠;最新批次保持展开
+  const next = new Set<string>();
+  for (let i = 1; i < batches.length; i += 1) {
+    next.add(batches[i].taskId);
+  }
+  collapsedBatchIds.value = next;
 });
 
 watch(
@@ -306,6 +410,16 @@ function generateSelectedShot() {
     shotId: selectedShot.value.id,
     candidateCount: candidateCount.value,
   });
+}
+
+function toggleBatch(taskId: string) {
+  const next = new Set(collapsedBatchIds.value);
+  if (next.has(taskId)) {
+    next.delete(taskId);
+  } else {
+    next.add(taskId);
+  }
+  collapsedBatchIds.value = next;
 }
 
 function getChapterCandidatesLabel(chapter: ChapterListItem): string {
@@ -752,6 +866,103 @@ button:disabled {
   padding: 16px;
 }
 
+.prompt-preview-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(31, 41, 55, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 16px;
+}
+
+.prompt-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #1f2937;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.prompt-toggle svg {
+  transition: transform 0.15s ease;
+  color: #64748b;
+}
+
+.prompt-toggle svg.is-rotated {
+  transform: rotate(-90deg);
+}
+
+.prompt-toggle small {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.prompt-preview-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(31, 41, 55, 0.08);
+}
+
+.prompt-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.prompt-section-item {
+  display: grid;
+  gap: 3px;
+}
+
+.prompt-section-item span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prompt-section-item p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 12.5px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.prompt-full {
+  display: grid;
+  gap: 5px;
+}
+
+.prompt-full span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prompt-full pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11.5px;
+  line-height: 1.6;
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
 .panel-heading {
   justify-content: space-between;
   gap: 12px;
@@ -854,6 +1065,52 @@ button:disabled {
   gap: 10px;
 }
 
+.candidate-batch {
+  border: 1px solid rgba(31, 41, 55, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(248, 250, 252, 0.5);
+}
+
+.candidate-batch + .candidate-batch {
+  margin-top: 4px;
+}
+
+.batch-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  padding: 4px 6px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.batch-toggle svg {
+  transition: transform 0.15s ease;
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
+.candidate-batch.is-collapsed .batch-toggle svg {
+  transform: rotate(-90deg);
+}
+
+.batch-toggle span {
+  color: #94a3b8;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.candidate-grid {
+  display: grid;
+  gap: 10px;
+}
+
 .candidate-grid-panel .panel-heading {
   display: flex;
   align-items: end;
@@ -876,6 +1133,63 @@ button:disabled {
 .candidate-card.is-locked {
   border-color: rgba(5, 150, 105, 0.45);
   box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.12);
+}
+
+.candidate-card.is-selected {
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.candidate-card.is-rejected {
+  opacity: 0.45;
+}
+
+.candidate-card.is-rejected .candidate-thumb {
+  filter: grayscale(0.8);
+}
+
+.candidate-card.is-superseded {
+  opacity: 0.5;
+}
+
+.candidate-status {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.candidate-card.is-locked .candidate-status {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+.candidate-card.is-selected .candidate-status {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+
+.candidate-card.is-rejected .candidate-status {
+  background: rgba(100, 116, 139, 0.14);
+  color: #64748b;
+}
+
+.candidate-card.is-superseded .candidate-status {
+  background: rgba(100, 116, 139, 0.1);
+  color: #94a3b8;
+}
+
+.digest-tag {
+  display: inline-block;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
 }
 
 .candidate-thumb {

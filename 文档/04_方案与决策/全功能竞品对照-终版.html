@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI漫画竞品对照 · 终版（取长补短）</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #121829;
+    --panel-2: #1a2238;
+    --border: rgba(148, 163, 184, 0.16);
+    --text: #e8eefc;
+    --muted: #8a98b8;
+    --accent: #5eead4;
+    --accent-2: #818cf8;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --good: #34d399;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.72; padding: 32px 20px 80px; }
+  .wrap { max-width: 1260px; margin: 0 auto; }
+  h1 { font-size: 30px; margin-bottom: 6px; }
+  h1 .tag { font-size: 12px; color: var(--accent); font-weight: 800; margin-left: 10px; border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; }
+  .sub { color: var(--muted); font-size: 15px; margin-bottom: 6px; }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 28px; }
+  section { margin-bottom: 46px; }
+  h2 { font-size: 20px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  h2 .num { display: inline-grid; place-items: center; width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #06231d; border-radius: 8px; font-size: 14px; font-weight: 900; }
+  p { margin-bottom: 12px; color: #d6deef; }
+
+  /* 顶部判断卡 */
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
+  @media (max-width: 860px) { .verdict { grid-template-columns: 1fr; } }
+  .vcard { border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: var(--panel); }
+  .vcard.keep { border-left: 4px solid var(--good); }
+  .vcard.fix { border-left: 4px solid var(--bad); }
+  .vcard h3 { font-size: 16px; margin-bottom: 8px; }
+  .vcard p { font-size: 13.5px; color: #c4cfe5; margin: 0; }
+  .vcard .formula { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 13px; color: #fff; font-weight: 700; }
+  .vcard .formula span { color: var(--muted); font-weight: 500; }
+
+  /* 4类样本 */
+  .cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 980px) { .cats { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { .cats { grid-template-columns: 1fr; } }
+  .cat { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: var(--panel); }
+  .cat.comic { border-top: 3px solid var(--good); }
+  .cat.image { border-top: 3px solid var(--accent-2); }
+  .cat.video { border-top: 3px solid #60a5fa; }
+  .cat.workflow { border-top: 3px solid var(--warn); }
+  .cat h3 { font-size: 15px; margin-bottom: 4px; }
+  .cat .ctype { font-size: 11px; font-weight: 800; margin-bottom: 12px; }
+  .cat.comic .ctype { color: var(--good); }
+  .cat.image .ctype { color: var(--accent-2); }
+  .cat.video .ctype { color: #60a5fa; }
+  .cat.workflow .ctype { color: var(--warn); }
+  .cat ul { list-style: none; }
+  .cat li { font-size: 12.5px; color: #c4cfe5; padding: 5px 0; border-bottom: 1px dashed rgba(148,163,184,0.1); }
+  .cat li:last-child { border-bottom: 0; }
+  .cat li b { color: #fff; }
+  .cat li .learn { display: block; color: var(--accent); font-size: 11px; margin-top: 2px; }
+
+  /* 大矩阵 */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  th, td { padding: 10px 9px; text-align: center; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { background: var(--panel-2); color: var(--muted); font-weight: 900; font-size: 11.5px; }
+  th:first-child, td:first-child { text-align: left; width: 18%; color: #e8eefc; font-weight: 700; }
+  th.ours-h { color: var(--accent); }
+  td.ours-col { background: rgba(94,234,212,0.055); }
+  tr.grp td { background: var(--panel-2); color: var(--accent); font-weight: 900; font-size: 11.5px; text-align: left; }
+  tr:last-child td { border-bottom: 0; }
+  .yes { color: var(--good); font-weight: 900; }
+  .no { color: var(--bad); font-weight: 900; }
+  .partial { color: var(--warn); font-weight: 900; }
+  .st { display: inline-block; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; margin-bottom: 2px; }
+  .st.lead { background: rgba(52,211,153,0.18); color: var(--good); }
+  .st.strong { background: rgba(94,234,212,0.15); color: var(--accent); }
+  .st.mid { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .st.weak { background: rgba(248,113,113,0.13); color: var(--bad); }
+  .note { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+  /* 关键发现 */
+  .findings { display: grid; gap: 14px; }
+  .finding { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--panel); display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
+  .finding .fnum { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #06231d; display: grid; place-items: center; font-weight: 900; font-size: 15px; }
+  .finding h4 { font-size: 15.5px; margin-bottom: 6px; }
+  .finding p { font-size: 13px; color: #c4cfe5; margin: 0; }
+  .finding .imp { margin-top: 8px; font-size: 12px; color: var(--accent); font-weight: 700; padding: 6px 10px; background: rgba(94,234,212,0.08); border-radius: 6px; display: inline-block; }
+
+  /* 优先级 */
+  .prio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .prio { grid-template-columns: 1fr; } }
+  .plane { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--panel); }
+  .plane.p0 { border-top: 4px solid var(--bad); }
+  .plane.p1 { border-top: 4px solid var(--warn); }
+  .plane.p2 { border-top: 4px solid var(--accent-2); }
+  .plane h3 { font-size: 16px; margin-bottom: 4px; }
+  .plane .when { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  .plane ul { list-style: none; }
+  .plane li { font-size: 13px; color: #c4cfe5; padding: 7px 0; padding-left: 18px; position: relative; border-bottom: 1px dashed rgba(148,163,184,0.1); }
+  .plane li:last-child { border-bottom: 0; }
+  .plane li::before { content: ""; position: absolute; left: 0; top: 13px; width: 6px; height: 6px; border-radius: 50%; }
+  .plane.p0 li::before { background: var(--bad); }
+  .plane.p1 li::before { background: var(--warn); }
+  .plane.p2 li::before { background: var(--accent-2); }
+  .plane li b { color: #fff; }
+  .plane li .why { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .callout { background: linear-gradient(135deg, rgba(94,234,212,0.08), rgba(129,140,248,0.08)); border: 1px solid rgba(94,234,212,0.25); border-radius: 14px; padding: 22px 26px; font-size: 14px; }
+  .callout b { color: var(--accent); }
+  .callout .big { font-size: 16px; margin-bottom: 14px; color: #fff; }
+  .src { font-size: 11px; color: var(--muted); margin-top: 18px; }
+  .src a { color: var(--accent-2); }
+  .legend { display: flex; gap: 16px; font-size: 11.5px; color: var(--muted); margin-top: 12px; flex-wrap: wrap; }
+  .scrollbox { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AI漫画竞品对照 · 终版 <span class="tag">取长补短 · 深思熟虑</span></h1>
+  <p class="sub">综合 GPT 报告（生产 OS 定位 + 4类样本分类法）与本轮深挖调研（LlamaGen 版本历史 / Anifusion 气泡编辑 / 气泡实现机制），修正两版盲点，给出统一结论。</p>
+  <p class="meta">调研日期 2026-07-09 ｜ 样本：Dashtoon · LlamaGen · ComicAI · Anifusion · AI Comic Factory · 即梦/可灵 · Midjourney · ComfyUI · Katalist/LTX</p>
+
+  <!-- 核心判断 -->
+  <section>
+    <h2><span class="num">1</span>核心判断（综合两版 + 深挖）</h2>
+    <div class="verdict">
+      <div class="vcard keep">
+        <h3>✅ 守住：章节级漫画生产操作系统</h3>
+        <p>AI漫游 不是单点生图工具，而是"项目→章节→结构→分镜→出图准备→候选→排版→素材包"的<b>完整可追溯生产链路</b>。这个定位在所有竞品里没有直接对手——海外专业工具是英文/偏 webtoon，国内工具是动态漫剧，通用生图工具没有漫画章节流水线。</p>
+        <div class="formula">护城河 <span>= 章节流水线 + 正式分镜契约 + 出图门禁 + 角色定稿追溯 + 候选锁定 + manifest 归档</span></div>
+        <div class="formula" style="border-left-color:var(--accent-2)">不要降级 <span>× 别变成"生成几张漫画图"的单点工具 × 别抄 ComfyUI 节点编辑器</span></div>
+      </div>
+      <div class="vcard fix">
+        <h3>⚠️ 补齐：候选迭代 × 漫画成稿 × 交付</h3>
+        <p>当前最大矛盾：流程骨架完整，但<b>离"能交付一章可阅读的漫画"还差三块</b>——候选图的反复迭代体验弱、没有对白气泡、排版只是占位。这三块决定了用户能不能真正"用 AI漫游 产出作品"，而不是停留在 demo。</p>
+        <div class="formula">补齐重点 <span>= 候选重画(prompt透明+单镜重画+历史) + 气泡文字层 + 排版成稿(PDF)</span></div>
+        <div class="formula" style="border-left-color:var(--warn)">关键技术发现 <span>气泡是"前端文字图层"不是"AI生成"——所有主流产品都把它做成可编辑覆盖层，难度远低于想象</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4类样本 -->
+  <section>
+    <h2><span class="num">2</span>市面样本 · 四类对标（修正 GPT 遗漏）</h2>
+    <p style="font-size:13.5px;color:var(--muted)">GPT 的四类分法更有解释力：AI漫游 每个环节应对标不同类别。本轮修正：补回 <b style="color:var(--accent)">LlamaGen</b>（GPT 漏掉，却是候选重画最成熟样本）。</p>
+    <div class="cats">
+      <div class="cat comic">
+        <h3>漫画垂直平台</h3>
+        <div class="ctype">整体对标 · 静态漫画</div>
+        <ul>
+          <li><b>Dashtoon</b> — 端到端最完整，inpaint/气泡/无限画布/连载发布<span class="learn">学：漫画垂直编辑工具链 + 发布闭环</span></li>
+          <li><b>LlamaGen</b> — 精细化最强，版本历史/批量重画/气泡可编辑覆盖层<span class="learn">学：候选重画机制（本轮补回）</span></li>
+          <li><b>ComicAI</b> — 零门槛，照片转角色/自动分镜排版<span class="learn">学：低门槛双路径入口</span></li>
+          <li><b>Anifusion</b> — 漫画页编辑最强，无限画布/气泡/角色sheet<span class="learn">学：排版与气泡编辑器</span></li>
+          <li><b>AI Comic Factory</b> — 免费开源，单prompt整页<span class="learn">学：反面教材，不可单格重画被骂最多</span></li>
+        </ul>
+      </div>
+      <div class="cat image">
+        <h3>生图/编辑平台</h3>
+        <div class="ctype">出图与修图对标</div>
+        <ul>
+          <li><b>Midjourney/Niji</b> — 一镜多变体/reroll/参考图权重<span class="learn">学：变体与快速重试心智</span></li>
+          <li><b>Leonardo</b> — prompt+参考角色/图像编辑<span class="learn">学：角色一致性一体化体验</span></li>
+          <li><b>Adobe Firefly</b> — 局部编辑/设计生态<span class="learn">学：局部修图与可商用</span></li>
+          <li><b>Canva</b> — 模板排版/拖拽/分享<span class="learn">学：模板化排版与分享导出</span></li>
+        </ul>
+      </div>
+      <div class="cat video">
+        <h3>故事板/视频平台</h3>
+        <div class="ctype">分镜与漫剧对标</div>
+        <ul>
+          <li><b>Katalist</b> — 脚本到镜头板/角色场景一致<span class="learn">学：分镜视觉化与一致性</span></li>
+          <li><b>LTX Studio</b> — scripting→storyboard→delivery<span class="learn">学：阶段衔接与 timeline</span></li>
+          <li><b>Runway Gen-4</b> — 单参考图跨场景一致<span class="learn">学：轻漫剧后续角色一致性</span></li>
+          <li><b>即梦/可灵</b> — 漫剧视频/对口型/九宫格<span class="learn">非直接竞品(动态非静态)，但 motion 字段对标</span></li>
+        </ul>
+      </div>
+      <div class="cat workflow">
+        <h3>开源工作流</h3>
+        <div class="ctype">底层能力参考(不照搬)</div>
+        <ul>
+          <li><b>ComfyUI App Mode</b> — 节点转产品化 UI<span class="learn">学：工作流可追溯思路；不抄节点编辑器</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 关键发现（深挖成果） -->
+  <section>
+    <h2><span class="num">3</span>本轮深挖的 4 个关键发现（影响优先级判断）</h2>
+    <div class="findings">
+
+      <div class="finding">
+        <div class="fnum">1</div>
+        <div>
+          <h4>气泡是"前端文字图层"，不是"AI生成"——难度被高估了</h4>
+          <p>所有主流产品（Anifusion/Dashtoon/LlamaGen）都<b>不让 AI 直接画文字进图</b>（会出乱码），而是把气泡做成<b>可编辑覆盖层/文字图层</b>，叠加在生成的画面上。这意味着对白气泡功能的本质是"前端图层编辑器 + 从分镜的 comic.dialogue 读取台词自动填充"，<b>不需要调 AI 模型</b>。实现难度远低于"AI 写对白"。</p>
+          <div class="imp">→ 气泡优先级可上调：它是前端工程，不依赖图片模型，ROI 高</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fnum">2</div>
+        <div>
+          <h4>LlamaGen 的"版本历史自动保存"是候选迭代的最优解</h4>
+          <p>深挖发现 LlamaGen 每次 redraw/edit 都<b>自动保存旧版本到 Version History</b>，右侧可随时回溯拖拽复用——这正是 AI漫游 候选图缺的"生成历史"。AI漫游 后端其实<b>已定义了 5 态</b>（generated/selected/locked/rejected/superseded），差的只是前端把这 5 态用起来 + 展示历史批次。不需要新数据模型，是纯 UI 补齐。</p>
+          <div class="imp">→ 候选重画不是"补能力"，是"补 UI + 明确语义（重画=新批次，旧批保留备选）"</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fnum">3</div>
+        <div>
+          <h4>局部修图 inpaint 技术重，应往后挪</h4>
+          <p>GPT 报告把 inpaint 放 P1，但深挖确认它需要：mask 编辑器 + inpainting 模型调用 + 局部与角色一致性的冲突处理。Dashtoon/ComfyUI 能做好是因为它们有完整画布引擎。AI漫游 当前是"镜头卡列表"形态，没有画布基础，做 inpaint 要先建画布。<b>这是 P2 以后的能力</b>，当前阶段用"整镜重画"覆盖 80% 场景更划算。</p>
+          <div class="imp">→ inpaint 从 P1 降到 P2；P1 用"锁定图后重新生成"替代局部修图</div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="fnum">4</div>
+        <div>
+          <h4>分镜工作台的"预览/重排"比想象更紧急</h4>
+          <p>分镜是候选图的直接上游，分镜不能缩略预览、不能拖拽重排，用户在"盲生候选图"。Katalist/LTX 的视觉故事板之所以体验好，就是分镜阶段就能看到画面节奏。AI漫游 的分镜还是纯文本卡。<b>这直接影响候选图质量</b>，应纳入近期优化，不能只当 P1。</p>
+          <div class="imp">→ 分镜缩略预览 + 拖拽重排，应与候选重画同期推进</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 全能力矩阵 -->
+  <section>
+    <h2><span class="num">4</span>全能力对照矩阵（终版）</h2>
+    <div class="scrollbox">
+    <table>
+      <thead>
+        <tr>
+          <th>能力维度</th>
+          <th class="ours-h">AI漫游</th>
+          <th>Dashtoon</th>
+          <th>LlamaGen</th>
+          <th>Anifusion</th>
+          <th>Comic Factory</th>
+          <th>Midjourney流</th>
+          <th>即梦/可灵</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="grp"><td colspan="8">▎流程骨架（AI漫游 护城河）</td></tr>
+        <tr>
+          <td>项目/章节管理</td>
+          <td class="ours-col"><span class="st lead">领先</span><span class="note">章节工作流·状态机·按章追溯</span></td>
+          <td><span class="st strong">强</span><span class="note">连载发布</span></td>
+          <td><span class="st mid">中</span><span class="note">章节大纲输入</span></td>
+          <td><span class="st mid">中</span><span class="note">多页项目</span></td>
+          <td><span class="st weak">弱</span><span class="note">单页</span></td>
+          <td><span class="st weak">弱</span><span class="note">无</span></td>
+          <td><span class="st weak">弱</span><span class="note">无</span></td>
+        </tr>
+        <tr>
+          <td>剧情结构化</td>
+          <td class="ours-col"><span class="st lead">领先</span><span class="note">角色卡/场景卡/节拍·独家</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+        </tr>
+        <tr>
+          <td>出图前门禁(preflight)</td>
+          <td class="ours-col"><span class="st lead">领先</span><span class="note">正式分镜+角色定稿+场景检查·独家</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+          <td><span class="st weak">无</span></td>
+        </tr>
+        <tr>
+          <td>素材追溯/manifest</td>
+          <td class="ours-col"><span class="st lead">领先</span><span class="note">候选/锁定图/页面/任务归档</span></td>
+          <td><span class="st mid">中</span></td>
+          <td><span class="st strong">强</span><span class="note">版本历史</span></td>
+          <td><span class="st mid">中</span></td>
+          <td><span class="st weak">弱</span></td>
+          <td><span class="st weak">弱</span></td>
+          <td><span class="st weak">弱</span></td>
+        </tr>
+
+        <tr class="grp"><td colspan="8">▎出图与候选（AI漫游 重点补齐区）</td></tr>
+        <tr>
+          <td>逐镜头生成</td>
+          <td class="ours-col"><span class="st strong">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st mid">整页</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+        </tr>
+        <tr>
+          <td>一次出多张候选</td>
+          <td class="ours-col"><span class="st strong">✓ 1-6张</span></td>
+          <td><span class="st mid">弱</span></td>
+          <td><span class="st mid">弱</span></td>
+          <td><span class="st mid">弱</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st lead">4张</span></td>
+          <td><span class="st mid">九宫格</span></td>
+        </tr>
+        <tr>
+          <td>单格重画(一等操作)</td>
+          <td class="ours-col"><span class="st weak">仅"再生成一组"</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st lead">✓ 单格+批量</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st mid">改caption</span></td>
+          <td><span class="st lead">reroll</span></td>
+          <td><span class="st strong">局部重绘</span></td>
+        </tr>
+        <tr>
+          <td>版本历史/候选批次</td>
+          <td class="ours-col"><span class="st weak">5态定义·UI未用</span></td>
+          <td><span class="st mid">中</span></td>
+          <td><span class="st lead">✓ 自动保存历史</span></td>
+          <td><span class="st mid">中</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st mid">中</span></td>
+          <td><span class="st weak">✗</span></td>
+        </tr>
+        <tr>
+          <td>prompt 可见/可编辑</td>
+          <td class="ours-col"><span class="st weak">不可见</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st lead">全手写</span></td>
+          <td><span class="st lead">全手写</span></td>
+        </tr>
+        <tr>
+          <td>批量生成全章</td>
+          <td class="ours-col"><span class="st weak">逐个</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st mid">九宫格</span></td>
+        </tr>
+
+        <tr class="grp"><td colspan="8">▎漫画成稿（AI漫游 最大缺口）</td></tr>
+        <tr>
+          <td>对白气泡(可编辑图层)</td>
+          <td class="ours-col"><span class="st weak">✗ 无</span></td>
+          <td><span class="st lead">✓ 内置工具</span></td>
+          <td><span class="st lead">✓ 可编辑覆盖层</span></td>
+          <td><span class="st lead">✓ manga最强</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st weak">需剪映</span></td>
+        </tr>
+        <tr>
+          <td>漫画页排版</td>
+          <td class="ours-col"><span class="st mid">一镜一页·简版</span></td>
+          <td><span class="st lead">无限画布</span></td>
+          <td><span class="st lead">专业Layouts</span></td>
+          <td><span class="st lead">无限画布</span></td>
+          <td><span class="st strong">预设</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st weak">需第三方</span></td>
+        </tr>
+        <tr>
+          <td>PDF 导出</td>
+          <td class="ours-col"><span class="st weak">✗ 后置</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st lead">✓ 300DPI</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st weak">✗</span></td>
+        </tr>
+
+        <tr class="grp"><td colspan="8">▎进阶与生态（后置）</td></tr>
+        <tr>
+          <td>局部修图 inpaint</td>
+          <td class="ours-col"><span class="st weak">✗</span></td>
+          <td><span class="st lead">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st lead">✓ vary</span></td>
+          <td><span class="st lead">✓</span></td>
+        </tr>
+        <tr>
+          <td>视频/漫剧导出</td>
+          <td class="ours-col"><span class="st mid">motion字段已留</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st lead">✓ MP4</span></td>
+          <td><span class="st strong">✓</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st weak">✗</span></td>
+          <td><span class="st lead">主打</span></td>
+        </tr>
+        <tr>
+          <td>中文原生</td>
+          <td class="ours-col"><span class="st lead">✓</span></td>
+          <td><span class="st weak">英文</span></td>
+          <td><span class="st mid">多语言</span></td>
+          <td><span class="st weak">英文</span></td>
+          <td><span class="st weak">英文</span></td>
+          <td><span class="st weak">英文</span></td>
+          <td><span class="st lead">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 终版优先级 -->
+  <section>
+    <h2><span class="num">5</span>终版优先级（修正两版后）</h2>
+    <p style="font-size:13.5px;color:var(--muted)">原则：先补"能不能交付一章可阅读漫画"，再补"做得更好"，最后补"进阶能力"。inpaint 下调（GPT 放太早），气泡上调（难度被高估），分镜预览提前。</p>
+    <div class="prio">
+      <div class="plane p0">
+        <h3>P0：候选迭代 + 分镜预览</h3>
+        <div class="when">目标：让"出图"这步体验顺畅</div>
+        <ul>
+          <li><b>单格重画做成一等操作</b><span class="why">明确语义：重画=新批次，旧批保留备选（对标 LlamaGen）</span></li>
+          <li><b>候选版本历史/批次展示</b><span class="why">后端已有5态，纯前端补齐，展示多组候选 + 备选/废弃</span></li>
+          <li><b>prompt 可见（先不可编辑）</b><span class="why">出图不满意时让用户知道 AI 怎么理解的</span></li>
+          <li><b>分镜缩略预览 + 拖拽重排</b><span class="why">分镜是候选直接上游，盲生候选图质量差</span></li>
+          <li><b>批量生成未锁镜头</b><span class="why">15镜逐个点太累，对标 Dashtoon/LlamaGen</span></li>
+        </ul>
+      </div>
+      <div class="plane p1">
+        <h3>P1：漫画成稿交付</h3>
+        <div class="when">目标：让"能交付一章可阅读漫画"</div>
+        <ul>
+          <li><b>对白气泡（文字图层编辑器）</b><span class="why">前端工程，从 comic.dialogue 读台词填充，不需AI模型。ROI最高</span></li>
+          <li><b>多镜排版（替代一镜一页）</b><span class="why">对标 Anifusion/Dashtoon，基础分格模板</span></li>
+          <li><b>PDF 导出</b><span class="why">连载交付刚需，对标 Comic Factory/LlamaGen</span></li>
+          <li><b>prompt 可编辑</b><span class="why">P0 可见后的进阶，让用户微调</span></li>
+          <li><b>角色 sheet/表情变体</b><span class="why">角色库增强，对标 Anifusion</span></li>
+        </ul>
+      </div>
+      <div class="plane p2">
+        <h3>P2：进阶与生态</h3>
+        <div class="when">目标：锦上添花 + 延展</div>
+        <ul>
+          <li><b>局部修图 inpaint</b><span class="why">需画布引擎+mask编辑，技术重。用整镜重画先覆盖80%</span></li>
+          <li><b>分享链接/读者反馈</b><span class="why">对标 Canva/Dashtoon 发布</span></li>
+          <li><b>视频/漫剧导出(MP4)</b><span class="why">motion字段已留，接 Runway/即梦类能力</span></li>
+          <li><b>团队协作</b><span class="why">对标 LlamaGen Enterprise</span></li>
+          <li><b>ComfyUI式专家模式</b><span class="why">不进默认主线，作为高级选项</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 结论 -->
+  <section>
+    <h2><span class="num">6</span>结论</h2>
+    <div class="callout">
+      <p class="big"><b>一句话：</b>骨架完整、护城河清晰，但"画完一张图"到"交付一章漫画"之间，缺了对白气泡和成稿排版——这两块才是用户能不能真正产出作品的关键。</p>
+      <p style="margin-bottom:10px"><b>近期（P0）：让出图顺。</b>单格重画 + 候选历史 + prompt可见 + 分镜预览 + 批量生成。候选这块"补 UI"为主，后端 5 态数据模型已就位。</p>
+      <p style="margin-bottom:10px"><b>中期（P1）：让能交付。</b>气泡（前端图层，非AI生成，ROI高）+ 多镜排版 + PDF。这是从 demo 走向"能产出作品"的分水岭。</p>
+      <p style="margin:0"><b>远期（P2）：让更好。</b>局部修图（需画布引擎，技术重，后置）/ 发布 / 视频漫剧 / 协作。inpaint 用"整镜重画"先顶 80% 场景。</p>
+    </div>
+    <div class="src">
+      主要来源：<a href="https://llamagen.ai/">LlamaGen(版本历史/批量重画/气泡覆盖层)</a> ·
+      <a href="https://anifusion.ai/all-features/">Anifusion(无限画布/气泡/manga最强)</a> ·
+      <a href="https://insiders.dashtoon.com/dashtoon-studio-august-2024-release/">Dashtoon Studio发布说明(inpaint/气泡)</a> ·
+      <a href="https://github.com/jbilcke-hf/ai-comic-factory">AI Comic Factory(反面教材)</a> ·
+      <a href="https://comfyui.org/en/from-workflow-to-app-introducing">ComfyUI App Mode</a> ·
+      <a href="https://www.katalist.ai/">Katalist(分镜对标)</a> ·
+      项目事实源（候选5态数据模型已在 dtoo.ts 定义）
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
