@@ -105,6 +105,7 @@ export class ImageCandidateService {
         .concat(this.readStringArray(task.input.preflightCharacterReferenceAssetIds));
       const referenceSource = await this.resolveReferenceImage(project, referenceAssetIds);
       const providerType = this.imageProvider.getActiveProviderType();
+      const providerId = this.toProviderMetaId(providerType);
       const outputFormat: "webp" | "png" = "webp";
 
       const createdCandidates: ProjectCandidate[] = [];
@@ -154,7 +155,7 @@ export class ImageCandidateService {
             shotId,
             candidateId,
             candidateIndex: index,
-            provider: providerType === "doubao" ? "doubao_image" : "openai_image",
+            provider: providerId,
             promptDigest: this.digestPrompt(fullPrompt),
             generationMode: referenceSource ? "image_edit" : "image_generation",
             createdAt: now,
@@ -199,7 +200,7 @@ export class ImageCandidateService {
       this.repository.setProject(nextProject);
 
       this.tasksService.succeed(taskId, {
-        provider: providerType === "doubao" ? "doubao_image" : "openai_image",
+        provider: providerId,
         shotId,
         chapterId: chapter.id,
         candidateCount: createdCandidates.length,
@@ -273,12 +274,12 @@ export class ImageCandidateService {
           status: "locked",
         };
       }),
-      updatedAt: now,
+      // 锁定候选只改 shot.lockedCandidateId/status(出图阶段状态),不改分镜内容;
+      // 不更新 storyboardJson.updatedAt,避免让已确认的 preflight 因时间戳不匹配而误失效。
     };
     const nextStoryboard: ChapterStoryboard = {
       ...chapter.storyboard,
       storyboardJson: nextStoryboardJson,
-      updatedAt: now,
     };
     const nextChapter: LocalChapter = {
       ...chapter,
@@ -413,7 +414,9 @@ export class ImageCandidateService {
     return workflowUtil.buildProjectWorkflow(project, chapter, isPreflightReady);
   }
 
-  private withShotImageGenerated(storyboard: ChapterStoryboard, shotId: string, now: string): ChapterStoryboard {
+  private withShotImageGenerated(storyboard: ChapterStoryboard, shotId: string, _now: string): ChapterStoryboard {
+    // 候选图生成只更新 shot.status(draft→image_generated),不改变分镜内容;
+    // 因此不更新 storyboard.updatedAt,避免让已确认的 preflight 记录因时间戳不匹配而误失效。
     return {
       ...storyboard,
       storyboardJson: {
@@ -430,9 +433,7 @@ export class ImageCandidateService {
             status: shot.status === "locked" ? "locked" : "image_generated",
           };
         }),
-        updatedAt: now,
       },
-      updatedAt: now,
     };
   }
 
@@ -498,6 +499,12 @@ export class ImageCandidateService {
 
   private digestPrompt(prompt: string): string {
     return createHash("sha1").update(prompt).digest("hex").slice(0, 12);
+  }
+
+  private toProviderMetaId(providerType: "openai" | "doubao" | "grok"): string {
+    if (providerType === "doubao") return "doubao_image";
+    if (providerType === "grok") return "grok_image";
+    return "openai_image";
   }
 }
 

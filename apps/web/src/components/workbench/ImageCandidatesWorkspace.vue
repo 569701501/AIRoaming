@@ -12,14 +12,6 @@
       </div>
 
       <div class="candidate-actions">
-        <button class="secondary-action" type="button" :disabled="loading" @click="$emit('goPreflight')">
-          <ListChecks :size="15" />
-          <span>出图准备</span>
-        </button>
-        <button class="primary-action" type="button" :disabled="!canGenerateSelected || loading" @click="generateSelectedShot">
-          <Wand2 :size="15" />
-          <span>生成候选</span>
-        </button>
         <button
           class="secondary-action"
           type="button"
@@ -83,14 +75,25 @@
             <span>镜头 {{ selectedShot.order }}</span>
             <h2>{{ selectedShot.coreAction || selectedShot.comic.panelDescription || "未填写镜头动作" }}</h2>
           </div>
-          <div class="candidate-count-control" aria-label="候选数量">
-            <button type="button" aria-label="减少候选数量" :disabled="candidateCount <= 1 || loading" @click="candidateCount -= 1">
-              <Minus :size="15" />
+          <div class="generate-group">
+            <button
+              class="generate-btn"
+              type="button"
+              :disabled="!canGenerateSelected || loading"
+              @click="generateSelectedShot"
+            >
+              <Wand2 :size="16" />
+              <span>生成候选图</span>
             </button>
-            <strong>{{ candidateCount }}</strong>
-            <button type="button" aria-label="增加候选数量" :disabled="candidateCount >= 6 || loading" @click="candidateCount += 1">
-              <Plus :size="15" />
-            </button>
+            <div class="candidate-count-control" aria-label="候选数量">
+              <button type="button" aria-label="减少候选数量" :disabled="candidateCount <= 1 || loading" @click="candidateCount -= 1">
+                <Minus :size="15" />
+              </button>
+              <strong>{{ candidateCount }}</strong>
+              <button type="button" aria-label="增加候选数量" :disabled="candidateCount >= 6 || loading" @click="candidateCount += 1">
+                <Plus :size="15" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -140,10 +143,6 @@
               <span>生成任务</span>
               <strong>{{ selectedShotTasks.length }} 个记录</strong>
             </div>
-            <button class="primary-action compact" type="button" :disabled="!canGenerateSelected || loading" @click="generateSelectedShot">
-              <Wand2 :size="14" />
-              <span>{{ selectedShotTasks.length > 0 ? "重新生成（保留旧批）" : "生成候选图" }}</span>
-            </button>
           </div>
 
           <div v-if="selectedShotTasks.length === 0" class="task-empty">
@@ -194,29 +193,33 @@
                 class="candidate-card"
                 :class="[`is-${candidate.status}`, { 'is-locked': candidate.status === 'locked' }]"
               >
-                <div class="candidate-thumb">
-                  <img
-                    v-if="getCandidatePreviewUrl(candidate.assetId)"
-                    :src="getCandidatePreviewUrl(candidate.assetId)!"
-                    :alt="candidate.label"
-                  />
-                  <ImageIcon v-else :size="24" />
+                <button
+                  v-if="getCandidatePreviewUrl(candidate.assetId)"
+                  class="candidate-thumb"
+                  type="button"
+                  @click="openCandidatePreview(candidate)"
+                >
+                  <img :src="getCandidatePreviewUrl(candidate.assetId)!" :alt="candidate.label" />
+                  <span class="thumb-zoom-hint"><ZoomIn :size="16" /> 点击放大</span>
+                </button>
+                <div v-else class="candidate-thumb is-empty">
+                  <ImageIcon :size="24" />
                 </div>
                 <div class="candidate-meta">
-                  <strong>{{ candidate.label }}</strong>
-                  <span class="candidate-status">{{ getCandidateStatusLabel(candidate.status) }}</span>
-                  <span v-if="candidate.promptDigest" class="digest-tag" :title="`prompt 摘要 ${candidate.promptDigest}`">prompt {{ candidate.promptDigest.slice(0, 6) }}</span>
-                  <div class="candidate-actions">
-                    <button
-                      class="lock-action"
-                      type="button"
-                      :disabled="loading || candidate.status === 'locked'"
-                      @click="$emit('lockCandidate', candidate.id)"
-                    >
-                      <Lock :size="13" />
-                      <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
-                    </button>
+                  <div class="candidate-meta-top">
+                    <strong>{{ candidate.label }}</strong>
+                    <span class="candidate-status">{{ getCandidateStatusLabel(candidate.status) }}</span>
                   </div>
+                  <span v-if="candidate.promptDigest" class="digest-tag" :title="`prompt 摘要 ${candidate.promptDigest}`">{{ candidate.promptDigest.slice(0, 6) }}</span>
+                  <button
+                    class="lock-action"
+                    type="button"
+                    :disabled="loading || candidate.status === 'locked'"
+                    @click="$emit('lockCandidate', candidate.id)"
+                  >
+                    <Lock :size="13" />
+                    <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+                  </button>
                 </div>
               </article>
             </div>
@@ -225,6 +228,29 @@
       </section>
     </div>
   </section>
+
+  <!-- 候选图放大预览 -->
+  <Teleport to="body">
+    <div v-if="previewCandidate" class="candidate-preview-backdrop" @click.self="previewCandidate = null">
+      <div class="candidate-preview-modal">
+        <button class="preview-close" type="button" @click="previewCandidate = null"><X :size="20" /></button>
+        <img :src="getCandidatePreviewUrl(previewCandidate.assetId)!" :alt="previewCandidate.label" />
+        <div class="preview-info">
+          <strong>{{ previewCandidate.label }}</strong>
+          <span>{{ getCandidateStatusLabel(previewCandidate.status) }}</span>
+          <button
+            class="preview-lock-btn"
+            type="button"
+            :disabled="loading || previewCandidate.status === 'locked'"
+            @click="$emit('lockCandidate', previewCandidate.id); previewCandidate = null"
+          >
+            <Lock :size="15" />
+            <span>{{ previewCandidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -243,6 +269,8 @@ import {
   Plus,
   ShieldAlert,
   Wand2,
+  X,
+  ZoomIn,
 } from "lucide-vue-next";
 import type {
   ArtStyle,
@@ -251,6 +279,7 @@ import type {
   ComicFormat,
   GenerationTaskItem,
   GenerationTaskStatus,
+  WorkbenchCandidate,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { api } from "../../services/api";
@@ -274,6 +303,7 @@ const emit = defineEmits<{
 const selectedShotId = ref<string | null>(null);
 const candidateCount = ref(4);
 const promptExpanded = ref(false);
+const previewCandidate = ref<WorkbenchCandidate | null>(null);
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -422,6 +452,10 @@ function toggleBatch(taskId: string) {
   collapsedBatchIds.value = next;
 }
 
+function openCandidatePreview(candidate: WorkbenchCandidate) {
+  previewCandidate.value = candidate;
+}
+
 function getChapterCandidatesLabel(chapter: ChapterListItem): string {
   if (chapter.status === "images_done" || chapter.status === "layout_done" || chapter.status === "exported") {
     return "已有候选";
@@ -565,8 +599,8 @@ function getArtStyleLabel(value: ArtStyle): string {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: #f7f4ed;
-  color: #1f2937;
+  background: transparent;
+  color: #e8eefc;
 }
 
 .candidates-toolbar {
@@ -575,9 +609,9 @@ function getArtStyleLabel(value: ArtStyle): string {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid rgba(31, 41, 55, 0.1);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
   padding: 0 22px;
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(15, 23, 42, 0.64);
 }
 
 .chapter-picker,
@@ -591,17 +625,17 @@ function getArtStyleLabel(value: ArtStyle): string {
 .chapter-picker {
   min-width: 0;
   gap: 10px;
-  color: #475569;
+  color: #94a3b8;
 }
 
 .chapter-picker select {
   min-width: 180px;
   max-width: 280px;
   height: 38px;
-  border: 1px solid rgba(31, 41, 55, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
-  background: #fff;
-  color: #111827;
+  background: rgba(8, 13, 26, 0.92);
+  color: #f8fbff;
   padding: 0 34px 0 12px;
   font-size: 13px;
   font-weight: 800;
@@ -609,7 +643,7 @@ function getArtStyleLabel(value: ArtStyle): string {
 
 .story-title {
   overflow: hidden;
-  color: #64748b;
+  color: #8df0dc;
   font-size: 12px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -635,9 +669,9 @@ function getArtStyleLabel(value: ArtStyle): string {
 }
 
 .primary-action {
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #fff;
+  border: 1px solid rgba(34, 199, 169, 0.4);
+  background: linear-gradient(135deg, #22c7a9, #1fb89a);
+  color: #06231d;
 }
 
 .primary-action.compact {
@@ -648,9 +682,9 @@ function getArtStyleLabel(value: ArtStyle): string {
 
 .secondary-action,
 .empty-action {
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.72);
+  color: #dbe7ff;
 }
 
 button:disabled {
@@ -667,12 +701,12 @@ button:disabled {
   gap: 10px;
   padding: 24px;
   text-align: center;
-  color: #64748b;
+  color: #8a98b8;
 }
 
 .candidate-empty h2 {
   margin: 0;
-  color: #111827;
+  color: #f8fbff;
   font-size: 20px;
 }
 
@@ -696,9 +730,9 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
   overflow: auto;
-  border-right: 1px solid rgba(31, 41, 55, 0.1);
+  border-right: 1px solid rgba(148, 163, 184, 0.16);
   padding: 16px;
-  background: rgba(255, 255, 255, 0.46);
+  background: rgba(15, 23, 42, 0.46);
 }
 
 .shot-rail-summary {
@@ -711,14 +745,14 @@ button:disabled {
 .shot-rail-summary span,
 .panel-heading span,
 .shot-context-grid span {
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 900;
 }
 
 .shot-rail-summary strong,
 .panel-heading strong {
-  color: #111827;
+  color: #f8fbff;
   font-size: 14px;
 }
 
@@ -729,17 +763,17 @@ button:disabled {
   grid-template-columns: 34px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.62);
   padding: 10px;
-  color: #111827;
+  color: #e8eefc;
   text-align: left;
 }
 
 .shot-row.is-active {
-  border-color: rgba(37, 99, 235, 0.46);
-  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.12);
+  border-color: rgba(34, 199, 169, 0.46);
+  box-shadow: 0 8px 22px rgba(34, 199, 169, 0.12);
 }
 
 .shot-index {
@@ -748,8 +782,8 @@ button:disabled {
   height: 30px;
   place-items: center;
   border-radius: 8px;
-  background: #e0f2fe;
-  color: #075985;
+  background: rgba(139, 92, 246, 0.16);
+  color: #a78bfa;
   font-size: 13px;
   font-weight: 950;
 }
@@ -761,7 +795,7 @@ button:disabled {
 .shot-row-main strong {
   display: block;
   overflow: hidden;
-  color: #111827;
+  color: #f8fbff;
   font-size: 13px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -772,7 +806,7 @@ button:disabled {
   display: block;
   overflow: hidden;
   margin-top: 5px;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -780,7 +814,7 @@ button:disabled {
 }
 
 .locked-icon {
-  color: #16a34a;
+  color: #34d399;
 }
 
 .candidate-detail {
@@ -793,9 +827,9 @@ button:disabled {
 .task-panel,
 .candidate-grid-panel,
 .shot-context-grid article {
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.62);
 }
 
 .candidate-hero {
@@ -807,16 +841,55 @@ button:disabled {
 }
 
 .candidate-hero span {
-  color: #2563eb;
+  color: #8df0dc;
   font-size: 12px;
   font-weight: 950;
 }
 
 .candidate-hero h2 {
   margin: 5px 0 0;
-  color: #111827;
+  color: #f8fbff;
   font-size: 20px;
   line-height: 1.35;
+}
+
+.generate-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff !important;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.generate-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+}
+
+.generate-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.generate-btn span {
+  color: #ffffff;
 }
 
 .candidate-count-control {
@@ -824,9 +897,9 @@ button:disabled {
   grid-template-columns: 34px 42px 34px;
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgba(31, 41, 55, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
-  background: #f8fafc;
+  background: rgba(2, 6, 23, 0.48);
 }
 
 .candidate-count-control button {
@@ -835,11 +908,12 @@ button:disabled {
   place-items: center;
   border: 0;
   background: transparent;
-  color: #1d4ed8;
+  color: #8df0dc;
 }
 
 .candidate-count-control strong {
   text-align: center;
+  color: #f8fbff;
 }
 
 .shot-context-grid {
@@ -855,7 +929,7 @@ button:disabled {
 
 .shot-context-grid p {
   margin: 6px 0 0;
-  color: #1f2937;
+  color: #cbd5e1;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -868,9 +942,9 @@ button:disabled {
 
 .prompt-preview-panel {
   margin-top: 14px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.62);
   padding: 12px 16px;
 }
 
@@ -881,7 +955,7 @@ button:disabled {
   gap: 8px;
   border: 0;
   background: transparent;
-  color: #1f2937;
+  color: #e8eefc;
   padding: 0;
   font-size: 13px;
   font-weight: 900;
@@ -890,7 +964,7 @@ button:disabled {
 
 .prompt-toggle svg {
   transition: transform 0.15s ease;
-  color: #64748b;
+  color: #8a98b8;
 }
 
 .prompt-toggle svg.is-rotated {
@@ -899,7 +973,7 @@ button:disabled {
 
 .prompt-toggle small {
   margin-left: auto;
-  color: #94a3b8;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 700;
 }
@@ -909,7 +983,7 @@ button:disabled {
   gap: 12px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(31, 41, 55, 0.08);
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .prompt-sections {
@@ -924,14 +998,14 @@ button:disabled {
 }
 
 .prompt-section-item span {
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 900;
 }
 
 .prompt-section-item p {
   margin: 0;
-  color: #1f2937;
+  color: #cbd5e1;
   font-size: 12.5px;
   line-height: 1.55;
   word-break: break-word;
@@ -943,7 +1017,7 @@ button:disabled {
 }
 
 .prompt-full span {
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 900;
 }
@@ -952,8 +1026,8 @@ button:disabled {
   margin: 0;
   padding: 10px 12px;
   border-radius: 6px;
-  background: #f1f5f9;
-  color: #334155;
+  background: rgba(2, 6, 23, 0.56);
+  color: #93a0bd;
   font-size: 11.5px;
   line-height: 1.6;
   font-family: ui-monospace, monospace;
@@ -980,9 +1054,9 @@ button:disabled {
   place-items: center;
   gap: 8px;
   min-height: 110px;
-  border: 1px dashed rgba(31, 41, 55, 0.16);
+  border: 1px dashed rgba(148, 163, 184, 0.18);
   border-radius: 8px;
-  color: #64748b;
+  color: #8a98b8;
   text-align: center;
 }
 
@@ -993,14 +1067,14 @@ button:disabled {
 
 .candidate-grid-empty h3 {
   margin: 0;
-  color: #111827;
+  color: #f8fbff;
   font-size: 15px;
 }
 
 .candidate-grid-empty p {
   max-width: 460px;
   margin: 0;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -1008,9 +1082,9 @@ button:disabled {
 .task-card {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
-  background: #f8fafc;
+  background: rgba(2, 6, 23, 0.42);
   padding: 12px;
 }
 
@@ -1020,16 +1094,17 @@ button:disabled {
 
 .task-card-head {
   gap: 8px;
-  color: #334155;
+  color: #c4cfe5;
 }
 
 .task-card-head strong {
   font-size: 13px;
+  color: #e8eefc;
 }
 
 .task-card-head span {
   margin-left: auto;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 11px;
   font-weight: 800;
 }
@@ -1044,19 +1119,19 @@ button:disabled {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.18);
 }
 
 .task-progress span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #2563eb;
+  background: #22c7a9;
 }
 
 .task-card p {
   margin: 0;
-  color: #64748b;
+  color: #8a98b8;
   font-size: 12px;
 }
 
@@ -1066,10 +1141,10 @@ button:disabled {
 }
 
 .candidate-batch {
-  border: 1px solid rgba(31, 41, 55, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: 8px;
   padding: 10px;
-  background: rgba(248, 250, 252, 0.5);
+  background: rgba(15, 23, 42, 0.32);
 }
 
 .candidate-batch + .candidate-batch {
@@ -1083,7 +1158,7 @@ button:disabled {
   gap: 8px;
   border: 0;
   background: transparent;
-  color: #475569;
+  color: #c4cfe5;
   padding: 4px 6px 8px;
   font-size: 12px;
   font-weight: 800;
@@ -1093,7 +1168,7 @@ button:disabled {
 .batch-toggle svg {
   transition: transform 0.15s ease;
   flex: 0 0 auto;
-  color: #64748b;
+  color: #8a98b8;
 }
 
 .candidate-batch.is-collapsed .batch-toggle svg {
@@ -1101,14 +1176,15 @@ button:disabled {
 }
 
 .batch-toggle span {
-  color: #94a3b8;
+  color: #8a98b8;
   font-weight: 700;
   margin-left: auto;
 }
 
 .candidate-grid {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .candidate-grid-panel .panel-heading {
@@ -1117,31 +1193,31 @@ button:disabled {
 }
 
 .lock-progress {
-  color: #0369a1 !important;
+  color: #8df0dc !important;
   font-size: 12px !important;
 }
 
 .candidate-card {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  gap: 12px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
-  border-radius: 8px;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.5);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .candidate-card.is-locked {
-  border-color: rgba(5, 150, 105, 0.45);
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.12);
+  border-color: rgba(52, 211, 153, 0.5);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.15);
 }
 
 .candidate-card.is-selected {
-  border-color: rgba(37, 99, 235, 0.4);
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
+  border-color: rgba(94, 234, 212, 0.4);
 }
 
 .candidate-card.is-rejected {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .candidate-card.is-rejected .candidate-thumb {
@@ -1149,36 +1225,108 @@ button:disabled {
 }
 
 .candidate-card.is-superseded {
-  opacity: 0.5;
+  opacity: 0.45;
+}
+
+.candidate-thumb {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: rgba(2, 6, 23, 0.48);
+  color: #8a98b8;
+  cursor: zoom-in;
+  padding: 0;
+}
+
+.candidate-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.candidate-thumb:hover img {
+  transform: scale(1.04);
+}
+
+.thumb-zoom-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.78);
+  color: #c4cfe5;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.candidate-thumb:hover .thumb-zoom-hint {
+  opacity: 1;
+}
+
+.candidate-thumb.is-empty {
+  cursor: default;
+}
+
+.candidate-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.candidate-meta-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.candidate-card .candidate-meta strong {
+  color: #f8fbff;
+  font-size: 13px;
 }
 
 .candidate-status {
   display: inline-block;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  padding: 1px 7px;
+  padding: 2px 7px;
   border-radius: 4px;
-  width: fit-content;
+  white-space: nowrap;
 }
 
 .candidate-card.is-locked .candidate-status {
-  background: rgba(5, 150, 105, 0.12);
-  color: #059669;
+  background: rgba(52, 211, 153, 0.16);
+  color: #34d399;
 }
 
 .candidate-card.is-selected .candidate-status {
-  background: rgba(37, 99, 235, 0.12);
-  color: #2563eb;
+  background: rgba(94, 234, 212, 0.14);
+  color: #5eead4;
 }
 
 .candidate-card.is-rejected .candidate-status {
-  background: rgba(100, 116, 139, 0.14);
-  color: #64748b;
+  background: rgba(100, 116, 139, 0.18);
+  color: #8a98b8;
 }
 
 .candidate-card.is-superseded .candidate-status {
-  background: rgba(100, 116, 139, 0.1);
-  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
 }
 
 .digest-tag {
@@ -1192,56 +1340,105 @@ button:disabled {
   width: fit-content;
 }
 
-.candidate-thumb {
-  display: grid;
-  aspect-ratio: 4 / 5;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 8px;
-  background: #e2e8f0;
-  color: #64748b;
-}
-
-.candidate-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.candidate-meta {
-  display: grid;
-  align-content: start;
-  gap: 6px;
-}
-
-.candidate-card strong,
-.candidate-card span {
-  display: block;
-}
-
-.candidate-card strong {
-  color: #111827;
-  font-size: 13px;
-}
-
-.candidate-card span {
-  color: #64748b;
-  font-size: 12px;
-}
-
 .lock-action {
   display: inline-flex;
-  width: fit-content;
+  width: 100%;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  margin-top: 6px;
-  border: 1px solid rgba(37, 99, 235, 0.28);
+  margin-top: 4px;
+  border: 1px solid rgba(34, 199, 169, 0.32);
   border-radius: 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: rgba(34, 199, 169, 0.1);
+  color: #8df0dc;
   padding: 7px 10px;
   font-size: 12px;
   font-weight: 800;
+}
+
+/* 候选图放大预览 modal */
+.candidate-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.86);
+  backdrop-filter: blur(12px);
+  padding: 24px;
+}
+
+.candidate-preview-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 80vw;
+  max-height: 90vh;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  padding: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.candidate-preview-modal img {
+  width: 100%;
+  max-height: calc(90vh - 80px);
+  border-radius: 8px;
+  object-fit: contain;
+  background: rgba(2, 6, 23, 0.6);
+}
+
+.preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #e8eefc;
+  z-index: 1;
+}
+
+.preview-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.preview-info strong {
+  color: #f8fbff;
+  font-size: 15px;
+}
+
+.preview-info span {
+  color: #8a98b8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.preview-lock-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.preview-lock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @keyframes spin {
