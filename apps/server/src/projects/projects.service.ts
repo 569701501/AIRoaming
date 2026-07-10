@@ -51,6 +51,7 @@ import {
   type CompleteChapterRequest,
   type CompleteChapterResponse,
   type CompleteChapterImagesResponse,
+  type CandidateGenerationPreviewResponse,
   type CreateGenerationTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectResponse,
@@ -125,6 +126,10 @@ import { SettingsService } from "../settings/settings.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
+import {
+  createCandidateGenerationSpec,
+  createCandidateGenerationTaskInput,
+} from "./candidate-generation-spec.js";
 
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
@@ -514,21 +519,48 @@ export class ProjectsService implements OnModuleInit {
 
     this.assertGenerationTaskShotTarget(input, storyboard.storyboardJson.shots);
 
+    const preflightTrace = {
+      chapterId: chapter.id,
+      imagePreflightId: imagePreflight.id,
+      imagePreflightVersion: imagePreflight.version,
+      imagePreflightPath: imagePreflight.preflightPath,
+      imagePreflightConfirmedAt: imagePreflight.confirmedAt,
+      sourceStoryboardId: imagePreflight.sourceStoryboardId,
+      sourceStoryboardUpdatedAt: imagePreflight.sourceStoryboardUpdatedAt,
+    };
+
+    if (input.type === "image_generate") {
+      const shotId = this.getGenerationTaskShotId(input);
+      const shot = storyboard.storyboardJson.shots.find((item) => item.id === shotId);
+      if (!shot) {
+        throw new BadRequestException("GENERATION_TASK_SHOT_NOT_IN_CONFIRMED_STORYBOARD");
+      }
+      const visualDescriptionOverride = typeof input.input?.visualDescriptionOverride === "string"
+        ? input.input.visualDescriptionOverride
+        : null;
+      const spec = createCandidateGenerationSpec({
+        project,
+        chapter,
+        shot,
+        visualDescriptionOverride,
+      });
+
+      return {
+        ...input,
+        projectId,
+        input: {
+          ...createCandidateGenerationTaskInput(spec, input.input),
+          ...preflightTrace,
+        },
+      };
+    }
+
     return {
       ...input,
       projectId,
       input: {
         ...(input.input ?? {}),
-        chapterId: chapter.id,
-        imagePreflightId: imagePreflight.id,
-        imagePreflightVersion: imagePreflight.version,
-        imagePreflightPath: imagePreflight.preflightPath,
-        imagePreflightConfirmedAt: imagePreflight.confirmedAt,
-        sourceStoryboardId: imagePreflight.sourceStoryboardId,
-        sourceStoryboardUpdatedAt: imagePreflight.sourceStoryboardUpdatedAt,
-        preflightCharacterReferenceAssetIds: imagePreflight.preflightJson.characterChecks
-          .map((check) => check.referenceAssetId)
-          .filter((assetId): assetId is string => Boolean(assetId)),
+        ...preflightTrace,
       },
     };
   }
@@ -559,6 +591,32 @@ export class ProjectsService implements OnModuleInit {
     if (!shots.some((shot) => shot.id === shotId)) {
       throw new BadRequestException("GENERATION_TASK_SHOT_NOT_IN_CONFIRMED_STORYBOARD");
     }
+  }
+
+  private getGenerationTaskShotId(input: CreateGenerationTaskRequest): string {
+    const targetShotId = input.target?.type === "shot" && typeof input.target.id === "string" ? input.target.id.trim() : "";
+    const inputShotId = typeof input.input?.shotId === "string" ? input.input.shotId.trim() : "";
+    const shotId = targetShotId || inputShotId;
+    if (!shotId) {
+      throw new BadRequestException("GENERATION_TASK_SHOT_ID_REQUIRED");
+    }
+    return shotId;
+  }
+
+  async getCandidateGenerationPreview(
+    projectId: string,
+    chapterId: string,
+    shotId: string,
+  ): Promise<CandidateGenerationPreviewResponse> {
+    const project = await this.projectStore.getReadyProject(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
+    const shot = chapter.storyboard?.storyboardJson.shots.find((item) => item.id === shotId);
+    if (!shot) {
+      throw new BadRequestException("GENERATION_TASK_SHOT_NOT_IN_CONFIRMED_STORYBOARD");
+    }
+    return {
+      spec: createCandidateGenerationSpec({ project, chapter, shot }),
+    };
   }
 
   async savePendingChapterStoryboard(projectId: string,

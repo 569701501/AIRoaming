@@ -111,8 +111,9 @@
             <p>{{ selectedShot.characters.length > 0 ? selectedShot.characters.join("、") : "无明确角色" }}</p>
           </article>
           <article>
-            <span>风格</span>
-            <p>{{ getComicFormatLabel(snapshot.project.comicFormat) }} / {{ getArtStyleLabel(snapshot.project.artStyle) }}</p>
+            <span>画风 / 目标画幅</span>
+            <p>{{ getArtStyleLabel(snapshot.project.artStyle) }} / {{ getCandidateAspectLabel(snapshot.project.comicFormat) }}</p>
+            <small>目标画幅只控制请求尺寸，不会把“竖滑条漫”等页面格式写入 Prompt。</small>
           </article>
         </div>
 
@@ -120,20 +121,44 @@
         <section v-if="selectedShot" class="prompt-preview-panel">
           <button class="prompt-toggle" type="button" @click="promptExpanded = !promptExpanded">
             <ChevronDown :size="14" :class="{ 'is-rotated': !promptExpanded }" />
-            <span>出图 Prompt</span>
+            <span>干净底图 Prompt</span>
+            <em v-if="candidateGenerationSpec">v{{ candidateGenerationSpec.schemaVersion }}</em>
             <small>{{ promptExpanded ? "点击折叠" : "点击查看完整提示词" }}</small>
           </button>
           <div v-if="promptExpanded" class="prompt-preview-body">
-            <div class="prompt-sections">
+            <p v-if="promptPreviewLoading" class="prompt-preview-state">正在读取服务端生成规格…</p>
+            <p v-else-if="promptPreviewError" class="prompt-preview-state is-error">{{ promptPreviewError }}</p>
+            <template v-else-if="candidateGenerationSpec">
+              <div class="prompt-contract-note">
+                单镜头 · 单幅 · 无文字/气泡 · 无分格/边框
+              </div>
+              <div v-if="candidateReferences.length > 0" class="reference-plan">
+                <div class="reference-plan-heading">
+                  <span>镜头级参考计划</span>
+                  <small>provider 超过上限时按优先级裁剪，实际使用结果写入任务证据</small>
+                </div>
+                <div class="reference-plan-list">
+                  <div v-for="reference in candidateReferences" :key="reference.assetId" class="reference-plan-item">
+                    <em>{{ getReferenceRoleLabel(reference.kind, reference.priority) }}</em>
+                    <strong>{{ reference.label }}</strong>
+                    <small>优先级 {{ reference.priority }}</small>
+                  </div>
+                </div>
+              </div>
+              <div class="prompt-sections">
               <div v-for="section in promptSections" :key="section.label" class="prompt-section-item">
                 <span>{{ section.label }}</span>
                 <p>{{ section.value }}</p>
               </div>
-            </div>
-            <div class="prompt-full">
-              <span>完整 prompt</span>
-              <pre>{{ fullPromptText }}</pre>
-            </div>
+              </div>
+              <div class="prompt-full">
+                <span>服务端最终 prompt</span>
+                <pre>{{ fullPromptText }}</pre>
+              </div>
+              <p v-if="candidateGenerationSpec.warnings.length > 0" class="prompt-warning">
+                {{ candidateGenerationSpec.warnings.join(" · ") }}
+              </p>
+            </template>
           </div>
         </section>
 
@@ -160,7 +185,12 @@
               <span :style="{ width: `${task.progressPercent ?? 0}%` }"></span>
             </div>
             <p v-if="task.error">{{ task.error.message }}</p>
-            <p v-else>{{ getTaskDigest(task) }}</p>
+            <template v-else>
+              <p>{{ getTaskDigest(task) }}</p>
+              <ul v-if="getTaskWarnings(task).length > 0" class="task-warning-list">
+                <li v-for="warning in getTaskWarnings(task)" :key="warning">{{ getTaskWarningLabel(warning) }}</li>
+              </ul>
+            </template>
           </article>
         </section>
 
@@ -211,6 +241,12 @@
                     <span class="candidate-status">{{ getCandidateStatusLabel(candidate.status) }}</span>
                   </div>
                   <span v-if="candidate.promptDigest" class="digest-tag" :title="`prompt 摘要 ${candidate.promptDigest}`">{{ candidate.promptDigest.slice(0, 6) }}</span>
+                  <span
+                    class="generation-contract-tag"
+                    :class="{ 'is-legacy': candidate.generationPurpose === 'legacy_unspecified' }"
+                  >
+                    {{ candidate.generationPurpose === "shot_clean_plate" ? `干净底图 v${candidate.generationSpecVersion ?? 1}` : "旧规则候选" }}
+                  </span>
                   <button
                     class="lock-action"
                     type="button"
@@ -275,15 +311,14 @@ import {
 import type {
   ArtStyle,
   CandidateStatus,
+  CandidateGenerationSpec,
   ChapterListItem,
-  ComicFormat,
   GenerationTaskItem,
   GenerationTaskStatus,
   WorkbenchCandidate,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { api } from "../../services/api";
-import { buildCandidatePositivePrompt, buildPromptPreviewSections } from "../../utils/candidate-prompt";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -304,6 +339,10 @@ const selectedShotId = ref<string | null>(null);
 const candidateCount = ref(4);
 const promptExpanded = ref(false);
 const previewCandidate = ref<WorkbenchCandidate | null>(null);
+const candidateGenerationSpec = ref<CandidateGenerationSpec | null>(null);
+const promptPreviewLoading = ref(false);
+const promptPreviewError = ref<string | null>(null);
+let promptPreviewRequestId = 0;
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -311,8 +350,13 @@ const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
 const selectedShot = computed(() => shots.value.find((shot) => shot.id === selectedShotId.value) ?? shots.value[0] ?? null);
-const promptSections = computed(() => selectedShot.value ? buildPromptPreviewSections(selectedShot.value, props.snapshot) : []);
-const fullPromptText = computed(() => selectedShot.value ? buildCandidatePositivePrompt(selectedShot.value, props.snapshot) : "");
+const promptSections = computed(() => candidateGenerationSpec.value?.sections ?? []);
+const candidateReferences = computed(() => [...(candidateGenerationSpec.value?.references ?? [])]
+  .sort((left, right) => right.priority - left.priority));
+const fullPromptText = computed(() => candidateGenerationSpec.value
+  ? `${candidateGenerationSpec.value.positivePrompt}\n\nAvoid: ${candidateGenerationSpec.value.negativePrompt}`
+  : "",
+);
 const isPreflightConfirmed = computed(() => {
   const preflight = props.snapshot.imagePreflight;
   const storyboard = props.snapshot.storyboard;
@@ -420,6 +464,35 @@ watch(
   (nextShots) => {
     if (!selectedShotId.value || !nextShots.some((shot) => shot.id === selectedShotId.value)) {
       selectedShotId.value = nextShots[0]?.id ?? null;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [props.snapshot.project.id, currentChapterId.value, selectedShot.value?.id ?? null] as const,
+  async ([projectId, chapterId, shotId]) => {
+    const requestId = ++promptPreviewRequestId;
+    candidateGenerationSpec.value = null;
+    promptPreviewError.value = null;
+    if (!chapterId || !shotId) {
+      promptPreviewLoading.value = false;
+      return;
+    }
+    promptPreviewLoading.value = true;
+    try {
+      const result = await api.candidateGenerationPreview(projectId, chapterId, shotId);
+      if (requestId === promptPreviewRequestId) {
+        candidateGenerationSpec.value = result.spec;
+      }
+    } catch (error) {
+      if (requestId === promptPreviewRequestId) {
+        promptPreviewError.value = error instanceof Error ? error.message : "生成规格读取失败";
+      }
+    } finally {
+      if (requestId === promptPreviewRequestId) {
+        promptPreviewLoading.value = false;
+      }
     }
   },
   { immediate: true },
@@ -563,15 +636,47 @@ function formatTaskTime(value: string): string {
   return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
-function getComicFormatLabel(value: ComicFormat): string {
+function getCandidateAspectLabel(value: WorkbenchSnapshot["project"]["comicFormat"]): string {
   switch (value) {
     case "vertical_scroll":
-      return "竖滑条漫";
+      return "2:3 竖幅";
     case "page_horizontal":
-      return "横版页漫";
+      return "3:2 横幅";
     case "four_panel":
-      return "四格漫画";
+      return "1:1 方幅";
   }
+}
+
+function getReferenceRoleLabel(kind: "character_identity" | "scene_environment", priority: number): string {
+  if (kind === "scene_environment") {
+    return "场景";
+  }
+  return priority >= 100 ? "主主体" : "次主体";
+}
+
+function getTaskWarnings(task: GenerationTaskItem): string[] {
+  const warnings = task.output?.warnings;
+  return Array.isArray(warnings)
+    ? warnings.filter((warning): warning is string => typeof warning === "string" && warning.trim().length > 0)
+    : [];
+}
+
+function getTaskWarningLabel(warning: string): string {
+  if (warning === "candidate_output_dimensions_unreadable") {
+    return "无法读取 provider 返回图片的实际尺寸。";
+  }
+  if (warning.startsWith("candidate_output_aspect_ratio_mismatch:")) {
+    const [, requested, actual] = warning.split(":");
+    return `输出比例与目标不一致：${requested ?? "未知"} → ${actual ?? "未知"}`;
+  }
+  if (warning.startsWith("candidate_references_omitted:")) {
+    const [, provider, assetIds] = warning.split(":");
+    return `${provider ?? "provider"} 已按能力上限省略引用：${assetIds ?? "未知资产"}`;
+  }
+  if (warning === "grok_single_reference_omitted_for_aspect_ratio") {
+    return "Grok 单参考编辑会继承原图比例，本次已安全降级为纯文生图。";
+  }
+  return warning;
 }
 
 function getArtStyleLabel(value: ArtStyle): string {
@@ -934,6 +1039,14 @@ button:disabled {
   line-height: 1.6;
 }
 
+.shot-context-grid article > small {
+  display: block;
+  margin-top: 5px;
+  color: #71809f;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
 .task-panel,
 .candidate-grid-panel {
   margin-top: 14px;
@@ -978,6 +1091,15 @@ button:disabled {
   font-weight: 700;
 }
 
+.prompt-toggle em {
+  border: 1px solid rgba(34, 199, 169, 0.28);
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: #8df0dc;
+  font-size: 10px;
+  font-style: normal;
+}
+
 .prompt-preview-body {
   display: grid;
   gap: 12px;
@@ -990,6 +1112,90 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.prompt-preview-state,
+.prompt-warning {
+  margin: 0;
+  color: #8a98b8;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.prompt-preview-state.is-error,
+.prompt-warning {
+  color: #fbbf24;
+}
+
+.prompt-contract-note {
+  border: 1px solid rgba(34, 199, 169, 0.24);
+  border-radius: 6px;
+  background: rgba(34, 199, 169, 0.08);
+  padding: 8px 10px;
+  color: #8df0dc;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.reference-plan {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 6px;
+  background: rgba(30, 64, 175, 0.08);
+  padding: 10px;
+}
+
+.reference-plan-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reference-plan-heading span {
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.reference-plan-heading small {
+  color: #71809f;
+  font-size: 10px;
+  text-align: right;
+}
+
+.reference-plan-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reference-plan-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.36);
+  padding: 4px 8px;
+}
+
+.reference-plan-item em {
+  color: #93c5fd;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.reference-plan-item strong {
+  color: #dbeafe;
+  font-size: 10.5px;
+}
+
+.reference-plan-item small {
+  color: #71809f;
+  font-size: 9px;
 }
 
 .prompt-section-item {
@@ -1133,6 +1339,16 @@ button:disabled {
   margin: 0;
   color: #8a98b8;
   font-size: 12px;
+}
+
+.task-warning-list {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 18px;
+  color: #fbbf24;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .candidate-grid-panel {
@@ -1338,6 +1554,21 @@ button:disabled {
   padding: 1px 6px;
   border-radius: 4px;
   width: fit-content;
+}
+
+.generation-contract-tag {
+  width: fit-content;
+  border-radius: 4px;
+  background: rgba(34, 199, 169, 0.1);
+  padding: 2px 6px;
+  color: #8df0dc;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.generation-contract-tag.is-legacy {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
 }
 
 .lock-action {

@@ -47,9 +47,6 @@ import {
 import {
   patchWorkflowForChapter,
 } from "../utils/workbench-workflow";
-import * as candidatePromptUtil from "../utils/candidate-prompt";
-
-
 
 interface WorkbenchState {
   health: HealthResponse | null;
@@ -77,18 +74,6 @@ export interface ChapterCompletionPrompt {
   completedChapterTitle: string;
   nextChapterId: string | null;
   nextChapterTitle: string | null;
-}
-
-function buildCandidatePositivePrompt(shot: WorkbenchSnapshot["shots"][number], snapshot: WorkbenchSnapshot): string {
-  return candidatePromptUtil.buildCandidatePositivePrompt(shot, snapshot);
-}
-
-function getCandidateImageSize(snapshot: WorkbenchSnapshot): { width: number; height: number } {
-  return candidatePromptUtil.getCandidateImageSize(snapshot);
-}
-
-function getPreflightReferenceAssetIds(snapshot: WorkbenchSnapshot): string[] {
-  return candidatePromptUtil.getPreflightReferenceAssetIds(snapshot);
 }
 
 export const useWorkbenchStore = defineStore("workbench", {
@@ -673,11 +658,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           input: {
             chapterId,
             shotId: shot.id,
-            positivePrompt: buildCandidatePositivePrompt(shot, snapshot),
-            negativePrompt: "low quality, blurry, extra fingers, photorealistic live-action, 3d render",
-            referenceAssetIds: getPreflightReferenceAssetIds(snapshot),
             candidateCount,
-            image: getCandidateImageSize(snapshot),
           },
           options: {
             candidateCount,
@@ -716,8 +697,6 @@ export const useWorkbenchStore = defineStore("workbench", {
           return 0;
         }
         let created = 0;
-        const referenceAssetIds = getPreflightReferenceAssetIds(snapshot);
-        const imageSize = getCandidateImageSize(snapshot);
         for (const shot of unlocked) {
           const result = await api.createTask({
             projectId,
@@ -726,11 +705,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             input: {
               chapterId,
               shotId: shot.id,
-              positivePrompt: buildCandidatePositivePrompt(shot, snapshot),
-              negativePrompt: "low quality, blurry, extra fingers, photorealistic live-action, 3d render",
-              referenceAssetIds,
               candidateCount,
-              image: imageSize,
             },
             options: { candidateCount, provider: "default" },
           });

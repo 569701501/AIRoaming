@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI漫游提示词资产盘点</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #162033;
+      --muted: #64748b;
+      --line: #d8e0ea;
+      --soft: #eef3f8;
+      --teal: #0f766e;
+      --blue: #1d4ed8;
+      --rose: #be123c;
+      --amber: #b45309;
+      --green: #15803d;
+      --shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: grid;
+      gap: 18px;
+      padding: 34px 0 28px;
+    }
+
+    .eyebrow {
+      color: var(--teal);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 860px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .meta-grid,
+    .summary-grid,
+    .risk-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .meta-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-top: 18px;
+    }
+
+    .tile,
+    .panel,
+    .asset-card,
+    .risk-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .tile {
+      padding: 14px;
+    }
+
+    .tile span,
+    .asset-card .label,
+    .risk-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tile strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    main {
+      padding: 28px 0 48px;
+    }
+
+    section {
+      margin-top: 26px;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    .panel {
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--soft);
+      padding: 14px 16px;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #334155;
+      font-size: 12px;
+      font-weight: 900;
+      background: #f8fafc;
+    }
+
+    td code,
+    .path,
+    .tag {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .path {
+      color: var(--blue);
+      word-break: break-all;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #334155;
+      padding: 2px 8px;
+      font-weight: 800;
+    }
+
+    .tag.high { border-color: rgba(190, 18, 60, 0.25); color: var(--rose); background: #fff1f2; }
+    .tag.medium { border-color: rgba(180, 83, 9, 0.28); color: var(--amber); background: #fffbeb; }
+    .tag.good { border-color: rgba(21, 128, 61, 0.25); color: var(--green); background: #f0fdf4; }
+    .tag.core { border-color: rgba(29, 78, 216, 0.24); color: var(--blue); background: #eff6ff; }
+
+    .asset-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .asset-card {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .asset-side {
+      border-right: 1px solid var(--line);
+      background: #f8fafc;
+      padding: 14px;
+    }
+
+    .asset-main {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .excerpt {
+      border: 1px solid #dbe4ef;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .risk-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .risk-card {
+      padding: 14px;
+    }
+
+    .risk-card strong {
+      display: block;
+      margin: 4px 0 6px;
+      font-size: 16px;
+    }
+
+    .risk-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .note {
+      border-left: 4px solid var(--teal);
+      background: #ecfeff;
+      padding: 12px 14px;
+      color: #164e63;
+    }
+
+    @media (max-width: 900px) {
+      .meta-grid,
+      .summary-grid,
+      .risk-grid,
+      .asset-card {
+        grid-template-columns: 1fr;
+      }
+
+      .asset-side {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap hero">
+      <div class="eyebrow">AI漫游 · 提示词资产盘点 · 2026-07-09</div>
+      <h1>当前项目提示词清单</h1>
+      <p>本页只盘点当前仓库中会进入模型上下文、影响 AI 行为或图片生成效果的提示词资产；暂不替换提示词，也不做市面最佳实践对标。后续优化可以直接按本页的优先级逐条处理。</p>
+      <div class="meta-grid">
+        <div class="tile"><span>扫描范围</span><strong>apps/server<br />apps/web<br />packages/shared</strong></div>
+        <div class="tile"><span>核心提示词资产</span><strong>27 项</strong></div>
+        <div class="tile"><span>高优先级优化点</span><strong>5 个</strong></div>
+        <div class="tile"><span>报告产物</span><strong>HTML</strong></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>盘点结论</h2>
+      <div class="summary-grid">
+        <div class="tile"><span>Dialogue 动态提示词</span><strong>12</strong></div>
+        <div class="tile"><span>OpenCode Agent / Skill</span><strong>7</strong></div>
+        <div class="tile"><span>图片生成 Prompt</span><strong>5</strong></div>
+        <div class="tile"><span>工具描述</span><strong>5</strong></div>
+        <div class="tile"><span>共享格式约束</span><strong>3</strong></div>
+      </div>
+      <p class="note">注意：上面分类会有交叉。例如共享格式约束会被 Dialogue 动态提示词复用；OpenCode skill 也会重复声明剧本阶段边界。盘点时按“资产入口”计数，不按字符串去重。</p>
+    </section>
+
+    <section>
+      <h2>按优先级看</h2>
+      <div class="risk-grid">
+        <div class="risk-card">
+          <span>高优先级</span>
+          <strong>候选图最终 Prompt 过薄</strong>
+          <p>后端候选图最终只取 positivePrompt / promptDraft / panelDescription / coreAction，再拼一个 Avoid。前端已有更完整的 prompt 预览，但后端并未完全复用。后续优化出图质量时应优先统一。</p>
+        </div>
+        <div class="risk-card">
+          <span>高优先级</span>
+          <strong>角色定稿图 Prompt 已有硬约束，但缺少可调参数</strong>
+          <p>角色图明确拒绝真人、3D 和多角色，方向正确；但缺少姿态、线稿风格、光影、画布比例、参考图权重等可配置层。</p>
+        </div>
+        <div class="risk-card">
+          <span>中优先级</span>
+          <strong>剧情结构和分镜 Prompt 偏“协议强”，偏“创作弱”</strong>
+          <p>JSON 结构、字段枚举和边界很清楚，但缺少优秀漫画分镜常见的节奏、镜头推进、情绪峰值、读者视线引导等创作评分维度。</p>
+        </div>
+        <div class="risk-card">
+          <span>中优先级</span>
+          <strong>剧本 Prompt 多处重复边界</strong>
+          <p>动态 prompt、AGENTS、agent、skills 都声明了剧本边界，能稳住行为，但后续维护要防止一处改了另一处过期。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>总清单</h2>
+        <div class="tag-row">
+          <span class="tag core">模型上下文</span>
+          <span class="tag high">优先优化</span>
+          <span class="tag medium">需对标</span>
+          <span class="tag good">结构较稳</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>资产</th>
+              <th>阶段 / 用途</th>
+              <th>路径</th>
+              <th>现状判断</th>
+              <th>优先级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>P01</td><td>通用对话上下文 buildPrompt</td><td>左侧对话框普通消息</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:108</td><td>注入项目、步骤、章节、剧本文档、大纲、角色库、附件和最近对话；事实源边界清楚。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P02</td><td>剧本阶段统一边界契约</td><td>剧本普通对话、灵感、大纲、章节生成、改写</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:38</td><td>强边界，防误写入；但多处重复维护。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P03</td><td>项目角色库边界契约</td><td>角色库对话</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:77</td><td>强调项目级角色、预览图、定稿图和受控工具。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P04</td><td>出图准备边界契约</td><td>出图准备对话</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:93</td><td>强调正式分镜、角色绑定和 preflight 写入条件。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P05</td><td>剧情结构 JSON Prompt</td><td>生成 structure.json 待确认预览</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:159</td><td>JSON schema 完整，角色 level/entityType 明确；创作质量评价维度偏少。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P06</td><td>分镜 JSON Prompt</td><td>生成 storyboard.pending.json</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:245</td><td>字段枚举、角色名约束和 shot 范围明确；可补漫画镜头语言质量标准。</td><td><span class="tag high">高</span></td></tr>
+            <tr><td>P07</td><td>灵感种子 Prompt</td><td>生成 3 个故事方向</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:344</td><td>字段清晰，包含 visualHook 和 firstChapterDirection；可对标爆款短剧/漫画开篇钩子。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P08</td><td>直接题材生成大纲 Prompt</td><td>用户直接给题材时生成大纲</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:381</td><td>能绕过灵感；格式稳定。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P09</td><td>从灵感生成大纲 Prompt</td><td>选中 seed 后生成项目级大纲</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:408</td><td>保留 seed 信息，支持上一版大纲迭代。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P10</td><td>大纲生成章节 Prompt</td><td>确认大纲后生成目标章节</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:454</td><td>严格单章输出，防止直接生成多章。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P11</td><td>灵感直接生成章节 Prompt</td><td>旧链路 / 直接从 seed 生成第一章</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:486</td><td>仍存在，但当前产品口径更偏先大纲再章节；可后续评估是否保留。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P12</td><td>章节改写 Prompt</td><td>改写当前章节草稿</td><td class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:531</td><td>要求返回完整章节 Markdown，不只给 diff；对工程落盘友好。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P13</td><td>剧本大纲格式约束</td><td>共享格式 prompt</td><td class="path">packages/shared/src/script-format.ts:76</td><td>统一大纲结构；被多个动态 prompt 复用。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P14</td><td>章节剧本格式约束</td><td>共享格式 prompt</td><td class="path">packages/shared/src/script-format.ts:183</td><td>固定章节结构；利于后续剧情结构解析。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P15</td><td>章节剧本禁止输出约束</td><td>共享禁止项 prompt</td><td class="path">packages/shared/src/script-format.ts:272</td><td>防止剧本阶段提前输出剧情结构/分镜/图片 Prompt。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P16</td><td>OpenCode 运行时规则</td><td>AGENTS 模板</td><td class="path">apps/server/opencodeAI/AGENTS.md.tpl:1</td><td>系统级事实源、写入边界、Skill 使用规则。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P17</td><td>剧本阶段协作 Agent</td><td>OpenCode primary agent</td><td class="path">apps/server/opencodeAI/agents/airoaming__script-collaboration-agent.md:14</td><td>限定 script-* skill，拒绝结构/分镜/图片等技能。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P18</td><td>script-import-normalize Skill</td><td>剧本导入前分析</td><td class="path">apps/server/opencodeAI/skills/script-import-normalize/SKILL.md:1</td><td>防止设定/提纲误导入章节；有 decision JSON 契约。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P19</td><td>script-inspiration-seeding Skill</td><td>灵感种子</td><td class="path">apps/server/opencodeAI/skills/script-inspiration-seeding/SKILL.md:1</td><td>要求 3 个结构化方向；适合后续对标爆款钩子。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P20</td><td>script-outline-drafting Skill</td><td>大纲生成</td><td class="path">apps/server/opencodeAI/skills/script-outline-drafting/SKILL.md:1</td><td>大纲结构清晰，但缺少商业类型片节奏模板。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P21</td><td>script-chapter-drafting Skill</td><td>章节起草</td><td class="path">apps/server/opencodeAI/skills/script-chapter-drafting/SKILL.md:1</td><td>固定格式强；可补漫画分镜前置可视化描述标准。</td><td><span class="tag medium">中</span></td></tr>
+            <tr><td>P22</td><td>script-chapter-editing Skill</td><td>章节改写</td><td class="path">apps/server/opencodeAI/skills/script-chapter-editing/SKILL.md:1</td><td>完整返回章节，避免只输出建议。</td><td><span class="tag good">稳</span></td></tr>
+            <tr><td>P23</td><td>角色参考图 Prompt</td><td>角色预览图 / 定稿四视图</td><td class="path">apps/server/src/projects/reference-prompt.util.ts:42</td><td>明确漫画风、非真人、无水印；图片效果优化优先级高。</td><td><span class="tag high">高</span></td></tr>
+            <tr><td>P24</td><td>场景参考图 Prompt</td><td>场景背景图</td><td class="path">apps/server/src/projects/reference-prompt.util.ts:25</td><td>目前只是字段拼接，缺少构图、光线、镜头、风格、排除项。</td><td><span class="tag high">高</span></td></tr>
+            <tr><td>P25</td><td>候选图最终 Provider Prompt</td><td>真实候选图生成</td><td class="path">apps/server/src/projects/image-candidate.service.ts:94</td><td>当前后端最终 prompt 较薄；应优先和前端完整预览 prompt 统一。</td><td><span class="tag high">高</span></td></tr>
+            <tr><td>P26</td><td>候选图前端 Prompt 预览</td><td>生成前预览 / store 拼装</td><td class="path">apps/web/src/utils/candidate-prompt.ts:13</td><td>比后端 fallback 更完整，含章节、画面、构图、对白、场景、角色、风格。</td><td><span class="tag high">高</span></td></tr>
+            <tr><td>P27</td><td>OpenCode 工具描述</td><td>真工具 function calling</td><td class="path">apps/server/opencodeAI/plugin/airoaming-tools.js:61</td><td>工具描述会影响模型何时调用角色图/场景图/状态查询工具。</td><td><span class="tag medium">中</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>重点资产摘录</h2>
+      <div class="asset-grid">
+        <article class="asset-card">
+          <div class="asset-side">
+            <span class="label">P25</span>
+            <h3>候选图最终 Prompt</h3>
+            <div class="tag-row"><span class="tag high">最高优先级</span></div>
+          </div>
+          <div class="asset-main">
+            <div class="path">apps/server/src/projects/image-candidate.service.ts:94</div>
+            <p>真实发给 OpenAI / 豆包 / Grok 的候选图 prompt。当前优先取任务输入的 positivePrompt；没有时降级到分镜 promptDraft、画格描述或核心动作。</p>
+            <pre class="excerpt">const prompt = positivePrompt || shot.promptDraft || shot.comic.panelDescription || shot.coreAction || "comic panel illustration";
+const negativePrompt = negativePrompt || "low quality, blurry, photorealistic live-action";
+const fullPrompt = `${prompt}\n\nAvoid: ${negativePrompt}`;</pre>
+          </div>
+        </article>
+
+        <article class="asset-card">
+          <div class="asset-side">
+            <span class="label">P26</span>
+            <h3>候选图预览 Prompt</h3>
+            <div class="tag-row"><span class="tag high">应统一到后端</span></div>
+          </div>
+          <div class="asset-main">
+            <div class="path">apps/web/src/utils/candidate-prompt.ts:13</div>
+            <p>前端已能拼出更完整的候选图 prompt。它包含章节、promptDraft、画面描述、构图、对白、旁白、动态描述、场景、角色、漫画格式和美术风格。</p>
+            <pre class="excerpt">comic panel
+chapter: ...
+shot.promptDraft
+shot.comic.panelDescription
+shot.comic.composition
+dialogue: ...
+scene: ...
+characters: ...
+format: ...
+style: ...</pre>
+          </div>
+        </article>
+
+        <article class="asset-card">
+          <div class="asset-side">
+            <span class="label">P23</span>
+            <h3>角色参考图 Prompt</h3>
+            <div class="tag-row"><span class="tag high">图片质量核心</span></div>
+          </div>
+          <div class="asset-main">
+            <div class="path">apps/server/src/projects/reference-prompt.util.ts:42</div>
+            <p>角色预览图与定稿图都来自这里。优点是有漫画风硬约束和四视图要求；缺口是缺少更细的风格、姿态、构图、参考图权重和 negative prompt 分层。</p>
+            <pre class="excerpt">Create a clean front preview portrait for a comic/manhua character library.
+Drawn illustration style only. One character, front view, half-body portrait...
+
+Create a clean final character reference sheet...
+The single image must contain four panels...</pre>
+          </div>
+        </article>
+
+        <article class="asset-card">
+          <div class="asset-side">
+            <span class="label">P05 / P06</span>
+            <h3>结构与分镜 Prompt</h3>
+            <div class="tag-row"><span class="tag medium">需对标创作质量</span></div>
+          </div>
+          <div class="asset-main">
+            <div class="path">apps/server/src/dialogue/dialogue-prompt.util.ts:159 / 245</div>
+            <p>这两类 prompt 是上游质量闸门。当前字段契约很强，后续可引入市场成熟漫画/短剧 prompt 中常见的“情绪曲线、读者视线、反转节奏、镜头推进、画面信息层级”。</p>
+            <pre class="excerpt">剧情结构：synopsis / direction / characters / scenes / beats
+分镜：shotType / cameraAngle / comic / motion / promptDraft</pre>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>后续对标优化建议</h2>
+      </div>
+      <div class="panel-body">
+        <table>
+          <thead>
+            <tr>
+              <th>批次</th>
+              <th>建议先改哪类</th>
+              <th>原因</th>
+              <th>需要调研的市场提示词方向</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>第 1 批</td>
+              <td>候选图最终 Prompt + 角色参考图 Prompt</td>
+              <td>直接决定用户能不能看到好图，也是 Grok/豆包/OpenAI provider 的共同收益点。</td>
+              <td>漫画 panel prompt、character sheet prompt、consistent character、negative prompt、reference image prompt。</td>
+            </tr>
+            <tr>
+              <td>第 2 批</td>
+              <td>分镜 Prompt</td>
+              <td>分镜质量决定候选图 prompt 的上限；现在更像字段转换器，还不是强漫画导演。</td>
+              <td>storyboard prompt、manga panel composition、shot breakdown、cinematic manga pacing。</td>
+            </tr>
+            <tr>
+              <td>第 3 批</td>
+              <td>灵感 / 大纲 / 章节剧本 Prompt</td>
+              <td>已有边界很稳，适合在不破坏格式的前提下增强商业类型、开篇钩子和章节爽点。</td>
+              <td>webtoon story prompt、short drama hook、manhwa plot outline、episode cliffhanger。</td>
+            </tr>
+            <tr>
+              <td>第 4 批</td>
+              <td>工具描述和 Agent/Skill 去重</td>
+              <td>主要影响模型何时调用工具和长期维护成本，属于稳定性优化。</td>
+              <td>function calling tool description best practices、agent instruction hierarchy。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

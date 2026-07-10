@@ -149,6 +149,50 @@ describe("ProjectRepository 写入→重载往返一致性", () => {
     expect(reloadedChapter.currentScriptVersionId).toBe("chapter_001_script_v001");
   });
 
+  it("非草稿章节正式正文为空时 → 从当前剧本版本恢复正文", async () => {
+    const versionSourceText = "# 章节剧本\n\n## 第 1 章：离岛的少年\n\n当前版本保存的完整正文。";
+    const chapter = buildChapter({
+      status: "storyboard_done",
+      currentScriptVersionId: "chapter_001_script_v001",
+      scriptVersions: [
+        {
+          id: "chapter_001_script_v001",
+          projectId: "test-project",
+          chapterId: "chapter_001",
+          version: 1,
+          sourcePath: "projects/test-project/chapters/chapter-001/script.versions/script-v001.md",
+          status: "current",
+          createdAt: NOW,
+          sourceText: versionSourceText,
+        },
+      ],
+    });
+    const project = buildProject(chapter);
+
+    const writer = new ProjectRepository(workspacePath);
+    await writer.saveProject(project, STUB_WORKFLOW);
+
+    const { readFile, writeFile } = await import("node:fs/promises");
+    const chapterDir = join(
+      workspacePath.resolveVirtualPath("/workspace/projects/test-project"),
+      "chapters",
+      "chapter-001",
+    );
+    await writeFile(join(chapterDir, "script.md"), "", "utf8");
+    const chapterJsonPath = join(chapterDir, "chapter.json");
+    const chapterJson = JSON.parse(await readFile(chapterJsonPath, "utf8"));
+    chapterJson.sourceText = "";
+    await writeFile(chapterJsonPath, JSON.stringify(chapterJson, null, 2) + "\n", "utf8");
+
+    const reloader = new ProjectRepository(workspacePath);
+    await reloader.ensureLoaded();
+    const reloadedChapter = reloader.getProject("test-project")!.chapters
+      .find((item) => item.id === "chapter_001")!;
+
+    expect(reloadedChapter.sourceText).toBe(versionSourceText);
+    expect(reloadedChapter.currentScriptVersionId).toBe("chapter_001_script_v001");
+  });
+
   it("加载优先级:script.md 内容优先于 chapter.json.sourceText", async () => {
     // 这个测试复现本次 bug 的恢复机制:sourceText 为空但 script.md 有内容时,
     // 加载链 readChapterFromWorkspace 优先读 script.md。
@@ -177,8 +221,23 @@ describe("ProjectRepository 写入→重载往返一致性", () => {
     expect(reloadedChapter.sourceText).toBe("正式正文内容");
   });
 
-  it("空章节(sourceText 为空)→ 重载 → 不崩,sourceText 为空字符串", async () => {
-    const chapter = buildChapter({ sourceText: "" });
+  it("草稿章节正式正文为空时 → 即使残留版本也保持空白", async () => {
+    const chapter = buildChapter({
+      sourceText: "",
+      currentScriptVersionId: "chapter_001_script_v001",
+      scriptVersions: [
+        {
+          id: "chapter_001_script_v001",
+          projectId: "test-project",
+          chapterId: "chapter_001",
+          version: 1,
+          sourcePath: "projects/test-project/chapters/chapter-001/script.versions/script-v001.md",
+          status: "current",
+          createdAt: NOW,
+          sourceText: "不应恢复到草稿的旧版本正文",
+        },
+      ],
+    });
     const project = buildProject(chapter);
 
     const writer = new ProjectRepository(workspacePath);
@@ -189,7 +248,7 @@ describe("ProjectRepository 写入→重载往返一致性", () => {
     const reloaded = reloader.getProject("test-project");
     const reloadedChapter = reloaded!.chapters.find((c) => c.id === "chapter_001")!;
 
-    // 空章节是合法状态(草稿章),不应崩
+    // 空章节是合法状态(草稿章),不能因为残留版本而被自动填充
     expect(reloadedChapter.sourceText).toBe("");
     expect(reloadedChapter.status).toBe("draft");
   });

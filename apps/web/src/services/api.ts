@@ -23,6 +23,7 @@ import type {
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
   BuildChapterLayoutResponse,
+  CandidateGenerationPreviewResponse,
   CompleteChapterImagesResponse,
   CreateGenerationTaskRequest,
   ExportAssetPackageResponse,
@@ -455,6 +456,9 @@ export const api = {
     {
       method: "POST",
     },
+  ),
+  candidateGenerationPreview: (projectId: string, chapterId: string, shotId: string) => request<CandidateGenerationPreviewResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-generation-preview`,
   ),
   buildChapterLayout: (projectId: string, chapterId: string) => request<BuildChapterLayoutResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/build`,

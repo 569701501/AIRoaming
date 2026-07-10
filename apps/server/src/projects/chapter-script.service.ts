@@ -164,6 +164,9 @@ export class ChapterScriptService {
     const updatedAt = new Date().toISOString();
     const parsedStoryTitle = extractChapterScriptName(input.sourceText);
     const sourceText = stripChapterScriptName(input.sourceText);
+    if (!sourceText.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
     const parsedChapterTitle = extractChapterScriptTitle(sourceText);
     const nextChapter: LocalChapter = {
       ...chapter,
@@ -207,6 +210,9 @@ export class ChapterScriptService {
 
     const parsedStoryTitle = extractChapterScriptName(sourceTextInput);
     const sourceText = stripChapterScriptName(sourceTextInput);
+    if (!sourceText.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
     const parsedChapterTitle = extractChapterScriptTitle(sourceText);
     const scriptVersion = this.createChapterScriptVersion(chapter, sourceText, completedAt);
     const completedChapter: LocalChapter = {

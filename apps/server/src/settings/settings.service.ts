@@ -31,6 +31,7 @@ interface StoredAppSettings {
   aiKey: StoredAIKeySettings;
   openaiImageProvider: StoredAIKeySettings;
   doubaoImageProvider: StoredAIKeySettings;
+  grokImageProvider: StoredAIKeySettings;
   activeImageProvider: ImageProviderType;
   appearance: AppAppearanceSettings;
   updatedAt: string;
@@ -56,6 +57,9 @@ const SETTINGS_VIRTUAL_PATH = "/workspace/settings/app-settings.json" as const;
 /** 豆包默认配置(选豆包时预填) */
 const DOUBAO_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 const DOUBAO_DEFAULT_MODEL = "doubao-seedream-4-5-251128";
+/** Grok Imagine 默认配置(选 Grok 时预填,中转可在设置页覆盖) */
+const GROK_DEFAULT_BASE_URL = "https://api.x.ai/v1";
+const GROK_DEFAULT_MODEL = "grok-imagine-image-quality";
 const PROVIDER_NAME_BY_ID: Record<string, string> = {
   self: "自定义 OpenAI 兼容",
   aurora: "Aurora GPT 对话",
@@ -65,6 +69,7 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
   custom: "自定义 OpenAI 兼容",
   openai_image: "OpenAI 图片生成",
   doubao_image: "豆包图片生成",
+  grok_image: "Grok 图片生成",
 };
 
 @Injectable()
@@ -88,7 +93,7 @@ export class SettingsService implements OnModuleInit {
 
   getRuntimeImageProviderSettings(): RuntimeImageProviderSettings {
     const active = this.settings.activeImageProvider;
-    const stored = active === "doubao" ? this.settings.doubaoImageProvider : this.settings.openaiImageProvider;
+    const stored = this.getStoredImageProvider(this.settings, active);
     return {
       type: active,
       providerId: stored.providerId,
@@ -115,7 +120,12 @@ export class SettingsService implements OnModuleInit {
       doubaoImageProvider: input.doubaoImageProvider
         ? this.updateImageProviderSettings(current.doubaoImageProvider, input.doubaoImageProvider, now)
         : current.doubaoImageProvider,
-      activeImageProvider: input.activeImageProvider ?? current.activeImageProvider,
+      grokImageProvider: input.grokImageProvider
+        ? this.updateImageProviderSettings(current.grokImageProvider, input.grokImageProvider, now)
+        : current.grokImageProvider,
+      activeImageProvider: input.activeImageProvider === undefined
+        ? current.activeImageProvider
+        : this.normalizeImageProviderType(input.activeImageProvider),
       appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
       updatedAt: now,
     };
@@ -223,17 +233,20 @@ export class SettingsService implements OnModuleInit {
     const legacyImageProvider = (input as { imageProvider?: unknown }).imageProvider;
     const openaiSource = (input.openaiImageProvider ?? (legacyImageProvider && !input.openaiImageProvider ? legacyImageProvider : defaults.openaiImageProvider)) as StoredAIKeySettings;
     const doubaoSource = (input.doubaoImageProvider ?? defaults.doubaoImageProvider) as StoredAIKeySettings;
+    const grokSource = (input.grokImageProvider ?? defaults.grokImageProvider) as StoredAIKeySettings;
 
     const providerId = this.normalizeProviderId(aiKey.providerId ?? defaults.aiKey.providerId);
     const openaiProviderId = this.normalizeProviderId(openaiSource.providerId ?? defaults.openaiImageProvider.providerId);
     const doubaoProviderId = this.normalizeProviderId(doubaoSource.providerId ?? defaults.doubaoImageProvider.providerId);
+    const grokProviderId = this.normalizeProviderId(grokSource.providerId ?? defaults.grokImageProvider.providerId);
     const apiKey = typeof aiKey.apiKey === "string" && aiKey.apiKey.trim() ? aiKey.apiKey.trim() : null;
     const openaiApiKey = typeof openaiSource.apiKey === "string" && openaiSource.apiKey.trim() ? openaiSource.apiKey.trim() : null;
     const doubaoApiKey = typeof doubaoSource.apiKey === "string" && doubaoSource.apiKey.trim() ? doubaoSource.apiKey.trim() : null;
+    const grokApiKey = typeof grokSource.apiKey === "string" && grokSource.apiKey.trim() ? grokSource.apiKey.trim() : null;
     const theme = input.appearance?.theme && APPEARANCE_THEMES.includes(input.appearance.theme)
       ? input.appearance.theme
       : defaults.appearance.theme;
-    const activeImageProvider: ImageProviderType = input.activeImageProvider === "doubao" ? "doubao" : "openai";
+    const activeImageProvider = this.normalizeImageProviderType(input.activeImageProvider);
 
     return {
       version: 1,
@@ -270,6 +283,18 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: doubaoApiKey ? this.fingerprintKey(doubaoApiKey) : null,
         updatedAt: typeof doubaoSource.updatedAt === "string" ? doubaoSource.updatedAt : null,
       },
+      grokImageProvider: {
+        providerId: grokProviderId,
+        providerName: this.normalizeProviderName(
+          grokSource.providerName ?? this.resolveProviderName(grokProviderId),
+          grokProviderId,
+        ),
+        modelId: this.normalizeModelId(grokSource.modelId ?? defaults.grokImageProvider.modelId),
+        baseUrl: this.normalizeBaseUrl(grokSource.baseUrl ?? defaults.grokImageProvider.baseUrl),
+        apiKey: grokApiKey,
+        keyFingerprint: grokApiKey ? this.fingerprintKey(grokApiKey) : null,
+        updatedAt: typeof grokSource.updatedAt === "string" ? grokSource.updatedAt : null,
+      },
       activeImageProvider,
       appearance: { theme },
       updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : defaults.updatedAt,
@@ -283,6 +308,10 @@ export class SettingsService implements OnModuleInit {
     const openaiImageModelId = process.env.OPENAI_IMAGE_MODEL_ID?.trim() || "gpt-image-2";
     const openaiImageBaseUrl = process.env.OPENAI_IMAGE_BASE_URL?.trim() || null;
     const openaiImageApiKey = process.env.OPENAI_IMAGE_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || null;
+    const grokImageProviderId = process.env.GROK_IMAGE_PROVIDER_ID?.trim() || "grok_image";
+    const grokImageModelId = process.env.GROK_IMAGE_MODEL_ID?.trim() || GROK_DEFAULT_MODEL;
+    const grokImageBaseUrl = process.env.GROK_IMAGE_BASE_URL?.trim() || process.env.XAI_IMAGE_BASE_URL?.trim() || GROK_DEFAULT_BASE_URL;
+    const grokImageApiKey = process.env.GROK_IMAGE_API_KEY?.trim() || process.env.XAI_API_KEY?.trim() || null;
     const now = new Date().toISOString();
 
     return {
@@ -314,6 +343,15 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: null,
         updatedAt: null,
       },
+      grokImageProvider: {
+        providerId: grokImageProviderId,
+        providerName: this.resolveProviderName(grokImageProviderId),
+        modelId: grokImageModelId,
+        baseUrl: this.normalizeBaseUrl(grokImageBaseUrl),
+        apiKey: grokImageApiKey,
+        keyFingerprint: grokImageApiKey ? this.fingerprintKey(grokImageApiKey) : null,
+        updatedAt: grokImageApiKey || grokImageBaseUrl ? now : null,
+      },
       activeImageProvider: "openai",
       appearance: {
         theme: "dark",
@@ -327,6 +365,7 @@ export class SettingsService implements OnModuleInit {
       aiKey: this.toPublicAIKey(settings.aiKey),
       openaiImageProvider: this.toPublicImageProvider(settings.openaiImageProvider),
       doubaoImageProvider: this.toPublicImageProvider(settings.doubaoImageProvider),
+      grokImageProvider: this.toPublicImageProvider(settings.grokImageProvider),
       activeImageProvider: settings.activeImageProvider,
       appearance: settings.appearance,
       settingsPath: SETTINGS_VIRTUAL_PATH,
@@ -366,6 +405,20 @@ export class SettingsService implements OnModuleInit {
 
   private resolveProviderName(providerId: string, fallback?: string): string {
     return PROVIDER_NAME_BY_ID[providerId] ?? fallback?.trim() ?? providerId;
+  }
+
+  private normalizeImageProviderType(value: unknown): ImageProviderType {
+    return value === "doubao" || value === "grok" ? value : "openai";
+  }
+
+  private getStoredImageProvider(settings: StoredAppSettings, type: ImageProviderType): StoredAIKeySettings {
+    if (type === "doubao") {
+      return settings.doubaoImageProvider;
+    }
+    if (type === "grok") {
+      return settings.grokImageProvider;
+    }
+    return settings.openaiImageProvider;
   }
 
   private normalizeProviderId(value: string): string {

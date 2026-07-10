@@ -412,7 +412,7 @@ export class ProjectRepository {
     const order = wsJson.getNumberField(metadata, "order", this.getOrderFromChapterSlug(slug) ?? fallbackOrder);
     const suffix = String(order).padStart(3, "0");
     const chapterId = wsJson.getStringField(metadata, "id", `chapter_${suffix}`);
-    const sourceText = await wsJson.readOptionalTextFile(path.join(chapterDir, "script.md"))
+    const formalSourceText = await wsJson.readOptionalTextFile(path.join(chapterDir, "script.md"))
       ?? wsJson.getStringField(metadata, "sourceText", "");
     const createdAt = wsJson.getStringField(metadata, "createdAt", new Date().toISOString());
     const updatedAt = wsJson.getStringField(metadata, "updatedAt", createdAt);
@@ -437,6 +437,14 @@ export class ProjectRepository {
     const restoredCurrentScriptVersionId = currentScriptVersionId
       ?? scriptVersions.find((version) => version.status === "current")?.id
       ?? null;
+    const status = wsDomain.normalizeChapterStatus(metadata.status);
+    const currentScriptVersion = scriptVersions.find((version) => version.id === restoredCurrentScriptVersionId)
+      ?? scriptVersions.find((version) => version.status === "current");
+    const sourceText = formalSourceText.trim()
+      ? formalSourceText
+      : status !== "draft" && currentScriptVersion?.sourceText.trim()
+        ? currentScriptVersion.sourceText
+        : formalSourceText;
     const restoredCurrentStoryVersionId = wsJson.getOptionalStringField(metadata, "currentStoryVersionId")
       ?? storyStructure?.id
       ?? null;
@@ -447,7 +455,7 @@ export class ProjectRepository {
       slug,
       order,
       title: extractChapterScriptTitle(sourceText) ?? wsJson.getStringField(metadata, "title", `第 ${order} 章`),
-      status: wsDomain.normalizeChapterStatus(metadata.status),
+      status,
       currentScriptVersionId: restoredCurrentScriptVersionId,
       currentStoryVersionId: restoredCurrentStoryVersionId,
       sourceText,
@@ -525,6 +533,9 @@ export class ProjectRepository {
             status,
             label: wsJson.getStringField(item, "label", `候选 ${index + 1}`),
             promptDigest: wsJson.getStringField(item, "promptDigest", ""),
+            generationPurpose: item.generationPurpose === "shot_clean_plate" ? "shot_clean_plate" : undefined,
+            generationSpecVersion: typeof item.generationSpecVersion === "number" ? item.generationSpecVersion : undefined,
+            generationSpecDigest: wsJson.getOptionalStringField(item, "generationSpecDigest") ?? undefined,
             createdAt: wsJson.getStringField(item, "createdAt", new Date().toISOString()),
             updatedAt: wsJson.getStringField(item, "updatedAt", new Date().toISOString()),
           };

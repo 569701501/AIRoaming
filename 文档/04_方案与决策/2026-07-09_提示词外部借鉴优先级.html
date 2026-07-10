@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI漫游提示词外部借鉴优先级</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --ink: #172033;
+      --muted: #5d6b82;
+      --line: #dce3ee;
+      --panel: #ffffff;
+      --blue: #2563eb;
+      --green: #0f8a5f;
+      --amber: #b96b00;
+      --red: #c2410c;
+      --violet: #6d28d9;
+      --shadow: 0 18px 45px rgba(28, 42, 68, 0.09);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+    }
+
+    .page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 40px 28px 56px;
+    }
+
+    .hero {
+      background: #111827;
+      color: #fff;
+      border-radius: 8px;
+      padding: 34px 36px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: #93c5fd;
+      font-size: 13px;
+      letter-spacing: 0;
+      font-weight: 700;
+    }
+
+    h1, h2, h3 { letter-spacing: 0; line-height: 1.25; }
+    h1 {
+      margin: 0;
+      font-size: 32px;
+    }
+    .hero p {
+      margin: 14px 0 0;
+      max-width: 900px;
+      color: #dbeafe;
+      font-size: 16px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .summary-card {
+      background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 8px;
+      padding: 15px;
+    }
+
+    .summary-card span {
+      display: block;
+      color: #bfdbfe;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .summary-card strong {
+      display: block;
+      font-size: 24px;
+    }
+
+    section {
+      margin-top: 22px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-head {
+      padding: 20px 24px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .section-head p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .body {
+      padding: 22px 24px 24px;
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .decision-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      background: #fff;
+    }
+
+    .decision-card h3 {
+      margin: 8px 0 10px;
+      font-size: 17px;
+    }
+
+    .decision-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.direct { color: #05603a; background: #dcfce7; }
+    .badge.partial { color: #92400e; background: #fef3c7; }
+    .badge.no { color: #991b1b; background: #fee2e2; }
+    .badge.method { color: #5b21b6; background: #ede9fe; }
+    .badge.keep { color: #1d4ed8; background: #dbeafe; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    .ids {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #1d4ed8;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .source-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .source-card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .source-card p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 14px 16px;
+      color: #1e3a8a;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 18px;
+    }
+
+    .rule-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .rule-list li {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .rule-list strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .rule-list span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .summary-grid,
+      .decision-grid,
+      .source-grid,
+      .rule-list {
+        grid-template-columns: 1fr;
+      }
+      .page { padding: 24px 14px 40px; }
+      .hero { padding: 24px 20px; }
+      h1 { font-size: 26px; }
+      table { min-width: 980px; }
+      .table-wrap { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">AI漫游 / 漫画平台提示词优化 / 外部借鉴判断</p>
+      <h1>哪些提示词值得去 GitHub 借鉴</h1>
+      <p>结论先说：最适合借鉴的是“生图类提示词模板”和“角色一致性模板”；剧情结构、分镜、剧本写作可以借鉴方法论；项目事实源、工具调用边界和写入协议不要照搬外部提示词。</p>
+      <div class="summary-grid">
+        <div class="summary-card"><span>可直接借鉴结构</span><strong>4 类</strong></div>
+        <div class="summary-card"><span>可借鉴方法</span><strong>6 类</strong></div>
+        <div class="summary-card"><span>不宜照搬</span><strong>5 类</strong></div>
+        <div class="summary-card"><span>最高优先级</span><strong>P23-P26</strong></div>
+      </div>
+    </header>
+
+    <section>
+      <div class="section-head">
+        <h2>总判断</h2>
+        <p>外部提示词不是拿来整体复制的，更适合拆成“提示词部件”：主体、动作、构图、镜头、光线、风格、角色一致性、负面约束、输出格式、验收规则。</p>
+      </div>
+      <div class="body">
+        <div class="decision-grid">
+          <article class="decision-card">
+            <span class="badge direct">可以直接借鉴结构</span>
+            <h3>图片生成、角色定稿、场景参考</h3>
+            <p>这类提示词在 Stable Diffusion、ComfyUI、Fooocus 风格库、漫画生图项目里沉淀很多。我们可以借鉴它们的分层结构和负面提示词，但不要整段复制。</p>
+          </article>
+          <article class="decision-card">
+            <span class="badge partial">只能借鉴方法</span>
+            <h3>灵感、故事结构、章节写作、分镜</h3>
+            <p>外部写作提示词能提供故事钩子、因果推进、角色弧光、场景诊断等框架；但 AI漫游有自己的章节流水线和 JSON 契约，必须二次改造。</p>
+          </article>
+          <article class="decision-card">
+            <span class="badge no">不建议外部照搬</span>
+            <h3>事实源、写入边界、工具描述</h3>
+            <p>这些提示词本质是项目安全协议和本地工具协议。外部通用 agent prompt 可能破坏受控写入、章节作用域和素材追溯。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>提示词资产借鉴矩阵</h2>
+        <p>基于当前盘点出的 P01-P27，按“能不能从外部热门 prompt 直接吸收结构”重新分级。</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>资产</th>
+              <th>当前用途</th>
+              <th>借鉴等级</th>
+              <th>可借鉴什么</th>
+              <th>不该借鉴什么</th>
+              <th>推荐来源方向</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="ids">P25 / P26</td>
+              <td>候选图最终 provider prompt 与前端 prompt 预览</td>
+              <td><span class="badge direct">最高：直接借鉴结构</span></td>
+              <td>借鉴生图 prompt 的分层：主体、动作、镜头景别、构图、漫画画格、光线、情绪、角色一致性、风格 preset、negative prompt。</td>
+              <td>不要直接复制某个模型或某个画师风格整段词；不要把第三方版权角色、IP、艺术家名作为默认模板。</td>
+              <td>Stable Diffusion prompt 集、ComfyUI style preset、Fooocus/SDXL 风格库、漫画 panel prompt。</td>
+            </tr>
+            <tr>
+              <td class="ids">P23</td>
+              <td>角色参考图、预览图、定稿四视图</td>
+              <td><span class="badge direct">最高：直接借鉴结构</span></td>
+              <td>借鉴 character reference sheet / turnaround sheet 写法：正面、侧面、背面、表情、服装细节、色板、白底、同一角色一致性。</td>
+              <td>不要照搬偏 3D、真人、儿童化、特定 IP 的模板；AI漫游默认应保持漫画/条漫角色设定图。</td>
+              <td>角色设定图 prompt、character consistency、turnaround reference sheet。</td>
+            </tr>
+            <tr>
+              <td class="ids">P24</td>
+              <td>场景参考图 prompt</td>
+              <td><span class="badge direct">高：直接借鉴结构</span></td>
+              <td>借鉴环境场景 prompt 的空间层级：地点、时代、时间、天气、镜头、焦点、透视、光线、氛围、可复用背景资产。</td>
+              <td>不要只堆“高质量、细节丰富”；不要把场景做成不可用于漫画分镜的概念图。</td>
+              <td>environment concept art prompt、background prompt、manga/comic scene prompt。</td>
+            </tr>
+            <tr>
+              <td class="ids">P06</td>
+              <td>分镜 JSON prompt</td>
+              <td><span class="badge partial">高：借鉴漫画镜头语言</span></td>
+              <td>借鉴 storyboard、comic panel、cinematic shot 的质量标准：景别、视角、动作连续性、阅读顺序、对白气泡位置、节奏变化。</td>
+              <td>不要照搬视频 storyboard 的 16:9 镜头逻辑；漫画分镜要保留画格、条漫阅读和气泡排版语义。</td>
+              <td>storyboard 工具、漫画面板 prompt、视频 prompt 的 shot grammar。</td>
+            </tr>
+            <tr>
+              <td class="ids">P05</td>
+              <td>剧情结构 JSON prompt</td>
+              <td><span class="badge partial">中高：借鉴故事工程方法</span></td>
+              <td>借鉴 Story Spine、Hero's Journey、因果推进、角色目标/阻碍/转折等结构诊断维度。</td>
+              <td>不要让外部三幕剧模板覆盖章节级结构卡；不要把剧情结构直接变成最终读者正文。</td>
+              <td>story generation、writers room、story beat design。</td>
+            </tr>
+            <tr>
+              <td class="ids">P07 / P19</td>
+              <td>灵感种子 prompt / skill</td>
+              <td><span class="badge partial">中：借鉴开篇钩子</span></td>
+              <td>借鉴爆款开篇、冲突设问、角色欲望、反转承诺、视觉钩子等维度，让 3 个方向差异更大。</td>
+              <td>不要复制外部故事创意；不要生成无法落到漫画画面的抽象主题。</td>
+              <td>creative writing prompts、story ideation prompts、短剧/漫画 hook 模板。</td>
+            </tr>
+            <tr>
+              <td class="ids">P08-P10 / P20-P21</td>
+              <td>大纲和章节生成 prompt / skill</td>
+              <td><span class="badge method">中：借鉴方法，不借鉴格式</span></td>
+              <td>借鉴“从 premise 到 outline 到 chapter”的多阶段拆解、角色弧光、冲突升级、场景目的。</td>
+              <td>不要改掉项目固定大纲和章节格式；不要让章节正文提前输出分镜、镜头编号或图片 prompt。</td>
+              <td>story writing agents、novel writing workflow、prompt chaining。</td>
+            </tr>
+            <tr>
+              <td class="ids">P12 / P22</td>
+              <td>章节改写 prompt / skill</td>
+              <td><span class="badge method">中低：借鉴编辑诊断</span></td>
+              <td>借鉴改写评估项：节奏、对白自然度、冲突密度、人物动机、视觉可画性、章节结尾钩子。</td>
+              <td>不要让编辑 prompt 只输出建议或 diff；项目仍需要完整章节 Markdown。</td>
+              <td>writing editor prompts、revision prompts。</td>
+            </tr>
+            <tr>
+              <td class="ids">P13-P15</td>
+              <td>剧本大纲/章节格式和禁止输出约束</td>
+              <td><span class="badge keep">保留自有</span></td>
+              <td>可以参考外部“格式约束写法”，比如明确输出边界、禁止项、示例不要复用。</td>
+              <td>不要照搬外部格式；这些约束是 AI漫游流水线事实源的一部分。</td>
+              <td>Prompt Engineering Guide 的结构化输出原则。</td>
+            </tr>
+            <tr>
+              <td class="ids">P01-P04</td>
+              <td>通用上下文与阶段边界契约</td>
+              <td><span class="badge no">不宜借鉴内容</span></td>
+              <td>只能借鉴“指令层级清晰、事实源优先、动作边界明确”的写法。</td>
+              <td>不要套外部 assistant persona；它们容易破坏项目阶段、章节作用域和受控写入边界。</td>
+              <td>通用 prompt engineering 方法，不直接拿模板。</td>
+            </tr>
+            <tr>
+              <td class="ids">P16-P18 / P27</td>
+              <td>OpenCode AGENTS、agent、导入 skill、工具描述</td>
+              <td><span class="badge no">不宜借鉴内容</span></td>
+              <td>可以借鉴 prompt 测试、红队、tool description 评估方法。</td>
+              <td>不要直接用外部 agent prompt；工具名、回调、写入边界、素材路径都是项目私有协议。</td>
+              <td>promptfoo、agent eval、tool calling best practices。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>外部来源怎么用</h2>
+        <p>这些来源不是让我们复制文本，而是帮助拆解成熟提示词的“部件”和“验收标准”。</p>
+      </div>
+      <div class="body">
+        <div class="source-grid">
+          <article class="source-card">
+            <h3><a href="https://github.com/f/prompts.chat">f/prompts.chat</a></h3>
+            <p>大型通用 prompt 集合，适合观察角色设定、任务说明、输出口径的组织方式。它更适合启发 P07/P12 这类文本创作 prompt，不适合直接进项目协议。</p>
+            <span class="badge method">通用 prompt 结构</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/dair-ai/prompt-engineering-guide">dair-ai/Prompt-Engineering-Guide</a></h3>
+            <p>适合借鉴提示词工程方法：任务分解、结构化输出、示例、约束顺序、评估。它不是漫画 prompt 库，但适合规范 P01-P15 的写法。</p>
+            <span class="badge method">提示词工程方法</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/FurkanGozukara/Stable-Diffusion/blob/main/Amazing-Prompts-List-For-Stable-Diffusion.md">Stable Diffusion prompt collection</a></h3>
+            <p>适合拆解图像 prompt 的风格词、质量词和 negative prompt 组合。对 P23-P26 有直接参考价值，但 GPL 仓库文本不要整段搬进代码。</p>
+            <span class="badge direct">生图 prompt 结构</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/Chan-0312/ComfyUI-Prompt-Preview/blob/main/sdxl_styles_twri.json">ComfyUI style preset</a></h3>
+            <p>适合学习“风格 preset = prompt 模板 + negative_prompt”的组织方式。AI漫游后续可以做自己的漫画风格库，而不是把风格散落在每个任务里。</p>
+            <span class="badge direct">风格预设库</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/JGonzalez249/automatic-comic-book">automatic-comic-book</a></h3>
+            <p>项目不大，但方向贴近漫画：角色一致性依赖可识别特征和负面提示词。这个观点对 P23 角色定稿和 P25 候选图都重要。</p>
+            <span class="badge direct">角色一致性</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/new-sankaku/manga-editor-desu">manga-editor-desu</a></h3>
+            <p>更偏漫画页面制作和 WebUI 扩展，不是 prompt 库。适合参考漫画创作工具流程，尤其是从生图到面板编辑的产品形态。</p>
+            <span class="badge method">漫画工具流程</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/jackterror/writers-room-story-engine">writers-room-story-engine</a></h3>
+            <p>适合借鉴故事工作流：故事地基、世界观压力、场景写作、修订诊断。可用于加强 P05/P07/P20/P21 的创作质量评价维度。</p>
+            <span class="badge partial">故事方法论</span>
+          </article>
+          <article class="source-card">
+            <h3><a href="https://github.com/promptfoo/promptfoo">promptfoo</a></h3>
+            <p>不是拿来抄 prompt，而是给提示词做回归测试、模型对比、红队测试。后续替换 P23-P26 前，应该先准备一组固定漫画样例做对比。</p>
+            <span class="badge method">提示词评测</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>建议的下一步</h2>
+        <p>先不要全项目大改。最小可控做法是先优化候选图和角色图，再反推分镜 prompt。</p>
+      </div>
+      <div class="body">
+        <div class="callout">
+          第一批只动 P23-P26：建立 AI漫游自己的漫画生图 prompt 模板，统一后端实际 provider prompt 与前端预览 prompt，并保留用户可编辑入口。
+        </div>
+        <ul class="rule-list">
+          <li><strong>1. 建 Prompt 部件库</strong><span>把风格、构图、角色一致性、负面提示词拆成可组合片段，避免每个服务硬编码一段长 prompt。</span></li>
+          <li><strong>2. 统一候选图拼装</strong><span>P25 后端实际出图必须复用 P26 前端预览的同一套纯函数或同构逻辑。</span></li>
+          <li><strong>3. 引入角色一致性模板</strong><span>P23 增加正面/侧面/背面、服装细节、色板、表情、白底和同一角色一致性约束。</span></li>
+          <li><strong>4. 补漫画 negative prompt</strong><span>按漫画生成常见问题分层：真人感、低清、畸形、文字水印、多角色错位、气泡文字异常。</span></li>
+          <li><strong>5. 做样例对照页</strong><span>每次优化提示词，用同一批 shot、character、scene 样例生成对比，避免凭感觉改。</span></li>
+          <li><strong>6. 再升级 P06 分镜</strong><span>当图片 prompt 稳了，再让分镜输出更适合生图的 promptDraft 和漫画画格字段。</span></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

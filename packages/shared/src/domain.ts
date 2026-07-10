@@ -161,6 +161,10 @@ export const GENERATION_TASK_EVENTS = [
 ] as const;
 export type GenerationTaskEvent = (typeof GENERATION_TASK_EVENTS)[number];
 
+export const CANDIDATE_GENERATION_SPEC_VERSION = 1 as const;
+export const CANDIDATE_GENERATION_PURPOSES = ["shot_clean_plate", "legacy_unspecified"] as const;
+export type CandidateGenerationPurpose = (typeof CANDIDATE_GENERATION_PURPOSES)[number];
+
 export const ASSET_TYPES = ["image", "audio", "video", "document", "archive"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 

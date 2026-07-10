@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>AI漫画全功能竞品对照 · 复核版</title>
+  <style>
+    :root {
+      --bg: #07101f;
+      --bg-soft: #0b1527;
+      --panel: rgba(16, 28, 49, 0.88);
+      --panel-solid: #101c31;
+      --panel-2: #14223b;
+      --line: rgba(148, 163, 184, 0.17);
+      --line-strong: rgba(148, 163, 184, 0.30);
+      --text: #ecf4ff;
+      --text-soft: #c8d4e8;
+      --muted: #8fa0bb;
+      --teal: #5eead4;
+      --teal-strong: #2dd4bf;
+      --indigo: #a5b4fc;
+      --blue: #7dd3fc;
+      --green: #6ee7b7;
+      --amber: #fcd34d;
+      --red: #fca5a5;
+      --purple: #c4b5fd;
+      --shadow: 0 24px 64px rgba(1, 6, 18, 0.34);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 13px;
+      --content: 1280px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% -10%, rgba(45, 212, 191, 0.14), transparent 30%),
+        radial-gradient(circle at 92% 4%, rgba(129, 140, 248, 0.16), transparent 32%),
+        linear-gradient(180deg, #07101f 0%, #091426 45%, #07101f 100%);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button, select { font: inherit; }
+    button { color: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 16, 31, 0.84);
+      backdrop-filter: blur(18px);
+    }
+
+    .topbar-inner {
+      max-width: var(--content);
+      margin: 0 auto;
+      padding: 10px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: #041713;
+      background: linear-gradient(135deg, var(--teal), var(--indigo));
+      box-shadow: 0 8px 24px rgba(45, 212, 191, 0.2);
+    }
+
+    .section-nav {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .section-nav::-webkit-scrollbar { display: none; }
+    .section-nav a {
+      padding: 7px 10px;
+      border-radius: 9px;
+      color: var(--muted);
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: 0.2s ease;
+    }
+    .section-nav a:hover,
+    .section-nav a.is-active {
+      color: var(--text);
+      background: rgba(94, 234, 212, 0.09);
+    }
+
+    .print-btn {
+      flex: 0 0 auto;
+      padding: 7px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      background: rgba(20, 34, 59, 0.8);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .print-btn:hover { border-color: rgba(94, 234, 212, 0.5); }
+
+    .page {
+      max-width: var(--content);
+      margin: 0 auto;
+      padding: 46px 22px 96px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 42px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background:
+        linear-gradient(135deg, rgba(94, 234, 212, 0.09), transparent 34%),
+        linear-gradient(315deg, rgba(129, 140, 248, 0.12), transparent 40%),
+        rgba(13, 25, 44, 0.84);
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 340px;
+      height: 340px;
+      right: -130px;
+      top: -160px;
+      border-radius: 50%;
+      border: 1px solid rgba(165, 180, 252, 0.16);
+      box-shadow: 0 0 0 44px rgba(165, 180, 252, 0.035), 0 0 0 92px rgba(94, 234, 212, 0.025);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text-soft);
+      background: rgba(7, 16, 31, 0.42);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .pill.accent { color: var(--teal); border-color: rgba(94, 234, 212, 0.32); }
+
+    h1, h2, h3, h4, p { margin-top: 0; }
+    h1 {
+      max-width: 900px;
+      margin-bottom: 16px;
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 1.08;
+      letter-spacing: -0.045em;
+    }
+    h1 span {
+      color: transparent;
+      background: linear-gradient(100deg, var(--teal), var(--blue), var(--indigo));
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+    .mobile-break { display: none; }
+
+    .hero-lead {
+      max-width: 860px;
+      margin-bottom: 28px;
+      color: var(--text-soft);
+      font-size: 17px;
+    }
+
+    .hero-verdicts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .hero-verdict {
+      min-height: 128px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(7, 16, 31, 0.45);
+    }
+    .hero-verdict small {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+    .hero-verdict strong {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 16px;
+    }
+    .hero-verdict p {
+      margin: 0;
+      color: var(--text-soft);
+      font-size: 12.5px;
+    }
+
+    .section {
+      scroll-margin-top: 78px;
+      margin-top: 68px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 15px;
+      align-items: start;
+      margin-bottom: 22px;
+    }
+    .section-no {
+      width: 39px;
+      height: 39px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(94, 234, 212, 0.28);
+      border-radius: 12px;
+      color: var(--teal);
+      background: rgba(94, 234, 212, 0.07);
+      font-weight: 900;
+    }
+    .section-head h2 {
+      margin-bottom: 5px;
+      font-size: 25px;
+      letter-spacing: -0.025em;
+    }
+    .section-head p {
+      max-width: 880px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .legend-grid,
+    .verdict-grid,
+    .status-grid,
+    .competitor-grid,
+    .reference-grid,
+    .roadmap-grid,
+    .decision-grid {
+      display: grid;
+      gap: 14px;
+    }
+    .legend-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .verdict-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .competitor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .reference-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .roadmap-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .decision-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+      box-shadow: 0 14px 40px rgba(1, 6, 18, 0.16);
+    }
+
+    .legend-card { padding: 18px; }
+    .legend-card .grade {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      border-radius: 10px;
+      font-weight: 900;
+    }
+    .grade-a { color: #05241b; background: var(--green); }
+    .grade-b { color: #2f2201; background: var(--amber); }
+    .grade-c { color: #2c1020; background: var(--red); }
+    .legend-card h3 { margin-bottom: 5px; font-size: 15px; }
+    .legend-card p { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+    .verdict-card {
+      position: relative;
+      min-height: 180px;
+      padding: 22px 22px 20px;
+      overflow: hidden;
+    }
+    .verdict-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--teal);
+    }
+    .verdict-card.correct::before { background: var(--amber); }
+    .verdict-card.decide::before { background: var(--purple); }
+    .verdict-card.avoid::before { background: var(--red); }
+    .verdict-label {
+      margin-bottom: 9px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .verdict-card h3 { margin-bottom: 8px; font-size: 18px; }
+    .verdict-card p { margin-bottom: 0; color: var(--text-soft); font-size: 13px; }
+
+    .status-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 230px;
+      padding: 18px;
+    }
+    .status-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .status-top h3 { margin: 0; font-size: 16px; }
+    .status-badge,
+    .evidence,
+    .cell-state {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      border-radius: 999px;
+      font-weight: 900;
+    }
+    .status-badge { padding: 4px 8px; font-size: 10px; }
+    .is-current { color: var(--green); background: rgba(110, 231, 183, 0.10); border: 1px solid rgba(110, 231, 183, 0.20); }
+    .is-partial { color: var(--amber); background: rgba(252, 211, 77, 0.09); border: 1px solid rgba(252, 211, 77, 0.20); }
+    .is-gap { color: var(--red); background: rgba(252, 165, 165, 0.08); border: 1px solid rgba(252, 165, 165, 0.20); }
+    .status-card p { margin-bottom: 14px; color: var(--text-soft); font-size: 13px; }
+    .gap-line {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px dashed var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .gap-line b { color: var(--text-soft); }
+
+    .competitor-card { padding: 22px; }
+    .competitor-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 13px;
+    }
+    .competitor-title h3 { margin-bottom: 2px; font-size: 20px; }
+    .competitor-title p { margin: 0; color: var(--muted); font-size: 12px; }
+    .evidence { min-width: 29px; height: 24px; border-radius: 7px; font-size: 10px; }
+    .evidence.a { color: var(--green); background: rgba(110, 231, 183, 0.10); border: 1px solid rgba(110, 231, 183, 0.22); }
+    .evidence.b { color: var(--amber); background: rgba(252, 211, 77, 0.09); border: 1px solid rgba(252, 211, 77, 0.22); }
+    .evidence.c { color: var(--red); background: rgba(252, 165, 165, 0.08); border: 1px solid rgba(252, 165, 165, 0.20); }
+    .fact-list {
+      display: grid;
+      gap: 7px;
+      margin: 0 0 16px;
+      padding: 0;
+      list-style: none;
+    }
+    .fact-list li {
+      position: relative;
+      padding-left: 17px;
+      color: var(--text-soft);
+      font-size: 12.5px;
+    }
+    .fact-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.72em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--teal-strong);
+    }
+    .learn-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+    .learn-box div {
+      padding: 11px;
+      border-radius: 11px;
+      background: rgba(7, 16, 31, 0.42);
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    .learn-box b { display: block; margin-bottom: 4px; color: var(--text-soft); }
+
+    .matrix-shell {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+    }
+    .matrix-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(20, 34, 59, 0.58);
+    }
+    .matrix-toolbar p { margin: 0; color: var(--muted); font-size: 12px; }
+    .filter-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .filter-btn {
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .filter-btn:hover,
+    .filter-btn.is-active { color: var(--text); border-color: rgba(94, 234, 212, 0.38); background: rgba(94, 234, 212, 0.08); }
+    .matrix-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1060px; }
+    th, td {
+      padding: 13px 11px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid rgba(148, 163, 184, 0.09);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      color: var(--muted);
+      background: var(--panel-solid);
+      font-size: 11px;
+      letter-spacing: 0.03em;
+    }
+    th:first-child, td:first-child { width: 160px; }
+    th.ours, td.ours { background: rgba(94, 234, 212, 0.035); }
+    td strong { display: block; margin-bottom: 4px; font-size: 12px; }
+    td p { margin: 0; color: var(--muted); font-size: 10.8px; line-height: 1.55; }
+    .cell-state { margin-bottom: 5px; padding: 2px 6px; border-radius: 5px; font-size: 9px; }
+    .cell-state.yes { color: var(--green); background: rgba(110, 231, 183, 0.10); }
+    .cell-state.partial { color: var(--amber); background: rgba(252, 211, 77, 0.09); }
+    .cell-state.no { color: var(--red); background: rgba(252, 165, 165, 0.08); }
+    .cell-state.unknown { color: var(--muted); background: rgba(148, 163, 184, 0.09); }
+    tr[data-focus].is-hidden { display: none; }
+
+    .reference-card { padding: 18px; }
+    .reference-card h3 { margin-bottom: 4px; font-size: 16px; }
+    .reference-card .kind { margin-bottom: 12px; color: var(--muted); font-size: 11px; font-weight: 800; }
+    .reference-card p { margin-bottom: 12px; color: var(--text-soft); font-size: 12.5px; }
+    .reference-rule {
+      padding-top: 11px;
+      border-top: 1px dashed var(--line);
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    .reference-rule b { color: var(--teal); }
+
+    .roadmap-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 340px;
+      overflow: hidden;
+    }
+    .roadmap-head {
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(20, 34, 59, 0.52);
+    }
+    .roadmap-card:nth-child(1) .roadmap-head { box-shadow: inset 0 3px 0 var(--teal); }
+    .roadmap-card:nth-child(2) .roadmap-head { box-shadow: inset 0 3px 0 var(--indigo); }
+    .roadmap-card:nth-child(3) .roadmap-head { box-shadow: inset 0 3px 0 var(--amber); }
+    .roadmap-head small { color: var(--muted); font-weight: 900; }
+    .roadmap-head h3 { margin: 5px 0 4px; font-size: 19px; }
+    .roadmap-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .roadmap-list { display: grid; gap: 0; margin: 0; padding: 7px 20px 16px; list-style: none; }
+    .roadmap-list li { padding: 12px 0; border-bottom: 1px dashed var(--line); }
+    .roadmap-list li:last-child { border-bottom: 0; }
+    .roadmap-list b { display: block; margin-bottom: 4px; font-size: 13px; }
+    .roadmap-list span { display: block; color: var(--muted); font-size: 11.5px; }
+
+    .principle {
+      margin-top: 15px;
+      padding: 18px 20px;
+      border: 1px solid rgba(94, 234, 212, 0.22);
+      border-radius: var(--radius-md);
+      background: linear-gradient(110deg, rgba(94, 234, 212, 0.08), rgba(129, 140, 248, 0.06));
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+    .principle b { color: var(--teal); }
+
+    .decision-card {
+      padding: 19px;
+      counter-increment: decision;
+    }
+    .decision-card::before {
+      content: counter(decision, decimal-leading-zero);
+      display: block;
+      margin-bottom: 10px;
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+    }
+    .decision-grid { counter-reset: decision; }
+    .decision-card h3 { margin-bottom: 7px; font-size: 16px; }
+    .decision-card p { margin-bottom: 13px; color: var(--muted); font-size: 12px; }
+    .recommendation {
+      padding: 10px 11px;
+      border-radius: 10px;
+      color: var(--text-soft);
+      background: rgba(7, 16, 31, 0.44);
+      font-size: 11.5px;
+    }
+    .recommendation b { color: var(--indigo); }
+
+    .source-wrap { display: grid; gap: 12px; }
+    details {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--panel);
+    }
+    summary {
+      padding: 14px 16px;
+      cursor: pointer;
+      color: var(--text-soft);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .source-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      margin: 0;
+      padding: 0 16px 17px 34px;
+    }
+    .source-list li { color: var(--muted); font-size: 11.5px; }
+
+    .audit-note {
+      margin-top: 18px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      color: var(--muted);
+      background: rgba(7, 16, 31, 0.5);
+      font-size: 12px;
+    }
+    .audit-note b { color: var(--text-soft); }
+
+    .footer {
+      margin-top: 72px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+
+    .backtop {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      color: var(--text);
+      background: rgba(16, 28, 49, 0.9);
+      box-shadow: 0 12px 30px rgba(1, 6, 18, 0.28);
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s ease;
+    }
+    .backtop.is-visible { opacity: 1; pointer-events: auto; }
+
+    @media (max-width: 1040px) {
+      .section-nav { display: none; }
+      .hero-verdicts, .status-grid, .reference-grid, .roadmap-grid { grid-template-columns: 1fr 1fr; }
+      .roadmap-card:last-child { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 760px) {
+      .page { padding: 24px 14px 72px; }
+      .topbar-inner { padding: 9px 14px; }
+      .brand span:last-child { display: none; }
+      .hero { padding: 26px 20px; border-radius: 20px; }
+      h1 { font-size: 32px; letter-spacing: -0.035em; }
+      .mobile-break { display: inline; }
+      .hero-lead { font-size: 15px; }
+      .hero-verdicts,
+      .legend-grid,
+      .verdict-grid,
+      .status-grid,
+      .competitor-grid,
+      .reference-grid,
+      .roadmap-grid,
+      .decision-grid,
+      .source-list { grid-template-columns: 1fr; }
+      .roadmap-card:last-child { grid-column: auto; }
+      .section { margin-top: 52px; }
+      .section-head h2 { font-size: 21px; }
+      .matrix-toolbar { align-items: flex-start; flex-direction: column; }
+      .learn-box { grid-template-columns: 1fr; }
+      .footer { flex-direction: column; }
+      .backtop { right: 14px; bottom: 14px; }
+    }
+
+    @media print {
+      :root { color-scheme: light; }
+      body { color: #152238; background: #fff; }
+      .topbar, .backtop, .matrix-toolbar, .print-btn { display: none !important; }
+      .page { max-width: none; padding: 0; }
+      .hero, .card, .matrix-shell, details, .audit-note {
+        color: #152238;
+        background: #fff;
+        border-color: #cbd5e1;
+        box-shadow: none;
+        break-inside: avoid;
+      }
+      .hero-lead, .hero-verdict p, .section-head p, .legend-card p, .verdict-card p,
+      .status-card p, .gap-line, .fact-list li, .learn-box div, td p, .reference-card p,
+      .reference-rule, .roadmap-head p, .roadmap-list span, .decision-card p, .audit-note,
+      .footer, .source-list li { color: #475569; }
+      h1 span { color: #0f766e; background: none; }
+      th { color: #334155; background: #f1f5f9; }
+      td.ours, th.ours { background: #f0fdfa; }
+      a { color: #075985; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">AI</span>
+        <span>AI漫游 · 竞品复核</span>
+      </div>
+      <nav class="section-nav" aria-label="页面目录">
+        <a href="#method">口径</a>
+        <a href="#verdict">结论</a>
+        <a href="#current">现状</a>
+        <a href="#competitors">直接竞品</a>
+        <a href="#matrix">矩阵</a>
+        <a href="#references">局部参考</a>
+        <a href="#roadmap">优先级</a>
+        <a href="#decisions">待讨论</a>
+        <a href="#sources">来源</a>
+      </nav>
+      <button class="print-btn" type="button" onclick="window.print()">打印 / PDF</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div class="eyebrow">
+        <span class="pill accent">复核版 · 可讨论</span>
+        <span class="pill">调研日期 2026-07-10</span>
+        <span class="pill">官方资料 + 当前源码</span>
+      </div>
+      <h1>AI漫画全功能<span class="mobile-break"><br></span>竞品对照<br><span>从“谁更强”回到“下一步做什么”</span></h1>
+      <p class="hero-lead">
+        本页修正旧版中的现状过期、竞品误判与无证据排名。目标不是给平台排一个虚假的总分，
+        而是明确 AI漫游已经有什么、真正缺什么、每一类产品值得借鉴哪一段，以及后续功能讨论必须先决定什么。
+      </p>
+      <div class="hero-verdicts">
+        <article class="hero-verdict">
+          <small>定位保留</small>
+          <strong>章节级漫画生产工作台</strong>
+          <p>项目 / 章节 / 正式分镜 / preflight / 候选 / 排版 / 素材包的状态链与追溯骨架是差异化，不再宣称“市场独家”。</p>
+        </article>
+        <article class="hero-verdict">
+          <small>事实更新</small>
+          <strong>旧版 P0 多数已经完成</strong>
+          <p>prompt 预览、候选批次、分镜缩略图、拖拽重排和全章批量生成已落地，不能继续列成缺口。</p>
+        </article>
+        <article class="hero-verdict">
+          <small>下一矛盾</small>
+          <strong>从图片批次走向漫画成稿</strong>
+          <p>真正需要讨论的是状态闭环、prompt 版本、气泡文字层、多镜排版和渠道化导出，而不是继续堆生图入口。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="method">
+      <div class="section-head">
+        <div class="section-no">00</div>
+        <div>
+          <h2>怎么读这份对照</h2>
+          <p>商业产品公开页大多带营销口径。本页把证据强度单独标记；没有登录付费产品实测的能力，不再写成“无”或“最强”。</p>
+        </div>
+      </div>
+      <div class="legend-grid">
+        <article class="card legend-card">
+          <div class="grade grade-a">A</div>
+          <h3>可直接确认</h3>
+          <p>官方帮助文档、官方源码或当前项目代码。可写“已支持 / 已实现”。</p>
+        </article>
+        <article class="card legend-card">
+          <div class="grade grade-b">B</div>
+          <h3>官方自述</h3>
+          <p>官方发布说明或营销页。可写“官方宣称支持”，不能替代稳定性与体验实测。</p>
+        </article>
+        <article class="card legend-card">
+          <div class="grade grade-c">C</div>
+          <h3>待登录实测</h3>
+          <p>公开资料不足、套餐差异或仅能从截图推断。矩阵统一标“未见公开证据 / 待实测”。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="verdict">
+      <div class="section-head">
+        <div class="section-no">01</div>
+        <div>
+          <h2>总判断：哪些保留，哪些改写</h2>
+          <p>旧版的分类方法仍有用，但结论必须从“绝对排名”改成“证据化能力事实 + 面向 AI漫游的产品启示”。</p>
+        </div>
+      </div>
+      <div class="verdict-grid">
+        <article class="card verdict-card">
+          <div class="verdict-label">Keep · 保留</div>
+          <h3>生产链路比单点生图更重要</h3>
+          <p>AI漫游的价值不是一次生成几张图，而是把正式输入、人工确认、任务结果和最终资产绑定起来。这个方向应继续守住。</p>
+        </article>
+        <article class="card verdict-card correct">
+          <div class="verdict-label">Correct · 修正</div>
+          <h3>“完整链路”只能叫 MVP 骨架</h3>
+          <p>当前排版仍是一镜一页 PNG，尚无多镜拼版、气泡、长图/ZIP/PDF。应写“状态链已打通”，不能写成“已交付完整漫画”。</p>
+        </article>
+        <article class="card verdict-card decide">
+          <div class="verdict-label">Decide · 先决策</div>
+          <h3>先定首个交付格式，再做排版</h3>
+          <p>竖滑条漫、横版页漫、四格和印刷 PDF 的页面模型完全不同。没有首发渠道，气泡和排版需求就无法收口。</p>
+        </article>
+        <article class="card verdict-card avoid">
+          <div class="verdict-label">Avoid · 删除</div>
+          <h3>删除“独家、最强、80%”</h3>
+          <p>没有统一实测、用户数据或市场样本时，不做强弱总排名。对手公开资料中没有出现某能力，也只能写“未见公开证据”。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="current">
+      <div class="section-head">
+        <div class="section-no">02</div>
+        <div>
+          <h2>AI漫游当前真实状态</h2>
+          <p>以 2026-07-10 当前代码为准。重点区分“已经能操作”“只有结构或视觉”“完全缺失”。</p>
+        </div>
+      </div>
+      <div class="status-grid">
+        <article class="card status-card">
+          <div class="status-top"><h3>候选批次</h3><span class="status-badge is-current">已实现</span></div>
+          <p>按生成任务 `taskId` 分批，最新批展开、旧批折叠；“重新生成”保留旧批。</p>
+          <div class="gap-line"><b>下一步：</b>批次命名、成本信息、清理和归档策略。</div>
+        </article>
+        <article class="card status-card">
+          <div class="status-top"><h3>prompt 透明</h3><span class="status-badge is-partial">部分</span></div>
+          <p>已展示画面、构图、角色、场景、风格与完整 provider prompt，生成前可检查。</p>
+          <div class="gap-line"><b>缺口：</b>不可编辑；修改后没有 prompt 版本与新批次的正式关联。</div>
+        </article>
+        <article class="card status-card">
+          <div class="status-top"><h3>候选 5 态</h3><span class="status-badge is-partial">部分</span></div>
+          <p>枚举与视觉覆盖 generated / selected / locked / rejected / superseded。</p>
+          <div class="gap-line"><b>缺口：</b>业务只稳定驱动 generated / locked，其余状态缺命令、API 和转换规则。</div>
+        </article>
+        <article class="card status-card">
+          <div class="status-top"><h3>批量生成</h3><span class="status-badge is-current">已实现</span></div>
+          <p>可一次为本章全部未锁镜头创建候选任务，后端按本地队列串行生成。</p>
+          <div class="gap-line"><b>下一步：</b>失败汇总、重试、成本预估和全章批次视图。</div>
+        </article>
+        <article class="card status-card">
+          <div class="status-top"><h3>分镜预览与重排</h3><span class="status-badge is-current">已实现</span></div>
+          <p>镜头卡显示锁定图或最新候选缩略图；支持拖拽重排、重新编号和下游失效确认。</p>
+          <div class="gap-line"><b>缺口：</b>单镜 AI 重写、没有候选时的视觉草图。</div>
+        </article>
+        <article class="card status-card">
+          <div class="status-top"><h3>漫画成稿</h3><span class="status-badge is-gap">核心缺口</span></div>
+          <p>已有 layout 数据与 PNG 序列导出，但当前每个镜头独占一页，只是交付骨架。</p>
+          <div class="gap-line"><b>缺口：</b>气泡/旁白、多镜拼版、长图、ZIP、PDF 和渠道规格。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="competitors">
+      <div class="section-head">
+        <div class="section-no">03</div>
+        <div>
+          <h2>直接竞品：漫画生产工具</h2>
+          <p>这四个产品与 AI漫游共享“多画格叙事 / 漫画编辑 / 成稿输出”问题，适合进入同一张能力矩阵。</p>
+        </div>
+      </div>
+      <div class="competitor-grid">
+        <article class="card competitor-card">
+          <div class="competitor-title">
+            <div><h3>Dashtoon Studio</h3><p>故事到漫画 + 专业画布 + 发布</p></div>
+            <span class="evidence b">B</span>
+          </div>
+          <ul class="fact-list">
+            <li>Story Mode 把故事转为逐格 screenplay，每格可编辑并可通过文字新增。</li>
+            <li>官方发布说明包含无限画布、Storyboard-to-Comic、inpainting、image-to-image 与气泡工具。</li>
+            <li>官网提供发布和变现入口；发布侧接受 JPEG / PNG，偏竖滑 Webtoon。</li>
+          </ul>
+          <div class="learn-box">
+            <div><b>值得学</b>画布内图像编辑、气泡尾巴、创作到发布闭环。</div>
+            <div><b>不要推断</b>未公开确认 PDF、候选版本历史和 manifest。</div>
+          </div>
+        </article>
+
+        <article class="card competitor-card">
+          <div class="competitor-title">
+            <div><h3>LlamaGen</h3><p>候选迭代 + 故事板 + 多格式导出</p></div>
+            <span class="evidence b">B</span>
+          </div>
+          <ul class="fact-list">
+            <li>官方发布记录确认单 panel redraw、批量重画和 Comic History。</li>
+            <li>Version History / Generation History 支持恢复旧版本与复用旧资产。</li>
+            <li>公开支持 PDF，并在故事板工作流中导出 Word / Excel / PDF / MP4。</li>
+          </ul>
+          <div class="learn-box">
+            <div><b>值得学</b>版本与生成历史分层、批量重画、多格式生产交接。</div>
+            <div><b>不要推断</b>“最优/最成熟”需要同任务实测后才能成立。</div>
+          </div>
+        </article>
+
+        <article class="card competitor-card">
+          <div class="competitor-title">
+            <div><h3>Anifusion</h3><p>漫画页编辑 + 角色资产 + 视频延展</p></div>
+            <span class="evidence b">B</span>
+          </div>
+          <ul class="fact-list">
+            <li>官方当前页面覆盖 layouts/templates、可编辑气泡和文字层、无限画布与 inpaint。</li>
+            <li>Character Sheet、LoRA、批量生成与保存角色是长期连载能力基础。</li>
+            <li>公开支持 PNG / PDF 与图生视频；漫画和视频工具处于同一产品套件。</li>
+          </ul>
+          <div class="learn-box">
+            <div><b>值得学</b>文字层、角色 sheet、多页项目、漫画到视频延展。</div>
+            <div><b>不要推断</b>“manga 最强”没有统一评分和付费实测支撑。</div>
+          </div>
+        </article>
+
+        <article class="card competitor-card">
+          <div class="competitor-title">
+            <div><h3>AI Comic Factory</h3><p>开源整页生成 + 轻量编辑</p></div>
+            <span class="evidence a">A</span>
+          </div>
+          <ul class="fact-list">
+            <li>当前官方源码包含单格 Redraw、单格 Edit Prompt，而不是“只能重做整页”。</li>
+            <li>Caption 是可编辑覆盖层；仓库包含多种页面布局。</li>
+            <li>通过浏览器 Print to PDF 导出，但源码未保证固定 300 DPI。</li>
+          </ul>
+          <div class="learn-box">
+            <div><b>值得学</b>低门槛整页体验、轻量单格 prompt 编辑、零复杂工程导出。</div>
+            <div><b>真实短板</b>章节状态、候选版本、素材追溯与专业排版深度有限。</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="matrix">
+      <div class="section-head">
+        <div class="section-no">04</div>
+        <div>
+          <h2>直接竞品能力矩阵</h2>
+          <p>矩阵不再使用“领先/强/中/弱”总分。每个单元格只表达公开确认状态和对 AI漫游的具体意义。</p>
+        </div>
+      </div>
+      <div class="matrix-shell">
+        <div class="matrix-toolbar">
+          <p>筛选讨论范围：</p>
+          <div class="filter-group" role="group" aria-label="矩阵筛选">
+            <button class="filter-btn is-active" type="button" data-filter="all">全部</button>
+            <button class="filter-btn" type="button" data-filter="workflow">流程与追溯</button>
+            <button class="filter-btn" type="button" data-filter="iteration">出图与迭代</button>
+            <button class="filter-btn" type="button" data-filter="delivery">成稿与交付</button>
+          </div>
+        </div>
+        <div class="matrix-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>能力</th>
+                <th class="ours">AI漫游</th>
+                <th>Dashtoon</th>
+                <th>LlamaGen</th>
+                <th>Anifusion</th>
+                <th>AI Comic Factory</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-focus="workflow">
+                <td><strong>项目 / 章节工作流</strong><p>长期作品与阶段状态</p></td>
+                <td class="ours"><span class="cell-state yes">已实现</span><strong>章节状态链</strong><p>7 步 workflow、章节产物与门禁。</p></td>
+                <td><span class="cell-state partial">官方有 Story Mode</span><strong>故事到逐格剧本</strong><p>项目/章节状态细节待实测。</p></td>
+                <td><span class="cell-state yes">官方已公开</span><strong>项目列表与故事板</strong><p>支持章节/episode 级叙事与多格式导出。</p></td>
+                <td><span class="cell-state partial">官方有多页/章节</span><strong>Comics workspace</strong><p>章节/beat 与保存角色，内部状态待实测。</p></td>
+                <td><span class="cell-state partial">轻量</span><strong>页面与本地状态</strong><p>不等同于生产状态机。</p></td>
+              </tr>
+              <tr data-focus="workflow">
+                <td><strong>结构化剧情 / 正式分镜</strong><p>确认后才进入下游</p></td>
+                <td class="ours"><span class="cell-state yes">已实现</span><strong>结构表 + Shot 契约</strong><p>pending 与正式版本分离。</p></td>
+                <td><span class="cell-state partial">已公开</span><strong>AI screenplay</strong><p>逐格剧本可编辑，正式门禁语义未公开。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Storyboard workflow</strong><p>故事、镜头、animatic 与交接格式。</p></td>
+                <td><span class="cell-state partial">已公开</span><strong>Script to beats/pages</strong><p>自动拆场景与画格。</p></td>
+                <td><span class="cell-state partial">轻量</span><strong>LLM 拆 panel</strong><p>主要服务整页快速生成。</p></td>
+              </tr>
+              <tr data-focus="workflow">
+                <td><strong>出图门禁 preflight</strong><p>角色/场景/分镜版本校验</p></td>
+                <td class="ours"><span class="cell-state yes">已实现</span><strong>章节级确认</strong><p>绑定正式分镜、角色定稿与任务输入。</p></td>
+                <td><span class="cell-state unknown">未见公开证据</span><strong>不能写“无”</strong><p>角色映射与画布能力不等于显式门禁。</p></td>
+                <td><span class="cell-state unknown">未见同类契约</span><strong>待实测</strong><p>有项目/角色/故事板，不代表同一门禁。</p></td>
+                <td><span class="cell-state unknown">未见同类契约</span><strong>待实测</strong><p>角色/LoRA/页面资产不等于版本放行。</p></td>
+                <td><span class="cell-state no">未实现</span><strong>无生产门禁</strong><p>开源源码以快速生成页面为主。</p></td>
+              </tr>
+              <tr data-focus="workflow">
+                <td><strong>任务 / 素材追溯</strong><p>来源、版本、manifest</p></td>
+                <td class="ours"><span class="cell-state yes">已实现骨架</span><strong>task + asset + manifest</strong><p>候选、锁定图、页面和包可回溯。</p></td>
+                <td><span class="cell-state unknown">未见公开细节</span><strong>待实测</strong><p>不能根据画布自动推定 manifest。</p></td>
+                <td><span class="cell-state partial">历史较完整</span><strong>Version / Generation History</strong><p>资产复用强；manifest 契约未公开。</p></td>
+                <td><span class="cell-state partial">有资产管理</span><strong>Gallery / project assets</strong><p>任务级 manifest 未公开。</p></td>
+                <td><span class="cell-state no">弱</span><strong>前端状态为主</strong><p>没有章节任务与正式素材包契约。</p></td>
+              </tr>
+
+              <tr data-focus="iteration">
+                <td><strong>单格生成 / 重画</strong><p>保留其他画格</p></td>
+                <td class="ours"><span class="cell-state yes">已实现</span><strong>新任务形成新批次</strong><p>旧候选保留。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>逐格编辑</strong><p>screenplay 每格可编辑，画布支持多种生成模式。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Panel redraw</strong><p>同时支持批量重画。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Regenerate panel / element</strong><p>配合画布与角色一致性。</p></td>
+                <td><span class="cell-state yes">源码确认</span><strong>Redraw</strong><p>单格按钮重新生成，不需整页重做。</p></td>
+              </tr>
+              <tr data-focus="iteration">
+                <td><strong>候选 / 版本历史</strong><p>多次生成可回退</p></td>
+                <td class="ours"><span class="cell-state partial">批次已实现</span><strong>taskId 分批</strong><p>缺 prompt 版本、恢复命令和状态闭环。</p></td>
+                <td><span class="cell-state unknown">待实测</span><strong>公开资料不足</strong><p>不做强弱判断。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>两类 History</strong><p>版本恢复与生成资产复用分层。</p></td>
+                <td><span class="cell-state unknown">待实测</span><strong>有资产管理</strong><p>是否自动保存每次修改未公开确认。</p></td>
+                <td><span class="cell-state no">弱</span><strong>重画覆盖当前格</strong><p>未见正式候选版本历史。</p></td>
+              </tr>
+              <tr data-focus="iteration">
+                <td><strong>prompt 透明与编辑</strong><p>生成依据可理解、可追溯</p></td>
+                <td class="ours"><span class="cell-state partial">可见不可编辑</span><strong>完整 prompt 预览</strong><p>编辑与版本落盘是下一步。</p></td>
+                <td><span class="cell-state partial">文字指令可编辑</span><strong>公开页可确认</strong><p>最终 provider prompt 透明度待实测。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Prompt history / edit</strong><p>适合参考迭代与复用。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Advanced prompt controls</strong><p>画格/图像生成可调。</p></td>
+                <td><span class="cell-state yes">源码确认</span><strong>Edit Prompt</strong><p>单格 prompt 弹窗直接修改。</p></td>
+              </tr>
+              <tr data-focus="iteration">
+                <td><strong>局部修图 inpaint</strong><p>遮罩区域重生成</p></td>
+                <td class="ours"><span class="cell-state no">未实现</span><strong>provider 已有 edit 差异</strong><p>仍缺统一 mask 契约、编辑器与追溯。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Inpainting</strong><p>画布内保留原构图局部编辑。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Partial modification</strong><p>支持选区局部修改。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Inpaint</strong><p>与无限画布和图像工具同套件。</p></td>
+                <td><span class="cell-state no">未见实现</span><strong>主要是整格重画</strong><p>当前源码无 mask 编辑器。</p></td>
+              </tr>
+
+              <tr data-focus="delivery">
+                <td><strong>对白 / 旁白文字层</strong><p>可编辑而非烘焙进图</p></td>
+                <td class="ours"><span class="cell-state no">未实现</span><strong>上游已有 dialogue/caption</strong><p>缺布局实体、编辑器与导出渲染。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>多种气泡与可调 tail</strong><p>支持连接气泡。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Bubble editor / import</strong><p>同时有自动导入与人工编辑。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>可移动文字/气泡层</strong><p>支持字体、竖排和尾巴调整。</p></td>
+                <td><span class="cell-state partial">源码确认</span><strong>可编辑 Caption</strong><p>轻量覆盖层，专业气泡控制有限。</p></td>
+              </tr>
+              <tr data-focus="delivery">
+                <td><strong>多镜页面排版</strong><p>模板、读序、画格位置</p></td>
+                <td class="ours"><span class="cell-state partial">一镜一页</span><strong>layout 数据已存在</strong><p>尚无真正多格拼版。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>无限画布 + frame</strong><p>适合自由编排漫画页。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>模板与动态 panel flow</strong><p>支持 print 与 webtoon 方向。</p></td>
+                <td><span class="cell-state yes">已公开</span><strong>Layouts / templates</strong><p>漫画页、Webtoon 和画布。</p></td>
+                <td><span class="cell-state yes">源码确认</span><strong>多种固定布局</strong><p>轻量模板，不是无限画布。</p></td>
+              </tr>
+              <tr data-focus="delivery">
+                <td><strong>导出与发布</strong><p>PNG、长图、ZIP、PDF、平台</p></td>
+                <td class="ours"><span class="cell-state partial">PNG 序列 + 目录包</span><strong>manifest 已有</strong><p>缺长图、ZIP、PDF 与发布渠道适配。</p></td>
+                <td><span class="cell-state yes">发布已公开</span><strong>Reader 发布与变现</strong><p>发布侧接 JPEG/PNG；PDF 待验证。</p></td>
+                <td><span class="cell-state yes">多格式</span><strong>PDF / PNG / storyboard formats / MP4</strong><p>适合生产交接与展示。</p></td>
+                <td><span class="cell-state yes">多格式</span><strong>PNG / PDF / video</strong><p>官方自述支持打印与网络输出。</p></td>
+                <td><span class="cell-state partial">Print to PDF</span><strong>轻量导出</strong><p>未确认 300 DPI 与专业印刷规范。</p></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="references">
+      <div class="section-head">
+        <div class="section-no">05</div>
+        <div>
+          <h2>局部能力参考：不要再混进漫画总分</h2>
+          <p>这些产品不是 AI漫游的完整直接竞品，但某个环节值得借鉴。每张卡只回答“学什么”和“不能由此推断什么”。</p>
+        </div>
+      </div>
+      <div class="reference-grid">
+        <article class="card reference-card">
+          <h3>Midjourney / Niji</h3><div class="kind">生图与局部编辑</div>
+          <p>官方文档确认默认四图、reroll/rerun、参考图权重和 Editor mask/inpainting。</p>
+          <div class="reference-rule"><b>学：</b>一次多候选、变体、遮罩编辑心智。<br><b>不推断：</b>不具备漫画章节业务链。</div>
+        </article>
+        <article class="card reference-card">
+          <h3>Katalist</h3><div class="kind">脚本到故事板</div>
+          <p>脚本自动拆镜、角色一致性、镜头的 framing / angle / pose / composition 控制。</p>
+          <div class="reference-rule"><b>学：</b>分镜视觉化和镜头控制。<br><b>不推断：</b>故事板输出不等于漫画成稿。</div>
+        </article>
+        <article class="card reference-card">
+          <h3>LTX Studio</h3><div class="kind">故事板到视频时间线</div>
+          <p>从 script 生成 scenes/storyboards，提供 Dynamic Storyboard、Timeline/Video Editor 与一致性 Elements。</p>
+          <div class="reference-rule"><b>学：</b>阶段衔接、Retake、时间线。<br><b>不推断：</b>视频 workflow 不等于漫画排版。</div>
+        </article>
+        <article class="card reference-card">
+          <h3>Runway Gen-4</h3><div class="kind">参考图一致性</div>
+          <p>官方帮助中心确认单张或多张 References 可保持人物、物体、地点与风格。</p>
+          <div class="reference-rule"><b>学：</b>参考资产命名、复用和多场景一致性。<br><b>不推断：</b>模型一致性不能替代角色版本契约。</div>
+        </article>
+        <article class="card reference-card">
+          <h3>即梦</h3><div class="kind">中文画布与图像编辑</div>
+          <p>公开官网可确认智能画布、局部重绘、扩图、消除和抠图；具体九宫格/故事板能力需按账号实测。</p>
+          <div class="reference-rule"><b>学：</b>中文指令与局部编辑入口。<br><b>不推断：</b>不要与可灵合成一个能力列。</div>
+        </article>
+        <article class="card reference-card">
+          <h3>可灵</h3><div class="kind">图片编辑与视频生成</div>
+          <p>快手官方公开资料确认图片局部重绘/扩图与视频生成体系；它更接近动态内容平台。</p>
+          <div class="reference-rule"><b>学：</b>静态画格到视频延展。<br><b>不推断：</b>不因视频强就判定漫画生产强。</div>
+        </article>
+        <article class="card reference-card">
+          <h3>ComfyUI App Mode</h3><div class="kind">底层工作流产品化</div>
+          <p>官方 App Mode 可把节点 workflow 的选定输入输出包装成简化应用界面，并保存、分享、运行。</p>
+          <div class="reference-rule"><b>学：</b>内部 workflow 与用户界面分离。<br><b>不推断：</b>AI漫游默认 UI 不应变成节点编辑器。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="roadmap">
+      <div class="section-head">
+        <div class="section-no">06</div>
+        <div>
+          <h2>修正后的优先级</h2>
+          <p>不按竞品功能数量排期。先关闭当前状态语义，再定义首个交付渠道，最后由真实失败类型决定 inpaint 和视频的投入。</p>
+        </div>
+      </div>
+      <div class="roadmap-grid">
+        <article class="card roadmap-card">
+          <div class="roadmap-head"><small>NOW · 先收口</small><h3>候选迭代闭环</h3><p>把“看得到”升级为“语义完整、可恢复”。</p></div>
+          <ul class="roadmap-list">
+            <li><b>候选状态命令/API</b><span>明确 selected、locked、rejected、superseded 的用户动作和状态转换。</span></li>
+            <li><b>prompt 编辑与版本</b><span>编辑后创建新批次，记录完整 prompt 与来源，不覆盖旧依据。</span></li>
+            <li><b>真实路径复核</b><span>验证多批重画、批量失败、锁定、排版和素材包的完整用户路径。</span></li>
+          </ul>
+        </article>
+        <article class="card roadmap-card">
+          <div class="roadmap-head"><small>NEXT · 做成稿</small><h3>首个可交付漫画格式</h3><p>从图片序列跨到真正可读的一章漫画。</p></div>
+          <ul class="roadmap-list">
+            <li><b>先选竖滑 / 页漫 / 四格</b><span>第一版只服务一个主格式，避免同时建设三套布局模型。</span></li>
+            <li><b>可序列化气泡文字层</b><span>dialogue/caption、位置、尺寸、样式、tail、读序；先人工可编辑。</span></li>
+            <li><b>多镜模板与渠道导出</b><span>线上优先长图/PNG/ZIP；印刷或审阅场景再补 PDF。</span></li>
+          </ul>
+        </article>
+        <article class="card roadmap-card">
+          <div class="roadmap-head"><small>CONDITIONAL · 条件式</small><h3>局部修图与视频延展</h3><p>由用户失败数据和项目路线共同决定。</p></div>
+          <ul class="roadmap-list">
+            <li><b>inpaint 不必先做无限画布</b><span>可从单图 mask 弹窗开始，但必须先统一 provider edit/mask 契约与追溯。</span></li>
+            <li><b>基础轻漫剧仍是 P0.5</b><span>如要降为 P2，必须同步修改产品路线和正式决策，不能由竞品报告静默改变。</span></li>
+            <li><b>专家模式不排默认路线</b><span>ComfyUI 只保留底层兼容思路，等明确专家用户需求再决定界面。</span></li>
+          </ul>
+        </article>
+      </div>
+      <div class="principle"><b>排期原则：</b>如果一个功能不能缩短“正式分镜 → 可交付一章漫画”的真实路径，或不能提高生成失败后的可恢复性，就不应仅因为竞品有而进入近期主线。</div>
+    </section>
+
+    <section class="section" id="decisions">
+      <div class="section-head">
+        <div class="section-no">07</div>
+        <div>
+          <h2>后续功能讨论清单</h2>
+          <p>下一轮讨论不需要重新从竞品开始。按下面六个决策题逐项收口，就能形成气泡、排版、prompt 和 inpaint 的正式方案。</p>
+        </div>
+      </div>
+      <div class="decision-grid">
+        <article class="card decision-card">
+          <h3>第一版交付的是哪种漫画？</h3>
+          <p>竖滑条漫、横版页漫、四格还是印刷 PDF？这决定页面尺寸、画格模板、读序和导出物。</p>
+          <div class="recommendation"><b>建议默认：</b>如果面向中文线上连载，优先竖滑条漫 + 长图/PNG/ZIP；PDF 作为后续审阅或印刷出口。</div>
+        </article>
+        <article class="card decision-card">
+          <h3>气泡 V1 做到什么程度？</h3>
+          <p>只需人工移动与改字，还是必须自动放置、自动尾巴指向、碰撞避让和竖排？</p>
+          <div class="recommendation"><b>建议默认：</b>先做人工可编辑文字层 + 基础样式；自动布局只提供建议，不作为首版阻塞条件。</div>
+        </article>
+        <article class="card decision-card">
+          <h3>selected 和 locked 有什么差别？</h3>
+          <p>selected 是临时候选、locked 是下游正式输入，还是二者对普通用户只保留一个？</p>
+          <div class="recommendation"><b>建议默认：</b>selected 可多选/暂存，locked 每镜唯一且触发下游；rejected 可恢复，superseded 由系统派生。</div>
+        </article>
+        <article class="card decision-card">
+          <h3>prompt 编辑放在哪一层？</h3>
+          <p>改镜头字段、改组合后的 provider prompt，还是建立“高级 prompt 覆盖值”？不同选择影响事实源和可追溯性。</p>
+          <div class="recommendation"><b>建议默认：</b>保留结构化镜头事实，允许候选阶段设置本次生成覆盖值；每次覆盖都随新批次落盘。</div>
+        </article>
+        <article class="card decision-card">
+          <h3>inpaint 首先解决哪类失败？</h3>
+          <p>脸崩、手指、服装、道具、背景、文字残留的技术路径不同，不能用一个“局部重绘”按钮概括。</p>
+          <div class="recommendation"><b>建议默认：</b>先记录整镜重画失败原因；若脸/局部物体问题占比高，再做 mask 弹窗和 provider 适配。</div>
+        </article>
+        <article class="card decision-card">
+          <h3>视频 P0.5 与漫画成稿如何并行？</h3>
+          <p>先完成静态漫画交付，再做基础漫剧；还是两条小队并行？需要明确同一 Shot 的素材与状态如何共享。</p>
+          <div class="recommendation"><b>建议默认：</b>静态成稿为主线，视频只消费锁定图和 motion 字段，不反向阻塞漫画排版。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="sources">
+      <div class="section-head">
+        <div class="section-no">08</div>
+        <div>
+          <h2>来源与复核边界</h2>
+          <p>优先链接官方文档、官方发布说明和官方源码。商业产品功能可能按账号、地区和套餐变化。</p>
+        </div>
+      </div>
+      <div class="source-wrap">
+        <details open>
+          <summary>直接竞品官方来源</summary>
+          <ul class="source-list">
+            <li><a href="https://insiders.dashtoon.com/dashtoon-studio-august-2024-release/">Dashtoon Studio August 2024 Release</a></li>
+            <li><a href="https://dashtoon.com/create">Dashtoon Create</a> / <a href="https://dashtoon.com/publish">Publish</a></li>
+            <li><a href="https://llamagen.ai/releases/2024-03-10">LlamaGen Panel Redraw</a></li>
+            <li><a href="https://llamagen.ai/releases/2024-03-15">LlamaGen PDF Export</a></li>
+            <li><a href="https://llamagen.ai/releases/2025-09-22">LlamaGen History & Batch Redraw</a></li>
+            <li><a href="https://llamagen.ai/releases/2026-01-22">LlamaGen Storyboard Exports</a></li>
+            <li><a href="https://anifusion.ai/all-features/">Anifusion All Features</a></li>
+            <li><a href="https://anifusion.ai/features/ai-comic-creator/">Anifusion Comic Creator</a></li>
+            <li><a href="https://github.com/jbilcke-hf/ai-comic-factory">AI Comic Factory Repository</a></li>
+            <li><a href="https://github.com/jbilcke-hf/ai-comic-factory/blob/main/src/app/interface/panel/index.tsx">AI Comic Factory Panel Source</a></li>
+          </ul>
+        </details>
+        <details>
+          <summary>局部能力参考官方来源</summary>
+          <ul class="source-list">
+            <li><a href="https://docs.midjourney.com/hc/en-us/articles/33329261836941-Getting-Started-Guide">Midjourney Getting Started</a></li>
+            <li><a href="https://docs.midjourney.com/hc/en-us/articles/32764383466893-Editor">Midjourney Editor</a></li>
+            <li><a href="https://docs.midjourney.com/hc/en-us/articles/32040250122381-Image-Prompts">Midjourney Image Prompts</a></li>
+            <li><a href="https://www.katalist.ai/">Katalist</a></li>
+            <li><a href="https://website.ltx.studio/">LTX Studio</a></li>
+            <li><a href="https://help.runwayml.com/hc/en-us/articles/40042718905875-Creating-with-Gen-4-Image-References">Runway Gen-4 References</a></li>
+            <li><a href="https://www.jimeng.com/">即梦官网</a></li>
+            <li><a href="https://ir.kuaishou.com/zh-hans/news-releases/news-release-details/kling-ai-advances-20-era-empowering-everyone-tell-great-stories">快手：可灵 2.0 官方发布</a></li>
+            <li><a href="https://docs.comfy.org/interface/app-mode">ComfyUI App Mode</a></li>
+          </ul>
+        </details>
+        <details>
+          <summary>AI漫游项目内证据</summary>
+          <ul class="source-list">
+            <li>apps/web/src/components/workbench/ImageCandidatesWorkspace.vue</li>
+            <li>apps/web/src/components/workbench/StoryboardWorkspace.vue</li>
+            <li>apps/web/src/stores/workbench-store.ts</li>
+            <li>apps/web/src/utils/candidate-prompt.ts</li>
+            <li>apps/server/src/projects/image-candidate.service.ts</li>
+            <li>apps/server/src/projects/layout-export.service.ts</li>
+            <li>文档/00_索引/AI上下文入口.md</li>
+            <li>文档/04_方案与决策/2026-07-10_全功能竞品对照复核.md</li>
+          </ul>
+        </details>
+      </div>
+      <div class="audit-note">
+        <b>边界说明：</b>本轮没有登录商业平台执行同一脚本、同一角色、同一章节的付费实测，因此不比较生成质量、速度、稳定性、成本和套餐可用性。
+        “官方已公开”只代表资料可确认，不代表体验已经独立验证。原 `全功能竞品对照-终版.html` 保留不动，本页作为功能讨论基线。
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>AI漫游 · AI漫画全功能竞品对照复核版</span>
+      <span>事实源日期：2026-07-10 · 下一步：围绕第 07 节逐项讨论功能契约</span>
+    </footer>
+  </main>
+
+  <button class="backtop" type="button" aria-label="返回顶部" title="返回顶部">↑</button>
+
+  <script>
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const matrixRows = document.querySelectorAll('tr[data-focus]');
+
+    filterButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const filter = button.dataset.filter;
+        filterButtons.forEach((item) => item.classList.toggle('is-active', item === button));
+        matrixRows.forEach((row) => {
+          row.classList.toggle('is-hidden', filter !== 'all' && row.dataset.focus !== filter);
+        });
+      });
+    });
+
+    const navLinks = Array.from(document.querySelectorAll('.section-nav a'));
+    const sections = navLinks
+      .map((link) => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+
+    const sectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        navLinks.forEach((link) => {
+          link.classList.toggle('is-active', link.getAttribute('href') === `#${entry.target.id}`);
+        });
+      });
+    }, { rootMargin: '-20% 0px -68% 0px', threshold: 0 });
+
+    sections.forEach((section) => sectionObserver.observe(section));
+
+    const backtop = document.querySelector('.backtop');
+    const updateBacktop = () => backtop.classList.toggle('is-visible', window.scrollY > 700);
+    window.addEventListener('scroll', updateBacktop, { passive: true });
+    backtop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    updateBacktop();
+  </script>
+</body>
+</html>

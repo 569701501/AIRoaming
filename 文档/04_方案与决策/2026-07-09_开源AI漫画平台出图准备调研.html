@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开源 AI 漫画平台调研 · 出图准备判断</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #121a2f;
+    --panel-2: #18213a;
+    --panel-3: #0f172a;
+    --border: rgba(148, 163, 184, 0.18);
+    --border-strong: rgba(94, 234, 212, 0.38);
+    --text: #e8eefc;
+    --soft: #d5def2;
+    --muted: #97a5c2;
+    --teal: #5eead4;
+    --indigo: #a5b4fc;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --rose: #fb7185;
+    --ink: #061421;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.72;
+  }
+  a { color: var(--teal); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap {
+    width: min(1180px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 32px 0 72px;
+  }
+
+  .hero {
+    border: 1px solid var(--border-strong);
+    background:
+      linear-gradient(135deg, rgba(94, 234, 212, 0.13), rgba(165, 180, 252, 0.08) 46%, rgba(251, 191, 36, 0.07)),
+      var(--panel-3);
+    border-radius: 8px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--teal);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--teal);
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(26px, 4vw, 44px);
+    line-height: 1.16;
+    letter-spacing: 0;
+  }
+  .lead {
+    margin: 0;
+    max-width: 860px;
+    color: var(--soft);
+    font-size: 16px;
+  }
+  .meta {
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .meta span {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    background: rgba(15, 23, 42, 0.6);
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 18px 0 0;
+  }
+  .summary-card {
+    background: rgba(18, 26, 47, 0.82);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .summary-card .label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    margin-bottom: 5px;
+  }
+  .summary-card .value {
+    color: #fff;
+    font-size: 21px;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+  .summary-card p {
+    color: var(--soft);
+    font-size: 13px;
+    margin: 8px 0 0;
+  }
+
+  section {
+    margin-top: 28px;
+  }
+  .section-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  h2 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 21px;
+    line-height: 1.3;
+  }
+  h2 .num {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--teal);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 950;
+  }
+  .section-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    max-width: 540px;
+  }
+
+  .decision {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 14px;
+  }
+  .decision-main,
+  .decision-side {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .decision-main {
+    border-color: rgba(52, 211, 153, 0.38);
+  }
+  .decision-main h3,
+  .decision-side h3 {
+    margin: 0 0 10px;
+    font-size: 17px;
+  }
+  .decision-main p,
+  .decision-side p {
+    margin: 0;
+    color: var(--soft);
+    font-size: 14px;
+  }
+  .formula {
+    margin-top: 14px;
+    display: grid;
+    gap: 8px;
+  }
+  .formula div {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--teal);
+    border-radius: 8px;
+    background: var(--panel-2);
+    padding: 11px 12px;
+    color: #fff;
+    font-weight: 800;
+  }
+  .formula span {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .project-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    min-height: 190px;
+  }
+  .project-card.strong { border-top: 3px solid var(--green); }
+  .project-card.mid { border-top: 3px solid var(--amber); }
+  .project-card.tool { border-top: 3px solid var(--indigo); }
+  .project-card.pipe { border-top: 3px solid var(--rose); }
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .project-card h3 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.3;
+  }
+  .tag {
+    display: inline-flex;
+    white-space: nowrap;
+    color: var(--ink);
+    background: var(--teal);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 900;
+  }
+  .tag.archived { background: var(--rose); color: #1e0b12; }
+  .tag.demo { background: var(--amber); color: #271700; }
+  .tag.tool { background: var(--indigo); color: #111827; }
+  .project-card p {
+    margin: 8px 0 0;
+    color: var(--soft);
+    font-size: 13px;
+  }
+  .project-card .take {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .matrix-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+    font-size: 13px;
+  }
+  th,
+  td {
+    padding: 12px 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--panel-2);
+    color: var(--muted);
+    text-align: left;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  tr:last-child td { border-bottom: 0; }
+  th:first-child,
+  td:first-child {
+    width: 22%;
+    color: #fff;
+    font-weight: 850;
+  }
+  .ours-col {
+    background: rgba(94, 234, 212, 0.06);
+  }
+  .state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    margin-bottom: 6px;
+  }
+  .state.good { color: #042016; background: var(--green); }
+  .state.part { color: #241600; background: var(--amber); }
+  .state.no { color: #2a0811; background: var(--rose); }
+  .state.na { color: #111827; background: var(--indigo); }
+  .cell-note {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .lane {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 16px;
+  }
+  .lane.keep { border-top: 3px solid var(--green); }
+  .lane.next { border-top: 3px solid var(--teal); }
+  .lane.later { border-top: 3px solid var(--amber); }
+  .lane h3 {
+    margin: 0 0 12px;
+    font-size: 16px;
+  }
+  .lane ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--soft);
+    font-size: 13px;
+  }
+  .lane li { margin: 8px 0; }
+  .lane b { color: #fff; }
+
+  .roadmap {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .phase {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 16px;
+  }
+  .phase .phase-name {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 12px;
+    font-weight: 900;
+    background: rgba(94, 234, 212, 0.16);
+    color: var(--teal);
+    margin-bottom: 10px;
+  }
+  .phase h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+  .phase p {
+    margin: 0;
+    color: var(--soft);
+    font-size: 13px;
+  }
+
+  .source-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .source-list a {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 10px 12px;
+    color: var(--soft);
+    font-size: 13px;
+  }
+  .source-list a span {
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .footnote {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  @media (max-width: 920px) {
+    .summary-grid,
+    .decision,
+    .cards,
+    .three-col,
+    .roadmap,
+    .source-list {
+      grid-template-columns: 1fr;
+    }
+    .hero { padding: 22px; }
+    .section-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+
+  @media print {
+    body { background: #fff; color: #111827; }
+    .hero,
+    .summary-card,
+    .decision-main,
+    .decision-side,
+    .project-card,
+    .lane,
+    .phase,
+    .source-list a,
+    .matrix-wrap {
+      background: #fff;
+      color: #111827;
+      border-color: #cbd5e1;
+    }
+    .lead,
+    .section-note,
+    .project-card p,
+    .decision-main p,
+    .decision-side p,
+    .lane ul,
+    .phase p,
+    .cell-note,
+    .footnote {
+      color: #334155;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <div class="eyebrow">Open Source Research</div>
+      <h1>开源 AI 漫画平台调研：出图准备要保留，但边界要更轻</h1>
+      <p class="lead">基于 GitHub 热门开源项目与 AI漫游当前链路，对“分镜工作台之后、候选工作台之前”的出图准备做判断：它不是多余步骤，而是生产级漫画链路里少见但很关键的版本门禁和生成上下文快照。</p>
+      <div class="meta">
+        <span>调研日期：2026-07-09</span>
+        <span>范围：漫画垂直项目 · 通用生图工作台 · 漫画处理管线</span>
+        <span>目标：判断出图准备是否保留，并指导候选工作台</span>
+      </div>
+      <div class="summary-grid">
+        <article class="summary-card">
+          <div class="label">总判断</div>
+          <div class="value">保留出图准备</div>
+          <p>只做“能不能出图”的检查与版本放行，不承载复杂创作编辑。</p>
+        </article>
+        <article class="summary-card">
+          <div class="label">市场启发</div>
+          <div class="value">强在生成，弱在门禁</div>
+          <p>ComfyUI、A1111、InvokeAI 等生图能力强，但缺漫画章节级业务检查。</p>
+        </article>
+        <article class="summary-card">
+          <div class="label">下一步重心</div>
+          <div class="value">强化候选工作台</div>
+          <p>补 prompt 可见、单镜重画、批量生成、候选批次和生成历史。</p>
+        </article>
+      </div>
+    </header>
+
+    <section>
+      <div class="section-head">
+        <h2><span class="num">1</span>一句话结论</h2>
+        <p class="section-note">把出图准备从“功能页”理解成“生产放行口”，它的价值就清楚了。</p>
+      </div>
+      <div class="decision">
+        <article class="decision-main">
+          <h3>AI漫游现在的方向是对的</h3>
+          <p>开源生态里，大多数工具直接从 prompt 或 workflow 进入生成；它们擅长参数、节点、inpaint、variation，但很少处理“正式分镜版本、角色是否定稿、场景是否绑定、生成任务能否追溯到资产来源”。AI漫游的出图准备正好补的是这个生产风险。</p>
+          <div class="formula">
+            <div>出图准备 <span>= 出门检查单 + 生成上下文快照</span></div>
+            <div>候选工作台 <span>= 单镜生成 / 批量生成 / 多候选比较 / prompt 可编辑 / 锁定与废弃 / 生成历史</span></div>
+          </div>
+        </article>
+        <article class="decision-side">
+          <h3>边界要收住</h3>
+          <p>出图准备不应该变成一个新的创作工作台。角色图、场景图、风格板可以在这里提示缺口和提供跳转，但真正的生成、重画、候选比较、参数调整都应该留给候选工作台。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2><span class="num">2</span>调研项目全景</h2>
+        <p class="section-note">热度以 2026-07-09 查询到的 GitHub 数据为参考，重点看它们有没有类似“出图准备”的能力。</p>
+      </div>
+      <div class="cards">
+        <article class="project-card strong">
+          <div class="card-top">
+            <h3><a href="https://github.com/HVision-NKU/StoryDiffusion">StoryDiffusion</a></h3>
+            <span class="tag">约 6.4k stars</span>
+          </div>
+          <p>强项是长序列角色一致性，支持 comics generation demo，说明“角色一致性”确实是漫画生成核心问题。</p>
+          <div class="take">启发：AI漫游的角色定稿硬门槛应该保留。</div>
+        </article>
+
+        <article class="project-card strong">
+          <div class="card-top">
+            <h3><a href="https://github.com/yuanzhongqiao/printfilm">PrintFilm</a></h3>
+            <span class="tag">约 2.8k stars</span>
+          </div>
+          <p>采用 Script-to-Asset-to-Keyframe 路线：先剧情分镜，再角色/场景资产，再关键帧/视频，再导出。</p>
+          <div class="take">启发：出图前资产准备不是臆造，长链路工具也会先做资产阶段。</div>
+        </article>
+
+        <article class="project-card mid">
+          <div class="card-top">
+            <h3><a href="https://github.com/jbilcke-hf/ai-comic-factory">AI Comic Factory</a></h3>
+            <span class="tag archived">已归档</span>
+          </div>
+          <p>LLM + SDXL 生成 comic panels，demo 价值高，但缺完整章节生产、正式分镜门禁和资产准备检查。</p>
+          <div class="take">启发：一把梭适合 demo，不适合可返修的漫画生产。</div>
+        </article>
+
+        <article class="project-card mid">
+          <div class="card-top">
+            <h3><a href="https://github.com/Dapeng960208/AI-Comic-Generator">AI-Comic-Generator</a></h3>
+            <span class="tag demo">低星但贴近</span>
+          </div>
+          <p>JSON 驱动，包含角色一致性检查、三视图、单格重画、批量生成和后台任务。</p>
+          <div class="take">启发：候选工作台要把“单镜重画”和“批量队列”做成一等能力。</div>
+        </article>
+
+        <article class="project-card mid">
+          <div class="card-top">
+            <h3><a href="https://github.com/BluePointDigital/mangagen">MangaGen</a></h3>
+            <span class="tag demo">本地优先</span>
+          </div>
+          <p>强调项目素材桶、生成历史、批量队列、provider route、项目导入导出。</p>
+          <div class="take">启发：生成历史和 provider 参数追溯应进入候选工作台。</div>
+        </article>
+
+        <article class="project-card mid">
+          <div class="card-top">
+            <h3><a href="https://github.com/Story-Engine-Inc/Komiko">Komiko</a></h3>
+            <span class="tag demo">产品入口</span>
+          </div>
+          <p>强调角色库、AI canvas 和 comic studio，但仓库更像商业产品展示入口。</p>
+          <div class="take">启发：角色库与画布能力有价值，但不能替代生成前版本门禁。</div>
+        </article>
+
+        <article class="project-card tool">
+          <div class="card-top">
+            <h3><a href="https://github.com/Comfy-Org/ComfyUI">ComfyUI</a></h3>
+            <span class="tag tool">约 120k stars</span>
+          </div>
+          <p>节点图和 workflow 复用很强，可组合复杂生图链路，但没有漫画章节级状态、分镜和角色定稿检查。</p>
+          <div class="take">启发：可以学 workflow 可追溯，暂时不学完整节点编辑器。</div>
+        </article>
+
+        <article class="project-card tool">
+          <div class="card-top">
+            <h3><a href="https://github.com/AUTOMATIC1111/stable-diffusion-webui">AUTOMATIC1111 WebUI</a></h3>
+            <span class="tag tool">约 164k stars</span>
+          </div>
+          <p>txt2img、img2img、inpaint、prompt matrix 和参数试验强，是通用生成工作台代表。</p>
+          <div class="take">启发：prompt 透明、参数可见、重跑历史值得吸收。</div>
+        </article>
+
+        <article class="project-card tool">
+          <div class="card-top">
+            <h3><a href="https://github.com/lllyasviel/Fooocus">Fooocus</a></h3>
+            <span class="tag tool">约 50.8k stars</span>
+          </div>
+          <p>降低参数心智，支持 image prompt、variation、inpaint，面向轻量用户。</p>
+          <div class="take">启发：候选工作台应先给简单主路径，再把高级参数收起来。</div>
+        </article>
+
+        <article class="project-card tool">
+          <div class="card-top">
+            <h3><a href="https://github.com/invoke-ai/InvokeAI">InvokeAI</a></h3>
+            <span class="tag tool">约 27.6k stars</span>
+          </div>
+          <p>canvas、workflow、gallery、图像元数据召回更成熟，适合专业创作工作流。</p>
+          <div class="take">启发：生成结果要能召回当时的 prompt、模型、seed 和参考图。</div>
+        </article>
+
+        <article class="project-card tool">
+          <div class="card-top">
+            <h3><a href="https://github.com/Acly/krita-ai-diffusion">Krita AI Diffusion</a></h3>
+            <span class="tag tool">约 10.3k stars</span>
+          </div>
+          <p>在 Krita 内做 inpaint、outpaint、ControlNet、IP-Adapter，适合锁图后的精修。</p>
+          <div class="take">启发：局部修图很重要，但应放在候选锁定后的精修阶段。</div>
+        </article>
+
+        <article class="project-card pipe">
+          <div class="card-top">
+            <h3><a href="https://github.com/zyddnys/manga-image-translator">漫画翻译管线</a></h3>
+            <span class="tag archived">约 10k stars</span>
+          </div>
+          <p>manga-image-translator 与 comic-translate 都把 OCR、inpainting、translation、text rendering 做成阶段管线。</p>
+          <div class="take">启发：漫画工具天然需要阶段化，不应该把所有事情压进一个按钮。</div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2><span class="num">3</span>能力矩阵</h2>
+        <p class="section-note">AI漫游在“业务门禁”上领先，在“候选迭代体验”上要补课。</p>
+      </div>
+      <div class="matrix-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>能力</th>
+              <th class="ours-col">AI漫游</th>
+              <th>漫画垂直项目</th>
+              <th>通用生图工作台</th>
+              <th>漫画处理管线</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>章节级流程状态</td>
+              <td class="ours-col"><span class="state good">强</span><span class="cell-note">剧本 -> 分镜 -> 出图准备 -> 候选图</span></td>
+              <td><span class="state part">部分</span><span class="cell-note">PrintFilm 有阶段，demo 项目多较弱</span></td>
+              <td><span class="state no">无</span><span class="cell-note">以参数和 workflow 为中心</span></td>
+              <td><span class="state part">部分</span><span class="cell-note">有处理阶段，但不是原创生成链路</span></td>
+            </tr>
+            <tr>
+              <td>正式分镜版本门禁</td>
+              <td class="ours-col"><span class="state good">强</span><span class="cell-note">preflight 绑定 storyboardId / updatedAt</span></td>
+              <td><span class="state no">少见</span><span class="cell-note">多数直接从 prompt 或 JSON 生成</span></td>
+              <td><span class="state no">无</span><span class="cell-note">没有故事分镜概念</span></td>
+              <td><span class="state na">不适用</span><span class="cell-note">处理输入页面，不管理分镜版本</span></td>
+            </tr>
+            <tr>
+              <td>角色库与角色定稿</td>
+              <td class="ours-col"><span class="state good">强</span><span class="cell-note">lead / recurring 必须定稿，低频角色按规则放宽</span></td>
+              <td><span class="state part">部分</span><span class="cell-note">StoryDiffusion 等重视一致性</span></td>
+              <td><span class="state part">手工</span><span class="cell-note">依赖 LoRA、IP-Adapter、reference image</span></td>
+              <td><span class="state no">无</span><span class="cell-note">不维护原创角色库</span></td>
+            </tr>
+            <tr>
+              <td>场景 / 风格资产准备</td>
+              <td class="ours-col"><span class="state part">部分</span><span class="cell-note">缺场景参考图 warning，不阻塞</span></td>
+              <td><span class="state part">部分</span><span class="cell-note">PrintFilm 等有 asset 阶段</span></td>
+              <td><span class="state part">参数化</span><span class="cell-note">以 prompt、reference、workflow 存在</span></td>
+              <td><span class="state part">参数化</span><span class="cell-note">检测、修补、渲染参数为主</span></td>
+            </tr>
+            <tr>
+              <td>生成前检查清单</td>
+              <td class="ours-col"><span class="state good">强</span><span class="cell-note">能提前发现角色、场景、分镜版本风险</span></td>
+              <td><span class="state no">弱</span><span class="cell-note">通常没有独立 preflight 页面</span></td>
+              <td><span class="state no">无</span><span class="cell-note">只校验参数或节点能否运行</span></td>
+              <td><span class="state part">阶段</span><span class="cell-note">有任务阶段，但不是创作放行</span></td>
+            </tr>
+            <tr>
+              <td>候选图多选与锁定</td>
+              <td class="ours-col"><span class="state good">强</span><span class="cell-note">一镜多候选 + 显式锁定</span></td>
+              <td><span class="state part">较弱</span><span class="cell-note">小项目有单格重画或批量生成雏形</span></td>
+              <td><span class="state part">工具强</span><span class="cell-note">有 batch、seed、variation，但无 shot 级锁定</span></td>
+              <td><span class="state na">不适用</span><span class="cell-note">不是原创候选管理</span></td>
+            </tr>
+            <tr>
+              <td>prompt 可见可编辑</td>
+              <td class="ours-col"><span class="state no">短板</span><span class="cell-note">系统拼 prompt，但用户当前看不到</span></td>
+              <td><span class="state good">常见</span><span class="cell-note">低星项目反而更直接暴露 prompt</span></td>
+              <td><span class="state good">强</span><span class="cell-note">prompt 和参数是核心工作区</span></td>
+              <td><span class="state good">强</span><span class="cell-note">配置化程度高</span></td>
+            </tr>
+            <tr>
+              <td>单镜重画 / 局部修改</td>
+              <td class="ours-col"><span class="state part">短板</span><span class="cell-note">需要从“再生成一组”升级为明确动作</span></td>
+              <td><span class="state part">部分</span><span class="cell-note">AI-Comic-Generator 支持单格重画</span></td>
+              <td><span class="state good">强</span><span class="cell-note">inpaint、variation、img2img 成熟</span></td>
+              <td><span class="state good">强</span><span class="cell-note">inpaint 与文字重绘是核心能力</span></td>
+            </tr>
+            <tr>
+              <td>生成历史 / 追溯</td>
+              <td class="ours-col"><span class="state part">部分</span><span class="cell-note">已有任务和 preflight 追溯基础</span></td>
+              <td><span class="state part">雏形</span><span class="cell-note">MangaGen 有生成历史思路</span></td>
+              <td><span class="state good">强</span><span class="cell-note">InvokeAI 等支持图像元数据召回</span></td>
+              <td><span class="state good">强</span><span class="cell-note">任务阶段和处理参数较可追溯</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2><span class="num">4</span>产品取舍</h2>
+        <p class="section-note">留下好的，先补最影响真实生产体验的能力。</p>
+      </div>
+      <div class="three-col">
+        <article class="lane keep">
+          <h3>继续保留</h3>
+          <ul>
+            <li><b>出图准备独立步骤</b>，作为候选图前的放行口。</li>
+            <li><b>只读正式分镜</b>，待确认分镜不能污染候选图。</li>
+            <li><b>preflight 绑定分镜版本</b>，分镜变更后自动失效。</li>
+            <li><b>角色定稿硬门槛</b>，尤其 lead / recurring。</li>
+            <li><b>场景参考图 warning</b>，提醒但不拖死主线。</li>
+            <li><b>任务注入参考图资产</b>，保证候选图可追溯。</li>
+            <li><b>一镜多候选 + 显式锁定</b>，优于整页一把梭。</li>
+          </ul>
+        </article>
+
+        <article class="lane next">
+          <h3>优先增强</h3>
+          <ul>
+            <li><b>prompt 预览与可编辑</b>，每个镜头生成前可看可改。</li>
+            <li><b>重画此镜</b>作为一等操作，旧候选保留。</li>
+            <li><b>候选批次 candidateBatch</b>，支持第 1 轮 / 第 2 轮比较。</li>
+            <li><b>批量生成未锁镜头</b>，降低长章节点击成本。</li>
+            <li><b>候选状态可见</b>，显示 generated / locked / rejected / superseded。</li>
+            <li><b>生成历史面板</b>，保存 prompt、参考图、provider、模型、尺寸、seed、任务 ID。</li>
+          </ul>
+        </article>
+
+        <article class="lane later">
+          <h3>暂时后置</h3>
+          <ul>
+            <li><b>ComfyUI 式节点图编辑器</b>，能力强但心智太重。</li>
+            <li><b>完整自由 canvas 排版</b>，先稳定主线，再做复杂排版。</li>
+            <li><b>局部 inpaint / mask 编辑</b>，适合锁图后的精修阶段。</li>
+            <li><b>视频关键帧 / 漫剧生成</b>，PrintFilm 方向值得参考，但不抢当前候选工作台主线。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2><span class="num">5</span>建议路线</h2>
+        <p class="section-note">先把“可生成、可重画、可追溯”的闭环做扎实，再扩展高级编辑。</p>
+      </div>
+      <div class="roadmap">
+        <article class="phase">
+          <div class="phase-name">P0</div>
+          <h3>候选工作台主体验</h3>
+          <p>补 prompt 预览/编辑、单镜重画、候选批次、批量生成、候选状态和锁定。这个阶段直接决定用户是否愿意在工作台里反复打磨。</p>
+        </article>
+        <article class="phase">
+          <div class="phase-name">P1</div>
+          <h3>出图准备轻增强</h3>
+          <p>确认 preflight 时产出只读镜头出图包，包含 shot、角色参考、场景参考、风格片段、默认 prompt 和版本信息。</p>
+        </article>
+        <article class="phase">
+          <div class="phase-name">P2</div>
+          <h3>锁图后的精修工具</h3>
+          <p>再考虑 inpaint、mask、局部重绘、画布排版和视频关键帧。它们有价值，但不应阻塞当前漫画生成主链路。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2><span class="num">6</span>主要来源</h2>
+        <p class="section-note">来源用于支撑产品判断，不代表全部项目都适合直接仿照。</p>
+      </div>
+      <div class="source-list">
+        <a href="https://github.com/jbilcke-hf/ai-comic-factory">AI Comic Factory <span>漫画 demo</span></a>
+        <a href="https://github.com/jbilcke-hf/ai-comic-factory/issues/12">AI Comic Factory issue #12 <span>用户反馈</span></a>
+        <a href="https://github.com/HVision-NKU/StoryDiffusion">StoryDiffusion <span>一致性生成</span></a>
+        <a href="https://github.com/yuanzhongqiao/printfilm">PrintFilm <span>漫剧工作台</span></a>
+        <a href="https://github.com/Dapeng960208/AI-Comic-Generator">AI-Comic-Generator <span>单格与批量</span></a>
+        <a href="https://github.com/BluePointDigital/mangagen">MangaGen <span>本地优先</span></a>
+        <a href="https://github.com/Story-Engine-Inc/Komiko">Komiko <span>商业入口</span></a>
+        <a href="https://github.com/Comfy-Org/ComfyUI">ComfyUI <span>节点工作流</span></a>
+        <a href="https://github.com/AUTOMATIC1111/stable-diffusion-webui">AUTOMATIC1111 WebUI <span>通用生图</span></a>
+        <a href="https://github.com/lllyasviel/Fooocus">Fooocus <span>简化生成</span></a>
+        <a href="https://github.com/invoke-ai/InvokeAI">InvokeAI <span>专业工作台</span></a>
+        <a href="https://github.com/Acly/krita-ai-diffusion">Krita AI Diffusion <span>绘画插件</span></a>
+        <a href="https://github.com/zyddnys/manga-image-translator">manga-image-translator <span>翻译管线</span></a>
+        <a href="https://github.com/ogkalu2/comic-translate">comic-translate <span>处理流程</span></a>
+      </div>
+      <p class="footnote">本页内容来自同目录 Markdown 调研文档《2026-07-09_开源AI漫画平台出图准备调研.md》。星标和状态为 2026-07-09 查询结果，仅作为热度参考。</p>
+    </section>
+  </main>
+</body>
+</html>

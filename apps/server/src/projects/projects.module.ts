@@ -10,6 +10,7 @@ import { StoryStructureService } from "./story-structure.service.js";
 import { ImagePreflightService } from "./image-preflight.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { ImageCandidateService } from "./image-candidate.service.js";
+import { CandidateReferenceResolver } from "./candidate-reference-resolver.js";
 import { LayoutExportService } from "./layout-export.service.js";
 import { AssetPackageService } from "./asset-package.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
@@ -22,6 +23,7 @@ import { ProjectsService } from "./projects.service.js";
   providers: [
     ProjectRepository,
     ImageProviderService,
+    CandidateReferenceResolver,
     ProjectStore,
     CharacterReferenceService,
     ChapterScriptService,

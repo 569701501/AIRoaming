@@ -114,10 +114,11 @@
           <select :value="settings.settings?.activeImageProvider" :disabled="settings.saving" @change="onSwitchProvider">
             <option value="openai">OpenAI 图片生成</option>
             <option value="doubao">豆包图片生成</option>
+            <option value="grok">Grok 图片生成</option>
           </select>
         </label>
 
-        <form v-if="settings.settings?.activeImageProvider !== 'doubao'" class="provider-form" @submit.prevent="saveOpenaiProvider">
+        <form v-if="settings.settings?.activeImageProvider === 'openai'" class="provider-form" @submit.prevent="saveOpenaiProvider">
           <div class="provider-form-head">
             <strong>OpenAI 图片生成</strong>
             <span class="status-pill" :class="{ 'is-ready': openaiImageProviderStatus.configured }">
@@ -155,6 +156,48 @@
             <button class="primary-action" type="submit" :disabled="settings.saving">
               <Save :size="16" />
               <span>{{ settings.saving ? "保存中" : "保存 OpenAI 设置" }}</span>
+            </button>
+          </div>
+        </form>
+
+        <form v-else-if="settings.settings?.activeImageProvider === 'grok'" class="provider-form" @submit.prevent="saveGrokProvider">
+          <div class="provider-form-head">
+            <strong>Grok 图片生成</strong>
+            <span class="status-pill" :class="{ 'is-ready': grokImageProviderStatus.configured }">
+              {{ grokImageProviderStatus.configured ? "已配置" : "未配置" }}
+            </span>
+          </div>
+          <div class="field-grid">
+            <label>
+              <span>服务商</span>
+              <input v-model.trim="grokImageForm.providerName" autocomplete="off" placeholder="Grok 图片生成" />
+            </label>
+            <label>
+              <span>模型</span>
+              <input v-model.trim="grokImageForm.modelId" autocomplete="off" placeholder="grok-imagine-image-quality" />
+            </label>
+            <label class="is-wide">
+              <span>Base URL</span>
+              <input v-model.trim="grokImageForm.baseUrl" autocomplete="off" placeholder="https://api.x.ai/v1 或你的中转地址" />
+            </label>
+            <label class="is-wide">
+              <span>API Key</span>
+              <input
+                v-model.trim="grokImageForm.apiKey"
+                autocomplete="new-password"
+                placeholder="留空则保留当前密钥"
+                type="password"
+              />
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button class="secondary-action" type="button" :disabled="settings.saving || !grokImageProviderStatus.configured" @click="clearGrokProvider">
+              <Trash2 :size="16" />
+              <span>清除密钥</span>
+            </button>
+            <button class="primary-action" type="submit" :disabled="settings.saving">
+              <Save :size="16" />
+              <span>{{ settings.saving ? "保存中" : "保存 Grok 设置" }}</span>
             </button>
           </div>
         </form>
@@ -233,7 +276,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import type { AppearanceTheme } from "@airoaming/shared";
+import type { AppearanceTheme, ImageProviderType } from "@airoaming/shared";
 import { Check, ImagePlus, KeyRound, Monitor, Moon, Palette, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
 import { useSettingsStore } from "../../stores/settings-store";
 
@@ -258,6 +301,13 @@ const doubaoImageForm = reactive({
   providerName: "豆包图片生成",
   modelId: "doubao-seedream-4-5-251128",
   baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+  apiKey: "",
+});
+const grokImageForm = reactive({
+  providerId: "grok_image",
+  providerName: "Grok 图片生成",
+  modelId: "grok-imagine-image-quality",
+  baseUrl: "https://api.x.ai/v1",
   apiKey: "",
 });
 
@@ -318,10 +368,26 @@ const doubaoImageProviderStatus = computed(() => settings.settings?.doubaoImageP
   keyFingerprint: null,
   updatedAt: null,
 });
+const grokImageProviderStatus = computed(() => settings.settings?.grokImageProvider ?? {
+  providerId: "grok_image",
+  providerName: "Grok 图片生成",
+  modelId: "grok-imagine-image-quality",
+  baseUrl: "https://api.x.ai/v1",
+  configured: false,
+  keyPreview: null,
+  keyFingerprint: null,
+  updatedAt: null,
+});
 /** 当前生效 provider 的状态(用于顶部标题徽章) */
-const activeImageProviderStatus = computed(() =>
-  settings.settings?.activeImageProvider === "doubao" ? doubaoImageProviderStatus.value : openaiImageProviderStatus.value,
-);
+const activeImageProviderStatus = computed(() => {
+  if (settings.settings?.activeImageProvider === "doubao") {
+    return doubaoImageProviderStatus.value;
+  }
+  if (settings.settings?.activeImageProvider === "grok") {
+    return grokImageProviderStatus.value;
+  }
+  return openaiImageProviderStatus.value;
+});
 
 watch(
   () => settings.settings?.aiKey,
@@ -364,6 +430,21 @@ watch(
     doubaoImageForm.modelId = provider.modelId;
     doubaoImageForm.baseUrl = provider.baseUrl ?? "";
     doubaoImageForm.apiKey = "";
+  },
+  { immediate: true },
+);
+
+watch(
+  () => settings.settings?.grokImageProvider,
+  (provider) => {
+    if (!provider) {
+      return;
+    }
+    grokImageForm.providerId = provider.providerId;
+    grokImageForm.providerName = provider.providerName;
+    grokImageForm.modelId = provider.modelId;
+    grokImageForm.baseUrl = provider.baseUrl ?? "";
+    grokImageForm.apiKey = "";
   },
   { immediate: true },
 );
@@ -446,9 +527,31 @@ async function clearDoubaoProvider() {
   doubaoImageForm.apiKey = "";
 }
 
+async function saveGrokProvider() {
+  await settings.saveGrokImageProvider({
+    providerId: grokImageForm.providerId,
+    providerName: grokImageForm.providerName,
+    modelId: grokImageForm.modelId,
+    baseUrl: grokImageForm.baseUrl || null,
+    apiKey: grokImageForm.apiKey || undefined,
+  });
+  grokImageForm.apiKey = "";
+}
+
+async function clearGrokProvider() {
+  await settings.saveGrokImageProvider({
+    providerId: grokImageForm.providerId,
+    providerName: grokImageForm.providerName,
+    modelId: grokImageForm.modelId,
+    baseUrl: grokImageForm.baseUrl || null,
+    clearApiKey: true,
+  });
+  grokImageForm.apiKey = "";
+}
+
 async function onSwitchProvider(event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
-  await settings.switchImageProvider(value === "doubao" ? "doubao" : "openai");
+  const value = (event.target as HTMLSelectElement).value as ImageProviderType;
+  await settings.switchImageProvider(value);
 }
 
 async function saveAppearance(theme: AppearanceTheme) {

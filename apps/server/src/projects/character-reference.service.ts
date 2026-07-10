@@ -514,7 +514,7 @@ export class CharacterReferenceService {
         quality: input.quality,
         outputFormat: input.outputFormat,
       },
-      options: { provider: this.settingsService.getRuntimeImageProviderSettings().type === "doubao" ? "doubao_image" : "openai_image" },
+      options: { provider: this.toProviderMetaId(this.settingsService.getRuntimeImageProviderSettings().type) },
     });
     this.enqueueCharacterReferenceTaskRun(task.id, project.id, character.id, referenceKind, input);
     return task;
@@ -611,8 +611,8 @@ export class CharacterReferenceService {
       meta: JSON.stringify({
         characterId: character.id,
         referenceKind,
-        provider: providerType === "doubao" ? "doubao_image" : "openai_image",
-        model: providerType === "doubao" ? "doubao-seedream-4-5-251128" : "gpt-image-2",
+        provider: this.toProviderMetaId(providerType),
+        model: this.settingsService.getRuntimeImageProviderSettings().modelId,
         promptDigest: this.digestPrompt(prompt),
         generationMode: referenceSource ? "image_edit" : "image_generation",
         sourceReferenceAssetId: referenceSource?.asset.id ?? null,
@@ -815,7 +815,7 @@ export class CharacterReferenceService {
         type: "scene_reference_generate",
         target: { type: "scene", id: sceneId, chapterId },
         input: { sceneId, chapterId, sceneName: scene.name, prompt: input.prompt ?? "", size: input.size ?? "" },
-        options: { provider: settings.type === "doubao" ? "doubao_image" : "openai_image" },
+        options: { provider: this.toProviderMetaId(settings.type) },
       });
       this.enqueueSceneReferenceTaskRun(task.id, project.id, chapterId, sceneId, input);
     }
@@ -858,7 +858,7 @@ export class CharacterReferenceService {
         sceneId,
         chapterId: chapter.id,
         referenceKind: "scene_background",
-        provider: this.imageProvider.getActiveProviderType() === "doubao" ? "doubao_image" : "openai_image",
+        provider: this.toProviderMetaId(this.imageProvider.getActiveProviderType()),
         promptDigest: this.digestPrompt(prompt),
         generationMode: "image_generation",
         createdAt: now,
@@ -898,5 +898,10 @@ export class CharacterReferenceService {
       this.tasksService.fail(taskId, "SCENE_REFERENCE_GENERATE_FAILED", this.getErrorMessage(error), true);
     }
   }
-}
 
+  private toProviderMetaId(providerType: "openai" | "doubao" | "grok"): string {
+    if (providerType === "doubao") return "doubao_image";
+    if (providerType === "grok") return "grok_image";
+    return "openai_image";
+  }
+}

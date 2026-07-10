@@ -277,6 +277,15 @@ export class ProjectsController {
     return ok(await this.projectsService.lockChapterCandidate(projectId, chapterId, { candidateId }));
   }
 
+  @Get(":projectId/chapters/:chapterId/shots/:shotId/candidate-generation-preview")
+  async getCandidateGenerationPreview(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+  ) {
+    return ok(await this.projectsService.getCandidateGenerationPreview(projectId, chapterId, shotId));
+  }
+
   @Post(":projectId/chapters/:chapterId/images/complete")
   async completeChapterImages(
     @Param("projectId") projectId: string,

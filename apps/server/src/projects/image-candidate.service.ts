@@ -1,11 +1,12 @@
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import type {
   ChapterDetail,
   ChapterListItem,
   ChapterStoryboard,
+  CandidateGenerationSpec,
   CompleteChapterImagesResponse,
   GenerationTaskItem,
   LockChapterCandidateRequest,
@@ -18,6 +19,7 @@ import type {
   WorkbenchShot,
 } from "@airoaming/shared";
 import { TasksService } from "../tasks/tasks.service.js";
+import { TaskArtifactService } from "../tasks/task-artifact.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import type { LocalChapter, LocalProject } from "./local-types.js";
@@ -26,6 +28,9 @@ import { ProjectStore } from "./project-store.service.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
+import { createCandidateGenerationSpec } from "./candidate-generation-spec.js";
+import { CandidateReferenceResolver } from "./candidate-reference-resolver.js";
+import { getImageAspectRatioWarning, readImageDimensions } from "./image-dimensions.util.js";
 
 const PALETTES = ["#0f766e", "#1d4ed8", "#7c3aed", "#b45309", "#be123c", "#047857"];
 
@@ -38,7 +43,9 @@ export class ImageCandidateService {
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(TasksService) private readonly tasksService: TasksService,
+    @Inject(TaskArtifactService) private readonly taskArtifactService: TaskArtifactService,
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
+    @Inject(CandidateReferenceResolver) private readonly candidateReferenceResolver: CandidateReferenceResolver,
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
   ) {}
 
@@ -67,6 +74,7 @@ export class ImageCandidateService {
     }
 
     try {
+      await this.persistTaskArtifact(() => this.taskArtifactService.writeInput(task));
       this.tasksService.start(taskId, "image_generate_running");
       const project = await this.projectStore.getReadyProject(task.projectId);
       const chapterId = this.readString(task.input.chapterId) ?? task.target?.chapterId;
@@ -92,24 +100,23 @@ export class ImageCandidateService {
       }
 
       const candidateCount = this.readCandidateCount(task);
-      const prompt = this.readString(task.input.positivePrompt)
-        || shot.promptDraft
-        || shot.comic.panelDescription
-        || shot.coreAction
-        || "comic panel illustration";
-      const negativePrompt = this.readString(task.input.negativePrompt)
-        || "low quality, blurry, photorealistic live-action";
-      const fullPrompt = `${prompt}\n\nAvoid: ${negativePrompt}`;
-      const size = this.readImageSize(task);
-      const referenceAssetIds = this.readStringArray(task.input.referenceAssetIds)
-        .concat(this.readStringArray(task.input.preflightCharacterReferenceAssetIds));
-      const referenceSource = await this.resolveReferenceImage(project, referenceAssetIds);
+      const generationSpec = this.readCandidateGenerationSpec(task.input.candidateGenerationSpec)
+        ?? createCandidateGenerationSpec({ project, chapter, shot });
+      const fullPrompt = `${generationSpec.positivePrompt}\n\nAvoid: ${generationSpec.negativePrompt}`;
       const providerType = this.imageProvider.getActiveProviderType();
+      const size = this.toProviderSize(generationSpec, providerType);
+      const referenceModeEnabled = process.env.AIROAMING_CANDIDATE_REFERENCE_MODE?.trim().toLowerCase() !== "off";
+      const referenceResolution = referenceModeEnabled
+        ? await this.candidateReferenceResolver.resolve(project, generationSpec)
+        : { references: [], warnings: ["candidate_reference_mode_disabled"] };
+      const generationWarnings = new Set([...generationSpec.warnings, ...referenceResolution.warnings]);
+      const providerWarnings = new Set<string>();
       const providerId = this.toProviderMetaId(providerType);
       const outputFormat: "webp" | "png" = "webp";
 
       const createdCandidates: ProjectCandidate[] = [];
       const createdAssets: WorkbenchAsset[] = [];
+      const createdOutputs: Array<Record<string, unknown>> = [];
       let nextProject = project;
       let nextChapter = chapter;
 
@@ -119,20 +126,25 @@ export class ImageCandidateService {
         }
         this.tasksService.progress(taskId, Math.round((index - 1) / candidateCount * 80) + 10, `generating_${index}_of_${candidateCount}`);
 
-        const generated = referenceSource
-          ? await this.imageProvider.editImage({
-            prompt: fullPrompt,
-            size,
-            quality: "high",
-            outputFormat,
-            referenceImage: referenceSource,
-          })
-          : await this.imageProvider.generateImage({
-            prompt: fullPrompt,
-            size,
-            quality: "high",
-            outputFormat,
-          });
+        const providerResult = await this.imageProvider.generateCandidateImage({
+          prompt: fullPrompt,
+          size,
+          quality: "high",
+          outputFormat,
+          references: referenceResolution.references,
+        });
+        providerResult.warnings.forEach((warning) => providerWarnings.add(warning));
+        const generated = providerResult.buffer;
+        const actualSize = readImageDimensions(generated);
+        const candidateWarnings = new Set([
+          ...generationWarnings,
+          ...providerResult.warnings,
+        ]);
+        const aspectRatioWarning = getImageAspectRatioWarning(generationSpec.requestedSize, actualSize);
+        if (aspectRatioWarning) {
+          candidateWarnings.add(aspectRatioWarning);
+          providerWarnings.add(aspectRatioWarning);
+        }
 
         this.projectStore.assertProjectStillActive(project.id);
         const candidateId = `candidate_${randomUUID()}`;
@@ -156,8 +168,17 @@ export class ImageCandidateService {
             candidateId,
             candidateIndex: index,
             provider: providerId,
-            promptDigest: this.digestPrompt(fullPrompt),
-            generationMode: referenceSource ? "image_edit" : "image_generation",
+            promptDigest: generationSpec.digest,
+            generationPurpose: generationSpec.purpose,
+            generationSpecVersion: generationSpec.schemaVersion,
+            generationSpecDigest: generationSpec.digest,
+            generationMode: providerResult.generationMode,
+            requestedSize: generationSpec.requestedSize,
+            requestedProviderSize: size,
+            actualSize,
+            referenceAssetIds: providerResult.usedReferenceAssetIds,
+            referenceWarnings: [...generationWarnings, ...providerResult.warnings],
+            warnings: [...candidateWarnings],
             createdAt: now,
           }),
         };
@@ -171,13 +192,25 @@ export class ImageCandidateService {
           index,
           status: "generated",
           label: `候选 ${index}`,
-          promptDigest: this.digestPrompt(fullPrompt),
+          promptDigest: generationSpec.digest,
+          generationPurpose: generationSpec.purpose,
+          generationSpecVersion: generationSpec.schemaVersion,
+          generationSpecDigest: generationSpec.digest,
           createdAt: now,
           updatedAt: now,
         };
 
         createdAssets.push(asset);
         createdCandidates.push(candidate);
+        createdOutputs.push({
+          candidateId,
+          assetId,
+          index,
+          generationMode: providerResult.generationMode,
+          requestedSize: generationSpec.requestedSize,
+          actualSize,
+          referenceAssetIds: providerResult.usedReferenceAssetIds,
+        });
 
         const chapterCandidates = [...(nextChapter.candidates ?? []), candidate];
         const storyboard = this.withShotImageGenerated(nextChapter.storyboard!, shotId, now);
@@ -199,14 +232,21 @@ export class ImageCandidateService {
       await this.projectStore.writeProjectFiles(nextProject);
       this.repository.setProject(nextProject);
 
-      this.tasksService.succeed(taskId, {
+      const taskOutput: Record<string, unknown> = {
         provider: providerId,
         shotId,
         chapterId: chapter.id,
         candidateCount: createdCandidates.length,
         candidateIds: createdCandidates.map((item) => item.id),
         assetIds: createdAssets.map((item) => item.id),
-      });
+        candidates: createdOutputs,
+        generationPurpose: generationSpec.purpose,
+        generationSpecVersion: generationSpec.schemaVersion,
+        generationSpecDigest: generationSpec.digest,
+        warnings: [...generationWarnings, ...providerWarnings],
+      };
+      await this.persistTaskArtifact(() => this.taskArtifactService.writeOutput(task.projectId, taskId, taskOutput));
+      this.tasksService.succeed(taskId, taskOutput);
     } catch (error) {
       if (!this.tasksService.peek(taskId)) {
         return;
@@ -215,12 +255,13 @@ export class ImageCandidateService {
       if (latest && (latest.status === "succeeded" || latest.status === "failed" || latest.status === "cancelled")) {
         return;
       }
-      this.tasksService.fail(
-        taskId,
-        "IMAGE_GENERATE_FAILED",
-        error instanceof Error ? error.message : String(error),
-        true,
-      );
+      const taskError = {
+        code: "IMAGE_GENERATE_FAILED",
+        message: error instanceof Error ? error.message : String(error),
+        retryable: true,
+      };
+      await this.persistTaskArtifact(() => this.taskArtifactService.writeError(task.projectId, taskId, taskError));
+      this.tasksService.fail(taskId, taskError.code, taskError.message, taskError.retryable);
     }
   }
 
@@ -371,6 +412,9 @@ export class ImageCandidateService {
       index: candidate.index,
       palette: PALETTES[(candidate.index - 1) % PALETTES.length] ?? PALETTES[0],
       promptDigest: candidate.promptDigest,
+      generationPurpose: candidate.generationPurpose ?? "legacy_unspecified",
+      generationSpecVersion: candidate.generationSpecVersion ?? null,
+      generationSpecDigest: candidate.generationSpecDigest ?? candidate.promptDigest,
       createdAt: candidate.createdAt,
       updatedAt: candidate.updatedAt,
     };
@@ -437,32 +481,6 @@ export class ImageCandidateService {
     };
   }
 
-  private async resolveReferenceImage(
-    project: LocalProject,
-    assetIds: string[],
-  ): Promise<{ buffer: Buffer; mimeType: string; fileName: string } | null> {
-    for (const assetId of assetIds) {
-      const asset = project.assets.find((item) => item.id === assetId);
-      if (!asset?.path) {
-        continue;
-      }
-      try {
-        const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${asset.path}`);
-        const buffer = await readFile(absolutePath);
-        const ext = path.extname(absolutePath).toLowerCase();
-        const mimeType = ext === ".png" ? "image/png" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/webp";
-        return {
-          buffer,
-          mimeType,
-          fileName: path.basename(absolutePath),
-        };
-      } catch {
-        // try next reference
-      }
-    }
-    return null;
-  }
-
   private readCandidateCount(task: GenerationTaskItem): number {
     const fromInput = Number(task.input.candidateCount);
     const fromOptions = Number((task.input as { options?: { candidateCount?: unknown } }).options?.candidateCount);
@@ -475,36 +493,59 @@ export class ImageCandidateService {
     return Math.min(6, Math.max(1, Math.floor(raw)));
   }
 
-  private readImageSize(task: GenerationTaskItem): string {
-    const image = task.input.image;
-    if (image && typeof image === "object" && !Array.isArray(image)) {
-      const size = (image as { size?: unknown }).size;
-      if (typeof size === "string" && size.trim()) {
-        return size.trim();
-      }
+  private readCandidateGenerationSpec(value: unknown): CandidateGenerationSpec | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
     }
-    return this.imageProvider.getActiveProviderType() === "doubao" ? "1440x2560" : "1024x1536";
+    const record = value as Partial<CandidateGenerationSpec>;
+    if (
+      record.schemaVersion !== 1
+      || record.purpose !== "shot_clean_plate"
+      || typeof record.projectId !== "string"
+      || typeof record.chapterId !== "string"
+      || typeof record.shotId !== "string"
+      || typeof record.positivePrompt !== "string"
+      || typeof record.negativePrompt !== "string"
+      || typeof record.digest !== "string"
+      || !record.requestedSize
+      || !Array.isArray(record.references)
+      || !Array.isArray(record.sections)
+      || !Array.isArray(record.systemConstraints)
+      || !Array.isArray(record.warnings)
+    ) {
+      return null;
+    }
+    return record as CandidateGenerationSpec;
+  }
+
+  private toProviderSize(
+    spec: CandidateGenerationSpec,
+    providerType: "openai" | "doubao" | "grok",
+  ): string {
+    const { width, height } = spec.requestedSize;
+    if (providerType === "doubao") {
+      if (width === height) return "2048x2048";
+      return width > height ? "2560x1440" : "1440x2560";
+    }
+    return `${width}x${height}`;
   }
 
   private readString(value: unknown): string | null {
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }
 
-  private readStringArray(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-  }
-
-  private digestPrompt(prompt: string): string {
-    return createHash("sha1").update(prompt).digest("hex").slice(0, 12);
-  }
-
   private toProviderMetaId(providerType: "openai" | "doubao" | "grok"): string {
     if (providerType === "doubao") return "doubao_image";
     if (providerType === "grok") return "grok_image";
     return "openai_image";
+  }
+
+  private async persistTaskArtifact(write: () => Promise<void>): Promise<void> {
+    try {
+      await write();
+    } catch (error) {
+      this.logger.warn(`TASK_ARTIFACT_WRITE_FAILED:${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 

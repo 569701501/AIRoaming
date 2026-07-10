@@ -1,6 +1,7 @@
 import type {
   ArtStyle,
   AssetType,
+  CandidateGenerationPurpose,
   ChapterStatus,
   ComicFormat,
   GenerationTaskStatus,
@@ -69,13 +70,14 @@ export interface AppImageProviderSettings {
   updatedAt: string | null;
 }
 
-/** 图片生成 provider 类型:OpenAI 协议 / 豆包协议,二选一 */
-export type ImageProviderType = "openai" | "doubao";
+/** 图片生成 provider 类型:OpenAI 协议 / 豆包协议 / Grok Imagine */
+export type ImageProviderType = "openai" | "doubao" | "grok";
 
 export interface AppSettings {
   aiKey: AppAIKeySettings;
   openaiImageProvider: AppImageProviderSettings;
   doubaoImageProvider: AppImageProviderSettings;
+  grokImageProvider: AppImageProviderSettings;
   activeImageProvider: ImageProviderType;
   appearance: AppAppearanceSettings;
   settingsPath: "/workspace/settings/app-settings.json";
@@ -108,6 +110,7 @@ export interface UpdateAppSettingsRequest {
   aiKey?: UpdateAIKeySettingsRequest;
   openaiImageProvider?: UpdateImageProviderSettingsRequest;
   doubaoImageProvider?: UpdateImageProviderSettingsRequest;
+  grokImageProvider?: UpdateImageProviderSettingsRequest;
   activeImageProvider?: ImageProviderType;
   appearance?: UpdateAppearanceSettingsRequest;
 }
@@ -1064,6 +1067,43 @@ export interface WorkbenchShot {
 
 export type CandidateStatus = "generated" | "selected" | "locked" | "rejected" | "superseded";
 
+export type CandidateGenerationReferenceKind = "character_identity" | "scene_environment";
+
+export interface CandidateGenerationReference {
+  assetId: string;
+  kind: CandidateGenerationReferenceKind;
+  entityId: string;
+  label: string;
+  /** 数值越大越优先；同 provider 超过引用上限时用于确定性裁剪。 */
+  priority: number;
+}
+
+export interface CandidatePromptSection {
+  key: "visual" | "composition" | "action" | "camera" | "scene" | "characters" | "style";
+  label: string;
+  value: string;
+}
+
+export interface CandidateGenerationSpec {
+  schemaVersion: 1;
+  purpose: "shot_clean_plate";
+  projectId: string;
+  chapterId: string;
+  shotId: string;
+  positivePrompt: string;
+  negativePrompt: string;
+  sections: CandidatePromptSection[];
+  systemConstraints: string[];
+  requestedSize: { width: number; height: number };
+  references: CandidateGenerationReference[];
+  warnings: string[];
+  digest: string;
+}
+
+export interface CandidateGenerationPreviewResponse {
+  spec: CandidateGenerationSpec;
+}
+
 export interface WorkbenchCandidate {
   id: string;
   chapterId?: string;
@@ -1075,6 +1115,9 @@ export interface WorkbenchCandidate {
   index?: number;
   palette: string;
   promptDigest: string;
+  generationPurpose: CandidateGenerationPurpose;
+  generationSpecVersion: number | null;
+  generationSpecDigest: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1091,6 +1134,9 @@ export interface ProjectCandidate {
   status: CandidateStatus;
   label: string;
   promptDigest: string;
+  generationPurpose?: Exclude<CandidateGenerationPurpose, "legacy_unspecified">;
+  generationSpecVersion?: number;
+  generationSpecDigest?: string;
   createdAt: string;
   updatedAt: string;
 }
