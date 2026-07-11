@@ -1,9 +1,9 @@
-import { writeFile } from "node:fs/promises";
-import path from "node:path";
 import {
   createE2ERuntime,
+  type E2ESetupSummary,
   prepareE2ERuntime,
   readE2EProcessStates,
+  writeE2ESetupSummary,
 } from "../support/e2e-env.ts";
 
 export default async function globalSetup(): Promise<void> {
@@ -24,7 +24,7 @@ export default async function globalSetup(): Promise<void> {
     throw new Error(`E2E_SERVICES_NOT_READY:${readyRoles.join(",")}`);
   }
 
-  const summary = {
+  const summary: E2ESetupSummary = {
     schemaVersion: 1,
     kind: "airoaming-e2e-setup",
     runId: runtime.runId,
@@ -37,11 +37,7 @@ export default async function globalSetup(): Promise<void> {
     readyRoles,
     createdAt: new Date().toISOString(),
   };
-  await writeFile(
-    path.join(runtime.runtimeDir, "setup.json"),
-    `${JSON.stringify(summary, null, 2)}\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  await writeE2ESetupSummary(runtime, summary);
   console.log(
     `[e2e-setup] ready run=${runtime.runId} ports=${runtime.serverPort}/${runtime.webPort}/${runtime.providerPort}`,
   );

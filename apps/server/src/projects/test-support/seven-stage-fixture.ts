@@ -1,8 +1,11 @@
 import type { INestApplicationContext } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { randomBytes } from "node:crypto";
+import { existsSync, realpathSync, statSync } from "node:fs";
+import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir, userInfo } from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { vi, type MockInstance } from "vitest";
 import type {
   CompleteChapterResponse,
@@ -22,6 +25,40 @@ const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64",
 );
+const FIXTURE_ENV_NAMES = [
+  "AIROAMING_WORKSPACE_ROOT",
+  "AIROAMING_DATA_ROOT",
+  "AIROAMING_SECRET_STORE_ADAPTER",
+  "AIROAMING_FAKE_SECRET_STORE_ROOT",
+  "OPENCODE_AUTO_START",
+  "OPENAI_IMAGE_API_KEY",
+  "GROK_IMAGE_API_KEY",
+  "OPENAI_API_KEY",
+  "ARK_API_KEY",
+  "DOUBAO_API_KEY",
+  "XAI_API_KEY",
+  "DATABASE_URL",
+  "AIROAMING_PERSISTENCE_MODE",
+  "AIROAMING_MAINTENANCE_MODE",
+  "HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_CACHE_HOME",
+] as const;
+const PROJECT_ROOT = realpathSync(path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../../../",
+));
+const ACCOUNT_HOME = realpathSync(userInfo().homedir);
+
+interface SevenStageFixtureMarker {
+  schemaVersion: 1;
+  kind: "airoaming-seven-stage-test-root";
+  runId: string;
+  testRoot: string;
+  workspaceRoot: string;
+  dataRoot: string;
+  fakeSecretStoreRoot: string;
+}
 
 export interface SevenStageProjectRef {
   projectId: string;
@@ -41,61 +78,94 @@ export interface StoryFixtureOptions {
  * provider 被替换为确定性 fake。workspace、Repository、Nest 生命周期和文件读写均为真实实现。
  */
 export class SevenStageFixture {
+  readonly runId: string;
+  readonly tempRoot: string;
+  readonly testRoot: string;
   readonly workspaceRoot: string;
+  readonly dataRoot: string;
+  readonly fakeSecretStoreRoot: string;
+  readonly markerPath: string;
 
   private app: INestApplicationContext | null = null;
   private providerSpies: MockInstance[] = [];
-  private readonly previousWorkspaceRoot = process.env.AIROAMING_WORKSPACE_ROOT;
-  private readonly previousOpenCodeAutoStart = process.env.OPENCODE_AUTO_START;
+  private readonly previousEnvironment = new Map<string, string | undefined>(
+    FIXTURE_ENV_NAMES.map((name) => [name, process.env[name]] as const),
+  );
 
   projects!: ProjectsService;
   tasks!: TasksService;
 
-  constructor(workspaceRoot = path.join(
-    tmpdir(),
-    `airoaming-seven-stage-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  )) {
-    this.workspaceRoot = workspaceRoot;
+  constructor(tempRoot = tmpdir()) {
+    this.runId = `${process.pid}-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
+    this.tempRoot = canonicalizeExistingDirectory(tempRoot, "SEVEN_STAGE_FIXTURE_TEMP_ROOT_INVALID");
+    assertSafeFixtureTempRoot(this.tempRoot, this.runId);
+    this.testRoot = path.join(this.tempRoot, `airoaming-seven-stage-${this.runId}`);
+    this.workspaceRoot = path.join(this.testRoot, "workspace");
+    this.dataRoot = path.join(this.testRoot, "data");
+    this.fakeSecretStoreRoot = path.join(this.testRoot, "fake-secret-store");
+    this.markerPath = path.join(this.testRoot, ".airoaming-test-root");
   }
 
   async start(): Promise<this> {
-    process.env.AIROAMING_WORKSPACE_ROOT = this.workspaceRoot;
-    process.env.OPENCODE_AUTO_START = "false";
-    this.app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
-    this.projects = this.app.get(ProjectsService);
-    this.tasks = this.app.get(TasksService);
+    try {
+      await this.prepareIsolation();
+      this.applyIsolationEnvironment();
+      this.app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+      this.projects = this.app.get(ProjectsService);
+      this.tasks = this.app.get(TasksService);
 
-    const imageProvider = this.app.get(ImageProviderService);
-    this.providerSpies = [
-      vi.spyOn(imageProvider, "getActiveProviderType").mockReturnValue("grok"),
-      vi.spyOn(imageProvider, "generateCandidateImage").mockResolvedValue({
-        buffer: ONE_PIXEL_PNG,
-        generationMode: "image_generation",
-        usedReferenceAssetIds: [],
-        warnings: [],
-      }),
-    ];
-    return this;
+      const imageProvider = this.app.get(ImageProviderService);
+      this.providerSpies = [
+        vi.spyOn(imageProvider, "getActiveProviderType").mockReturnValue("grok"),
+        vi.spyOn(imageProvider, "generateCandidateImage").mockResolvedValue({
+          buffer: ONE_PIXEL_PNG,
+          generationMode: "image_generation",
+          usedReferenceAssetIds: [],
+          warnings: [],
+        }),
+      ];
+      return this;
+    } catch (error) {
+      const errors: unknown[] = [error];
+      try {
+        await this.closeApplication();
+      } catch (closeError) {
+        errors.push(closeError);
+      } finally {
+        this.restoreEnvironment();
+      }
+      try {
+        await this.cleanupIsolation();
+      } catch (cleanupError) {
+        errors.push(cleanupError);
+      }
+      if (errors.length > 1) {
+        throw new AggregateError(
+          errors,
+          errors.map((item) => item instanceof Error ? item.message : String(item)).join(";"),
+        );
+      }
+      throw error;
+    }
   }
 
   async reopen(): Promise<void> {
-    await this.closeApplication();
+    try {
+      await this.closeApplication();
+    } catch (error) {
+      this.restoreEnvironment();
+      throw error;
+    }
     await this.start();
   }
 
   async dispose(): Promise<void> {
-    await this.closeApplication();
-    if (this.previousWorkspaceRoot === undefined) {
-      delete process.env.AIROAMING_WORKSPACE_ROOT;
-    } else {
-      process.env.AIROAMING_WORKSPACE_ROOT = this.previousWorkspaceRoot;
+    try {
+      await this.closeApplication();
+    } finally {
+      this.restoreEnvironment();
+      await this.cleanupIsolation();
     }
-    if (this.previousOpenCodeAutoStart === undefined) {
-      delete process.env.OPENCODE_AUTO_START;
-    } else {
-      process.env.OPENCODE_AUTO_START = this.previousOpenCodeAutoStart;
-    }
-    await rm(this.workspaceRoot, { recursive: true, force: true });
   }
 
   async createProject(name = "七阶段行为刻画项目"): Promise<SevenStageProjectRef> {
@@ -202,6 +272,263 @@ export class SevenStageFixture {
     await this.app?.close();
     this.app = null;
   }
+
+  private async prepareIsolation(): Promise<void> {
+    this.assertCanonicalParent();
+    const rootStat = await tryLstat(this.testRoot);
+    if (rootStat?.isSymbolicLink() || (rootStat && !rootStat.isDirectory())) {
+      throw new Error("SEVEN_STAGE_FIXTURE_ROOT_UNSAFE");
+    }
+    if (!rootStat) {
+      await mkdir(this.testRoot, { recursive: false });
+    }
+
+    const markerStat = await tryLstat(this.markerPath);
+    if (!markerStat) {
+      const entries = await readdir(this.testRoot);
+      if (entries.length > 0) {
+        throw new Error("SEVEN_STAGE_FIXTURE_ROOT_UNMARKED");
+      }
+      const marker: SevenStageFixtureMarker = {
+        schemaVersion: 1,
+        kind: "airoaming-seven-stage-test-root",
+        runId: this.runId,
+        testRoot: this.testRoot,
+        workspaceRoot: this.workspaceRoot,
+        dataRoot: this.dataRoot,
+        fakeSecretStoreRoot: this.fakeSecretStoreRoot,
+      };
+      await writeFile(this.markerPath, `${JSON.stringify(marker, null, 2)}\n`, {
+        encoding: "utf8",
+        flag: "wx",
+        mode: 0o600,
+      });
+    } else {
+      await this.assertMatchingMarker(false);
+    }
+
+    for (const ownedRoot of [this.workspaceRoot, this.dataRoot, this.fakeSecretStoreRoot]) {
+      const ownedStat = await tryLstat(ownedRoot);
+      if (ownedStat?.isSymbolicLink() || (ownedStat && !ownedStat.isDirectory())) {
+        throw new Error("SEVEN_STAGE_FIXTURE_OWNED_ROOT_UNSAFE");
+      }
+      if (!ownedStat) {
+        await mkdir(ownedRoot, { recursive: false });
+      }
+    }
+    for (const [ownedRoot, errorCode] of [
+      [path.join(this.testRoot, "home"), "SEVEN_STAGE_FIXTURE_HOME_ROOT_UNSAFE"],
+      [path.join(this.testRoot, "xdg-config"), "SEVEN_STAGE_FIXTURE_XDG_CONFIG_ROOT_UNSAFE"],
+      [path.join(this.testRoot, "xdg-cache"), "SEVEN_STAGE_FIXTURE_XDG_CACHE_ROOT_UNSAFE"],
+    ] as const) {
+      const ownedStat = await tryLstat(ownedRoot);
+      if (ownedStat?.isSymbolicLink() || (ownedStat && !ownedStat.isDirectory())) {
+        throw new Error(errorCode);
+      }
+      if (!ownedStat) {
+        await mkdir(ownedRoot, { recursive: false });
+      }
+    }
+    const databaseDirectory = path.join(this.dataRoot, "db");
+    const databaseDirectoryStat = await tryLstat(databaseDirectory);
+    if (
+      databaseDirectoryStat?.isSymbolicLink()
+      || (databaseDirectoryStat && !databaseDirectoryStat.isDirectory())
+    ) {
+      throw new Error("SEVEN_STAGE_FIXTURE_DATABASE_DIR_UNSAFE");
+    }
+    if (!databaseDirectoryStat) {
+      await mkdir(databaseDirectory, { recursive: false });
+    }
+    await this.assertMatchingMarker(true);
+
+    const sentinelPath = path.join(this.fakeSecretStoreRoot, "image-provider.secret");
+    const sentinel = `airoaming-test-secret-${this.runId}`;
+    const sentinelStat = await tryLstat(sentinelPath);
+    if (!sentinelStat) {
+      await writeFile(sentinelPath, sentinel, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    } else if (
+      !sentinelStat.isFile()
+      || sentinelStat.isSymbolicLink()
+      || await readFile(sentinelPath, "utf8") !== sentinel
+    ) {
+      throw new Error("SEVEN_STAGE_FIXTURE_SECRET_MISMATCH");
+    }
+  }
+
+  private applyIsolationEnvironment(): void {
+    Object.assign(process.env, {
+      AIROAMING_WORKSPACE_ROOT: this.workspaceRoot,
+      AIROAMING_DATA_ROOT: this.dataRoot,
+      AIROAMING_SECRET_STORE_ADAPTER: "fake",
+      AIROAMING_FAKE_SECRET_STORE_ROOT: this.fakeSecretStoreRoot,
+      DATABASE_URL: `file:${path.join(this.dataRoot, "db", "airoaming.sqlite")}`,
+      AIROAMING_PERSISTENCE_MODE: "file",
+      OPENCODE_AUTO_START: "false",
+      HOME: path.join(this.testRoot, "home"),
+      XDG_CONFIG_HOME: path.join(this.testRoot, "xdg-config"),
+      XDG_CACHE_HOME: path.join(this.testRoot, "xdg-cache"),
+    });
+    for (const name of [
+      "OPENAI_IMAGE_API_KEY",
+      "GROK_IMAGE_API_KEY",
+      "OPENAI_API_KEY",
+      "ARK_API_KEY",
+      "DOUBAO_API_KEY",
+      "XAI_API_KEY",
+      "AIROAMING_MAINTENANCE_MODE",
+    ]) {
+      delete process.env[name];
+    }
+  }
+
+  private restoreEnvironment(): void {
+    for (const [name, previous] of this.previousEnvironment) {
+      if (previous === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = previous;
+      }
+    }
+  }
+
+  private async cleanupIsolation(): Promise<void> {
+    this.assertCanonicalParent();
+    if (!await tryLstat(this.testRoot)) {
+      return;
+    }
+    await this.assertMatchingMarker(true);
+    await this.assertMatchingMarker(true);
+    this.assertCanonicalParent();
+    await rm(this.testRoot, { recursive: true, force: false });
+  }
+
+  private async assertMatchingMarker(requireOwnedRoots: boolean): Promise<void> {
+    const rootStat = await tryLstat(this.testRoot);
+    const markerStat = await tryLstat(this.markerPath);
+    if (
+      !rootStat?.isDirectory()
+      || rootStat.isSymbolicLink()
+      || !markerStat?.isFile()
+      || markerStat.isSymbolicLink()
+    ) {
+      throw new Error("SEVEN_STAGE_FIXTURE_MARKER_MISMATCH");
+    }
+    let marker: Partial<SevenStageFixtureMarker>;
+    try {
+      marker = JSON.parse(await readFile(this.markerPath, "utf8")) as Partial<SevenStageFixtureMarker>;
+    } catch {
+      throw new Error("SEVEN_STAGE_FIXTURE_MARKER_MISMATCH");
+    }
+    if (
+      marker.schemaVersion !== 1
+      || marker.kind !== "airoaming-seven-stage-test-root"
+      || marker.runId !== this.runId
+      || path.resolve(marker.testRoot ?? "") !== this.testRoot
+      || path.resolve(marker.workspaceRoot ?? "") !== this.workspaceRoot
+      || path.resolve(marker.dataRoot ?? "") !== this.dataRoot
+      || path.resolve(marker.fakeSecretStoreRoot ?? "") !== this.fakeSecretStoreRoot
+    ) {
+      throw new Error("SEVEN_STAGE_FIXTURE_MARKER_MISMATCH");
+    }
+    if (requireOwnedRoots) {
+      for (const ownedRoot of [
+        this.workspaceRoot,
+        this.dataRoot,
+        this.fakeSecretStoreRoot,
+        path.join(this.testRoot, "home"),
+        path.join(this.testRoot, "xdg-config"),
+        path.join(this.testRoot, "xdg-cache"),
+      ]) {
+        const ownedStat = await tryLstat(ownedRoot);
+        if (!ownedStat?.isDirectory() || ownedStat.isSymbolicLink()) {
+          throw new Error("SEVEN_STAGE_FIXTURE_MARKER_MISMATCH");
+        }
+      }
+    }
+  }
+
+  private assertCanonicalParent(): void {
+    const canonicalParent = canonicalizeExistingDirectory(
+      path.dirname(this.testRoot),
+      "SEVEN_STAGE_FIXTURE_TEMP_ROOT_INVALID",
+    );
+    if (canonicalParent !== this.tempRoot || path.dirname(this.testRoot) !== this.tempRoot) {
+      throw new Error("SEVEN_STAGE_FIXTURE_TEMP_ROOT_CANONICAL_MISMATCH");
+    }
+  }
+}
+
+async function tryLstat(target: string) {
+  try {
+    return await lstat(target);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function assertSafeFixtureTempRoot(tempRoot: string, runId: string): void {
+  const candidate = path.join(tempRoot, `airoaming-seven-stage-${runId}`);
+  const filesystemRoot = path.parse(candidate).root;
+  const dangerousRoots = [
+    ACCOUNT_HOME,
+    canonicalizePotentialPath(PROJECT_ROOT),
+    canonicalizePotentialPath(path.join(PROJECT_ROOT, "workspace")),
+  ];
+  if (process.env.AIROAMING_DATA_ROOT) {
+    dangerousRoots.push(canonicalizePotentialPath(process.env.AIROAMING_DATA_ROOT));
+  }
+  if (
+    path.dirname(candidate) === filesystemRoot
+    || dangerousRoots.some((dangerous) => samePath(candidate, dangerous) || isPathInside(dangerous, candidate))
+  ) {
+    throw new Error("SEVEN_STAGE_FIXTURE_TEMP_ROOT_DANGEROUS");
+  }
+}
+
+function canonicalizeExistingDirectory(input: string, errorCode: string): string {
+  try {
+    const canonical = realpathSync(path.resolve(input));
+    if (!statSync(canonical).isDirectory()) {
+      throw new Error(errorCode);
+    }
+    return canonical;
+  } catch (error) {
+    if (error instanceof Error && error.message === errorCode) {
+      throw error;
+    }
+    throw new Error(errorCode);
+  }
+}
+
+function canonicalizePotentialPath(input: string): string {
+  const resolved = path.resolve(input);
+  if (existsSync(resolved)) {
+    return realpathSync(resolved);
+  }
+  const suffix: string[] = [];
+  let cursor = resolved;
+  while (!existsSync(cursor)) {
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      return resolved;
+    }
+    suffix.unshift(path.basename(cursor));
+    cursor = parent;
+  }
+  return path.join(realpathSync(cursor), ...suffix);
+}
+
+function samePath(left: string, right: string): boolean {
+  return path.resolve(left) === path.resolve(right);
+}
+
+function isPathInside(parent: string, candidate: string): boolean {
+  const relative = path.relative(path.resolve(parent), path.resolve(candidate));
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 export function buildStoryStructure(chapterId: string, withLeadCharacter: boolean): StoryStructureJson {

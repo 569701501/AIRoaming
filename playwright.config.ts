@@ -1,34 +1,65 @@
-import { defineConfig, devices } from "@playwright/test";
+import { chromium, defineConfig, devices } from "@playwright/test";
+import { createRequire } from "node:module";
+import { userInfo } from "node:os";
+import path from "node:path";
 import {
+  createE2EParentProcessEnvironment,
   createE2EProcessEnvironments,
   createE2ERuntime,
 } from "./tests/e2e/support/e2e-env.ts";
+import {
+  reanchorRunOwnedChromiumPath,
+  validateAllowedChromiumExecutablePath,
+} from "./tests/e2e/support/playwright-browser-path.ts";
 
+const reportedChromiumExecutablePath = chromium.executablePath();
+const inheritedEnvironment = { ...process.env };
 const runtime = createE2ERuntime();
-const environments = createE2EProcessEnvironments(runtime);
-delete process.env.NO_COLOR;
-
-Object.assign(process.env, {
-  AIROAMING_E2E_RUN_ID: runtime.runId,
-  AIROAMING_E2E_REPO_ROOT: runtime.repoRoot,
-  AIROAMING_E2E_RUNTIME_DIR: runtime.runtimeDir,
-  AIROAMING_E2E_SERVER_PORT: String(runtime.serverPort),
-  AIROAMING_E2E_WEB_PORT: String(runtime.webPort),
-  AIROAMING_E2E_PROVIDER_PORT: String(runtime.providerPort),
-  AIROAMING_WORKSPACE_ROOT: runtime.workspaceRoot,
-  OPENCODE_AUTO_START: "false",
-  OPENCODE_BASE_URL: runtime.opencodeBaseUrl,
-  OPENAI_IMAGE_BASE_URL: runtime.imageBaseUrl,
-  OPENAI_IMAGE_API_KEY: "e2e-fake-key",
-  OPENAI_API_KEY: "",
-  ARK_API_KEY: "",
-  DOUBAO_API_KEY: "",
-  GROK_IMAGE_API_KEY: "e2e-fake-key",
-  XAI_API_KEY: "",
-  VITE_API_BASE_URL: runtime.apiBaseUrl,
-});
+const chromiumExecutablePath = resolvePinnedChromiumExecutablePath(
+  reportedChromiumExecutablePath,
+  runtime,
+  inheritedEnvironment,
+);
+const environments = createE2EProcessEnvironments(runtime, inheritedEnvironment);
+const parentEnvironment = createE2EParentProcessEnvironment(runtime, inheritedEnvironment);
+for (const name of Object.keys(process.env)) {
+  delete process.env[name];
+}
+Object.assign(process.env, parentEnvironment);
 
 const runIdentity = `--run-id ${runtime.runId}`;
+
+function resolvePinnedChromiumExecutablePath(
+  reportedPath: string,
+  currentRuntime: ReturnType<typeof createE2ERuntime>,
+  inherited: NodeJS.ProcessEnv,
+): string {
+  const testPackagePath = createRequire(
+    path.join(currentRuntime.repoRoot, "package.json"),
+  ).resolve("@playwright/test/package.json");
+  const playwrightCorePackageDir = path.dirname(
+    createRequire(testPackagePath).resolve("playwright-core/package.json"),
+  );
+  const accountHome = userInfo().homedir;
+  const candidate = reanchorRunOwnedChromiumPath({
+    reportedPath,
+    runId: currentRuntime.runId,
+    home: inherited.HOME,
+    xdgCacheHome: inherited.XDG_CACHE_HOME,
+    accountHome,
+    platform: process.platform,
+    repoRoot: currentRuntime.repoRoot,
+    testRoot: currentRuntime.testRoot,
+    playwrightCorePackageDir,
+  });
+  return validateAllowedChromiumExecutablePath({
+    candidatePath: candidate,
+    accountHome,
+    platform: process.platform,
+    repoRoot: currentRuntime.repoRoot,
+    playwrightCorePackageDir,
+  });
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -54,11 +85,19 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "off",
     serviceWorkers: "block",
+    launchOptions: {
+      executablePath: chromiumExecutablePath,
+    },
   },
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          executablePath: chromiumExecutablePath,
+        },
+      },
     },
   ],
   webServer: [

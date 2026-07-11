@@ -98,7 +98,10 @@ describe("G0 E2E owned process cleanup", () => {
       assert.notEqual(webExit.code, 0);
       await waitUntilDead(provider.pid!, 5_000);
       assert.equal(isAlive(provider.pid!), false);
+      await assert.rejects(access(runtime.testRoot));
       await assert.rejects(access(runtime.workspaceRoot));
+      await assert.rejects(access(runtime.dataRoot));
+      await assert.rejects(access(runtime.fakeSecretStoreRoot));
       await assert.rejects(access(runtime.runtimeDir));
       assert.equal(portOwner.listening, true);
     } finally {

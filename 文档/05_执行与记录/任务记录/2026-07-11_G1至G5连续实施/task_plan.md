@@ -33,8 +33,8 @@ source: 用户恢复的 G0–G5 Goal、G0 完成记录、G1–G5 accepted 方案
 
 | 切片 | 主要交付 | 核心退出闸门 | 状态 |
 | --- | --- | --- | --- |
-| G1-0 安全夹具 | workspace/dataRoot/fake SecretStore 三根隔离、marker、环境清洗 | `ENV-01～04`，G0 全绿，真实目录 hash/mtime 不变 | `ready` |
-| G1-1 M0-A/B | Prisma 6.19.3、44 模型、migration、UoW、JCS、约束、备份恢复 | `SCH-00～15`、`DOC-01～03`、SQLite E0 | `pending` |
+| G1-0 安全夹具 | workspace/dataRoot/fake SecretStore 三根隔离、marker、环境清洗 | `ENV-01～04`，G0 全绿，真实目录 hash/mtime 不变 | `completed` |
+| G1-1 M0-A/B | Prisma 6.19.3、44 模型、migration、UoW、JCS、约束、备份恢复 | `SCH-00～15`、`DOC-01～03`、SQLite E0 | `ready` |
 | G1-2 M1.1 | Project/Chapter/Script DB-only 临时垂直切片 | `REP-01～04` | `pending` |
 | G1-3 M1.2 | Story/Storyboard/Preflight 文档、投影和 current 事务 | `DOC-04～09`、`REP-05～07` | `pending` |
 | G1-4 M1.5 | Dialogue、ToolResult、runtime session、pending 持久化 | `REP-08～09` | `pending` |
@@ -66,8 +66,7 @@ source: 用户恢复的 G0–G5 Goal、G0 完成记录、G1–G5 accepted 方案
 
 ## 当前下一步
 
-1. 提交本总控任务包和审计修正。
-2. 指派 G1-0 Worker，只修改隔离夹具与对应测试。
-3. 主 Agent 审查、返工并验证 G0 无回归。
-4. G1-0 通过后才指派 G1-1 Schema/Persistence Worker。
-
+1. 提交已通过双重只读终审、主 Agent 全量门禁和真实目录不变见证的 G1-0。
+2. 指派 G1-1 M0-A Schema Worker，先完成 44 模型、migration history、SQLite CHECK/trigger/index 与 fresh replay。
+3. 主 Agent 静态审查 M0-A，问题返工后执行临时 SQLite 运行复核。
+4. M0-A 通过后再进入 M0-B 的 PrismaModule、UoW、DocumentCodec、配置探针与离线 backup/restore。
