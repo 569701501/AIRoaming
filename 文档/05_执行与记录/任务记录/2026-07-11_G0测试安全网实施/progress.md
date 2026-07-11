@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-TASK-20260711-G0-IMPLEMENTATION-PROGRESS
-status: active
+status: completed
 created: 2026-07-11
 updated: 2026-07-11
 owner: AI漫游项目
@@ -84,7 +84,7 @@ P0 修复后，以事故后的状态作为最终基线反复复核：
 ## 6. 当前状态
 
 - 阶段 0～6：完成。
-- 阶段 7：正式文档、Handoff、Scrutiny Review 与 Runtime/User Review 已完成。
+- 阶段 7：正式文档、Handoff、Scrutiny Review、Runtime/User Review、会话记忆与 Git 提交已完成。
 - `migration_witness` 仍是 G0 临时适配器；G1 必须以真实迁移与生产 DB-only 链路的等价测试替换。
 - UI-06、G1～G5 与后置 G6/G7 仍未实现。
-- 待主代理完成：更新会话记忆、最终 diff 复核与 Git 提交。
+- G0 主体实现已提交为 `185b83c`（`test: add G0 seven-stage safety net`）。

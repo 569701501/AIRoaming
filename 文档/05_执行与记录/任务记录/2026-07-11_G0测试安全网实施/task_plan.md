@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-TASK-20260711-G0-IMPLEMENTATION-PLAN
-status: active
+status: completed
 created: 2026-07-11
 updated: 2026-07-11
 owner: AI漫游项目
@@ -182,11 +182,11 @@ Chromium 最小链路：
 
 - [x] 更新 `progress.md`、`findings.md` 与 `handoff.md`。
 - [x] 更新 `文档/06_测试与验收/自动化测试体系.md` 中“已实现”状态、命令与证据。
-- [ ] 更新会话记忆（由主代理最终收口）。
+- [x] 更新会话记忆（由主代理最终收口）。
 - [x] 将长期有效的测试约定合并进 `文档/记忆/MEMORY.md`。
 - [x] Scrutiny Review：核对范围、契约、测试与文件差异。
 - [x] Runtime/User Review：核对真实 Chromium 用户路径、隔离和清理。
-- [ ] 主代理检查最终 diff 后提交当前分支。
+- [x] 主代理检查最终 diff 后提交当前分支；主体提交为 `185b83c`。
 
 **退出标准：** G0 实施结果可由下一位开发者复现，文档不把未完成的 G1–G5 写成已实现。
 
@@ -266,6 +266,6 @@ Worker B 只负责 API/UI 行为测试：
 
 ## 8. 最终实施状态
 
-截至 2026-07-11，阶段 0～6 已完成；阶段 7 的正式文档、Handoff、Scrutiny Review 和 Runtime/User Review 已完成。剩余动作只有主代理更新会话记忆、复核最终文档 diff 并提交当前分支。
+截至 2026-07-11，阶段 0～7 已完成；正式文档、Handoff、Scrutiny Review、Runtime/User Review、会话记忆与 Git 提交均已收口。G0 主体实现提交为 `185b83c`。
 
 G0 的实现边界保持不变：只覆盖 Service characterization、API-01～API-04、UI-01～UI-05 和 E2E 基础设施。UI-06、G1～G5 目标行为及 G6/G7 后置行为均未实现。`migration_witness` 仍是 G0 临时适配器，G1 必须先以真实迁移和生产 DB-only 链路提供语义等价测试，再删除或替换该 witness。

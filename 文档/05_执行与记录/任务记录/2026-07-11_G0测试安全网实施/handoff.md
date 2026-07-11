@@ -12,7 +12,7 @@ source: G0 七阶段测试安全网最终实现与主代理复核
 
 ## 1. 交付结论
 
-G0 安全网的代码、自动化验证、Scrutiny Review 与 Runtime/User Review 已完成。当前分支只待主代理更新会话记忆、复核最终文档 diff 并提交。
+G0 安全网的代码、自动化验证、Scrutiny Review、Runtime/User Review、会话记忆与 Git 提交均已完成。主体实现提交为 `185b83c`。
 
 G0 完成只表示“后续 G1～G5 有可重复、隔离的安全网”，不表示七阶段最终出版链路完成。
 
@@ -94,9 +94,9 @@ G1 完成时必须同时满足以下条件，才能删除或替换该 witness：
 - G6 素材包 V2 与 G7 ZIP 总验收继续后置。
 - 一镜一页、复制源图和目录式素材包仍是已知旧骨架，没有进入 G0 绿色成功契约。
 
-## 8. 主代理剩余动作
+## 8. 主代理收口确认
 
-- [ ] 更新本次会话记忆最终总结。
-- [ ] 审查 Worker C 文档差异并执行 `git diff --check`。
-- [ ] 确认没有越界生产代码或未来行为测试。
-- [ ] 提交 `codex/g0-test-safety-net`；本 Handoff 不预写 commit hash。
+- [x] 更新本次会话记忆最终总结。
+- [x] 审查 Worker C 文档差异并执行 `git diff --check`。
+- [x] 确认没有越界生产代码或未来行为测试。
+- [x] 提交 `codex/g0-test-safety-net`；主体实现提交为 `185b83c`。
