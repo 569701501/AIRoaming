@@ -13,7 +13,7 @@
 ## 契约对齐
 
 - Candidate 模型见 `文档/02_架构与契约/核心数据模型.md` §12。
-- 候选图路径：`chapters/{slug}/candidates/{shotId}/{candidateId}.png`。
+- 候选图路径：`chapters/{slug}/candidates/{shotId}/{candidateId}.webp`（现行实现）；未来扩展格式时扩展名随 Asset MIME 类型变化，目录层级不变。
 - 章节排版：`chapters/{slug}/layout/`；导出：`chapters/{slug}/exports/`。
 - 素材包：`exports/packages/{packageId}/` + manifest。
 - 任务类型：`image_generate`、`layout_export`、`asset_package_export`。

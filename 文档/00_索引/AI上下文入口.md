@@ -4,7 +4,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-06-21
+updated: 2026-07-11
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -15,17 +15,18 @@ source: AI漫游文档体系
 - 项目名称：AI漫游
 - 前端展示品牌：绘界漫画
 - 项目类型：内部生成式内容生产工作台
-- 当前核心产物：结构化剧情、分镜、漫画图候选、漫画页面、素材包
+- 当前核心产物：结构化剧情、分镜、漫画图候选、漫画页面；素材包仍是长期产物，但 G6 开发已后置
 - 后续扩展产物：轻漫剧基础视频
 - 第一阶段重点：故事到分镜、分镜到漫画图候选、候选图选择、漫画页排版导出
 - 第二阶段重点：基于已选漫画图生成基础轻漫剧视频
-- 当前 UI 结论：应用入口为项目库；用户先查看或创建项目；创建项目只建立项目记录，不要求填写剧本字段；创建弹窗的用户可见标题为“创建项目”，且只保留“项目名称”一个字段；创建项目成功后直接进入项目工作区，并默认打开第 1 步“剧本”；项目库和项目工作区均不展示顶部搜索框；进入项目后项目工作区隐藏全局左侧导航，顶部保留返回项目列表按钮和紧凑 7 步流程栏；项目主流程为「剧本 -> 剧情结构 -> 分镜工作台 -> 出图准备 -> 候选图工作台 -> 排版导出 -> 素材包」；`项目角色库` 是常驻资产入口，不作为顶部主流程步骤；项目工作区首屏必须是左侧公共“对话框”、右侧“剧本文档编辑器”；右侧剧本文档当前只编辑剧本正文，不展示项目名称、故事标题、题材标签、漫画格式和画风方向等字段，也不展示“当前章节 / 故事主线 / 出场角色 / 场景列表”的最右侧信息面板；剧本阶段后续支持两种起步来源：用户通过对话框附件上传或输入框粘贴已有剧本并由 AI 整理成章节，或让 AI 生成灵感种子并在用户确认后生成章节剧本；AI 可通过 AI漫游受控工具/API 编辑章节草稿，但不能直接操作本地物理路径；对话框组件公共，但对话记录按步骤隔离，剧本步骤下一阶段应按 `projectId + stepKey + chapterId` 隔离；项目级只共享用户已确认的事实和产物；当前不默认使用大 hero 图和右侧常驻栏，主工作区优先。
+- 当前 UI 结论：应用入口为项目库；用户先查看或创建项目；创建项目只建立项目记录，不要求填写剧本字段；创建弹窗的用户可见标题为“创建项目”，保留两个必填字段“项目名称”和默认空的“漫画版式（竖向条漫/分页漫画）”，版式创建后不可直接修改；创建项目成功后直接进入项目工作区，并默认打开第 1 步“剧本”；项目库和项目工作区均不展示顶部搜索框；进入项目后项目工作区隐藏全局左侧导航，顶部保留返回项目列表按钮和紧凑 7 步流程栏；项目主流程为「剧本 -> 剧情结构 -> 分镜工作台 -> 出图准备 -> 候选图工作台 -> 排版导出 -> 素材包」；`项目角色库` 是常驻资产入口，不作为顶部主流程步骤；项目工作区首屏必须是左侧公共“对话框”、右侧“剧本文档编辑器”；右侧剧本文档当前只编辑剧本正文，不展示项目名称、故事标题、题材标签、漫画格式和画风方向等字段，也不展示“当前章节 / 故事主线 / 出场角色 / 场景列表”的最右侧信息面板；剧本阶段后续支持两种起步来源：用户通过对话框附件上传或输入框粘贴已有剧本并由 AI 整理成章节，或让 AI 生成灵感种子并在用户确认后生成章节剧本；AI 可通过 AI漫游受控工具/API 编辑章节草稿，但不能直接操作本地物理路径；对话框组件公共，但对话记录按步骤隔离，剧本步骤下一阶段应按 `projectId + stepKey + chapterId` 隔离；项目级只共享用户已确认的事实和产物；当前不默认使用大 hero 图和右侧常驻栏，主工作区优先。
 
 ## 2. 当前优先级判断
 
 | 优先级 | 内容 |
 | --- | --- |
-| P0 | 故事输入与结构化、分镜生成与编辑、漫画图生成候选、候选选择、漫画排版导出、素材包 |
+| P0 | 故事输入与结构化、分镜生成与编辑、漫画图生成候选、候选选择、漫画排版出版、持久任务与数据库事实源 |
+| P0 后置 | 素材包 V2、真实 ZIP、下载与七阶段 `exported` 总验收；保留第七步导航，本轮不写 G6 开发文档 |
 | P0.5 | 基础轻漫剧视频、TTS、字幕、BGM |
 | P1 | 局部重生成、角色一致性增强、批量导出、复杂版本对比 |
 | P2 | 多人协作、云端扩容、商业化权限、复杂视频镜头运动 |
@@ -84,7 +85,7 @@ $deep-think
 - 前端：Vue 3、Pinia、Tailwind CSS、shadcn/reka-ui。
 - 后端：Node.js、NestJS、Prisma。
 - MVP 数据库：SQLite 优先，后续可切 PostgreSQL。
-- 异步任务：MVP 可先用本地任务表和进程内 worker，后续接 BullMQ/Redis。
+- 异步任务：D75 已确认 SQLite `GenerationTask/TaskAttempt` + 单进程持久 worker/lease；数据库扫描兜底、at-least-once 幂等、协作取消、图片并发 1，BullMQ/Redis 后置。
 - 文件系统：本地 workspace 先行，后续可抽象对象存储。
 - 视频音频：FFmpeg、TTS 服务或本地 TTS。
 - Aurora 迁移原则：复用工作台、任务中心、workspace 路径、provider adapter 和 OpenCode 对话运行时经验；第一阶段选择 OpenCode 作为项目对话框 AI Runtime，但不迁移完整 Docker sandbox、计费、团队、Phaser 工具和 Aurora 专用闭环系统。详见 `文档/04_方案与决策/2026-05-25_OpenCode对话运行时移植方案.md`。
@@ -111,6 +112,14 @@ corepack pnpm -w typecheck  # 三包类型检查
 ## 8. 当前产品取舍
 
 - 先做可控工作流，不先追求完全自动生成整部作品。
+- “可控工作流”统一指 AI 分步生成、用户查看/编辑/确认后推进，不表示用户手工绘图。该七阶段状态机、确认动作和步骤门禁已在当前代码中实现，是现有基线，不是 D2 待开发功能；D2 真正后置的是跨步骤自动推进、批量调度和一键生产的详细边界。
+- 当前七阶段补全入口为 `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`；完整验收入口为 `文档/06_测试与验收/七阶段完整链路验收基线.md`。2026-07-11 用户决定当前开发波次只到 G5，G6 素材包 V2 与 G7 ZIP 总验收后置；仍保留七阶段 workflow，不改回六阶段。G0–G5 内容完备性、批准状态和开工门槛见 `文档/04_方案与决策/2026-07-11_G0至G5开发文档完备性复核.md`。
+- G0 开发级方案与用例矩阵已于 2026-07-11 获用户确认、尚未实现：保留 Vitest 作为纯函数/Service 测试，新增独立 Playwright 做 API smoke 和 Chromium 用户路径；只锁当前正确行为，已知错误登记为 `record_only/red_on_slice`，当前到所属 G1–G5 切片才写 red 测试，G6 用例保留为后置索引。自动化必须使用临时 workspace、loopback fake OpenCode/图片供应商和假 key，禁止复用本机开发服务或真实项目。当前排版和素材包错误骨架不写成功绿测。详见 `文档/04_方案与决策/2026-07-11_G0七阶段行为刻画与E2E测试骨架方案.md` 与 `文档/06_测试与验收/G0七阶段行为用例矩阵.md`。
+- G1 开发级文档已于 2026-07-11 获用户确认、尚未实现：目标不是给旧六个 Prisma 模型补 CRUD，而是以 44 个明确模型接管项目/版本/对话/pending/任务/设置/迁移/Outbox；通过不可变 snapshot、runtime bundle、影子导入、短暂停写和一次 DB-only 激活切换。SQLite 首版不默认开启 WAL；旧 metadata 必须移入独立只读档案，Asset 字节路径继续可写；`firstBusinessWriteAt` 是退回 file-only 的终点。详见 `文档/04_方案与决策/2026-07-11_G1数据库事实源与DB-only切换开发方案.md`、`文档/04_方案与决策/2026-07-11_G1数据库Schema字典与旧数据映射.md` 和 `文档/06_测试与验收/G1数据库迁移执行与验收清单.md`。用户另行明确授权开发前，仍不得修改 schema、业务代码、数据库或真实 workspace。
+- G2 开发级方案已于 2026-07-11 获用户确认、尚未实现：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值；dirty/pending 工作稿不使旧导出消失，但会阻止新下游任务。里程碑保持单调，正式返修不再清空候选/布局或倒退 `Chapter.status`。详见 `文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md`、`文档/04_方案与决策/2026-07-11_G2版本来源与Freshness契约字典.md`、`文档/04_方案与决策/ADR-0013_上游版本链与派生Freshness.md` 和 `文档/06_测试与验收/G2上游版本链与失效验收清单.md`。
+- G3 开发级方案已于 2026-07-11 获用户确认、尚未实现：不新增创建入口或向导，只在已经存在的 `CreateProjectModal.vue` 中补默认空、必选的“漫画版式”，并沿用原创建成功跳转。正式 runtime 只接受 `vertical_scroll/paged_comic`；Create 必填，普通 PATCH 只要出现该字段就 409，SQLite 用无默认值、CHECK 和不可变 trigger 硬锁。`page_horizontal/four_panel/缺失/非法` 只由 maintenance importer 映射或要求决议；分页漫画不等于横屏，旧横幅尺寸/LayoutPage 只作为带版本和 G5 删除点的兼容适配。详见 `文档/04_方案与决策/2026-07-11_G3漫画版式入口与不可变约束开发方案.md`、`文档/04_方案与决策/2026-07-11_G3漫画版式契约与旧值迁移字典.md` 和 `文档/06_测试与验收/G3漫画版式入口与锁定验收清单.md`。
+- G4 开发级方案已于 2026-07-11 获用户确认、尚未实现：Candidate 只保留 `generated/rejected/superseded`，收藏不驱动下游；首次定稿、更换、clear 和 clear 后重新定稿使用线性不可变 `CandidateLockRevision`。replace/clear 先 preview，提交带 expected revision + JCS impact digest；丢响应通过 previous/action/target 精确识别重放，真冲突返回 409。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；结构 lock set 与来源 applicability 分轴表达。已导出章节在上游 current 时仍可生新候选，未正式更换前不影响下游。G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
+- G5 开发级方案已于 2026-07-11 获用户确认、尚未实现：条漫/页漫共用严格 `LayoutDocumentV1`，画格与所属图片为受控复合对象，自由图片独立分层；Working Copy 自动保存与显式不可变 LayoutRevision 分离，离开编辑器不自动造版本。正式输出收口为一个 `layout_publication`：页漫必含 PNG 页面并可附 PDF，条漫必含 PNG 切片并可在能力允许时附长图；它是当前 G0–G5 波次的独立终点，也是未来 G6 的唯一 current 输入。E0 首选验证“交互 adapter + 专用 HTML/SVG RenderScene + 固定 Chromium”，同时以 SVG/resvg 对照，原型通过前不锁库。G6 已后置，不是 G0–G5 开工或签收前置。详见 `文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md`、`文档/04_方案与决策/2026-07-11_G5LayoutDocument与编辑命令契约字典.md`、`文档/04_方案与决策/2026-07-11_G5确定性渲染与出版导出契约.md` 和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
 - 先把漫画主链路做扎实，轻漫剧只做基础合成。
 - 先固化角色、分镜、候选、素材、任务、版本模型，再优化生成效果。
 - 所有 AI 输出都应允许人工编辑、选择、锁定、重生成。
@@ -119,6 +128,11 @@ corepack pnpm -w typecheck  # 三包类型检查
 - 2026-05-23 起，旧工作台页面实现已清空；新的功能和页面链路已经收口，前端代码已开始按当前 UI 信息架构实现。
 - 2026-05-23 项目库首版已落地：包含左侧导航、项目列表、创建项目弹窗、当时的 6 步流程预览和任务队列轻量入口；项目工作区仍是下一阶段。2026-05-25 起项目库顶部搜索框已移除。当前顶部主流程已更新为 7 步：`剧本 -> 剧情结构 -> 分镜工作台 -> 出图准备 -> 候选图工作台 -> 排版导出 -> 素材包`，项目角色库不进入顶部主流程。
 - 2026-05-25 创建项目语义已收口：创建动作只建立项目记录，前端创建弹窗用户可见标题为“创建项目”，只保留“项目名称”一个字段，不展示内部语义或“下一步”提示文案，不再要求故事标题、题材标签、漫画格式、画风方向和故事原文。
+- 2026-07-10 D1 新决策已采纳并覆盖上述“只保留项目名称”口径：创建动作仍只建立项目记录，但现有创建项目按钮和弹窗必须在“项目名称”下补默认空的“漫画版式”下拉框，选择 `竖向条漫/分页漫画` 后才能创建；版式创建后不可直接修改。`四格漫画` 属于后续画布布局模板，不再是项目版式。2026-07-11 用户再次澄清不需要新入口、页面或向导；当前代码仍是旧实现，待开发时按 `ADR-0009` 和 G3 开发级方案迁移。
+- 2026-07-10 D3 候选返修决策已采纳：收藏/草选不驱动下游；正式图片使用不可变 `CandidateLockRevision`，更换定稿前显示影响，既有画布格子派生为 stale，旧布局和旧导出永久保留，长任务绑定来源修订和 lock set digest。当前代码仍只改 `lockedCandidateId`，待开发时按 `ADR-0010` 迁移。
+- 2026-07-10 D4/D5 首版边界已采纳：在条漫/页漫的有限正式成稿容器内，提供画格、图片、文字和气泡的高自由对象编排；不把成稿步骤扩张为无限白板、绘画软件或专业矢量编辑器。D45-1 至 D45-6 最终为 A/C/A/A/A/A：受控矩形画格、横竖排字符范围富文本、四类气泡 + 单尾巴、临时多选不保存 Group、桌面完整编辑/手机只预览、默认收起的 AI 助手抽屉。AI 建议必须先预览并由用户确认后才应用。该决策尚未实现，不得当作已授权开发或已具备能力的事实。详见 `文档/04_方案与决策/2026-07-10_D4D5高自由成稿编辑器调研与首版边界.md` 与 `文档/04_方案与决策/ADR-0011_高自由成稿编辑器首版边界.md`。
+- 2026-07-10 D7 全量数据库化已由 ADR-0012 采纳、尚未实现。D71=A：影子导入、短暂停写、一次 DB-only 切换。D72=A：首版本地 SQLite 单引擎。D73=A：关系核心 + 版本化 Json + 可重建投影。D74=修正版 A：文本 key 归 OpenCode 本地 auth；图片 key 归 NestJS 后端 SecretStore，前端、SQLite、普通 JSON、日志、任务和 artifact 不得暴露明文。D75=A：SQLite `GenerationTask/TaskAttempt` + 单进程持久 worker/lease，采用 at-least-once 幂等、启动恢复、协作取消与图片并发 1，BullMQ/Redis 后置。D76=A：保留全部原 taskId；完整旧记录导入为只读 `legacy_imported`，缺失记录导入为不可执行 `legacy_stub`，不伪造成功状态。详细开发文档与用户确认前不得开始修改 schema、业务代码或真实数据。
+- 2026-07-11 G1 进一步冻结：Importer 不直接读活动 workspace，只读 maintenance/停机生成且 pre/post manifest 一致的 snapshot；切换当刻的对话、pending 和旧任务终态通过无秘密 runtime bundle 捕获。Asset 使用 temp -> staged+Outbox -> rename -> ready；任务使用 claimToken fencing 和 `TaskConcurrencySlot`；图片 key 迁移不创建新明文备份。当前 Prisma 6.19.3 不随 G1 升级 major，关键 enum/跨字段状态由定制 migration SQL 的 CHECK/trigger 保护。
 - 2026-05-25 项目工作区交互方向更新：进入项目后隐藏全局左侧导航；项目内左侧固定为公共“对话框”，右侧为当前步骤文档或工作区；顶部搜索移除，保留返回项目列表和流程栏。对话框按当前步骤注入不同提示词，AI 可给建议、总结、改写或触发受控业务工具；2026-05-31 产品口径为 7 步。
 - 2026-05-25 创建后首屏要求收口：创建项目成功后不是停留在项目库，也不是进入旧“项目与故事”表单；必须进入项目工作区第 1 步“剧本”，页面布局为左侧对话框、右侧剧本文档编辑器。
 - 2026-05-25 对话上下文规则已收口：项目内共用同一个“对话框”组件，但不共用一条完整对话历史；每个步骤维护自己的对话记录，切换步骤时加载当前步骤记录、当前步骤提示词、当前步骤产物和项目级已确认事实。未被用户应用、插入、保存、锁定或确认的聊天内容不能自动进入其他步骤上下文。
@@ -149,7 +163,7 @@ corepack pnpm -w typecheck  # 三包类型检查
 - 2026-06-21 直接题材生成大纲已落地：剧本阶段新增第 3 条链路。用户给出明确题材（如"生成全职猎人暗黑大陆篇"）时，绕过灵感种子直接生成项目级大纲（`generateScriptOutlineFromTopicWithAI`，题材来自用户输入，不依赖 seed）。判断依据：`shouldGenerateInspirationSeeds` 返回 `{trigger, mode}`，命中"生成/写/编 + 故事/篇/章/剧本"的 directContentMatch 时 mode=topic。"找灵感/点子/创意"仍走 3 选 1（现状不变）。大纲 status=draft，用户确认后才继续生成章节。详见 `文档/05_执行与记录/功能完成记录/2026-06-21_直接题材生成大纲.md`。
 - 2026-06-21 角色分层双维度已落地：角色分类从单一 level(4层) 升级为 level(5层)+entityType(4类) 双维度。level 加 minor(小角色，归 chapter 出图档)；AI 生成剧情结构时显式输出 level+entityType（未输出则 inferCharacterLevel 关键词兜底，不删）。entityType 新增 human/creature/group/voice（第一批只 human 走通生图，creature/group/voice 占位 fallback）。CHARACTER_LEVEL_ORDER 抽成共享常量避免 sort/resolve 漂移。解决"角色被关键词误判 extra 导致没定稿按钮"的 bug。详见 `文档/05_执行与记录/功能完成记录/2026-06-21_角色分层双维度.md`。
 - 2026-06-21 出图准备重构为"出门检查单"已落地：定位收窄为"分镜产物完整性校验 + 放行候选图"，不再当第二个角色库。砍掉 metrics 仪表盘/重复 hero/next-card 引导/未识别角色 4 动作/本章角色图列表/场景画风/镜头绑定面板，改为"就绪度一句话 + 全项检查清单(✓已完成/⚠未完成+入口) + 主按钮"。分镜 prompt 加硬约束 characterIds 只用 structure.characters 已有角色名(源头消除未识别)；4 动作前端 UI 删除(后端接口暂留)。修复 isFinalized 误判(改判 primary 是否真锁定)解决"有定稿图但 fully-locked 隐藏锁定按钮"死锁。详见 `文档/04_方案与决策/2026-06-02_角色库与出图准备流程调整方案.md` 2026-06-21 更新小节。
-- 2026-06-22 ProjectsService 巨石拆分已落地：5236 行单文件拆为 1 门面 + 9 独立文件（−1516 行）。纯收口，行为与调用面不变（ADR-0005 不破）。workspace 持久化收口到 `ProjectRepository`（缓存+加载链+写入链）；领域纯函数抽成 util（workspace-json/local-types/project-domain/story-normalize/character-domain/workflow/image-preflight/reference-prompt）。buildImagePreflightJson/isChapterImagePreflightReady 改接受 isReferenceTaskRunning 回调。详见 `文档/05_执行与记录/功能完成记录/2026-06-22_ProjectsService巨石拆分.md` 和 `文档/03_模块梳理/模块总览与依赖.md` §4.13。
+- 2026-06-22 ProjectsService 巨石拆分已落地：5236 行单文件拆为 1 门面 + 9 独立文件（−1516 行）。纯收口，行为与调用面不变（ADR-0005 不破）。workspace 持久化收口到 `ProjectRepository`（缓存+加载链+写入链）；领域纯函数抽成 util（workspace-json/local-types/project-domain/story-normalize/character-domain/workflow/image-preflight/reference-prompt）。buildImagePreflightJson/isChapterImagePreflightReady 改接受 isReferenceTaskRunning 回调。详见 `文档/05_执行与记录/功能完成记录/2026-06-22_ProjectsService巨石拆分.md` 和 `文档/03_模块梳理/模块总览与依赖.md` §4.14。
 - 2026-06-24 sourceText 空覆盖 bug 已修复并建立测试基础设施：`saveChapterDraft`/`updateProjectDraft` 缺非空校验导致前端切章竞态误触发空保存，覆盖正式正文（AI 路径 `writeChapterDraftFromAI` 原已有校验，未受影响）。修复方式：后端两入口加非空校验（throw `CHAPTER_SCRIPT_REQUIRED`）+ 前端 canSave 判空；数据从 `script-v001.md` 历史版本无损恢复。同日首次引入 Vitest 测试基础设施：`corepack pnpm test` 聚合运行（shared + server），61 个测试锁住 sourceText 校验回归 / Repository 写入重载往返 / workflow 状态机 / 章节剧本格式 / 剧本导入分析纯函数。测试约定见 `文档/06_测试与验收/自动化测试体系.md`，回归测试在 `*.source-guard.spec.ts`。前端组件测试、e2e、Dialogue/OpenCode 链路为已知未覆盖范围。
 - 2026-06-24 ProjectsService 拆分第二轮(候选D)已落地：剧本导入分析的 9 个纯算法方法抽出为 `script-import.util.ts`（231 行），Service 从 3730 → 3518 行（−212）。纯收口，行为与调用面不变（ADR-0005 不破）。analyzeScriptImport/importScriptToChapters 保留在 Service 改委托。9 方法零外部依赖（不碰 repository/tasks/workspacePath），迁移仅去掉 private/this，逻辑体逐字一致。上轮候选 D 遗留清零。详见 `文档/05_执行与记录/功能完成记录/2026-06-24_ProjectsService拆分第二轮.md`。
 - 2026-06-24 ProjectsService 拆分第三轮(ImageProvider 网关)已落地：抽出 `ImageProviderService`(311 行)，把 6 个出图 HTTP 方法(requestOpenAi*/requestDoubao*/downloadDoubao*/fetchWithTimeout)+ provider 配置解析从 Service 迁出。**打破了上两轮未能解决的循环依赖**(角色编排→出图同 class)。Service 从 3518 → 3272 行(−246)。对外 generateImage/editImage，内部 doubao/openai 自动分流；调用方通过 getActiveProviderType 决定 size 差异。generateCharacterReference/generateSceneReference 改委托。纯收口，ADR-0005 不破。详见 `文档/05_执行与记录/功能完成记录/2026-06-24_角色参考图编排拆分.md`。

@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>AI漫游全项目功能补全决策版</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;max-width:736px;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="AI漫游全项目功能补全决策版" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;AI漫游全项目功能补全决策版&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(--background) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 12.5px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--viz-font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;feature-completion-decisions&quot;&gt;
+  &lt;div class=&quot;viz-row fd-meta&quot;&gt;
+    &lt;span class=&quot;viz-badge&quot;&gt;2026-07-10 事实复核&lt;/span&gt;
+    &lt;span class=&quot;text-small text-muted&quot;&gt;代码、样例、测试与官方资料共同判定&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;section class=&quot;card fd-verdict&quot; aria-labelledby=&quot;fd-verdict-title&quot;&gt;
+    &lt;h2 id=&quot;fd-verdict-title&quot;&gt;当前不是“补齐七步”，而是收口三个断层&lt;/h2&gt;
+    &lt;div class=&quot;fd-verdict-grid&quot;&gt;
+      &lt;div&gt;&lt;span class=&quot;fd-index&quot;&gt;A&lt;/span&gt;&lt;strong&gt;静态发布闭环&lt;/strong&gt;&lt;span&gt;候选图之后还没有真正的多格成稿、气泡文字与渠道成品。&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;span class=&quot;fd-index&quot;&gt;B&lt;/span&gt;&lt;strong&gt;生产可靠性&lt;/strong&gt;&lt;span&gt;任务仍会随服务重启丢失，状态、版本、取消与重试尚未形成稳定底座。&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;span class=&quot;fd-index&quot;&gt;C&lt;/span&gt;&lt;strong&gt;AI 质量系统&lt;/strong&gt;&lt;span&gt;应以样例、版本、供应商能力和回归门替代继续收集“万能 prompt”。&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;nav class=&quot;viz-controls&quot; aria-label=&quot;决策页视图&quot;&gt;
+    &lt;button class=&quot;btn&quot; type=&quot;button&quot; data-view=&quot;reality&quot; aria-pressed=&quot;true&quot;&gt;真实现状&lt;/button&gt;
+    &lt;button class=&quot;btn&quot; type=&quot;button&quot; data-view=&quot;route&quot; aria-pressed=&quot;false&quot;&gt;推荐路线&lt;/button&gt;
+    &lt;button class=&quot;btn&quot; type=&quot;button&quot; data-view=&quot;prompt&quot; aria-pressed=&quot;false&quot;&gt;提示词重排&lt;/button&gt;
+    &lt;button class=&quot;btn&quot; type=&quot;button&quot; data-view=&quot;decisions&quot; aria-pressed=&quot;false&quot;&gt;决策事项&lt;/button&gt;
+  &lt;/nav&gt;
+
+  &lt;section class=&quot;fd-panel&quot; data-panel=&quot;reality&quot; aria-labelledby=&quot;fd-reality-title&quot;&gt;
+    &lt;div class=&quot;viz-row fd-section-head&quot;&gt;
+      &lt;h2 id=&quot;fd-reality-title&quot;&gt;能力成熟度&lt;/h2&gt;
+      &lt;div class=&quot;viz-row fd-legend&quot; aria-label=&quot;成熟度图例&quot;&gt;
+        &lt;span&gt;&lt;i class=&quot;fd-dot fd-usable&quot;&gt;&lt;/i&gt;可用&lt;/span&gt;
+        &lt;span&gt;&lt;i class=&quot;fd-dot fd-partial&quot;&gt;&lt;/i&gt;部分闭环&lt;/span&gt;
+        &lt;span&gt;&lt;i class=&quot;fd-dot fd-skeleton&quot;&gt;&lt;/i&gt;骨架&lt;/span&gt;
+        &lt;span&gt;&lt;i class=&quot;fd-dot fd-missing&quot;&gt;&lt;/i&gt;未建&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;fd-maturity-grid&quot; role=&quot;list&quot; aria-label=&quot;能力域列表&quot;&gt;&lt;/div&gt;
+    &lt;div class=&quot;card fd-selected&quot; aria-live=&quot;polite&quot;&gt;
+      &lt;div class=&quot;viz-row&quot;&gt;
+        &lt;span class=&quot;viz-badge fd-selected-status&quot;&gt;&lt;/span&gt;
+        &lt;strong class=&quot;fd-selected-title&quot;&gt;&lt;/strong&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;fd-selected-now&quot;&gt;&lt;/p&gt;
+      &lt;p class=&quot;text-small text-muted fd-selected-gap&quot;&gt;&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;p class=&quot;text-small text-muted&quot;&gt;关键证据：真实样例已有 15 镜候选图，但 0 镜锁定；排版服务仍是一镜一页并复制源图；素材包只有目录与 manifest。&lt;/p&gt;
+  &lt;/section&gt;
+
+  &lt;section class=&quot;fd-panel&quot; data-panel=&quot;route&quot; aria-labelledby=&quot;fd-route-title&quot; hidden&gt;
+    &lt;div class=&quot;viz-row fd-section-head&quot;&gt;
+      &lt;h2 id=&quot;fd-route-title&quot;&gt;先打通可发布作品，再扩展效率与视频&lt;/h2&gt;
+      &lt;span class=&quot;viz-badge&quot;&gt;推荐&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;ol class=&quot;fd-route&quot; aria-label=&quot;推荐实施依赖顺序&quot;&gt;
+      &lt;li&gt;&lt;span&gt;G0&lt;/span&gt;&lt;strong&gt;真实底图收口&lt;/strong&gt;&lt;small&gt;场景纯环境图资格与供应商验收&lt;/small&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span&gt;R1&lt;/span&gt;&lt;strong&gt;候选可决策&lt;/strong&gt;&lt;small&gt;收藏、定稿修订、影响预览与来源失效&lt;/small&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span&gt;R2&lt;/span&gt;&lt;strong&gt;高自由成稿画布&lt;/strong&gt;&lt;small&gt;形态有边界，首期只做基础核心编辑&lt;/small&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span&gt;R3&lt;/span&gt;&lt;strong&gt;真正合成与导出&lt;/strong&gt;&lt;small&gt;渲染、预检、渠道图片与 ZIP&lt;/small&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span&gt;R4&lt;/span&gt;&lt;strong&gt;黄金用户路径&lt;/strong&gt;&lt;small&gt;真实样例、产物、回归与文档同步&lt;/small&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span&gt;R5&lt;/span&gt;&lt;strong&gt;暂不考虑&lt;/strong&gt;&lt;small&gt;只保留记录，不进入近期方案与排期&lt;/small&gt;&lt;/li&gt;
+    &lt;/ol&gt;
+    &lt;div class=&quot;fd-parallel&quot; aria-label=&quot;并行底座&quot;&gt;
+      &lt;strong&gt;并行但只做主线需要的底座&lt;/strong&gt;
+      &lt;div class=&quot;viz-row&quot;&gt;
+        &lt;span class=&quot;viz-badge&quot;&gt;持久任务&lt;/span&gt;
+        &lt;span class=&quot;viz-badge&quot;&gt;真实取消/重试&lt;/span&gt;
+        &lt;span class=&quot;viz-badge&quot;&gt;状态派生&lt;/span&gt;
+        &lt;span class=&quot;viz-badge&quot;&gt;版本谱系&lt;/span&gt;
+        &lt;span class=&quot;viz-badge&quot;&gt;AI 质量工程（独立大功能）&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;fd-priority-list&quot; aria-label=&quot;功能优先级&quot;&gt;
+      &lt;div&gt;&lt;strong&gt;P0 发布闭环&lt;/strong&gt;&lt;span&gt;候选决策、有边界的高自由成稿画布、气泡、合成器、形态对应导出、ZIP、发布预检、端到端验收&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;strong&gt;P0 必要底座&lt;/strong&gt;&lt;span&gt;状态一致、任务持久、取消重试、版本失效、章节基本管理&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;strong&gt;P1 质量效率&lt;/strong&gt;&lt;span&gt;项目级场景库、风格板、素材上传、mask 局部重绘、成本与质量辅助检查&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;strong&gt;暂缓/不做&lt;/strong&gt;&lt;span&gt;无限画布、Photoshop 级编辑器、普通用户节点 UI、团队协作、社区与同时支持所有格式&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;section class=&quot;fd-panel&quot; data-panel=&quot;prompt&quot; aria-labelledby=&quot;fd-prompt-title&quot; hidden&gt;
+    &lt;div class=&quot;viz-row fd-section-head&quot;&gt;
+      &lt;h2 id=&quot;fd-prompt-title&quot;&gt;提示词优先级从“文案收集”改为“质量工程”&lt;/h2&gt;
+      &lt;span class=&quot;viz-badge&quot;&gt;已独立建项&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;fd-prompt-shift&quot; aria-label=&quot;提示词工程优先级变化&quot;&gt;
+      &lt;div class=&quot;fd-old&quot;&gt;
+        &lt;span class=&quot;text-small text-muted&quot;&gt;旧重心&lt;/span&gt;
+        &lt;strong&gt;收集热门 prompt&lt;/strong&gt;
+        &lt;span&gt;继续改写 P23–P26、叠加统一 negative prompt&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;fd-arrow&quot; aria-hidden=&quot;true&quot;&gt;→&lt;/div&gt;
+      &lt;ol&gt;
+        &lt;li&gt;&lt;span&gt;Q0&lt;/span&gt;&lt;strong&gt;固定样例与失败标签&lt;/strong&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;span&gt;Q1&lt;/span&gt;&lt;strong&gt;生成规格和素材审计&lt;/strong&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;span&gt;Q2&lt;/span&gt;&lt;strong&gt;供应商能力与 profile&lt;/strong&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;span&gt;Q3&lt;/span&gt;&lt;strong&gt;结构/视觉回归质量门&lt;/strong&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;span&gt;Q4&lt;/span&gt;&lt;strong&gt;文本 prompt 去重与测试&lt;/strong&gt;&lt;/li&gt;
+      &lt;/ol&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;fd-provider-grid&quot; aria-label=&quot;供应商差异示例&quot;&gt;
+      &lt;div&gt;&lt;strong&gt;OpenAI Image&lt;/strong&gt;&lt;span&gt;支持生成、编辑和参考输入；文字、跨次一致性、精确布局仍有明确限制。&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;strong&gt;Runway Gen-4&lt;/strong&gt;&lt;span&gt;推荐描述性完整句；官方明确不支持 negative prompt。&lt;/span&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;strong&gt;当前项目结论&lt;/strong&gt;&lt;span&gt;服务端权威规格已经替代前端拼接；下一优先级是可复现评测和参考素材资格。&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+    &lt;p class=&quot;text-small text-muted&quot;&gt;四类资产必须分开：Agent/System 指令、Skill/Workflow、结构化输出契约、图像/视频模型 prompt。&lt;/p&gt;
+  &lt;/section&gt;
+
+  &lt;section class=&quot;fd-panel&quot; data-panel=&quot;decisions&quot; aria-labelledby=&quot;fd-decisions-title&quot; hidden&gt;
+    &lt;div class=&quot;viz-row fd-section-head&quot;&gt;
+      &lt;h2 id=&quot;fd-decisions-title&quot;&gt;按依赖顺序逐项拍板&lt;/h2&gt;
+      &lt;span class=&quot;viz-badge&quot;&gt;D1–D7 决策已收口 · D2 沿用现有阶段机制&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;fd-decision-grid&quot; role=&quot;list&quot; aria-label=&quot;决策项&quot;&gt;&lt;/div&gt;
+    &lt;div class=&quot;card fd-decision-detail&quot; aria-live=&quot;polite&quot;&gt;
+      &lt;div class=&quot;viz-row&quot;&gt;
+        &lt;span class=&quot;viz-badge fd-decision-id&quot;&gt;&lt;/span&gt;
+        &lt;strong class=&quot;fd-decision-title&quot;&gt;&lt;/strong&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;fd-decision-recommend&quot;&gt;&lt;/p&gt;
+      &lt;p class=&quot;text-small text-muted fd-decision-impact&quot;&gt;&lt;/p&gt;
+      &lt;div class=&quot;fd-option-grid&quot; role=&quot;group&quot; aria-label=&quot;当前决策选项&quot;&gt;&lt;/div&gt;
+      &lt;p class=&quot;text-small fd-choice-summary&quot;&gt;&lt;/p&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+&lt;/div&gt;
+
+&lt;style&gt;
+#feature-completion-decisions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--foreground);
+}
+
+#feature-completion-decisions .fd-meta {
+  justify-content: space-between;
+}
+
+#feature-completion-decisions .fd-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#feature-completion-decisions .fd-verdict-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#feature-completion-decisions .fd-verdict-grid &gt; div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  align-items: start;
+}
+
+#feature-completion-decisions .fd-verdict-grid span:last-child {
+  grid-column: 2;
+  color: var(--muted-foreground);
+}
+
+#feature-completion-decisions .fd-index {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-weight: 500;
+}
+
+#feature-completion-decisions .fd-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#feature-completion-decisions .fd-panel[hidden] {
+  display: none;
+}
+
+#feature-completion-decisions .fd-section-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+#feature-completion-decisions .fd-legend {
+  gap: 8px 12px;
+}
+
+#feature-completion-decisions .fd-legend &gt; span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+}
+
+#feature-completion-decisions .fd-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+}
+
+#feature-completion-decisions .fd-usable {
+  background: var(--viz-series-1);
+}
+
+#feature-completion-decisions .fd-partial {
+  background: var(--viz-series-2);
+}
+
+#feature-completion-decisions .fd-skeleton {
+  background: var(--viz-series-4);
+}
+
+#feature-completion-decisions .fd-missing {
+  background: var(--viz-series-6);
+}
+
+#feature-completion-decisions .fd-maturity-grid,
+#feature-completion-decisions .fd-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+#feature-completion-decisions .fd-maturity[data-status=&quot;usable&quot;] {
+  background: color-mix(in srgb, var(--viz-series-1) 15%, var(--secondary));
+}
+
+#feature-completion-decisions .fd-maturity[data-status=&quot;partial&quot;] {
+  background: color-mix(in srgb, var(--viz-series-2) 15%, var(--secondary));
+}
+
+#feature-completion-decisions .fd-maturity[data-status=&quot;skeleton&quot;] {
+  background: color-mix(in srgb, var(--viz-series-4) 15%, var(--secondary));
+}
+
+#feature-completion-decisions .fd-maturity[data-status=&quot;missing&quot;] {
+  background: color-mix(in srgb, var(--viz-series-6) 15%, var(--secondary));
+}
+
+#feature-completion-decisions .fd-selected,
+#feature-completion-decisions .fd-decision-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#feature-completion-decisions .fd-route {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#feature-completion-decisions .fd-route li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  align-content: start;
+  min-width: 0;
+  padding-block: 8px;
+  border-top: 2px solid var(--border);
+}
+
+#feature-completion-decisions .fd-route li::after {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--border);
+  border-right: 2px solid var(--border);
+  content: &quot;&quot;;
+  transform: rotate(45deg);
+}
+
+#feature-completion-decisions .fd-route li:last-child::after {
+  display: none;
+}
+
+#feature-completion-decisions .fd-route li &gt; span {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  grid-row: 1 / span 2;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-weight: 500;
+}
+
+#feature-completion-decisions .fd-route small {
+  color: var(--muted-foreground);
+}
+
+#feature-completion-decisions .fd-parallel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 10px;
+  border-block: 1px solid var(--border);
+}
+
+#feature-completion-decisions .fd-priority-list,
+#feature-completion-decisions .fd-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+#feature-completion-decisions .fd-priority-list &gt; div,
+#feature-completion-decisions .fd-provider-grid &gt; div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+#feature-completion-decisions .fd-priority-list span,
+#feature-completion-decisions .fd-provider-grid span {
+  color: var(--muted-foreground);
+}
+
+#feature-completion-decisions .fd-prompt-shift {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.3fr);
+  gap: 14px;
+  align-items: center;
+}
+
+#feature-completion-decisions .fd-old {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-left: 3px solid var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 7%, transparent);
+}
+
+#feature-completion-decisions .fd-old span:last-child {
+  color: var(--muted-foreground);
+}
+
+#feature-completion-decisions .fd-arrow {
+  color: var(--muted-foreground);
+}
+
+#feature-completion-decisions .fd-prompt-shift ol {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#feature-completion-decisions .fd-prompt-shift li {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+#feature-completion-decisions .fd-prompt-shift li span {
+  display: inline-grid;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+#feature-completion-decisions .fd-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+#feature-completion-decisions .fd-option-grid .btn {
+  min-height: 46px;
+}
+
+#feature-completion-decisions .fd-choice-summary:empty {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  #feature-completion-decisions .fd-verdict-grid,
+  #feature-completion-decisions .fd-priority-list,
+  #feature-completion-decisions .fd-provider-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #feature-completion-decisions .fd-route {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #feature-completion-decisions .fd-route li::after {
+    display: none;
+  }
+
+  #feature-completion-decisions .fd-prompt-shift {
+    grid-template-columns: 1fr;
+  }
+
+  #feature-completion-decisions .fd-arrow {
+    transform: rotate(90deg);
+    justify-self: center;
+  }
+}
+
+@media (max-width: 360px) {
+  #feature-completion-decisions .fd-route {
+    grid-template-columns: 1fr;
+  }
+}
+&lt;/style&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const root = document.getElementById(&quot;feature-completion-decisions&quot;);
+  if (!root) return;
+
+  const maturityLabel = {
+    usable: &quot;可用&quot;,
+    partial: &quot;部分闭环&quot;,
+    skeleton: &quot;骨架&quot;,
+    missing: &quot;未建&quot;
+  };
+
+  const capabilities = [
+    { id: &quot;project&quot;, label: &quot;项目章节&quot;, status: &quot;partial&quot;, now: &quot;项目、章节和七步工作台入口可用。&quot;, gap: &quot;章节新建/改名/删除/排序不足，项目与工作流状态可能漂移。&quot; },
+    { id: &quot;script&quot;, label: &quot;AI 剧本&quot;, status: &quot;partial&quot;, now: &quot;OpenCode 对话、流式输出和步骤工具已接入。&quot;, gap: &quot;缺少对话持久化、停止生成、完整修订历史与回滚。&quot; },
+    { id: &quot;roles&quot;, label: &quot;角色资产&quot;, status: &quot;partial&quot;, now: &quot;项目级角色库、参考图和镜头引用已经存在。&quot;, gap: &quot;上传、版本、跨项目复用和特殊实体类型仍不完整。&quot; },
+    { id: &quot;scene&quot;, label: &quot;场景风格&quot;, status: &quot;partial&quot;, now: &quot;章节场景与背景图存在，项目可选择风格。&quot;, gap: &quot;缺项目级场景库、纯环境图资格、版本和可执行风格板。&quot; },
+    { id: &quot;storyboard&quot;, label: &quot;结构分镜&quot;, status: &quot;usable&quot;, now: &quot;生成、编辑、确认和步骤流转已有真实实现。&quot;, gap: &quot;仍需强化上游修改后的失效、差异对比和回滚。&quot; },
+    { id: &quot;preflight&quot;, label: &quot;出图准备&quot;, status: &quot;partial&quot;, now: &quot;预检、确认与问题记录已经存在。&quot;, gap: &quot;参考素材合格性尚未成为硬门禁，文档契约仍有矛盾。&quot; },
+    { id: &quot;candidates&quot;, label: &quot;候选图&quot;, status: &quot;partial&quot;, now: &quot;真实生成、批次、候选持久化、服务端规格和旧模型唯一锁定存在。&quot;, gap: &quot;D3 已确定修订式目标，但定稿修订、影响预览、布局来源失效和任务隔离尚未开发。&quot; },
+    { id: &quot;layout&quot;, label: &quot;排版成稿&quot;, status: &quot;skeleton&quot;, now: &quot;已有 Layout 数据、页面和基础服务。&quot;, gap: &quot;当前近似一镜一页；没有多格画布、文字/气泡层和真正合成器。&quot; },
+    { id: &quot;export&quot;, label: &quot;导出素材&quot;, status: &quot;skeleton&quot;, now: &quot;可以建立素材目录与 manifest。&quot;, gap: &quot;没有真实长图/分段图/PDF 渲染，也没有用户可下载 ZIP。&quot; },
+    { id: &quot;runtime&quot;, label: &quot;任务数据&quot;, status: &quot;partial&quot;, now: &quot;图像任务有状态和进度，业务数据主要落工作区 JSON。&quot;, gap: &quot;通用任务驻留内存；重启丢失，取消不能终止请求，可靠重试/恢复未完成。&quot; },
+    { id: &quot;video&quot;, label: &quot;轻漫剧&quot;, status: &quot;missing&quot;, now: &quot;路线图中已有方向。&quot;, gap: &quot;VideoDraft、片段、音频、字幕、时间线和 MP4 均未实现。&quot; }
+  ];
+
+  const maturityGrid = root.querySelector(&quot;.fd-maturity-grid&quot;);
+  const selectedStatus = root.querySelector(&quot;.fd-selected-status&quot;);
+  const selectedTitle = root.querySelector(&quot;.fd-selected-title&quot;);
+  const selectedNow = root.querySelector(&quot;.fd-selected-now&quot;);
+  const selectedGap = root.querySelector(&quot;.fd-selected-gap&quot;);
+
+  function selectCapability(id) {
+    const item = capabilities.find((entry) =&gt; entry.id === id) || capabilities[0];
+    maturityGrid.querySelectorAll(&quot;button&quot;).forEach((button) =&gt; {
+      button.setAttribute(&quot;aria-pressed&quot;, String(button.dataset.capability === item.id));
+    });
+    selectedStatus.textContent = maturityLabel[item.status];
+    selectedTitle.textContent = item.label;
+    selectedNow.textContent = item.now;
+    selectedGap.textContent = `缺口：${item.gap}`;
+  }
+
+  capabilities.forEach((item) =&gt; {
+    const button = document.createElement(&quot;button&quot;);
+    button.type = &quot;button&quot;;
+    button.className = &quot;btn viz-tile fd-maturity&quot;;
+    button.dataset.capability = item.id;
+    button.dataset.status = item.status;
+    button.setAttribute(&quot;role&quot;, &quot;listitem&quot;);
+    button.setAttribute(&quot;aria-label&quot;, `${item.label}：${maturityLabel[item.status]}`);
+    button.setAttribute(&quot;aria-pressed&quot;, &quot;false&quot;);
+    button.textContent = item.label;
+    button.addEventListener(&quot;click&quot;, () =&gt; selectCapability(item.id));
+    maturityGrid.appendChild(button);
+  });
+  selectCapability(&quot;candidates&quot;);
+
+  const decisions = [
+    {
+      id: &quot;D1&quot;,
+      title: &quot;项目创建时锁定漫画版式&quot;,
+      status: &quot;已采纳&quot;,
+      recommend: &quot;字段名使用“漫画版式”；创建弹窗默认空且必选，只提供竖向条漫与分页漫画，创建后不可直接修改。&quot;,
+      impact: &quot;四格归入可更换的布局模板；平台切片、PDF、尺寸与体积规则归入可版本化导出规格。&quot;,
+      options: [&quot;已确认：条漫 / 页漫两类，四格归入布局模板&quot;],
+      record: &quot;已写入 D1 详细方案与 ADR-0009，尚未进入功能开发。&quot;
+    },
+    {
+      id: &quot;D2&quot;,
+      title: &quot;近期自动化姿态&quot;,
+      status: &quot;现有基线 · 自动调度后置&quot;,
+      recommend: &quot;沿用当前已经实现的七阶段状态机：AI 分步生成，用户通过完成、确认、锁定或导出推进；不重复建设“人工工作台”。&quot;,
+      impact: &quot;当前真实样例已走到候选图；后续要补的是各阶段真实能力和完整 E2E，而不是阶段框架。&quot;,
+      options: [&quot;已确认：沿用现有机制，只后置自动调度&quot;],
+      record: &quot;D2 A 已由现有代码实现；跨步骤自动推进、批量调度和一键生产暂不展开。&quot;
+    },
+    {
+      id: &quot;D3&quot;,
+      title: &quot;候选定稿修订与下游返修&quot;,
+      status: &quot;已采纳&quot;,
+      recommend: &quot;收藏不驱动下游；第一次定稿和每次换图都创建不可变 CandidateLockRevision，并在更换前展示影响。&quot;,
+      impact: &quot;旧布局与旧导出不被覆盖；引用旧图的格子显示“来源已更新”；旧任务结果只能归入启动时的来源修订。&quot;,
+      options: [&quot;已确认：修订式定稿、影响预览与历史保留&quot;],
+      record: &quot;已写入 D3 详细方案与 ADR-0010，尚未进入功能开发。&quot;
+    },
+    {
+      id: &quot;D4&quot;,
+      title: &quot;首版文字与气泡边界&quot;,
+      status: &quot;已采纳&quot;,
+      recommend: &quot;高自由方向已收口：横竖排字符范围富文本、四类受控气泡 + 单可调尾巴；成稿 AI 助手默认收起，建议经预览与用户确认后应用。&quot;,
+      impact: &quot;富文本、FontAsset、气泡排版和浏览器/服务端确定性渲染进入 V1；任意矢量气泡、ruby 和路径文字后置。&quot;,
+      options: [&quot;已确认：C / A / A&quot;],
+      record: &quot;D4/D5 六项边界已写入 ADR-0011，尚未进入功能开发。&quot;
+    },
+    {
+      id: &quot;D5&quot;,
+      title: &quot;自由画布与图像编辑范围&quot;,
+      status: &quot;已采纳&quot;,
+      recommend: &quot;在条漫/页漫有限成稿容器内提供高自由对象编排：矩形/圆角矩形画格、临时多选不保存通用 Group、桌面完整编辑与手机只读预览。&quot;,
+      impact: &quot;模板与自由编辑共用 LayoutDocument；真实合成器、Working Copy、LayoutRevision 和预检是退出标准。&quot;,
+      options: [&quot;已确认：A / A / A&quot;],
+      record: &quot;D4/D5 六项边界已写入 ADR-0011，尚未进入功能开发。&quot;
+    },
+    {
+      id: &quot;D6&quot;,
+      title: &quot;轻漫剧进入时间&quot;,
+      status: &quot;已后置&quot;,
+      recommend: &quot;已确认：当前不考虑，作为后期功能保留。&quot;,
+      impact: &quot;决定任务底座是否立即视频化，以及本周期是否引入音频/时间线。&quot;,
+      options: [&quot;已确认：后期再做&quot;]
+    },
+    {
+      id: &quot;D7&quot;,
+      title: &quot;持久化演进&quot;,
+      status: &quot;已采纳 · ADR-0012&quot;,
+      recommend: &quot;D71–D76 已全部确认：DB-only 一次切换、本地 SQLite、关系核心 + 版本 Json、凭据分治、持久 worker，以及保留原 taskId 的 legacy 历史分层。&quot;,
+      impact: &quot;数据库成为唯一业务事实源；legacy 记录只读且不可执行；详细开发文档确认前不修改 schema 或真实数据。&quot;,
+      options: [&quot;已确认：D71–D76&quot;],
+      record: &quot;D7 规划已完成并写入 ADR-0012，尚未进入功能开发。&quot;
+    }
+  ];
+
+  const decisionGrid = root.querySelector(&quot;.fd-decision-grid&quot;);
+  const decisionId = root.querySelector(&quot;.fd-decision-id&quot;);
+  const decisionTitle = root.querySelector(&quot;.fd-decision-title&quot;);
+  const decisionRecommend = root.querySelector(&quot;.fd-decision-recommend&quot;);
+  const decisionImpact = root.querySelector(&quot;.fd-decision-impact&quot;);
+  const optionGrid = root.querySelector(&quot;.fd-option-grid&quot;);
+  const choiceSummary = root.querySelector(&quot;.fd-choice-summary&quot;);
+
+  function selectDecision(id) {
+    const item = decisions.find((entry) =&gt; entry.id === id) || decisions[0];
+    decisionGrid.querySelectorAll(&quot;button&quot;).forEach((button) =&gt; {
+      button.setAttribute(&quot;aria-pressed&quot;, String(button.dataset.decision === item.id));
+    });
+    decisionId.textContent = `${item.id} · ${item.status}`;
+    decisionTitle.textContent = item.title;
+    decisionRecommend.textContent = item.recommend;
+    decisionImpact.textContent = `影响：${item.impact}`;
+    choiceSummary.textContent = item.record || &quot;&quot;;
+    optionGrid.replaceChildren();
+    item.options.forEach((label) =&gt; {
+      const option = document.createElement(&quot;button&quot;);
+      option.type = &quot;button&quot;;
+      option.className = &quot;btn viz-tile&quot;;
+      option.setAttribute(&quot;aria-pressed&quot;, &quot;false&quot;);
+      option.textContent = label;
+      option.addEventListener(&quot;click&quot;, () =&gt; {
+        optionGrid.querySelectorAll(&quot;button&quot;).forEach((button) =&gt; button.setAttribute(&quot;aria-pressed&quot;, &quot;false&quot;));
+        option.setAttribute(&quot;aria-pressed&quot;, &quot;true&quot;);
+        choiceSummary.textContent = item.record || `本页暂存选择：${item.id} · ${label}。请在讨论中确认后再写入正式开发文档。`;
+      });
+      optionGrid.appendChild(option);
+    });
+  }
+
+  decisions.forEach((item) =&gt; {
+    const button = document.createElement(&quot;button&quot;);
+    button.type = &quot;button&quot;;
+    button.className = &quot;btn viz-tile&quot;;
+    button.dataset.decision = item.id;
+    button.setAttribute(&quot;role&quot;, &quot;listitem&quot;);
+    button.setAttribute(&quot;aria-label&quot;, `${item.id}：${item.title}`);
+    button.setAttribute(&quot;aria-pressed&quot;, &quot;false&quot;);
+    button.textContent = item.id;
+    button.addEventListener(&quot;click&quot;, () =&gt; selectDecision(item.id));
+    decisionGrid.appendChild(button);
+  });
+  selectDecision(&quot;D2&quot;);
+
+  root.querySelectorAll(&quot;[data-view]&quot;).forEach((button) =&gt; {
+    button.addEventListener(&quot;click&quot;, () =&gt; {
+      const view = button.dataset.view;
+      root.querySelectorAll(&quot;[data-view]&quot;).forEach((candidate) =&gt; {
+        candidate.setAttribute(&quot;aria-pressed&quot;, String(candidate === button));
+      });
+      root.querySelectorAll(&quot;[data-panel]&quot;).forEach((panel) =&gt; {
+        panel.hidden = panel.dataset.panel !== view;
+      });
+    });
+  });
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>
