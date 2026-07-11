@@ -1,0 +1,16 @@
+{
+  "extends": "../../apps/server/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@airoaming/shared": ["packages/shared/src/index.ts"]
+    },
+    "rootDir": "../..",
+    "typeRoots": ["../../apps/server/node_modules/@types"],
+    "noEmit": true
+  },
+  "include": [
+    "../../apps/server/src/**/*.ts",
+    "../../packages/shared/src/**/*.ts"
+  ]
+}

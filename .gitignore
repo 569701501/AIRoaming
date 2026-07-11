@@ -7,6 +7,10 @@ coverage/
 .turbo/
 .vite/
 *.log
+test-results/
+playwright-report/
+blob-report/
+tests/.runtime/
 
 apps/server/prisma/dev.db
 apps/server/prisma/dev.db-journal

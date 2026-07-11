@@ -9,10 +9,21 @@
     "dev:server": "pnpm --filter @airoaming/shared build && pnpm --filter @airoaming/server dev",
     "dev:web": "pnpm --filter @airoaming/shared build && pnpm --filter @airoaming/web dev",
     "typecheck": "pnpm -r typecheck",
+    "typecheck:e2e": "tsc -p tests/e2e/tsconfig.json --noEmit",
     "test": "pnpm -r --parallel --filter @airoaming/shared --filter @airoaming/server test",
+    "test:e2e:env": "node --import tsx --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/e2e/support/*.test.ts",
+    "test:e2e:prepare": "node --import tsx --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/e2e/support/e2e-prepare.contract.ts",
+    "pretest:e2e": "pnpm test:e2e:prepare",
+    "test:e2e": "playwright test",
+    "test:e2e:repeat": "pnpm test:e2e:prepare && playwright test --repeat-each=3",
+    "test:e2e:ui": "pnpm test:e2e:prepare && playwright test --ui",
+    "test:all": "pnpm typecheck && pnpm typecheck:e2e && pnpm test && pnpm test:e2e:prepare && playwright test",
     "prisma:validate": "pnpm --filter @airoaming/server prisma:validate"
   },
   "devDependencies": {
+    "@airoaming/shared": "workspace:*",
+    "@playwright/test": "1.61.1",
+    "tsx": "4.22.3",
     "typescript": "^5.6.3"
   }
 }

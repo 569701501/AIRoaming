@@ -1,5 +1,3 @@
-# AI 上下文入口
-
 ---
 doc_id: AIR-AI-CONTEXT-001
 status: active
@@ -9,6 +7,8 @@ owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
 ---
+
+# AI 上下文入口
 
 ## 1. 项目身份
 
@@ -99,6 +99,7 @@ $deep-think
 | Web 工作台 | `apps/web` | Vue 3 + Vite + Pinia，已实现项目库首版和项目工作区第 1 步首屏；后续 5 个项目内页面仍按当前 UI 信息架构分阶段实现 |
 | 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、项目 API、任务 mock API、OpenCode 对话运行时、对话 API 和 Prisma schema |
 | 共享契约 | `packages/shared` | 任务枚举、DTO、workspace 虚拟路径工具 |
+| 测试安全网 | `apps/server/src/**/*.spec.ts`、`tests/e2e` | Vitest Service characterization + Playwright API/Chromium；临时 workspace、loopback fake provider 与受控进程清理 |
 | 本地素材根 | `workspace/projects` | 开发期项目素材占位目录 |
 
 当前开发命令优先使用：
@@ -108,14 +109,17 @@ corepack pnpm install
 corepack pnpm dev
 corepack pnpm test          # 跑全部自动化测试(shared + server)
 corepack pnpm -w typecheck  # 三包类型检查
+corepack pnpm test:e2e      # 环境 prepare + Playwright API/Chromium
+corepack pnpm test:e2e:repeat # E2E repeat-each=3 稳定性复跑
+corepack pnpm test:all      # 类型、Vitest、E2E 聚合门禁
 ```
 
 ## 8. 当前产品取舍
 
 - 先做可控工作流，不先追求完全自动生成整部作品。
 - “可控工作流”统一指 AI 分步生成、用户查看/编辑/确认后推进，不表示用户手工绘图。该七阶段状态机、确认动作和步骤门禁已在当前代码中实现，是现有基线，不是 D2 待开发功能；D2 真正后置的是跨步骤自动推进、批量调度和一键生产的详细边界。
-- 当前七阶段补全入口为 `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`；完整验收入口为 `文档/06_测试与验收/七阶段完整链路验收基线.md`。2026-07-11 用户决定当前开发波次只到 G5，G6 素材包 V2 与 G7 ZIP 总验收后置；仍保留七阶段 workflow，不改回六阶段。G0–G5 内容完备性、批准状态和开工门槛见 `文档/04_方案与决策/2026-07-11_G0至G5开发文档完备性复核.md`。
-- G0 开发级方案与用例矩阵已于 2026-07-11 获用户确认、尚未实现：保留 Vitest 作为纯函数/Service 测试，新增独立 Playwright 做 API smoke 和 Chromium 用户路径；只锁当前正确行为，已知错误登记为 `record_only/red_on_slice`，当前到所属 G1–G5 切片才写 red 测试，G6 用例保留为后置索引。自动化必须使用临时 workspace、loopback fake OpenCode/图片供应商和假 key，禁止复用本机开发服务或真实项目。当前排版和素材包错误骨架不写成功绿测。详见 `文档/04_方案与决策/2026-07-11_G0七阶段行为刻画与E2E测试骨架方案.md` 与 `文档/06_测试与验收/G0七阶段行为用例矩阵.md`。
+- 当前七阶段补全入口为 `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`；完整验收入口为 `文档/06_测试与验收/七阶段完整链路验收基线.md`。2026-07-11 用户决定当前开发波次只到 G5，G6 素材包 V2 与 G7 ZIP 总验收后置；仍保留七阶段 workflow，不改回六阶段。`G0至G5开发文档完备性复核.md` 是开发授权前的内容/批准快照；当前 G0 实施状态以任务记录、自动化测试体系和功能完成记录为准。
+- G0 测试安全网已于 2026-07-11 实现：Vitest 新增 8 条 Nest Service characterization，Playwright 覆盖 API-01～API-04、UI-01～UI-05 与独立 provider/server/web 生命周期；环境契约 15/15、prepare 契约 3/3、shared 15/15、server 72/72、Playwright 3/3、重复运行 9/9，并完成失败证据演练与 Runtime/User Review。E2E 使用临时 workspace、唯一 runId/marker、loopback fake provider、假 key 与受控 PID，Node 22.17.1 下显式 `node --import tsx`，Nest/Vite 从 shared source alias 解析且 prepare 禁止构建 shared。G0 完成不代表 UI-06 或 G1～G5 已实现；一镜一页、复制源图和目录式素材包仍不属于绿色契约。详见 `文档/06_测试与验收/自动化测试体系.md` 与 `文档/05_执行与记录/功能完成记录/2026-07-11_G0测试安全网.md`。
 - G1 开发级文档已于 2026-07-11 获用户确认、尚未实现：目标不是给旧六个 Prisma 模型补 CRUD，而是以 44 个明确模型接管项目/版本/对话/pending/任务/设置/迁移/Outbox；通过不可变 snapshot、runtime bundle、影子导入、短暂停写和一次 DB-only 激活切换。SQLite 首版不默认开启 WAL；旧 metadata 必须移入独立只读档案，Asset 字节路径继续可写；`firstBusinessWriteAt` 是退回 file-only 的终点。详见 `文档/04_方案与决策/2026-07-11_G1数据库事实源与DB-only切换开发方案.md`、`文档/04_方案与决策/2026-07-11_G1数据库Schema字典与旧数据映射.md` 和 `文档/06_测试与验收/G1数据库迁移执行与验收清单.md`。用户另行明确授权开发前，仍不得修改 schema、业务代码、数据库或真实 workspace。
 - G2 开发级方案已于 2026-07-11 获用户确认、尚未实现：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值；dirty/pending 工作稿不使旧导出消失，但会阻止新下游任务。里程碑保持单调，正式返修不再清空候选/布局或倒退 `Chapter.status`。详见 `文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md`、`文档/04_方案与决策/2026-07-11_G2版本来源与Freshness契约字典.md`、`文档/04_方案与决策/ADR-0013_上游版本链与派生Freshness.md` 和 `文档/06_测试与验收/G2上游版本链与失效验收清单.md`。
 - G3 开发级方案已于 2026-07-11 获用户确认、尚未实现：不新增创建入口或向导，只在已经存在的 `CreateProjectModal.vue` 中补默认空、必选的“漫画版式”，并沿用原创建成功跳转。正式 runtime 只接受 `vertical_scroll/paged_comic`；Create 必填，普通 PATCH 只要出现该字段就 409，SQLite 用无默认值、CHECK 和不可变 trigger 硬锁。`page_horizontal/four_panel/缺失/非法` 只由 maintenance importer 映射或要求决议；分页漫画不等于横屏，旧横幅尺寸/LayoutPage 只作为带版本和 G5 删除点的兼容适配。详见 `文档/04_方案与决策/2026-07-11_G3漫画版式入口与不可变约束开发方案.md`、`文档/04_方案与决策/2026-07-11_G3漫画版式契约与旧值迁移字典.md` 和 `文档/06_测试与验收/G3漫画版式入口与锁定验收清单.md`。
@@ -165,7 +169,7 @@ corepack pnpm -w typecheck  # 三包类型检查
 - 2026-06-21 角色分层双维度已落地：角色分类从单一 level(4层) 升级为 level(5层)+entityType(4类) 双维度。level 加 minor(小角色，归 chapter 出图档)；AI 生成剧情结构时显式输出 level+entityType（未输出则 inferCharacterLevel 关键词兜底，不删）。entityType 新增 human/creature/group/voice（第一批只 human 走通生图，creature/group/voice 占位 fallback）。CHARACTER_LEVEL_ORDER 抽成共享常量避免 sort/resolve 漂移。解决"角色被关键词误判 extra 导致没定稿按钮"的 bug。详见 `文档/05_执行与记录/功能完成记录/2026-06-21_角色分层双维度.md`。
 - 2026-06-21 出图准备重构为"出门检查单"已落地：定位收窄为"分镜产物完整性校验 + 放行候选图"，不再当第二个角色库。砍掉 metrics 仪表盘/重复 hero/next-card 引导/未识别角色 4 动作/本章角色图列表/场景画风/镜头绑定面板，改为"就绪度一句话 + 全项检查清单(✓已完成/⚠未完成+入口) + 主按钮"。分镜 prompt 加硬约束 characterIds 只用 structure.characters 已有角色名(源头消除未识别)；4 动作前端 UI 删除(后端接口暂留)。修复 isFinalized 误判(改判 primary 是否真锁定)解决"有定稿图但 fully-locked 隐藏锁定按钮"死锁。详见 `文档/04_方案与决策/2026-06-02_角色库与出图准备流程调整方案.md` 2026-06-21 更新小节。
 - 2026-06-22 ProjectsService 巨石拆分已落地：5236 行单文件拆为 1 门面 + 9 独立文件（−1516 行）。纯收口，行为与调用面不变（ADR-0005 不破）。workspace 持久化收口到 `ProjectRepository`（缓存+加载链+写入链）；领域纯函数抽成 util（workspace-json/local-types/project-domain/story-normalize/character-domain/workflow/image-preflight/reference-prompt）。buildImagePreflightJson/isChapterImagePreflightReady 改接受 isReferenceTaskRunning 回调。详见 `文档/05_执行与记录/功能完成记录/2026-06-22_ProjectsService巨石拆分.md` 和 `文档/03_模块梳理/模块总览与依赖.md` §4.14。
-- 2026-06-24 sourceText 空覆盖 bug 已修复并建立测试基础设施：`saveChapterDraft`/`updateProjectDraft` 缺非空校验导致前端切章竞态误触发空保存，覆盖正式正文（AI 路径 `writeChapterDraftFromAI` 原已有校验，未受影响）。修复方式：后端两入口加非空校验（throw `CHAPTER_SCRIPT_REQUIRED`）+ 前端 canSave 判空；数据从 `script-v001.md` 历史版本无损恢复。同日首次引入 Vitest 测试基础设施：`corepack pnpm test` 聚合运行（shared + server），61 个测试锁住 sourceText 校验回归 / Repository 写入重载往返 / workflow 状态机 / 章节剧本格式 / 剧本导入分析纯函数。测试约定见 `文档/06_测试与验收/自动化测试体系.md`，回归测试在 `*.source-guard.spec.ts`。前端组件测试、e2e、Dialogue/OpenCode 链路为已知未覆盖范围。
+- 2026-06-24 sourceText 空覆盖 bug 已修复并建立测试基础设施：`saveChapterDraft`/`updateProjectDraft` 缺非空校验导致前端切章竞态误触发空保存，覆盖正式正文（AI 路径 `writeChapterDraftFromAI` 原已有校验，未受影响）。修复方式：后端两入口加非空校验（throw `CHAPTER_SCRIPT_REQUIRED`）+ 前端 canSave 判空；数据从 `script-v001.md` 历史版本无损恢复。同日首次引入 Vitest 测试基础设施：`corepack pnpm test` 聚合运行（shared + server），61 个测试锁住 sourceText 校验回归 / Repository 写入重载往返 / workflow 状态机 / 章节剧本格式 / 剧本导入分析纯函数。2026-07-11 G0 已在此基础上补 Playwright API/Chromium 与七阶段 Service 安全网；前端组件测试、Dialogue/OpenCode 完整链路仍未覆盖。
 - 2026-06-24 ProjectsService 拆分第二轮(候选D)已落地：剧本导入分析的 9 个纯算法方法抽出为 `script-import.util.ts`（231 行），Service 从 3730 → 3518 行（−212）。纯收口，行为与调用面不变（ADR-0005 不破）。analyzeScriptImport/importScriptToChapters 保留在 Service 改委托。9 方法零外部依赖（不碰 repository/tasks/workspacePath），迁移仅去掉 private/this，逻辑体逐字一致。上轮候选 D 遗留清零。详见 `文档/05_执行与记录/功能完成记录/2026-06-24_ProjectsService拆分第二轮.md`。
 - 2026-06-24 ProjectsService 拆分第三轮(ImageProvider 网关)已落地：抽出 `ImageProviderService`(311 行)，把 6 个出图 HTTP 方法(requestOpenAi*/requestDoubao*/downloadDoubao*/fetchWithTimeout)+ provider 配置解析从 Service 迁出。**打破了上两轮未能解决的循环依赖**(角色编排→出图同 class)。Service 从 3518 → 3272 行(−246)。对外 generateImage/editImage，内部 doubao/openai 自动分流；调用方通过 getActiveProviderType 决定 size 差异。generateCharacterReference/generateSceneReference 改委托。纯收口，ADR-0005 不破。详见 `文档/05_执行与记录/功能完成记录/2026-06-24_角色参考图编排拆分.md`。
 - 2026-06-24 ProjectsService 拆分第五轮(ProjectStore 骨架)已落地：抽出 `ProjectStore`(137 行)，收口 getReadyProject/writeProjectFiles/ensureDefaultChapterReady 等 71 处调用的核心读写骨架。**解开第四轮发现的骨架↔角色循环耦合**：writeProjectFiles 不再直接调 hasActiveCharacterReferenceTask，改 referenceTaskChecker 回调(ProjectsService.onModuleInit 注入)。Service 从 3272 → 3184 行(−88)。骨架独立后，下一轮 CharacterReferenceService 可依赖 ProjectStore 而非 ProjectsService，循环彻底解开。纯收口，ADR-0005 不破。详见 `文档/05_执行与记录/功能完成记录/2026-06-24_ProjectStore骨架抽取.md`。
