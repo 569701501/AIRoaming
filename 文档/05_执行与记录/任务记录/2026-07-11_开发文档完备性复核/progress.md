@@ -26,20 +26,27 @@ source: task_plan.md
 - 用户补充 9 项事实源冲突，涉及 `shot_generate` 输出、角色层级、剧本路由、候选/角色素材路径、Asset 字段、ConversationThread.stepKey 和文档章节编号；重新开启本复核任务逐项核证。
 - 9 项均经代码、Shared DTO、ADR 和现行路由核实并完成修订；反向扫描又清理了素材目录树、候选版本示例和 7 月 9 日任务记录中的旧 PNG 表述。
 - 关联扫描另发现 `buildStoryboardPrompt` 把合法 `over_shoulder` 写成 `over_the_shoulder`；已在正式协议和任务发现中登记，因本轮没有代码开发授权而未修改实现。
+- 用户继续补充 6 项问题；复核任务以 R6 重新开启。本轮仍只修改文档，不修改任务代码、运行时数据或真实 workspace。
+- 初查确认：任务协议漏 `scene_reference_generate` 与 `character/scene` target；全流程索引保留主链路闭环前状态；核心模型存在“final_reference 三视图/四要素”与 `ProjectCharacter/Character` 术语混用；模板目录确实缺 ADR 和验收清单模板。
+- 已完成 R6：协议补齐场景任务和 target；全流程索引按四层状态重建；角色术语与实体名同步核心模型/ADR；新增 ADR、验收清单模板并修复旧模板引用。
+- 只读 workspace 复核确认 15 Shot、27 个 Candidate 记录、0 锁定、67 条文件态 Asset；候选目录另有 4 个未登记 WebP。本轮未修改、删除或迁移真实数据。
+- 反向代码核查发现场景任务运行中去重漏比较 `chapterId`；与 `over_the_shoulder` 一并登记为开发授权后的回归测试和代码 TODO。
 
 ## 验证记录
 
 - `git diff --check`：通过。
 - 文档改动范围检查：未出现 `apps/`、`packages/`、`prisma/` 或 `workspace/` 改动。
-- 全仓 118 个 `json` 代码块全部可解析；433 个 Markdown 文件的代码围栏均闭合。
+- R6 最终全仓 120 个 `json` 代码块全部可解析；436 个 Markdown 文件的代码围栏均闭合。
 - 全仓 `doc_id` 无重复；本次 G0–G5/复核文档 frontmatter 必填键完整。
 - 相关事实源共检查 227 个本地 Markdown 引用，缺失 0。
 - G0–G5 六个规划任务目录均有 `handoff.md`。
 - G1 模型 44/44 唯一；G5 验收 ID 200/200 唯一。
-- 长期记忆 126 行，未超过 500 行。
+- 长期记忆 127 行，未超过 500 行。
 - 未运行代码测试或 Runtime/User Review：本轮只改文档，没有代码、Schema、数据库、页面或产物变化。
 - R5 定向契约检查通过：`shot_generate` 新字段、五级角色、`/script` 路由、七步对话 scope、三类素材规范路径、22 个 Asset 顶层字段及两份章节编号均一致。
+- R6 定向契约检查通过：协议任务 10/10、全流程任务 10/10、协议 target 8/8、全流程 target 8/8；新增场景任务章节、两份模板和四层现状均通过断言。
+- 本轮 20 个改动 Markdown 共检查 139 个本地引用，缺失 0；全仓 `doc_id` 343 个且无重复。
 
 ## Scrutiny Review
 
-通过。G0–G5 的产品、数据、任务、文件、秘密、回滚、UI 和验收契约可形成独立开发波次；用户补充的 9 项同步冲突已清零，没有把 G6 ZIP 混入 G5，也没有把 accepted、implemented 和 verified 混为一谈。
+通过。G0–G5 的产品、数据、任务、文件、秘密、回滚、UI 和验收契约可形成独立开发波次；R5、R6 用户补充问题均已清零。当前实现、基础骨架、accepted 未实现和后置能力已分层，没有把 G6 ZIP 混入 G5，也没有把 accepted、implemented 和 verified 混为一谈。

@@ -61,3 +61,23 @@ source: task_plan.md、G0–G5 文档与项目事实源
 - `apps/server/src/dialogue/dialogue-prompt.util.ts` 的 cameraAngle 列表写 `over_the_shoulder`，Shared 类型与 normalize 唯一合法值是 `over_shoulder`。normalize 会把错误值降级成 `eye_level`，属于真实生成语义损失。
 - 本轮用户要求的是文档完备性复核，未授权代码开发，因此只在生成任务协议、字段索引和本记录登记。开始开发后应先加回归测试，再修 Prompt 常量。
 - 剩余项：只剩单独开发授权；文档确认不能被误当作开始修改代码、Schema 或数据的授权。
+
+## R6 六项协议、现状、术语与模板缺口
+
+最终代码与文档证据确认六项均成立：
+
+1. Shared `GENERATION_TASK_TYPES` 有 10 项且场景参考图已由 `CharacterReferenceService` 创建真实任务；任务协议总表只列 9 项，也没有场景任务独立输入/输出/验收契约。
+2. Shared `GENERATION_TASK_TARGET_TYPES` 是 8 项；任务协议正文只列 6 项，漏 `character/scene`。
+3. `全流程与字段清单.md` 同时混合旧样例、2026-07-08 mock 状态、2026-07-09 已落地代码和 G3–G6 目标，不能继续只改几行状态；需要按“当前 runtime / 已实现历史骨架 / accepted 未实现目标 / 当前 workspace 证据”重建。
+4. `final_reference` 不是三个文件或纯三方向图，而是一张包含“正面半身 + 正面全身 + 侧面全身 + 背面全身”的四要素组合图；正式文档统一称“角色定稿组合图”，必要时展开四要素。
+5. G1 正式领域实体名是 `Character`；当前文件态共享 DTO 仍叫 `ProjectCharacter`，字段 `projectCharacterId` 是兼容字段名。文档必须明确“字段名不等于实体名”，指向 `Character.id`。
+6. `90_模板` 现有 5 份模板，缺少 ADR 与验收清单模板；同时深思熟虑模板仍引用已删除的旧工作流契约路径，应在本轮模板治理中修正。
+
+关联代码风险：`queueSceneReference` 当前只用 `projectId + sceneId` 查找运行中任务，没有比较章节；因为 `scene_01` 等 ID 只在章节内稳定，跨章节可能错误复用另一章任务。本轮不改代码，开始开发后需用两章同 `sceneId` 的回归用例保护修复。
+
+处理结果：
+
+- 任务协议、全流程索引、核心模型、ADR-0004/0005/0006、写作规范、README 和复核报告均已同步。
+- `90_模板` 从 5 份增至 7 份，新增 ADR 与验收清单模板。
+- 当前 workspace 另发现 4 个“文件存在但 Candidate 记录缺失”的 orphan；G1 验收已有 AST-08 覆盖，本轮只补当前证据，不触碰真实数据。
+- Runtime/User Review 不适用：无代码、页面、Schema、数据库或运行产物改动。

@@ -4,7 +4,7 @@
 doc_id: AIR-ADR-0006
 status: active
 created: 2026-06-21
-updated: 2026-06-21
+updated: 2026-07-11
 owner: AI漫游项目
 audience: human, ai-agent, developer
 source: 2026-06-21 剧情结构 StoryStructure 字段调整讨论(1.md)、grill-with-docs 拷问结论、代码事实核对
@@ -37,9 +37,9 @@ source: 2026-06-21 剧情结构 StoryStructure 字段调整讨论(1.md)、grill-
 
 ### 3.1 结构卡增加 `projectCharacterId` 外键
 
-给 `StoryStructureCharacterCard` 增加 `projectCharacterId: string | null` 字段，指向项目角色库 `ProjectCharacter.id`。
+给 `StoryStructureCharacterCard` 增加 `projectCharacterId: string | null` 字段，指向项目角色库正式实体 `Character.id`。`projectCharacterId` 是已落盘兼容字段名；当前 Shared 文件态 DTO 类型 `ProjectCharacter` 与 `Character` 表达同一角色记录，不另建第二个实体。
 
-- 项目角色库(`ProjectCharacter`)是角色身份事实源：角色长什么样、角色图、三视图、服装、层级、状态，都以它为准。
+- 项目角色库 `Character` 是角色身份事实源：角色长什么样、角色图、`final_reference` 角色定稿组合图、服装、层级、状态，都以它为准；当前代码中的 `ProjectCharacter` 只是文件态 DTO 名称。
 - 结构卡(`StoryStructureCharacterCard`)只描述"这个角色在本章中的作用、动机、关系、视觉提示"，身份锚点用 `projectCharacterId`。
 
 ### 3.2 id 的唯一填入时机 = 确认剧情结构
@@ -59,7 +59,7 @@ AI 生成结构卡( pending 预览 )  →  projectCharacterId 为空
 
 ### 3.3 id 不做失效兜底
 
-因为**项目角色不可删除**(`ProjectCharacter` 没有删除接口、也没有删除 UI，是产品既定设计)，`projectCharacterId` 写入后永远指向有效角色，不需要"id 失效退回 name"的容灾逻辑，也不需要"删角色时联动清理结构卡"。
+因为**当前项目角色不可删除**（`Character` 没有删除接口、也没有删除 UI，是产品既定设计），`projectCharacterId` 写入后在现行规则下始终指向有效角色，不需要"id 失效退回 name"的容灾逻辑，也不需要"删角色时联动清理结构卡"。
 
 `merge_existing`(出图准备阶段)会把正式分镜里的文本 token 替换成已有 `character.id`，但**不删除被合并的源角色**，所以结构卡里的旧 id 不会悬空。
 
