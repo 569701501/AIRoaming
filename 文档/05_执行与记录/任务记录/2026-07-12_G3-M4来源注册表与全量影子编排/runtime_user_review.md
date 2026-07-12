@@ -20,8 +20,9 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 
 1. `IMP-M4-FRESH-01`：两套 fresh DB 执行完整 16-slice shadow，逐 slice verifier 通过；ledger、实体/指针 inventory、聚合 reportDigest 一致。
 2. `IMP-M3-FULL-01`：同一 snapshot replay 不新增业务实体，聚合摘要保持一致。
-3. `IMP-M4-API-01`：DB read-model 语义 DTO 与 file-mode `WorkbenchSnapshot` 一致；ready Asset 物理 hash/bytes 一致；DB 写入不改旧 workspace 文件。
-4. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
+3. `IMP-M4-API-01`：移走旧 workspace 后重启 DB 模式仍能读取；DB read-model 语义 DTO 与 file-mode `WorkbenchSnapshot` 一致；ready Asset 物理 hash/bytes 一致；DB 写入不重建旧 workspace，归档旧文件字节不变。
+4. `IMP-M4-03`：向已成功 run 注入未注册 `entityType` 后，verifier 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed。
+5. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
 
 ## 结论
 

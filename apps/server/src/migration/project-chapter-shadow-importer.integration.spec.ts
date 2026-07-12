@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { NestFactory } from "@nestjs/core";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -668,6 +668,29 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
 
+  it("IMP-M4-03 fails closed when a run contains an unregistered source entity type", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-unregistered" });
+    await prisma!.database().importedEntitySource.create({
+      data: {
+        sourceKey: "workspace-v1:p1:FutureEntity:future-001",
+        entityType: "FutureEntity",
+        entityId: "future-001",
+        sourceStorageKey: "projects/p1/project.json",
+        sourceDigest: SOURCE,
+        provenanceStatus: "reference_only",
+        firstRunId: run.run.id,
+        lastRunId: run.run.id,
+      },
+    });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks.unregisteredEntityTypeCount).toBe(1);
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_UNREGISTERED");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
@@ -808,20 +831,24 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     process.env.AIROAMING_PERSISTENCE_MODE = "db";
     process.env.DATABASE_URL = `file:${path.join(prepared.root!, "db.sqlite")}`;
     await new FullShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { workspaceRoot: legacyWorkspace, runIdPrefix: "m4-api" });
+    const expectedCharacterBytes = await readFile(path.join(legacyWorkspace, "projects", "p1", "assets", "characters", "asset_001.png"));
+    const archivedWorkspace = path.join(prepared.root!, "archived-workspace");
+    await rename(legacyWorkspace, archivedWorkspace);
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
     const dbProjects = app.get(ProjectsService);
     const dbSnapshot = await dbProjects.getWorkbenchSnapshot(PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1"));
     expect(semanticWorkbenchSnapshot(dbSnapshot)).toEqual(semanticWorkbenchSnapshot(fileSnapshot));
     const dbAssets = await prisma!.database().asset.findMany({ orderBy: { storageKey: "asc" } });
     expect(dbAssets).toHaveLength(2);
-    const expectedCharacterBytes = await readFile(path.join(legacyWorkspace, "projects", "p1", "assets", "characters", "asset_001.png"));
     expect(dbAssets.find((item) => item.storageKey.endsWith("asset_001"))).toMatchObject({ status: "ready", sha256: `sha256:${createHash("sha256").update(expectedCharacterBytes).digest("hex")}`, bytes: expectedCharacterBytes.byteLength });
     expect((await prisma!.database().project.findFirstOrThrow()).updatedAt).toBeInstanceOf(Date);
     const targetProjectId = PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1");
     const targetChapterId = PrismaMigrationLedgerRepository.stableEntityId("Chapter", "workspace-v1:p1:Chapter:p1-chapter-001");
     await dbProjects.saveChapterDraft(targetProjectId, targetChapterId, { sourceText: "数据库侧写入，不回写旧工作区。\n" });
-    expect(await readFile(path.join(legacyWorkspace, "projects", "p1", "project.json"), "utf8")).toBe(legacyProjectFile);
-    expect(await readFile(path.join(legacyWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8")).toBe(legacyScriptFile);
+    await expect(readFile(path.join(legacyWorkspace, "projects", "p1", "project.json"), "utf8")).rejects.toThrow();
+    await expect(readFile(path.join(legacyWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8")).rejects.toThrow();
+    expect(await readFile(path.join(archivedWorkspace, "projects", "p1", "project.json"), "utf8")).toBe(legacyProjectFile);
+    expect(await readFile(path.join(archivedWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8")).toBe(legacyScriptFile);
     expect((await dbProjects.getWorkbenchSnapshot(targetProjectId)).currentChapter?.sourceText).toContain("数据库侧写入");
   }, 120_000);
 
