@@ -29,6 +29,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | G3-M3-A6 Storyboard shadow | implemented，commit `1a579c7`；StoryboardVersion + Shot/Projection + `--slice storyboard` |
 | G3-M3-A7 Character shadow | implemented，commit `b337c88`；Character + `--slice characters` |
 | G3-M3-A8 Asset metadata shadow | implemented，commit `0bf84d6`；Asset metadata + staged-only + `--slice assets` |
+| G3-M3-A9 Asset physical/Visual shadow | implemented，commit `58d84eb`；physical evidence + ready promote + `--slice asset-visuals` |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | not_implemented |
 | G3-M5 backup/restore | not_implemented |
@@ -45,7 +46,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 3. 预期 package scripts
 
-以下命令按切片逐步提供；`db:verify` 仍不得视为完成，`db:import` 目前支持 `--slice project-chapter`（A2）、`script-outline`（A3）、`script-pending-revision`（A4）、`story`（A5）、`storyboard`（A6）、`characters`（A7）和 `assets`（A8），不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
+以下命令按切片逐步提供；`db:verify` 仍不得视为完成，`db:import` 目前支持 `--slice project-chapter`（A2）、`script-outline`（A3）、`script-pending-revision`（A4）、`story`（A5）、`storyboard`（A6）、`characters`（A7）、`assets`（A8）和 `asset-visuals --workspace-root <absolute-path>`（A9），不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
 
 ```text
 maintenance（G3-M0 已提供）
@@ -115,6 +116,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 已完成 Storyboard shadow slice：导入 `storyboard.json` 为 StoryboardVersion、Shot 与 ShotProjection；source 绑定 current Story，按 pending→Shot/Projection→confirmed→current formalize；A6 集成链路已通过。
 - M3-A7 已完成 Character shadow slice：导入 `shared/characters.json` 的 Character 文本身份，并把 Story V2 旧角色 ID映射到同一稳定 target；Asset/Visual 仍未导入。
 - M3-A8 已完成 Asset metadata shadow slice：导入 `shared/assets.json` 的稳定 Asset 身份、章节归属、类型、MIME 推断和 `meta` JSON 摘要；无物理文件证据时保持 `staged`，不创建 CharacterVisual/SceneVisual，也不标记 `ready`。
+- M3-A9 已完成物理资产与 Visual shadow slice：校验快照文件的 sha256/bytes/MIME/图片尺寸，在显式 workspace 安全落盘后 promote ready；导入 CharacterVisual、SceneVisual 和 current 指针，缺文件仍不创建视觉关系。
 - M3-A0 明确不是 full importer：当时账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter。
 - M3-A1 已接 Prisma，但仍不是 full importer：`db:audit` 只审计并写 MigrationRun/MigrationIssue，不创建 Project/Chapter，不消费 decisions artifact。
 - M3-A2 仍不是 full importer：Script/Outline、Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
@@ -124,6 +126,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 仍不是 full importer：Character、Asset/Visual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A7 仍不是 full importer：Asset/CharacterVisual/SceneVisual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A8 仍不是 full importer：CharacterVisual/SceneVisual、物理文件 hash/bytes/尺寸、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
+- M3-A9 仍不是 full importer：Preflight、Candidate/Lock、Task、Layout/Export、Dialogue、provider metadata、verifier、backup 和 activate 尚未导入；`db:import --kind final` 固定 fail-closed。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 

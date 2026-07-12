@@ -18,6 +18,7 @@ import { StoryShadowImporter } from "./story-shadow-importer.js";
 import { StoryboardShadowImporter } from "./storyboard-shadow-importer.js";
 import { CharacterShadowImporter } from "./character-shadow-importer.js";
 import { AssetShadowImporter } from "./asset-shadow-importer.js";
+import { AssetVisualShadowImporter } from "./asset-visual-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 
@@ -32,7 +33,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -66,6 +67,19 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     if (options.withAssets) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
       await writeFile(path.join(projectDir, "shared", "assets.json"), `${JSON.stringify({ assets: [{ id: "asset_001", chapterId: `${projectId}-chapter-001`, type: "image", role: "character_reference", name: "主角参考图", path: "assets/characters/asset_001.png", sourceTaskId: null, meta: JSON.stringify({ legacyKind: "reference" }), createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
+    }
+    if (options.withAssetVisuals) {
+      const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+      await mkdir(path.join(projectDir, "assets", "characters"), { recursive: true });
+      await mkdir(path.join(projectDir, "chapters", "chapter-001", "scenes", "scene_01"), { recursive: true });
+      await writeFile(path.join(projectDir, "assets", "characters", "asset_001.png"), png);
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "scenes", "scene_01", "background.png"), png);
+      await writeFile(path.join(projectDir, "shared", "assets.json"), `${JSON.stringify({ assets: [
+        { id: "asset_001", chapterId: `${projectId}-chapter-001`, type: "image", role: "character_reference", name: "主角预览", path: "assets/characters/asset_001.png", sourceTaskId: null, meta: JSON.stringify({ characterId: "char_001", referenceKind: "preview_front" }), createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" },
+        { id: "asset_scene_001", chapterId: `${projectId}-chapter-001`, type: "image", role: "scene_reference", name: "巷口背景", path: "chapters/chapter-001/scenes/scene_01/background.png", sourceTaskId: null, meta: JSON.stringify({ sceneId: "scene_01", referenceKind: "scene_background" }), createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" },
+      ] })}\n`);
+      await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({ characters: [{ id: "char_001", name: "主角", role: "调查者", level: "lead", entityType: "human", status: "needs_reference", referenceAssetIds: ["asset_001"], previewReferenceAssetId: "asset_001", primaryReferenceAssetId: null, primaryReferenceKind: "final_reference", visualVersion: 1, source: "script_outline", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "structure.json"), `${JSON.stringify({ id: "legacy-story-1", version: 1, status: "structured", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T00:00:00.000Z", confirmedAt: "2026-01-03T00:00:00.000Z", structureJson: { chapterTitle: "第一章", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, synopsis: "夜色中的冲突。", direction: { logline: "夜色落下", chapterGoal: "建立冲突", coreConflict: "未知来客", emotionalArc: "紧张", endingHook: "门外有声" }, scenes: [{ id: "scene_01", name: "巷口", location: "旧城", timeOfDay: "夜", atmosphere: "冷", purpose: "引入", referenceAssetId: "asset_scene_001" }], beats: [{ id: "beat_01", order: 1, title: "脚步声", summary: "主角听见脚步。", conflict: "是否开门", characters: [], sceneId: "scene_01", visualFocus: "门", outcome: "停在门前" }], characters: [], notes: "" } })}\n`);
     }
     if (options.duplicateChapterOrder) {
       await mkdir(path.join(projectDir, "chapters", "chapter-002"), { recursive: true });
@@ -308,5 +322,29 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().importedEntitySource.count()).toBe(3);
     expect((await new AssetShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a8-2" })).run.status).toBe("succeeded");
     expect(await prisma!.database().asset.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A9-01 promotes verified files and imports character/scene visuals", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withCharacters: true, withAssets: true, withAssetVisuals: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-story" });
+    await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-character" });
+    await new AssetShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-assets" });
+    const result = await new AssetVisualShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-1", workspaceRoot: path.join(prepared.root!, "workspace") });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ AssetReady: 2, CharacterVisual: 1, SceneVisual: 1 });
+    expect(await prisma!.database().asset.count({ where: { status: "ready" } })).toBe(2);
+    const character = await prisma!.database().character.findFirstOrThrow();
+    expect(character.previewVisualId).toMatch(/^charactervisual_/);
+    const scene = await prisma!.database().chapterScene.findFirstOrThrow();
+    expect(scene.currentVisualId).toMatch(/^scenevisual_/);
+    expect(await prisma!.database().characterVisual.count()).toBe(1);
+    expect(await prisma!.database().sceneVisual.count()).toBe(1);
+    expect((await new AssetVisualShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-2", workspaceRoot: path.join(prepared.root!, "workspace") })).run.status).toBe("succeeded");
+    expect(await prisma!.database().characterVisual.count()).toBe(1);
+    expect(await prisma!.database().sceneVisual.count()).toBe(1);
   }, 30_000);
 });
