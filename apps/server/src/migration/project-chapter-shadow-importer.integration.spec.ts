@@ -25,6 +25,7 @@ import { CandidateShadowImporter } from "./candidate-shadow-importer.js";
 import { CandidateLockShadowImporter } from "./candidate-lock-shadow-importer.js";
 import { MigrationVerifyService } from "./migration-verify.service.js";
 import { LayoutShadowImporter } from "./layout-shadow-importer.js";
+import { ExportShadowImporter } from "./export-shadow-importer.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
@@ -41,7 +42,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -92,6 +93,12 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     if (options.withLayout) {
       await mkdir(path.join(projectDir, "chapters", "chapter-001", "layout"), { recursive: true });
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "layout", "layout.json"), `${JSON.stringify({ schemaVersion: 1, id: "legacy-layout-001", projectId, chapterId: `${projectId}-chapter-001`, pages: [{ id: "page_001", projectId, chapterId: `${projectId}-chapter-001`, pageNumber: 1, format: "vertical_comic", width: 1080, height: 1920, placements: [{ id: "placement_001", shotId: "shot_001", candidateId: "legacy-candidate-001", assetId: "asset_001", order: 1, x: 0, y: 0, w: 1080, h: 1920 }], exportAssetId: null }], exportAssetIds: [], createdAt: "2026-01-05T03:00:00.000Z", updatedAt: "2026-01-05T03:00:00.000Z", confirmedAt: "2026-01-05T03:00:00.000Z" })}\n`);
+    }
+    if (options.withExports) {
+      const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+      await mkdir(path.join(projectDir, "chapters", "chapter-001", "exports", "export_001"), { recursive: true });
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "exports", "export_001", "page_001.png"), png);
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "exports", "export_001", "manifest.json"), `${JSON.stringify({ schemaVersion: 1, exportId: "export_001", projectId, chapterId: `${projectId}-chapter-001`, kind: "layout_publication", files: [{ path: "page_001.png", role: "page_png", order: 1 }], createdAt: "2026-01-06T00:00:00.000Z" })}\n`);
     }
     if (options.withCharacters) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
@@ -527,5 +534,21 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentLayoutRevisionId: null });
     await new LayoutShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-layout-replay" });
     expect(await prisma!.database().layoutWorkingCopy.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A13-01 imports legacy export evidence as unresolved history without current", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withExports: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a13-base" });
+    const result = await new ExportShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a13-exports" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ ExportRevision: 1 });
+    const revision = await prisma!.database().exportRevision.findFirstOrThrow();
+    expect(revision).toMatchObject({ kind: "layout_publication", origin: "legacy_import", status: "failed", completionApplicability: "legacy_unresolved", manifestSchemaVersion: 1 });
+    expect(await prisma!.database().exportArtifact.count()).toBe(0);
+    expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentExportRevisionId: null });
+    await new ExportShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a13-replay" });
+    expect(await prisma!.database().exportRevision.count()).toBe(1);
   }, 30_000);
 });

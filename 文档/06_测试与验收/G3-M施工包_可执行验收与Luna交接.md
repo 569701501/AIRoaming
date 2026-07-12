@@ -12,7 +12,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 1. 当前结论
 
-foundation 与 shadow importer 主要切片已推进到 A11C；production cutover 尚未就绪。后续继续按单切片推进，不能把当前 `db:verify` 基础实现或 12 个独立 slice 宣称为 full importer/cutover 完成。
+foundation 与 shadow importer 主要切片已推进到 A13；production cutover 尚未就绪。后续继续按单切片推进，不能把当前 `db:verify` 基础实现或 14 个独立 slice 宣称为 full importer/cutover 完成。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -34,7 +34,8 @@ foundation 与 shadow importer 主要切片已推进到 A11C；production cutove
 | G3-M3-A11A legacy Task shadow | implemented，commit `e45dbdf`；只导入不可执行历史任务 |
 | G3-M3-A11B Candidate shadow | implemented，commit `ccd7c71`；验证 Shot/Task/Asset scope |
 | G3-M3-A11C CandidateLock shadow | implemented，commit `ba132c3`；从原始 storyboard 锁定证据恢复修订 |
-| G3-M3-A12 LayoutWorkingCopy shadow | implemented，当前工作区待提交；旧 layout envelope 与来源绑定证据 |
+| G3-M3-A12 LayoutWorkingCopy shadow | implemented，commit `9e79deb`；旧 layout envelope 与来源绑定证据 |
+| G3-M3-A13 Export evidence shadow | implemented，当前工作区待提交；旧 manifest 只写 `legacy_unresolved` ExportRevision，不创建 ready Artifact/current |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | in_progress；已有只读 verifier/CLI 与单次 succeeded shadow 特征测试，双 fresh shadow/API/Asset 等价门禁未完成 |
 | G3-M5 backup/restore | not_implemented |
@@ -51,7 +52,7 @@ foundation 与 shadow importer 主要切片已推进到 A11C；production cutove
 
 ## 3. 预期 package scripts
 
-以下命令按切片逐步提供；`db:verify` 已有 M4 基础实现但仍不得视为完整验收，`db:import` 目前支持 `project-chapter`、`script-outline`、`script-pending-revision`、`story`、`storyboard`、`characters`、`assets`、`asset-visuals`、`preflight`、`tasks`、`candidates`、`candidate-locks`、`layout` 共 13 个 shadow slice，不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
+以下命令按切片逐步提供；`db:verify` 已有 M4 基础实现但仍不得视为完整验收，`db:import` 目前支持 `project-chapter`、`script-outline`、`script-pending-revision`、`story`、`storyboard`、`characters`、`assets`、`asset-visuals`、`preflight`、`tasks`、`candidates`、`candidate-locks`、`layout`、`exports` 共 14 个 shadow slice，不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
 
 ```text
 maintenance（G3-M0 已提供）
@@ -127,6 +128,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A11B 已完成 Candidate shadow slice：验证 Candidate 的 Shot/Task/Asset 同 scope；旧 selected/locked 仅转为 generated 历史。
 - M3-A11C 已完成 CandidateLock shadow slice：只从 sealed snapshot 原始 storyboard 的 `lockedCandidateId` 恢复不可变 lock revision，并验证 Candidate/Shot scope。
 - M3-A12 已完成 LayoutWorkingCopy shadow slice：旧 `layout/layout.json` 包成 `legacy_chapter_layout_v1` envelope，完整来源记录 lock-set digest，来源不足标 unresolved，不设置 current LayoutRevision。
+- M3-A13 已完成旧导出证据 shadow slice：扫描章节/项目 exports 目录，保留 manifest 摘要和物理来源 digest，写入 `ExportRevision(kind=layout_publication,status=failed,origin=legacy_import,completionApplicability=legacy_unresolved)`；不创建 ExportArtifact、不设置 currentExport，replay 保持单条历史。
 - M3-A0 明确不是 full importer：当时账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter。
 - M3-A1 已接 Prisma，但仍不是 full importer：`db:audit` 只审计并写 MigrationRun/MigrationIssue，不创建 Project/Chapter，不消费 decisions artifact。
 - M3-A2 仍不是 full importer：Script/Outline、Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
@@ -136,7 +138,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 仍不是 full importer：Character、Asset/Visual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A7 仍不是 full importer：Asset/CharacterVisual/SceneVisual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A8 仍不是 full importer：CharacterVisual/SceneVisual、物理文件 hash/bytes/尺寸、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
-- M3-A12 后仍不是 full importer：Export、Dialogue、provider metadata、完整 read-model/orchestration 尚未导入；`db:import --kind final` 固定 fail-closed，backup 和 activate 也尚未实现。
+- M3-A13 后仍不是 full importer：Dialogue、provider metadata、完整 read-model/orchestration 尚未导入；`db:import --kind final` 固定 fail-closed，backup 和 activate 也尚未实现。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 
