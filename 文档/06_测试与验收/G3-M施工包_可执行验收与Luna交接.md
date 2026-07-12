@@ -38,7 +38,7 @@ foundation 与 shadow importer 主要切片已推进到 A15；production cutover
 | G3-M3-A13 Export evidence shadow | implemented，commit `ca5c449`；旧 manifest 只写 `legacy_unresolved` ExportRevision，不创建 ready Artifact/current |
 | G3-M3-A14 Provider/settings shadow | implemented，commit `47c7680`；只导入脱敏 provider 元数据，旧 key 不进入 Secret |
 | G3-M3-A15 Dialogue runtime shadow | implemented，commit `28e21d7`；仅导入 runtime bundle 明确 captured 的对话历史，deferred 状态零实体 |
-| G3-M3 full importer | implemented，当前变更待提交；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
+| G3-M3 full importer | implemented，commit `9e04495`；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
 | G3-M4 verifier/shadow | in_progress；已补来源证据注册表、复合摘要重算、runtime/settings 转换来源校验和 full replay 特征测试，API/Asset 等价门禁未完成 |
 | G3-M5 backup/restore | not_implemented |
 | G3-M6 activate/cutover | prerequisite_blocked |
