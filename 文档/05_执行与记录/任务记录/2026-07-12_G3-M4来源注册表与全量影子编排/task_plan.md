@@ -24,7 +24,7 @@ source: G3-M施工包与当前实现
 
 # 验收标准
 
-- `Chapter` 的 `chapter.json + script.md` 复合 sourceDigest 可重算。
+- `Chapter` 的 `chapter.json + script.md` 复合 sourceDigest 可重算；缺少 `script.md` 时必须按 importer 契约使用 `chapter.json.sourceText` fallback 重算。
 - Dialogue runtime 使用 sealed runtime bundle canonical digest；settings/runtime 转换文件可追溯到 snapshot manifest。
 - 未注册 entityType 或来源 digest 不匹配时 `db:verify` fail-closed。
 - 已注册 runtime entity 若未锚定 `runtime-bundle.json` 时 `db:verify` 也必须 fail-closed。

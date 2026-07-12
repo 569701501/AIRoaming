@@ -132,7 +132,17 @@ export async function checkSourceEvidence(
         const script = await snapshot.readPayload(scriptStorageKey);
         scriptDigest = encodeScriptTextV1(script.bytes, { allowEmpty: true }).digest;
       } else {
-        scriptDigest = encodeScriptTextV1(Buffer.alloc(0), { allowEmpty: true }).digest;
+        // Project/Chapter shadow importer uses chapter.json.sourceText as the
+        // legacy fallback when script.md is absent. Recompute the same input
+        // here so a valid fallback snapshot does not fail M4 verification.
+        try {
+          const chapter = JSON.parse((await snapshot.readPayload(row.sourceStorageKey)).bytes.toString("utf8")) as Record<string, unknown>;
+          const fallbackText = typeof chapter.sourceText === "string" ? chapter.sourceText : "";
+          scriptDigest = encodeScriptTextV1(Buffer.from(fallbackText, "utf8"), { allowEmpty: true }).digest;
+        } catch {
+          sourceMismatchCount += 1;
+          continue;
+        }
       }
       const expected = digestCanonicalJson({ chapterJsonDigest: item.sha256, scriptDigest });
       if (expected !== row.sourceDigest) sourceMismatchCount += 1;

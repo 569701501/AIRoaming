@@ -23,6 +23,7 @@ source: task execution
 - [x] 新增已注册来源摘要不匹配与 runtime 错误锚点回归：`db:verify` 返回 `MIGRATION_SOURCE_DIGEST_MISMATCH` 并 fail-closed。
 - [x] 为全部单文件 entityType 固化 storage-key pattern，并新增错误实体路径回归：正确摘要挂到其他实体路径仍 fail-closed。
 - [x] full shadow 捕获 failed slice 的终态摘要并 fail-fast；新增 `IMP-M3-FULL-03`，不丢失失败 run、不创建下游 run。
+- [x] Chapter 缺少 `script.md` 时，verifier 按 importer 同样使用 `chapter.json.sourceText` 备用正文重算复合摘要；新增 `IMP-M4-07`。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
@@ -36,9 +37,9 @@ source: task execution
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M3-FULL' --testTimeout=120000`：3 项通过，覆盖 replay、blocked 和 failed slice。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-FRESH' --testTimeout=120000`：1 项通过；两套 fresh SQLite DB 的 16 个 slice、逐片 verifier、reportDigest 与业务 inventory digest 均一致。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-API-01' --testTimeout=120000`：1 项通过；移走旧 workspace 后 DB 重启仍能读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致、ready Asset sha256/bytes 与旧物理文件一致，DB 草稿写入不重建旧工作区。
-- `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts --run --testTimeout=120000`：33 个迁移集成测试通过；包含 DB-only 断根重启、未知 entityType、摘要篡改、runtime 锚点、storage-key pattern 和 failed slice fail-fast。
+- `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts --run --testTimeout=120000`：34 个迁移集成测试通过；包含 DB-only 断根重启、未知 entityType、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback 和 failed slice fail-fast。
 - `IMP-M4-04`～`IMP-M4-06` 定向测试：3 项通过；覆盖注册类型摘要篡改、runtime 非 `runtime-bundle.json` 锚点和单文件实体错误 storage key。
-- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、270 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点和 storage-key pattern 门禁。
+- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、271 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点、storage-key pattern 和 Chapter sourceText fallback 门禁。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。
 

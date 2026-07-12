@@ -122,7 +122,7 @@ async function readFreshInventory(prisma: PrismaService): Promise<{ digest: `sha
   return { tables, digest: digestCanonicalJson(tables) };
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -130,8 +130,8 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     const projectDir = path.join(workspace, "projects", projectId);
     await mkdir(path.join(projectDir, "chapters", "chapter-001"), { recursive: true });
     await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify({ id: projectId, name: `项目 ${projectId}`, type: "comic", comicFormat, genreTags: ["fantasy"], storyTitle: `故事 ${projectId}`, artStyle: "ink", description: "legacy", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", currentChapterId: `${projectId}-chapter-001` })}\n`);
-    await writeFile(path.join(projectDir, "chapters", "chapter-001", "chapter.json"), `${JSON.stringify({ id: `${projectId}-chapter-001`, order: 1, title: "第一章", status: options.withScriptHistory ? "script_done" : "draft", summary: "开端", completedAt: options.withScriptHistory ? "2026-01-03T00:00:00.000Z" : null, currentScriptVersionId: options.withScriptHistory ? `${projectId}-chapter-001_script_v001` : null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" })}\n`);
-    await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.md"), "夜色落下。\n");
+    await writeFile(path.join(projectDir, "chapters", "chapter-001", "chapter.json"), `${JSON.stringify({ id: `${projectId}-chapter-001`, order: 1, title: "第一章", status: options.withScriptHistory ? "script_done" : "draft", summary: "开端", completedAt: options.withScriptHistory ? "2026-01-03T00:00:00.000Z" : null, currentScriptVersionId: options.withScriptHistory ? `${projectId}-chapter-001_script_v001` : null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", ...(options.omitChapterScript ? { sourceText: "章节 JSON 备用正文。\r\n" } : {}) })}\n`);
+    if (!options.omitChapterScript) await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.md"), "夜色落下。\n");
     if (options.withScriptHistory) {
       await mkdir(path.join(projectDir, "chapters", "chapter-001", "script.versions"), { recursive: true });
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.versions", "script-v001.md"), "夜色落下。\n");
@@ -762,6 +762,16 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.passed).toBe(false);
     expect(result.report.checks.sourceMismatchCount).toBe(1);
     expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
+  }, 30_000);
+
+  it("IMP-M4-07 accepts the chapter.json sourceText fallback when script.md is absent", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { omitChapterScript: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-chapter-fallback" });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    expect(result.report.passed).toBe(true);
+    expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
 
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {

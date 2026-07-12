@@ -27,6 +27,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 7. `IMP-M4-04`、`IMP-M4-05`：已注册实体的摘要被篡改，或 runtime 实体偏离 `runtime-bundle.json`，verifier 均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH` 并保持 fail-closed。
 8. `IMP-M4-06`：Project 使用 chapter.json 的正确摘要但 storage key 路径错误，verifier 仍返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`。
 9. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
+10. `IMP-M4-07`：Chapter 缺少 `script.md` 时，DB shadow 与 verifier 都使用 `chapter.json.sourceText` 备用正文，验证通过且不产生来源摘要误报。
 
 ## 读取点审计边界
 
