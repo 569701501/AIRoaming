@@ -19,7 +19,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - `schema.prisma`、0001～0010 migration SQL 与其中 trigger 字节未改变。
 - G3-M 交接文档已按 Git 历史修正到 A11C，并把 M4 标为 `in_progress`。
 - verifier 已增加来源证据缺失的 fail-closed 门禁：unchanged replay 受既有 trigger 约束不会更新 `lastRunId`；成功 run 若按 importer-specific entity count 应有来源但当前 run 查询为空，则返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`。这不改变重放幂等语义，也不改 schema/migration/trigger。
-- verifier 进一步按 importer/entityType 精确对齐来源计数：A6 的 Shot 计数由 `StoryboardShotProjection` 留证，A9 的 AssetReady 计数由 `AssetPhysicalEvidence` 留证；来源缺失或超额分别返回 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`。
+- verifier 进一步按 importer/entityType 精确对齐来源计数：A6 的 Shot 计数由 `StoryboardShotProjection` 留证，A9 的 AssetReady 计数由 `AssetPhysicalEvidence` 留证；来源缺失或超额分别返回 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`。新增 `IMP-M4-10` 覆盖成功 full shadow 的 16 个 slice 逐片验证。
 
 ## 明确未完成
 

@@ -30,6 +30,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 10. `IMP-M4-07`：Chapter 缺少 `script.md` 时，DB shadow 与 verifier 都使用 `chapter.json.sourceText` 备用正文，验证通过且不产生来源摘要误报。
 11. `db-verify --format text`：在数据库初始化前返回 `MIGRATION_VERIFY_ARGS_INVALID`，不会创建或连接目标数据库。
 12. `IMP-M4-08/09`：成功 run 的当前来源证据缺失或超出 importer 报告计数时，verifier 分别返回 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，保持 fail-closed。
+13. `IMP-M4-10`：成功 full shadow 的 16 个独立 slice 均由 verifier 逐个复核，来源计数、摘要锚点和注册类型全部通过。
 
 ## 读取点审计边界
 

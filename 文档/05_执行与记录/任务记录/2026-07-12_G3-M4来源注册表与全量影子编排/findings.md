@@ -40,4 +40,4 @@ source: code exploration and tests
 - `IMP-M3-FULL-02` 已补充 blocked prerequisite fail-fast 证据；它证明未决议的 Project/Chapter 不会触发后续 15 个下游 slice。
 - final cutover 前投影读取点静态审计见 `projection_read_point_audit.md`：Project/Chapter 等业务投影和 Task 持久读已走 DB，物理 Asset storage 仍按允许的 storageKey 读写；SettingsService 仍读写旧 `app-settings.json`，必须作为 M5 capability/SecretStore blocker，不能在 M4 伪装成 DB-only。
 - 本结论不是 production cutover 批准；M4 状态继续保持 `in_progress`，等待正式验收签字。M5/M6 不在本轮范围内。
-- `IMP-M4-08` 覆盖 unchanged replay 的当前 run 空来源；`IMP-M4-09` 覆盖摘要正确但来源行超额。两者均证明 verifier 的来源证据计数门禁 fail-closed，且不修改 schema/migration/trigger。
+- `IMP-M4-08` 覆盖 unchanged replay 的当前 run 空来源；`IMP-M4-09` 覆盖摘要正确但来源行超额；`IMP-M4-10` 对成功 full shadow 的 16 个 slice 逐个执行 verifier。三组证据共同证明 verifier 的来源证据计数门禁 fail-closed，且不修改 schema/migration/trigger。

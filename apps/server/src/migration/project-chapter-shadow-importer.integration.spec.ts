@@ -812,6 +812,47 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH");
   }, 30_000);
 
+  it("IMP-M4-10 verifies exact source counts for every succeeded full shadow slice", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
+      withScriptHistory: true,
+      withStoryStructure: true,
+      withStoryboard: true,
+      withCharacters: true,
+      withAssets: true,
+      withAssetVisuals: true,
+      withTasks: "complete",
+      withCandidates: true,
+      withLayout: true,
+      withExports: true,
+      withSettings: true,
+      withDialogueRuntime: true,
+      withPendingDialogue: true,
+    });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const full = await new FullShadowImporter(prisma!, prepared.repository).import(
+      snapshot.outputPath,
+      decisionsPath,
+      { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-m4-all-counts" },
+    );
+    expect(full.status, JSON.stringify(full.slices)).toBe("succeeded");
+    expect(full.slices).toHaveLength(FULL_SHADOW_SLICE_ORDER.length);
+    for (const slice of full.slices) {
+      const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(
+        snapshot.outputPath,
+        slice.runId,
+        repoRoot,
+      );
+      expect(result.report.passed, `${slice.slice}: ${result.report.errors.join(", ")}`).toBe(true);
+      expect(result.report.checks).toMatchObject({
+        sourceEvidenceMissing: false,
+        sourceEvidenceCountMismatch: false,
+        sourceMismatchCount: 0,
+        unregisteredEntityTypeCount: 0,
+      });
+    }
+  }, 60_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
