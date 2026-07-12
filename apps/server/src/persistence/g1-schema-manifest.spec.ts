@@ -80,11 +80,10 @@ describe("G1 Pass 2 source-only schema manifest", () => {
       purgeOwnershipEntries: 44,
     });
     expect(manifest).not.toHaveProperty("reviewGate");
-    expect(manifest.sourceDocuments).toHaveLength(19);
+    expect(manifest.sourceDocuments).toHaveLength(18);
     const sourcePaths = manifest.sourceDocuments.map((source) => source.path);
     expect(sourcePaths).toEqual(
       expect.arrayContaining([
-        "apps/server/package.json",
         "apps/server/src/persistence/g1-prisma-schema.ts",
         "apps/server/src/persistence/g1-prisma-schema.cli.ts",
         "apps/server/src/persistence/g1-migration-plan.ts",
@@ -93,7 +92,7 @@ describe("G1 Pass 2 source-only schema manifest", () => {
     );
     expect(sourcePaths.filter((sourcePath) => sourcePath.endsWith(".ts"))).toHaveLength(16);
     expect(sourcePaths.filter((sourcePath) => sourcePath.endsWith(".md"))).toHaveLength(2);
-    expect(sourcePaths.filter((sourcePath) => sourcePath.endsWith("package.json"))).toHaveLength(1);
+    expect(sourcePaths.filter((sourcePath) => sourcePath.endsWith("package.json"))).toHaveLength(0);
     expect(
       sourcePaths.some(
         (sourcePath) =>

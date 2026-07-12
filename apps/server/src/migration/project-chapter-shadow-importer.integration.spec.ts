@@ -23,6 +23,8 @@ import { PreflightShadowImporter } from "./preflight-shadow-importer.js";
 import { TaskShadowImporter } from "./task-shadow-importer.js";
 import { CandidateShadowImporter } from "./candidate-shadow-importer.js";
 import { CandidateLockShadowImporter } from "./candidate-lock-shadow-importer.js";
+import { MigrationVerifyService } from "./migration-verify.service.js";
+import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shared";
@@ -479,5 +481,20 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const replay = await new CandidateLockShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a11c-lock-2" });
     expect(replay.run.status).toBe("succeeded");
     expect(await prisma!.database().candidateLockRevision.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-M4-01 verifies a succeeded shadow run without mutating the ledger", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-verify" });
+    const verificationBefore = (await prepared.repository.getRun(run.run.id)).verification;
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const releaseIdentity = await loadReleaseSchemaIdentityV1(repoRoot);
+    expect(result.report.errors).toEqual([]);
+    expect(result.report.passed).toBe(true);
+    expect(result.report.effectiveSchemaManifestDigest).toBe(releaseIdentity.effectiveSchemaManifestDigest);
+    expect(result.report.checks).toMatchObject({ runSucceeded: true, sourceManifestMatch: true, snapshotManifestMatch: true, integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0 });
+    expect((await prepared.repository.getRun(run.run.id)).verification).toEqual(verificationBefore);
   }, 30_000);
 });

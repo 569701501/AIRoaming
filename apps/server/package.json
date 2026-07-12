@@ -23,7 +23,8 @@
     "migration:decisions:check": "tsx src/migration/migration-decision.cli.ts",
     "migration:audit:check": "tsx src/migration/migration-audit.cli.ts",
     "db:audit": "tsx src/migration/db-audit.cli.ts",
-    "db:import": "tsx src/migration/db-import.cli.ts"
+    "db:import": "tsx src/migration/db-import.cli.ts",
+    "db:verify": "tsx src/migration/db-verify.cli.ts"
   },
   "dependencies": {
     "@airoaming/shared": "workspace:*",

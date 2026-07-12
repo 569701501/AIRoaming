@@ -54,7 +54,6 @@ const REGISTRY_PATH =
 const EXPECTED_CHECK_COUNT = 195;
 const EXPECTED_TRIGGER_COUNT = 194;
 const ALLOWED_EXPLICIT_SOURCE_PATHS = new Set([
-  "apps/server/package.json",
   "apps/server/src/persistence/g1-schema-check-dsl-base.ts",
   "apps/server/src/persistence/g1-schema-check-dsl.ts",
   "apps/server/src/persistence/g1-schema-trigger-dsl-core-a.ts",

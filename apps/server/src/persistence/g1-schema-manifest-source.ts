@@ -26,7 +26,6 @@ export const G1_SCHEMA_MANIFEST_EXTENSION_PATHS = [
 ] as const;
 
 export const G1_SCHEMA_MANIFEST_SUPPORTING_PATHS = [
-  "apps/server/package.json",
   "apps/server/src/persistence/g1-schema-model-source.ts",
   "apps/server/src/persistence/g1-schema-constraint-source.ts",
   "apps/server/src/persistence/g1-schema-domain-registry-source.ts",

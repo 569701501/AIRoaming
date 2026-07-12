@@ -1,0 +1,45 @@
+---
+doc_id: AIR-TASK-20260712-RELEASE-SCHEMA-PROGRESS
+status: completed
+created: 2026-07-12
+updated: 2026-07-12
+owner: AI漫游项目
+audience: human, ai-agent, developer, qa
+source: task_plan.md
+---
+
+# 进度日志
+
+## 2026-07-12 阶段 1
+
+- 状态：completed。
+- 用户授权执行止损方案，并要求检查 Luna 代码/执行文档对后续的影响。
+- 当前基线 commit：`ba132c3`。
+- Luna 已提交 M0～M3-A11C；未提交 M4 草稿包含 `db-verify.cli.ts`、`migration-verify.service.ts`、package script 和一项集成测试。
+- M4 草稿错误地调用 G1 source manifest 并将其 digest 作为 effective Schema identity；本任务保留其实现并修正接线。
+- 既有截图删除为用户改动，不在本任务范围。
+- 已新增 ADR-0015 和本任务三件套。
+
+## 2026-07-12 阶段 2～4
+
+- 状态：completed。
+- TDD 先证明旧实现不能在独立临时发布树工作，再实现 `release-schema-identity.ts`：只读取 `schema.prisma` 与全部有序 migration SQL；当前树精确得到 0001～0010。
+- 特征测试证明修改无关 `package.json` 后 identity 完全相同，新增 `0002_overlay` 后自动进入 identity 且 digest 改变。
+- Luna M4 verifier 已改用 release identity，不再读取 G1 manifest。
+- 修正 Luna M4 两个独立问题：复合实体 sourceDigest 不能与单个主锚点文件摘要直接比较；只读测试应比较 verification 前后不变，不能假定初值为 null。
+- G1 closure 已移除完整 package.json；manifest sourceDocuments 从 19 变为 18，artifact digest 更新为 `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`。
+- 修改前后 `schema.prisma` 与 0001～0010 migration SQL 的 SHA-256 全部一致；现有 194 trigger 位于 migration SQL 内，字节随之保持不变。
+- 已修复 G3-M handoff 的 A8/A9 错误 commit，补齐 A10/A11A/B/C 与 M4 `in_progress` 事实；更新核心模型、README、AI 上下文入口和 ADR。
+
+## 当前验证
+
+- release identity：2 tests passed。
+- G1 manifest：5 tests passed。
+- M4 单次 succeeded shadow：1 test passed。
+- server typecheck：passed。
+
+## 下一步
+
+- 已执行 server 45 files/255 tests、G1 三项、Prisma validate、workspace typecheck、byte comparison 与 diff check，全部通过。
+- Scrutiny Review：passed；Runtime/User Review：not_applicable。
+- scoped commit 已创建，message 为 `refactor(db): decouple release schema identity`；既有截图删除未纳入。

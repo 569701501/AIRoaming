@@ -94,13 +94,6 @@
       ]
     },
     {
-      "path": "apps/server/package.json",
-      "digest": "sha256:240687d442520aa6e813834d1a3e08d8ada60e8a728e9ee2b0691775766c42b7",
-      "sections": [
-        "Pass2 source-only manifest assembly"
-      ]
-    },
-    {
       "path": "apps/server/src/persistence/g1-migration-plan.cli.ts",
       "digest": "sha256:a329875544df282a975e9985162e3456f16691936d4d8049d8202ead09eaeaf7",
       "sections": [
@@ -144,7 +137,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-schema-manifest-source.ts",
-      "digest": "sha256:1ddae79b8a27c72ff98f36bec015c2bd7e6896c8d52daab1dfabbd5037cd3b07",
+      "digest": "sha256:49cbf78edc1e11bc9e4607b2829bc526cb0c448905273117de73346c1784ce5f",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -158,7 +151,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-schema-manifest.ts",
-      "digest": "sha256:a4e820a94a53f2b180cca0c56ea46098d7be4ffdacce7690297d007203a18218",
+      "digest": "sha256:a62bd371ffdb7ff1f6466dcb2c5b2384269735b16b158a26c0acc25080b8206c",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -28953,5 +28946,5 @@
     "issueCount": 0,
     "issues": []
   },
-  "manifestDigest": "sha256:48aa9f58854e065f5dd29233979001c7ec99eb11801c517881e2ddea558b0dfc"
+  "manifestDigest": "sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea"
 }

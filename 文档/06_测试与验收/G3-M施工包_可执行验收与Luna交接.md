@@ -12,7 +12,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 1. 当前结论
 
-文档已达到 foundation 开发就绪；production cutover 尚未就绪。Luna 应从 G3-M0 开始，每次只领取一个切片。
+foundation 与 shadow importer 主要切片已推进到 A11C；production cutover 尚未就绪。后续继续按单切片推进，不能把当前 `db:verify` 基础实现或 12 个独立 slice 宣称为 full importer/cutover 完成。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -28,10 +28,14 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | G3-M3-A5 Story shadow | implemented，commit `fb6e9d4`；StoryVersion + Scene/Beat projections + `--slice story` |
 | G3-M3-A6 Storyboard shadow | implemented，commit `1a579c7`；StoryboardVersion + Shot/Projection + `--slice storyboard` |
 | G3-M3-A7 Character shadow | implemented，commit `b337c88`；Character + `--slice characters` |
-| G3-M3-A8 Asset metadata shadow | implemented，commit `0bf84d6`；Asset metadata + staged-only + `--slice assets` |
-| G3-M3-A9 Asset physical/Visual shadow | implemented，commit `58d84eb`；physical evidence + ready promote + `--slice asset-visuals` |
+| G3-M3-A8 Asset metadata shadow | implemented，commit `5d26fa5`；Asset metadata + staged-only + `--slice assets` |
+| G3-M3-A9 Asset physical/Visual shadow | implemented，commit `b203647`；physical evidence + ready promote + `--slice asset-visuals` |
+| G3-M3-A10 Preflight shadow | implemented，commit `775525f`；只接受可证明的 V2 source snapshot |
+| G3-M3-A11A legacy Task shadow | implemented，commit `e45dbdf`；只导入不可执行历史任务 |
+| G3-M3-A11B Candidate shadow | implemented，commit `ccd7c71`；验证 Shot/Task/Asset scope |
+| G3-M3-A11C CandidateLock shadow | implemented，commit `ba132c3`；从原始 storyboard 锁定证据恢复修订 |
 | G3-M3 full importer | not_implemented |
-| G3-M4 verifier/shadow | not_implemented |
+| G3-M4 verifier/shadow | in_progress；已有只读 verifier/CLI 与单次 succeeded shadow 特征测试，双 fresh shadow/API/Asset 等价门禁未完成 |
 | G3-M5 backup/restore | not_implemented |
 | G3-M6 activate/cutover | prerequisite_blocked |
 
@@ -46,7 +50,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 3. 预期 package scripts
 
-以下命令按切片逐步提供；`db:verify` 仍不得视为完成，`db:import` 目前支持 `--slice project-chapter`（A2）、`script-outline`（A3）、`script-pending-revision`（A4）、`story`（A5）、`storyboard`（A6）、`characters`（A7）、`assets`（A8）和 `asset-visuals --workspace-root <absolute-path>`（A9），不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
+以下命令按切片逐步提供；`db:verify` 已有 M4 基础实现但仍不得视为完整验收，`db:import` 目前支持 `project-chapter`、`script-outline`、`script-pending-revision`、`story`、`storyboard`、`characters`、`assets`、`asset-visuals`、`preflight`、`tasks`、`candidates`、`candidate-locks` 共 12 个 shadow slice，不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
 
 ```text
 maintenance（G3-M0 已提供）
@@ -117,6 +121,10 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A7 已完成 Character shadow slice：导入 `shared/characters.json` 的 Character 文本身份，并把 Story V2 旧角色 ID映射到同一稳定 target；Asset/Visual 仍未导入。
 - M3-A8 已完成 Asset metadata shadow slice：导入 `shared/assets.json` 的稳定 Asset 身份、章节归属、类型、MIME 推断和 `meta` JSON 摘要；无物理文件证据时保持 `staged`，不创建 CharacterVisual/SceneVisual，也不标记 `ready`。
 - M3-A9 已完成物理资产与 Visual shadow slice：校验快照文件的 sha256/bytes/MIME/图片尺寸，在显式 workspace 安全落盘后 promote ready；导入 CharacterVisual、SceneVisual 和 current 指针，缺文件仍不创建视觉关系。
+- M3-A10 已完成 Preflight shadow slice：只接受与 current Storyboard 摘要匹配的 V2 source snapshot；来源不足写 blocker，不创建伪 ready/current。
+- M3-A11A 已完成 legacy Task shadow slice：完整旧任务导入 `legacy_imported`，残缺任务导入不可执行 `legacy_stub`，不进入 runtime claim。
+- M3-A11B 已完成 Candidate shadow slice：验证 Candidate 的 Shot/Task/Asset 同 scope；旧 selected/locked 仅转为 generated 历史。
+- M3-A11C 已完成 CandidateLock shadow slice：只从 sealed snapshot 原始 storyboard 的 `lockedCandidateId` 恢复不可变 lock revision，并验证 Candidate/Shot scope。
 - M3-A0 明确不是 full importer：当时账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter。
 - M3-A1 已接 Prisma，但仍不是 full importer：`db:audit` 只审计并写 MigrationRun/MigrationIssue，不创建 Project/Chapter，不消费 decisions artifact。
 - M3-A2 仍不是 full importer：Script/Outline、Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
@@ -126,12 +134,15 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 仍不是 full importer：Character、Asset/Visual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A7 仍不是 full importer：Asset/CharacterVisual/SceneVisual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A8 仍不是 full importer：CharacterVisual/SceneVisual、物理文件 hash/bytes/尺寸、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
-- M3-A9 仍不是 full importer：Preflight、Candidate/Lock、Task、Layout/Export、Dialogue、provider metadata、verifier、backup 和 activate 尚未导入；`db:import --kind final` 固定 fail-closed。
+- M3-A11C 后仍不是 full importer：Layout/Export、Dialogue、provider metadata、完整 read-model/orchestration 尚未导入；`db:import --kind final` 固定 fail-closed，backup 和 activate 也尚未实现。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 
 ### G3-M4
 
+- 当前基础实现：`MigrationVerifyService`/`db:verify` 只读 sealed snapshot 与目标 DB，检查 run/manifest、`integrity_check`、FK、blocker 和来源追溯锚点；`effectiveSchemaManifestDigest` 使用 Prisma Schema + 全部有序 migration checksum 的 release identity，不再使用 G1 source manifest digest。
+- `ImportedEntitySource.sourceDigest` 可以由多个源文件合成，不能与单个 `sourceStorageKey` 文件摘要直接比较；当前 M4 只证明追溯锚点属于 sealed manifest。完整复合摘要重算需后续按 entityType 建来源证据注册表。
+- 当前仅完成单次 succeeded shadow 的只读特征测试，以下正式绿色条件仍未满足，因此状态保持 `in_progress`。
 - 连续两轮 fresh shadow：integrity=ok、FK=0、ledger exact、blocker=0、API DTO 等价、Asset hash 一致。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。
 

@@ -1,0 +1,49 @@
+---
+doc_id: AIR-TASK-20260712-RELEASE-SCHEMA-FINDINGS
+status: completed
+created: 2026-07-12
+updated: 2026-07-12
+owner: AI漫游项目
+audience: human, ai-agent, developer, qa
+source: task_plan.md
+---
+
+# 发现与决策
+
+## 代码事实
+
+- G1 manifest digest 覆盖所有 `sourceDocuments`，当前包含完整 `apps/server/package.json`。
+- Prisma Schema/migration renderer 不把 supporting source digest 写进结构字节。
+- `PrismaService` 在 DB 模式启动时已经通过 G3 ledger 精确验证 0001～0010。
+- G1 runtime migration loader 只排除已知 0009/0010；未知 0011 仍 fail-closed。
+- Luna M4 verifier 是未提交草稿，不存在对应 M4 任务目录；最后修改时间早于本任务开始约 26 分钟。
+
+## 文档事实
+
+- `核心数据模型` 仍写“8 段 migration”，与当前 0001～0010 不一致。
+- `G3-M 可执行验收与 Luna 交接` 状态停在 A9，实际已提交到 A11C，A8/A9 commit 也与当前 Git 历史不一致。
+- G3-M 施工包仍明确禁止在 D2/D3 未满足时执行真实 activate；本任务不改变该门禁。
+
+## 实现不变量
+
+- release Schema digest 不读取 package.json 或应用源码。
+- 同一 Prisma Schema + 同一按序 migration bytes 必须得到同一 digest。
+- Schema 或任一 migration byte 变化必须改变 digest。
+- 新增有序 migration 不能被 identity loader 忽略；runtime 是否放行仍由显式 migration catalog 决定。
+- M4 verifier 继续只读，不修改 terminal MigrationRun 或 PersistenceState。
+
+## 风险
+
+| 风险 | 处理 |
+| --- | --- |
+| 与 Luna 并发覆盖 | 编辑前检查 mtime/diff；保留其文件和测试 |
+| closure 修正改变 manifest digest | 预期变化；必须证明 Schema/migration SQL 字节不变 |
+| release identity 再次绑定工具源码 | identity payload 只放 Schema/migration artifact |
+| 文档把 M4 草稿写成完成 | 只有全门禁通过并提交后才更新为 completed |
+
+## Luna M4 兼容审计
+
+- `ImportedEntitySource.sourceStorageKey` 是单个主追溯锚点；`sourceDigest` 是实体来源证据摘要，可以由多个文件摘要合成。Project/Chapter importer 已用 `chapter.json + script` 合成 Chapter digest，因此 verifier 不能普遍做单文件相等比较。
+- 当前 M4 能安全验证主追溯锚点仍存在于 sealed source manifest。若要逐实体重算复合摘要，需要后续引入按 `entityType` 注册的来源证据集合与算法；本轮不伪造通用规则。
+- import run 本身已有 `verification` 证据；只读 verifier 的不变性测试必须保存 before 值并比较 after，而不是断言 null。
+- M4 当前只有单次 succeeded shadow、SQLite integrity/FK/blocker/manifest/identity 检查，尚未满足双 fresh shadow、API DTO 和 Asset hash 等完整绿色条件，文档保持 `in_progress`。

@@ -1,6 +1,7 @@
 # AI漫游长期记忆
 
-- 最新状态（2026-07-12）：G3-core 已完成实现与回归，包含 canonical 两值、0010 immutable trigger、0001～0010 startup ledger、file alias 只读兼容和 Candidate/Prompt V2；G3-M 已补齐五份施工资料，可从 M0 maintenance 逐切片开发。完整 importer、SecretStore、协调备份恢复和 activate 仍未实现，当前不能宣称 production-ready。
+- 2026-07-12 数据库建模审查与止损改造：G1 基线为 44 models/194 triggers；Story/Storyboard 完整 `documentJson` 是权威版本，Scene/Beat/Shot 表提供稳定身份与可重建投影。194 trigger 中 51 个是 scope insert/update，只有 3 个 AFTER materialize 跨表写 TaskAttempt/Slot/终态。生成器采用渐进退役：冻结 0001～0010，0011+ 使用小 migration + 小 contract，DB-only/备份恢复/稳定周期后再移除活跃生成 DSL。发布 Schema identity 已从 G1 source digest 分离，只绑定 SQLite、`schema.prisma` 与全部有序 migration checksum；G1 closure 已移除完整 package.json，从 19 份缩为 18 份，manifest digest 为 `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`，Schema/0001～0010/trigger 字节未变。Trigger 后续每批最多迁出 5～10 个，必须做真实 SQLite DELETE/partial-null/FK 回归；Task 三个 materialize 高风险后置。投影读取审计在 full shadow 两轮通过后、final cutover 前强制触发。
+- 最新状态（2026-07-12）：G3-core 已完成；G3-M maintenance、snapshot、decision/ledger 与 12 个 shadow slice 已提交至 A11C。M4 只读 verifier/CLI 已有基础实现并使用 release identity，但复合来源目前只验证主追溯锚点，双 fresh shadow、API DTO/Asset 等价仍未完成。Layout/Export、Dialogue/provider、full importer、SecretStore、备份恢复和 activate 未完成，production activate 继续 release_blocked。
 
 - `文档/` 是项目事实源；实现前先读文档，改变产品、架构、数据、模块边界或功能完成后同步文档。
 - 正式文档使用中文，文档要服务人和 AI；重要结论必须落到对应 Markdown 文件，不把聊天隐含上下文当事实源。
