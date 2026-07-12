@@ -30,9 +30,10 @@ source: 本轮临时 SQLite / server 回归与 CLI fixture
 | `DATABASE_URL=file:<temporary>` + `prisma validate` | Prisma 6.19.3 schema valid |
 | `git diff --check` | 通过 |
 
-## 本轮复核基线
+## 复核基线与后续验证
 
-- 复核基线：`8a70758`；本轮新增 `IMP-M4-28` 仅增加 full CLI 回归测试，不改变 importer/verifier 生产逻辑。
+- 复核基线：`8a70758`；本轮新增 `IMP-M4-28/29` 仅增加 full CLI 成功/blocked 回归测试，不改变 importer/verifier 生产逻辑。
+- 后续验证提交：`a9cbc78`；补齐 `IMP-M4-29` 的 full CLI blocked 回归和证据同步，未改变 importer/verifier 生产逻辑。
 - 当前复跑：server 47 个测试文件、301 tests 全部通过；workspace typecheck、G1 manifest/schema/migration check、Prisma validate、`git diff --check` 全部通过。
 - 工作区仍只保留既有 12 张截图删除；本轮没有将其纳入提交。
 
