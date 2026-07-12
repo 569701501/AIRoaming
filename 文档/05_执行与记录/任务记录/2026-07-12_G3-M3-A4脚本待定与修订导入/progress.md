@@ -18,4 +18,4 @@ source: A4 执行记录
 
 # 当前状态
 
-A4 代码、验证、静态复核和交接已完成并准备提交。后续 Story/Storyboard importer 尚未实现。
+A4 代码、验证、静态复核和交接已完成，提交为 `1e121d2`。后续 Story/Storyboard importer 尚未实现。

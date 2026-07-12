@@ -23,4 +23,4 @@ source: M3-A4 实现与 SQLite 集成证据
 
 ## 下一步
 
-完成 A4 后进入 Story/Storyboard importer；Dialogue 相关实体导入时再定义如何把 pending/revision 的证据升级为可关联 FK，不能覆盖 A4 的历史 source rows。
+完成 A4 后进入 Story importer（A5 已完成）；Storyboard/Shot importer 仍待下一切片。Dialogue 相关实体导入时再定义如何把 pending/revision 的证据升级为可关联 FK，不能覆盖 A4 的历史 source rows。

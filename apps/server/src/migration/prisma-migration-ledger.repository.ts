@@ -269,6 +269,46 @@ export class PrismaMigrationLedgerRepository implements MigrationLedgerPort {
     return toSource(updated);
   }
 
+  async recordGenericIssueInTransaction(
+    tx: Prisma.TransactionClient,
+    runId: string,
+    input: {
+      issueKey: string;
+      code: string;
+      entityType: string;
+      entityId: string;
+      sourceKey?: string | null;
+      storageKey?: string | null;
+      detailJson: Prisma.InputJsonValue;
+      detailSchemaVersion?: number;
+    },
+  ): Promise<void> {
+    const run = await tx.migrationRun.findUnique({ where: { id: runId } });
+    if (!run) throw new MigrationLedgerError("MIGRATION_RUN_NOT_FOUND");
+    if (run.status !== "running") throw new MigrationLedgerError("MIGRATION_RUN_TERMINAL_IMMUTABLE");
+    try {
+      await tx.migrationIssue.create({
+        data: {
+          runId,
+          issueKey: input.issueKey,
+          severity: "blocker",
+          code: input.code,
+          sourceKey: input.sourceKey ?? null,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          storageKey: input.storageKey ?? null,
+          detailJson: input.detailJson,
+          detailSchemaVersion: input.detailSchemaVersion ?? 1,
+          resolutionStatus: "open",
+        },
+      });
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "MIGRATION_CONFLICT") throw new MigrationLedgerError("MIGRATION_ISSUE_ALREADY_EXISTS");
+      throw error;
+    }
+  }
+
   async getImportedEntitySource(sourceKey: string): Promise<ImportedEntitySourceRecord | null> {
     const row = await this.client().importedEntitySource.findUnique({ where: { sourceKey } });
     return row ? toSource(row) : null;

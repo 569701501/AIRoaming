@@ -28,4 +28,4 @@ source: G1 旧数据映射、G2 Script 契约、A3 handoff
 
 # 退出标准
 
-A4 集成测试通过；pending/revision source rows、FK scope、同库 replay 和 rowVersion 幂等得到真实 SQLite 证据；server 全量测试、typecheck、G1 三项检查和 diff check 通过；明确后续实体仍未实现。提交为 `352248e`。
+A4 集成测试通过；pending/revision source rows、FK scope、同库 replay 和 rowVersion 幂等得到真实 SQLite 证据；server 全量测试、typecheck、G1 三项检查和 diff check 通过；明确后续实体仍未实现。提交为 `1e121d2`。
