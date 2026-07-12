@@ -31,6 +31,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - `db:verify` 现在还要求显式 `--import-report` artifact；报告 codec 会重算 canonical reportDigest 并与 MigrationRun.reportDigest 绑定，`IMP-M4-23/24/25` 已覆盖缺失、非法和摘要不一致，不改变 release identity 或 schema/migration/trigger。
 - `IMP-M4-26/27` 已补做真实 `db:verify` CLI 成功路径与缺少 `--import-report` 的入口 fail-fast，确认 CLI 输出文件与 slice report artifact 绑定且缺参不启动 Prisma。
 - `IMP-M4-28` 已补做真实 `db:import --kind shadow --slice full` CLI 临时 SQLite 回归，确认聚合报告、16 个 slice 顺序、16 条 MigrationRun 和成功退出码均符合契约。
+- `IMP-M4-29` 已补做 full CLI blocked prerequisite 回归：返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
 
 ## 明确未完成
 

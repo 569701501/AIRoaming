@@ -43,6 +43,7 @@ source: code exploration and tests
 - 继续发现仅检查 `reportDigest` 形状仍不能证明它对应导入器实际输出。新增 `normalizeComicFormatReport`，严格校验报告字段并对 canonical base 重算摘要；`db:verify` 通过显式 `--import-report` 读取 slice 报告，与 MigrationRun.reportDigest 做绑定，缺失、非法或不一致分别返回 `MIGRATION_REPORT_ARTIFACT_MISSING/INVALID`、`MIGRATION_REPORT_DIGEST_MISMATCH`，`IMP-M4-23/24/25` 已锁定。full shadow 结果保留每个成功 slice 的报告对象，供逐片 verifier 使用；聚合 reportDigest 仍排除报告正文，保持双 fresh 可比对。
 - 进一步补做真实 CLI 入口审计：`IMP-M4-26` 在临时 SQLite 上执行 `db:verify.cli.ts`，确认显式 `--decisions`、`--import-report`、`--report` 的成功输出与写入文件一致；`IMP-M4-27` 缺少 `--import-report` 时在 Prisma 初始化前返回 `MIGRATION_VERIFY_ARGS_INVALID`，没有数据库副作用。
 - 继续审计发现 full importer 只有 service 级回归，没有公开 `db:import --kind shadow --slice full` CLI 回归；新增 `IMP-M4-28`，在临时 SQLite 上确认 `MIGRATION_IMPORT_OK`、规范聚合报告、16 个有序 slice 和 16 条独立 MigrationRun。
+- 继续补齐公开 CLI 失败契约：新增 `IMP-M4-29`，四格未决议输入在临时 SQLite 上返回 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不产生下游空 run。
 
 # M4 结论
 

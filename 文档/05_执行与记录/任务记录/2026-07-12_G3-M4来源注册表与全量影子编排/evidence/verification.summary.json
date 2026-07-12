@@ -6,13 +6,14 @@
   "scope": "shadow-importer-and-verifier-only",
   "status": "in_progress",
   "serverTestFiles": 47,
-  "serverTests": 300,
-  "migrationIntegrationTests": 55,
+  "serverTests": 301,
+  "migrationIntegrationTests": 56,
   "fullShadowSliceCount": 16,
   "m4CliEvidence": {
     "successPath": "IMP-M4-26",
     "missingImportReportFailFast": "IMP-M4-27",
-    "fullImportSuccessPath": "IMP-M4-28"
+    "fullImportSuccessPath": "IMP-M4-28",
+    "fullImportBlockedPath": "IMP-M4-29"
   },
   "gates": {
     "typecheck": "passed",

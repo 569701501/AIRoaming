@@ -161,3 +161,4 @@
 - 2026-07-13 G3-M4 证据目录已建立：`evidence/commands.md` 和 `evidence/verification.summary.json` 脱敏记录 16 slice、54 项迁移集成、299 tests、CLI 入口证据和 final/backup/activate 未授权范围。
 - 2026-07-13 当前 HEAD `8a70758` 复核确认 server 47 文件/299 tests、workspace typecheck、G1 manifest/schema/migration、Prisma validate 和 diff check 全部通过；M4 实现证据无新增缺口，仍需正式签字，M5/M6 未启动。
 - 2026-07-13 新增 `IMP-M4-28` 覆盖公开 `db:import --kind shadow --slice full` CLI：临时 SQLite 上返回 `MIGRATION_IMPORT_OK`，16 个 slice、聚合报告和 16 条 MigrationRun 均通过；迁移集成 55/55、server 全量 47 文件/300 tests 通过，M4 仍需正式签字。
+- 2026-07-13 新增 `IMP-M4-29` 覆盖 full CLI blocked prerequisite：临时 SQLite 返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run；迁移集成 56/56、server 全量 47 文件/301 tests 通过，M4 仍需正式签字。

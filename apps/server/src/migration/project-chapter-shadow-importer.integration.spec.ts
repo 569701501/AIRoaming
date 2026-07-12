@@ -1259,6 +1259,44 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma.database().migrationRun.count({ where: { id: { startsWith: "shadow-full-cli-" } } })).toBe(FULL_SHADOW_SLICE_ORDER.length);
   }, 120_000);
 
+  it("IMP-M4-29 returns a stable blocked result from the full import CLI", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "four_panel" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const databaseUrl = process.env.DATABASE_URL!;
+    const reportPath = path.join(prepared.root!, "full-shadow-cli-blocked.report.json");
+    const workspaceRoot = path.join(prepared.root!, "workspace");
+    await prisma!.onModuleDestroy();
+    prisma = null;
+    let failure: { code?: number; stdout?: string; stderr?: string } | undefined;
+    try {
+      await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+        "src/migration/db-import.cli.ts",
+        "--kind", "shadow",
+        "--slice", "full",
+        "--snapshot", snapshot.outputPath,
+        "--decisions", decisionsPath,
+        "--database-url", databaseUrl,
+        "--report", reportPath,
+        "--workspace-root", workspaceRoot,
+        "--format", "json",
+        "--run-id-prefix", "shadow-full-cli-blocked",
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: databaseUrl } });
+    } catch (error) {
+      failure = error as { code?: number; stdout?: string; stderr?: string };
+    }
+    expect(failure?.code).toBe(2);
+    expect(JSON.parse(failure?.stdout ?? "{}")).toMatchObject({ code: "MIGRATION_IMPORT_BLOCKED", status: "blocked" });
+    const fullReport = JSON.parse(await readFile(reportPath, "utf8")) as { status: string; slices: Array<{ slice: string; status: string }> };
+    expect(fullReport).toMatchObject({ status: "blocked" });
+    expect(fullReport.slices).toHaveLength(1);
+    expect(fullReport.slices[0]).toMatchObject({ slice: "project-chapter", status: "blocked" });
+
+    prisma = new PrismaService();
+    await prisma.onModuleInit();
+    expect(await prisma.database().migrationRun.count({ where: { id: { startsWith: "shadow-full-cli-blocked-" } } })).toBe(1);
+  }, 60_000);
+
   it("IMP-M4-27 rejects missing --import-report before db:verify starts Prisma", async () => {
     const databaseUrl = `file:${path.join(os.tmpdir(), "airoaming-m4-cli-arg-check.sqlite")}`;
     await expect(execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
