@@ -31,6 +31,7 @@ source: code exploration and tests
 - 单文件实体此前只按 manifest digest 校验，未限制实体与 storage key 的对应关系；已为全部单文件 entityType 增加允许路径模式，`IMP-M4-06` 证明 Project 使用 chapter.json 的合法摘要也会 fail-closed。
 - full shadow 原先对底层 importer 的 failed 异常直接上抛，聚合结果会丢失失败 run；现改为使用显式 slice runId 捕获 failed 终态、写入聚合摘要并停止，`IMP-M3-FULL-03` 已覆盖重复章节约束冲突。
 - Chapter importer 在缺少 `script.md` 时会从 `chapter.json.sourceText` 生成备用正文摘要；verifier 注册表现已镜像该 fallback，`IMP-M4-07` 证明合法缺文件快照不会被误报为来源摘要篡改。
+- `db-verify` 原先忽略 `--format`，与 G3-M CLI 稳定参数契约不一致；现只接受 `json`，非法值在数据库初始化前以 `MIGRATION_VERIFY_ARGS_INVALID` fail-fast。
 
 # M4 结论
 

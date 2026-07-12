@@ -24,6 +24,7 @@ source: task execution
 - [x] 为全部单文件 entityType 固化 storage-key pattern，并新增错误实体路径回归：正确摘要挂到其他实体路径仍 fail-closed。
 - [x] full shadow 捕获 failed slice 的终态摘要并 fail-fast；新增 `IMP-M3-FULL-03`，不丢失失败 run、不创建下游 run。
 - [x] Chapter 缺少 `script.md` 时，verifier 按 importer 同样使用 `chapter.json.sourceText` 备用正文重算复合摘要；新增 `IMP-M4-07`。
+- [x] `db-verify` 补齐 `--format json` 参数校验，非法格式返回 `MIGRATION_VERIFY_ARGS_INVALID`，不启动数据库。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
@@ -41,6 +42,7 @@ source: task execution
 - `IMP-M4-04`～`IMP-M4-06` 定向测试：3 项通过；覆盖注册类型摘要篡改、runtime 非 `runtime-bundle.json` 锚点和单文件实体错误 storage key。
 - `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、271 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点、storage-key pattern 和 Chapter sourceText fallback 门禁。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
+- `pnpm --filter @airoaming/server exec tsx src/migration/db-verify.cli.ts ... --format text`：按契约 fail-fast，输出 `MIGRATION_VERIFY_ARGS_INVALID`；typecheck 与 server 全量回归仍通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。
 
 # 工作区约束

@@ -28,6 +28,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 8. `IMP-M4-06`：Project 使用 chapter.json 的正确摘要但 storage key 路径错误，verifier 仍返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`。
 9. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
 10. `IMP-M4-07`：Chapter 缺少 `script.md` 时，DB shadow 与 verifier 都使用 `chapter.json.sourceText` 备用正文，验证通过且不产生来源摘要误报。
+11. `db-verify --format text`：在数据库初始化前返回 `MIGRATION_VERIFY_ARGS_INVALID`，不会创建或连接目标数据库。
 
 ## 读取点审计边界
 

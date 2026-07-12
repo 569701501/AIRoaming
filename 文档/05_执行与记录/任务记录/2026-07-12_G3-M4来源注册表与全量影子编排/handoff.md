@@ -18,6 +18,7 @@ source: G3-M4 continuation
 - 单文件 entityType 也已绑定允许的 storage-key pattern；`IMP-M4-06` 覆盖正确摘要挂到其他实体路径的 fail-closed。
 - full 编排也已覆盖 failed slice：`IMP-M3-FULL-03` 保留失败 run 摘要并停止，不产生下游空 run。
 - Chapter 复合来源对缺失 `script.md` 的合法 `chapter.json.sourceText` fallback 已与 verifier 对齐，`IMP-M4-07` 通过。
+- `db-verify` 已补齐 `--format json` 稳定参数校验；非法格式不启动 Prisma，返回 `MIGRATION_VERIFY_ARGS_INVALID`。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
 - Dialogue runtime 的显式 pending codec/import 已完成：ScriptDialogueService 的三类 pending Map 进入 `PendingDialogueArtifact`，保留稳定 sourceKey、scope、payloadDigest 和 runtime-bundle 来源证据。
