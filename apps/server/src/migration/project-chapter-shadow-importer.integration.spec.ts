@@ -1214,6 +1214,51 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(JSON.parse(await readFile(verificationPath, "utf8"))).toMatchObject({ passed: true, checks: { reportArtifactPresent: true, reportArtifactValid: true, reportArtifactMatch: true } });
   }, 30_000);
 
+  it("IMP-M4-28 runs the full shadow importer through the db:import CLI", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
+      withScriptHistory: true,
+      withStoryStructure: true,
+      withStoryboard: true,
+      withAssetVisuals: true,
+      withTasks: "complete",
+      withCandidates: true,
+      withLayout: true,
+      withExports: true,
+      withSettings: true,
+      withDialogueRuntime: true,
+      withPendingDialogue: true,
+    });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const databaseUrl = process.env.DATABASE_URL!;
+    const reportPath = path.join(prepared.root!, "full-shadow-cli.report.json");
+    const workspaceRoot = path.join(prepared.root!, "workspace");
+    await prisma!.onModuleDestroy();
+    prisma = null;
+    const { stdout } = await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+      "src/migration/db-import.cli.ts",
+      "--kind", "shadow",
+      "--slice", "full",
+      "--snapshot", snapshot.outputPath,
+      "--decisions", decisionsPath,
+      "--database-url", databaseUrl,
+      "--report", reportPath,
+      "--workspace-root", workspaceRoot,
+      "--format", "json",
+      "--run-id-prefix", "shadow-full-cli",
+    ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: databaseUrl } });
+    expect(JSON.parse(stdout)).toMatchObject({ code: "MIGRATION_IMPORT_OK", status: "succeeded" });
+    const fullReport = JSON.parse(await readFile(reportPath, "utf8")) as { status: string; slices: Array<{ slice: string; status: string; report?: unknown }>; reportDigest: string };
+    expect(fullReport).toMatchObject({ status: "succeeded", reportDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) });
+    expect(fullReport.slices).toHaveLength(FULL_SHADOW_SLICE_ORDER.length);
+    expect(fullReport.slices.map(({ slice }) => slice)).toEqual([...FULL_SHADOW_SLICE_ORDER]);
+    expect(fullReport.slices.every(({ status, report }) => status === "succeeded" && report)).toBe(true);
+
+    prisma = new PrismaService();
+    await prisma.onModuleInit();
+    expect(await prisma.database().migrationRun.count({ where: { id: { startsWith: "shadow-full-cli-" } } })).toBe(FULL_SHADOW_SLICE_ORDER.length);
+  }, 120_000);
+
   it("IMP-M4-27 rejects missing --import-report before db:verify starts Prisma", async () => {
     const databaseUrl = `file:${path.join(os.tmpdir(), "airoaming-m4-cli-arg-check.sqlite")}`;
     await expect(execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
