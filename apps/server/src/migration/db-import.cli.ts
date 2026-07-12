@@ -2,6 +2,7 @@ import { chmod, mkdir, open, rename, unlink } from "node:fs/promises";
 import * as path from "node:path";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { ShadowImportError, ProjectChapterShadowImporter } from "./project-chapter-shadow-importer.js";
+import { ScriptOutlineShadowImporter, ScriptOutlineShadowImportError } from "./script-outline-shadow-importer.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -28,6 +29,9 @@ async function writePrivateJson(filePath: string, value: unknown): Promise<void>
 async function main(): Promise<number> {
   const kind = required("--kind");
   if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
+  const sliceIndex = process.argv.indexOf("--slice");
+  const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
+  if (slice !== "project-chapter" && slice !== "script-outline") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const snapshot = path.resolve(required("--snapshot"));
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
@@ -41,7 +45,9 @@ async function main(): Promise<number> {
   const prisma = new PrismaService();
   try {
     await prisma.onModuleInit();
-    const result = await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
+    const result = slice === "script-outline"
+      ? await new ScriptOutlineShadowImporter(prisma).import(snapshot, decisions)
+      : await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
     await writePrivateJson(reportPath, result.report);
     process.stdout.write(`${JSON.stringify({ code: result.run.status === "blocked" ? "MIGRATION_IMPORT_BLOCKED" : "MIGRATION_IMPORT_OK", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
     return result.run.status === "blocked" ? 2 : 0;
@@ -53,6 +59,9 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  process.stderr.write(`${error instanceof ShadowImportError ? error.code : "MIGRATION_IMPORT_FAILED"}\n`);
+  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError
+    ? error.code
+    : error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
+  process.stderr.write(`${code}\n`);
   process.exitCode = 1;
 }

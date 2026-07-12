@@ -12,6 +12,7 @@ import { buildComicFormatIssue } from "./migration-issue.js";
 import { mapLegacyComicFormat } from "./comic-format-migration.plugin.js";
 import { PrismaMigrationLedgerRepository } from "./prisma-migration-ledger.repository.js";
 import { ProjectChapterShadowImporter } from "./project-chapter-shadow-importer.js";
+import { ScriptOutlineShadowImporter } from "./script-outline-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 
@@ -26,7 +27,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -34,8 +35,14 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     const projectDir = path.join(workspace, "projects", projectId);
     await mkdir(path.join(projectDir, "chapters", "chapter-001"), { recursive: true });
     await writeFile(path.join(projectDir, "project.json"), `${JSON.stringify({ id: projectId, name: `项目 ${projectId}`, type: "comic", comicFormat, genreTags: ["fantasy"], storyTitle: `故事 ${projectId}`, artStyle: "ink", description: "legacy", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", currentChapterId: `${projectId}-chapter-001` })}\n`);
-    await writeFile(path.join(projectDir, "chapters", "chapter-001", "chapter.json"), `${JSON.stringify({ id: `${projectId}-chapter-001`, order: 1, title: "第一章", status: "draft", summary: "开端", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" })}\n`);
+    await writeFile(path.join(projectDir, "chapters", "chapter-001", "chapter.json"), `${JSON.stringify({ id: `${projectId}-chapter-001`, order: 1, title: "第一章", status: options.withScriptHistory ? "script_done" : "draft", summary: "开端", completedAt: options.withScriptHistory ? "2026-01-03T00:00:00.000Z" : null, currentScriptVersionId: options.withScriptHistory ? `${projectId}-chapter-001_script_v001` : null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" })}\n`);
     await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.md"), "夜色落下。\n");
+    if (options.withScriptHistory) {
+      await mkdir(path.join(projectDir, "chapters", "chapter-001", "script.versions"), { recursive: true });
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.versions", "script-v001.md"), "夜色落下。\n");
+      await writeFile(path.join(projectDir, "script-outline.md"), "# 故事大纲\n\n## 情节概要\n第一章展开冲突。\n");
+      await writeFile(path.join(projectDir, "script-outline.json"), `${JSON.stringify({ id: "script_outline_current", projectId, status: "confirmed", title: "故事大纲", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", confirmedAt: "2026-01-02T00:00:00.000Z" })}\n`);
+    }
     if (options.duplicateChapterOrder) {
       await mkdir(path.join(projectDir, "chapters", "chapter-002"), { recursive: true });
       await writeFile(path.join(projectDir, "chapters", "chapter-002", "chapter.json"), `${JSON.stringify({ id: `${projectId}-chapter-002`, order: 1, title: "重复顺序", status: "draft" })}\n`);
@@ -137,5 +144,26 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().project.count()).toBe(0);
     expect(await prisma!.database().chapter.count()).toBe(0);
     expect((await prisma!.database().migrationRun.findUniqueOrThrow({ where: { id: "shadow-a2-rollback" } })).status).toBe("failed");
+  }, 30_000);
+
+  it("IMP-A3-01 imports outline and immutable script history after the Project/Chapter shadow", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a3-base" });
+    const result = await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a3-1" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ ProjectScriptOutline: 1, ChapterScriptVersion: 1 });
+    const project = await prisma!.database().project.findFirstOrThrow();
+    const chapter = await prisma!.database().chapter.findFirstOrThrow();
+    expect(project.currentScriptOutlineId).toMatch(/^projectscriptoutline_/);
+    expect(chapter.currentScriptVersionId).toMatch(/^chapterscriptversion_/);
+    expect(chapter.scriptWorkingState).toBe("clean");
+    expect(await prisma!.database().projectScriptOutline.count()).toBe(1);
+    expect(await prisma!.database().chapterScriptVersion.count()).toBe(1);
+    expect(await prisma!.database().importedEntitySource.count()).toBe(4);
+    expect((await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a3-2" })).run.status).toBe("succeeded");
+    expect(await prisma!.database().projectScriptOutline.count()).toBe(1);
+    expect(await prisma!.database().chapterScriptVersion.count()).toBe(1);
   }, 30_000);
 });

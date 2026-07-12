@@ -32,7 +32,7 @@ export interface ComicFormatReport {
   reportDigest: Digest;
 }
 
-export function createComicFormatReport(projects: readonly ComicFormatReportProject[], options: { entityCounts?: Record<string, number> } = {}): ComicFormatReport {
+export function createComicFormatReport(projects: readonly ComicFormatReportProject[], options: { entityCounts?: Record<string, number>; warningCount?: number } = {}): ComicFormatReport {
   const sorted = [...projects].sort((left, right) => left.projectId.localeCompare(right.projectId));
   const summary = {
     projectCount: sorted.length,
@@ -42,7 +42,7 @@ export function createComicFormatReport(projects: readonly ComicFormatReportProj
     unresolvedBlockerCount: sorted.filter((item) => item.resolutionStatus === "open").length,
     importedCount: sorted.filter((item) => item.importStatus === "imported").length,
     entityCounts: { Project: sorted.filter((item) => item.importStatus === "imported").length, ...(options.entityCounts ?? {}) },
-    warningCount: 0,
+    warningCount: options.warningCount ?? 0,
   };
   const base = { schemaVersion: 1 as const, kind: "airoaming_migration_report_v1" as const, projects: sorted, summary };
   return { ...base, reportDigest: digestCanonicalJson(base) };
