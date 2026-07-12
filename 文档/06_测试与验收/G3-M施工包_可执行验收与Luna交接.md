@@ -66,6 +66,8 @@ db:import
 # 全量 shadow 编排（仍不等于 final）
 db:import --kind shadow --slice full --workspace-root <workspace-root>
 db:verify
+# 需要与本次 shadow run 一起提供已校验的 decisions artifact
+db:verify --snapshot <sealed-dir> --decisions <normalized-decisions.json> --database-url <explicit sqlite url> --run-id <id> --report <output> --workspace-root <repo-root> --format json
 db:capabilities
 app:backup
 app:restore
@@ -159,10 +161,11 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - 已知 shadow importer 的 `counts.entityCounts` 必须存在、键完整、值为非负整数，并只允许来源注册键或明确上下文键（Project、A6 Shot）；缺失/非法分别返回 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING/INVALID`，`IMP-M4-14/15` 已锁定。
 - succeeded shadow 的 run verification 必须是 schemaVersion=1 且同时声明 source/snapshot manifest 已验证；缺失/无效分别返回 `MIGRATION_RUN_VERIFICATION_MISSING/INVALID`，`IMP-M4-16/17` 已锁定。
 - succeeded shadow 还必须带规范 `decisionsDigest`，且 `reportDigest` 必须符合 `sha256:<64位小写十六进制>`；缺失/非法分别返回 `MIGRATION_DECISIONS_DIGEST_MISSING`、`MIGRATION_DECISIONS_DIGEST_INVALID` 或 `MIGRATION_REPORT_DIGEST_INVALID`，`IMP-M4-18/19` 已锁定。该门禁只验证摘要存在性与形状，不把数据库字段自报当作报告正文重算。
+- `db:verify` 现在必须读取显式 decisions artifact，并校验 artifact 的 sourceManifestDigest 对 sealed snapshot、decisionsDigest 对 MigrationRun 三方一致；缺失/非法/不一致分别返回 `MIGRATION_DECISIONS_ARTIFACT_MISSING`、`MIGRATION_DECISIONS_ARTIFACT_INVALID`、`MIGRATION_SOURCE_DIGEST_MISMATCH` 或 `MIGRATION_DECISIONS_DIGEST_MISMATCH`，`IMP-M4-20/21/22` 已锁定。
 - 当前已完成单次 succeeded、转换来源、full replay 特征测试、blocked/failed full fail-fast、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType`、已注册摘要篡改、runtime 错误锚点、单文件 storage-key 越界、replay 当前 run 缺失来源证据和来源计数漂移也已验证 fail-closed；`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个独立 run；M4 仍保留 `in_progress`，等待正式验收签字。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明移走旧 workspace 后 DB 重启仍可读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不重建旧 workspace，归档旧文件字节不变（代码提交 `f05f8da` 后续补强）。
-- `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed；`IMP-M4-04/05/06` 已证明摘要、runtime 锚点和单文件 storage-key 越界均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`；`IMP-M4-07` 已证明缺失 `script.md` 的合法 Chapter fallback 可通过复合摘要校验；`IMP-M4-08` 已证明 unchanged replay 不更新 `lastRunId` 时，成功 run 的空当前来源查询返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`；`IMP-M4-09` 已证明摘要正确但来源行超出 importer 报告计数时返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会 vacuous pass；`IMP-M4-10` 已证明成功 full shadow 的 16 个 slice 均能通过精确来源计数与注册表校验；`IMP-M4-12/13` 已证明未知 importerVersion 与缺失 succeeded reportDigest 均被拒绝；`IMP-M4-14/15` 已证明已知 importer 的计数结构缺失或出现未注册键均被拒绝；`IMP-M4-16/17` 已证明 succeeded shadow 缺失或无效 verification attestation 均被拒绝；`IMP-M4-18/19` 已证明 decisions/report digest 形状门禁均 fail-closed。
+- `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed；`IMP-M4-04/05/06` 已证明摘要、runtime 锚点和单文件 storage-key 越界均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`；`IMP-M4-07` 已证明缺失 `script.md` 的合法 Chapter fallback 可通过复合摘要校验；`IMP-M4-08` 已证明 unchanged replay 不更新 `lastRunId` 时，成功 run 的空当前来源查询返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`；`IMP-M4-09` 已证明摘要正确但来源行超出 importer 报告计数时返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会 vacuous pass；`IMP-M4-10` 已证明成功 full shadow 的 16 个 slice 均能通过精确来源计数与注册表校验；`IMP-M4-12/13` 已证明未知 importerVersion 与缺失 succeeded reportDigest 均被拒绝；`IMP-M4-14/15` 已证明已知 importer 的计数结构缺失或出现未注册键均被拒绝；`IMP-M4-16/17` 已证明 succeeded shadow 缺失或无效 verification attestation 均被拒绝；`IMP-M4-18/19` 已证明 decisions/report digest 形状门禁均 fail-closed；`IMP-M4-20/21/22` 已证明 decisions artifact 缺失、run digest 不一致或 source manifest 不一致均 fail-closed。
 - final cutover 前投影读取点静态审计已记录：业务 read-model/Task 走 DB，Asset physical storage 是允许的文件边界；SettingsService 仍依赖旧 `app-settings.json`，属于 M5 capability/SecretStore blocker，不能作为 M4 或 production-ready 证据。
 - `IMP-A15-02` 已证明 captured pending Dialogue artifact 能按稳定 sourceKey 导入，维持 project/chapter/thread scope、payloadDigest 和 runtime-bundle 来源证据，并在 replay 时保持单行。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。

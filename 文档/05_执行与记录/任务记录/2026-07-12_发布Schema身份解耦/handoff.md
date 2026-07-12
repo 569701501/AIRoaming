@@ -27,6 +27,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - 已知 shadow importer 的 `counts.entityCounts` 现在必须结构完整且只含已登记来源键/明确上下文键；缺失或未注册计数键分别返回 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING/INVALID`，`IMP-M4-14/15` 已覆盖。
 - succeeded shadow 的 run verification 现在必须是 schemaVersion=1 且 source/snapshot manifest 均已验证；缺失或无效分别返回 `MIGRATION_RUN_VERIFICATION_MISSING/INVALID`，`IMP-M4-16/17` 已覆盖。
 - succeeded shadow 还必须带规范 `decisionsDigest`，并拒绝非规范 `reportDigest`；`IMP-M4-18/19` 已覆盖 `MIGRATION_DECISIONS_DIGEST_MISSING` 与 `MIGRATION_REPORT_DIGEST_INVALID`。
+- `db:verify` 现在还要求显式 decisions artifact 与 sealed source/run digest 三方一致；`IMP-M4-20/21/22` 已覆盖缺失 artifact、digest 不一致和 source 不一致，不改变 release identity 或 schema/migration/trigger。
 
 ## 明确未完成
 

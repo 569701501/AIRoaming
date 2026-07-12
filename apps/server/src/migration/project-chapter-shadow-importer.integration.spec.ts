@@ -647,7 +647,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const decisionsPath = await writeDecisions(snapshot, []);
     const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-verify" });
     const verificationBefore = (await prepared.repository.getRun(run.run.id)).verification;
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
     const releaseIdentity = await loadReleaseSchemaIdentityV1(repoRoot);
     expect(result.report.errors).toEqual([]);
     expect(result.report.passed).toBe(true);
@@ -663,7 +663,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-base" });
     await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-providers" });
     const dialogue = await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-dialogue" });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, dialogue.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, dialogue.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(true);
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
@@ -685,7 +685,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         lastRunId: run.run.id,
       },
     });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks.unregisteredEntityTypeCount).toBe(1);
     expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_UNREGISTERED");
@@ -710,7 +710,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         lastRunId: run.run.id,
       },
     });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks.sourceMismatchCount).toBe(1);
     expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
@@ -733,7 +733,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         lastRunId: base.run.id,
       },
     });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, base.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, base.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks.sourceMismatchCount).toBe(1);
     expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
@@ -758,7 +758,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         lastRunId: run.run.id,
       },
     });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks.sourceMismatchCount).toBe(1);
     expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
@@ -769,7 +769,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { omitChapterScript: true });
     const decisionsPath = await writeDecisions(snapshot, []);
     const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-chapter-fallback" });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(true);
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
@@ -781,7 +781,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const importer = new ProjectChapterShadowImporter(prisma!, prepared.repository);
     await importer.import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-replay-base" });
     const replay = await importer.import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-replay" });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, replay.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, replay.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ sourceEvidenceCount: 0, sourceEvidenceExpected: true, sourceEvidenceMissing: true });
     expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_MISSING");
@@ -806,7 +806,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         lastRunId: run.run.id,
       },
     });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, sourceEvidenceExpectedCount: 2, sourceEvidenceCount: 3, sourceEvidenceCountMismatch: true });
     expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH");
@@ -842,6 +842,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         snapshot.outputPath,
         slice.runId,
         repoRoot,
+        decisionsPath,
       );
       expect(result.report.passed, `${slice.slice}: ${result.report.errors.join(", ")}`).toBe(true);
       expect(result.report.checks).toMatchObject({
@@ -878,6 +879,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-12 rejects a shadow run with an unregistered importer version", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const run = await prepared.repository.beginRun({
       id: "shadow-m4-unknown-importer",
       kind: "shadow",
@@ -891,7 +893,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       counts: null,
     });
     expect(finished.status).toBe("succeeded");
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ importerVersion: "g3-m3-unknown", importerVersionKnown: false, reportDigestPresent: true });
     expect(result.report.errors).toContain("MIGRATION_IMPORTER_VERSION_INVALID");
@@ -900,6 +902,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-13 rejects a succeeded shadow run without a report digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const run = await prepared.repository.beginRun({
       id: "shadow-m4-report-digest",
       kind: "shadow",
@@ -912,7 +915,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       counts: null,
     });
     expect(finished.status).toBe("succeeded");
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ importerVersionKnown: true, reportDigestPresent: false });
     expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_MISSING");
@@ -921,6 +924,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-14 rejects a succeeded shadow run without importer entity counts", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const run = await prepared.repository.beginRun({
       id: "shadow-m4-entity-counts-missing",
       kind: "shadow",
@@ -934,7 +938,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       counts: { projectCount: 1 },
     });
     expect(finished.status).toBe("succeeded");
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ sourceEntityCountsPresent: false, sourceEntityCountsValid: false });
     expect(result.report.errors).toContain("MIGRATION_SOURCE_ENTITY_COUNTS_MISSING");
@@ -943,6 +947,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-15 rejects an importer report with an unregistered entity count key", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const projectItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/project.json");
     const chapterItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/chapters/chapter-001/chapter.json");
     expect(projectItem).toBeDefined();
@@ -984,7 +989,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         },
       ],
     });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ sourceEntityCountsPresent: true, sourceEntityCountsValid: false, sourceEvidenceCountMismatch: false });
     expect(result.report.errors).toContain("MIGRATION_SOURCE_ENTITY_COUNTS_INVALID");
@@ -993,6 +998,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-16 rejects a succeeded shadow run without verification attestation", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const run = await prepared.repository.beginRun({
       id: "shadow-m4-verification-missing",
       kind: "shadow",
@@ -1006,7 +1012,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       counts: { entityCounts: { Project: 0, Chapter: 0 } },
     });
     expect(finished.status).toBe("succeeded");
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ runVerificationPresent: false, runVerificationValid: false });
     expect(result.report.errors).toContain("MIGRATION_RUN_VERIFICATION_MISSING");
@@ -1015,6 +1021,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-17 rejects a succeeded shadow run with an invalid verification attestation", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const run = await prepared.repository.beginRun({
       id: "shadow-m4-verification-invalid",
       kind: "shadow",
@@ -1029,7 +1036,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       verification: { schemaVersion: 1, sourceManifestVerified: false, snapshotManifestVerified: true },
     });
     expect(finished.status).toBe("succeeded");
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ runVerificationPresent: true, runVerificationValid: false });
     expect(result.report.errors).toContain("MIGRATION_RUN_VERIFICATION_INVALID");
@@ -1038,6 +1045,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-18 rejects a succeeded shadow run without a decisions digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
     const run = await prepared.repository.beginRun({
       id: "shadow-m4-decisions-digest-missing",
       kind: "shadow",
@@ -1052,7 +1060,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true },
     });
     expect(finished.status).toBe("succeeded");
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ decisionsDigestPresent: false, decisionsDigestValid: false });
     expect(result.report.errors).toContain("MIGRATION_DECISIONS_DIGEST_MISSING");
@@ -1061,6 +1069,8 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("IMP-M4-19 rejects a malformed report digest even when the ledger record is otherwise complete", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const decisionArtifact = JSON.parse(await readFile(decisionsPath, "utf8")) as { decisionsDigest: string };
     const ledger = {
       getRun: async () => ({
         id: "shadow-m4-report-digest-invalid",
@@ -1069,7 +1079,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         importerVersion: "g3-m3-a2",
         sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
         snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
-        decisionsDigest: SOURCE,
+        decisionsDigest: decisionArtifact.decisionsDigest,
         reportDigest: "not-a-digest",
         counts: { entityCounts: { Project: 0, Chapter: 0 } },
         verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true },
@@ -1078,10 +1088,57 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         finishedAt: "2026-01-01T00:01:00.000Z",
       }),
     } as unknown as PrismaMigrationLedgerRepository;
-    const result = await new MigrationVerifyService(prisma!, ledger).verify(snapshot.outputPath, "shadow-m4-report-digest-invalid", repoRoot);
+    const result = await new MigrationVerifyService(prisma!, ledger).verify(snapshot.outputPath, "shadow-m4-report-digest-invalid", repoRoot, decisionsPath);
     expect(result.report.passed).toBe(false);
     expect(result.report.checks).toMatchObject({ reportDigestPresent: true, reportDigestValid: false });
     expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_INVALID");
+  }, 30_000);
+
+  it("IMP-M4-20 rejects a succeeded shadow verification without a decisions artifact path", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-decisions-artifact-missing" });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ decisionsDigestValid: true, decisionsArtifactPresent: false, decisionsArtifactValid: false, decisionsArtifactMatch: false });
+    expect(result.report.errors).toContain("MIGRATION_DECISIONS_ARTIFACT_MISSING");
+  }, 30_000);
+
+  it("IMP-M4-21 rejects a valid decisions artifact whose digest differs from the run", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-decisions-digest-mismatch" });
+    const projectItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/project.json");
+    expect(projectItem).toBeDefined();
+    const alternatePath = path.join(prepared.root!, "alternate-decisions.json");
+    const alternate = createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, [{
+      issueKey: "project:p1:comic-format",
+      sourceKey: "workspace-v1:p1:Project:p1",
+      sourceDigest: projectItem!.sha256,
+      action: "set_comic_format",
+      chosenComicFormat: "vertical_scroll",
+      layoutPresetIntent: null,
+    }]);
+    await writeFile(alternatePath, `${JSON.stringify(alternate)}\n`);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, alternatePath);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ decisionsArtifactPresent: true, decisionsArtifactValid: true, decisionsArtifactMatch: false });
+    expect(result.report.errors).toContain("MIGRATION_DECISIONS_DIGEST_MISMATCH");
+  }, 30_000);
+
+  it("IMP-M4-22 rejects a decisions artifact bound to another source manifest", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-decisions-source-mismatch" });
+    const alternatePath = path.join(prepared.root!, "foreign-decisions.json");
+    await writeFile(alternatePath, `${JSON.stringify(createMigrationDecisionArtifact(SOURCE, []))}\n`);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, alternatePath);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ decisionsArtifactPresent: true, decisionsArtifactValid: false, decisionsArtifactMatch: false });
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
   }, 30_000);
 
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
@@ -1195,7 +1252,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         expect(full.slices.every((slice) => slice.status === "succeeded")).toBe(true);
         const verifier = new MigrationVerifyService(client);
         for (const slice of full.slices) {
-          const verification = await verifier.verify(snapshot.outputPath, slice.runId, repoRoot);
+          const verification = await verifier.verify(snapshot.outputPath, slice.runId, repoRoot, decisionsPath);
           expect(verification.report.passed, `slice ${index}:${slice.slice}`).toBe(true);
           expect(verification.report.checks).toMatchObject({ integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
         }

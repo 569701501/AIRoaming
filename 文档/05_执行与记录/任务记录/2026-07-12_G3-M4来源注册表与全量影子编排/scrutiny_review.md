@@ -35,6 +35,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | counts.entityCounts 结构 | 通过 | `IMP-M4-14/15`：已知 importer 缺失计数结构或出现未注册键均 fail-closed；Project/A6 Shot 上下文键有明确白名单 |
 | run verification attestation | 通过 | `IMP-M4-16/17`：succeeded shadow 缺失或未声明 source/snapshot 已验证均 fail-closed |
 | digest 形状门禁 | 通过 | `IMP-M4-18/19`：succeeded shadow 缺少 `decisionsDigest` 或 report digest 不是规范 sha256 格式均 fail-closed；verifier 不把形状检查冒充报告正文重算 |
+| decisions artifact 三方绑定 | 通过 | `IMP-M4-20/21/22`：`db:verify` 必须读取 artifact，并校验 sealed source digest、artifact digest、run digest；缺失或不一致均 fail-closed |
 | final/cutover | 保持阻断 | `db:import --kind final`、backup、activate 仍不在本轮实现范围 |
 
 ## 审查结论
