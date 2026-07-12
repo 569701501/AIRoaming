@@ -1035,6 +1035,55 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_RUN_VERIFICATION_INVALID");
   }, 30_000);
 
+  it("IMP-M4-18 rejects a succeeded shadow run without a decisions digest", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-decisions-digest-missing",
+      kind: "shadow",
+      importerVersion: "g3-m3-a2",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      reportDigest: SOURCE,
+      counts: { entityCounts: { Project: 0, Chapter: 0 } },
+      verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true },
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ decisionsDigestPresent: false, decisionsDigestValid: false });
+    expect(result.report.errors).toContain("MIGRATION_DECISIONS_DIGEST_MISSING");
+  }, 30_000);
+
+  it("IMP-M4-19 rejects a malformed report digest even when the ledger record is otherwise complete", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const ledger = {
+      getRun: async () => ({
+        id: "shadow-m4-report-digest-invalid",
+        kind: "shadow",
+        status: "succeeded",
+        importerVersion: "g3-m3-a2",
+        sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+        snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+        decisionsDigest: SOURCE,
+        reportDigest: "not-a-digest",
+        counts: { entityCounts: { Project: 0, Chapter: 0 } },
+        verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true },
+        errorCode: null,
+        startedAt: "2026-01-01T00:00:00.000Z",
+        finishedAt: "2026-01-01T00:01:00.000Z",
+      }),
+    } as unknown as PrismaMigrationLedgerRepository;
+    const result = await new MigrationVerifyService(prisma!, ledger).verify(snapshot.outputPath, "shadow-m4-report-digest-invalid", repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ reportDigestPresent: true, reportDigestValid: false });
+    expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_INVALID");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

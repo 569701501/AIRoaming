@@ -34,6 +34,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | 来源计数完整性 | 通过 | verifier 按 importer/entityType 精确比较 `counts.entityCounts` 与当前 run 来源行；A6/A9 特殊映射、replay 空来源和超额来源由 `IMP-M4-08/09` 覆盖，`IMP-M4-10` 逐个验证 full shadow 的 16 个 slice |
 | counts.entityCounts 结构 | 通过 | `IMP-M4-14/15`：已知 importer 缺失计数结构或出现未注册键均 fail-closed；Project/A6 Shot 上下文键有明确白名单 |
 | run verification attestation | 通过 | `IMP-M4-16/17`：succeeded shadow 缺失或未声明 source/snapshot 已验证均 fail-closed |
+| digest 形状门禁 | 通过 | `IMP-M4-18/19`：succeeded shadow 缺少 `decisionsDigest` 或 report digest 不是规范 sha256 格式均 fail-closed；verifier 不把形状检查冒充报告正文重算 |
 | final/cutover | 保持阻断 | `db:import --kind final`、backup、activate 仍不在本轮实现范围 |
 
 ## 审查结论

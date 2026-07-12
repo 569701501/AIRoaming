@@ -25,6 +25,7 @@ source: G3-M4 continuation
 - verifier 已按 importer-specific entity count 绑定并精确比较 `ImportedEntitySource` 行；A6 的 Shot 计数映射到 `StoryboardShotProjection`，A9 的 AssetReady 计数映射到 `AssetPhysicalEvidence`；缺失/超额证据分别以 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH` fail-closed，新增 `IMP-M4-08/09`。`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个 slice。
 - 已知 importer 的 `counts.entityCounts` 现在也必须结构完整：缺失返回 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING`，未注册键或非法值返回 `MIGRATION_SOURCE_ENTITY_COUNTS_INVALID`；`Project` 与 A6 `Shot` 作为已声明上下文计数保留。`IMP-M4-14/15` 已通过。
 - succeeded shadow 的 run verification 现在也必须是 schemaVersion=1，并明确 source/snapshot manifest 已验证；缺失/无效分别返回 `MIGRATION_RUN_VERIFICATION_MISSING` / `MIGRATION_RUN_VERIFICATION_INVALID`，`IMP-M4-16/17` 已通过。
+- succeeded shadow 现在还必须带规范 `decisionsDigest`；报告摘要也会独立校验 `sha256:<64位小写十六进制>` 形状，`IMP-M4-18/19` 已通过，缺失/非法分别返回 `MIGRATION_DECISIONS_DIGEST_MISSING`、`MIGRATION_DECISIONS_DIGEST_INVALID`、`MIGRATION_REPORT_DIGEST_INVALID`。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
 - Dialogue runtime 的显式 pending codec/import 已完成：ScriptDialogueService 的三类 pending Map 进入 `PendingDialogueArtifact`，保留稳定 sourceKey、scope、payloadDigest 和 runtime-bundle 来源证据。

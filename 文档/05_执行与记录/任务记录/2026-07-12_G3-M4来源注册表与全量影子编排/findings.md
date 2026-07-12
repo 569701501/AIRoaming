@@ -38,6 +38,7 @@ source: code exploration and tests
 - 仅判断当前 run 是否存在任意来源行仍不足以证明来源完整：A6 的 `Shot` 是由 `StoryboardShotProjection` 留证，A9 的 `AssetReady` 由 `AssetPhysicalEvidence` 留证，且报告计数中还包含部分上下文计数。verifier 现维护 importer-specific `(countKey → entityType)` 绑定，按每种来源行精确比较；缺失返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`，超额或未绑定类型返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会把部分证据当作通过。
 - 进一步发现已知 importer 的 `counts.entityCounts` 缺失或带未注册键时，旧实现会退化为空/部分映射；若来源行也为空，存在再次 vacuous pass。现要求结构存在、绑定键完整、值为非负整数，并只允许 `Project` 及 A6 `Shot` 这类明确上下文键；缺失返回 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING`，结构不合法返回 `MIGRATION_SOURCE_ENTITY_COUNTS_INVALID`。`IMP-M4-14/15` 已锁定该边界。
 - 继续发现 succeeded shadow 可没有 run verification，或把 `sourceManifestVerified`/`snapshotManifestVerified` 声明为 false 仍带着完整 counts 通过。现要求 verification 为 schemaVersion=1 且两个 manifest verification 标志均为 true；缺失/无效分别返回 `MIGRATION_RUN_VERIFICATION_MISSING` / `MIGRATION_RUN_VERIFICATION_INVALID`，由 `IMP-M4-16/17` 锁定。
+- 继续发现成功 shadow 仍可省略 `decisionsDigest`，或在账本被外部篡改时携带非规范 report digest。verifier 现要求 `decisionsDigest` 存在且为 `sha256:<64位小写十六进制>`，并独立检查 `reportDigest` 形状；缺失/非法分别返回 `MIGRATION_DECISIONS_DIGEST_MISSING`、`MIGRATION_DECISIONS_DIGEST_INVALID` 或 `MIGRATION_REPORT_DIGEST_INVALID`。这只做摘要形状与存在性门禁，不声称 verifier 能从数据库反推出完整报告正文；`IMP-M4-18/19` 已锁定。
 
 # M4 结论
 
