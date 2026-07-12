@@ -9,6 +9,7 @@ import { StoryboardShadowImporter, StoryboardShadowImportError } from "./storybo
 import { CharacterShadowImporter, CharacterShadowImportError } from "./character-shadow-importer.js";
 import { AssetShadowImporter, AssetShadowImportError } from "./asset-shadow-importer.js";
 import { AssetVisualShadowImporter, AssetVisualShadowImportError } from "./asset-visual-shadow-importer.js";
+import { PreflightShadowImporter, PreflightShadowImportError } from "./preflight-shadow-importer.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -37,7 +38,7 @@ async function main(): Promise<number> {
   if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
   const sliceIndex = process.argv.indexOf("--slice");
   const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
-  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals" && slice !== "preflight") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const snapshot = path.resolve(required("--snapshot"));
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
@@ -62,14 +63,16 @@ async function main(): Promise<number> {
         : slice === "story"
           ? await new StoryShadowImporter(prisma).import(snapshot, decisions)
           : slice === "storyboard"
-          ? await new StoryboardShadowImporter(prisma).import(snapshot, decisions)
+            ? await new StoryboardShadowImporter(prisma).import(snapshot, decisions)
             : slice === "characters"
               ? await new CharacterShadowImporter(prisma).import(snapshot, decisions)
               : slice === "assets"
                 ? await new AssetShadowImporter(prisma).import(snapshot, decisions)
                 : slice === "asset-visuals"
                   ? await new AssetVisualShadowImporter(prisma).import(snapshot, decisions, { workspaceRoot })
-                  : await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
+                  : slice === "preflight"
+                    ? await new PreflightShadowImporter(prisma).import(snapshot, decisions)
+                    : await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
     await writePrivateJson(reportPath, result.report);
     process.stdout.write(`${JSON.stringify({ code: result.run.status === "blocked" ? "MIGRATION_IMPORT_BLOCKED" : "MIGRATION_IMPORT_OK", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
     return result.run.status === "blocked" ? 2 : 0;
@@ -81,7 +84,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError
+  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError
     ? error.code
     : error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
   process.stderr.write(`${code}\n`);

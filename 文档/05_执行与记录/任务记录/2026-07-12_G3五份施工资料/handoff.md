@@ -13,15 +13,15 @@ source: G3 五份施工资料与 Scrutiny Review
 ## 1. 当前状态
 
 ```text
-implementation baseline commit: 96c8845
+implementation baseline: current HEAD (G3-M3-A10)
 branch at documentation handoff: codex/g0-test-safety-net
 G3 documentation: ready
-G3 business code: not_started
-allowed delivery: G3-core
-blocked delivery: G3-M / G3 production-ready
+G3 business code: core_completed; G3-M3_shadow_in_progress
+allowed delivery: G3-core and completed G3-M3 shadow slices only
+blocked delivery: G3-M final import / production-ready
 ```
 
-开始实现前以实际收到施工资料的 commit 替换上面的文档工作区状态；不要假定未提交改动已包含在 `96c8845`。
+当前交接基线已包含 G3-core 与 G3-M3-A0～A10；下一步从 A11 开始，不要把后续 dirty tree 当成已交付基线。
 
 ## 2. 必读顺序
 

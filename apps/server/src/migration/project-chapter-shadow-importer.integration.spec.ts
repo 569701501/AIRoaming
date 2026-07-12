@@ -19,8 +19,10 @@ import { StoryboardShadowImporter } from "./storyboard-shadow-importer.js";
 import { CharacterShadowImporter } from "./character-shadow-importer.js";
 import { AssetShadowImporter } from "./asset-shadow-importer.js";
 import { AssetVisualShadowImporter } from "./asset-visual-shadow-importer.js";
+import { PreflightShadowImporter } from "./preflight-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
+import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shared";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -33,7 +35,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved" } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -59,6 +61,17 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     }
     if (options.withStoryboard) {
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
+    }
+    if (options.withPreflight === "unresolved") {
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ id: "legacy-preflight-1", version: 1, status: "ready", sourceStoryboardId: "legacy-board-1", updatedAt: "2026-01-05T00:00:00.000Z" })}\n`);
+    }
+    if (options.withPreflight === "resolved") {
+      const targetProjectId = PrismaMigrationLedgerRepository.stableEntityId("Project", `workspace-v1:${projectId}:Project:${projectId}`);
+      const targetChapterId = PrismaMigrationLedgerRepository.stableEntityId("Chapter", `workspace-v1:${projectId}:Chapter:${projectId}-chapter-001`);
+      const targetShotId = PrismaMigrationLedgerRepository.stableEntityId("Shot", `workspace-v1:${projectId}:Shot:${projectId}-chapter-001:shot_001`);
+      const targetBoardId = PrismaMigrationLedgerRepository.stableEntityId("StoryboardVersion", `workspace-v1:${projectId}:StoryboardVersion:${projectId}-chapter-001:v001`);
+      const storyboard = encodeStoryboardDocumentV2({ schemaVersion: 2, chapterId: targetChapterId, shots: [{ id: targetShotId, order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" });
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ version: 1, schemaVersion: 2, chapterId: targetChapterId, sourceSnapshot: { schemaVersion: 1, policyVersion: "preflight-source-v1", projectId: targetProjectId, chapterId: targetChapterId, consumerType: "preflight_revision", storyboard: { id: targetBoardId, digest: storyboard.digest }, style: { comicFormat: "vertical_scroll", artStyle: "ink", styleDigest: digestCanonicalJson({ comicFormat: "vertical_scroll", artStyle: "ink" }) }, characters: [], scenes: [] }, shotCount: 1, characterChecks: [], sceneChecks: [], styleCheck: { comicFormat: "vertical_scroll", comicFormatLabel: "竖向条漫", artStyle: "ink", artStyleLabel: "墨线", status: "ok", note: "" }, issues: [], ready: true, notes: "", policyVersion: "preflight-source-v1" })}\n`);
     }
     if (options.withCharacters) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
@@ -346,5 +359,41 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect((await new AssetVisualShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a9-2", workspaceRoot: path.join(prepared.root!, "workspace") })).run.status).toBe("succeeded");
     expect(await prisma!.database().characterVisual.count()).toBe(1);
     expect(await prisma!.database().sceneVisual.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A10-01 blocks legacy PreflightRevision without a verifiable source snapshot", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true, withPreflight: "unresolved" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-story" });
+    await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-board" });
+    const result = await new PreflightShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-1" });
+    expect(result.run.status).toBe("blocked");
+    expect(result.report.summary.unresolvedBlockerCount).toBe(1);
+    expect(result.report.projects[0]).toMatchObject({ importStatus: "blocked", resolutionStatus: "open", issueKey: "chapter:p1-chapter-001:preflight-source" });
+    expect(await prisma!.database().preflightRevision.count()).toBe(0);
+    expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentPreflightRevisionId: null });
+    expect(await prisma!.database().migrationIssue.findFirstOrThrow({ where: { runId: "shadow-a10-1" } })).toMatchObject({ code: "PREFLIGHT_SOURCE_UNRESOLVED", entityType: "PreflightRevision", resolutionStatus: "open" });
+  }, 30_000);
+
+  it("IMP-A10-02 imports a ready PreflightRevision only when storyboard provenance matches", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true, withPreflight: "resolved" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved-story" });
+    await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved-board" });
+    const result = await new PreflightShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ PreflightRevision: 1 });
+    const preflight = await prisma!.database().preflightRevision.findFirstOrThrow();
+    const chapter = await prisma!.database().chapter.findFirstOrThrow();
+    expect(preflight).toMatchObject({ status: "confirmed", ready: true, schemaVersion: 2, sourcePolicyVersion: "preflight-source-v1" });
+    expect(chapter.currentPreflightRevisionId).toBe(preflight.id);
+    expect((await new PreflightShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved-replay" })).run.status).toBe("succeeded");
+    expect(await prisma!.database().preflightRevision.count()).toBe(1);
   }, 30_000);
 });
