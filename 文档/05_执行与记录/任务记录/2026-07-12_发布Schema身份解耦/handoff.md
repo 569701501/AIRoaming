@@ -21,8 +21,8 @@ source: task_plan.md、progress.md、scrutiny_review.md
 
 ## 明确未完成
 
-- M4 尚未完成双 fresh shadow、API DTO/Asset hash 等价和按 entityType 重算复合来源摘要。
-- M3 仍缺 Layout/Export、Dialogue/provider、完整 read-model/orchestration；`--kind final` 继续 fail-closed。
+- M4 的双 fresh shadow、API DTO/Asset hash 等价、DB-only 写隔离、pending Dialogue artifact 和按 entityType 重算复合来源摘要已完成；M4 仍待正式验收签字。
+- `--kind final` 继续 fail-closed；backup/restore、capability gate、真实 DB-only activate 尚未实现。
 - backup/restore、capability gate、真实 DB-only activate 未实现也未获本任务授权。
 - 本轮不合表、不删 trigger、不新增 migration；Task 三个 materialize trigger 保持不动。
 

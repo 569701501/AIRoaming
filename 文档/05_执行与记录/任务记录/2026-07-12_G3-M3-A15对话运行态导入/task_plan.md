@@ -18,10 +18,10 @@ source: G1 对话模型契约、runtime bundle v1 与 M0 维护封口
 
 - 只导入 runtime bundle 明确标记 `captured=true` 的 conversationState；M0 默认 deferred bundle 不创建任何对话实体。
 - assistant 旧 running 消息收敛为 failed；旧 OpenCode session 以 closed 历史保存，不恢复为 active runtime。
-- pendingDialogueState 仍保持明确 deferred；不从子 service pending Map 猜造 PendingDialogueArtifact。
+- pendingDialogueState 使用 `dialogue_pending_state_v1` 显式 codec 捕获 ScriptDialogueService 的 script_import/inspiration_seeds/script_outline_decision；StoryStructure/Storyboard 沿用各自领域 pending 真值，不重复建模。
 
 ## 退出标准
 
 - `--slice dialogue` 校验 runtime bundle digest，支持稳定 sourceKey/target ID、scope/FK、工具结果和 replay。
-- 集成测试覆盖 captured 对话、closed session、deferred 零实体和重放。
+- 集成测试覆盖 captured 对话、closed session、deferred 零实体、pending artifact 的 stable ID/source evidence/payloadDigest 和重放。
 - typecheck、server 全量回归、G1 三项门禁和 diff check 通过；M4 仍保持 `in_progress`。

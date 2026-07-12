@@ -37,9 +37,9 @@ foundation 与 shadow importer 主要切片已推进到 A15；production cutover
 | G3-M3-A12 LayoutWorkingCopy shadow | implemented，commit `9e79deb`；旧 layout envelope 与来源绑定证据 |
 | G3-M3-A13 Export evidence shadow | implemented，commit `ca5c449`；旧 manifest 只写 `legacy_unresolved` ExportRevision，不创建 ready Artifact/current |
 | G3-M3-A14 Provider/settings shadow | implemented，commit `47c7680`；只导入脱敏 provider 元数据，旧 key 不进入 Secret |
-| G3-M3-A15 Dialogue runtime shadow | implemented，commit `28e21d7`；仅导入 runtime bundle 明确 captured 的对话历史，deferred 状态零实体 |
+| G3-M3-A15 Dialogue runtime shadow | implemented；captured 对话历史、closed session 与显式 pending Dialogue artifact 均导入并留证，deferred 状态零实体 |
 | G3-M3 full importer | implemented，commit `9e04495`；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
-| G3-M4 verifier/shadow | in_progress；已补来源证据注册表、复合摘要重算、runtime/settings 转换来源校验和 full replay 特征测试，API/Asset 等价门禁未完成 |
+| G3-M4 verifier/shadow | in_progress；来源证据注册表、复合摘要重算、runtime/settings 转换来源校验、full replay、双 fresh、API/Asset/DB-only 与 pending Dialogue 等价门禁已具备，待正式验收签字 |
 | G3-M5 backup/restore | not_implemented |
 | G3-M6 activate/cutover | prerequisite_blocked |
 
@@ -134,7 +134,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A12 已完成 LayoutWorkingCopy shadow slice：旧 `layout/layout.json` 包成 `legacy_chapter_layout_v1` envelope，完整来源记录 lock-set digest，来源不足标 unresolved，不设置 current LayoutRevision。
 - M3-A13 已完成旧导出证据 shadow slice：扫描章节/项目 exports 目录，保留 manifest 摘要和物理来源 digest，写入 `ExportRevision(kind=layout_publication,status=failed,origin=legacy_import,completionApplicability=legacy_unresolved)`；不创建 ExportArtifact、不设置 currentExport，replay 保持单条历史。
 - M3-A14 已完成 Provider/settings shadow slice：读取 sealed snapshot 的脱敏 `settings.redacted.json`，导入 ProviderConfig、CredentialMetadata 和 AppPreference 非秘密元数据；所有旧 key 保持未配置状态，不写入 SecretRef、fingerprint 或运行时可用凭据。
-- M3-A15 已完成 Dialogue runtime shadow slice：maintenance 可注册对话状态 provider，明确 `captured=true` 时导入 ConversationThread、ConversationMessage、DialogueToolResult 和 closed DialogueRuntimeSession；M0 deferred bundle 不捏造对话实体，pendingDialogueState 仍后置。
+- M3-A15 已完成 Dialogue runtime shadow slice：maintenance 可注册对话状态 provider，明确 `captured=true` 时导入 ConversationThread、ConversationMessage、DialogueToolResult、closed DialogueRuntimeSession 和显式捕获的 PendingDialogueArtifact；M0 deferred bundle 不捏造对话实体。
 - M3-A0 明确不是 full importer：当时账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter。
 - M3-A1 已接 Prisma，但仍不是 full importer：`db:audit` 只审计并写 MigrationRun/MigrationIssue，不创建 Project/Chapter，不消费 decisions artifact。
 - M3-A2 仍不是 full importer：Script/Outline、Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
@@ -144,7 +144,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 仍不是 full importer：Character、Asset/Visual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A7 仍不是 full importer：Asset/CharacterVisual/SceneVisual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A8 仍不是 full importer：CharacterVisual/SceneVisual、物理文件 hash/bytes/尺寸、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
-- 当前已提供 full shadow orchestration：`full-shadow-importer.ts` 固定按 16 个 slice 的依赖顺序运行，保留每个 slice 的 MigrationRun，并对不含 runId 的稳定结果摘要计算聚合 reportDigest；它仍不是 final importer，pending Dialogue artifact、read-model/API 等价、backup 和 activate 尚未实现，`db:import --kind final` 继续 fail-closed。
+- 当前已提供 full shadow orchestration：`full-shadow-importer.ts` 固定按 16 个 slice 的依赖顺序运行，保留每个 slice 的 MigrationRun，并对不含 runId 的稳定结果摘要计算聚合 reportDigest；pending Dialogue artifact、read-model/API 等价和 DB-only 写隔离已实现，backup 和 activate 尚未实现，`db:import --kind final` 继续 fail-closed。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 
@@ -155,6 +155,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - 当前已完成单次 succeeded、转换来源、full replay 特征测试、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；M4 仍保留 `in_progress`，等待正式验收签字。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明 file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不改变旧 workspace 文件（代码提交 `f05f8da`）。
+- `IMP-A15-02` 已证明 captured pending Dialogue artifact 能按稳定 sourceKey 导入，维持 project/chapter/thread scope、payloadDigest 和 runtime-bundle 来源证据，并在 replay 时保持单行。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。
 
 ### G3-M5

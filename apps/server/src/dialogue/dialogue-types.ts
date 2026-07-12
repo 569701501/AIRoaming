@@ -74,3 +74,18 @@ export interface PendingStoryStructure {
   chapterId: string;
   createdAt: string;
 }
+
+/** 维护快照中可恢复的 pending 对话工件；只覆盖实际由运行态 Map 持有的三类确认项。 */
+export interface PendingDialogueCaptureArtifact {
+  id: string;
+  projectId: string;
+  chapterId: string | null;
+  threadId: string;
+  kind: "script_import" | "inspiration_seeds" | "script_outline_decision";
+  status: "pending";
+  activeSlotKey: string;
+  payload: unknown;
+  schemaVersion: 1;
+  createdAt: string;
+  updatedAt: string;
+}

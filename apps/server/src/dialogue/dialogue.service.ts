@@ -21,6 +21,7 @@ import { getThreadKey } from "./dialogue-key.util.js";
 import type {
   DialogueTurn,
   LocalDialogueThread,
+  PendingDialogueCaptureArtifact,
 } from "./dialogue-types.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 
@@ -44,7 +45,7 @@ export class DialogueService {
     this.maintenance?.registerRuntimeStateProvider("dialogue", () => this.captureRuntimeState());
   }
 
-  /** G3-M3-A15：停写封口时提供可验证的只读对话快照；pending Map 仍由各子 service 单独完成后续接线。 */
+  /** G3-M3-A15：停写封口时提供可验证的只读对话快照，并封存可恢复的 pending 对话工件。 */
   captureRuntimeState(): { conversationState: unknown; pendingDialogueState: unknown } {
     const threads = [...this.threads.values()].map((thread) => ({
       id: thread.id,
@@ -59,9 +60,10 @@ export class DialogueService {
       messages: thread.messages.map((message) => ({ ...message })),
       toolResults: thread.toolResults.map((result) => ({ ...result })),
     }));
+    const pendingArtifacts: PendingDialogueCaptureArtifact[] = this.scriptDialogue.capturePendingArtifacts(this.threads);
     return {
       conversationState: { schemaVersion: 1, captured: true, kind: "dialogue_runtime_state_v1", threads },
-      pendingDialogueState: { captured: false, reason: "G3-M3-A15_PENDING_DIALOGUE_CAPTURE_DEFERRED" },
+      pendingDialogueState: { schemaVersion: 1, captured: true, kind: "dialogue_pending_state_v1", artifacts: pendingArtifacts },
     };
   }
 

@@ -39,6 +39,7 @@ export const RUNTIME_BUNDLE_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set([
   "ConversationMessage",
   "DialogueToolResult",
   "DialogueRuntimeSession",
+  "PendingDialogueArtifact",
 ]);
 
 export interface SourceEvidenceCheck {

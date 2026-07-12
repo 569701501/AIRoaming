@@ -41,6 +41,26 @@ interface ThreadPlan {
   toolResults: Array<{ targetId: string; sourceKey: string; payloadDigest: `sha256:${string}`; legacyId: string; messageId: string; tool: string; status: string; summary: string; payloadJson: Prisma.InputJsonValue; createdAt: Date }>;
 }
 
+interface PendingArtifactPlan {
+  targetId: string;
+  sourceKey: string;
+  sourceDigest: `sha256:${string}`;
+  sourceStorageKey: string;
+  projectId: string;
+  chapterId: string | null;
+  threadId: string;
+  kind: "script_import" | "inspiration_seeds" | "script_outline_decision" | "layout_editor_command_set";
+  status: "pending";
+  activeSlotKey: string;
+  payloadJson: Prisma.InputJsonValue;
+  schemaVersion: number;
+  payloadDigest: `sha256:${string}`;
+  sourceMessageId: string | null;
+  toolResultId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 async function readRuntimeBundle(snapshot: VerifiedSnapshot): Promise<{ bundle: Record<string, unknown>; digest: `sha256:${string}` }> {
   try {
     const result = await new RuntimeBundleFileService().readAndVerify(path.join(snapshot.root, "runtime-bundle.json"));
@@ -66,11 +86,16 @@ export class DialogueShadowImporter {
       const conversation = object(runtime.bundle.conversationState, "MIGRATION_DIALOGUE_STATE_INVALID");
       const captured = conversation.captured === true;
       const rawThreads = captured && Array.isArray(conversation.threads) ? conversation.threads : [];
-      const result = await this.buildPlans(snapshot, rawThreads, runtime.digest);
+      const pendingState = object(runtime.bundle.pendingDialogueState, "MIGRATION_PENDING_DIALOGUE_STATE_INVALID");
+      const pendingCaptured = pendingState.captured === true;
+      const rawPendingArtifacts = pendingCaptured && Array.isArray(pendingState.artifacts) ? pendingState.artifacts : [];
+      if (pendingCaptured && !Array.isArray(pendingState.artifacts)) throw new DialogueShadowImportError("MIGRATION_PENDING_DIALOGUE_ARTIFACTS_INVALID");
+      const result = await this.buildPlans(snapshot, rawThreads, rawPendingArtifacts, runtime.digest);
       if (result.plans.length > 0) await this.ledger.withTransaction(async (tx) => { for (const plan of result.plans) await this.importThread(tx, run.id, plan); });
+      if (result.pendingPlans.length > 0) await this.ledger.withTransaction(async (tx) => { for (const plan of result.pendingPlans) await this.importPendingArtifact(tx, run.id, plan); });
       for (const issue of result.issues) await this.ledger.withTransaction((tx) => this.ledger.recordGenericIssueInTransaction(tx, run.id, issue));
-      const report = await this.buildReport(snapshot, result.blockedProjects, { ConversationThread: result.threadCount, ConversationMessage: result.messageCount, DialogueToolResult: result.toolResultCount, DialogueRuntimeSession: result.sessionCount });
-      const finished = await this.ledger.finishRun(run.id, { status: result.issues.length > 0 ? "blocked" : "succeeded", reportDigest: report.reportDigest, counts: { ...report.summary, conversationThreadCount: result.threadCount, conversationMessageCount: result.messageCount, dialogueToolResultCount: result.toolResultCount, dialogueRuntimeSessionCount: result.sessionCount }, verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true, runtimeBundleVerified: true, dialogueCaptured: captured, pendingDialogueCaptured: false }, finishedAt: new Date().toISOString() });
+      const report = await this.buildReport(snapshot, result.blockedProjects, { ConversationThread: result.threadCount, ConversationMessage: result.messageCount, DialogueToolResult: result.toolResultCount, DialogueRuntimeSession: result.sessionCount, PendingDialogueArtifact: result.pendingPlans.length });
+      const finished = await this.ledger.finishRun(run.id, { status: result.issues.length > 0 ? "blocked" : "succeeded", reportDigest: report.reportDigest, counts: { ...report.summary, conversationThreadCount: result.threadCount, conversationMessageCount: result.messageCount, dialogueToolResultCount: result.toolResultCount, dialogueRuntimeSessionCount: result.sessionCount, pendingDialogueArtifactCount: result.pendingPlans.length }, verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true, runtimeBundleVerified: true, dialogueCaptured: captured, pendingDialogueCaptured: pendingCaptured }, finishedAt: new Date().toISOString() });
       return { run: finished, report, decisions };
     } catch (error) {
       const code = error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
@@ -85,10 +110,14 @@ export class DialogueShadowImporter {
     try { return normalizeMigrationDecisionArtifact(JSON.parse(await readFile(decisionsPath, "utf8")) as unknown, expected); } catch (error) { if (error instanceof Error && "code" in error) throw new DialogueShadowImportError(String((error as Error & { code: unknown }).code)); throw new DialogueShadowImportError("MIGRATION_DECISION_INVALID"); }
   }
 
-  private async buildPlans(snapshot: VerifiedSnapshot, rawThreads: unknown[], sourceDigest: `sha256:${string}`): Promise<{ plans: ThreadPlan[]; issues: Array<{ issueKey: string; code: string; entityType: string; entityId: string; sourceKey: string; storageKey: string; detailJson: Prisma.InputJsonValue }>; blockedProjects: Set<string>; threadCount: number; messageCount: number; toolResultCount: number; sessionCount: number }> {
+  private async buildPlans(snapshot: VerifiedSnapshot, rawThreads: unknown[], rawPendingArtifacts: unknown[], sourceDigest: `sha256:${string}`): Promise<{ plans: ThreadPlan[]; pendingPlans: PendingArtifactPlan[]; issues: Array<{ issueKey: string; code: string; entityType: string; entityId: string; sourceKey: string; storageKey: string; detailJson: Prisma.InputJsonValue }>; blockedProjects: Set<string>; threadCount: number; messageCount: number; toolResultCount: number; sessionCount: number }> {
     const plans: ThreadPlan[] = [];
+    const pendingPlans: PendingArtifactPlan[] = [];
     const issues: Array<{ issueKey: string; code: string; entityType: string; entityId: string; sourceKey: string; storageKey: string; detailJson: Prisma.InputJsonValue }> = [];
     const blockedProjects = new Set<string>();
+    const threadTargetByLegacy = new Map<string, string>();
+    const messageTargetByLegacy = new Map<string, string>();
+    const toolResultTargetByLegacy = new Map<string, string>();
     const db = this.prisma.database();
     for (const [index, raw] of rawThreads.entries()) {
       const thread = object(raw, "MIGRATION_DIALOGUE_THREAD_INVALID");
@@ -109,6 +138,7 @@ export class DialogueShadowImporter {
       const scopeKey = chapterId ? `chapter:${chapterId}` : "project";
       const sourceKey = `workspace-v1:${legacyProjectId}:ConversationThread:${legacyThreadId}`;
       const targetId = stableId("ConversationThread", sourceKey);
+      threadTargetByLegacy.set(`${legacyProjectId}:${legacyThreadId}`, targetId);
       const rawMessages = Array.isArray(thread.messages) ? thread.messages : [];
       const messageIdByLegacy = new Map<string, string>();
       const messages = rawMessages.map((rawMessage, messageIndex) => {
@@ -117,6 +147,7 @@ export class DialogueShadowImporter {
         const messageSourceKey = `${sourceKey}:Message:${legacyId}`;
         const messageTargetId = stableId("ConversationMessage", messageSourceKey);
         messageIdByLegacy.set(legacyId, messageTargetId);
+        messageTargetByLegacy.set(`${legacyProjectId}:${legacyThreadId}:${legacyId}`, messageTargetId);
         const error = message.error && typeof message.error === "object" ? jsonValue(message.error) : null;
         return { targetId: messageTargetId, sourceKey: messageSourceKey, payloadDigest: digestCanonicalJson({ threadId: targetId, legacyId, role: stringField(message, "role", "user"), content: stringField(message, "content"), status: stringField(message, "status", "completed") }), legacyId, role: stringField(message, "role", "user"), content: stringField(message, "content"), status: stringField(message, "status", "completed"), providerId: nullableString(message, "providerId"), modelId: nullableString(message, "modelId"), createdAt: dateField(message, "createdAt"), updatedAt: dateField(message, "updatedAt"), completedAt: message.completedAt ? dateField(message, "completedAt") : null, errorJson: error };
       });
@@ -127,11 +158,46 @@ export class DialogueShadowImporter {
         const messageId = messageIdByLegacy.get(stringField(result, "messageId"));
         if (!messageId) return null;
         const payload = jsonValue(result);
-        return { targetId: stableId("DialogueToolResult", resultSourceKey), sourceKey: resultSourceKey, payloadDigest: digestCanonicalJson(result), legacyId, messageId, tool: stringField(result, "tool", "legacy_unknown"), status: stringField(result, "status", "failed"), summary: stringField(result, "summary"), payloadJson: payload, createdAt: dateField(result, "createdAt") };
+        const targetId = stableId("DialogueToolResult", resultSourceKey);
+        toolResultTargetByLegacy.set(`${legacyProjectId}:${legacyThreadId}:${legacyId}`, targetId);
+        return { targetId, sourceKey: resultSourceKey, payloadDigest: digestCanonicalJson(result), legacyId, messageId, tool: stringField(result, "tool", "legacy_unknown"), status: stringField(result, "status", "failed"), summary: stringField(result, "summary"), payloadJson: payload, createdAt: dateField(result, "createdAt") };
       }).filter((value): value is NonNullable<typeof value> => value !== null);
       plans.push({ targetId, sourceKey, sourceDigest, payloadDigest: digestCanonicalJson({ projectId, chapterId, stepKey, scopeKey, title: stringField(thread, "title", stepKey), status: stringField(thread, "status", "active"), messages: messages.map((message) => message.payloadDigest), toolResults: toolResults.map((result) => result.payloadDigest) }), sourceStorageKey: "runtime-bundle.json", projectId, chapterId, stepKey, scopeKey, title: stringField(thread, "title", stepKey), status: stringField(thread, "status", "active"), createdAt: dateField(thread, "createdAt"), updatedAt: dateField(thread, "updatedAt"), legacySessionId: nullableString(thread, "openCodeSessionId"), messages, toolResults });
     }
-    return { plans, issues, blockedProjects, threadCount: plans.length, messageCount: plans.reduce((count, plan) => count + plan.messages.length, 0), toolResultCount: plans.reduce((count, plan) => count + plan.toolResults.length, 0), sessionCount: plans.filter((plan) => plan.legacySessionId).length };
+    const allowedKinds = new Set<PendingArtifactPlan["kind"]>(["script_import", "inspiration_seeds", "script_outline_decision", "layout_editor_command_set"]);
+    for (const [index, raw] of rawPendingArtifacts.entries()) {
+      const artifact = object(raw, "MIGRATION_PENDING_DIALOGUE_ARTIFACT_INVALID");
+      const legacyProjectId = stringField(artifact, "projectId");
+      const legacyThreadId = stringField(artifact, "threadId");
+      const kind = stringField(artifact, "kind") as PendingArtifactPlan["kind"];
+      const legacyArtifactId = stringField(artifact, "id", `pending-${index + 1}`);
+      const projectId = stableId("Project", projectSourceKey(legacyProjectId));
+      const chapterLegacyId = nullableString(artifact, "chapterId");
+      const chapterId = chapterLegacyId ? stableId("Chapter", chapterSourceKey(legacyProjectId, chapterLegacyId)) : null;
+      const threadId = threadTargetByLegacy.get(`${legacyProjectId}:${legacyThreadId}`);
+      const issueKey = `project:${legacyProjectId}:pending-dialogue:${legacyArtifactId}`;
+      const project = await db.project.findUnique({ where: { id: projectId } });
+      const chapter = chapterId ? await db.chapter.findUnique({ where: { id: chapterId } }) : null;
+      const declaredStatus = stringField(artifact, "status", "pending");
+      if (!allowedKinds.has(kind) || declaredStatus !== "pending" || !threadId || !legacyProjectId || !project || (chapterId && (!chapter || chapter.projectId !== projectId))) {
+        issues.push({ issueKey, code: !allowedKinds.has(kind) ? "PENDING_DIALOGUE_KIND_UNSUPPORTED" : "PENDING_DIALOGUE_SOURCE_UNRESOLVED", entityType: "PendingDialogueArtifact", entityId: stableId("PendingDialogueArtifact", `workspace-v1:${legacyProjectId}:PendingDialogueArtifact:${legacyArtifactId}`), sourceKey: `workspace-v1:${legacyProjectId}:PendingDialogueArtifact:${legacyArtifactId}`, storageKey: "runtime-bundle.json", detailJson: jsonValue({ schemaVersion: 1, reason: !allowedKinds.has(kind) ? "kind is outside G1 closed enum" : "Project, Chapter, or ConversationThread target missing" }) });
+        blockedProjects.add(legacyProjectId);
+        continue;
+      }
+      const payload = artifact.payload;
+      if (payload === undefined) throw new DialogueShadowImportError("MIGRATION_PENDING_DIALOGUE_PAYLOAD_INVALID");
+      const payloadDigest = digestCanonicalJson(payload);
+      const declaredPayloadDigest = nullableString(artifact, "payloadDigest");
+      if (declaredPayloadDigest && declaredPayloadDigest !== payloadDigest) throw new DialogueShadowImportError("MIGRATION_PENDING_DIALOGUE_PAYLOAD_DIGEST_MISMATCH");
+      const legacySourceMessageId = nullableString(artifact, "sourceMessageId");
+      const legacyToolResultId = nullableString(artifact, "toolResultId");
+      const sourceMessageId = legacySourceMessageId ? messageTargetByLegacy.get(`${legacyProjectId}:${legacyThreadId}:${legacySourceMessageId}`) ?? null : null;
+      const toolResultId = legacyToolResultId ? toolResultTargetByLegacy.get(`${legacyProjectId}:${legacyThreadId}:${legacyToolResultId}`) ?? null : null;
+      if ((legacySourceMessageId && !sourceMessageId) || (legacyToolResultId && !toolResultId)) throw new DialogueShadowImportError("MIGRATION_PENDING_DIALOGUE_REFERENCE_UNRESOLVED");
+      const sourceKey = `workspace-v1:${legacyProjectId}:PendingDialogueArtifact:${legacyArtifactId}`;
+      pendingPlans.push({ targetId: stableId("PendingDialogueArtifact", sourceKey), sourceKey, sourceDigest, sourceStorageKey: "runtime-bundle.json", projectId, chapterId, threadId, kind, status: "pending", activeSlotKey: `workspace-v1:${legacyProjectId}:PendingDialogueSlot:${stringField(artifact, "activeSlotKey", legacyArtifactId)}`, payloadJson: jsonValue(payload), schemaVersion: Number.isInteger(artifact.schemaVersion) ? Number(artifact.schemaVersion) : 1, payloadDigest, sourceMessageId, toolResultId, createdAt: dateField(artifact, "createdAt"), updatedAt: dateField(artifact, "updatedAt") });
+    }
+    return { plans, pendingPlans, issues, blockedProjects, threadCount: plans.length, messageCount: plans.reduce((count, plan) => count + plan.messages.length, 0), toolResultCount: plans.reduce((count, plan) => count + plan.toolResults.length, 0), sessionCount: plans.filter((plan) => plan.legacySessionId).length };
   }
 
   private async buildReport(snapshot: VerifiedSnapshot, blockedProjects: Set<string>, entityCounts: Record<string, number>): Promise<ComicFormatReport> {
@@ -178,5 +244,14 @@ export class DialogueShadowImporter {
       }
       await this.ledger.recordImportedEntitySourceInTransaction(tx, runId, { sourceKey: sessionSourceKey, entityType: "DialogueRuntimeSession", entityId: sessionId, sourceStorageKey: plan.sourceStorageKey, sourceDigest: plan.sourceDigest, payloadDigest: digestCanonicalJson({ threadId: plan.targetId, externalSessionId: plan.legacySessionId, runtime: "opencode" }), provenanceStatus: "complete" });
     }
+  }
+
+  private async importPendingArtifact(tx: Prisma.TransactionClient, runId: string, plan: PendingArtifactPlan): Promise<void> {
+    const existingSource = await tx.importedEntitySource.findUnique({ where: { sourceKey: plan.sourceKey } });
+    if (existingSource && (existingSource.entityId !== plan.targetId || existingSource.sourceDigest !== plan.sourceDigest || existingSource.payloadDigest !== plan.payloadDigest)) throw new MigrationLedgerError("MIGRATION_SOURCE_CONFLICT");
+    const existing = await tx.pendingDialogueArtifact.findUnique({ where: { id: plan.targetId } });
+    if (existing && (existing.projectId !== plan.projectId || existing.chapterId !== plan.chapterId || existing.threadId !== plan.threadId || existing.kind !== plan.kind || existing.payloadDigest !== plan.payloadDigest)) throw new MigrationLedgerError("MIGRATION_PAYLOAD_CONFLICT");
+    if (!existing) await tx.pendingDialogueArtifact.create({ data: { id: plan.targetId, projectId: plan.projectId, chapterId: plan.chapterId, threadId: plan.threadId, kind: plan.kind, status: plan.status, activeSlotKey: plan.activeSlotKey, payloadJson: plan.payloadJson, schemaVersion: plan.schemaVersion, payloadDigest: plan.payloadDigest, sourceMessageId: plan.sourceMessageId, toolResultId: plan.toolResultId, createdAt: plan.createdAt, updatedAt: plan.updatedAt, resolvedAt: null } });
+    await this.ledger.recordImportedEntitySourceInTransaction(tx, runId, { sourceKey: plan.sourceKey, entityType: "PendingDialogueArtifact", entityId: plan.targetId, sourceStorageKey: plan.sourceStorageKey, sourceDigest: plan.sourceDigest, payloadDigest: plan.payloadDigest, provenanceStatus: "complete" });
   }
 }

@@ -19,6 +19,7 @@ import type {
   PendingInspirationSeeds,
   PendingScriptImport,
   PendingScriptOutline,
+  PendingDialogueCaptureArtifact,
   ScriptOrganizationInput,
 } from "./dialogue-types.js";
 import {
@@ -108,6 +109,72 @@ export class ScriptDialogueService {
    */
   tryDeleteThreadState(threadId: string): boolean {
     return this.pendingScriptImports.delete(threadId);
+  }
+
+  /**
+   * 将进程内 pending Map 封口为可写入 runtime-bundle 的纯数据。
+   * key 是逻辑槽的一部分，不能使用随机 UUID；这样重复封口/重放仍会落到同一稳定实体。
+   */
+  capturePendingArtifacts(threads: ReadonlyMap<string, LocalDialogueThread>): PendingDialogueCaptureArtifact[] {
+    const artifacts: PendingDialogueCaptureArtifact[] = [];
+    for (const [threadId, pending] of this.pendingScriptImports.entries()) {
+      const thread = threads.get(threadId);
+      if (!thread) continue;
+      artifacts.push({
+        id: `script-import:${threadId}`,
+        projectId: thread.projectId,
+        chapterId: thread.chapterId,
+        threadId,
+        kind: "script_import",
+        status: "pending",
+        activeSlotKey: `dialogue:${threadId}:script_import`,
+        payload: pending,
+        schemaVersion: 1,
+        createdAt: pending.createdAt,
+        updatedAt: pending.createdAt,
+      });
+    }
+    for (const [key, pending] of this.pendingInspirationSeeds.entries()) {
+      const projectId = key.endsWith(":inspiration") ? key.slice(0, -":inspiration".length).split(":")[0] : "";
+      const stepKey = key.endsWith(":inspiration") ? key.slice(0, -":inspiration".length).slice(projectId.length + 1) : "project_story";
+      const thread = [...threads.values()].find((candidate) => candidate.projectId === projectId && candidate.stepKey === stepKey && candidate.chapterId === pending.chapterId) ??
+        [...threads.values()].find((candidate) => candidate.projectId === projectId && candidate.stepKey === stepKey);
+      if (!thread) continue;
+      artifacts.push({
+        id: `inspiration-seeds:${key}`,
+        projectId,
+        chapterId: pending.chapterId,
+        threadId: thread.id,
+        kind: "inspiration_seeds",
+        status: "pending",
+        activeSlotKey: `dialogue:${projectId}:${stepKey}:inspiration`,
+        payload: pending,
+        schemaVersion: 1,
+        createdAt: pending.createdAt,
+        updatedAt: pending.createdAt,
+      });
+    }
+    for (const [key, pending] of this.pendingScriptOutlines.entries()) {
+      const projectId = key.endsWith(":script-outline") ? key.slice(0, -":script-outline".length).split(":")[0] : "";
+      const stepKey = key.endsWith(":script-outline") ? key.slice(0, -":script-outline".length).slice(projectId.length + 1) : "project_story";
+      const thread = [...threads.values()].find((candidate) => candidate.projectId === projectId && candidate.stepKey === stepKey && candidate.chapterId === pending.chapterId) ??
+        [...threads.values()].find((candidate) => candidate.projectId === projectId && candidate.stepKey === stepKey);
+      if (!thread) continue;
+      artifacts.push({
+        id: `script-outline:${key}`,
+        projectId,
+        chapterId: pending.chapterId,
+        threadId: thread.id,
+        kind: "script_outline_decision",
+        status: "pending",
+        activeSlotKey: `dialogue:${projectId}:${stepKey}:script-outline`,
+        payload: pending,
+        schemaVersion: 1,
+        createdAt: pending.createdAt,
+        updatedAt: pending.createdAt,
+      });
+    }
+    return artifacts.sort((left, right) => left.activeSlotKey.localeCompare(right.activeSlotKey));
   }
 
   /**

@@ -76,6 +76,7 @@ const FRESH_INVENTORY_TABLES = [
   "conversation_messages",
   "dialogue_tool_results",
   "dialogue_runtime_sessions",
+  "pending_dialogue_artifacts",
   "imported_entity_sources",
   "migration_issues",
   "migration_runs",
@@ -121,7 +122,7 @@ async function readFreshInventory(prisma: PrismaService): Promise<{ digest: `sha
   return { tables, digest: digestCanonicalJson(tables) };
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -235,7 +236,24 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
           toolResults: [{ id: "legacy-tool-result-001", messageId: "legacy-message-assistant-001", toolCallId: "legacy-tool-call-001", tool: "analyze_script_import", status: "succeeded", summary: "已完成旧剧本分析", payload: { schemaVersion: 1, decision: "import" }, createdAt: "2026-01-07T00:00:04.000Z" }],
         }],
       },
-      pendingDialogueState: { captured: false, reason: "test_pending_not_captured" },
+      pendingDialogueState: options.withPendingDialogue ? {
+        schemaVersion: 1,
+        captured: true,
+        kind: "dialogue_pending_state_v1",
+        artifacts: [{
+          id: "legacy-pending-script-import-001",
+          projectId: "p1",
+          chapterId: "p1-chapter-001",
+          threadId: "legacy-thread-001",
+          kind: "script_import",
+          status: "pending",
+          activeSlotKey: "legacy-thread-001:script_import",
+          payload: { sourceText: "待确认剧本片段", sourceName: "legacy.txt", analysis: { decision: "needs_user_confirmation", reason: "需要确认", risk: "会覆盖章节", nextTool: "import_script_to_chapters" }, createdAt: "2026-01-07T00:01:00.000Z" },
+          schemaVersion: 1,
+          createdAt: "2026-01-07T00:01:00.000Z",
+          updatedAt: "2026-01-07T00:01:00.000Z",
+        }],
+      } : { captured: false, reason: "test_pending_not_captured" },
     }));
   }
   await coordinator.drain();
@@ -880,5 +898,25 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-replay" });
     expect(await prisma!.database().conversationThread.count()).toBe(1);
     expect(await prisma!.database().conversationMessage.count()).toBe(2);
+  }, 30_000);
+
+  it("IMP-A15-02 imports captured pending dialogue artifacts with stable evidence", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withDialogueRuntime: true, withPendingDialogue: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-pending-base" });
+    const result = await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-pending-dialogue" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.run.verification).toMatchObject({ dialogueCaptured: true, pendingDialogueCaptured: true });
+    expect(result.report.summary.entityCounts).toMatchObject({ PendingDialogueArtifact: 1 });
+    const projectId = PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1");
+    const chapterId = PrismaMigrationLedgerRepository.stableEntityId("Chapter", "workspace-v1:p1:Chapter:p1-chapter-001");
+    const threadId = PrismaMigrationLedgerRepository.stableEntityId("ConversationThread", "workspace-v1:p1:ConversationThread:legacy-thread-001");
+    const artifact = await prisma!.database().pendingDialogueArtifact.findFirstOrThrow();
+    expect(artifact).toMatchObject({ projectId, chapterId, threadId, kind: "script_import", status: "pending", activeSlotKey: "workspace-v1:p1:PendingDialogueSlot:legacy-thread-001:script_import", resolvedAt: null });
+    expect(artifact.payloadDigest).toBe(digestCanonicalJson(artifact.payloadJson));
+    expect(await prisma!.database().importedEntitySource.findFirst({ where: { entityType: "PendingDialogueArtifact" } })).toMatchObject({ sourceStorageKey: "runtime-bundle.json", sourceDigest: snapshot.sealed.runtimeBundleDigest, entityId: artifact.id });
+    await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-pending-replay" });
+    expect(await prisma!.database().pendingDialogueArtifact.count()).toBe(1);
   }, 30_000);
 });
