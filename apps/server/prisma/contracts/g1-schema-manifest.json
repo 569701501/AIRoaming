@@ -95,7 +95,7 @@
     },
     {
       "path": "apps/server/package.json",
-      "digest": "sha256:f230b0a5bd06ea2924e3ba4a008221f492cca2ecd81113e3f920e9e767c8f30d",
+      "digest": "sha256:fd17566b50b51e9034e0688ce5c54293d2bb55835758ead0783817c0116bb67d",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -28953,5 +28953,5 @@
     "issueCount": 0,
     "issues": []
   },
-  "manifestDigest": "sha256:e8b11d2eb4567bde3cba3e32e38dd0177930984afe2925005ba3be2a5c6db517"
+  "manifestDigest": "sha256:2d3c536e5664a8e4c148a47befa91ddde70c51b0cdc854d74aed043b58bf42fb"
 }

@@ -19,7 +19,8 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | G3-core | passed，基线 commit `0dbf93d` |
 | G3-M0 maintenance | implemented，commit `e2caa13` |
 | G3-M1 snapshot/runtime bundle | implemented，commit `131fbc2` |
-| G3-M2 decision codec | implemented，待最终 commit 复核 |
+| G3-M2 decision codec | implemented，commit `317e65a` |
+| G3-M3-A0 audit ledger | implemented，commit 待补入；仅纯内存账本 + sealed snapshot 审计 |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | not_implemented |
 | G3-M5 backup/restore | not_implemented |
@@ -36,11 +37,12 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 3. 预期 package scripts
 
-以下命令按切片逐步提供；当前只有 `maintenance` 已实现，其余不得提前把空壳命令标绿：
+以下命令按切片逐步提供；`db:audit`/`db:import`/`db:verify` 仍不得视为完成。M3-A0 额外提供一个不写 DB 的中间审计命令：
 
 ```text
 maintenance（G3-M0 已提供）
 db:snapshot
+migration:audit:check（M3-A0：只读 sealed snapshot，不写 DB）
 db:audit
 migration:decisions:check
 db:import
@@ -92,10 +94,12 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 - MAP-01～08、DEC-01～04 全绿。
 - 具体 issue code、detail/resolution codec、decisionsDigest 与旧 run 不可变通过。
-- 当前实现：`comic-format-migration.plugin.ts`、`migration-issue.ts`、`migration-decision.ts`、`migration-report.ts`、`migration:decisions:check` CLI；M2 只做 codec，不写 MigrationRun/目标 DB。
+- 当前实现：`comic-format-migration.plugin.ts`、`migration-issue.ts`、`migration-decision.ts`、`migration-report.ts`、`migration:decisions:check` CLI；M2 只做 codec，不写 MigrationRun/目标 DB。commit：`317e65a`。
 
 ### G3-M3
 
+- M3-A0 已完成：`migration-ledger.ts` 固化 run/issue/source 状态语义；`migration-audit.service.ts` 验证 sealed snapshot 并生成 comicFormat report；定向 7 项、全量 230 项测试通过。
+- M3-A0 明确不是 full importer：账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter，不提供 `db-audit --database-url`、`db-import` 或 `db-verify`。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 
@@ -173,14 +177,14 @@ git diff --check
 ## 9. 第一张 Luna 任务书
 
 ```text
-目标切片：G3-M2 decision codec
-当前基线 commit：`131fbc2`；M2 最终 commit 在完成后补入。
+目标切片：G3-M3-A0 audit ledger + sealed snapshot comicFormat audit
+当前基线 commit：`317e65a`；A0 当前工作区提交后补入。
 必读：G3-M 五份施工资料；G1 方案 6.3.2、6.5 C0～C2
-允许修改：apps/server/src/migration/comic-format-migration.plugin.ts、migration-issue.ts、migration-decision.ts、migration-report.ts、对应测试与 package script
-明确禁止：importer/MigrationRun repository/Prisma 写入/backup/activate、真实 workspace、G5、改变 G3-core enum/0010
-实现：canonical/auto_mapped/decision_required mapper、具体 issue code、detail/resolution codec、decisionsDigest、reportDigest、decision check CLI
-最小测试：MAP-01～08 + DEC-01～04 + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
-退出证据：normalized decisions digest、issue detail/resolution 样例、report digest、残留 blocker
+允许修改：apps/server/src/migration/migration-ledger.ts、migration-audit.service.ts、migration-audit.cli.ts、对应测试与 package script
+明确禁止：真实数据库写入、完整 importer、backup/activate、真实 workspace、G5、改变 G3-core enum/0010
+实现：run/issue/source 纯内存状态机、sealed snapshot manifest/payload 验证、project comicFormat audit、确定性 report、audit CLI
+最小测试：RUN-01～03 + AUDIT-01～03 + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
+退出证据：blocked/succeeded run、source conflict、report digest、篡改 fail-closed、明确未完成 full importer
 Stop：任何写入口无法被可靠枚举或需要触碰真实数据时停止并报告
 ```
 
