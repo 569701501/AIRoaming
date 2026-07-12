@@ -15,7 +15,7 @@ export interface MigrationRunRecord {
   snapshotManifestDigest: string | null;
   decisionsDigest: string | null;
   reportDigest: string | null;
-  counts: Record<string, number> | null;
+  counts: Record<string, unknown> | null;
   verification: Record<string, unknown> | null;
   errorCode: string | null;
   startedAt: string;
@@ -47,7 +47,7 @@ export interface BeginMigrationRunInput {
 export interface FinishMigrationRunInput {
   status: Exclude<MigrationRunStatus, "running">;
   reportDigest?: string | null;
-  counts?: Record<string, number> | null;
+  counts?: Record<string, unknown> | null;
   verification?: Record<string, unknown> | null;
   errorCode?: string | null;
   finishedAt?: string;

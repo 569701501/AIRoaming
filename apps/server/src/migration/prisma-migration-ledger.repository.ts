@@ -44,7 +44,7 @@ function toRun(row: MigrationRun): MigrationRunRecord {
     snapshotManifestDigest: row.snapshotManifestDigest,
     decisionsDigest: row.decisionsDigest,
     reportDigest: row.reportDigest,
-    counts: jsonObject(row.countsJson, "MIGRATION_COUNTS") as Record<string, number> | null,
+    counts: jsonObject(row.countsJson, "MIGRATION_COUNTS"),
     verification: jsonObject(row.verificationJson, "MIGRATION_VERIFICATION"),
     errorCode: row.errorCode,
     startedAt: row.startedAt.toISOString(),
@@ -220,18 +220,27 @@ export class PrismaMigrationLedgerRepository implements MigrationLedgerPort {
     return toRun(updated);
   }
 
+  async withTransaction<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.client().$transaction(callback);
+  }
+
   async recordImportedEntitySource(runId: string, input: RecordImportedEntitySourceInput): Promise<ImportedEntitySourceRecord> {
-    const run = await this.getRun(runId);
+    return this.withTransaction((tx) => this.recordImportedEntitySourceInTransaction(tx, runId, input));
+  }
+
+  async recordImportedEntitySourceInTransaction(tx: Prisma.TransactionClient, runId: string, input: RecordImportedEntitySourceInput): Promise<ImportedEntitySourceRecord> {
+    const run = await tx.migrationRun.findUnique({ where: { id: runId } });
+    if (!run) throw new MigrationLedgerError("MIGRATION_RUN_NOT_FOUND");
     if (run.status !== "running") throw new MigrationLedgerError("MIGRATION_RUN_TERMINAL_IMMUTABLE");
     if (!input.sourceKey || !input.entityType || !input.entityId) throw new MigrationLedgerError("MIGRATION_SOURCE_INPUT_INVALID");
     assertDigest(input.sourceDigest, "MIGRATION_SOURCE_DIGEST_INVALID");
     if (input.payloadDigest) assertDigest(input.payloadDigest, "MIGRATION_PAYLOAD_DIGEST_INVALID");
     const requested = input.provenanceStatus ?? "reference_only";
     if (!isKnownProvenance(requested)) throw new MigrationLedgerError("MIGRATION_PROVENANCE_INVALID");
-    const row = await this.client().importedEntitySource.findUnique({ where: { sourceKey: input.sourceKey } });
+    const row = await tx.importedEntitySource.findUnique({ where: { sourceKey: input.sourceKey } });
     if (!row) {
       try {
-        const created = await this.client().importedEntitySource.create({ data: {
+        const created = await tx.importedEntitySource.create({ data: {
           sourceKey: input.sourceKey,
           entityType: input.entityType,
           entityId: input.entityId,
@@ -256,7 +265,7 @@ export class PrismaMigrationLedgerRepository implements MigrationLedgerPort {
     if (PROVENANCE_RANK[requested] > PROVENANCE_RANK[row.provenanceStatus] + 1) throw new MigrationLedgerError("MIGRATION_PROVENANCE_STEP_REQUIRED");
     const payloadUpgrade = row.payloadDigest === null && input.payloadDigest !== undefined && input.payloadDigest !== null;
     if (requested === row.provenanceStatus && !payloadUpgrade) return toSource(row);
-    const updated = await this.client().importedEntitySource.update({ where: { id: row.id }, data: { provenanceStatus: requested, lastRunId: runId } });
+    const updated = await tx.importedEntitySource.update({ where: { id: row.id }, data: { provenanceStatus: requested, lastRunId: runId } });
     return toSource(updated);
   }
 

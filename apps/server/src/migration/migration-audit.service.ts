@@ -22,6 +22,14 @@ export interface ComicFormatAuditResult {
   snapshotManifestDigest: SnapshotDigest;
 }
 
+export interface VerifiedSnapshot {
+  root: string;
+  sealed: SealedSnapshot;
+  sourceManifest: SnapshotManifest;
+  snapshotManifest: SnapshotManifest;
+  readPayload(storageKey: string): Promise<{ item: SnapshotManifest["items"][number]; bytes: Buffer }>;
+}
+
 function isAbsolute(value: string): boolean {
   return path.isAbsolute(value) && !value.includes("\0");
 }
@@ -71,16 +79,37 @@ function assertManifest(value: unknown): SnapshotManifest {
   return manifest as unknown as SnapshotManifest;
 }
 
+export async function readVerifiedSnapshot(snapshotPath: string): Promise<VerifiedSnapshot> {
+  if (!isAbsolute(snapshotPath)) throw new MigrationAuditError("MIGRATION_SNAPSHOT_PATH_INVALID");
+  const root = path.resolve(snapshotPath);
+  const sealed = assertSealed(await readJson(path.join(root, "SEALED"), "MIGRATION_SNAPSHOT_NOT_SEALED"));
+  const sourceManifest = assertManifest(await readJson(path.join(root, "source-manifest.json"), "MIGRATION_SOURCE_MANIFEST_INVALID"));
+  const snapshotManifest = assertManifest(await readJson(path.join(root, "snapshot-manifest.json"), "MIGRATION_SNAPSHOT_MANIFEST_INVALID"));
+  if (sourceManifest.manifestDigest !== sealed.sourceManifestDigest) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
+  if (snapshotManifest.manifestDigest !== sealed.snapshotManifestDigest) throw new MigrationAuditError("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
+  const sourceItems = new Map(sourceManifest.items.map((item) => [item.storageKey, item]));
+  return {
+    root,
+    sealed,
+    sourceManifest,
+    snapshotManifest,
+    async readPayload(storageKey: string) {
+      const item = sourceItems.get(storageKey);
+      if (!item) throw new MigrationAuditError("MIGRATION_SOURCE_FILE_NOT_IN_MANIFEST");
+      const payloadPath = path.join(root, "payload", ...storageKey.split("/"));
+      await assertRegularFile(payloadPath, "MIGRATION_SOURCE_PROJECT_NOT_FOUND");
+      const bytes = await readFile(payloadPath);
+      if (sha256(bytes) !== item.sha256) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
+      return { item, bytes };
+    },
+  };
+}
+
 /** 只读 sealed snapshot 的项目元数据，建立 M3-A0 审计账本，不触碰业务数据库。 */
 export class MigrationAuditService {
   async auditComicFormats(snapshotPath: string, ledger: MigrationLedgerPort = new MigrationLedger(), options: { runId?: string; startedAt?: string; importerVersion?: string } = {}): Promise<ComicFormatAuditResult> {
-    if (!isAbsolute(snapshotPath)) throw new MigrationAuditError("MIGRATION_SNAPSHOT_PATH_INVALID");
-    const root = path.resolve(snapshotPath);
-    const sealed = assertSealed(await readJson(path.join(root, "SEALED"), "MIGRATION_SNAPSHOT_NOT_SEALED"));
-    const sourceManifest = assertManifest(await readJson(path.join(root, "source-manifest.json"), "MIGRATION_SOURCE_MANIFEST_INVALID"));
-    const snapshotManifest = assertManifest(await readJson(path.join(root, "snapshot-manifest.json"), "MIGRATION_SNAPSHOT_MANIFEST_INVALID"));
-    if (sourceManifest.manifestDigest !== sealed.sourceManifestDigest) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
-    if (snapshotManifest.manifestDigest !== sealed.snapshotManifestDigest) throw new MigrationAuditError("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
+    const verified = await readVerifiedSnapshot(snapshotPath);
+    const { root, sourceManifest, snapshotManifest } = verified;
 
     const run = await ledger.beginRun({
       kind: "audit",
@@ -98,11 +127,8 @@ export class MigrationAuditService {
 
       for (const item of projectItems) {
         const projectId = item.storageKey.split("/")[1];
-        const payloadPath = path.join(root, "payload", ...item.storageKey.split("/"));
-        await assertRegularFile(payloadPath, "MIGRATION_SOURCE_PROJECT_NOT_FOUND");
-        const bytes = await readFile(payloadPath);
-        if (sha256(bytes) !== item.sha256) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
-        const metadata = parseObject(await readJson(payloadPath, "MIGRATION_SOURCE_PROJECT_INVALID"), "MIGRATION_SOURCE_PROJECT_INVALID");
+        const { bytes } = await verified.readPayload(item.storageKey);
+        const metadata = parseObject(await readJson(path.join(root, "payload", ...item.storageKey.split("/")), "MIGRATION_SOURCE_PROJECT_INVALID"), "MIGRATION_SOURCE_PROJECT_INVALID");
         const mapping = mapLegacyComicFormat(metadata.comicFormat);
         const issue = buildComicFormatIssue({ runId: run.id, projectId, sourceStorageKey: item.storageKey, sourceDigest: item.sha256, mapping, createdAt: run.startedAt });
         if (issue) await ledger.recordIssue(issue);
