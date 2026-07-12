@@ -144,7 +144,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 仍不是 full importer：Character、Asset/Visual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A7 仍不是 full importer：Asset/CharacterVisual/SceneVisual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A8 仍不是 full importer：CharacterVisual/SceneVisual、物理文件 hash/bytes/尺寸、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
-- 当前已提供 full shadow orchestration：`full-shadow-importer.ts` 固定按 16 个 slice 的依赖顺序运行，保留每个 slice 的 MigrationRun，并对不含 runId 的稳定结果摘要计算聚合 reportDigest；pending Dialogue artifact、read-model/API 等价和 DB-only 写隔离已实现，backup 和 activate 尚未实现，`db:import --kind final` 继续 fail-closed。
+- 当前已提供 full shadow orchestration：`full-shadow-importer.ts` 固定按 16 个 slice 的依赖顺序运行，尾部明确为 `layout → exports → dialogue → providers`；保留每个 slice 的 MigrationRun，并对不含 runId 的稳定结果摘要计算聚合 reportDigest。前置 slice blocked/failed 时 fail-fast，不创建下游空 run；pending Dialogue artifact、read-model/API 等价和 DB-only 写隔离已实现，backup 和 activate 尚未实现，`db:import --kind final` 继续 fail-closed。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 

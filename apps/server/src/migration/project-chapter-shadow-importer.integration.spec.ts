@@ -710,6 +710,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const importer = new FullShadowImporter(prisma!, prepared.repository);
     const first = await importer.import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-full-a" });
     expect(first.status).toBe("succeeded");
+    expect(FULL_SHADOW_SLICE_ORDER.indexOf("dialogue")).toBeLessThan(FULL_SHADOW_SLICE_ORDER.indexOf("providers"));
     expect(first.slices.map((slice) => slice.slice)).toEqual([...FULL_SHADOW_SLICE_ORDER]);
     expect(first.slices.every((slice) => slice.status === "succeeded")).toBe(true);
     const counts = {
@@ -732,6 +733,18 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       threads: await prisma!.database().conversationThread.count(),
     }).toEqual(counts);
   }, 60_000);
+
+  it("IMP-M3-FULL-02 stops at the first blocked prerequisite instead of running downstream slices", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "four_panel" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const result = await new FullShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-full-blocked" });
+    expect(result.status).toBe("blocked");
+    expect(result.slices).toHaveLength(1);
+    expect(result.slices[0]).toMatchObject({ slice: "project-chapter", status: "blocked" });
+    expect(await prisma!.database().migrationRun.count()).toBe(1);
+    expect(await prisma!.database().project.count()).toBe(0);
+  }, 30_000);
 
   it("IMP-M4-FRESH-01 produces identical full-shadow inventories on two fresh DBs and verifies every slice", async () => {
     const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-g3-m4-source-"));

@@ -13,6 +13,7 @@ source: G3-M4 continuation
 - 来源证据注册表和 M4 verifier 校验已落地。
 - `db:import --kind shadow --slice full --workspace-root <workspace-root>` 已提供 16 slice 编排；可选 `--run-id-prefix` 生成可读的独立 run IDs。
 - full replay 已覆盖 Asset ready/physical evidence 后置增强场景。
+- full shadow 编排尾部顺序已对齐施工契约：`... layout → exports → dialogue → providers`；任一前置 slice blocked/failed 时 fail-fast，不运行下游空 slice。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
 - Dialogue runtime 的显式 pending codec/import 已完成：ScriptDialogueService 的三类 pending Map 进入 `PendingDialogueArtifact`，保留稳定 sourceKey、scope、payloadDigest 和 runtime-bundle 来源证据。
 

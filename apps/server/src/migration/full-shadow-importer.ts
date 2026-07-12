@@ -33,8 +33,8 @@ export const FULL_SHADOW_SLICE_ORDER = [
   "candidate-locks",
   "layout",
   "exports",
-  "providers",
   "dialogue",
+  "providers",
 ] as const;
 
 export type FullShadowSlice = (typeof FULL_SHADOW_SLICE_ORDER)[number];
@@ -82,6 +82,10 @@ export class FullShadowImporter {
         reportDigest: result.report.reportDigest,
         counts: result.run.counts,
       });
+      // A downstream slice cannot produce a trustworthy shadow when its
+      // prerequisite is blocked/failed. Stop at the first non-successful
+      // run instead of creating misleading empty/successful child runs.
+      if (result.run.status !== "succeeded") break;
     }
     const status: "succeeded" | "blocked" = results.some((result) => result.status !== "succeeded") ? "blocked" : "succeeded";
     const digestInput = {

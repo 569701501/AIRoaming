@@ -26,8 +26,10 @@ source: code exploration and tests
 - DB-mode `saveChapterDraft` 已允许完整导入项目树通过写入门禁，只更新数据库 working copy；API 集成测试证明旧 workspace 的 `project.json` 与 `script.md` 字节不变。
 - Pending Dialogue 的 runtime bundle 是显式 `dialogue_pending_state_v1`，只捕获 ScriptDialogueService 实际持有的 `script_import`、`inspiration_seeds`、`script_outline_decision` 三类 Map；StoryStructure/Storyboard 继续使用各自领域 pending 真值，不重复建模。
 - `PendingDialogueArtifact` 的 project/chapter/thread 与可选 message/toolResult 引用均在导入前解析为稳定 target；未注册 kind、非 pending 状态、跨 scope 或缺失引用 fail-closed，不创建伪恢复项。
+- full shadow 原尾部顺序为 `providers → dialogue`，与导入契约的 `Dialogue/pending → Provider metadata` 不一致；已改为 `dialogue → providers`。同时，前置 slice 返回 `blocked` 时必须停止编排，避免下游以空输入生成看似成功的 run。
 
 # M4 结论
 
 - 实现门禁和临时环境证据已齐：来源注册表、16-slice full shadow、fresh/replay、DB read-model/API、Asset physical evidence、DB-only 写隔离和 pending Dialogue 均有测试证据。
+- `IMP-M3-FULL-02` 已补充 blocked prerequisite fail-fast 证据；它证明未决议的 Project/Chapter 不会触发后续 15 个下游 slice。
 - 本结论不是 production cutover 批准；M4 状态继续保持 `in_progress`，等待正式验收签字。M5/M6 不在本轮范围内。

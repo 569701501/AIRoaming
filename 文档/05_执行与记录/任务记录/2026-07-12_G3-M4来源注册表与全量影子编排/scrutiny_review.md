@@ -20,6 +20,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | --- | --- | --- |
 | 来源证据 | 通过 | `migration-source-evidence.registry.ts` 覆盖 single/composite/runtime entityType；未知类型 fail-closed |
 | full shadow | 通过 | `FullShadowImporter` 固定 16 slice 顺序，聚合摘要排除 runId |
+| full shadow 失败传播 | 通过 | `IMP-M3-FULL-02` 前置 blocked 后停止，不创建下游空 run；尾部顺序为 dialogue→providers |
 | replay/fresh | 通过 | `IMP-M3-FULL-01`、`IMP-M4-FRESH-01` |
 | DB read-model/API | 通过 | `IMP-M4-API-01` 对照 file/DB `WorkbenchSnapshot` 语义字段；移走旧 workspace 后 DB 模式重启仍可读 |
 | Asset 物理证据 | 通过 | ready Asset sha256/bytes 与旧物理文件对照 |
