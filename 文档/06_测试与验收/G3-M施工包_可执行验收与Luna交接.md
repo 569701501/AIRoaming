@@ -167,6 +167,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - `IMP-M4-28` 已通过真实 `db:import --kind shadow --slice full` CLI 临时 SQLite 回归；聚合报告、16 个 slice 顺序、16 条 MigrationRun 和成功退出码均符合契约。
 - `IMP-M4-29` 已通过 full CLI blocked prerequisite 回归；返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，报告只含首个 blocked slice，不创建下游 run。
 - `IMP-M4-30` 已通过真实 `db:import --kind final` CLI 回归；在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
+- `IMP-M4-31` 已通过 16 个独立 `db:import --kind shadow --slice <slice>` CLI 回归；每个入口按依赖顺序成功并写出合法报告，fresh DB 保留 16 条 MigrationRun。
 - 当前已完成单次 succeeded、转换来源、full replay 特征测试、blocked/failed full fail-fast、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType`、已注册摘要篡改、runtime 错误锚点、单文件 storage-key 越界、replay 当前 run 缺失来源证据和来源计数漂移也已验证 fail-closed；`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个独立 run；M4 仍保留 `in_progress`，等待正式验收签字。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明移走旧 workspace 后 DB 重启仍可读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不重建旧 workspace，归档旧文件字节不变（代码提交 `f05f8da` 后续补强）。

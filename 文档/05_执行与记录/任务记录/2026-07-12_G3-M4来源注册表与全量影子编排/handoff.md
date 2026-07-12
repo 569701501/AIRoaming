@@ -31,6 +31,7 @@ source: G3-M4 continuation
 - `IMP-M4-28` 已通过真实 `db:import --kind shadow --slice full` CLI 临时 SQLite 回归：返回 `MIGRATION_IMPORT_OK`，写出规范聚合报告，16 个 slice 按顺序成功并创建 16 条独立 MigrationRun。
 - `IMP-M4-29` 已通过 full CLI blocked prerequisite 回归：返回 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
 - `IMP-M4-30` 已通过真实 `db:import --kind final` CLI 回归：在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
+- `IMP-M4-31` 已通过 16 个独立 `db:import --kind shadow --slice <slice>` CLI 回归：每个入口按依赖顺序成功、报告摘要合法，并在 fresh DB 中各创建一条 MigrationRun。
 - 可复现证据已脱敏落在本目录 `evidence/commands.md` 与 `evidence/verification.summary.json`；不包含真实 DB、workspace、报告正文、绝对路径或密钥。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。

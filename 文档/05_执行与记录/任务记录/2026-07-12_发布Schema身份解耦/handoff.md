@@ -33,6 +33,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - `IMP-M4-28` 已补做真实 `db:import --kind shadow --slice full` CLI 临时 SQLite 回归，确认聚合报告、16 个 slice 顺序、16 条 MigrationRun 和成功退出码均符合契约。
 - `IMP-M4-29` 已补做 full CLI blocked prerequisite 回归：返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
 - `IMP-M4-30` 已补做 `db:import --kind final` 真实入口回归：在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
+- `IMP-M4-31` 已补做 16 个独立 `db:import --kind shadow --slice <slice>` 真实入口回归：每个 CLI 分支按依赖顺序成功并写出合法报告。
 
 ## 明确未完成
 
