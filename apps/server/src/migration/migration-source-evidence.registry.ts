@@ -42,6 +42,39 @@ export const RUNTIME_BUNDLE_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set([
   "PendingDialogueArtifact",
 ]);
 
+/**
+ * 单文件实体的允许来源范围。摘要相等不能替代来源身份校验：同一份
+ * bytes 若被挂到另一个实体的 storage key 上，也必须被 verifier 拒绝。
+ */
+const SINGLE_ITEM_SOURCE_STORAGE_KEY_PATTERNS: ReadonlyMap<string, RegExp> = new Map([
+  ["Project", /^projects\/[^/]+\/project\.json$/],
+  ["ChapterScriptVersion", /^projects\/[^/]+\/chapters\/[^/]+\/script\.versions\/[^/]+\.md$/],
+  ["ChapterScriptPending", /^projects\/[^/]+\/chapters\/[^/]+\/script-pending\.json$/],
+  ["ChapterScriptRevision", /^projects\/[^/]+\/chapters\/[^/]+\/script\.revisions\/latest\.json$/],
+  ["StoryVersion", /^projects\/[^/]+\/chapters\/[^/]+\/structure\.json$/],
+  ["StorySceneProjection", /^projects\/[^/]+\/chapters\/[^/]+\/structure\.json$/],
+  ["StoryBeatProjection", /^projects\/[^/]+\/chapters\/[^/]+\/structure\.json$/],
+  ["StoryboardVersion", /^projects\/[^/]+\/chapters\/[^/]+\/storyboard\.json$/],
+  ["StoryboardShotProjection", /^projects\/[^/]+\/chapters\/[^/]+\/storyboard\.json$/],
+  ["Character", /^projects\/[^/]+\/shared\/characters\.json$/],
+  ["Asset", /^projects\/[^/]+\/shared\/assets\.json$/],
+  ["AssetPhysicalEvidence", /^projects\/[^/]+\/(?:assets|chapters)\/.+$/],
+  ["CharacterVisual", /^projects\/[^/]+\/shared\/characters\.json$/],
+  ["SceneVisual", /^projects\/[^/]+\/chapters\/[^/]+\/structure\.json$/],
+  ["PreflightRevision", /^projects\/[^/]+\/chapters\/[^/]+\/preflight\.json$/],
+  ["GenerationTask", /^projects\/[^/]+\/tasks\/[^/]+\.input\.json$/],
+  ["Candidate", /^projects\/[^/]+\/chapters\/[^/]+\/candidates\.json$/],
+  ["CandidateLockRevision", /^projects\/[^/]+\/chapters\/[^/]+\/storyboard\.json$/],
+  ["LayoutWorkingCopy", /^projects\/[^/]+\/chapters\/[^/]+\/layout\/layout\.json$/],
+  ["ExportRevision", /^projects\/[^/]+\/(?:chapters\/[^/]+\/)?exports\/(?:[^/]+\/)?[^/]+$/],
+  ["ProviderConfig", /^settings\.redacted\.json$/],
+  ["CredentialMetadata", /^settings\.redacted\.json$/],
+  ["AppPreference", /^settings\.redacted\.json$/],
+]);
+
+const CHAPTER_SOURCE_STORAGE_KEY_PATTERN = /^projects\/[^/]+\/chapters\/[^/]+\/chapter\.json$/;
+const PROJECT_SCRIPT_OUTLINE_SOURCE_STORAGE_KEY_PATTERN = /^projects\/[^/]+\/script-outline\.md$/;
+
 export interface SourceEvidenceCheck {
   sourceMismatchCount: number;
   unregisteredEntityTypeCount: number;
@@ -78,7 +111,7 @@ export async function checkSourceEvidence(
     }
     if (COMPOSITE_SOURCE_ENTITY_TYPES.has(row.entityType)) {
       if (row.entityType === "ProjectScriptOutline") {
-        if (!row.sourceStorageKey?.endsWith("/script-outline.md")) {
+        if (!row.sourceStorageKey || !PROJECT_SCRIPT_OUTLINE_SOURCE_STORAGE_KEY_PATTERN.test(row.sourceStorageKey)) {
           sourceMismatchCount += 1;
           continue;
         }
@@ -88,7 +121,7 @@ export async function checkSourceEvidence(
         if (expected !== row.sourceDigest) sourceMismatchCount += 1;
         continue;
       }
-      if (row.entityType !== "Chapter" || !row.sourceStorageKey?.endsWith("/chapter.json")) {
+      if (row.entityType !== "Chapter" || !row.sourceStorageKey || !CHAPTER_SOURCE_STORAGE_KEY_PATTERN.test(row.sourceStorageKey)) {
         sourceMismatchCount += 1;
         continue;
       }
@@ -103,6 +136,11 @@ export async function checkSourceEvidence(
       }
       const expected = digestCanonicalJson({ chapterJsonDigest: item.sha256, scriptDigest });
       if (expected !== row.sourceDigest) sourceMismatchCount += 1;
+      continue;
+    }
+    const sourceStorageKeyPattern = SINGLE_ITEM_SOURCE_STORAGE_KEY_PATTERNS.get(row.entityType);
+    if (!sourceStorageKeyPattern || !sourceStorageKeyPattern.test(row.sourceStorageKey!)) {
+      sourceMismatchCount += 1;
       continue;
     }
     if (item.sha256 !== row.sourceDigest) sourceMismatchCount += 1;

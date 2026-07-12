@@ -18,8 +18,9 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 
 | 项目 | 结论 | 证据 |
 | --- | --- | --- |
-| 来源证据 | 通过 | `migration-source-evidence.registry.ts` 覆盖 single/composite/runtime entityType；未知类型 fail-closed |
+| 来源证据 | 通过 | `migration-source-evidence.registry.ts` 覆盖 single entityType + storage-key pattern、composite、runtime；未知类型 fail-closed |
 | 已注册来源篡改 | 通过 | `IMP-M4-04` 验证摘要不匹配；`IMP-M4-05` 验证 runtime 必须锚定 `runtime-bundle.json` |
+| 单文件来源路径 | 通过 | registry 为全部单文件 entityType 固化 storage-key pattern；`IMP-M4-06` 验证跨实体路径复用摘要被拒绝 |
 | full shadow | 通过 | `FullShadowImporter` 固定 16 slice 顺序，聚合摘要排除 runId |
 | full shadow 失败传播 | 通过 | `IMP-M3-FULL-02` 前置 blocked 后停止，不创建下游空 run；尾部顺序为 dialogue→providers |
 | replay/fresh | 通过 | `IMP-M3-FULL-01`、`IMP-M4-FRESH-01` |
