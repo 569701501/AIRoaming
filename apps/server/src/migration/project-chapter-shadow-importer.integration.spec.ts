@@ -819,6 +819,18 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().project.count()).toBe(0);
   }, 30_000);
 
+  it("IMP-M3-FULL-03 records a failed slice and stops without downstream runs", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { duplicateChapterOrder: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const result = await new FullShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-full-failed" });
+    expect(result.status).toBe("blocked");
+    expect(result.slices).toHaveLength(1);
+    expect(result.slices[0]).toMatchObject({ slice: "project-chapter", runId: "shadow-full-failed-01-project-chapter", status: "failed", reportDigest: null });
+    expect(await prisma!.database().migrationRun.count({ where: { id: { startsWith: "shadow-full-failed-" } } })).toBe(1);
+    expect(await prisma!.database().migrationRun.findUniqueOrThrow({ where: { id: "shadow-full-failed-01-project-chapter" } })).toMatchObject({ status: "failed" });
+  }, 30_000);
+
   it("IMP-M4-FRESH-01 produces identical full-shadow inventories on two fresh DBs and verifies every slice", async () => {
     const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-g3-m4-source-"));
     const databaseRoots = await Promise.all([

@@ -29,6 +29,7 @@ source: code exploration and tests
 - full shadow 原尾部顺序为 `providers → dialogue`，与导入契约的 `Dialogue/pending → Provider metadata` 不一致；已改为 `dialogue → providers`。同时，前置 slice 返回 `blocked` 时必须停止编排，避免下游以空输入生成看似成功的 run。
 - 来源注册表不仅要拒绝未知 `entityType`，还要验证已注册实体的摘要和 runtime 锚点；`IMP-M4-04`、`IMP-M4-05` 已证明摘要篡改或 runtime 偏离 `runtime-bundle.json` 时 verifier fail-closed。
 - 单文件实体此前只按 manifest digest 校验，未限制实体与 storage key 的对应关系；已为全部单文件 entityType 增加允许路径模式，`IMP-M4-06` 证明 Project 使用 chapter.json 的合法摘要也会 fail-closed。
+- full shadow 原先对底层 importer 的 failed 异常直接上抛，聚合结果会丢失失败 run；现改为使用显式 slice runId 捕获 failed 终态、写入聚合摘要并停止，`IMP-M3-FULL-03` 已覆盖重复章节约束冲突。
 
 # M4 结论
 

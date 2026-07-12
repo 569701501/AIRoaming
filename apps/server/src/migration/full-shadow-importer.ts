@@ -1,4 +1,5 @@
 import { digestCanonicalJson } from "@airoaming/shared";
+import { randomUUID } from "node:crypto";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { PrismaMigrationLedgerRepository } from "./prisma-migration-ledger.repository.js";
 import { ProjectChapterShadowImporter } from "./project-chapter-shadow-importer.js";
@@ -72,9 +73,25 @@ export class FullShadowImporter {
     options: { workspaceRoot: string; runIdPrefix?: string } = { workspaceRoot: process.cwd() },
   ): Promise<FullShadowImportResult> {
     const results: FullShadowSliceResult[] = [];
+    const runIdPrefix = options.runIdPrefix ?? `full-shadow-${randomUUID()}`;
     for (const [index, slice] of FULL_SHADOW_SLICE_ORDER.entries()) {
-      const runId = options.runIdPrefix ? `${options.runIdPrefix}-${String(index + 1).padStart(2, "0")}-${slice}` : undefined;
-      const result = await this.importSlice(slice, snapshotPath, decisionsPath, options.workspaceRoot, runId);
+      const runId = `${runIdPrefix}-${String(index + 1).padStart(2, "0")}-${slice}`;
+      let result: Awaited<ReturnType<FullShadowImporter["importSlice"]>>;
+      try {
+        result = await this.importSlice(slice, snapshotPath, decisionsPath, options.workspaceRoot, runId);
+      } catch (error) {
+        // Individual importers keep their original throw behavior, but the
+        // full orchestrator must preserve a failed terminal run in its own
+        // aggregate and stop before creating downstream empty runs.
+        try {
+          const failedRun = await this.ledger.getRun(runId);
+          if (failedRun.status !== "failed") throw error;
+          results.push({ slice, runId: failedRun.id, status: failedRun.status, reportDigest: failedRun.reportDigest, counts: failedRun.counts });
+          break;
+        } catch {
+          throw error;
+        }
+      }
       results.push({
         slice,
         runId: result.run.id,
