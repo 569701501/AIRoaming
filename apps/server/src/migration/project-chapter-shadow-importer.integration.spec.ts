@@ -658,7 +658,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
 
   it("IMP-M4-02 verifies transformed settings and runtime evidence against the snapshot manifest", async () => {
     const prepared = await prepare();
-    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withSettings: true, withDialogueRuntime: true });
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withSettings: true, withDialogueRuntime: true, withPendingDialogue: true });
     const decisionsPath = await writeDecisions(snapshot, []);
     await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-base" });
     await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-providers" });
@@ -681,6 +681,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       withExports: true,
       withSettings: true,
       withDialogueRuntime: true,
+      withPendingDialogue: true,
     });
     const decisionsPath = await writeDecisions(snapshot, []);
     const importer = new FullShadowImporter(prisma!, prepared.repository);
@@ -731,6 +732,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         withExports: true,
         withSettings: true,
         withDialogueRuntime: true,
+        withPendingDialogue: true,
       });
       const decisionsPath = path.join(sourceRoot, "decisions.json");
       await writeFile(decisionsPath, `${JSON.stringify(createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, []), null, 2)}\n`);
@@ -790,6 +792,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       withExports: true,
       withSettings: true,
       withDialogueRuntime: true,
+      withPendingDialogue: true,
     });
     const decisionsPath = await writeDecisions(snapshot, []);
     const legacyWorkspace = path.join(sourceRoot, "workspace");
