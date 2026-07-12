@@ -16,6 +16,7 @@ import { ScriptOutlineShadowImporter } from "./script-outline-shadow-importer.js
 import { ScriptPendingRevisionShadowImporter } from "./script-pending-revision-shadow-importer.js";
 import { StoryShadowImporter } from "./story-shadow-importer.js";
 import { StoryboardShadowImporter } from "./storyboard-shadow-importer.js";
+import { CharacterShadowImporter } from "./character-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 
@@ -30,7 +31,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -56,6 +57,10 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     }
     if (options.withStoryboard) {
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
+    }
+    if (options.withCharacters) {
+      await mkdir(path.join(projectDir, "shared"), { recursive: true });
+      await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({ characters: [{ id: "char_001", name: "主角", role: "调查者", level: "lead", entityType: "human", status: "draft", appearance: "", personality: "", promptFragment: "", source: "script_outline", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
     }
     if (options.duplicateChapterOrder) {
       await mkdir(path.join(projectDir, "chapters", "chapter-002"), { recursive: true });
@@ -261,5 +266,21 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(replay.run.status).toBe("succeeded");
     expect((await prisma!.database().chapter.findFirstOrThrow()).rowVersion).toBe(rowVersion);
     expect(await prisma!.database().storyboardVersion.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A7-01 imports shared characters with stable identity and replay", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withCharacters: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a7-base" });
+    const result = await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a7-1" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ Character: 1 });
+    const character = await prisma!.database().character.findFirstOrThrow();
+    expect(character).toMatchObject({ name: "主角", normalizedName: "主角", level: "lead", source: "script_outline" });
+    expect(character.id).toMatch(/^character_/);
+    expect(await prisma!.database().importedEntitySource.count()).toBe(3);
+    expect((await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a7-2" })).run.status).toBe("succeeded");
+    expect(await prisma!.database().character.count()).toBe(1);
   }, 30_000);
 });

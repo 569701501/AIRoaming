@@ -85,6 +85,9 @@ function beatSourceKey(projectId: string, chapterId: string, version: number, be
 function chapterSceneSourceKey(projectId: string, chapterId: string, sceneId: string): string {
   return `workspace-v1:${projectId}:ChapterScene:${chapterId}:${sceneId}`;
 }
+function characterSourceKey(projectId: string, characterId: string): string {
+  return `workspace-v1:${projectId}:Character:${characterId}`;
+}
 
 function parseJson(bytes: Buffer, code: string): Record<string, unknown> {
   try { return object(JSON.parse(bytes.toString("utf8")), code); }
@@ -94,13 +97,15 @@ function parseJson(bytes: Buffer, code: string): Record<string, unknown> {
   }
 }
 
-function legacyDocument(raw: Record<string, unknown>, chapterId: string, chapterTitle: string): StoryDocumentV2 {
+function legacyDocument(raw: Record<string, unknown>, projectId: string, chapterId: string, chapterTitle: string): StoryDocumentV2 {
   const normalized = storyNormalize.normalizeStoryStructureJson(raw.structureJson ?? raw, chapterId, chapterTitle);
   const characters = normalized.characters.map((character) => {
     if (!character.projectCharacterId) throw new StoryShadowImportError("MIGRATION_STORY_CHARACTER_UNRESOLVED");
     return {
       id: character.id,
-      projectCharacterId: character.projectCharacterId,
+      projectCharacterId: character.projectCharacterId.startsWith("character_")
+        ? character.projectCharacterId
+        : PrismaMigrationLedgerRepository.stableEntityId("Character", characterSourceKey(projectId, character.projectCharacterId)),
       name: character.name,
       role: character.role,
       level: character.level ?? "chapter",
@@ -285,7 +290,7 @@ export class StoryShadowImporter {
       const structure = object(raw.structureJson ?? raw, "MIGRATION_STORY_DOCUMENT_INVALID");
       const versionValue = raw.version ?? structure.version;
       const version = typeof versionValue === "number" && Number.isInteger(versionValue) && versionValue > 0 ? versionValue : 1;
-      const document = legacyDocument(structure, chapterId, stringField(chapterMetadata, "title", slug));
+      const document = legacyDocument(structure, targetProjectId, chapterId, stringField(chapterMetadata, "title", slug));
       const sourceLegacyId = optionalString(raw, "sourceScriptVersionId") ?? optionalString(structure, "sourceScriptVersionId");
       const explicitVersion = sourceLegacyId?.match(/_script_v(\d+)$/)?.[1];
       const sourceVersion = sourceLegacyId
