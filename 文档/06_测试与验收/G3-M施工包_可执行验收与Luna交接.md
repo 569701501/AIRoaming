@@ -23,7 +23,8 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | G3-M3-A0 audit ledger | implemented，commit `830554f`；纯内存账本 + sealed snapshot 审计 |
 | G3-M3-A1 database audit | implemented，commit `053c74f`；Prisma ledger + `db:audit`，不导入业务实体 |
 | G3-M3-A2 Project/Chapter shadow | implemented，commit `ee6cc66`；sealed snapshot + decisions + `db:import --kind shadow` |
-| G3-M3-A3 Script/Outline shadow | implemented，commit `6dac060`；Outline + ScriptVersion + `--slice script-outline` |
+| G3-M3-A3 Script/Outline shadow | implemented，commit `5d8e9d2`；Outline + ScriptVersion + `--slice script-outline` |
+| G3-M3-A4 Script pending/revision shadow | implemented，commit `352248e`；Pending + Revision + `--slice script-pending-revision` |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | not_implemented |
 | G3-M5 backup/restore | not_implemented |
@@ -105,10 +106,12 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A1 已完成：`prisma-migration-ledger.repository.ts` 接入 fresh SQLite，`db:audit` 持久化 audit run/issue/source；数据库集成 RUN-DB-01～03、AUDIT-DB-01 和全量 235 项测试通过。
 - M3-A2 已完成 Project/Chapter shadow slice：读取 sealed snapshot，消费 comic-format decisions，在同一事务写入 Project/Chapter/ImportedEntitySource，稳定 ID 与 source/payload digest 可 replay；A2 集成 4 项、全量 239 项测试通过。
 - M3-A3 已完成 Script/Outline shadow slice：导入 Outline version 1 与 ChapterScriptVersion history，恢复 current 指针并遵守 G2 working-copy/rowVersion 约束；A3 链路纳入集成测试，全量 240 项测试通过。
+- M3-A4 已完成 Script pending/revision shadow slice：导入 `script-pending.json` 与 `script.revisions/latest.json`，不把 pending 误转 ScriptVersion；未导入 Dialogue 时旧 FK 置空并保留 source evidence；A4 纳入集成测试，全量 241 项测试通过。
 - M3-A0 明确不是 full importer：当时账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter。
 - M3-A1 已接 Prisma，但仍不是 full importer：`db:audit` 只审计并写 MigrationRun/MigrationIssue，不创建 Project/Chapter，不消费 decisions artifact。
 - M3-A2 仍不是 full importer：Script/Outline、Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A3 仍不是 full importer：pending/revision、Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
+- M3-A4 仍不是 full importer：Story、Storyboard/Shot、Preflight、Task、Asset/Visual、Candidate/Lock、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 

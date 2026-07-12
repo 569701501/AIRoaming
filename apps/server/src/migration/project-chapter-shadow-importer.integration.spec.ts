@@ -13,6 +13,7 @@ import { mapLegacyComicFormat } from "./comic-format-migration.plugin.js";
 import { PrismaMigrationLedgerRepository } from "./prisma-migration-ledger.repository.js";
 import { ProjectChapterShadowImporter } from "./project-chapter-shadow-importer.js";
 import { ScriptOutlineShadowImporter } from "./script-outline-shadow-importer.js";
+import { ScriptPendingRevisionShadowImporter } from "./script-pending-revision-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 
@@ -27,7 +28,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -42,6 +43,11 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.versions", "script-v001.md"), "夜色落下。\n");
       await writeFile(path.join(projectDir, "script-outline.md"), "# 故事大纲\n\n## 情节概要\n第一章展开冲突。\n");
       await writeFile(path.join(projectDir, "script-outline.json"), `${JSON.stringify({ id: "script_outline_current", projectId, status: "confirmed", title: "故事大纲", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", confirmedAt: "2026-01-02T00:00:00.000Z" })}\n`);
+    }
+    if (options.withPendingRevision) {
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "script-pending.json"), `${JSON.stringify({ sourceText: "AI 草稿正文。\n", threadId: "legacy-thread-1", messageId: "legacy-message-1", toolCallId: "legacy-tool-1", operation: "generate_script_from_outline", createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T01:00:00.000Z" })}\n`);
+      await mkdir(path.join(projectDir, "chapters", "chapter-001", "script.revisions"), { recursive: true });
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.revisions", "latest.json"), `${JSON.stringify({ id: "legacy-revision-1", projectId, chapterId: `${projectId}-chapter-001`, threadId: "legacy-thread-1", messageId: "legacy-message-1", toolCallId: "legacy-tool-1", operation: "update_chapter_draft", summary: "AI 更新章节草稿", createdAt: "2026-01-03T01:00:00.000Z" })}\n`);
     }
     if (options.duplicateChapterOrder) {
       await mkdir(path.join(projectDir, "chapters", "chapter-002"), { recursive: true });
@@ -165,5 +171,26 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect((await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a3-2" })).run.status).toBe("succeeded");
     expect(await prisma!.database().projectScriptOutline.count()).toBe(1);
     expect(await prisma!.database().chapterScriptVersion.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A4-01 imports pending/revision evidence without fabricating Dialogue foreign keys", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withPendingRevision: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a4-base" });
+    const result = await new ScriptPendingRevisionShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a4-1" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ ChapterScriptPending: 1, ChapterScriptRevision: 1 });
+    const chapter = await prisma!.database().chapter.findFirstOrThrow();
+    expect(chapter.lastScriptRevisionId).toMatch(/^chapterscriptrevision_/);
+    expect(await prisma!.database().chapterScriptPending.findFirstOrThrow()).toMatchObject({ threadId: null, messageId: null, toolCallId: null, operation: "generate_script_from_outline" });
+    expect(await prisma!.database().chapterScriptRevision.findFirstOrThrow()).toMatchObject({ threadId: null, messageId: null, toolCallId: null, source: "ai_tool", operation: "update_chapter_draft" });
+    expect(await prisma!.database().importedEntitySource.count()).toBe(4);
+    const rowVersion = chapter.rowVersion;
+    expect((await new ScriptPendingRevisionShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a4-2" })).run.status).toBe("succeeded");
+    expect(await prisma!.database().chapter.count()).toBe(1);
+    expect((await prisma!.database().chapter.findFirstOrThrow()).rowVersion).toBe(rowVersion);
+    expect(await prisma!.database().chapterScriptPending.count()).toBe(1);
+    expect(await prisma!.database().chapterScriptRevision.count()).toBe(1);
   }, 30_000);
 });
