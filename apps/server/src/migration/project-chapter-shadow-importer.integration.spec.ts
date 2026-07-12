@@ -28,6 +28,7 @@ import { LayoutShadowImporter } from "./layout-shadow-importer.js";
 import { ExportShadowImporter } from "./export-shadow-importer.js";
 import { ProviderShadowImporter } from "./provider-shadow-importer.js";
 import { DialogueShadowImporter } from "./dialogue-shadow-importer.js";
+import { FullShadowImporter, FULL_SHADOW_SLICE_ORDER } from "./full-shadow-importer.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
@@ -539,9 +540,64 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toEqual([]);
     expect(result.report.passed).toBe(true);
     expect(result.report.effectiveSchemaManifestDigest).toBe(releaseIdentity.effectiveSchemaManifestDigest);
-    expect(result.report.checks).toMatchObject({ runSucceeded: true, sourceManifestMatch: true, snapshotManifestMatch: true, integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0 });
+    expect(result.report.checks).toMatchObject({ runSucceeded: true, sourceManifestMatch: true, snapshotManifestMatch: true, integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
     expect((await prepared.repository.getRun(run.run.id)).verification).toEqual(verificationBefore);
   }, 30_000);
+
+  it("IMP-M4-02 verifies transformed settings and runtime evidence against the snapshot manifest", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withSettings: true, withDialogueRuntime: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-base" });
+    await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-providers" });
+    const dialogue = await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-dialogue" });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, dialogue.run.id, repoRoot);
+    expect(result.report.passed).toBe(true);
+    expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
+  }, 30_000);
+
+  it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
+      withScriptHistory: true,
+      withStoryStructure: true,
+      withStoryboard: true,
+      withCharacters: true,
+      withAssets: true,
+      withAssetVisuals: true,
+      withTasks: "complete",
+      withCandidates: true,
+      withLayout: true,
+      withExports: true,
+      withSettings: true,
+      withDialogueRuntime: true,
+    });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const importer = new FullShadowImporter(prisma!, prepared.repository);
+    const first = await importer.import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-full-a" });
+    expect(first.status).toBe("succeeded");
+    expect(first.slices.map((slice) => slice.slice)).toEqual([...FULL_SHADOW_SLICE_ORDER]);
+    expect(first.slices.every((slice) => slice.status === "succeeded")).toBe(true);
+    const counts = {
+      projects: await prisma!.database().project.count(),
+      chapters: await prisma!.database().chapter.count(),
+      stories: await prisma!.database().storyVersion.count(),
+      shots: await prisma!.database().shot.count(),
+      assets: await prisma!.database().asset.count(),
+      threads: await prisma!.database().conversationThread.count(),
+    };
+    const replay = await importer.import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-full-b" });
+    expect(replay.status).toBe("succeeded");
+    expect(replay.reportDigest).toBe(first.reportDigest);
+    expect({
+      projects: await prisma!.database().project.count(),
+      chapters: await prisma!.database().chapter.count(),
+      stories: await prisma!.database().storyVersion.count(),
+      shots: await prisma!.database().shot.count(),
+      assets: await prisma!.database().asset.count(),
+      threads: await prisma!.database().conversationThread.count(),
+    }).toEqual(counts);
+  }, 60_000);
 
   it("IMP-A12-01 imports legacy layout into a sealed-source-aware working copy", async () => {
     const prepared = await prepare();

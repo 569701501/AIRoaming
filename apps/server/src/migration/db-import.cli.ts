@@ -17,6 +17,7 @@ import { LayoutShadowImporter, LayoutShadowImportError } from "./layout-shadow-i
 import { ExportShadowImporter, ExportShadowImportError } from "./export-shadow-importer.js";
 import { ProviderShadowImporter, ProviderShadowImportError } from "./provider-shadow-importer.js";
 import { DialogueShadowImporter, DialogueShadowImportError } from "./dialogue-shadow-importer.js";
+import { FullShadowImporter } from "./full-shadow-importer.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -45,7 +46,7 @@ async function main(): Promise<number> {
   if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
   const sliceIndex = process.argv.indexOf("--slice");
   const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
-  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "candidates" && slice !== "candidate-locks" && slice !== "layout" && slice !== "exports" && slice !== "providers" && slice !== "dialogue" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  if (slice !== "full" && slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "candidates" && slice !== "candidate-locks" && slice !== "layout" && slice !== "exports" && slice !== "providers" && slice !== "dialogue" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const snapshot = path.resolve(required("--snapshot"));
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
@@ -53,7 +54,7 @@ async function main(): Promise<number> {
   const workspaceRootIndex = process.argv.indexOf("--workspace-root");
   const workspaceRootValue = workspaceRootIndex >= 0 ? process.argv[workspaceRootIndex + 1] : undefined;
   const workspaceRoot = workspaceRootValue ? path.resolve(workspaceRootValue) : undefined;
-  if (slice === "asset-visuals" && !workspaceRoot) throw new ShadowImportError("MIGRATION_WORKSPACE_ROOT_INVALID");
+  if ((slice === "asset-visuals" || slice === "full") && !workspaceRoot) throw new ShadowImportError("MIGRATION_WORKSPACE_ROOT_INVALID");
   const formatIndex = process.argv.indexOf("--format");
   const format = formatIndex >= 0 ? process.argv[formatIndex + 1] : undefined;
   if (format !== undefined && format !== "json") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
@@ -63,6 +64,14 @@ async function main(): Promise<number> {
   const prisma = new PrismaService();
   try {
     await prisma.onModuleInit();
+    if (slice === "full") {
+      const prefixIndex = process.argv.indexOf("--run-id-prefix");
+      const runIdPrefix = prefixIndex >= 0 ? process.argv[prefixIndex + 1] : undefined;
+      const result = await new FullShadowImporter(prisma).import(snapshot, decisions, { workspaceRoot: workspaceRoot!, runIdPrefix });
+      await writePrivateJson(reportPath, result);
+      process.stdout.write(`${JSON.stringify({ code: result.status === "blocked" ? "MIGRATION_IMPORT_BLOCKED" : "MIGRATION_IMPORT_OK", status: result.status, reportDigest: result.reportDigest })}\n`);
+      return result.status === "blocked" ? 2 : 0;
+    }
     const result = slice === "script-outline"
       ? await new ScriptOutlineShadowImporter(prisma).import(snapshot, decisions)
       : slice === "script-pending-revision"

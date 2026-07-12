@@ -148,7 +148,15 @@ export class AssetShadowImporter {
     const existingSource = await tx.importedEntitySource.findUnique({ where: { sourceKey: plan.sourceKey } });
     if (existingSource && (existingSource.entityId !== plan.targetId || existingSource.sourceDigest !== plan.sourceDigest || existingSource.payloadDigest !== plan.payloadDigest)) throw new MigrationLedgerError("MIGRATION_SOURCE_CONFLICT");
     const existing = await tx.asset.findUnique({ where: { id: plan.targetId } });
-    if (existing && (existing.projectId !== plan.projectId || existing.chapterId !== plan.chapterId || existing.storageKey !== plan.storageKey || existing.metadataDigest !== plan.metadataDigest)) throw new MigrationLedgerError("MIGRATION_PAYLOAD_CONFLICT");
+    const existingMetadata = existing?.metadataJson && typeof existing.metadataJson === "object" && !Array.isArray(existing.metadataJson)
+      ? existing.metadataJson as Record<string, unknown>
+      : null;
+    const existingBaseMetadata = existingMetadata && "physicalEvidence" in existingMetadata
+      ? Object.fromEntries(Object.entries(existingMetadata).filter(([key]) => key !== "physicalEvidence"))
+      : existingMetadata;
+    const metadataCompatible = existing?.metadataDigest === plan.metadataDigest
+      || (existing?.status === "ready" && existingBaseMetadata !== null && digestCanonicalJson(existingBaseMetadata) === plan.metadataDigest);
+    if (existing && (existing.projectId !== plan.projectId || existing.chapterId !== plan.chapterId || existing.storageKey !== plan.storageKey || !metadataCompatible)) throw new MigrationLedgerError("MIGRATION_PAYLOAD_CONFLICT");
     if (!existing) await tx.asset.create({ data: { id: plan.targetId, projectId: plan.projectId, chapterId: plan.chapterId, type: plan.type, role: plan.role, mimeType: plan.mimeType, storageKey: plan.storageKey, status: "staged", sha256: null, bytes: null, width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: plan.metadataJson, metadataSchemaVersion: 1, metadataDigest: plan.metadataDigest, createdAt: plan.createdAt, updatedAt: plan.updatedAt } });
     await this.ledger.recordImportedEntitySourceInTransaction(tx, runId, { sourceKey: plan.sourceKey, entityType: "Asset", entityId: plan.targetId, sourceStorageKey: plan.sourceStorageKey, sourceDigest: plan.sourceDigest, payloadDigest: plan.payloadDigest, provenanceStatus: "partial" });
   }

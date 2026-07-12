@@ -35,11 +35,11 @@ foundation 与 shadow importer 主要切片已推进到 A15；production cutover
 | G3-M3-A11B Candidate shadow | implemented，commit `ccd7c71`；验证 Shot/Task/Asset scope |
 | G3-M3-A11C CandidateLock shadow | implemented，commit `ba132c3`；从原始 storyboard 锁定证据恢复修订 |
 | G3-M3-A12 LayoutWorkingCopy shadow | implemented，commit `9e79deb`；旧 layout envelope 与来源绑定证据 |
-| G3-M3-A13 Export evidence shadow | implemented，当前工作区待提交；旧 manifest 只写 `legacy_unresolved` ExportRevision，不创建 ready Artifact/current |
-| G3-M3-A14 Provider/settings shadow | implemented，当前工作区待提交；只导入脱敏 provider 元数据，旧 key 不进入 Secret |
-| G3-M3-A15 Dialogue runtime shadow | implemented，当前工作区待提交；仅导入 runtime bundle 明确 captured 的对话历史，deferred 状态零实体 |
-| G3-M3 full importer | not_implemented |
-| G3-M4 verifier/shadow | in_progress；已有只读 verifier/CLI 与单次 succeeded shadow 特征测试，双 fresh shadow/API/Asset 等价门禁未完成 |
+| G3-M3-A13 Export evidence shadow | implemented，commit `ca5c449`；旧 manifest 只写 `legacy_unresolved` ExportRevision，不创建 ready Artifact/current |
+| G3-M3-A14 Provider/settings shadow | implemented，commit `47c7680`；只导入脱敏 provider 元数据，旧 key 不进入 Secret |
+| G3-M3-A15 Dialogue runtime shadow | implemented，commit `28e21d7`；仅导入 runtime bundle 明确 captured 的对话历史，deferred 状态零实体 |
+| G3-M3 full importer | implemented，当前变更待提交；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
+| G3-M4 verifier/shadow | in_progress；已补来源证据注册表、复合摘要重算、runtime/settings 转换来源校验和 full replay 特征测试，API/Asset 等价门禁未完成 |
 | G3-M5 backup/restore | not_implemented |
 | G3-M6 activate/cutover | prerequisite_blocked |
 
@@ -54,7 +54,7 @@ foundation 与 shadow importer 主要切片已推进到 A15；production cutover
 
 ## 3. 预期 package scripts
 
-以下命令按切片逐步提供；`db:verify` 已有 M4 基础实现但仍不得视为完整验收，`db:import` 目前支持 `project-chapter`、`script-outline`、`script-pending-revision`、`story`、`storyboard`、`characters`、`assets`、`asset-visuals`、`preflight`、`tasks`、`candidates`、`candidate-locks`、`layout`、`exports`、`providers`、`dialogue` 共 16 个 shadow slice，不能作为 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
+以下命令按切片逐步提供；`db:verify` 已有 M4 基础实现但仍不得视为完整验收，`db:import` 支持 16 个独立 shadow slice 以及显式的 `--slice full` 编排入口；`full` 只按依赖顺序运行 shadow，不是 final 入口。M3-A0 额外提供一个不写 DB 的中间审计命令：
 
 ```text
 maintenance（G3-M0 已提供）
@@ -63,6 +63,8 @@ migration:audit:check（M3-A0：只读 sealed snapshot，不写 DB）
 db:audit
 migration:decisions:check
 db:import
+# 全量 shadow 编排（仍不等于 final）
+db:import --kind shadow --slice full --workspace-root <workspace-root>
 db:verify
 db:capabilities
 app:backup
@@ -142,15 +144,15 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - M3-A6 仍不是 full importer：Character、Asset/Visual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A7 仍不是 full importer：Asset/CharacterVisual/SceneVisual、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
 - M3-A8 仍不是 full importer：CharacterVisual/SceneVisual、物理文件 hash/bytes/尺寸、Candidate/Lock、Preflight、Task、Layout/Export、Dialogue 和 provider metadata 尚未导入；`db:import --kind final` 固定 fail-closed。
-- M3-A15 后仍不是 full importer：pending Dialogue artifact、完整 read-model/orchestration 尚未导入；`db:import --kind final` 固定 fail-closed，backup 和 activate 也尚未实现。
+- 当前已提供 full shadow orchestration：`full-shadow-importer.ts` 固定按 16 个 slice 的依赖顺序运行，保留每个 slice 的 MigrationRun，并对不含 runId 的稳定结果摘要计算聚合 reportDigest；它仍不是 final importer，pending Dialogue artifact、read-model/API 等价、backup 和 activate 尚未实现，`db:import --kind final` 继续 fail-closed。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 
 ### G3-M4
 
 - 当前基础实现：`MigrationVerifyService`/`db:verify` 只读 sealed snapshot 与目标 DB，检查 run/manifest、`integrity_check`、FK、blocker 和来源追溯锚点；`effectiveSchemaManifestDigest` 使用 Prisma Schema + 全部有序 migration checksum 的 release identity，不再使用 G1 source manifest digest。
-- `ImportedEntitySource.sourceDigest` 可以由多个源文件合成，不能与单个 `sourceStorageKey` 文件摘要直接比较；当前 M4 只证明追溯锚点属于 sealed manifest。完整复合摘要重算需后续按 entityType 建来源证据注册表。
-- 当前仅完成单次 succeeded shadow 的只读特征测试，以下正式绿色条件仍未满足，因此状态保持 `in_progress`。
+- `migration-source-evidence.registry.ts` 已按 entityType 注册单文件、Chapter 复合（chapter.json + script.md）和 runtime bundle canonical 摘要算法；`db:verify` 同时检查 source/snapshot manifest，settings/runtime 转换输入不会被误判为越界来源。
+- 当前已完成单次 succeeded、转换来源和 full replay 特征测试，以下正式绿色条件仍未满足，因此状态保持 `in_progress`。
 - 连续两轮 fresh shadow：integrity=ok、FK=0、ledger exact、blocker=0、API DTO 等价、Asset hash 一致。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。
 
