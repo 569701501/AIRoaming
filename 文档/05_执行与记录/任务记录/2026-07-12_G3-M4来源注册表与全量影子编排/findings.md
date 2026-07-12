@@ -27,6 +27,7 @@ source: code exploration and tests
 - Pending Dialogue 的 runtime bundle 是显式 `dialogue_pending_state_v1`，只捕获 ScriptDialogueService 实际持有的 `script_import`、`inspiration_seeds`、`script_outline_decision` 三类 Map；StoryStructure/Storyboard 继续使用各自领域 pending 真值，不重复建模。
 - `PendingDialogueArtifact` 的 project/chapter/thread 与可选 message/toolResult 引用均在导入前解析为稳定 target；未注册 kind、非 pending 状态、跨 scope 或缺失引用 fail-closed，不创建伪恢复项。
 - full shadow 原尾部顺序为 `providers → dialogue`，与导入契约的 `Dialogue/pending → Provider metadata` 不一致；已改为 `dialogue → providers`。同时，前置 slice 返回 `blocked` 时必须停止编排，避免下游以空输入生成看似成功的 run。
+- 来源注册表不仅要拒绝未知 `entityType`，还要验证已注册实体的摘要和 runtime 锚点；`IMP-M4-04`、`IMP-M4-05` 已证明摘要篡改或 runtime 偏离 `runtime-bundle.json` 时 verifier fail-closed。
 
 # M4 结论
 

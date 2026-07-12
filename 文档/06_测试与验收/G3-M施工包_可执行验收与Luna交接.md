@@ -152,7 +152,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 - 当前基础实现：`MigrationVerifyService`/`db:verify` 只读 sealed snapshot 与目标 DB，检查 run/manifest、`integrity_check`、FK、blocker 和来源追溯锚点；`effectiveSchemaManifestDigest` 使用 Prisma Schema + 全部有序 migration checksum 的 release identity，不再使用 G1 source manifest digest。
 - `migration-source-evidence.registry.ts` 已按 entityType 注册单文件、Chapter 复合（chapter.json + script.md）和 runtime bundle canonical 摘要算法；`db:verify` 同时检查 source/snapshot manifest，settings/runtime 转换输入不会被误判为越界来源。
-- 当前已完成单次 succeeded、转换来源、full replay 特征测试、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType` 也已验证 fail-closed；M4 仍保留 `in_progress`，等待正式验收签字。
+- 当前已完成单次 succeeded、转换来源、full replay 特征测试、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType`、已注册摘要篡改和 runtime 错误锚点也已验证 fail-closed；M4 仍保留 `in_progress`，等待正式验收签字。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明移走旧 workspace 后 DB 重启仍可读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不重建旧 workspace，归档旧文件字节不变（代码提交 `f05f8da` 后续补强）。
 - `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed。

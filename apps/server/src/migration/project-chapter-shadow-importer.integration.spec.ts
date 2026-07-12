@@ -691,6 +691,54 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_UNREGISTERED");
   }, 30_000);
 
+  it("IMP-M4-04 fails closed when a registered source entity has a mismatched digest", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-source-mismatch" });
+    const projectItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/project.json");
+    expect(projectItem).toBeDefined();
+    await prisma!.database().importedEntitySource.create({
+      data: {
+        sourceKey: "workspace-v1:p1:Project:tampered-project",
+        entityType: "Project",
+        entityId: "tampered-project",
+        sourceStorageKey: projectItem!.storageKey,
+        sourceDigest: SOURCE,
+        provenanceStatus: "reference_only",
+        firstRunId: run.run.id,
+        lastRunId: run.run.id,
+      },
+    });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks.sourceMismatchCount).toBe(1);
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
+  }, 30_000);
+
+  it("IMP-M4-05 fails closed when a runtime entity is not anchored to the sealed runtime bundle", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withDialogueRuntime: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const base = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-runtime-anchor-base" });
+    await prisma!.database().importedEntitySource.create({
+      data: {
+        sourceKey: "workspace-v1:p1:ConversationThread:tampered-runtime",
+        entityType: "ConversationThread",
+        entityId: "tampered-runtime",
+        sourceStorageKey: "projects/p1/project.json",
+        sourceDigest: snapshot.sealed.runtimeBundleDigest,
+        provenanceStatus: "reference_only",
+        firstRunId: base.run.id,
+        lastRunId: base.run.id,
+      },
+    });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, base.run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks.sourceMismatchCount).toBe(1);
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

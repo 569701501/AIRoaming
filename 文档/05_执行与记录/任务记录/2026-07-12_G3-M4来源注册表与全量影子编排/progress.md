@@ -20,6 +20,7 @@ source: task execution
 - [x] DB full shadow → `WorkbenchSnapshot` 公共读模型、API DTO 语义等价、Asset 物理 hash 对照和 DB-only 写隔离门禁。
 - [x] DB-only 重启读隔离：移走旧 workspace 后重新启动 DB 模式仍可读取同一 `WorkbenchSnapshot`；归档旧文件字节保持不变。
 - [x] 新增未知 `entityType` 来源证据回归：`db:verify` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并 fail-closed。
+- [x] 新增已注册来源摘要不匹配与 runtime 错误锚点回归：`db:verify` 返回 `MIGRATION_SOURCE_DIGEST_MISMATCH` 并 fail-closed。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
@@ -34,8 +35,9 @@ source: task execution
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-FRESH' --testTimeout=120000`：1 项通过；两套 fresh SQLite DB 的 16 个 slice、逐片 verifier、reportDigest 与业务 inventory digest 均一致。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-API-01' --testTimeout=120000`：1 项通过；移走旧 workspace 后 DB 重启仍能读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致、ready Asset sha256/bytes 与旧物理文件一致，DB 草稿写入不重建旧工作区。
 - `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts --run --testTimeout=120000`：28 个迁移集成测试通过；包含 DB-only 断根重启和未知 entityType fail-closed。
-- 同一命令当前：29 个迁移集成测试通过；新增 `IMP-M3-FULL-02` 验证四格未决议时只保留首个 blocked run，不创建下游 slice。
-- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、266 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue 与 full fail-fast 门禁。
+- 同一命令当前：31 个迁移集成测试通过；新增 `IMP-M3-FULL-02` 验证四格未决议时只保留首个 blocked run，不创建下游 slice，并新增 `IMP-M4-04/05` 来源证据 fail-closed 回归。
+- `IMP-M4-04`、`IMP-M4-05` 定向测试：2 项通过；覆盖注册类型摘要篡改和 runtime 非 `runtime-bundle.json` 锚点。
+- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、268 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full fail-fast 与来源证据篡改门禁。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。
 

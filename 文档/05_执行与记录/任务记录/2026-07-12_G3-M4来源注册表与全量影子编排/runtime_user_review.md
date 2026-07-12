@@ -23,6 +23,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 3. `IMP-M3-FULL-02`：四格未决议导致首个 Project/Chapter slice blocked，编排立即停止，不创建下游空 run。
 4. `IMP-M4-API-01`：移走旧 workspace 后重启 DB 模式仍能读取；DB read-model 语义 DTO 与 file-mode `WorkbenchSnapshot` 一致；ready Asset 物理 hash/bytes 一致；DB 写入不重建旧 workspace，归档旧文件字节不变。
 5. `IMP-M4-03`：向已成功 run 注入未注册 `entityType` 后，verifier 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed。
+6. `IMP-M4-04`、`IMP-M4-05`：已注册实体的摘要被篡改，或 runtime 实体偏离 `runtime-bundle.json`，verifier 均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH` 并保持 fail-closed。
 6. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
 
 ## 读取点审计边界
