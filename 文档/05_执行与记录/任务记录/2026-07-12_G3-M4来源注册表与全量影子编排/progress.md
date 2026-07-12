@@ -45,6 +45,7 @@ source: task execution
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
 - [x] M4 任务目录同步 DB read-model/API/Asset 门禁证据；M4 仍等待正式验收签字。
+- [x] 新增 `acceptance_checklist.md`，逐项绑定 `IMP-M4-01～31` 与全量门禁，状态保持 `pending_signoff`。
 - [ ] M5 backup/restore、M6 activate/cutover。
 
 # 验证证据

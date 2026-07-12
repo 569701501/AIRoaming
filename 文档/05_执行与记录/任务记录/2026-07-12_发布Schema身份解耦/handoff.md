@@ -34,6 +34,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - `IMP-M4-29` 已补做 full CLI blocked prerequisite 回归：返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
 - `IMP-M4-30` 已补做 `db:import --kind final` 真实入口回归：在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
 - `IMP-M4-31` 已补做 16 个独立 `db:import --kind shadow --slice <slice>` 真实入口回归：每个 CLI 分支按依赖顺序成功并写出合法报告。
+- M4 正式验收清单已落在 `2026-07-12_G3-M4来源注册表与全量影子编排/acceptance_checklist.md`，当前仅为 `pending_signoff`，不改变 M4 `in_progress` 状态。
 
 ## 明确未完成
 
