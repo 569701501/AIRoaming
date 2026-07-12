@@ -24,6 +24,7 @@ source: task execution
 - `pnpm --filter @airoaming/server typecheck`：通过。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4' --testTimeout=15000`：2 项通过。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M3-FULL' --testTimeout=60000`：1 项通过。
+- 全量 `pnpm --filter @airoaming/server test -- --run --testTimeout=15000`：45 个测试文件、261 个测试通过；G1 manifest/schema/migration check 与 `git diff --check` 通过。
 
 # 工作区约束
 
