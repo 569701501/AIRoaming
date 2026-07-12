@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { PersistenceModule } from "../persistence/persistence.module.js";
 import { SettingsModule } from "../settings/settings.module.js";
 import { TasksModule } from "../tasks/tasks.module.js";
 import { WorkspaceModule } from "../workspace/workspace.module.js";
@@ -18,7 +19,7 @@ import { ProjectStore } from "./project-store.service.js";
 import { ProjectsService } from "./projects.service.js";
 
 @Module({
-  imports: [WorkspaceModule, TasksModule, SettingsModule],
+  imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule],
   controllers: [ProjectsController],
   providers: [
     ProjectRepository,

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r1",
+  "manifestDigest": "sha256:5496ddcd51d62d6a4f9a5e92856e0dfd881b29d3d3e90d7ee0a024323873f39e",
+  "reviewerId": "codex-scrutiny-contract-20260712",
+  "reviewerRole": "contract_consistency",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T19:03:34.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r1/contract_consistency.review.md",
+    "digest": "sha256:eb2c98846853adb95c211eec0d0099f216f7bb069bcab6217f2799ca679320eb"
+  },
+  "findings": [
+    {
+      "code": "G1-CONTRACT-P1-TASK-TARGET-BINDING",
+      "severity": "P1",
+      "status": "open",
+      "summary": "G2 两类任务的 target 映射不可满足",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md",
+        "apps/server/src/persistence/g1-schema-constraint-source.ts",
+        "文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md",
+        "文档/04_方案与决策/2026-07-11_G2版本来源与Freshness契约字典.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P1-RETRY-BACKOFF",
+      "severity": "P1",
+      "status": "open",
+      "summary": "G1 runtime task 仍有两套 retry 时序",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G1数据库事实源与DB-only切换开发方案.md",
+        "文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md",
+        "文档/06_测试与验收/G1数据库迁移执行与验收清单.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P1-PREFLIGHT-LEGACY",
+      "severity": "P1",
+      "status": "open",
+      "summary": "legacy Preflight 导入结果仍不唯一",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/04_方案与决策/2026-07-11_G2版本来源与Freshness契约字典.md",
+        "文档/04_方案与决策/2026-07-11_G3漫画版式契约与旧值迁移字典.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P1-G4-LOCKSET-NULLABILITY",
+      "severity": "P1",
+      "status": "open",
+      "summary": "G4 可复制 TypeScript 契约无法表达验收要求",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md",
+        "文档/06_测试与验收/G4候选定稿返修验收清单.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P1-G5-LAYOUT-SEAL",
+      "severity": "P1",
+      "status": "open",
+      "summary": "正式 LayoutRevision 编号事务在切 current 前漏 seal",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G5LayoutDocument与编辑命令契约字典.md",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P2-G5-OVERLAY-OWNERSHIP",
+      "severity": "P2",
+      "status": "open",
+      "summary": "G5 QA 仍把 G1 base 字段写成 G5 ADD COLUMN",
+      "evidenceRefs": [
+        "文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P2-G5-PRISMA-PATH",
+      "severity": "P2",
+      "status": "open",
+      "summary": "G5 实施改动面指向不存在的 Prisma 根",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md",
+        "apps/server/prisma/schema.prisma"
+      ],
+      "resolution": null
+    }
+  ]
+}

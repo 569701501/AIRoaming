@@ -1,5 +1,12 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from "@nestjs/common";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import {
@@ -28,6 +35,7 @@ import {
   type WorkbenchAsset,
 } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
+import { PrismaService } from "../persistence/prisma.service.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
 import * as wsJson from "./workspace-json.util.js";
 import * as wsDomain from "./project-domain.util.js";
@@ -35,6 +43,22 @@ import * as storyNormalize from "./story-normalize.util.js";
 import * as wsCharacter from "./character-domain.util.js";
 
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
+
+const DB_PROJECT_INCLUDE = {
+  chaptersByProject: {
+    include: { chapterScriptVersionsByChapter: true },
+  },
+} satisfies Prisma.ProjectInclude;
+
+type DatabaseProject = Prisma.ProjectGetPayload<{
+  include: typeof DB_PROJECT_INCLUDE;
+}>;
+
+export type ProjectPersistenceWrite =
+  | "create_project"
+  | "save_chapter_draft"
+  | "complete_chapter"
+  | "unsupported";
 
 /**
  * 项目持久化 Repository:缓存(projects Map)+ workspace 加载链 + normalizeImagePreflightJson 等。
@@ -48,7 +72,13 @@ export class ProjectRepository {
   private projectsLoaded = false;
   private projectsLoadPromise: Promise<void> | null = null;
 
-  constructor(@Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService) {}
+  constructor(
+    @Inject(WorkspacePathService)
+    private readonly workspacePathService: WorkspacePathService,
+    @Optional()
+    @Inject(PrismaService)
+    private readonly prismaService?: PrismaService,
+  ) {}
 
   // ====== public 缓存 API ======
 
@@ -57,7 +87,11 @@ export class ProjectRepository {
       return;
     }
     if (!this.projectsLoadPromise) {
-      this.projectsLoadPromise = this.loadProjectsFromWorkspace().finally(() => {
+      this.projectsLoadPromise = (
+        this.isDatabaseMode()
+          ? this.loadProjectsFromDatabase()
+          : this.loadProjectsFromWorkspace()
+      ).finally(() => {
         this.projectsLoadPromise = null;
       });
     }
@@ -84,10 +118,41 @@ export class ProjectRepository {
     return this.projects.has(projectId);
   }
 
+  isDatabaseMode(): boolean {
+    if (this.prismaService) return this.prismaService.isDatabaseMode();
+    if (process.env.AIROAMING_PERSISTENCE_MODE?.trim() === "db") {
+      throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
+    }
+    return false;
+  }
+
+  createChapterId(projectId: string, order: number): string {
+    const suffix = String(order).padStart(3, "0");
+    return this.isDatabaseMode()
+      ? `${projectId}_chapter_${suffix}`
+      : `chapter_${suffix}`;
+  }
+
+  assertDatabaseOperationSupported(operation: string): void {
+    if (this.isDatabaseMode()) {
+      throw new BadRequestException(
+        `DB_PERSISTENCE_OPERATION_UNSUPPORTED:${operation}`,
+      );
+    }
+  }
+
   // ====== 写入链 ======
 
   /** 落盘整棵项目树。workflow 由调用方算好传入(依赖 buildImagePreflightJson 业务判断,见候选②)。 */
-  async saveProject(project: LocalProject, workflow: ProjectWorkflow): Promise<void> {
+  async saveProject(
+    project: LocalProject,
+    workflow: ProjectWorkflow,
+    write: ProjectPersistenceWrite = "unsupported",
+  ): Promise<void> {
+    if (this.isDatabaseMode()) {
+      await this.saveProjectToDatabase(project, write);
+      return;
+    }
     await this.workspacePathService.ensureReady();
 
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);
@@ -143,12 +208,14 @@ export class ProjectRepository {
   }
 
   async clearProjectChaptersDir(projectId: string): Promise<void> {
+    this.assertDatabaseOperationSupported("clear_project_chapters");
     await this.workspacePathService.ensureReady();
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
     await rm(path.join(projectDir, "chapters"), { recursive: true, force: true });
   }
 
   async clearLegacyStoryDir(projectId: string): Promise<void> {
+    this.assertDatabaseOperationSupported("clear_legacy_story");
     await this.workspacePathService.ensureReady();
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
     await rm(path.join(projectDir, "story"), { recursive: true, force: true });
@@ -227,6 +294,425 @@ export class ProjectRepository {
         await writeFile(path.join(versionsDir, `script-v${String(version.version).padStart(3, "0")}.md`), version.sourceText, "utf8");
       }
     }
+  }
+
+  private database(): PrismaClient {
+    if (!this.prismaService) {
+      throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
+    }
+    return this.prismaService.database();
+  }
+
+  private digestText(value: string): string {
+    return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
+  }
+
+  private parseDate(value: string, field: string): Date {
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.valueOf())) {
+      throw new BadRequestException(`DB_PERSISTENCE_DATE_INVALID:${field}`);
+    }
+    return parsed;
+  }
+
+  private toDatabaseComicFormat(value: ComicFormat): string {
+    if (value === "vertical_scroll") return value;
+    if (value === "page_horizontal") return "paged_comic";
+    throw new BadRequestException(
+      `DB_PERSISTENCE_COMIC_FORMAT_UNSUPPORTED:${value}`,
+    );
+  }
+
+  private fromDatabaseComicFormat(value: string): ComicFormat {
+    if (value === "vertical_scroll") return value;
+    if (value === "paged_comic") return "page_horizontal";
+    throw new Error(`DB_PERSISTENCE_COMIC_FORMAT_INVALID:${value}`);
+  }
+
+  private assertDatabaseProjectShape(project: LocalProject): void {
+    if (
+      project.scriptOutline !== null ||
+      project.characters.length > 0 ||
+      project.assets.length > 0
+    ) {
+      throw new BadRequestException("DB_PERSISTENCE_C3_PROJECT_FIELDS_UNSUPPORTED");
+    }
+    for (const chapter of project.chapters) {
+      if (
+        chapter.projectId !== project.id ||
+        chapter.currentStoryVersionId !== null ||
+        chapter.storyStructure !== null ||
+        chapter.storyboard !== null ||
+        (chapter.pendingStoryboard ?? null) !== null ||
+        chapter.pendingSourceText !== null ||
+        chapter.imagePreflight !== null ||
+        chapter.candidates.length > 0 ||
+        chapter.layout !== null ||
+        chapter.lastScriptRevision !== null
+      ) {
+        throw new BadRequestException("DB_PERSISTENCE_C3_CHAPTER_FIELDS_UNSUPPORTED");
+      }
+    }
+  }
+
+  private chapterCreateData(
+    chapter: LocalChapter,
+  ): Prisma.ChapterUncheckedCreateInput {
+    return {
+      id: chapter.id,
+      projectId: chapter.projectId,
+      slug: chapter.slug,
+      order: chapter.order,
+      title: chapter.title,
+      milestoneStatus: chapter.status,
+      scriptWorkingText: chapter.sourceText,
+      scriptWorkingDigest: this.digestText(chapter.sourceText),
+      scriptWorkingState: chapter.sourceText.trim() ? "dirty" : "empty",
+      summary: chapter.summary || null,
+      completedAt: chapter.completedAt
+        ? this.parseDate(chapter.completedAt, "chapter.completedAt")
+        : null,
+      currentScriptVersionId: null,
+      currentStoryVersionId: null,
+      pendingStoryVersionId: null,
+      currentStoryboardVersionId: null,
+      pendingStoryboardVersionId: null,
+      currentPreflightRevisionId: null,
+      currentLayoutRevisionId: null,
+      currentExportRevisionId: null,
+      lastScriptRevisionId: null,
+      rowVersion: 0,
+      createdAt: this.parseDate(chapter.createdAt, "chapter.createdAt"),
+      updatedAt: this.parseDate(chapter.updatedAt, "chapter.updatedAt"),
+    };
+  }
+
+  private async createProjectInDatabase(project: LocalProject): Promise<void> {
+    if (project.chapters.length !== 1 || project.chapters[0]?.scriptVersions.length) {
+      throw new BadRequestException("DB_PERSISTENCE_CREATE_PROJECT_SHAPE_INVALID");
+    }
+    const currentChapterId = project.currentChapterId;
+    if (
+      currentChapterId === null ||
+      !project.chapters.some((chapter) => chapter.id === currentChapterId)
+    ) {
+      throw new BadRequestException("DB_PERSISTENCE_CURRENT_CHAPTER_INVALID");
+    }
+    const database = this.database();
+    await database.$transaction(async (transaction) => {
+      await transaction.project.create({
+        data: {
+          id: project.id,
+          name: project.name,
+          type: project.type,
+          lifecycleStatus: "active",
+          storyTitle: project.storyTitle,
+          genreTags: project.genreTags,
+          comicFormat: this.toDatabaseComicFormat(project.comicFormat),
+          artStyle: project.artStyle,
+          description: project.description,
+          currentChapterId: null,
+          currentScriptOutlineId: null,
+          rowVersion: 0,
+          createdAt: this.parseDate(project.createdAt, "project.createdAt"),
+          updatedAt: this.parseDate(project.updatedAt, "project.updatedAt"),
+          deletingAt: null,
+        },
+      });
+      await transaction.chapter.create({
+        data: this.chapterCreateData(project.chapters[0]),
+      });
+      await transaction.project.update({
+        where: { id: project.id },
+        data: { currentChapterId },
+      });
+    });
+  }
+
+  private async saveChapterDraftInDatabase(
+    previous: LocalProject,
+    project: LocalProject,
+  ): Promise<void> {
+    if (
+      project.chapters.length !== previous.chapters.length ||
+      project.currentChapterId === null
+    ) {
+      throw new BadRequestException("DB_PERSISTENCE_DRAFT_TRANSITION_INVALID");
+    }
+    const chapter = project.chapters.find(
+      (candidate) => candidate.id === project.currentChapterId,
+    );
+    const previousChapter = previous.chapters.find(
+      (candidate) => candidate.id === project.currentChapterId,
+    );
+    if (
+      !chapter ||
+      !previousChapter ||
+      JSON.stringify(chapter.scriptVersions) !==
+        JSON.stringify(previousChapter.scriptVersions) ||
+      chapter.status !== previousChapter.status ||
+      chapter.currentScriptVersionId !== previousChapter.currentScriptVersionId ||
+      chapter.completedAt !== previousChapter.completedAt
+    ) {
+      throw new BadRequestException("DB_PERSISTENCE_DRAFT_TRANSITION_INVALID");
+    }
+    const workingDigest = this.digestText(chapter.sourceText);
+    const currentScriptVersion = chapter.currentScriptVersionId === null
+      ? null
+      : chapter.scriptVersions.find(
+        (version) => version.id === chapter.currentScriptVersionId,
+      );
+    if (chapter.currentScriptVersionId !== null && !currentScriptVersion) {
+      throw new BadRequestException("DB_PERSISTENCE_DRAFT_TRANSITION_INVALID");
+    }
+    const scriptWorkingState = !chapter.sourceText.trim()
+      ? "empty"
+      : currentScriptVersion &&
+          this.digestText(currentScriptVersion.sourceText) === workingDigest
+        ? "clean"
+        : "dirty";
+    const database = this.database();
+    await database.$transaction(async (transaction) => {
+      await transaction.chapter.update({
+        where: { id: chapter.id },
+        data: {
+          title: chapter.title,
+          summary: chapter.summary || null,
+          scriptWorkingText: chapter.sourceText,
+          scriptWorkingDigest: workingDigest,
+          scriptWorkingState,
+          rowVersion: { increment: 1 },
+          updatedAt: this.parseDate(chapter.updatedAt, "chapter.updatedAt"),
+        },
+      });
+      await transaction.project.update({
+        where: { id: project.id },
+        data: {
+          storyTitle: project.storyTitle,
+          currentChapterId: project.currentChapterId,
+          rowVersion: { increment: 1 },
+          updatedAt: this.parseDate(project.updatedAt, "project.updatedAt"),
+        },
+      });
+    });
+  }
+
+  private async completeChapterInDatabase(
+    previous: LocalProject,
+    project: LocalProject,
+  ): Promise<void> {
+    const completionCandidates = project.chapters.flatMap((candidate) => {
+      const prior = previous.chapters.find((item) => item.id === candidate.id);
+      if (!prior) return [];
+      const priorVersionIds = new Set(
+        prior.scriptVersions.map((version) => version.id),
+      );
+      const addedVersions = candidate.scriptVersions.filter(
+        (version) => !priorVersionIds.has(version.id),
+      );
+      return addedVersions.length > 0
+        ? [{ chapter: candidate, previousChapter: prior, addedVersions }]
+        : [];
+    });
+    const completion = completionCandidates[0];
+    const chapter = completion?.chapter;
+    const previousChapter = completion?.previousChapter;
+    const newVersions = completion?.addedVersions ?? [];
+    const newChapters = project.chapters.filter(
+      (candidate) => !previous.chapters.some((item) => item.id === candidate.id),
+    );
+    const version = newVersions[0];
+    if (
+      !chapter ||
+      !previousChapter ||
+      completionCandidates.length !== 1 ||
+      chapter.status !== "script_done" ||
+      newVersions.length !== 1 ||
+      chapter.currentScriptVersionId !== version?.id ||
+      newChapters.length > 1 ||
+      newChapters.some(
+        (candidate) =>
+          candidate.sourceText !== "" || candidate.scriptVersions.length > 0,
+      )
+    ) {
+      throw new BadRequestException("DB_PERSISTENCE_COMPLETE_TRANSITION_INVALID");
+    }
+
+    const database = this.database();
+    await database.$transaction(async (transaction) => {
+      for (const newChapter of newChapters) {
+        await transaction.chapter.create({ data: this.chapterCreateData(newChapter) });
+      }
+      await transaction.chapterScriptVersion.create({
+        data: {
+          id: version.id,
+          chapterId: chapter.id,
+          version: version.version,
+          sourceText: version.sourceText,
+          sourceDigest: this.digestText(version.sourceText),
+          origin: "user",
+          createdAt: this.parseDate(version.createdAt, "scriptVersion.createdAt"),
+          completedAt: chapter.completedAt
+            ? this.parseDate(chapter.completedAt, "chapter.completedAt")
+            : null,
+        },
+      });
+      await transaction.chapter.update({
+        where: { id: chapter.id },
+        data: {
+          title: chapter.title,
+          milestoneStatus: chapter.status,
+          scriptWorkingText: chapter.sourceText,
+          scriptWorkingDigest: this.digestText(chapter.sourceText),
+          scriptWorkingState: "clean",
+          summary: chapter.summary || null,
+          completedAt: chapter.completedAt
+            ? this.parseDate(chapter.completedAt, "chapter.completedAt")
+            : null,
+          currentScriptVersionId: version.id,
+          rowVersion: { increment: 1 },
+          updatedAt: this.parseDate(chapter.updatedAt, "chapter.updatedAt"),
+        },
+      });
+      await transaction.project.update({
+        where: { id: project.id },
+        data: {
+          storyTitle: project.storyTitle,
+          currentChapterId: project.currentChapterId,
+          rowVersion: { increment: 1 },
+          updatedAt: this.parseDate(project.updatedAt, "project.updatedAt"),
+        },
+      });
+    });
+  }
+
+  private async saveProjectToDatabase(
+    project: LocalProject,
+    write: ProjectPersistenceWrite,
+  ): Promise<void> {
+    this.assertDatabaseProjectShape(project);
+    const previous = this.projects.get(project.id);
+    if (write === "create_project" && previous === undefined) {
+      await this.createProjectInDatabase(project);
+      return;
+    }
+    if (write === "save_chapter_draft" && previous !== undefined) {
+      await this.saveChapterDraftInDatabase(previous, project);
+      return;
+    }
+    if (write === "complete_chapter" && previous !== undefined) {
+      await this.completeChapterInDatabase(previous, project);
+      return;
+    }
+    throw new BadRequestException(
+      `DB_PERSISTENCE_OPERATION_UNSUPPORTED:${write}`,
+    );
+  }
+
+  private async loadProjectsFromDatabase(): Promise<void> {
+    const rows = await this.database().project.findMany({
+      where: { lifecycleStatus: "active" },
+      include: DB_PROJECT_INCLUDE,
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    });
+    for (const row of rows) {
+      const project = this.databaseProjectToLocal(row);
+      this.projects.set(project.id, project);
+    }
+    this.projectsLoaded = true;
+  }
+
+  private databaseProjectToLocal(row: DatabaseProject): LocalProject {
+    if (row.currentScriptOutlineId !== null) {
+      throw new Error(`DB_PERSISTENCE_RECORD_OUTSIDE_C3:${row.id}`);
+    }
+    const chapters = [...row.chaptersByProject]
+      .sort((left, right) => left.order - right.order)
+      .map((chapter): LocalChapter => {
+        if (
+          chapter.currentStoryVersionId !== null ||
+          chapter.pendingStoryVersionId !== null ||
+          chapter.currentStoryboardVersionId !== null ||
+          chapter.pendingStoryboardVersionId !== null ||
+          chapter.currentPreflightRevisionId !== null ||
+          chapter.currentLayoutRevisionId !== null ||
+          chapter.currentExportRevisionId !== null ||
+          chapter.lastScriptRevisionId !== null
+        ) {
+          throw new Error(`DB_PERSISTENCE_RECORD_OUTSIDE_C3:${chapter.id}`);
+        }
+        const versions = [...chapter.chapterScriptVersionsByChapter]
+          .sort((left, right) => left.version - right.version)
+          .map((version): LocalChapterScriptVersion => ({
+            id: version.id,
+            projectId: chapter.projectId,
+            chapterId: chapter.id,
+            version: version.version,
+            sourcePath: `projects/${chapter.projectId}/chapters/${chapter.slug}/script.versions/script-v${String(version.version).padStart(3, "0")}.md`,
+            status:
+              version.id === chapter.currentScriptVersionId
+                ? "current"
+                : "archived",
+            createdAt: version.createdAt.toISOString(),
+            sourceText: version.sourceText,
+          }));
+        return {
+          id: chapter.id,
+          projectId: chapter.projectId,
+          slug: chapter.slug,
+          order: chapter.order,
+          title: chapter.title,
+          status: wsDomain.normalizeChapterStatus(chapter.milestoneStatus),
+          currentScriptVersionId: chapter.currentScriptVersionId,
+          currentStoryVersionId: null,
+          sourceText: chapter.scriptWorkingText,
+          summary: chapter.summary ?? "",
+          storyStructure: null,
+          storyboard: null,
+          pendingStoryboard: null,
+          pendingSourceText: null,
+          imagePreflight: null,
+          candidates: [],
+          layout: null,
+          createdAt: chapter.createdAt.toISOString(),
+          updatedAt: chapter.updatedAt.toISOString(),
+          completedAt: chapter.completedAt?.toISOString() ?? null,
+          scriptVersions: versions,
+          lastScriptRevision: null,
+        };
+      });
+    if (row.currentChapterId === null) {
+      throw new Error(`DB_PERSISTENCE_CURRENT_CHAPTER_INVALID:${row.id}:null`);
+    }
+    const currentChapter = chapters.find(
+      (chapter) => chapter.id === row.currentChapterId,
+    );
+    if (!currentChapter) {
+      throw new Error(
+        `DB_PERSISTENCE_CURRENT_CHAPTER_INVALID:${row.id}:${row.currentChapterId}`,
+      );
+    }
+    const genreTags = Array.isArray(row.genreTags)
+      ? row.genreTags.filter((tag): tag is string => typeof tag === "string")
+      : [];
+    return {
+      id: row.id,
+      name: row.name,
+      type: wsDomain.normalizeProjectType(row.type),
+      currentChapterId: currentChapter.id,
+      storyTitle: row.storyTitle ?? row.name,
+      genreTags,
+      comicFormat: this.fromDatabaseComicFormat(row.comicFormat),
+      artStyle: wsDomain.normalizeArtStyle(row.artStyle as ArtStyle | undefined),
+      description: row.description ?? row.storyTitle ?? row.name,
+      sourceText: currentChapter.sourceText,
+      scriptOutline: null,
+      characters: [],
+      assets: [],
+      chapters,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 
   // ====== 加载链 ======

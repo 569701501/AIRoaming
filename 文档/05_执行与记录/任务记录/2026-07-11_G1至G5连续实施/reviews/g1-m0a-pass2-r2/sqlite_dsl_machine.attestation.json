@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r2",
+  "manifestDigest": "sha256:2fef00a5c016b48784db675fb9e88778c6e073dd6e0798c0c0fdbbeb2b5d279f",
+  "reviewerId": "codex-sqlite-dsl-machine-r2-20260712",
+  "reviewerRole": "sqlite_dsl_machine",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T20:35:58.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r2/sqlite_dsl_machine.review.md",
+    "digest": "sha256:e482eb692f86b79094ddc80aa26511b3eed41a7f99b0d6355142a1a1dccc71d4"
+  },
+  "findings": [
+    {
+      "code": "G1-R2-SQLITE-P1-ACTIVE-DIALOGUE-DELETE-BYPASS",
+      "severity": "P1",
+      "status": "open",
+      "summary": "未终结的对话消息、外部会话和 pending 对话产物可在 active Project 下直接删除，绕过终结协议与审计。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-trigger-dsl-runtime-a.ts",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r2/sqlite_dsl_machine.review.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-R2-SQLITE-P1-REVIEW-BUNDLE-FINAL-SNAPSHOT-RACE",
+      "severity": "P1",
+      "status": "open",
+      "summary": "review bundle 的最终逐文件重验允许早期文件在函数返回前等长改写，loader 仍返回旧的已解析事实。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-review-bundle.ts",
+        "apps/server/src/persistence/g1-schema-review-bundle.spec.ts",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r2/sqlite_dsl_machine.review.md"
+      ],
+      "resolution": null
+    }
+  ]
+}

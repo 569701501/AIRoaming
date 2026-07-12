@@ -18,6 +18,8 @@
     "test:e2e:repeat": "pnpm test:e2e:prepare && playwright test --repeat-each=3",
     "test:e2e:ui": "pnpm test:e2e:prepare && playwright test --ui",
     "test:all": "pnpm typecheck && pnpm typecheck:e2e && pnpm test && pnpm test:e2e:prepare && playwright test",
+    "postinstall": "pnpm prisma:generate",
+    "prisma:generate": "pnpm --filter @airoaming/server exec prisma generate --schema prisma/schema.prisma",
     "prisma:validate": "pnpm --filter @airoaming/server prisma:validate"
   },
   "devDependencies": {

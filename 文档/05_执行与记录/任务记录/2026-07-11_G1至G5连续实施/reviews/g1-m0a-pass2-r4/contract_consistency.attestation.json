@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r4",
+  "manifestDigest": "sha256:0acc15df259d1744bb26c6b853e994dadc6c4be48fcb1d8e2c798254bc01a237",
+  "reviewerId": "codex-scrutiny-contract-20260712-r4",
+  "reviewerRole": "contract_consistency",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T22:21:19.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r4/contract_consistency.review.md",
+    "digest": "sha256:65562480ed79aabaafee51b4ed5aa60fbca407a188d9b275df674997bdb36736"
+  },
+  "findings": [
+    {
+      "code": "G1-CONTRACT-P1-GATE-RANGE-DRIFT",
+      "severity": "P1",
+      "status": "open",
+      "summary": "IMP-05A 当前已 exactly-one，但一字母或五字母前缀的 malformed gate 仍会绕过 gate-like fail-closed detector",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-gate-coverage.spec.ts",
+        "文档/06_测试与验收/G1数据库迁移执行与验收清单.md",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/task_plan.md",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/handoff.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P1-SOURCE-COUNT-DRIFT",
+      "severity": "P1",
+      "status": "open",
+      "summary": "权威契约同时把 current review-check source 边界写成 19 和 18，后者可能排除新增的 package.json 摘要绑定",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "apps/server/src/persistence/g1-schema-manifest-source.ts",
+        "apps/server/src/persistence/g1-schema-manifest.spec.ts",
+        "apps/server/package.json",
+        "文档/06_测试与验收/G1数据库迁移执行与验收清单.md"
+      ],
+      "resolution": null
+    }
+  ]
+}

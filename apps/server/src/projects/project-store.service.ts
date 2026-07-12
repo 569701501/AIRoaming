@@ -7,7 +7,10 @@ import * as wsDomain from "./project-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
-import { ProjectRepository } from "./project-repository.service.js";
+import {
+  ProjectRepository,
+  type ProjectPersistenceWrite,
+} from "./project-repository.service.js";
 
 /**
  * 项目读写骨架(从 ProjectsService 抽出,见任务 2026-06-24_ProjectStore骨架抽取)。
@@ -45,14 +48,25 @@ export class ProjectStore {
   }
 
   /** 写:构造 workflow(含角色任务状态回调)+ 落盘。 */
-  async writeProjectFiles(project: LocalProject): Promise<void> {
+  async writeProjectFiles(
+    project: LocalProject,
+    write: ProjectPersistenceWrite = "unsupported",
+  ): Promise<void> {
+    if (this.repository.isDatabaseMode()) {
+      await this.repository.saveProject(
+        project,
+        workflowUtil.buildProjectWorkflow(project, wsDomain.getCurrentChapter(project), false),
+        write,
+      );
+      return;
+    }
     const currentChapter = wsDomain.getCurrentChapter(project) ?? wsDomain.createDefaultChapter(project.id, project.sourceText, project.createdAt);
     const workflow = workflowUtil.buildProjectWorkflow(
       project,
       currentChapter,
       imagePreflightUtil.isChapterImagePreflightReady(project, currentChapter, (pid, cid) => this.referenceTaskChecker(pid, cid, "final_reference")),
     );
-    await this.repository.saveProject(project, workflow);
+    await this.repository.saveProject(project, workflow, write);
   }
 
   /** 切换当前章节(写回 currentChapterId)。 */
@@ -82,6 +96,9 @@ export class ProjectStore {
 
   /** 确保默认章节就绪:读 script.md 兜底 sourceText + 写回。 */
   async ensureDefaultChapterReady(project: LocalProject): Promise<LocalProject> {
+    if (this.repository.isDatabaseMode()) {
+      return project;
+    }
     const current = wsDomain.getCurrentChapter(project);
     const defaultChapter = current ?? wsDomain.createDefaultChapter(project.id, project.sourceText, project.createdAt);
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${project.id}`);

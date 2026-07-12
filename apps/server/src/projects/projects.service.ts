@@ -244,12 +244,13 @@ export class ProjectsService implements OnModuleInit {
     const genreTags = this.normalizeGenreTags(input.genreTags);
     const sourceText = input.sourceText?.trim() ?? "";
     const projectId = randomUUID();
+    const defaultChapter = this.createDefaultChapter(projectId, sourceText, now);
 
     const project: LocalProject = {
       id: projectId,
       name,
       type: this.normalizeProjectType(input.type),
-      currentChapterId: DEFAULT_CHAPTER_ID,
+      currentChapterId: defaultChapter.id,
       storyTitle,
       genreTags,
       comicFormat,
@@ -259,17 +260,22 @@ export class ProjectsService implements OnModuleInit {
       scriptOutline: null,
       characters: [],
       assets: [],
-      chapters: [this.createDefaultChapter(projectId, sourceText, now)],
+      chapters: [defaultChapter],
       createdAt: now,
       updatedAt: now,
     };
 
-    await this.projectStore.writeProjectFiles(project);
+    await this.projectStore.writeProjectFiles(project, "create_project");
     this.repository.setProject(project);
     return this.toProjectListItem(project);
   }
 
   async updateProjectDraft(projectId: string, input: UpdateProjectDraftRequest): Promise<ProjectListItem> {
+    // 请求内容的既有校验必须早于存储模式门禁，避免 DB 模式改变公开 API 的参数错误语义。
+    if (input.sourceText !== undefined && !input.sourceText.trim()) {
+      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
+    }
+    this.repository.assertDatabaseOperationSupported("update_project_draft");
     const project = await this.projectStore.getReadyProject(projectId);
 
     const nextName = input.name === undefined ? project.name : input.name.trim();
@@ -279,10 +285,6 @@ export class ProjectsService implements OnModuleInit {
 
     const nextStoryTitle = input.storyTitle === undefined ? project.storyTitle : input.storyTitle.trim();
     const nextDescription = input.description === undefined ? project.description : input.description.trim();
-    // 非空校验:显式传入空 sourceText 会用空内容覆盖当前章节正文(与 saveChapterDraft 一致)。
-    if (input.sourceText !== undefined && !input.sourceText.trim()) {
-      throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
-    }
     const nextSourceText = input.sourceText === undefined ? project.sourceText : input.sourceText;
     const updatedAt = new Date().toISOString();
     const nextChapters = this.updateCurrentChapterSource(project, nextSourceText, updatedAt);
@@ -322,23 +324,27 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async ensureProjectCharacterPreviewTasks(projectId: string) : Promise<QueueCharacterReferenceResponse> {
+    this.repository.assertDatabaseOperationSupported("ensure_character_previews");
     return this.characterRef.ensureProjectCharacterPreviewTasks(projectId);
   }
 
   async extractProjectCharacters(projectId: string,
     input: ExtractProjectCharactersRequest = {},) : Promise<ExtractProjectCharactersResponse> {
+    this.repository.assertDatabaseOperationSupported("extract_characters");
     return this.characterRef.extractProjectCharacters(projectId, input);
   }
 
   async updateProjectCharacter(projectId: string,
     characterId: string,
     input: UpdateProjectCharacterRequest,) : Promise<SaveProjectCharacterResponse> {
+    this.repository.assertDatabaseOperationSupported("update_character");
     return this.characterRef.updateProjectCharacter(projectId, characterId, input);
   }
 
   async generateCharacterReference(projectId: string,
     characterId: string,
     input: GenerateCharacterReferenceRequest & { sourceTaskId?: string } = {},) : Promise<GenerateCharacterReferenceResponse> {
+    this.repository.assertDatabaseOperationSupported("generate_character_reference");
     return this.characterRef.generateCharacterReference(projectId, characterId, input);
   }
 
@@ -349,6 +355,7 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     sceneId: string,
     input: GenerateSceneReferenceRequest = {},) : Promise<QueueSceneReferenceResponse> {
+    this.repository.assertDatabaseOperationSupported("queue_scene_reference");
     return this.characterRef.queueSceneReference(projectId, chapterId, sceneId, input);
   }
 
@@ -357,6 +364,7 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     sceneId: string,
     input: GenerateSceneReferenceRequest & { sourceTaskId?: string } = {},) : Promise<{ storyStructure: ChapterStoryStructure; asset: WorkbenchAsset }> {
+    this.repository.assertDatabaseOperationSupported("generate_scene_reference");
     return this.characterRef.generateSceneReference(projectId, chapterId, sceneId, input);
   }
 
@@ -364,24 +372,28 @@ export class ProjectsService implements OnModuleInit {
   async queueCharacterReference(projectId: string,
     characterId: string,
     input: GenerateCharacterReferenceRequest = {},) : Promise<QueueCharacterReferenceResponse> {
+    this.repository.assertDatabaseOperationSupported("queue_character_reference");
     return this.characterRef.queueCharacterReference(projectId, characterId, input);
   }
 
   async confirmCharacterPreview(projectId: string,
     characterId: string,
     input: ConfirmCharacterPreviewRequest,) : Promise<ConfirmCharacterPreviewResponse> {
+    this.repository.assertDatabaseOperationSupported("confirm_character_preview");
     return this.characterRef.confirmCharacterPreview(projectId, characterId, input);
   }
 
   async confirmCharacterReference(projectId: string,
     characterId: string,
     input: ConfirmCharacterReferenceRequest,) : Promise<SaveProjectCharacterResponse> {
+    this.repository.assertDatabaseOperationSupported("confirm_character_reference");
     return this.characterRef.confirmCharacterReference(projectId, characterId, input);
   }
 
   async deleteCharacterReference(projectId: string,
     characterId: string,
     assetId: string,) : Promise<SaveProjectCharacterResponse & { deletedAssetId: string }> {
+    this.repository.assertDatabaseOperationSupported("delete_character_reference");
     return this.characterRef.deleteCharacterReference(projectId, characterId, assetId);
   }
 
@@ -402,6 +414,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async clearChapterScript(projectId: string, chapterId: string) : Promise<ClearChapterScriptResponse> {
+    this.repository.assertDatabaseOperationSupported("clear_chapter_script");
     return this.chapterScript.clearChapterScript(projectId, chapterId);
   }
 
@@ -411,6 +424,7 @@ export class ProjectsService implements OnModuleInit {
    */
   async confirmChapterPendingSource(projectId: string,
     chapterId: string,) : Promise<ConfirmChapterPendingSourceResponse> {
+    this.repository.assertDatabaseOperationSupported("confirm_chapter_pending_source");
     return this.chapterScript.confirmChapterPendingSource(projectId, chapterId);
   }
 
@@ -419,6 +433,7 @@ export class ProjectsService implements OnModuleInit {
    */
   async discardChapterPendingSource(projectId: string,
     chapterId: string,) : Promise<DiscardChapterPendingSourceResponse> {
+    this.repository.assertDatabaseOperationSupported("discard_chapter_pending_source");
     return this.chapterScript.discardChapterPendingSource(projectId, chapterId);
   }
 
@@ -428,6 +443,7 @@ export class ProjectsService implements OnModuleInit {
    */
   async importScriptToChapters(projectId: string,
     input: ImportScriptToChaptersInput,) : Promise<ImportScriptToChaptersResult> {
+    this.repository.assertDatabaseOperationSupported("import_script_to_chapters");
     return this.chapterScript.importScriptToChapters(projectId, input);
   }
 
@@ -437,20 +453,27 @@ export class ProjectsService implements OnModuleInit {
    * 用于批量逐章生成时,每生成一章前确保目标章节已就位。
    */
   async ensureChapterExists(projectId: string, order: number, title?: string) : Promise<ChapterDetail> {
+    this.repository.assertDatabaseOperationSupported("ensure_chapter_exists");
     return this.chapterScript.ensureChapterExists(projectId, order, title);
   }
 
   async writeChapterDraftFromAI(projectId: string,
     chapterId: string,
     input: WriteChapterDraftFromAIInput,) : Promise<WriteChapterDraftFromAIResult> {
+    if (!stripChapterScriptName(input.sourceText.trim())) {
+      throw new BadRequestException("AI_CHAPTER_DRAFT_REQUIRED");
+    }
+    this.repository.assertDatabaseOperationSupported("write_chapter_draft_from_ai");
     return this.chapterScript.writeChapterDraftFromAI(projectId, chapterId, input);
   }
 
   async saveScriptOutlineFromAI(projectId: string, input: SaveScriptOutlineFromAIInput) : Promise<ProjectScriptOutline> {
+    this.repository.assertDatabaseOperationSupported("save_script_outline_from_ai");
     return this.chapterScript.saveScriptOutlineFromAI(projectId, input);
   }
 
   async confirmScriptOutline(projectId: string): Promise<ProjectScriptOutline> {
+    this.repository.assertDatabaseOperationSupported("confirm_script_outline");
     return this.chapterScript.confirmScriptOutline(projectId);
   }
 
@@ -461,12 +484,14 @@ export class ProjectsService implements OnModuleInit {
   async confirmChapterStoryStructure(projectId: string,
     chapterId: string,
     input: ConfirmChapterStoryStructureRequest,) : Promise<SaveChapterStoryStructureResponse> {
+    this.repository.assertDatabaseOperationSupported("confirm_story_structure");
     return this.storyStructure.confirmChapterStoryStructure(projectId, chapterId, input);
   }
 
   async updateChapterStoryStructure(projectId: string,
     chapterId: string,
     input: UpdateChapterStoryStructureRequest,) : Promise<SaveChapterStoryStructureResponse> {
+    this.repository.assertDatabaseOperationSupported("update_story_structure");
     return this.storyStructure.updateChapterStoryStructure(projectId, chapterId, input);
   }
 
@@ -481,12 +506,14 @@ export class ProjectsService implements OnModuleInit {
   async confirmChapterImagePreflight(projectId: string,
     chapterId: string,
     input: ConfirmChapterImagePreflightRequest = {},) : Promise<SaveChapterImagePreflightResponse> {
+    this.repository.assertDatabaseOperationSupported("confirm_image_preflight");
     return this.imagePreflight.confirmChapterImagePreflight(projectId, chapterId, input);
   }
 
   async resolveImagePreflightCharacter(projectId: string,
     chapterId: string,
     input: ResolveImagePreflightCharacterRequest,) : Promise<ResolveImagePreflightCharacterResponse> {
+    this.repository.assertDatabaseOperationSupported("resolve_image_preflight_character");
     return this.imagePreflight.resolveImagePreflightCharacter(projectId, chapterId, input);
   }
 
@@ -495,6 +522,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private async guardGenerationTaskCreate(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest | void> {
+    this.repository.assertDatabaseOperationSupported("generation_task_create");
     if (!imageCandidateTaskTypes.has(input.type)) {
       return;
     }
@@ -622,18 +650,21 @@ export class ProjectsService implements OnModuleInit {
   async savePendingChapterStoryboard(projectId: string,
     chapterId: string,
     input: UpdateChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    this.repository.assertDatabaseOperationSupported("save_pending_storyboard");
     return this.storyboard.savePendingChapterStoryboard(projectId, chapterId, input);
   }
 
   async confirmChapterStoryboard(projectId: string,
     chapterId: string,
     input: ConfirmChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    this.repository.assertDatabaseOperationSupported("confirm_storyboard");
     return this.storyboard.confirmChapterStoryboard(projectId, chapterId, input);
   }
 
   async updateChapterStoryboard(projectId: string,
     chapterId: string,
     input: UpdateChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    this.repository.assertDatabaseOperationSupported("update_storyboard");
     return this.storyboard.updateChapterStoryboard(projectId, chapterId, input);
   }
 
@@ -642,26 +673,32 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: LockChapterCandidateRequest,
   ): Promise<LockChapterCandidateResponse> {
+    this.repository.assertDatabaseOperationSupported("lock_candidate");
     return this.imageCandidate.lockCandidate(projectId, chapterId, input);
   }
 
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
+    this.repository.assertDatabaseOperationSupported("complete_chapter_images");
     return this.imageCandidate.completeChapterImages(projectId, chapterId);
   }
 
   async buildChapterLayout(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
+    this.repository.assertDatabaseOperationSupported("build_layout");
     return this.layoutExport.buildChapterLayout(projectId, chapterId);
   }
 
   async exportChapterLayout(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
+    this.repository.assertDatabaseOperationSupported("export_layout");
     return this.layoutExport.exportChapterLayout(projectId, chapterId);
   }
 
   async exportAssetPackage(projectId: string, chapterId?: string): Promise<ExportAssetPackageResponse> {
+    this.repository.assertDatabaseOperationSupported("export_asset_package");
     return this.assetPackage.exportAssetPackage(projectId, chapterId);
   }
 
   async resetProjectScript(projectId: string) : Promise<ResetProjectScriptResponse> {
+    this.repository.assertDatabaseOperationSupported("reset_project_script");
     return this.chapterScript.resetProjectScript(projectId);
   }
 
@@ -670,6 +707,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async deleteProject(projectId: string): Promise<DeleteProjectResponse> {
+    this.repository.assertDatabaseOperationSupported("delete_project");
     const project = await this.projectStore.getReadyProject(projectId);
 
     await this.workspacePathService.ensureReady();
@@ -827,7 +865,10 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private createDefaultChapter(projectId: string, sourceText: string, now: string): LocalChapter {
-    return wsDomain.createDefaultChapter(projectId, sourceText, now);
+    return {
+      ...wsDomain.createDefaultChapter(projectId, sourceText, now),
+      id: this.repository.createChapterId(projectId, 1),
+    };
   }
 
   private updateCurrentChapterSource(project: LocalProject, sourceText: string, updatedAt: string): LocalChapter[] {

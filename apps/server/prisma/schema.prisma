@@ -7,131 +7,1161 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Project {
-  id                    String   @id @default(cuid())
-  name                  String
-  type                  String   @default("comic")
-  status                String   @default("draft")
-  currentStoryVersionId String?  @map("current_story_version_id")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
-
-  storyVersions  StoryVersion[]
-  shots          Shot[]
-  assets         Asset[]
-  generationTasks GenerationTask[]
-
-  @@map("projects")
-}
-
-model StoryVersion {
-  id            String   @id @default(cuid())
-  projectId     String   @map("project_id")
-  version       Int      @default(1)
-  sourceText    String   @default("") @map("source_text")
-  summary       String?
-  structureJson String   @default("{}") @map("structure_json")
-  status        String   @default("draft")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  shots   Shot[]
-
-  @@index([projectId, version], map: "idx_story_versions_project_version")
-  @@map("story_versions")
-}
-
-model Shot {
-  id                String   @id @default(cuid())
-  projectId         String   @map("project_id")
-  storyVersionId    String?  @map("story_version_id")
-  beatId            String?  @map("beat_id")
-  shotNumber        Int      @map("shot_number")
-  action            String
-  dialogue          String?
-  caption           String?
-  camera            String?
-  composition       String?
-  emotion           String?
-  promptDraft       String?  @map("prompt_draft")
-  lockedCandidateId String?  @map("locked_candidate_id")
-  status            String   @default("draft")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  storyVersion StoryVersion? @relation(fields: [storyVersionId], references: [id], onDelete: SetNull)
-  candidates   Candidate[]
-
-  @@index([projectId, shotNumber], map: "idx_shots_project_number")
-  @@map("shots")
-}
-
-model Candidate {
-  id        String   @id @default(cuid())
-  projectId String   @map("project_id")
-  shotId    String   @map("shot_id")
-  taskId    String?  @map("task_id")
-  assetId   String?  @map("asset_id")
-  index     Int      @default(1)
-  status    String   @default("generated")
-  score     Float?
-  notes     String   @default("")
+model PersistenceState {
+  id String @id @default("primary")
+  storageContractVersion Int @default(1) @map("storage_contract_version")
+  activationState String @default("shadow") @map("activation_state")
+  cutoverRunId String? @map("cutover_run_id")
+  sourceManifestDigest String? @map("source_manifest_digest")
+  effectiveSchemaManifestDigest String? @map("effective_schema_manifest_digest")
+  activatedAt DateTime? @map("activated_at")
+  firstBusinessWriteAt DateTime? @map("first_business_write_at")
+  lastVerifiedAt DateTime? @map("last_verified_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  shot  Shot   @relation(fields: [shotId], references: [id], onDelete: Cascade)
-  asset Asset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
-  task  GenerationTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  cutoverRun MigrationRun? @relation("PersistenceState_cutoverRun_MigrationRun", fields: [cutoverRunId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
-  @@index([shotId, status], map: "idx_candidates_shot_status")
-  @@map("candidates")
+  @@map("persistence_states")
+}
+
+model MigrationRun {
+  id String @id @default(uuid())
+  kind String
+  status String @default("running")
+  importerVersion String @map("importer_version")
+  sourceManifestDigest String @map("source_manifest_digest")
+  snapshotManifestDigest String? @map("snapshot_manifest_digest")
+  decisionsDigest String? @map("decisions_digest")
+  reportDigest String? @map("report_digest")
+  countsJson Json? @map("counts_json")
+  countsSchemaVersion Int? @map("counts_schema_version")
+  verificationJson Json? @map("verification_json")
+  verificationSchemaVersion Int? @map("verification_schema_version")
+  errorCode String? @map("error_code")
+  startedAt DateTime @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  importedEntitySourcesByFirstRun ImportedEntitySource[] @relation("ImportedEntitySource_firstRun_MigrationRun")
+  importedEntitySourcesByLastRun ImportedEntitySource[] @relation("ImportedEntitySource_lastRun_MigrationRun")
+  migrationIssuesByRun MigrationIssue[] @relation("MigrationIssue_run_MigrationRun")
+  persistenceStatesByCutoverRun PersistenceState[] @relation("PersistenceState_cutoverRun_MigrationRun")
+
+  @@index([status(sort: Asc), startedAt(sort: Asc)], map: "ix_migration_runs_status_started_at")
+  @@map("migration_runs")
+}
+
+model ImportedEntitySource {
+  id String @id @default(uuid())
+  sourceKey String @map("source_key")
+  entityType String @map("entity_type")
+  entityId String @map("entity_id")
+  sourceStorageKey String? @map("source_storage_key")
+  sourceDigest String @map("source_digest")
+  payloadDigest String? @map("payload_digest")
+  provenanceStatus String @default("reference_only") @map("provenance_status")
+  firstRunId String @map("first_run_id")
+  lastRunId String @map("last_run_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  firstRun MigrationRun @relation("ImportedEntitySource_firstRun_MigrationRun", fields: [firstRunId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  lastRun MigrationRun @relation("ImportedEntitySource_lastRun_MigrationRun", fields: [lastRunId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([sourceKey], map: "uq_imported_entity_sources_source_key")
+  @@index([entityType(sort: Asc), entityId(sort: Asc)], map: "ix_imported_entity_sources_entity")
+  @@index([lastRunId(sort: Asc)], map: "ix_imported_entity_sources_last_run")
+  @@map("imported_entity_sources")
+}
+
+model MigrationIssue {
+  id String @id @default(uuid())
+  runId String @map("run_id")
+  issueKey String @map("issue_key")
+  severity String
+  code String
+  sourceKey String? @map("source_key")
+  entityType String? @map("entity_type")
+  entityId String? @map("entity_id")
+  storageKey String? @map("storage_key")
+  detailJson Json @map("detail_json")
+  detailSchemaVersion Int @map("detail_schema_version")
+  resolutionStatus String @default("open") @map("resolution_status")
+  resolutionJson Json? @map("resolution_json")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run MigrationRun @relation("MigrationIssue_run_MigrationRun", fields: [runId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([runId, issueKey], map: "uq_migration_issues_run_issue_key")
+  @@index([code(sort: Asc)], map: "ix_migration_issues_code")
+  @@index([runId(sort: Asc), severity(sort: Asc)], map: "ix_migration_issues_run_severity")
+  @@map("migration_issues")
+}
+
+model Project {
+  id String @id @default(uuid())
+  name String
+  type String @default("comic")
+  lifecycleStatus String @default("active") @map("lifecycle_status")
+  storyTitle String? @map("story_title")
+  genreTags Json @map("genre_tags")
+  comicFormat String @map("comic_format")
+  artStyle String? @map("art_style")
+  description String?
+  currentChapterId String? @map("current_chapter_id")
+  currentScriptOutlineId String? @map("current_script_outline_id")
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletingAt DateTime? @map("deleting_at")
+
+  assetsByProject Asset[] @relation("Asset_project_Project")
+  chapterScenesByProject ChapterScene[] @relation("ChapterScene_project_Project")
+  chaptersByProject Chapter[] @relation("Chapter_project_Project")
+  charactersByProject Character[] @relation("Character_project_Project")
+  conversationThreadsByProject ConversationThread[] @relation("ConversationThread_project_Project")
+  exportRevisionsByProject ExportRevision[] @relation("ExportRevision_project_Project")
+  generationTasksByProject GenerationTask[] @relation("GenerationTask_project_Project")
+  layoutRevisionsByProject LayoutRevision[] @relation("LayoutRevision_project_Project")
+  layoutWorkingCopysByProject LayoutWorkingCopy[] @relation("LayoutWorkingCopy_project_Project")
+  pendingDialogueArtifactsByProject PendingDialogueArtifact[] @relation("PendingDialogueArtifact_project_Project")
+  preflightRevisionsByProject PreflightRevision[] @relation("PreflightRevision_project_Project")
+  projectContextFactsByProject ProjectContextFact[] @relation("ProjectContextFact_project_Project")
+  projectScriptOutlinesByProject ProjectScriptOutline[] @relation("ProjectScriptOutline_project_Project")
+  currentChapter Chapter? @relation("Project_currentChapter_Chapter", fields: [currentChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  currentScriptOutline ProjectScriptOutline? @relation("Project_currentScriptOutline_ProjectScriptOutline", fields: [currentScriptOutlineId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  shotsByProject Shot[] @relation("Shot_project_Project")
+  storyVersionsByProject StoryVersion[] @relation("StoryVersion_project_Project")
+  storyboardVersionsByProject StoryboardVersion[] @relation("StoryboardVersion_project_Project")
+
+  @@index([lifecycleStatus(sort: Asc), updatedAt(sort: Asc)], map: "ix_projects_lifecycle_updated_at")
+  @@map("projects")
+}
+
+model ProjectScriptOutline {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  version Int
+  status String @default("draft")
+  title String
+  sourceText String @map("source_text")
+  sourceDigest String @map("source_digest")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  confirmedAt DateTime? @map("confirmed_at")
+
+  project Project @relation("ProjectScriptOutline_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  projectsByCurrentScriptOutline Project[] @relation("Project_currentScriptOutline_ProjectScriptOutline")
+
+  @@unique([id, projectId], map: "uq_project_script_outlines_id_project")
+  @@unique([projectId, version], map: "uq_project_script_outlines_project_version")
+  @@index([projectId(sort: Asc), status(sort: Asc)], map: "ix_project_script_outlines_project_status")
+  @@map("project_script_outlines")
+}
+
+model Chapter {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  slug String
+  order Int
+  title String
+  milestoneStatus String @default("draft") @map("milestone_status")
+  scriptWorkingText String @default("") @map("script_working_text")
+  scriptWorkingDigest String @map("script_working_digest")
+  scriptWorkingState String @default("empty") @map("script_working_state")
+  summary String?
+  completedAt DateTime? @map("completed_at")
+  currentScriptVersionId String? @map("current_script_version_id")
+  currentStoryVersionId String? @map("current_story_version_id")
+  pendingStoryVersionId String? @map("pending_story_version_id")
+  currentStoryboardVersionId String? @map("current_storyboard_version_id")
+  pendingStoryboardVersionId String? @map("pending_storyboard_version_id")
+  currentPreflightRevisionId String? @map("current_preflight_revision_id")
+  currentLayoutRevisionId String? @map("current_layout_revision_id")
+  currentExportRevisionId String? @map("current_export_revision_id")
+  lastScriptRevisionId String? @map("last_script_revision_id")
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  assetsByChapter Asset[] @relation("Asset_chapter_Chapter")
+  chapterScenesByChapter ChapterScene[] @relation("ChapterScene_chapter_Chapter")
+  chapterScriptPendingByChapter ChapterScriptPending? @relation("ChapterScriptPending_chapter_Chapter")
+  chapterScriptRevisionsByChapter ChapterScriptRevision[] @relation("ChapterScriptRevision_chapter_Chapter")
+  chapterScriptVersionsByChapter ChapterScriptVersion[] @relation("ChapterScriptVersion_chapter_Chapter")
+  currentExportRevision ExportRevision? @relation("Chapter_currentExportRevision_ExportRevision", fields: [currentExportRevisionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  currentLayoutRevision LayoutRevision? @relation("Chapter_currentLayoutRevision_LayoutRevision", fields: [currentLayoutRevisionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  currentPreflightRevision PreflightRevision? @relation("Chapter_currentPreflightRevision_PreflightRevision", fields: [currentPreflightRevisionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  currentScriptVersion ChapterScriptVersion? @relation("Chapter_currentScriptVersion_ChapterScriptVersion", fields: [currentScriptVersionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  currentStoryVersion StoryVersion? @relation("Chapter_currentStoryVersion_StoryVersion", fields: [currentStoryVersionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  currentStoryboardVersion StoryboardVersion? @relation("Chapter_currentStoryboardVersion_StoryboardVersion", fields: [currentStoryboardVersionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  lastScriptRevision ChapterScriptRevision? @relation("Chapter_lastScriptRevision_ChapterScriptRevision", fields: [lastScriptRevisionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  pendingStoryVersion StoryVersion? @relation("Chapter_pendingStoryVersion_StoryVersion", fields: [pendingStoryVersionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  pendingStoryboardVersion StoryboardVersion? @relation("Chapter_pendingStoryboardVersion_StoryboardVersion", fields: [pendingStoryboardVersionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  project Project @relation("Chapter_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  conversationThreadsByChapter ConversationThread[] @relation("ConversationThread_chapter_Chapter")
+  exportRevisionsByChapter ExportRevision[] @relation("ExportRevision_chapter_Chapter")
+  generationTasksByChapter GenerationTask[] @relation("GenerationTask_chapter_Chapter")
+  layoutRevisionsByChapter LayoutRevision[] @relation("LayoutRevision_chapter_Chapter")
+  layoutWorkingCopyByChapter LayoutWorkingCopy? @relation("LayoutWorkingCopy_chapter_Chapter")
+  pendingDialogueArtifactsByChapter PendingDialogueArtifact[] @relation("PendingDialogueArtifact_chapter_Chapter")
+  preflightRevisionsByChapter PreflightRevision[] @relation("PreflightRevision_chapter_Chapter")
+  projectsByCurrentChapter Project[] @relation("Project_currentChapter_Chapter")
+  shotsByChapter Shot[] @relation("Shot_chapter_Chapter")
+  storyVersionsByChapter StoryVersion[] @relation("StoryVersion_chapter_Chapter")
+  storyboardVersionsByChapter StoryboardVersion[] @relation("StoryboardVersion_chapter_Chapter")
+
+  @@unique([id, projectId], map: "uq_chapters_id_project")
+  @@unique([projectId, order], map: "uq_chapters_project_order")
+  @@unique([projectId, slug], map: "uq_chapters_project_slug")
+  @@index([projectId(sort: Asc), milestoneStatus(sort: Asc)], map: "ix_chapters_project_milestone")
+  @@map("chapters")
+}
+
+model ChapterScriptVersion {
+  id String @id @default(uuid())
+  chapterId String @map("chapter_id")
+  version Int
+  sourceText String @map("source_text")
+  sourceDigest String @map("source_digest")
+  origin String
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  chapter Chapter @relation("ChapterScriptVersion_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  chaptersByCurrentScriptVersion Chapter[] @relation("Chapter_currentScriptVersion_ChapterScriptVersion")
+  storyVersionsBySourceScriptVersion StoryVersion[] @relation("StoryVersion_sourceScriptVersion_ChapterScriptVersion")
+
+  @@unique([chapterId, version], map: "uq_chapter_script_versions_chapter_version")
+  @@unique([id, chapterId], map: "uq_chapter_script_versions_id_chapter")
+  @@map("chapter_script_versions")
+}
+
+model ChapterScriptPending {
+  id String @id @default(uuid())
+  chapterId String @map("chapter_id")
+  sourceText String @map("source_text")
+  sourceDigest String @map("source_digest")
+  operation String
+  threadId String? @map("thread_id")
+  messageId String? @map("message_id")
+  toolCallId String? @map("tool_call_id")
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  chapter Chapter @relation("ChapterScriptPending_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  message ConversationMessage? @relation("ChapterScriptPending_message_ConversationMessage", fields: [messageId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  thread ConversationThread? @relation("ChapterScriptPending_thread_ConversationThread", fields: [threadId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([chapterId], map: "uq_chapter_script_pending_chapter")
+  @@index([threadId(sort: Asc), toolCallId(sort: Asc)], map: "ix_chapter_script_pending_thread_tool")
+  @@map("chapter_script_pending")
+}
+
+model ChapterScriptRevision {
+  id String @id @default(uuid())
+  chapterId String @map("chapter_id")
+  source String
+  threadId String? @map("thread_id")
+  messageId String? @map("message_id")
+  toolCallId String? @map("tool_call_id")
+  operation String
+  summary String
+  targetWorkingDigest String @map("target_working_digest")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chapter Chapter @relation("ChapterScriptRevision_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  message ConversationMessage? @relation("ChapterScriptRevision_message_ConversationMessage", fields: [messageId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  thread ConversationThread? @relation("ChapterScriptRevision_thread_ConversationThread", fields: [threadId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  chaptersByLastScriptRevision Chapter[] @relation("Chapter_lastScriptRevision_ChapterScriptRevision")
+
+  @@unique([threadId, toolCallId], map: "uq_chapter_script_revisions_thread_tool")
+  @@index([chapterId(sort: Asc), createdAt(sort: Asc)], map: "ix_chapter_script_revisions_chapter_created_at")
+  @@map("chapter_script_revisions")
+}
+
+model StoryVersion {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  version Int
+  status String
+  sourceScriptVersionId String? @map("source_script_version_id")
+  sourcePolicyVersion String? @map("source_policy_version")
+  sourceDigest String? @map("source_digest")
+  documentJson Json @map("document_json")
+  schemaVersion Int @map("schema_version")
+  documentDigest String @map("document_digest")
+  origin String
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  archivedAt DateTime? @map("archived_at")
+
+  chaptersByCurrentStoryVersion Chapter[] @relation("Chapter_currentStoryVersion_StoryVersion")
+  chaptersByPendingStoryVersion Chapter[] @relation("Chapter_pendingStoryVersion_StoryVersion")
+  storyBeatProjectionsByStoryVersion StoryBeatProjection[] @relation("StoryBeatProjection_storyVersion_StoryVersion")
+  storySceneProjectionsByStoryVersion StorySceneProjection[] @relation("StorySceneProjection_storyVersion_StoryVersion")
+  chapter Chapter @relation("StoryVersion_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("StoryVersion_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceScriptVersion ChapterScriptVersion? @relation("StoryVersion_sourceScriptVersion_ChapterScriptVersion", fields: [sourceScriptVersionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyboardVersionsBySourceStoryVersion StoryboardVersion[] @relation("StoryboardVersion_sourceStoryVersion_StoryVersion")
+
+  @@unique([chapterId, version], map: "uq_story_versions_chapter_version")
+  @@unique([id, projectId, chapterId], map: "uq_story_versions_id_scope")
+  @@index([chapterId(sort: Asc), status(sort: Asc)], map: "ix_story_versions_chapter_status")
+  @@index([sourceScriptVersionId(sort: Asc)], map: "ix_story_versions_source_script")
+  @@map("story_versions")
+}
+
+model StorySceneProjection {
+  id String @id @default(uuid())
+  storyVersionId String @map("story_version_id")
+  chapterSceneId String @map("chapter_scene_id")
+  sceneKey String @map("scene_key")
+  order Int
+  name String
+  semanticDigest String @map("semantic_digest")
+
+  chapterScene ChapterScene @relation("StorySceneProjection_chapterScene_ChapterScene", fields: [chapterSceneId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyVersion StoryVersion @relation("StorySceneProjection_storyVersion_StoryVersion", fields: [storyVersionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([storyVersionId, sceneKey], map: "uq_story_scene_projections_version_key")
+  @@unique([storyVersionId, order], map: "uq_story_scene_projections_version_order")
+  @@index([chapterSceneId(sort: Asc)], map: "ix_story_scene_projections_chapter_scene")
+  @@map("story_scene_projections")
+}
+
+model StoryBeatProjection {
+  id String @id @default(uuid())
+  storyVersionId String @map("story_version_id")
+  beatKey String @map("beat_key")
+  order Int
+  chapterSceneId String? @map("chapter_scene_id")
+  summary String
+  semanticDigest String @map("semantic_digest")
+
+  chapterScene ChapterScene? @relation("StoryBeatProjection_chapterScene_ChapterScene", fields: [chapterSceneId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyVersion StoryVersion @relation("StoryBeatProjection_storyVersion_StoryVersion", fields: [storyVersionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  storyboardShotProjectionsByStoryBeatProjection StoryboardShotProjection[] @relation("StoryboardShotProjection_storyBeatProjection_StoryBeatProjection")
+
+  @@unique([storyVersionId, beatKey], map: "uq_story_beat_projections_version_key")
+  @@unique([storyVersionId, order], map: "uq_story_beat_projections_version_order")
+  @@index([chapterSceneId(sort: Asc)], map: "ix_story_beat_projections_chapter_scene")
+  @@map("story_beat_projections")
+}
+
+model ChapterScene {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  sceneKey String @map("scene_key")
+  currentVisualId String? @map("current_visual_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  chapter Chapter @relation("ChapterScene_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  currentVisual SceneVisual? @relation("ChapterScene_currentVisual_SceneVisual", fields: [currentVisualId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  project Project @relation("ChapterScene_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sceneVisualsByChapterScene SceneVisual[] @relation("SceneVisual_chapterScene_ChapterScene")
+  storyBeatProjectionsByChapterScene StoryBeatProjection[] @relation("StoryBeatProjection_chapterScene_ChapterScene")
+  storySceneProjectionsByChapterScene StorySceneProjection[] @relation("StorySceneProjection_chapterScene_ChapterScene")
+  storyboardShotProjectionsByChapterScene StoryboardShotProjection[] @relation("StoryboardShotProjection_chapterScene_ChapterScene")
+
+  @@unique([chapterId, sceneKey], map: "uq_chapter_scenes_chapter_key")
+  @@unique([id, projectId, chapterId], map: "uq_chapter_scenes_id_scope")
+  @@map("chapter_scenes")
+}
+
+model SceneVisual {
+  id String @id @default(uuid())
+  chapterSceneId String @map("chapter_scene_id")
+  assetId String @map("asset_id")
+  sourceTaskId String? @map("source_task_id")
+  version Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chapterScenesByCurrentVisual ChapterScene[] @relation("ChapterScene_currentVisual_SceneVisual")
+  asset Asset @relation("SceneVisual_asset_Asset", fields: [assetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  chapterScene ChapterScene @relation("SceneVisual_chapterScene_ChapterScene", fields: [chapterSceneId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceTask GenerationTask? @relation("SceneVisual_sourceTask_GenerationTask", fields: [sourceTaskId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([assetId], map: "uq_scene_visuals_asset")
+  @@unique([id, chapterSceneId], map: "uq_scene_visuals_id_scene")
+  @@unique([chapterSceneId, version], map: "uq_scene_visuals_scene_version")
+  @@map("scene_visuals")
+}
+
+model StoryboardVersion {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  version Int
+  status String
+  sourceStoryVersionId String? @map("source_story_version_id")
+  sourcePolicyVersion String? @map("source_policy_version")
+  sourceDigest String? @map("source_digest")
+  documentJson Json @map("document_json")
+  schemaVersion Int @map("schema_version")
+  documentDigest String @map("document_digest")
+  origin String
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  archivedAt DateTime? @map("archived_at")
+
+  chaptersByCurrentStoryboardVersion Chapter[] @relation("Chapter_currentStoryboardVersion_StoryboardVersion")
+  chaptersByPendingStoryboardVersion Chapter[] @relation("Chapter_pendingStoryboardVersion_StoryboardVersion")
+  preflightRevisionsBySourceStoryboardVersion PreflightRevision[] @relation("PreflightRevision_sourceStoryboardVersion_StoryboardVersion")
+  storyboardShotProjectionsByStoryboardVersion StoryboardShotProjection[] @relation("StoryboardShotProjection_storyboardVersion_StoryboardVersion")
+  chapter Chapter @relation("StoryboardVersion_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("StoryboardVersion_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceStoryVersion StoryVersion? @relation("StoryboardVersion_sourceStoryVersion_StoryVersion", fields: [sourceStoryVersionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([chapterId, version], map: "uq_storyboard_versions_chapter_version")
+  @@unique([id, projectId, chapterId], map: "uq_storyboard_versions_id_scope")
+  @@index([chapterId(sort: Asc), status(sort: Asc)], map: "ix_storyboard_versions_chapter_status")
+  @@index([sourceStoryVersionId(sort: Asc)], map: "ix_storyboard_versions_source_story")
+  @@map("storyboard_versions")
+}
+
+model Shot {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  lifecycleStatus String @default("active") @map("lifecycle_status")
+  currentCandidateLockRevisionId String? @map("current_candidate_lock_revision_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  retiredAt DateTime? @map("retired_at")
+
+  candidateLockRevisionsByShot CandidateLockRevision[] @relation("CandidateLockRevision_shot_Shot")
+  candidatesByShot Candidate[] @relation("Candidate_shot_Shot")
+  layoutSourceBindingsByShot LayoutSourceBinding[] @relation("LayoutSourceBinding_shot_Shot")
+  chapter Chapter @relation("Shot_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  currentCandidateLockRevision CandidateLockRevision? @relation("Shot_currentCandidateLockRevision_CandidateLockRevision", fields: [currentCandidateLockRevisionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  project Project @relation("Shot_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyboardShotProjectionsByShot StoryboardShotProjection[] @relation("StoryboardShotProjection_shot_Shot")
+
+  @@unique([id, projectId, chapterId], map: "uq_shots_id_scope")
+  @@index([chapterId(sort: Asc), lifecycleStatus(sort: Asc)], map: "ix_shots_chapter_lifecycle")
+  @@map("shots")
+}
+
+model StoryboardShotProjection {
+  id String @id @default(uuid())
+  storyboardVersionId String @map("storyboard_version_id")
+  shotId String @map("shot_id")
+  order Int
+  storyBeatProjectionId String? @map("story_beat_projection_id")
+  chapterSceneId String? @map("chapter_scene_id")
+  semanticDigest String @map("semantic_digest")
+
+  storyboardShotCharactersByStoryboardShotProjection StoryboardShotCharacter[] @relation("StoryboardShotCharacter_storyboardShotProjection_StoryboardShotProjection")
+  chapterScene ChapterScene? @relation("StoryboardShotProjection_chapterScene_ChapterScene", fields: [chapterSceneId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  shot Shot @relation("StoryboardShotProjection_shot_Shot", fields: [shotId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyBeatProjection StoryBeatProjection? @relation("StoryboardShotProjection_storyBeatProjection_StoryBeatProjection", fields: [storyBeatProjectionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyboardVersion StoryboardVersion @relation("StoryboardShotProjection_storyboardVersion_StoryboardVersion", fields: [storyboardVersionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([storyboardVersionId, order], map: "uq_storyboard_shot_projections_version_order")
+  @@unique([storyboardVersionId, shotId], map: "uq_storyboard_shot_projections_version_shot")
+  @@index([shotId(sort: Asc)], map: "ix_storyboard_shot_projections_shot")
+  @@index([storyBeatProjectionId(sort: Asc)], map: "ix_storyboard_shot_projections_story_beat")
+  @@map("storyboard_shot_projections")
+}
+
+model StoryboardShotCharacter {
+  id String @id @default(uuid())
+  storyboardShotProjectionId String @map("storyboard_shot_projection_id")
+  order Int
+  sourceToken String @map("source_token")
+  characterId String? @map("character_id")
+
+  character Character? @relation("StoryboardShotCharacter_character_Character", fields: [characterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyboardShotProjection StoryboardShotProjection @relation("StoryboardShotCharacter_storyboardShotProjection_StoryboardShotProjection", fields: [storyboardShotProjectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([storyboardShotProjectionId, order], map: "uq_storyboard_shot_characters_projection_order")
+  @@index([characterId(sort: Asc)], map: "ix_storyboard_shot_characters_character")
+  @@map("storyboard_shot_characters")
+}
+
+model PreflightRevision {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  version Int
+  status String
+  sourceStoryboardVersionId String @map("source_storyboard_version_id")
+  sourcePolicyVersion String @map("source_policy_version")
+  sourceDigest String @map("source_digest")
+  documentJson Json @map("document_json")
+  schemaVersion Int @map("schema_version")
+  documentDigest String @map("document_digest")
+  ready Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+  confirmedAt DateTime? @map("confirmed_at")
+
+  chaptersByCurrentPreflightRevision Chapter[] @relation("Chapter_currentPreflightRevision_PreflightRevision")
+  chapter Chapter @relation("PreflightRevision_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("PreflightRevision_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceStoryboardVersion StoryboardVersion @relation("PreflightRevision_sourceStoryboardVersion_StoryboardVersion", fields: [sourceStoryboardVersionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([chapterId, version], map: "uq_preflight_revisions_chapter_version")
+  @@unique([id, projectId, chapterId], map: "uq_preflight_revisions_id_scope")
+  @@index([sourceStoryboardVersionId(sort: Asc)], map: "ix_preflight_revisions_source_storyboard")
+  @@map("preflight_revisions")
+}
+
+model Character {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  name String
+  normalizedName String @map("normalized_name")
+  role String
+  level String
+  entityType String @default("human") @map("entity_type")
+  status String @default("draft")
+  appearance String
+  personality String
+  promptFragment String @map("prompt_fragment")
+  source String
+  previewVisualId String? @map("preview_visual_id")
+  primaryVisualId String? @map("primary_visual_id")
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  finalizedAt DateTime? @map("finalized_at")
+
+  characterVisualsByCharacter CharacterVisual[] @relation("CharacterVisual_character_Character")
+  previewVisual CharacterVisual? @relation("Character_previewVisual_CharacterVisual", fields: [previewVisualId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  primaryVisual CharacterVisual? @relation("Character_primaryVisual_CharacterVisual", fields: [primaryVisualId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  project Project @relation("Character_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  storyboardShotCharactersByCharacter StoryboardShotCharacter[] @relation("StoryboardShotCharacter_character_Character")
+
+  @@unique([id, projectId], map: "uq_characters_id_project")
+  @@unique([projectId, normalizedName], map: "uq_characters_project_normalized_name")
+  @@index([projectId(sort: Asc), level(sort: Asc)], map: "ix_characters_project_level")
+  @@index([projectId(sort: Asc), status(sort: Asc)], map: "ix_characters_project_status")
+  @@map("characters")
+}
+
+model CharacterVisual {
+  id String @id @default(uuid())
+  characterId String @map("character_id")
+  assetId String @map("asset_id")
+  kind String
+  version Int
+  sourceVisualId String? @map("source_visual_id")
+  status String @default("available")
+  createdAt DateTime @default(now()) @map("created_at")
+  confirmedAt DateTime? @map("confirmed_at")
+
+  asset Asset @relation("CharacterVisual_asset_Asset", fields: [assetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  character Character @relation("CharacterVisual_character_Character", fields: [characterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  characterVisualsBySourceVisual CharacterVisual[] @relation("CharacterVisual_sourceVisual_CharacterVisual")
+  sourceVisual CharacterVisual? @relation("CharacterVisual_sourceVisual_CharacterVisual", fields: [sourceVisualId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  charactersByPreviewVisual Character[] @relation("Character_previewVisual_CharacterVisual")
+  charactersByPrimaryVisual Character[] @relation("Character_primaryVisual_CharacterVisual")
+
+  @@unique([assetId], map: "uq_character_visuals_asset")
+  @@unique([characterId, version], map: "uq_character_visuals_character_version")
+  @@unique([id, characterId], map: "uq_character_visuals_id_character")
+  @@index([sourceVisualId(sort: Asc)], map: "ix_character_visuals_source_visual")
+  @@map("character_visuals")
 }
 
 model Asset {
-  id           String   @id @default(cuid())
-  projectId    String   @map("project_id")
-  type         String
-  mimeType     String   @map("mime_type")
-  path         String
-  width        Int?
-  height       Int?
-  durationMs   Int?     @map("duration_ms")
-  sourceTaskId String?  @map("source_task_id")
-  metadataJson String   @default("{}") @map("metadata_json")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String? @map("chapter_id")
+  type String
+  role String
+  mimeType String @map("mime_type")
+  storageKey String @map("storage_key")
+  status String @default("staged")
+  sha256 String?
+  bytes Int?
+  width Int?
+  height Int?
+  durationMs Int? @map("duration_ms")
+  sourceTaskId String? @map("source_task_id")
+  metadataJson Json @map("metadata_json")
+  metadataSchemaVersion Int @map("metadata_schema_version")
+  metadataDigest String @map("metadata_digest")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  readyAt DateTime? @map("ready_at")
+  failedAt DateTime? @map("failed_at")
+  deletingAt DateTime? @map("deleting_at")
 
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  candidates Candidate[]
+  chapter Chapter? @relation("Asset_chapter_Chapter", fields: [chapterId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("Asset_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceTask GenerationTask? @relation("Asset_sourceTask_GenerationTask", fields: [sourceTaskId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  candidatesByAsset Candidate[] @relation("Candidate_asset_Asset")
+  characterVisualByAsset CharacterVisual? @relation("CharacterVisual_asset_Asset")
+  exportArtifactByAsset ExportArtifact? @relation("ExportArtifact_asset_Asset")
+  layoutSourceBindingsByAsset LayoutSourceBinding[] @relation("LayoutSourceBinding_asset_Asset")
+  sceneVisualByAsset SceneVisual? @relation("SceneVisual_asset_Asset")
 
-  @@index([projectId, type], map: "idx_assets_project_type")
+  @@unique([id, projectId, chapterId], map: "uq_assets_id_scope")
+  @@unique([storageKey], map: "uq_assets_storage_key")
+  @@index([chapterId(sort: Asc), role(sort: Asc)], map: "ix_assets_chapter_role")
+  @@index([projectId(sort: Asc), status(sort: Asc), type(sort: Asc)], map: "ix_assets_project_status_type")
+  @@index([sourceTaskId(sort: Asc)], map: "ix_assets_source_task")
   @@map("assets")
 }
 
+model Candidate {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  shotId String @map("shot_id")
+  taskId String @map("task_id")
+  assetId String @map("asset_id")
+  index Int
+  status String @default("generated")
+  favoriteAt DateTime? @map("favorite_at")
+  label String @default("")
+  notes String @default("")
+  score Float?
+  promptDigest String? @map("prompt_digest")
+  generationPurpose String @map("generation_purpose")
+  generationSpecVersion Int? @map("generation_spec_version")
+  generationSpecDigest String? @map("generation_spec_digest")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  candidateLockRevisionsByCandidate CandidateLockRevision[] @relation("CandidateLockRevision_candidate_Candidate")
+  asset Asset @relation("Candidate_asset_Asset", fields: [assetId, projectId, chapterId], references: [id, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+  shot Shot @relation("Candidate_shot_Shot", fields: [shotId, projectId, chapterId], references: [id, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+  task GenerationTask @relation("Candidate_task_GenerationTask", fields: [taskId, projectId, chapterId], references: [id, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+  layoutSourceBindingsByCandidate LayoutSourceBinding[] @relation("LayoutSourceBinding_candidate_Candidate")
+
+  @@unique([assetId], map: "uq_candidates_asset")
+  @@unique([id, projectId, chapterId, shotId], map: "uq_candidates_id_scope_shot")
+  @@unique([taskId, shotId, index], map: "uq_candidates_task_shot_index")
+  @@index([chapterId(sort: Asc), createdAt(sort: Asc)], map: "ix_candidates_chapter_created_at")
+  @@index([shotId(sort: Asc), status(sort: Asc)], map: "ix_candidates_shot_status")
+  @@map("candidates")
+}
+
+model CandidateLockRevision {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  shotId String @map("shot_id")
+  revision Int
+  action String
+  candidateId String? @map("candidate_id")
+  previousRevisionId String? @map("previous_revision_id")
+  origin String
+  reason String?
+  decidedAt DateTime? @map("decided_at")
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  candidate Candidate? @relation("CandidateLockRevision_candidate_Candidate", fields: [candidateId, shotId, projectId, chapterId], references: [id, shotId, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+  candidateLockRevisionsByPreviousRevision CandidateLockRevision[] @relation("CandidateLockRevision_previousRevision_CandidateLockRevision")
+  previousRevision CandidateLockRevision? @relation("CandidateLockRevision_previousRevision_CandidateLockRevision", fields: [previousRevisionId, shotId, projectId, chapterId], references: [id, shotId, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+  shot Shot @relation("CandidateLockRevision_shot_Shot", fields: [shotId, projectId, chapterId], references: [id, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+  layoutSourceBindingsByCandidateLockRevision LayoutSourceBinding[] @relation("LayoutSourceBinding_candidateLockRevision_CandidateLockRevision")
+  shotsByCurrentCandidateLockRevision Shot[] @relation("Shot_currentCandidateLockRevision_CandidateLockRevision")
+
+  @@unique([id, projectId, chapterId, shotId], map: "uq_candidate_lock_revisions_id_scope_shot")
+  @@unique([shotId, revision], map: "uq_candidate_lock_revisions_shot_revision")
+  @@index([candidateId(sort: Asc)], map: "ix_candidate_lock_revisions_candidate")
+  @@index([previousRevisionId(sort: Asc)], map: "ix_candidate_lock_revisions_previous")
+  @@index([projectId(sort: Asc), chapterId(sort: Asc), shotId(sort: Asc), revision(sort: Desc)], map: "ix_candidate_lock_revisions_scope_revision")
+  @@map("candidate_lock_revisions")
+}
+
+model AppPreference {
+  id String @id @default("primary")
+  theme String @default("system")
+  activeImageProviderId String? @map("active_image_provider_id")
+  defaultTextProviderId String? @map("default_text_provider_id")
+  defaultTextModelId String? @map("default_text_model_id")
+  rowVersion Int @default(0) @map("row_version")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  activeImageProvider ProviderConfig? @relation("AppPreference_activeImageProvider_ProviderConfig", fields: [activeImageProviderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  defaultTextProvider ProviderConfig? @relation("AppPreference_defaultTextProvider_ProviderConfig", fields: [defaultTextProviderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("app_preferences")
+}
+
+model ProviderConfig {
+  id String @id @default(uuid())
+  providerId String @map("provider_id")
+  runtimeKind String @map("runtime_kind")
+  displayName String @map("display_name")
+  modelId String @map("model_id")
+  baseUrl String? @map("base_url")
+  enabled Boolean @default(false)
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  appPreferencesByActiveImageProvider AppPreference[] @relation("AppPreference_activeImageProvider_ProviderConfig")
+  appPreferencesByDefaultTextProvider AppPreference[] @relation("AppPreference_defaultTextProvider_ProviderConfig")
+  credentialMetadataByProviderConfig CredentialMetadata? @relation("CredentialMetadata_providerConfig_ProviderConfig")
+
+  @@unique([providerId], map: "uq_provider_configs_provider_id")
+  @@index([runtimeKind(sort: Asc), enabled(sort: Asc)], map: "ix_provider_configs_runtime_enabled")
+  @@map("provider_configs")
+}
+
+model CredentialMetadata {
+  id String @id @default(uuid())
+  providerConfigId String @map("provider_config_id")
+  owner String
+  status String @default("unconfigured")
+  secretRef String? @map("secret_ref")
+  fingerprint String?
+  configured Boolean @default(false)
+  rotatedAt DateTime? @map("rotated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  providerConfig ProviderConfig @relation("CredentialMetadata_providerConfig_ProviderConfig", fields: [providerConfigId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([providerConfigId], map: "uq_credential_metadata_provider")
+  @@unique([secretRef], map: "uq_credential_metadata_secret_ref")
+  @@map("credential_metadata")
+}
+
+model ProjectContextFact {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  type String
+  contentJson Json @map("content_json")
+  schemaVersion Int @map("schema_version")
+  contentDigest String @map("content_digest")
+  sourceType String @map("source_type")
+  sourceId String @map("source_id")
+  status String @default("confirmed")
+  createdAt DateTime @default(now()) @map("created_at")
+  supersededAt DateTime? @map("superseded_at")
+
+  project Project @relation("ProjectContextFact_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([projectId(sort: Asc), type(sort: Asc), status(sort: Asc)], map: "ix_project_context_facts_project_type_status")
+  @@index([sourceType(sort: Asc), sourceId(sort: Asc)], map: "ix_project_context_facts_source")
+  @@map("project_context_facts")
+}
+
+model ConversationThread {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String? @map("chapter_id")
+  stepKey String @map("step_key")
+  scopeKey String @map("scope_key")
+  title String
+  status String @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  chapterScriptPendingsByThread ChapterScriptPending[] @relation("ChapterScriptPending_thread_ConversationThread")
+  chapterScriptRevisionsByThread ChapterScriptRevision[] @relation("ChapterScriptRevision_thread_ConversationThread")
+  conversationMessagesByThread ConversationMessage[] @relation("ConversationMessage_thread_ConversationThread")
+  chapter Chapter? @relation("ConversationThread_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("ConversationThread_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  dialogueRuntimeSessionsByThread DialogueRuntimeSession[] @relation("DialogueRuntimeSession_thread_ConversationThread")
+  dialogueToolResultsByThread DialogueToolResult[] @relation("DialogueToolResult_thread_ConversationThread")
+  pendingDialogueArtifactsByThread PendingDialogueArtifact[] @relation("PendingDialogueArtifact_thread_ConversationThread")
+
+  @@unique([id, projectId, chapterId], map: "uq_conversation_threads_id_scope")
+  @@unique([projectId, stepKey, scopeKey], map: "uq_conversation_threads_scope")
+  @@index([projectId(sort: Asc), status(sort: Asc)], map: "ix_conversation_threads_project_status")
+  @@map("conversation_threads")
+}
+
+model ConversationMessage {
+  id String @id @default(uuid())
+  threadId String @map("thread_id")
+  role String
+  content String
+  status String
+  providerId String? @map("provider_id")
+  modelId String? @map("model_id")
+  errorJson Json? @map("error_json")
+  errorSchemaVersion Int? @map("error_schema_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
+
+  chapterScriptPendingsByMessage ChapterScriptPending[] @relation("ChapterScriptPending_message_ConversationMessage")
+  chapterScriptRevisionsByMessage ChapterScriptRevision[] @relation("ChapterScriptRevision_message_ConversationMessage")
+  thread ConversationThread @relation("ConversationMessage_thread_ConversationThread", fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  dialogueToolResultsByMessage DialogueToolResult[] @relation("DialogueToolResult_message_ConversationMessage")
+  pendingDialogueArtifactsBySourceMessage PendingDialogueArtifact[] @relation("PendingDialogueArtifact_sourceMessage_ConversationMessage")
+
+  @@index([status(sort: Asc)], map: "ix_conversation_messages_status")
+  @@index([threadId(sort: Asc), createdAt(sort: Asc)], map: "ix_conversation_messages_thread_created_at")
+  @@map("conversation_messages")
+}
+
+model DialogueToolResult {
+  id String @id @default(uuid())
+  threadId String @map("thread_id")
+  messageId String @map("message_id")
+  toolCallId String @map("tool_call_id")
+  tool String
+  status String
+  summary String
+  payloadJson Json @map("payload_json")
+  schemaVersion Int @map("schema_version")
+  payloadDigest String @map("payload_digest")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message ConversationMessage @relation("DialogueToolResult_message_ConversationMessage", fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  thread ConversationThread @relation("DialogueToolResult_thread_ConversationThread", fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  pendingDialogueArtifactsByToolResult PendingDialogueArtifact[] @relation("PendingDialogueArtifact_toolResult_DialogueToolResult")
+
+  @@unique([threadId, toolCallId], map: "uq_dialogue_tool_results_thread_call")
+  @@index([messageId(sort: Asc)], map: "ix_dialogue_tool_results_message")
+  @@map("dialogue_tool_results")
+}
+
+model DialogueRuntimeSession {
+  id String @id @default(uuid())
+  threadId String @map("thread_id")
+  runtime String
+  externalSessionId String @map("external_session_id")
+  status String @default("active")
+  providerId String? @map("provider_id")
+  modelId String? @map("model_id")
+  variant String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  closedAt DateTime? @map("closed_at")
+
+  thread ConversationThread @relation("DialogueRuntimeSession_thread_ConversationThread", fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([runtime, externalSessionId], map: "uq_dialogue_runtime_sessions_external")
+  @@index([threadId(sort: Asc), status(sort: Asc)], map: "ix_dialogue_runtime_sessions_thread_status")
+  @@map("dialogue_runtime_sessions")
+}
+
+model PendingDialogueArtifact {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String? @map("chapter_id")
+  threadId String @map("thread_id")
+  kind String
+  status String @default("pending")
+  activeSlotKey String? @map("active_slot_key")
+  payloadJson Json @map("payload_json")
+  schemaVersion Int @map("schema_version")
+  payloadDigest String @map("payload_digest")
+  sourceMessageId String? @map("source_message_id")
+  toolResultId String? @map("tool_result_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  chapter Chapter? @relation("PendingDialogueArtifact_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("PendingDialogueArtifact_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sourceMessage ConversationMessage? @relation("PendingDialogueArtifact_sourceMessage_ConversationMessage", fields: [sourceMessageId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  thread ConversationThread @relation("PendingDialogueArtifact_thread_ConversationThread", fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  toolResult DialogueToolResult? @relation("PendingDialogueArtifact_toolResult_DialogueToolResult", fields: [toolResultId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([activeSlotKey], map: "uq_pending_dialogue_artifacts_active_slot")
+  @@index([projectId(sort: Asc), kind(sort: Asc), status(sort: Asc)], map: "ix_pending_dialogue_artifacts_project_kind_status")
+  @@index([threadId(sort: Asc), createdAt(sort: Asc)], map: "ix_pending_dialogue_artifacts_thread_created_at")
+  @@map("pending_dialogue_artifacts")
+}
+
 model GenerationTask {
-  id              String   @id @default(cuid())
-  projectId       String   @map("project_id")
-  type            String
-  status          String   @default("queued")
-  phase           String   @default("queued")
-  progressPercent Int?     @default(0) @map("progress_percent")
-  targetType      String?  @map("target_type")
-  targetId        String?  @map("target_id")
-  inputJson       String   @default("{}") @map("input_json")
-  outputJson      String?  @map("output_json")
-  errorJson       String?  @map("error_json")
-  attempt         Int      @default(0)
-  maxAttempts     Int      @default(1) @map("max_attempts")
-  startedAt       DateTime? @map("started_at")
-  finishedAt      DateTime? @map("finished_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String? @map("chapter_id")
+  type String
+  recordKind String @map("record_kind")
+  provenanceStatus String @map("provenance_status")
+  status String?
+  phase String?
+  progressPercent Int? @map("progress_percent")
+  targetType String? @map("target_type")
+  targetId String? @map("target_id")
+  inputJson Json? @map("input_json")
+  inputSchemaVersion Int? @map("input_schema_version")
+  inputDigest String? @map("input_digest")
+  outputJson Json? @map("output_json")
+  outputSchemaVersion Int? @map("output_schema_version")
+  outputDigest String? @map("output_digest")
+  errorJson Json? @map("error_json")
+  errorSchemaVersion Int? @map("error_schema_version")
+  sourceDigest String? @map("source_digest")
+  sourceSetSealedAt DateTime? @map("source_set_sealed_at")
+  idempotencyKey String? @map("idempotency_key")
+  concurrencyKey String? @map("concurrency_key")
+  priority Int @default(0)
+  attempt Int @default(0)
+  maxAttempts Int @default(0) @map("max_attempts")
+  nextRunAt DateTime? @map("next_run_at")
+  leaseOwnerId String? @map("lease_owner_id")
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  heartbeatAt DateTime? @map("heartbeat_at")
+  cancelRequestedAt DateTime? @map("cancel_requested_at")
+  retryDisabled Boolean @default(true) @map("retry_disabled")
+  needsReview Boolean @default(false) @map("needs_review")
+  applicability String?
+  importSource String? @map("import_source")
+  importedAt DateTime? @map("imported_at")
+  observedEvidenceJson Json? @map("observed_evidence_json")
+  evidenceSchemaVersion Int? @map("evidence_schema_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  startedAt DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
 
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  candidates Candidate[]
+  assetsBySourceTask Asset[] @relation("Asset_sourceTask_GenerationTask")
+  candidatesByTask Candidate[] @relation("Candidate_task_GenerationTask")
+  exportRevisionByTask ExportRevision? @relation("ExportRevision_task_GenerationTask")
+  generationTaskSourcesByTask GenerationTaskSource[] @relation("GenerationTaskSource_task_GenerationTask")
+  chapter Chapter? @relation("GenerationTask_chapter_Chapter", fields: [chapterId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("GenerationTask_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sceneVisualsBySourceTask SceneVisual[] @relation("SceneVisual_sourceTask_GenerationTask")
+  taskAttemptsByTask TaskAttempt[] @relation("TaskAttempt_task_GenerationTask")
+  taskConcurrencySlotByTask TaskConcurrencySlot? @relation("TaskConcurrencySlot_task_GenerationTask")
 
-  @@index([projectId, status, updatedAt], map: "idx_generation_tasks_project_status_updated")
+  @@unique([id, projectId, chapterId], map: "uq_generation_tasks_id_scope")
+  @@unique([idempotencyKey], map: "uq_generation_tasks_idempotency_key")
+  @@index([chapterId(sort: Asc), type(sort: Asc), createdAt(sort: Asc)], map: "ix_generation_tasks_chapter_type_created")
+  @@index([recordKind(sort: Asc), status(sort: Asc), nextRunAt(sort: Asc), priority(sort: Asc), createdAt(sort: Asc)], map: "ix_generation_tasks_claim")
+  @@index([projectId(sort: Asc), status(sort: Asc), updatedAt(sort: Asc)], map: "ix_generation_tasks_project_status_updated")
+  @@index([status(sort: Asc), leaseExpiresAt(sort: Asc)], map: "ix_generation_tasks_recovery")
+  @@index([targetType(sort: Asc), targetId(sort: Asc)], map: "ix_generation_tasks_target")
   @@map("generation_tasks")
+}
+
+model TaskAttempt {
+  id String @id @default(uuid())
+  taskId String @map("task_id")
+  attemptNo Int @map("attempt_no")
+  workerId String @map("worker_id")
+  claimToken String @map("claim_token")
+  outcome String?
+  errorJson Json? @map("error_json")
+  errorSchemaVersion Int? @map("error_schema_version")
+  artifactRefsJson Json? @map("artifact_refs_json")
+  artifactSchemaVersion Int? @map("artifact_schema_version")
+  startedAt DateTime @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task GenerationTask @relation("TaskAttempt_task_GenerationTask", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([claimToken], map: "uq_task_attempts_claim_token")
+  @@unique([taskId, attemptNo], map: "uq_task_attempts_task_attempt_no")
+  @@index([taskId(sort: Asc), startedAt(sort: Asc)], map: "ix_task_attempts_task_started_at")
+  @@map("task_attempts")
+}
+
+model TaskConcurrencySlot {
+  id String @id @default(uuid())
+  concurrencyKey String @map("concurrency_key")
+  slotNo Int @map("slot_no")
+  taskId String? @map("task_id")
+  leaseOwnerId String? @map("lease_owner_id")
+  claimToken String? @map("claim_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  task GenerationTask? @relation("TaskConcurrencySlot_task_GenerationTask", fields: [taskId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([concurrencyKey, slotNo], map: "uq_task_concurrency_slots_key_no")
+  @@unique([taskId], map: "uq_task_concurrency_slots_task")
+  @@index([leaseExpiresAt(sort: Asc)], map: "ix_task_concurrency_slots_lease_expires")
+  @@map("task_concurrency_slots")
+}
+
+model GenerationTaskSource {
+  id String @id @default(uuid())
+  taskId String @map("task_id")
+  role String
+  order Int
+  sourceType String @map("source_type")
+  sourceId String @map("source_id")
+  sourceDigest String @map("source_digest")
+
+  task GenerationTask @relation("GenerationTaskSource_task_GenerationTask", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([taskId, role, order], map: "uq_generation_task_sources_task_role_order")
+  @@index([sourceType(sort: Asc), sourceId(sort: Asc)], map: "ix_generation_task_sources_source")
+  @@map("generation_task_sources")
+}
+
+model LayoutWorkingCopy {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  documentKind String @map("document_kind")
+  documentJson Json @map("document_json")
+  schemaVersion Int @map("schema_version")
+  documentDigest String @map("document_digest")
+  sourceLockSetDigest String? @map("source_lock_set_digest")
+  basedOnRevisionId String? @map("based_on_revision_id")
+  rowVersion Int @default(0) @map("row_version")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  basedOnRevision LayoutRevision? @relation("LayoutWorkingCopy_basedOnRevision_LayoutRevision", fields: [basedOnRevisionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  chapter Chapter @relation("LayoutWorkingCopy_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("LayoutWorkingCopy_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([chapterId], map: "uq_layout_working_copies_chapter")
+  @@unique([id, projectId, chapterId], map: "uq_layout_working_copies_id_scope")
+  @@map("layout_working_copies")
+}
+
+model LayoutRevision {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String @map("chapter_id")
+  revision Int
+  previousRevisionId String? @map("previous_revision_id")
+  contentBasedOnRevisionId String? @map("content_based_on_revision_id")
+  documentJson Json @map("document_json")
+  schemaVersion Int @map("schema_version")
+  documentDigest String @map("document_digest")
+  sourceLockSetDigest String? @map("source_lock_set_digest")
+  origin String
+  saveReason String @map("save_reason")
+  bindingSetSealedAt DateTime? @map("binding_set_sealed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chaptersByCurrentLayoutRevision Chapter[] @relation("Chapter_currentLayoutRevision_LayoutRevision")
+  exportRevisionsByLayoutRevision ExportRevision[] @relation("ExportRevision_layoutRevision_LayoutRevision")
+  chapter Chapter @relation("LayoutRevision_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  contentBasedOnRevision LayoutRevision? @relation("LayoutRevision_contentBasedOnRevision_LayoutRevision", fields: [contentBasedOnRevisionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  layoutRevisionsByContentBasedOnRevision LayoutRevision[] @relation("LayoutRevision_contentBasedOnRevision_LayoutRevision")
+  layoutRevisionsByPreviousRevision LayoutRevision[] @relation("LayoutRevision_previousRevision_LayoutRevision")
+  previousRevision LayoutRevision? @relation("LayoutRevision_previousRevision_LayoutRevision", fields: [previousRevisionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("LayoutRevision_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  layoutSourceBindingsByLayoutRevision LayoutSourceBinding[] @relation("LayoutSourceBinding_layoutRevision_LayoutRevision")
+  layoutWorkingCopysByBasedOnRevision LayoutWorkingCopy[] @relation("LayoutWorkingCopy_basedOnRevision_LayoutRevision")
+
+  @@unique([chapterId, revision], map: "uq_layout_revisions_chapter_revision")
+  @@unique([id, projectId, chapterId], map: "uq_layout_revisions_id_scope")
+  @@index([contentBasedOnRevisionId(sort: Asc)], map: "ix_layout_revisions_content_based")
+  @@index([previousRevisionId(sort: Asc)], map: "ix_layout_revisions_previous")
+  @@map("layout_revisions")
+}
+
+model LayoutSourceBinding {
+  id String @id @default(uuid())
+  layoutRevisionId String @map("layout_revision_id")
+  elementId String @map("element_id")
+  role String
+  order Int
+  shotId String? @map("shot_id")
+  candidateId String? @map("candidate_id")
+  candidateLockRevisionId String? @map("candidate_lock_revision_id")
+  assetId String? @map("asset_id")
+  sourceDigest String @map("source_digest")
+
+  asset Asset? @relation("LayoutSourceBinding_asset_Asset", fields: [assetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  candidateLockRevision CandidateLockRevision? @relation("LayoutSourceBinding_candidateLockRevision_CandidateLockRevision", fields: [candidateLockRevisionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  candidate Candidate? @relation("LayoutSourceBinding_candidate_Candidate", fields: [candidateId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  layoutRevision LayoutRevision @relation("LayoutSourceBinding_layoutRevision_LayoutRevision", fields: [layoutRevisionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  shot Shot? @relation("LayoutSourceBinding_shot_Shot", fields: [shotId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([layoutRevisionId, elementId, role], map: "uq_layout_source_bindings_element_role")
+  @@unique([layoutRevisionId, role, order], map: "uq_layout_source_bindings_revision_role_order")
+  @@index([assetId(sort: Asc)], map: "ix_layout_source_bindings_asset")
+  @@index([candidateLockRevisionId(sort: Asc)], map: "ix_layout_source_bindings_candidate_lock")
+  @@index([shotId(sort: Asc)], map: "ix_layout_source_bindings_shot")
+  @@map("layout_source_bindings")
+}
+
+model ExportRevision {
+  id String @id @default(uuid())
+  projectId String @map("project_id")
+  chapterId String? @map("chapter_id")
+  scopeKey String @map("scope_key")
+  revision Int
+  kind String
+  status String
+  taskId String? @map("task_id")
+  layoutRevisionId String? @map("layout_revision_id")
+  sourceLockSetDigest String? @map("source_lock_set_digest")
+  profileJson Json? @map("profile_json")
+  profileSchemaVersion Int? @map("profile_schema_version")
+  profileDigest String? @map("profile_digest")
+  preflightDigest String? @map("preflight_digest")
+  rendererVersion String? @map("renderer_version")
+  manifestJson Json? @map("manifest_json")
+  manifestSchemaVersion Int? @map("manifest_schema_version")
+  manifestDigest String? @map("manifest_digest")
+  completionApplicability String? @map("completion_applicability")
+  origin String
+  createdAt DateTime @default(now()) @map("created_at")
+  readyAt DateTime? @map("ready_at")
+  failedAt DateTime? @map("failed_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  chaptersByCurrentExportRevision Chapter[] @relation("Chapter_currentExportRevision_ExportRevision")
+  exportArtifactsByExportRevision ExportArtifact[] @relation("ExportArtifact_exportRevision_ExportRevision")
+  chapter Chapter? @relation("ExportRevision_chapter_Chapter", fields: [chapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  layoutRevision LayoutRevision? @relation("ExportRevision_layoutRevision_LayoutRevision", fields: [layoutRevisionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("ExportRevision_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  task GenerationTask? @relation("ExportRevision_task_GenerationTask", fields: [taskId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([id, projectId, scopeKey], map: "uq_export_revisions_id_scope")
+  @@unique([projectId, scopeKey, kind, revision], map: "uq_export_revisions_scope_kind_revision")
+  @@unique([taskId], map: "uq_export_revisions_task")
+  @@index([chapterId(sort: Asc), kind(sort: Asc), status(sort: Asc)], map: "ix_export_revisions_chapter_kind_status")
+  @@index([layoutRevisionId(sort: Asc)], map: "ix_export_revisions_layout")
+  @@map("export_revisions")
+}
+
+model ExportArtifact {
+  id String @id @default(uuid())
+  exportRevisionId String @map("export_revision_id")
+  assetId String @map("asset_id")
+  role String
+  order Int
+
+  asset Asset @relation("ExportArtifact_asset_Asset", fields: [assetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  exportRevision ExportRevision @relation("ExportArtifact_exportRevision_ExportRevision", fields: [exportRevisionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([assetId], map: "uq_export_artifacts_asset")
+  @@unique([exportRevisionId, role, order], map: "uq_export_artifacts_revision_role_order")
+  @@map("export_artifacts")
+}
+
+model OutboxEvent {
+  id String @id @default(uuid())
+  eventType String @map("event_type")
+  aggregateType String @map("aggregate_type")
+  aggregateId String @map("aggregate_id")
+  payloadJson Json @map("payload_json")
+  payloadSchemaVersion Int @map("payload_schema_version")
+  payloadDigest String @map("payload_digest")
+  status String @default("pending")
+  attempt Int @default(0)
+  maxAttempts Int @default(3) @map("max_attempts")
+  availableAt DateTime @default(now()) @map("available_at")
+  leaseOwnerId String? @map("lease_owner_id")
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  lastErrorJson Json? @map("last_error_json")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  processedAt DateTime? @map("processed_at")
+  idempotencyKey String @map("idempotency_key")
+
+  @@unique([idempotencyKey], map: "uq_outbox_events_idempotency_key")
+  @@unique([leaseToken], map: "uq_outbox_events_lease_token")
+  @@index([aggregateType(sort: Asc), aggregateId(sort: Asc)], map: "ix_outbox_events_aggregate")
+  @@index([status(sort: Asc), availableAt(sort: Asc), createdAt(sort: Asc)], map: "ix_outbox_events_claim")
+  @@index([status(sort: Asc), leaseExpiresAt(sort: Asc)], map: "ix_outbox_events_recovery")
+  @@map("outbox_events")
 }

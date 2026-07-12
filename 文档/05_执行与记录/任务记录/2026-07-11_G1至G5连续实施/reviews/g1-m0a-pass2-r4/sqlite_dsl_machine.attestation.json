@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r4",
+  "manifestDigest": "sha256:0acc15df259d1744bb26c6b853e994dadc6c4be48fcb1d8e2c798254bc01a237",
+  "reviewerId": "codex-reviewer-b-sqlite-r4-atomic-20260712",
+  "reviewerRole": "sqlite_dsl_machine",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T22:19:07.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r4/sqlite_dsl_machine.review.md",
+    "digest": "sha256:7c734a282f34c54fd3f19ee13ae9dfb405b7bd3d9ae2823401aa96521670da25"
+  },
+  "findings": [
+    {
+      "code": "G1_SQLITE_R4_ATOMIC_REPLACE_NLINK_MISCLASSIFIED",
+      "severity": "P1",
+      "status": "open",
+      "summary": "生产形态 rename(temp, target) 覆盖会使 reader 已打开的旧 target FD 变为 nlink=0；当前 post-read 校验在原子路径替换线性化判断前报 G1_SCHEMA_REVIEW_BUNDLE_FILE_HARDLINK，导致 reader 报错而非返回已读旧事实。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-review-bundle.ts",
+        "apps/server/src/persistence/g1-schema-review-bundle.spec.ts"
+      ],
+      "resolution": null
+    }
+  ]
+}

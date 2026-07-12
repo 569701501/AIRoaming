@@ -1,8 +1,8 @@
 ---
 doc_id: AIR-SOLUTION-20260711-G2-UPSTREAM-FRESHNESS
-status: accepted
+status: active
 created: 2026-07-11
-updated: 2026-07-11
+updated: 2026-07-12
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: 用户继续规划与确认、七阶段能力缺口、G1开发级文档、ADR-0010/0012、现有代码审计
@@ -36,7 +36,9 @@ G2 完成后，用户看到的是三个简单结果语言：
 - **来源已更新：** 上游新版本已经生效，本步骤需要基于新来源更新。
 - **历史版本：** 旧版本和旧导出仍可查看，但不再代表当前制作链。
 
-本方案已获用户确认并由 ADR-0013 采纳，但尚未实现，也不代表已授权开始开发。
+本方案已获用户确认并由 ADR-0013 采纳。2026-07-12 的正式 migration tree 与 C3 Project/Chapter/Script 最小 DB substrate 已满足 G2 开发起点；G2 主体尚未实现，完成仍须本方案自己的发布事务、rowVersion/CAS、并发、隔离与 freshness 证据。允许开始 G2 开发不代表 G1 全量完成或 production DB-only cutover。
+
+2026-07-12 已补充五份正式施工资料，冻结依赖门禁、`0009` overlay、文件/事务 seam、完整 API/幂等和可执行测试计划。实施时不能只读本主方案后自由补细节；必须同时读取第 17 节列出的施工包，并按 `G2-A0/A1/B/C1/D1/E/F` 小切片交付。
 
 ## 2. 目标与非目标
 
@@ -51,7 +53,7 @@ G2 完成后，用户看到的是三个简单结果语言：
 
 ### 2.2 非目标
 
-- 不实现 G1 数据库切换；G2 代码只能在 G1 DB-only 验收后开始。
+- 不实现 G1 全量数据库切换；G2 复用已通过隔离验证的正式 migration tree 与 C3 Project/Chapter/Script substrate 开发，生产切换仍由 G1 独立验收和授权。
 - 不实现候选定稿影响预览、画布格子 stale 或 ExportRevision UI；它们属于 G4/G5。
 - 不实现跨步骤自动推进、整章自动生产或 Prompt 质量系统。
 - 不保存独立可写的 `freshness` 行或批量级联更新所有历史行。
@@ -311,7 +313,7 @@ StoryVersion：
   "sources": [
     {
       "role": "script",
-      "entityType": "ChapterScriptVersion",
+      "entityType": "chapter_script_version",
       "entityId": "script_v002",
       "digest": "sha256:script-body"
     }
@@ -384,7 +386,7 @@ StoryboardDocument V2 不把以下内容作为分镜语义：
 | --- | --- | --- |
 | `current` | current 指针指向 confirmed，且来源 ID/摘要等于当前上游 | 还需 Working Copy gate 通过 |
 | `stale` | current 指针存在，但来源不匹配或来源不可解析 | 否 |
-| `historical` | 非 current confirmed 或 archived 行 | 否，只读 |
+| `historical` | 非 current confirmed，或已放弃的 archived pending 行；后者只供审计，永不作为 formal source | 否，只读 |
 | `pending` | active pending 指针指向的未确认行 | 否 |
 
 Freshness 不写回版本行；由 `FreshnessResolver` 统一计算。
@@ -551,9 +553,11 @@ done | active | waiting | blocked | needs_confirmation | needs_update
 
 PreflightRevision ID 记录任务由哪次确认放行，生成语义适用性比较 aggregate sourceDigest。只修改 notes 且 notes 不参与 provider 输入时，不因 revision ID 变化误判旧任务过期；一旦 notes 被纳入实际生成输入，必须升级 source policy 并让 sourceDigest 同步变化。
 
-### 11.2 pending 作为任务目标
+### 11.2 routing target 与 pending 写目标
 
-AI 生成前先创建一个合法的 pending 目标版本并切 active pending 指针。任务 target 指向该版本，pending 的 `generationState` 从关联 GenerationTask 派生：
+AI 生成前先创建一个合法的 pending 目标版本并切 active pending 指针。`story_parse/shot_generate` 的 `GenerationTask.targetType=chapter,targetId=Chapter.id`，分别由 input 的 `chapterId` 与 routing target 精确相等；输出写目标独立保存为 `expectedTargetId`，分别指向 active pending StoryVersion/StoryboardVersion，并携带该 pending 行自己的 `expectedTargetRowVersion`。Chapter.rowVersion 是 Chapter 命令 CAS，不得代替 pending rowVersion。pending 的 `generationState` 从关联 GenerationTask 及 writeTargetBinding 派生：
+
+创建事务按 TaskPolicyRegistryV1 的占位符绑定，用冻结的 `input.expectedTargetId` 只计算一次 idempotencyKey 并保存到 Task；后续重放只读取已保存 key，不得从 Chapter 当前/active pending 指针重新计算。若任务 A 创建后 active pending 从 A 切到 B，A 的 key 仍绑定 A；指针变化只会让 A 的完成结果进入 historical 分支，不能把 A 的身份悄悄改成 B。
 
 ```text
 generating  有非终态 target task
@@ -570,8 +574,8 @@ worker 在短事务中同时验证：
 - claimToken 仍属于当前 attempt；
 - task sourceDigest 未变；
 - Chapter current 上游 ID/digest 仍匹配；
-- active pending 指针仍指向 task target；
-- pending rowVersion/documentDigest 等于任务预期；
+- active pending 指针仍指向 `input.expectedTargetId`，不是拿 Chapter routing target 比较；
+- pending 自身 rowVersion/documentDigest 等于 `expectedTargetRowVersion` 等任务预期；
 - 未收到取消请求。
 
 任一适用性条件失败：
@@ -608,7 +612,7 @@ output/applicability = historical
 旧 preflight 没有完整角色/场景/风格来源证据：
 
 - 有任务 input 或直接证据能重建完整来源集合时，计算 sourceDigest。
-- 只有 storyboard ID/时间时，保留历史确认记录但标记 source unresolved，要求用户重新确认。
+- 只有 storyboard ID/时间时，绝不插入 `PreflightRevision`：原始旧 JSON/时间与文件摘要只作为 `ImportedEntitySource` provenance 和 `legacy_metadata.archive` 只读归档保存，不冒充正式确认记录；创建 blocker `PREFLIGHT_SOURCE_UNRESOLVED`，保持 `Chapter.currentPreflightRevisionId=null`。final 前用户必须签署 `drop_current_preflight_and_reconfirm_after_cutover`，把 action/acknowledged consequences/证据摘要写入 resolutionJson 并纳入 `decisionsDigest` 后才可 resolve issue；DB-only 后重新确认出图准备前，`NewWorkGate` 持续拒绝 `shot_prompt_generate/image_generate`。
 - 禁止按迁移当下的最新角色图“补猜”旧确认使用过的素材。
 
 ### 12.4 已丢失历史
@@ -623,10 +627,11 @@ PRE_G2_HISTORY_ALREADY_DELETED
 
 ## 13. 实施切片
 
-### G2-A：Codec、Schema refinement 与 Resolver
+### G2-A：Codec、Schema overlay refinement 与 Resolver
 
 - 增加 ScriptText/Story/Storyboard/Preflight/SourceSnapshot codec。
-- Story/Storyboard 补 rowVersion/origin/archivedAt 和不可变 trigger。
+- G1 base 已预建 Story/Storyboard 的 rowVersion/origin/archivedAt，并已拥有 current=confirmed、pending=pending_confirmation、source 完整与基础 formal/projection immutable；G2 overlay 只补 active pending 唯一生命周期、rowVersion/CAS、freshness 与 NewWorkGate，不重复 ADD COLUMN 或重复声明基础不可变。
+- G1 runtime V1 历史继续合法；G2 上线后新 runtime 与待确认 pending 使用 V2，遗留 V1 pending 必须先经 Codec 显式重编码，不能直接被 V2-only confirm guard 卡死或暗改 confirmed 历史。
 - 建 `ChapterProductionStateResolver`、reason code 和 DTO。
 - 导入器接入 v2 摘要，但不改用户交互。
 
@@ -678,7 +683,7 @@ PRE_G2_HISTORY_ALREADY_DELETED
 
 ### 14.1 发布前
 
-- G0/G1 必须已经真实实施并验收。
+- G0 与正式 migration tree、C3 Project/Chapter/Script substrate 必须已通过隔离验收；完整 G1/WIT-01 是生产发布前置，不是 G2 开发前置。
 - 对 DB 和 ready Asset 做协调备份。
 - 在生产样例副本执行旧数据摘要 dry-run。
 - unresolved 数量必须可解释。
@@ -732,3 +737,8 @@ G2 至少证明：
 - `文档/04_方案与决策/2026-07-11_G1数据库事实源与DB-only切换开发方案.md`
 - `文档/04_方案与决策/2026-07-11_G1数据库Schema字典与旧数据映射.md`
 - `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_依赖边界与阶段门禁.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_数据库Overlay清单.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_文件Repository与事务地图.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_API与幂等契约.md`
+- `文档/06_测试与验收/G2施工包_可执行测试与证据计划.md`

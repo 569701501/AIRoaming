@@ -1,8 +1,8 @@
 ---
 doc_id: AIR-CONTRACT-20260711-G5-LAYOUT-DOCUMENT
-status: accepted
+status: active
 created: 2026-07-11
-updated: 2026-07-11
+updated: 2026-07-12
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: ADR-0011、G1 Layout/Export Schema、G3 PageProfile 边界、G4 CandidateLockRevision/Freshness 契约
@@ -571,9 +571,11 @@ interface LayoutSourceBindingProjectionV1 {
 }
 ```
 
+panel_frame 使用 `contentImage.id` 作为 elementId，free_image 使用顶层 element.id；candidate_image 按上述遍历顺序从 1 连续编号。关系层同时唯一 `(layoutRevisionId,elementId,role)` 与 `(layoutRevisionId,role,order)`，精确 JSON path/legacy envelope 见 G1 实施契约 11.3.1。
+
 G4 已采纳的 Working Copy impact projector 对外字段名仍是 `sourceCandidateLockRevisionId`；G5 文档内的 `source.candidateLockRevisionId` 必须确定性映射到该字段，不能把命名差异解释为两份来源。
 
-正式保存时同事务写 `LayoutRevision + LayoutSourceBinding[] + Chapter.currentLayoutRevisionId`。Projection 不能独立写入或在数据库中手工修补。
+正式保存时同事务按固定顺序写 `unsealed LayoutRevision → LayoutSourceBinding[] → bindingSetSealedAt → Chapter.currentLayoutRevisionId → WorkingCopy.basedOnRevisionId`。Projection 不能独立写入或在数据库中手工修补。
 
 ## 17. LayoutPresetV1
 
@@ -832,12 +834,13 @@ beforeunload: flush 未确认完成时显示浏览器离开警告
 
 ### 22.1 G1 Schema 细化
 
-`LayoutRevision` 增加：
+G1 base 已预建，G5 开始正式使用：
 
 ```text
 previousRevisionId
 contentBasedOnRevisionId
 saveReason
+bindingSetSealedAt
 ```
 
 字段总览：
@@ -846,7 +849,7 @@ saveReason
 id, projectId, chapterId, revision,
 previousRevisionId, contentBasedOnRevisionId,
 documentJson, schemaVersion, documentDigest, sourceLockSetDigest,
-origin, saveReason, createdAt
+origin, saveReason, bindingSetSealedAt, createdAt
 ```
 
 枚举：
@@ -859,7 +862,8 @@ saveReason = user_checkpoint | export_checkpoint | history_restore | legacy_impo
 - `previousRevisionId` 指向保存前 Chapter current LayoutRevision，形成线性 current 时间线。
 - `contentBasedOnRevisionId` 来自 WorkingCopy.basedOnRevisionId，可指历史修订，表达“内容从哪里恢复”。
 - runtime 首版 revision 的 previous 可为 null；之后必须等于保存事务开始时 current。
-- 对 runtime previous 设置唯一约束，禁止 detached branch；ready 文档与来源不可变。
+- 创建事务固定为“unsealed Revision → LayoutSourceBinding[] → 单向写 bindingSetSealedAt → 切 current”，禁止 INSERT 时预填 seal；空 canvas/纯文字文档允许 0 条 Binding，含 source-backed 元素时必须与 codec 投影精确一致。seal 后文档、来源与 Binding 集合不可变，杜绝以后晚插入。
+- 对 runtime previous 设置唯一约束，禁止 detached branch。该唯一/线性/current 状态机是 G5 overlay；字段和 seal 基础门禁属 G1 base，不重复 ADD COLUMN。
 
 ### 22.2 创建正式版本
 
@@ -882,10 +886,11 @@ interface CreateLayoutRevisionRequestV1 {
 1. 读取并核对 Working Copy rowVersion/digest。
 2. 核对 expected current，先识别精确 replay。
 3. 运行 document/source/font/integrity revision gate。
-4. `revision=max+1`，插入不可变 LayoutRevision。
+4. `revision=max+1`，插入 `bindingSetSealedAt=null` 的 LayoutRevision；禁止 INSERT 时预填 seal。
 5. 投影并插入 LayoutSourceBinding。
-6. 更新 Chapter.currentLayoutRevisionId。
-7. 更新 WorkingCopy.basedOnRevisionId 为新修订并递增 rowVersion。
+6. 重新核对投影计数、字段和 Candidate/Lock/Asset provenance chain 后，单向写 `bindingSetSealedAt`；这一步之后 Revision/Bindings 不可改。
+7. 更新 Chapter.currentLayoutRevisionId；current 只能指向已 sealed revision。
+8. 更新 WorkingCopy.basedOnRevisionId 为新修订并递增 rowVersion。
 
 精确 replay：当前 LayoutRevision 的 previous 等于 request expected、documentDigest 等于 request digest、sourceLockSetDigest 等于当前 Working Copy source digest；返回现有修订，不再插入。
 

@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r1",
+  "manifestDigest": "sha256:5496ddcd51d62d6a4f9a5e92856e0dfd881b29d3d3e90d7ee0a024323873f39e",
+  "reviewerId": "codex-scrutiny-sqlite-20260712",
+  "reviewerRole": "sqlite_dsl_machine",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T19:15:30.972Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r1/sqlite_dsl_machine.review.md",
+    "digest": "sha256:86d52d82b827090e9d8726a8a207b0087f83159e8997236dc41d31b940e76eab"
+  },
+  "findings": [
+    {
+      "code": "G1-SQL-OUTBOX-TERMINAL-PRECEDENCE",
+      "severity": "P0",
+      "status": "open",
+      "summary": "Outbox terminal immutable 谓词缺少括号，合法 claim、heartbeat、retry 和 completion 都被错误拒绝。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-STORYBOARD-CHARACTER-JSONTYPE",
+      "severity": "P0",
+      "status": "open",
+      "summary": "Storyboard formalize 对 json_each 已解包字符串再次调用 json_type，非空 characterIds 会触发 malformed JSON。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-SEALED-CHILD-REPARENT",
+      "severity": "P1",
+      "status": "open",
+      "summary": "formal/ready child 更新只检查 NEW parent，允许从 sealed parent 改挂到 pending/unready parent。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-STORYBOARD-V1-RESOLUTION",
+      "severity": "P1",
+      "status": "open",
+      "summary": "V1 character token 即使解析到同 Project Character，projection 的 characterId 仍可为 null。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-LAYOUT-SEAL-PROVENANCE",
+      "severity": "P1",
+      "status": "open",
+      "summary": "Layout seal 未完整验证 canvases 形状、complete 来源非空性以及 Candidate/Lock/Asset 同一 provenance chain。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-DELETING-TASK-SUCCESS",
+      "severity": "P1",
+      "status": "open",
+      "summary": "Task finish 在 owner Project deleting 后仍可把 outcome=succeeded 物化为 succeeded。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-MIGRATION-EFFECTIVE-DIGEST",
+      "severity": "P1",
+      "status": "open",
+      "summary": "final MigrationRun succeeded trigger 未要求或校验 verification.effectiveSchemaManifestDigest。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-REVIEW-BUNDLE-FINAL-SNAPSHOT-TOCTOU",
+      "severity": "P1",
+      "status": "open",
+      "summary": "Bundle loader 不在返回前复验先前已读文件，磁盘 bundle 改变后仍可能评估旧字节。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-review-bundle.ts",
+        "apps/server/src/persistence/g1-schema-review-bundle.spec.ts"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-PURGE-ROOT-GUARDS-INCOMPLETE",
+      "severity": "P1",
+      "status": "open",
+      "summary": "多个历史根和 cascade parent 没有 DELETE guard，可在 active Project 下绕过三条件 purge。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-SQL-CREDENTIAL-CLEAR-REVERT",
+      "severity": "P1",
+      "status": "open",
+      "summary": "Credential 可从 clearing 直接回退 configured 并保留旧 ref，破坏 clear 两阶段生命周期。",
+      "evidenceRefs": [
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md"
+      ],
+      "resolution": null
+    }
+  ]
+}

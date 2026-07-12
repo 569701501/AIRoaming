@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r5",
+  "manifestDigest": "sha256:d981372c9051bf89fe6d01c4be94b50cfad7fd5bbe71dea36ae67dccb02e6825",
+  "reviewerId": "codex-scrutiny-contract-20260712-r5",
+  "reviewerRole": "contract_consistency",
+  "independentFromWorker": true,
+  "verdict": "accepted",
+  "reviewedAt": "2026-07-11T22:41:49.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r5/contract_consistency.review.md",
+    "digest": "sha256:0e17d0c96473c183fb2e9575289a4f84595cbaaf211ae9ad94fce48c4d04fb1d"
+  },
+  "findings": [
+    {
+      "code": "G1-CONTRACT-P2-MANIFEST-SOURCE-COMMENT",
+      "severity": "P2",
+      "status": "open",
+      "summary": "manifest 装配函数 JSDoc 仍只写两份 Markdown 与 TypeScript allow-list，遗漏已纳入摘要的 package.json supporting source",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-manifest-source.ts",
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/handoff.md"
+      ],
+      "resolution": null
+    }
+  ]
+}

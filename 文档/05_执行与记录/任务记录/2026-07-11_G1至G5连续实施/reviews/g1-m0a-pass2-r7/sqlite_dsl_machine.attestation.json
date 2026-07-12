@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r7",
+  "manifestDigest": "sha256:c32dd95ab61a2d8a89c25dbab45d0f3efb7323d504f6031dc2e51e38b5943d06",
+  "reviewerId": "codex-scrutiny-sqlite-20260712-r7",
+  "reviewerRole": "sqlite_dsl_machine",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-12T00:26:40.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r7/sqlite_dsl_machine.review.md",
+    "digest": "sha256:9d7843c0300d17ad70219ad99a18aecade475e9c39f4fe516dd4da54ba7ca9b4"
+  },
+  "findings": [
+    {
+      "code": "G1-SQLITE-P1-WRITER-MANIFEST-TOCTOU",
+      "severity": "P1",
+      "status": "open",
+      "summary": "Schema 与 migration writer 的 gate 结果未绑定随后实际读取和渲染的 manifest 字节，路径替换可使保留旧内嵌 digest 的未签名内容通过两次 gate 并进入原子提交。",
+      "evidenceRefs": [
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r7/sqlite_dsl_machine.review.md",
+        "apps/server/src/persistence/g1-prisma-schema.ts",
+        "apps/server/src/persistence/g1-migration-plan.ts",
+        "apps/server/src/persistence/g1-schema-review-check.ts"
+      ],
+      "resolution": null
+    }
+  ]
+}

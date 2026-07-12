@@ -2,7 +2,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-07-11
+updated: 2026-07-12
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -114,14 +114,26 @@ corepack pnpm test:e2e:repeat # E2E repeat-each=3 稳定性复跑
 corepack pnpm test:all      # 类型、Vitest、E2E 聚合门禁
 ```
 
+当前 G1 已交付数据库基座的事实核对入口不是旧“文档完备性复核”，而是：
+
+```text
+文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md
+文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md
+apps/server/prisma/contracts/g1-schema-manifest.json
+文档/05_执行与记录/任务记录/2026-07-12_G1纠偏与DB垂直切片/
+文档/05_执行与记录/功能完成记录/2026-07-12_G1纠偏与DB垂直切片.md
+```
+
+G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bundle/CAS 写入门禁，当前状态为 `ready_for_materialization`，digest=`sha256:da0d4733afd6291623396144ff51ae40bd00c4b3aa394916d75c2e798012ab6a`。它绑定 19 份当前 source closure，并精确描述 44/556/105/210、195 CHECK、194 trigger、10 TaskPolicy、5 OutboxHandler 与 44 PurgeOwnership；正式 `schema.prisma` 和 `0001～0008` migration tree 已生成并通过 exact check、Prisma validate、fresh deploy、二次 no-pending、integrity/FK 与故障回放。历史 r1～r7 review 文件只作留痕，不参与当前源码闭包、写入授权或 package scripts。
+
 ## 8. 当前产品取舍
 
 - 先做可控工作流，不先追求完全自动生成整部作品。
 - “可控工作流”统一指 AI 分步生成、用户查看/编辑/确认后推进，不表示用户手工绘图。该七阶段状态机、确认动作和步骤门禁已在当前代码中实现，是现有基线，不是 D2 待开发功能；D2 真正后置的是跨步骤自动推进、批量调度和一键生产的详细边界。
 - 当前七阶段补全入口为 `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`；完整验收入口为 `文档/06_测试与验收/七阶段完整链路验收基线.md`。2026-07-11 用户决定当前开发波次只到 G5，G6 素材包 V2 与 G7 ZIP 总验收后置；仍保留七阶段 workflow，不改回六阶段。`G0至G5开发文档完备性复核.md` 是开发授权前的内容/批准快照；当前 G0 实施状态以任务记录、自动化测试体系和功能完成记录为准。
 - G0 测试安全网已于 2026-07-11 实现：Vitest 新增 8 条 Nest Service characterization，Playwright 覆盖 API-01～API-04、UI-01～UI-05 与独立 provider/server/web 生命周期；环境契约 15/15、prepare 契约 3/3、shared 15/15、server 72/72、Playwright 3/3、重复运行 9/9，并完成失败证据演练与 Runtime/User Review。E2E 使用临时 workspace、唯一 runId/marker、loopback fake provider、假 key 与受控 PID，Node 22.17.1 下显式 `node --import tsx`，Nest/Vite 从 shared source alias 解析且 prepare 禁止构建 shared。G0 完成不代表 UI-06 或 G1～G5 已实现；一镜一页、复制源图和目录式素材包仍不属于绿色契约。详见 `文档/06_测试与验收/自动化测试体系.md` 与 `文档/05_执行与记录/功能完成记录/2026-07-11_G0测试安全网.md`。
-- G1 开发级文档已于 2026-07-11 获用户确认、尚未实现：目标不是给旧六个 Prisma 模型补 CRUD，而是以 44 个明确模型接管项目/版本/对话/pending/任务/设置/迁移/Outbox；通过不可变 snapshot、runtime bundle、影子导入、短暂停写和一次 DB-only 激活切换。SQLite 首版不默认开启 WAL；旧 metadata 必须移入独立只读档案，Asset 字节路径继续可写；`firstBusinessWriteAt` 是退回 file-only 的终点。详见 `文档/04_方案与决策/2026-07-11_G1数据库事实源与DB-only切换开发方案.md`、`文档/04_方案与决策/2026-07-11_G1数据库Schema字典与旧数据映射.md` 和 `文档/06_测试与验收/G1数据库迁移执行与验收清单.md`。用户另行明确授权开发前，仍不得修改 schema、业务代码、数据库或真实 workspace。
-- G2 开发级方案已于 2026-07-11 获用户确认、尚未实现：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值；dirty/pending 工作稿不使旧导出消失，但会阻止新下游任务。里程碑保持单调，正式返修不再清空候选/布局或倒退 `Chapter.status`。详见 `文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md`、`文档/04_方案与决策/2026-07-11_G2版本来源与Freshness契约字典.md`、`文档/04_方案与决策/ADR-0013_上游版本链与派生Freshness.md` 和 `文档/06_测试与验收/G2上游版本链与失效验收清单.md`。
+- G1 已完成可执行 Schema/migration artifact 与 Project/Chapter/Script 最小 DB 垂直切片：显式 `AIROAMING_PERSISTENCE_MODE=db` 时，公开 Service 路径支持创建项目、保存章节草稿、完成章节，并能在应用上下文重建后从同一 SQLite 读回；连接后、业务加载前精确核验正式 8 段 migration artifact 与实际 ledger，缺失、漂移、failed/P3018 或无 ledger 均拒绝启动。默认仍为 file，DB 模式不自动迁移，未支持写路径 fail-closed。Dialogue、SecretStore、持久任务、Asset/Outbox、Layout/Export、正式 importer、真实 snapshot 与全量 DB-only 激活尚未完成；不得把该切片描述为 G1 production cutover。详见 `文档/05_执行与记录/任务记录/2026-07-12_G1纠偏与DB垂直切片/`、对应完成记录、G1 开发方案与验收清单。
+- G2 开发级方案已于 2026-07-11 获用户确认、主体尚未实现：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值。正式 migration tree 与 C3 Project/Chapter/Script 基座已经满足 G2 开发起点；G2 完成仍须提供自身发布事务、rowVersion/CAS、并发、隔离与失效证据，这一开工条件不等于生产 DB-only 切换。2026-07-12 已补齐五份施工资料：依赖边界、数据库 Overlay、文件/Repository/事务地图、API/DTO/幂等契约、可执行测试与证据计划；实施模型必须按这些资料分切片执行，不能整包自由补决策。
 - G3 开发级方案已于 2026-07-11 获用户确认、尚未实现：不新增创建入口或向导，只在已经存在的 `CreateProjectModal.vue` 中补默认空、必选的“漫画版式”，并沿用原创建成功跳转。正式 runtime 只接受 `vertical_scroll/paged_comic`；Create 必填，普通 PATCH 只要出现该字段就 409，SQLite 用无默认值、CHECK 和不可变 trigger 硬锁。`page_horizontal/four_panel/缺失/非法` 只由 maintenance importer 映射或要求决议；分页漫画不等于横屏，旧横幅尺寸/LayoutPage 只作为带版本和 G5 删除点的兼容适配。详见 `文档/04_方案与决策/2026-07-11_G3漫画版式入口与不可变约束开发方案.md`、`文档/04_方案与决策/2026-07-11_G3漫画版式契约与旧值迁移字典.md` 和 `文档/06_测试与验收/G3漫画版式入口与锁定验收清单.md`。
 - G4 开发级方案已于 2026-07-11 获用户确认、尚未实现：Candidate 只保留 `generated/rejected/superseded`，收藏不驱动下游；首次定稿、更换、clear 和 clear 后重新定稿使用线性不可变 `CandidateLockRevision`。replace/clear 先 preview，提交带 expected revision + JCS impact digest；丢响应通过 previous/action/target 精确识别重放，真冲突返回 409。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；结构 lock set 与来源 applicability 分轴表达。已导出章节在上游 current 时仍可生新候选，未正式更换前不影响下游。G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
 - G5 开发级方案已于 2026-07-11 获用户确认、尚未实现：条漫/页漫共用严格 `LayoutDocumentV1`，画格与所属图片为受控复合对象，自由图片独立分层；Working Copy 自动保存与显式不可变 LayoutRevision 分离，离开编辑器不自动造版本。正式输出收口为一个 `layout_publication`：页漫必含 PNG 页面并可附 PDF，条漫必含 PNG 切片并可在能力允许时附长图；它是当前 G0–G5 波次的独立终点，也是未来 G6 的唯一 current 输入。E0 首选验证“交互 adapter + 专用 HTML/SVG RenderScene + 固定 Chromium”，同时以 SVG/resvg 对照，原型通过前不锁库。G6 已后置，不是 G0–G5 开工或签收前置。详见 `文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md`、`文档/04_方案与决策/2026-07-11_G5LayoutDocument与编辑命令契约字典.md`、`文档/04_方案与决策/2026-07-11_G5确定性渲染与出版导出契约.md` 和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
@@ -136,7 +148,7 @@ corepack pnpm test:all      # 类型、Vitest、E2E 聚合门禁
 - 2026-07-10 D1 新决策已采纳并覆盖上述“只保留项目名称”口径：创建动作仍只建立项目记录，但现有创建项目按钮和弹窗必须在“项目名称”下补默认空的“漫画版式”下拉框，选择 `竖向条漫/分页漫画` 后才能创建；版式创建后不可直接修改。`四格漫画` 属于后续画布布局模板，不再是项目版式。2026-07-11 用户再次澄清不需要新入口、页面或向导；当前代码仍是旧实现，待开发时按 `ADR-0009` 和 G3 开发级方案迁移。
 - 2026-07-10 D3 候选返修决策已采纳：收藏/草选不驱动下游；正式图片使用不可变 `CandidateLockRevision`，更换定稿前显示影响，既有画布格子派生为 stale，旧布局和旧导出永久保留，长任务绑定来源修订和 lock set digest。当前代码仍只改 `lockedCandidateId`，待开发时按 `ADR-0010` 迁移。
 - 2026-07-10 D4/D5 首版边界已采纳：在条漫/页漫的有限正式成稿容器内，提供画格、图片、文字和气泡的高自由对象编排；不把成稿步骤扩张为无限白板、绘画软件或专业矢量编辑器。D45-1 至 D45-6 最终为 A/C/A/A/A/A：受控矩形画格、横竖排字符范围富文本、四类气泡 + 单尾巴、临时多选不保存 Group、桌面完整编辑/手机只预览、默认收起的 AI 助手抽屉。AI 建议必须先预览并由用户确认后才应用。该决策尚未实现，不得当作已授权开发或已具备能力的事实。详见 `文档/04_方案与决策/2026-07-10_D4D5高自由成稿编辑器调研与首版边界.md` 与 `文档/04_方案与决策/ADR-0011_高自由成稿编辑器首版边界.md`。
-- 2026-07-10 D7 全量数据库化已由 ADR-0012 采纳、尚未实现。D71=A：影子导入、短暂停写、一次 DB-only 切换。D72=A：首版本地 SQLite 单引擎。D73=A：关系核心 + 版本化 Json + 可重建投影。D74=修正版 A：文本 key 归 OpenCode 本地 auth；图片 key 归 NestJS 后端 SecretStore，前端、SQLite、普通 JSON、日志、任务和 artifact 不得暴露明文。D75=A：SQLite `GenerationTask/TaskAttempt` + 单进程持久 worker/lease，采用 at-least-once 幂等、启动恢复、协作取消与图片并发 1，BullMQ/Redis 后置。D76=A：保留全部原 taskId；完整旧记录导入为只读 `legacy_imported`，缺失记录导入为不可执行 `legacy_stub`，不伪造成功状态。详细开发文档与用户确认前不得开始修改 schema、业务代码或真实数据。
+- 2026-07-10 D7 全量数据库化已由 ADR-0012 采纳并分阶段实施：44 模型 Schema、正式 migration tree 与 Project/Chapter/Script 最小 DB 切片已落地；全量事实源置换仍未完成。D71=A：影子导入、短暂停写、一次 DB-only 切换。D72=A：首版本地 SQLite 单引擎。D73=A：关系核心 + 版本化 Json + 可重建投影。D74=修正版 A：文本 key 归 OpenCode 本地 auth；图片 key 归 NestJS 后端 SecretStore。D75/D76 的持久 worker、旧任务完整导入仍待后续切片。真实数据、生产停写与 DB-only 激活继续需要动作级授权。
 - 2026-07-11 G1 进一步冻结：Importer 不直接读活动 workspace，只读 maintenance/停机生成且 pre/post manifest 一致的 snapshot；切换当刻的对话、pending 和旧任务终态通过无秘密 runtime bundle 捕获。Asset 使用 temp -> staged+Outbox -> rename -> ready；任务使用 claimToken fencing 和 `TaskConcurrencySlot`；图片 key 迁移不创建新明文备份。当前 Prisma 6.19.3 不随 G1 升级 major，关键 enum/跨字段状态由定制 migration SQL 的 CHECK/trigger 保护。
 - 2026-05-25 项目工作区交互方向更新：进入项目后隐藏全局左侧导航；项目内左侧固定为公共“对话框”，右侧为当前步骤文档或工作区；顶部搜索移除，保留返回项目列表和流程栏。对话框按当前步骤注入不同提示词，AI 可给建议、总结、改写或触发受控业务工具；2026-05-31 产品口径为 7 步。
 - 2026-05-25 创建后首屏要求收口：创建项目成功后不是停留在项目库，也不是进入旧“项目与故事”表单；必须进入项目工作区第 1 步“剧本”，页面布局为左侧对话框、右侧剧本文档编辑器。

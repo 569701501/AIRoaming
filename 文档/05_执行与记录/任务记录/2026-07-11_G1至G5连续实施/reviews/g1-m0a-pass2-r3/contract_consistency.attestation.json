@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r3",
+  "manifestDigest": "sha256:210e5718052872aff4059f128525c56f3eafc7594dd488bc6275b3585e328963",
+  "reviewerId": "codex-scrutiny-contract-20260712-r3",
+  "reviewerRole": "contract_consistency",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T21:38:13.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r3/contract_consistency.review.md",
+    "digest": "sha256:67684da991b0e6361e2fd7a5b637cc451197e75492047b867d542b75f5848370"
+  },
+  "findings": [
+    {
+      "code": "G1-CONTRACT-P1-GATE-RANGE-DRIFT",
+      "severity": "P1",
+      "status": "open",
+      "summary": "gate exactly-one checker 静默忽略正式安全门禁 IMP-05A，G1-9 没有可验证的唯一 owner",
+      "evidenceRefs": [
+        "文档/06_测试与验收/G1数据库迁移执行与验收清单.md",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/task_plan.md",
+        "apps/server/src/persistence/g1-schema-gate-coverage.spec.ts",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/handoff.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1-CONTRACT-P1-FIRST-REVIEW-STATUS",
+      "severity": "P1",
+      "status": "open",
+      "summary": "权威契约把所有 1/2 定义为 pending，生产 evaluator 对首份 rejected/open P1 实际输出 rejected",
+      "evidenceRefs": [
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md",
+        "apps/server/src/persistence/g1-schema-review-attestation.ts",
+        "apps/server/src/persistence/g1-schema-review-check.cli.ts",
+        "apps/server/src/persistence/g1-schema-review-check.spec.ts",
+        "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/handoff.md"
+      ],
+      "resolution": null
+    }
+  ]
+}

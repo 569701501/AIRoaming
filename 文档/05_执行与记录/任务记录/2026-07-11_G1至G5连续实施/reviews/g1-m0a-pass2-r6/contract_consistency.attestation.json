@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r6",
+  "manifestDigest": "sha256:356d2150ec848a1e4c583d170fee0b80b136bfe3c0990faefd49fe72aeadcfb6",
+  "reviewerId": "codex-scrutiny-contract-20260712-r6",
+  "reviewerRole": "contract_consistency",
+  "independentFromWorker": true,
+  "verdict": "accepted",
+  "reviewedAt": "2026-07-11T23:19:36.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r6/contract_consistency.review.md",
+    "digest": "sha256:15c65652801f36ab5eae4da55618aae59efe19f000c31d7f63c55e7bb8c1df7d"
+  },
+  "findings": []
+}

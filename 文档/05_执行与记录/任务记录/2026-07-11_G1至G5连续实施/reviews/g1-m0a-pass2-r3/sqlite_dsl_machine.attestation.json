@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r3",
+  "manifestDigest": "sha256:210e5718052872aff4059f128525c56f3eafc7594dd488bc6275b3585e328963",
+  "reviewerId": "codex-reviewer-b-sqlite-r3-retry-20260712",
+  "reviewerRole": "sqlite_dsl_machine",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T21:43:53.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r3/sqlite_dsl_machine.review.md",
+    "digest": "sha256:1f29b26e5d2130bee6ac8c249b2c9a5e82792d2bdbbdd91069d857ea6c782405"
+  },
+  "findings": [
+    {
+      "code": "G1_SQLITE_R3_FILE_IDENTITY_CTIME_MISSING",
+      "severity": "P1",
+      "status": "open",
+      "summary": "sealed reader 的文件 identity 未包含 ctimeNs，无法稳定发现同 inode、等长且保留 mtime 的内容更新。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-review-bundle.ts",
+        "apps/server/src/persistence/g1-schema-review-bundle.spec.ts"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1_SQLITE_R3_POST_RENAME_OUTCOME_AMBIGUOUS",
+      "severity": "P1",
+      "status": "open",
+      "summary": "atomic rename 已生效后的 directory sync 或 lock cleanup 错误会返回无 generation digest 的通用失败，与磁盘上已可见或已持久化的新 generation 不自洽。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-review-bundle.ts"
+      ],
+      "resolution": null
+    }
+  ]
+}

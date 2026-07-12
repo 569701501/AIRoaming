@@ -79,7 +79,7 @@ export class ChapterScriptService {
     const nextOrder = Math.max(0, ...chapters.map((chapter) => chapter.order)) + 1;
     const suffix = String(nextOrder).padStart(3, "0");
     return {
-      id: `chapter_${suffix}`,
+      id: this.repository.createChapterId(projectId, nextOrder),
       projectId,
       slug: `chapter-${suffix}`,
       order: nextOrder,
@@ -183,7 +183,7 @@ export class ChapterScriptService {
       updatedAt,
     }, nextChapter);
 
-    await this.projectStore.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject, "save_chapter_draft");
     this.repository.setProject(nextProject);
 
     return {
@@ -257,7 +257,7 @@ export class ChapterScriptService {
       updatedAt: completedAt,
     };
 
-    await this.projectStore.writeProjectFiles(nextProject);
+    await this.projectStore.writeProjectFiles(nextProject, "complete_chapter");
     this.repository.setProject(nextProject);
 
     return {

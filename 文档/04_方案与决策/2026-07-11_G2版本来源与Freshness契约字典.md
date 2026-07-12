@@ -1,8 +1,8 @@
 ---
 doc_id: AIR-CONTRACT-20260711-G2-VERSION-FRESHNESS
-status: accepted
+status: active
 created: 2026-07-11
-updated: 2026-07-11
+updated: 2026-07-12
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: 已确认 G2 上游版本链开发方案、G1 Schema 字典、现有共享 DTO 与 Service 审计
@@ -18,12 +18,15 @@ source: 已确认 G2 上游版本链开发方案、G1 Schema 字典、现有共�
 
 ```text
 ADR-0013
-  -> 本契约字典
+  -> G2 五份施工资料（实施边界、DB 对象、文件事务、API 幂等、测试入口）
+  -> 本契约字典（领域字段、Codec、Freshness）
   -> G2 主开发方案
   -> 实现代码与测试
 ```
 
 如实现与本文冲突，应先更新已采纳契约并重新取得决策确认，不能在代码中默默另造语义。
+
+本文第 10 节 API 和第 15 节数据库约束保留领域总则；完整 request/response、旧路由、丢响应重放、`0009` 的 2 index/14 trigger 以 2026-07-12 G2 施工包为唯一实施清单。
 
 ## 2. 统一术语与枚举
 
@@ -40,9 +43,9 @@ type VersionLifecycleStatus =
 | --- | --- | --- | --- |
 | `pending_confirmation` | 是，必须 rowVersion | 否 | active pending 指针指向时是当前工作稿 |
 | `confirmed` | 否 | 是 | 用户已确认的正式版本；离开 current 后仍保持 confirmed |
-| `archived` | 否 | 否 | 被替换/放弃的 pending 或管理性封存版本 |
+| `archived` | 否 | 否 | 仅未确认 pending 被替换/放弃；G1/G2 不把曾 confirmed 版本改成 archived |
 
-`archived` 不等于“曾经 confirmed”。是否正式过由 `confirmedAt` 和版本事件判断。
+生命周期只有 `pending_confirmation→confirmed` 或 `pending_confirmation→archived`。confirmed 离开 current 后仍保持 confirmed，并通过 current 指针派生 historical；archived 必须 `confirmedAt=null/archivedAt非空`。如果未来确需管理性封存曾 confirmed 历史，应新增独立 overlay/审计语义，不能复用本状态静默解冻或改写。
 
 ### 2.2 章节最远里程碑
 
@@ -192,8 +195,9 @@ origin = user_edit | ai_generate | import | legacy_import
 
 - pending 可更新 documentJson/documentDigest/rowVersion，但 source ID/policy/digest 在创建后不可切换。
 - confirmed 后 source、document、digest、version、origin 不可更新。
-- archived 为终态，只允许首次写 `archivedAt`。
+- archived 为未确认 pending 的终态，只允许 pending_confirmation→archived 并首次写 `archivedAt`；confirmed 永不转 archived。
 - `(chapterId, version)` 唯一，版本号在创建 pending 时分配并永不复用。
+- 非 `legacy_import` 的 source ID/policy/digest 必须全部非空。legacy 无法证明的字段可为 null；缺任一项即 `unresolved`，不使用空串或当前 policy 伪造历史，也不得静默设 current。
 
 ### 3.5 `StoryboardVersion`
 
@@ -206,7 +210,7 @@ origin, rowVersion,
 createdAt, updatedAt, confirmedAt, archivedAt
 ```
 
-confirmed 后文档和来源不可变；Shot/Projection 只能在确认事务由 codec 输出重建。
+confirmed 后文档和来源不可变；Shot/Projection 只能在确认事务由 codec 输出重建。legacy source ID/policy/digest 的 nullable/unresolved 规则与 StoryVersion 完全同构。
 
 ### 3.6 `PreflightRevision`
 
@@ -221,6 +225,7 @@ createdAt, confirmedAt
 - 插入后不可修改。
 - `ready` 必须与 documentJson 同次计算，不接受客户端布尔值。
 - sourceDigest 是聚合来源快照摘要，不是 storyboard documentDigest 的别名。
+- 这三个 source 字段始终非空。旧 preflight 的完整来源不可证时，G1 importer 不插入伪 `PreflightRevision`，而是创建 blocker `PREFLIGHT_SOURCE_UNRESOLVED`；final MigrationRun 前必须由用户显式签署 `drop_current_preflight_and_reconfirm_after_cutover`，将该 issue 标为 resolved、把 currentPreflight 指针置空并把决议纳入 `decisionsDigest`，DB-only 后再重新确认。
 
 ### 3.7 不新增的模型
 
@@ -319,7 +324,7 @@ createdAt/updatedAt/sourceStoryVersionId
 
 ### 4.5 PreflightDocumentCodec V2
 
-文档保存：
+文档保存（来源快照根字段固定命名为 `sourceSnapshot: PreflightSourceSnapshotV1`）：
 
 - 来源快照的可读副本；
 - shotCount；
@@ -331,6 +336,187 @@ createdAt/updatedAt/sourceStoryVersionId
 
 `createdAt/confirmedAt` 不进入 documentDigest。notes 进入 documentDigest，但不进入 sourceDigest。
 
+### 4.5.1 V2 完整 strict DTO
+
+以下定义是 V2 codec 的完整允许字段集，不是摘要。每一层对象都使用 exact-key parser：未知字段、重复键、缺失必填字段、未声明 null、显式 `undefined`、NaN/Infinity、错误数组元素或错误 enum 一律拒绝；不能用 TypeScript interface 代替运行时校验。
+
+```ts
+interface StoryDirectionV2 {
+  logline: string;
+  chapterGoal: string;
+  coreConflict: string;
+  emotionalArc: string;
+  endingHook: string;
+}
+
+interface StoryCharacterV2 {
+  id: string;
+  projectCharacterId: string;
+  name: string;
+  role: string;
+  level: "lead" | "recurring" | "chapter" | "minor" | "extra";
+  entityType: "human" | "creature" | "group" | "voice";
+  motivation: string;
+  relationship: string;
+  visualTraits: string;
+  notes: string;
+}
+
+interface StorySceneV2 {
+  id: string;
+  name: string;
+  location: string;
+  timeOfDay: string;
+  atmosphere: string;
+  purpose: string;
+}
+
+interface StoryBeatV2 {
+  id: string;
+  order: number;
+  title: string;
+  summary: string;
+  conflict: string;
+  characters: string[];
+  sceneId: string | null;
+  visualFocus: string;
+  outcome: string;
+}
+
+interface StoryDocumentV2 {
+  schemaVersion: 2;
+  chapterId: string;
+  synopsis: string;
+  direction: StoryDirectionV2;
+  characters: StoryCharacterV2[];
+  scenes: StorySceneV2[];
+  beats: StoryBeatV2[];
+  notes: string;
+}
+
+interface StoryboardVoiceLineV2 {
+  characterId: string | null;
+  name: string;
+  line: string;
+  voiceStyle: string;
+}
+
+interface StoryboardComicV2 {
+  panelDescription: string;
+  composition: string;
+  dialogue: string;
+  caption: string;
+  panelRhythm: "slow" | "normal" | "fast" | "impact" | "transition";
+}
+
+interface StoryboardMotionV2 {
+  visualDescription: string;
+  compositionDesign: string;
+  cameraMovement:
+    | "static" | "push_in" | "pull_out" | "pan_left" | "pan_right"
+    | "tilt_up" | "tilt_down" | "track_left" | "track_right"
+    | "slow_zoom" | "handheld" | "none";
+  frameType: "atmosphere" | "dialogue" | "action" | "reaction" | "detail" | "transition";
+  durationMs: number;
+  durationHint: string;
+  voiceLines: StoryboardVoiceLineV2[];
+}
+
+interface StoryboardShotV2 {
+  id: string;
+  order: number;
+  beatId: string | null;
+  sceneId: string | null;
+  characterIds: string[];
+  coreAction: string;
+  emotion: string;
+  shotType: "establishing" | "wide" | "full" | "medium" | "close_up" | "extreme_close_up";
+  cameraAngle: "eye_level" | "high_angle" | "low_angle" | "over_shoulder" | "top_down" | "dutch_angle";
+  comic: StoryboardComicV2;
+  motion: StoryboardMotionV2;
+  promptDraft: string;
+}
+
+interface StoryboardDocumentV2 {
+  schemaVersion: 2;
+  chapterId: string;
+  shots: StoryboardShotV2[];
+  notes: string;
+}
+
+type PreflightCheckStatusV2 = "ok" | "warning" | "blocked";
+
+interface PreflightCharacterCheckV2 {
+  characterId: string;
+  name: string;
+  level: "lead" | "recurring" | "chapter" | "minor" | "extra";
+  appearanceCount: number;
+  requiredReference: boolean;
+  referenceReady: boolean;
+  referenceAssetId: string | null;
+  status: PreflightCheckStatusV2;
+  note: string;
+}
+
+interface PreflightSceneCheckV2 {
+  sceneId: string;
+  name: string;
+  shotCount: number;
+  referenceAssetId: string | null;
+  referenceReady: boolean;
+  status: PreflightCheckStatusV2;
+  note: string;
+}
+
+interface PreflightStyleCheckV2 {
+  comicFormat: "vertical_scroll" | "paged_comic";
+  comicFormatLabel: string;
+  artStyle: string;
+  artStyleLabel: string;
+  status: PreflightCheckStatusV2;
+  note: string;
+}
+
+interface PreflightIssueV2 {
+  type:
+    | "missing_storyboard" | "unresolved_character" | "missing_reference"
+    | "running_reference_task" | "missing_scene" | "missing_scene_reference"
+    | "missing_style_context";
+  status: "warning" | "blocked";
+  message: string;
+  relatedName: string | null;
+  relatedCharacterId: string | null;
+  relatedSceneId: string | null;
+  relatedShotId: string | null;
+}
+
+interface PreflightDocumentV2 {
+  schemaVersion: 2;
+  chapterId: string;
+  sourceSnapshot: PreflightSourceSnapshotV1;
+  shotCount: number;
+  characterChecks: PreflightCharacterCheckV2[];
+  sceneChecks: PreflightSceneCheckV2[];
+  styleCheck: PreflightStyleCheckV2;
+  issues: PreflightIssueV2[];
+  ready: boolean;
+  notes: string;
+  policyVersion: "preflight-source-v1";
+}
+```
+
+Nullability 只有：Story Beat `sceneId`；Storyboard Shot `beatId/sceneId` 与 VoiceLine `characterId`；Preflight referenceAssetId 和四个 issue related 字段。其余字段均非空。允许空字符串的只有可读说明字段（如 notes/dialogue/caption/voiceStyle）；ID、name、policy、enum 和 digest 必须 trim 后非空。所有 order/appearanceCount/shotCount/durationMs 为 integer；order 从 1 连续，计数和 durationMs 非负。ID 在对应数组内唯一，引用必须命中文档或同 scope 关系；characters/scenes/beats/shots 的叙事顺序保留。
+
+`PreflightSourceSnapshotV1` 的完整字段/nullability 以 5.4 为准：characters/scenes 中 visualId/assetId/assetSha256 只能“三者全空”或“三者全非空且 Asset ready”；required=true 时最终 ready 文档不得全空。digest 字段全部是完整 `sha256:*`。
+
+### 4.5.2 V1 → V2 规则
+
+- 既有 confirmed V1 永久保留，由 V1 codec 只读解析；不得为了升级重写 documentJson/documentDigest/projection。
+- 仅 active pending V1 可在确认前显式转换。Story 删除 `chapterTitle/sourceScriptVersionId/createdAt/updatedAt`，移除 Scene `referenceAssetId` 并以 SceneVisual 关系保存；所有 projectCharacterId/level/entityType 必须由同 scope 直接证据解析后再产出 V2，无法解析则 `SOURCE_UNRESOLVED`，不猜默认。
+- Storyboard 删除 `chapterTitle/sourceStoryVersionId/createdAt/updatedAt/lockedCandidateId/status`；lock/status 只迁到 CandidateLock/派生投影。旧 enum 只能经 ADR-0007 明确映射，未知值拒绝；角色 token 必须解析成 Character.id，无法解析不得确认 V2。
+- Preflight V1 的 storyboard updatedAt、当前指针或文件时间不能伪造 SourceSnapshot。只有 storyboard/visual/asset/comicFormat 的直接关系与摘要均可证明时才构造 V2；否则不插入伪 revision，按 `PREFLIGHT_SOURCE_UNRESOLVED` + `drop_current_preflight_and_reconfirm_after_cutover` 决议协议处理。
+- 每次转换执行 `parseV1Strict -> migrate -> parseV2Strict -> encode/JCS/digest -> buildProjection`；golden fixture 固定输入/输出/digest。V1 unknown fields 同样拒绝，legacy 原始未知内容只留脱敏迁移证据。
+
 ### 4.6 JCS 与排序
 
 - JSON 使用 RFC 8785 JCS。
@@ -338,6 +524,10 @@ createdAt/updatedAt/sourceStoryVersionId
 - characters 按 `characterId` 排序。
 - scenes 按 `(chapterSceneId, sceneKey)` 排序。
 - 普通业务文档中具有叙事意义的数组不得为了摘要擅自排序。
+
+### 4.7 Formal projection 的 SQL 展开
+
+G1 base 的 `FormalProjectionRegistryV1` 已冻结 V1/V2 JSON path：Story 使用 `$.scenes/$.beats`，Storyboard 使用 `$.shots` 与每 Shot 的 `$.characterIds`；G1 runtime 仍允许当前 V1。G2 overlay 上线后，新 runtime 与待确认 pending 必须编码 V2；遗留 runtime V1 pending 先显式重编码，既有 confirmed V1 历史不改写。stable id/order/name/summary/beat/scene/character owner-ref 在 parent 仍 pending 时由 JSON1 与关系 projection 精确比对，确认后才封闭并切 current。semanticDigest 不在文档节点内，继续由 V1/V2 Codec 对 canonical fragment 重算和 golden/integration test 保护，不要求不存在的 SQLite SHA-256 UDF。精确字段映射见 `G1数据库Schema实施契约` 7.11。
 
 ## 5. SourceSnapshot 契约
 
@@ -377,7 +567,7 @@ interface SourceSnapshotV1 {
   "sources": [
     {
       "role": "script",
-      "entityType": "ChapterScriptVersion",
+      "entityType": "chapter_script_version",
       "entityId": "script_v002",
       "digest": "sha256:..."
     }
@@ -397,7 +587,7 @@ interface SourceSnapshotV1 {
   "sources": [
     {
       "role": "story",
-      "entityType": "StoryVersion",
+      "entityType": "story_version",
       "entityId": "story_v003",
       "digest": "sha256:story-document"
     }
@@ -416,27 +606,27 @@ interface PreflightSourceSnapshotV1 {
   consumerType: "preflight_revision";
   storyboard: {
     id: string;
-    digest: string;
+    digest: `sha256:${string}`;
   };
   style: {
     comicFormat: "vertical_scroll" | "paged_comic";
     artStyle: string;
-    styleDigest: string;
+    styleDigest: `sha256:${string}`;
   };
   characters: Array<{
     characterId: string;
     required: boolean;
-    generationInputDigest: string;
+    generationInputDigest: `sha256:${string}`;
     visualId: string | null;
     assetId: string | null;
-    assetSha256: string | null;
+    assetSha256: `sha256:${string}` | null;
   }>;
   scenes: Array<{
     chapterSceneId: string;
     sceneKey: string;
     visualId: string | null;
     assetId: string | null;
-    assetSha256: string | null;
+    assetSha256: `sha256:${string}` | null;
   }>;
 }
 ```
@@ -457,14 +647,16 @@ SourceSnapshot 同事务投影到 `GenerationTaskSource`：
 
 | role | sourceType | sourceId | sourceDigest |
 | --- | --- | --- | --- |
-| `script` | `ChapterScriptVersion` | script ID | script content digest |
-| `story` | `StoryVersion` | story ID | documentDigest |
-| `storyboard` | `StoryboardVersion` | storyboard ID | documentDigest |
-| `preflight` | `PreflightRevision` | preflight ID | aggregate sourceDigest |
-| `character_reference` | `CharacterVisual` | visual ID | generation/asset digest |
-| `scene_reference` | `SceneVisual` | visual ID | asset digest |
+| `script` | `chapter_script_version` | script ID | script content digest |
+| `story` | `story_version` | story ID | documentDigest |
+| `storyboard` | `storyboard_version` | storyboard ID | documentDigest |
+| `preflight` | `preflight_revision` | preflight ID | aggregate sourceDigest |
+| `character_reference` | `character_visual` | visual ID | underlying ready Asset.sha256；角色生成字段另由 preflight aggregate 覆盖 |
+| `scene_reference` | `scene_visual` | visual ID | ready Asset.sha256 |
 
-关系投影不可独立编辑；必须能从 task input 重建并逐项比较。
+数据库 sourceType 统一用 snake_case；PascalCase model 名只用于 TypeScript/Prisma 标识，不进入持久值。完整 V1 registry（含 G4/G5 的 lock/layout/export/asset token、owner lookup 与 digest policy）由 `G1数据库Schema实施契约` 10.4.1 冻结。
+
+关系投影不可独立编辑；runtime task input 根对象必须含 `sourceProjection: TaskSourceProjectionV1`，其 sources 使用 `role/order/sourceType/sourceId/sourceDigest`：按 `(role,sourceType,sourceId)` 的 unsigned UTF-8 byte/BINARY 顺序稳定排序、同 role 从 1 连续编号，再以 `(role,order)` 保存；与 GenerationTaskSource 逐项、逐值、计数完全一致后才能 seal。Task.sourceDigest 是 sourceProjection 的 JCS digest。
 
 PreflightRevision ID 用于审计“任务由哪次用户确认放行”，候选任务的生成语义适用性以 aggregate sourceDigest 为准。若只新建 notes 不同但 sourceDigest 相同的 PreflightRevision，旧任务不因 ID 不同自动过期；如果未来 notes 会进入 provider 输入，必须升级 policyVersion 并把 notes 纳入 sourceDigest，不能在 worker 中临时读取。
 
@@ -816,8 +1008,8 @@ read Chapter + current Script + active pending Story
 read Chapter/current Script/current Story/pending Story/pending Board
   -> NewWorkGate
   -> normalize + resolve character IDs + encode
-  -> update pending status confirmed（条件 rowVersion）
-  -> rebuild Story projections
+  -> 在 parent 仍为 pending_confirmation 时 rebuild Story projections
+  -> formalize guard 通过后 update pending status confirmed（条件 rowVersion）
   -> switch current Story / clear pending Story
   -> archive incompatible pending Board / clear pending Board pointer
   -> increment Chapter rowVersion
@@ -830,9 +1022,9 @@ read Chapter/current Script/current Story/pending Story/pending Board
 read Chapter/current Story/current Board/pending Board
   -> NewWorkGate
   -> validate stable Shot IDs
-  -> confirm pending Board
-  -> rebuild projections
   -> active/retire Shot identities
+  -> 在 parent 仍为 pending_confirmation 时 rebuild projections
+  -> formalize guard 通过后 confirm pending Board
   -> switch current Board / clear pending Board
   -> increment Chapter rowVersion
   -> commit
@@ -850,21 +1042,35 @@ SourceSnapshot、Asset sha256 和 live checks 可在事务前构建；事务内�
 interface TaskCompletionApplicabilityInput {
   taskId: string;
   claimToken: string;
+  chapterId: string;
   expectedTargetId: string;
   expectedTargetRowVersion: number;
   sourceDigest: string;
 }
 ```
 
+`story_parse` 与 `shot_generate` 的冻结幂等模板分别为：
+
+```text
+story-parse:{projectId}:{chapterId}:{expectedTargetId}:{sourceDigest}:{inputDigest}
+shot-generate:{projectId}:{chapterId}:{expectedTargetId}:{sourceDigest}:{inputDigest}
+```
+
+其中 `{expectedTargetId}` 唯一绑定 `input.expectedTargetId`，并在 Task 创建事务冻结；不得绑定或重读 Chapter 的 `pendingStoryVersionId` / `pendingStoryboardVersionId`。全部占位符到唯一来源的机械映射以《G1任务与Outbox实施注册表》3.4 节为准。
+
 条件更新至少包含：
 
 ```text
 task.claimToken == input.claimToken
 task.cancelRequestedAt is null
+task.targetType == chapter
+task.targetId == input.chapterId
 active pending pointer == expectedTargetId
 target.rowVersion == expectedTargetRowVersion
 recomputed sourceDigest == task.sourceDigest
 ```
+
+这里的 `target` 在后两行专指 write target（pending StoryVersion/StoryboardVersion），不是 `GenerationTask.targetId`。`GenerationTask.targetId` 是 Chapter routing/owner identity；`expectedTargetRowVersion` 是 pending 行自己的 CAS 版本，Chapter.rowVersion 仍由 Chapter command 单独携带和校验。
 
 条件失败时，不允许 worker 绕过 Service 直接写版本表。输出登记为 historical，并记录具体 applicability reason。
 
@@ -878,7 +1084,7 @@ recomputed sourceDigest == task.sourceDigest
 | 内存 pending structure | pending StoryVersion | 仅 runtime bundle 可捕获 |
 | `storyboard.json` | confirmed StoryboardVersion | source 缺失则 stale/unresolved |
 | `storyboard.pending.json` | pending StoryboardVersion | source 不匹配则 archived |
-| `preflight.json` | PreflightRevision | 完整来源集合不可证则要求重确认 |
+| `preflight.json` | PreflightRevision | 完整来源集合不可证则不插入 revision，创建 `PREFLIGHT_SOURCE_UNRESOLVED` blocker；final 前由用户显式决议 `drop_current_preflight_and_reconfirm_after_cutover` 后标 resolved/current pointer 置空，DB-only 后重确认 |
 | scene `referenceAssetId` | SceneVisual | 不进入 Story documentDigest |
 | shot `lockedCandidateId/status` | CandidateLock/派生状态 | 不进入 Board documentDigest |
 | `workflow.json` | 无 | 从 production state 重建 |
@@ -907,6 +1113,8 @@ PRE_G2_HISTORY_ALREADY_DELETED
 
 Prisma 无法表达的部分继续按 G1 使用定制 migration SQL CHECK/trigger，并做 `sqlite_master` 合同测试。
 
+阶段所有权：G1 base 预建 Chapter/Version 字段，并已拥有 current=confirmed、pending=pending_confirmation、source 完整与基础 formal/projection immutable；本节只有 active pending 唯一生命周期、rowVersion/CAS、freshness 与 NewWorkGate 约束以 G2 overlay manifest 叠加，不重复 ADD COLUMN 或重复声明基础不可变。
+
 ## 16. 实施完成条件
 
 1. 本文枚举在 shared/server/web 只有一个定义源。
@@ -923,3 +1131,8 @@ Prisma 无法表达的部分继续按 G1 使用定制 migration SQL CHECK/trigge
 - `文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md`
 - `文档/06_测试与验收/G2上游版本链与失效验收清单.md`
 - `文档/04_方案与决策/2026-07-11_G1数据库Schema字典与旧数据映射.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_依赖边界与阶段门禁.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_数据库Overlay清单.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_文件Repository与事务地图.md`
+- `文档/04_方案与决策/2026-07-12_G2施工包_API与幂等契约.md`
+- `文档/06_测试与验收/G2施工包_可执行测试与证据计划.md`

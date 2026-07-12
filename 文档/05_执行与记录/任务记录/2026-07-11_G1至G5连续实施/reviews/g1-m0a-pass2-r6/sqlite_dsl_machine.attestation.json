@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "reviewRoundId": "g1-m0a-pass2-r6",
+  "manifestDigest": "sha256:356d2150ec848a1e4c583d170fee0b80b136bfe3c0990faefd49fe72aeadcfb6",
+  "reviewerId": "codex-reviewer-b-sqlite-r6-prisma-20260712",
+  "reviewerRole": "sqlite_dsl_machine",
+  "independentFromWorker": true,
+  "verdict": "rejected",
+  "reviewedAt": "2026-07-11T23:19:32.000Z",
+  "report": {
+    "path": "文档/05_执行与记录/任务记录/2026-07-11_G1至G5连续实施/reviews/g1-m0a-pass2-r6/sqlite_dsl_machine.review.md",
+    "digest": "sha256:638c3d225fe802422b995e91f2ba73dc89e6418170fdab70425808a390a5b29a"
+  },
+  "findings": [
+    {
+      "code": "G1_SQLITE_R6_RENDERER_FK_NAME_NOT_EXACT",
+      "severity": "P1",
+      "status": "open",
+      "summary": "Schema renderer 对 relation 的 local/ref/actions 会 exact-match，但只要求物理 FK name 非空；错误非空 name 会被静默接受并产出相同 SDL，未来 migration 的 exact physical name 未被该边界保护。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-prisma-schema.ts",
+        "apps/server/src/persistence/g1-prisma-schema.spec.ts",
+        "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md"
+      ],
+      "resolution": null
+    },
+    {
+      "code": "G1_SQLITE_R6_RENDERER_SOURCE_UNBOUND",
+      "severity": "P1",
+      "status": "open",
+      "summary": "固定 manifest digest 的 19 个 sourceDocuments 未包含 production schema renderer 与 writer CLI；本轮审查的可执行生成边界可在不改变 digest 的情况下漂移。",
+      "evidenceRefs": [
+        "apps/server/src/persistence/g1-schema-manifest-source.ts",
+        "apps/server/prisma/contracts/g1-schema-manifest.json",
+        "apps/server/src/persistence/g1-prisma-schema.ts",
+        "apps/server/src/persistence/g1-prisma-schema.cli.ts"
+      ],
+      "resolution": null
+    }
+  ]
+}
