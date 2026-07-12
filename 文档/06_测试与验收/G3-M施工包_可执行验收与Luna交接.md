@@ -152,8 +152,8 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 - 当前基础实现：`MigrationVerifyService`/`db:verify` 只读 sealed snapshot 与目标 DB，检查 run/manifest、`integrity_check`、FK、blocker 和来源追溯锚点；`effectiveSchemaManifestDigest` 使用 Prisma Schema + 全部有序 migration checksum 的 release identity，不再使用 G1 source manifest digest。
 - `migration-source-evidence.registry.ts` 已按 entityType 注册单文件、Chapter 复合（chapter.json + script.md）和 runtime bundle canonical 摘要算法；`db:verify` 同时检查 source/snapshot manifest，settings/runtime 转换输入不会被误判为越界来源。
-- 当前已完成单次 succeeded、转换来源和 full replay 特征测试，以下正式绿色条件仍未满足，因此状态保持 `in_progress`。
-- 连续两轮 fresh shadow：integrity=ok、FK=0、ledger exact、blocker=0、API DTO 等价、Asset hash 一致。
+- 当前已完成单次 succeeded、转换来源、full replay 特征测试，以及双 fresh DB 的 16 slice 逐片验证；以下正式绿色条件仍未满足，因此状态保持 `in_progress`。
+- 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。API DTO 等价、Asset hash 一致和 DB-only 写隔离仍待完成。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。
 
 ### G3-M5

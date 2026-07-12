@@ -16,6 +16,7 @@ source: task execution
 - [x] 新增 `FullShadowImporter` 和 `db:import --slice full`，固定 16 slice 顺序，聚合摘要不绑定 runId。
 - [x] 修复 full replay 时 Asset physical evidence 对原始 metadata 的合法后置增强兼容。
 - [x] 新增 M4 transformed source、full replay 集成测试。
+- [x] 新增双 fresh DB 全量影子导入一致性测试：16 个 slice 均逐片通过 verifier，聚合 reportDigest、规范化 slice summary、业务 inventory digest 一致；同时覆盖 ProjectScriptOutline 复合来源摘要重算。
 - [ ] API DTO 等价与 Asset hash 对照门禁。
 - [ ] pending Dialogue artifact/read-model 及后续 M5/M6。
 
@@ -24,6 +25,7 @@ source: task execution
 - `pnpm --filter @airoaming/server typecheck`：通过。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4' --testTimeout=15000`：2 项通过。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M3-FULL' --testTimeout=60000`：1 项通过。
+- `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-FRESH' --testTimeout=120000`：1 项通过；两套 fresh SQLite DB 的 16 个 slice、逐片 verifier、reportDigest 与业务 inventory digest 均一致。
 - 全量 `pnpm --filter @airoaming/server test -- --run --testTimeout=15000`：45 个测试文件、261 个测试通过；G1 manifest/schema/migration check 与 `git diff --check` 通过。
 
 # 工作区约束
