@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "airoaming_g3_m4_verification_summary_v1",
+  "baselineCommit": "0c3295b",
+  "codeCommitBeforeEvidence": "e6ff615",
+  "scope": "shadow-importer-and-verifier-only",
+  "status": "in_progress",
+  "serverTestFiles": 47,
+  "serverTests": 299,
+  "migrationIntegrationTests": 54,
+  "fullShadowSliceCount": 16,
+  "m4CliEvidence": {
+    "successPath": "IMP-M4-26",
+    "missingImportReportFailFast": "IMP-M4-27"
+  },
+  "gates": {
+    "typecheck": "passed",
+    "g1Manifest": "passed",
+    "g1Schema": "passed",
+    "g1Migration": "passed",
+    "prismaValidate": "passed",
+    "diffCheck": "passed"
+  },
+  "notAuthorized": ["final-import", "backup-restore", "activate-cutover"]
+}

@@ -36,6 +36,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | run verification attestation | 通过 | `IMP-M4-16/17`：succeeded shadow 缺失或未声明 source/snapshot 已验证均 fail-closed |
 | digest 形状与报告绑定 | 通过 | `IMP-M4-18/19`：succeeded shadow 缺少 `decisionsDigest` 或 report digest 不是规范 sha256 格式均 fail-closed；`IMP-M4-23/24/25`：显式 import report 缺失、非法或摘要不一致均 fail-closed；verifier 对报告正文按 codec 重算，不把 ledger 自报当作证据 |
 | db:verify 真实入口 | 通过 | `IMP-M4-26` 在临时 SQLite 上执行完整 CLI 成功路径并核对输出文件；`IMP-M4-27` 缺少 `--import-report` 在 Prisma 初始化前返回稳定参数错误 |
+| 可复现证据 | 通过 | `evidence/commands.md` 与 `evidence/verification.summary.json` 只保留脱敏命令、摘要和未授权范围，不包含真实 DB、workspace、绝对路径或密钥 |
 | decisions artifact 三方绑定 | 通过 | `IMP-M4-20/21/22`：`db:verify` 必须读取 artifact，并校验 sealed source digest、artifact digest、run digest；缺失或不一致均 fail-closed |
 | final/cutover | 保持阻断 | `db:import --kind final`、backup、activate 仍不在本轮实现范围 |
 

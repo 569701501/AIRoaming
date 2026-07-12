@@ -28,6 +28,7 @@ source: G3-M4 continuation
 - succeeded shadow 现在还必须带规范 `decisionsDigest`；报告摘要也会独立校验 `sha256:<64位小写十六进制>` 形状，`IMP-M4-18/19` 已通过，缺失/非法分别返回 `MIGRATION_DECISIONS_DIGEST_MISSING`、`MIGRATION_DECISIONS_DIGEST_INVALID`、`MIGRATION_REPORT_DIGEST_INVALID`。
 - `db:verify` 现在必须接收已校验的 decisions artifact 和本次 slice 的 `--import-report` artifact：前者校验 sourceManifestDigest、artifact decisionsDigest 与 run.decisionsDigest 三方绑定，后者按报告 codec 重算 canonical reportDigest 并绑定 run.reportDigest；缺失或不一致分别由 `MIGRATION_DECISIONS_ARTIFACT_MISSING/INVALID`、`MIGRATION_SOURCE_DIGEST_MISMATCH`、`MIGRATION_DECISIONS_DIGEST_MISMATCH`、`MIGRATION_REPORT_ARTIFACT_MISSING/INVALID`、`MIGRATION_REPORT_DIGEST_MISMATCH` 拒绝，`IMP-M4-20/21/22/23/24/25` 已通过。
 - `IMP-M4-26/27` 已通过真实 `db:verify` CLI 成功路径和缺少 `--import-report` 的入口 fail-fast；CLI 输出文件与 slice report artifact 的绑定已得到临时 SQLite 证据。
+- 可复现证据已脱敏落在本目录 `evidence/commands.md` 与 `evidence/verification.summary.json`；不包含真实 DB、workspace、报告正文、绝对路径或密钥。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
 - Dialogue runtime 的显式 pending codec/import 已完成：ScriptDialogueService 的三类 pending Map 进入 `PendingDialogueArtifact`，保留稳定 sourceKey、scope、payloadDigest 和 runtime-bundle 来源证据。
