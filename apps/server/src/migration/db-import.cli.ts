@@ -16,6 +16,7 @@ import { CandidateLockShadowImporter, CandidateLockShadowImportError } from "./c
 import { LayoutShadowImporter, LayoutShadowImportError } from "./layout-shadow-importer.js";
 import { ExportShadowImporter, ExportShadowImportError } from "./export-shadow-importer.js";
 import { ProviderShadowImporter, ProviderShadowImportError } from "./provider-shadow-importer.js";
+import { DialogueShadowImporter, DialogueShadowImportError } from "./dialogue-shadow-importer.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -44,7 +45,7 @@ async function main(): Promise<number> {
   if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
   const sliceIndex = process.argv.indexOf("--slice");
   const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
-  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "candidates" && slice !== "candidate-locks" && slice !== "layout" && slice !== "exports" && slice !== "providers" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "candidates" && slice !== "candidate-locks" && slice !== "layout" && slice !== "exports" && slice !== "providers" && slice !== "dialogue" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const snapshot = path.resolve(required("--snapshot"));
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
@@ -89,7 +90,9 @@ async function main(): Promise<number> {
                             : slice === "exports"
                               ? await new ExportShadowImporter(prisma).import(snapshot, decisions)
                               : slice === "providers"
-                                ? await new ProviderShadowImporter(prisma).import(snapshot, decisions)
+                              ? await new ProviderShadowImporter(prisma).import(snapshot, decisions)
+                              : slice === "dialogue"
+                                ? await new DialogueShadowImporter(prisma).import(snapshot, decisions)
                     : await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
     await writePrivateJson(reportPath, result.report);
     process.stdout.write(`${JSON.stringify({ code: result.run.status === "blocked" ? "MIGRATION_IMPORT_BLOCKED" : "MIGRATION_IMPORT_OK", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
@@ -102,7 +105,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError || error instanceof TaskShadowImportError || error instanceof CandidateShadowImportError || error instanceof CandidateLockShadowImportError || error instanceof LayoutShadowImportError || error instanceof ExportShadowImportError || error instanceof ProviderShadowImportError
+  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError || error instanceof TaskShadowImportError || error instanceof CandidateShadowImportError || error instanceof CandidateLockShadowImportError || error instanceof LayoutShadowImportError || error instanceof ExportShadowImportError || error instanceof ProviderShadowImportError || error instanceof DialogueShadowImportError
     ? error.code
     : error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
   process.stderr.write(`${code}\n`);

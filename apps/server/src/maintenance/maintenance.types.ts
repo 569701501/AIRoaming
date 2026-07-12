@@ -26,11 +26,10 @@ export interface RuntimeBundleV1 {
   kind: "airoaming_runtime_bundle_v1";
   createdAt: string;
   participants: Record<string, unknown>;
-  conversationState: { captured: boolean; reason: string };
-  pendingDialogueState: { captured: boolean; reason: string };
-  legacyTaskTerminalState: { captured: boolean; reason: string };
+  conversationState: unknown;
+  pendingDialogueState: unknown;
+  legacyTaskTerminalState: unknown;
   unobservableBeforeBridge: string[];
   redaction: { schemaVersion: 1; redactedCount: number };
   payloadDigest: `sha256:${string}`;
 }
-

@@ -27,6 +27,7 @@ import { MigrationVerifyService } from "./migration-verify.service.js";
 import { LayoutShadowImporter } from "./layout-shadow-importer.js";
 import { ExportShadowImporter } from "./export-shadow-importer.js";
 import { ProviderShadowImporter } from "./provider-shadow-importer.js";
+import { DialogueShadowImporter } from "./dialogue-shadow-importer.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
@@ -43,7 +44,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -134,6 +135,32 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     await writeFile(path.join(workspace, "settings", "app-settings.json"), `${JSON.stringify({ version: 1, aiKey: { providerId: "self", providerName: "自定义 OpenAI 兼容", modelId: "gpt-5.5", baseUrl: null, apiKey: "sk-test-secret-value", keyFingerprint: "sha256:fingerprint", updatedAt: "2026-01-07T00:00:00.000Z" }, openaiImageProvider: { providerId: "openai_image", providerName: "OpenAI 图片生成", modelId: "gpt-image-2", baseUrl: "https://example.test", apiKey: null, keyFingerprint: null, updatedAt: null }, activeImageProvider: "openai", appearance: { theme: "dark" }, updatedAt: "2026-01-07T00:00:00.000Z" })}\n`);
   }
   const coordinator = new MaintenanceCoordinator();
+  if (options.withDialogueRuntime) {
+    coordinator.registerRuntimeStateProvider("dialogue", () => ({
+      conversationState: {
+        schemaVersion: 1,
+        captured: true,
+        kind: "dialogue_runtime_state_v1",
+        threads: [{
+          id: "legacy-thread-001",
+          projectId: "p1",
+          chapterId: "p1-chapter-001",
+          stepKey: "project_story",
+          title: "旧剧本对话",
+          status: "active",
+          openCodeSessionId: "legacy-opencode-session-001",
+          createdAt: "2026-01-07T00:00:00.000Z",
+          updatedAt: "2026-01-07T00:02:00.000Z",
+          messages: [
+            { id: "legacy-message-user-001", role: "user", content: "请整理这一章", status: "completed", createdAt: "2026-01-07T00:00:00.000Z", updatedAt: "2026-01-07T00:00:01.000Z", completedAt: "2026-01-07T00:00:01.000Z" },
+            { id: "legacy-message-assistant-001", role: "assistant", content: "我会先整理章节结构。", status: "completed", providerId: "self", modelId: "gpt-5.5", createdAt: "2026-01-07T00:00:02.000Z", updatedAt: "2026-01-07T00:00:03.000Z", completedAt: "2026-01-07T00:00:03.000Z" },
+          ],
+          toolResults: [{ id: "legacy-tool-result-001", messageId: "legacy-message-assistant-001", toolCallId: "legacy-tool-call-001", tool: "analyze_script_import", status: "succeeded", summary: "已完成旧剧本分析", payload: { schemaVersion: 1, decision: "import" }, createdAt: "2026-01-07T00:00:04.000Z" }],
+        }],
+      },
+      pendingDialogueState: { captured: false, reason: "test_pending_not_captured" },
+    }));
+  }
   await coordinator.drain();
   await coordinator.close();
   const bundlePath = path.join(root, "runtime-bundle.json");
@@ -575,5 +602,22 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a14-replay" });
     expect(await prisma!.database().providerConfig.count()).toBe(2);
     expect(await prisma!.database().credentialMetadata.count()).toBe(2);
+  }, 30_000);
+
+  it("IMP-A15-01 imports captured dialogue history and closes legacy runtime sessions", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withDialogueRuntime: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-base" });
+    const result = await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-dialogue" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ ConversationThread: 1, ConversationMessage: 2, DialogueToolResult: 1, DialogueRuntimeSession: 1 });
+    expect(await prisma!.database().conversationThread.count()).toBe(1);
+    expect(await prisma!.database().conversationMessage.count()).toBe(2);
+    expect(await prisma!.database().dialogueToolResult.count()).toBe(1);
+    expect(await prisma!.database().dialogueRuntimeSession.findFirstOrThrow()).toMatchObject({ runtime: "opencode", status: "closed", variant: "legacy_import" });
+    await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a15-replay" });
+    expect(await prisma!.database().conversationThread.count()).toBe(1);
+    expect(await prisma!.database().conversationMessage.count()).toBe(2);
   }, 30_000);
 });

@@ -52,6 +52,7 @@ class LeaseParticipant implements MaintenanceParticipant {
 }
 
 type RuntimeParticipant = MaintenanceParticipant & { enter?: () => void; leave?: () => void };
+type RuntimeStateProvider = () => Promise<{ conversationState?: unknown; pendingDialogueState?: unknown }> | { conversationState?: unknown; pendingDialogueState?: unknown };
 
 @Injectable()
 export class MaintenanceCoordinator {
@@ -59,6 +60,7 @@ export class MaintenanceCoordinator {
   private activeMutations = 0;
   private activeStreams = 0;
   private readonly participants = new Map<string, RuntimeParticipant>();
+  private readonly runtimeStateProviders = new Map<string, RuntimeStateProvider>();
 
   constructor() {
     for (const name of ["projects", "dialogue", "tasks", "tool-callback", "settings"]) {
@@ -79,6 +81,11 @@ export class MaintenanceCoordinator {
     if (!participant.name.trim()) throw new TypeError("MAINTENANCE_PARTICIPANT_NAME_REQUIRED");
     if (this.participants.has(participant.name)) throw new TypeError(`MAINTENANCE_PARTICIPANT_DUPLICATE:${participant.name}`);
     this.participants.set(participant.name, participant);
+  }
+
+  registerRuntimeStateProvider(name: string, provider: RuntimeStateProvider): void {
+    if (!this.participants.has(name)) throw new TypeError(`MAINTENANCE_PARTICIPANT_NOT_FOUND:${name}`);
+    this.runtimeStateProviders.set(name, provider);
   }
 
   async status(): Promise<MaintenanceStatus> {
@@ -181,15 +188,23 @@ export class MaintenanceCoordinator {
     for (const participant of [...this.participants.values()].sort((left, right) => left.name.localeCompare(right.name))) {
       participants[participant.name] = await participant.sealRuntimeState();
     }
+    const providedState = await this.runtimeStateProviders.get("dialogue")?.();
+    const conversationState = providedState?.conversationState ?? { captured: false, reason: "G3_M0_CONVERSATION_CAPTURE_DEFERRED" };
+    const pendingDialogueState = providedState?.pendingDialogueState ?? { captured: false, reason: "G3_M0_DIALOGUE_CAPTURE_DEFERRED" };
+    const unobservableBeforeBridge = [
+      ...(conversationState && typeof conversationState === "object" && (conversationState as { captured?: unknown }).captured === true ? [] : ["conversationState"]),
+      ...(pendingDialogueState && typeof pendingDialogueState === "object" && (pendingDialogueState as { captured?: unknown }).captured === true ? [] : ["pendingDialogueState"]),
+      "legacyTaskTerminalState",
+    ];
     const payload = {
       schemaVersion: 1 as const,
       kind: "airoaming_runtime_bundle_v1" as const,
       createdAt: new Date().toISOString(),
       participants,
-      conversationState: { captured: false, reason: "G3_M0_CONVERSATION_CAPTURE_DEFERRED" },
-      pendingDialogueState: { captured: false, reason: "G3_M0_DIALOGUE_CAPTURE_DEFERRED" },
+      conversationState,
+      pendingDialogueState,
       legacyTaskTerminalState: { captured: false, reason: "G3_M0_TASK_CAPTURE_DEFERRED" },
-      unobservableBeforeBridge: ["conversationState", "pendingDialogueState", "legacyTaskTerminalState"],
+      unobservableBeforeBridge,
       redaction: { schemaVersion: 1 as const, redactedCount: 0 },
     };
     return { ...payload, payloadDigest: digestMaintenanceJson(payload) };

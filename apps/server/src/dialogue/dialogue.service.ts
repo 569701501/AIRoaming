@@ -41,6 +41,28 @@ export class DialogueService {
     this.scriptDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
     this.storyStructureDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
     this.storyboardDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
+    this.maintenance?.registerRuntimeStateProvider("dialogue", () => this.captureRuntimeState());
+  }
+
+  /** G3-M3-A15：停写封口时提供可验证的只读对话快照；pending Map 仍由各子 service 单独完成后续接线。 */
+  captureRuntimeState(): { conversationState: unknown; pendingDialogueState: unknown } {
+    const threads = [...this.threads.values()].map((thread) => ({
+      id: thread.id,
+      projectId: thread.projectId,
+      stepKey: thread.stepKey,
+      chapterId: thread.chapterId,
+      openCodeSessionId: thread.openCodeSessionId,
+      title: `${thread.stepKey}`,
+      status: "active",
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      messages: thread.messages.map((message) => ({ ...message })),
+      toolResults: thread.toolResults.map((result) => ({ ...result })),
+    }));
+    return {
+      conversationState: { schemaVersion: 1, captured: true, kind: "dialogue_runtime_state_v1", threads },
+      pendingDialogueState: { captured: false, reason: "G3-M3-A15_PENDING_DIALOGUE_CAPTURE_DEFERRED" },
+    };
   }
 
   async getProjectThread(projectId: string, stepKey: string, chapterId?: string | null): Promise<DialogueThread> {
