@@ -28,7 +28,7 @@ source: task execution
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-FRESH' --testTimeout=120000`：1 项通过；两套 fresh SQLite DB 的 16 个 slice、逐片 verifier、reportDigest 与业务 inventory digest 均一致。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-API-01' --testTimeout=120000`：1 项通过；file/DB `WorkbenchSnapshot` 语义 DTO 一致、ready Asset sha256/bytes 与旧物理文件一致，DB 草稿写入不改变旧工作区文件。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts --testTimeout=120000`：26 项通过；`pnpm --filter @airoaming/server typecheck`：通过。
-- 全量 `pnpm --filter @airoaming/server test -- --run --testTimeout=15000`：45 个测试文件、261 个测试通过；G1 manifest/schema/migration check 与 `git diff --check` 通过。
+- 全量 `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、263 个测试通过；包含 M4 API/Asset/DB-only 门禁，G1 manifest/schema/migration check 与 `git diff --check` 通过。
 
 # 工作区约束
 
