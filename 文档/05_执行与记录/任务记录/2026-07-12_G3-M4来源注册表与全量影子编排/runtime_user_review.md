@@ -36,6 +36,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 16. `IMP-M4-11`：成功 audit run 被 verifier 拒绝并返回 `MIGRATION_RUN_KIND_INVALID`，避免非 shadow 账本 vacuous pass。
 17. `IMP-M4-12/13`：未知 shadow importerVersion、缺失 succeeded reportDigest 均被拒绝。
 18. `IMP-M4-14/15`：已知 importer 缺失 `counts.entityCounts`、出现未注册 entity count key 均被拒绝；合法上下文计数不误报。
+19. `IMP-M4-16/17`：succeeded shadow 缺失或无效 verification attestation 均被拒绝。
 
 ## 读取点审计边界
 

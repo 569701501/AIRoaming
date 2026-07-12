@@ -990,6 +990,51 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_SOURCE_ENTITY_COUNTS_INVALID");
   }, 30_000);
 
+  it("IMP-M4-16 rejects a succeeded shadow run without verification attestation", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-verification-missing",
+      kind: "shadow",
+      importerVersion: "g3-m3-a2",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      reportDigest: SOURCE,
+      counts: { entityCounts: { Project: 0, Chapter: 0 } },
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ runVerificationPresent: false, runVerificationValid: false });
+    expect(result.report.errors).toContain("MIGRATION_RUN_VERIFICATION_MISSING");
+  }, 30_000);
+
+  it("IMP-M4-17 rejects a succeeded shadow run with an invalid verification attestation", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-verification-invalid",
+      kind: "shadow",
+      importerVersion: "g3-m3-a2",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      reportDigest: SOURCE,
+      counts: { entityCounts: { Project: 0, Chapter: 0 } },
+      verification: { schemaVersion: 1, sourceManifestVerified: false, snapshotManifestVerified: true },
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ runVerificationPresent: true, runVerificationValid: false });
+    expect(result.report.errors).toContain("MIGRATION_RUN_VERIFICATION_INVALID");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

@@ -58,3 +58,4 @@ source: task_plan.md
 - succeeded shadow 必须带非空 `reportDigest`；缺失时返回 `MIGRATION_REPORT_DIGEST_MISSING`。新增 `IMP-M4-12/13` 固化两项 fail-closed 语义。
 - 定向 M4（含 FRESH/API）17 项通过；typecheck 通过。
 - 最终回归：server 47 个测试文件/287 个测试、G1 manifest/schema/migration、Prisma validate、`git diff --check` 全部通过；M4 继续保持 `in_progress`，本轮代码与证据待提交。
+- 本轮继续补齐 verification attestation 门禁；定向 M4（含 FRESH/API）19 项、server 全量 47 文件/289 tests、typecheck、G1 三项、Prisma validate、`git diff --check` 均通过，M4 继续保持 `in_progress`，本轮代码与证据待提交。

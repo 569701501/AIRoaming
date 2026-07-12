@@ -62,3 +62,4 @@ source: task_plan.md
 - 发现 succeeded shadow run 可以没有 `reportDigest`，导致账本完成态缺少报告绑定。现要求 succeeded shadow 必须带非空 reportDigest，否则返回 `MIGRATION_REPORT_DIGEST_MISSING`。
 - `IMP-M4-12/13` 已分别锁定未知 importerVersion 与缺失 reportDigest；两项均不改 schema/migration/trigger，M4 仍保持 `in_progress`。
 - 继续审计发现已知 importer 的 `counts.entityCounts` 缺失或带未注册键仍可形成空映射；现要求结构完整、值为非负整数，并允许已声明的 Project/A6 Shot 上下文键。`IMP-M4-14/15` 已锁定 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING/INVALID`，不改 schema/migration/trigger。
+- 继续审计发现 succeeded shadow 的 verification attestation 可以缺失或声明 source/snapshot 未验证；现要求 schemaVersion=1 且两个 manifest verification 标志均为 true，`IMP-M4-16/17` 锁定 `MIGRATION_RUN_VERIFICATION_MISSING/INVALID`，不改 schema/migration/trigger。

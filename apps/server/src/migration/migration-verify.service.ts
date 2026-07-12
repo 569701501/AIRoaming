@@ -22,6 +22,8 @@ export interface MigrationVerificationReport {
     importerVersion: string;
     importerVersionKnown: boolean;
     reportDigestPresent: boolean;
+    runVerificationPresent: boolean;
+    runVerificationValid: boolean;
     runSucceeded: boolean;
     sourceManifestMatch: boolean;
     snapshotManifestMatch: boolean;
@@ -87,6 +89,21 @@ interface SourceCountAssessment {
   valid: boolean;
 }
 
+interface RunVerificationAssessment {
+  present: boolean;
+  valid: boolean;
+}
+
+function assessRunVerification(verification: Record<string, unknown> | null): RunVerificationAssessment {
+  if (!verification) return { present: false, valid: false };
+  return {
+    present: true,
+    valid: verification.schemaVersion === 1
+      && verification.sourceManifestVerified === true
+      && verification.snapshotManifestVerified === true,
+  };
+}
+
 function assessSourceCounts(importerVersion: string, counts: Record<string, unknown> | null): SourceCountAssessment {
   const bindings = SOURCE_COUNT_BINDINGS_BY_IMPORTER.get(importerVersion);
   if (!bindings) return { expected: new Map(), present: false, valid: false };
@@ -132,6 +149,7 @@ export class MigrationVerifyService {
     const sourceEvidence = await checkSourceEvidence(snapshot, imported);
     const sourceCountAssessment = assessSourceCounts(run.importerVersion, run.counts);
     const expectedSourceCounts = sourceCountAssessment.expected;
+    const runVerification = assessRunVerification(run.verification);
     const actualSourceCounts = new Map<string, number>();
     for (const row of imported) actualSourceCounts.set(row.entityType, (actualSourceCounts.get(row.entityType) ?? 0) + 1);
     const sourceEvidenceExpectedCount = [...expectedSourceCounts.values()].reduce((sum, count) => sum + count, 0);
@@ -145,6 +163,8 @@ export class MigrationVerifyService {
     const sourceMismatchCount = sourceEvidence.sourceMismatchCount;
     const importerVersionKnown = KNOWN_SHADOW_IMPORTER_VERSIONS.has(run.importerVersion);
     const reportDigestPresent = typeof run.reportDigest === "string" && run.reportDigest.length > 0;
+    const runVerificationPresent = runVerification.present;
+    const runVerificationValid = runVerification.valid;
     const sourceEntityCountsPresent = sourceCountAssessment.present;
     const sourceEntityCountsValid = sourceCountAssessment.valid;
     const errors: string[] = [];
@@ -152,6 +172,8 @@ export class MigrationVerifyService {
     if (run.kind === "shadow" && !importerVersionKnown) errors.push("MIGRATION_IMPORTER_VERSION_INVALID");
     if (run.status !== "succeeded") errors.push("MIGRATION_RUN_NOT_SUCCEEDED");
     if (run.kind === "shadow" && run.status === "succeeded" && !reportDigestPresent) errors.push("MIGRATION_REPORT_DIGEST_MISSING");
+    if (run.kind === "shadow" && run.status === "succeeded" && !runVerificationPresent) errors.push("MIGRATION_RUN_VERIFICATION_MISSING");
+    if (run.kind === "shadow" && run.status === "succeeded" && runVerificationPresent && !runVerificationValid) errors.push("MIGRATION_RUN_VERIFICATION_INVALID");
     if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && !sourceEntityCountsPresent) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_MISSING");
     if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && sourceEntityCountsPresent && !sourceEntityCountsValid) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_INVALID");
     if (run.sourceManifestDigest !== snapshot.sourceManifest.manifestDigest) errors.push("MIGRATION_SOURCE_DIGEST_MISMATCH");
@@ -170,7 +192,7 @@ export class MigrationVerifyService {
       sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       effectiveSchemaManifestDigest: effective.effectiveSchemaManifestDigest,
-      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, reportDigestPresent, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEntityCountsPresent, sourceEntityCountsValid, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
+      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, reportDigestPresent, runVerificationPresent, runVerificationValid, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEntityCountsPresent, sourceEntityCountsValid, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
       passed: errors.length === 0,
       errors: [...errors].sort(),
     };

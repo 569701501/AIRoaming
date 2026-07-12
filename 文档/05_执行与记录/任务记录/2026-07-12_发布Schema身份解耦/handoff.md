@@ -25,6 +25,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - verifier 新增 shadow-only run kind 门禁，成功 audit run 不再可能被当作 shadow 通过；`IMP-M4-11` 已验证 `MIGRATION_RUN_KIND_INVALID`，不改变 release identity 或 schema/migration/trigger。
 - verifier 现在要求 shadow run 的 importerVersion 必须属于 A2～A15 注册表，未知版本返回 `MIGRATION_IMPORTER_VERSION_INVALID`；成功 shadow run 还必须带非空 reportDigest，否则返回 `MIGRATION_REPORT_DIGEST_MISSING`。`IMP-M4-12/13` 已覆盖两项门禁，不改变 release identity 或 schema/migration/trigger。
 - 已知 shadow importer 的 `counts.entityCounts` 现在必须结构完整且只含已登记来源键/明确上下文键；缺失或未注册计数键分别返回 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING/INVALID`，`IMP-M4-14/15` 已覆盖。
+- succeeded shadow 的 run verification 现在必须是 schemaVersion=1 且 source/snapshot manifest 均已验证；缺失或无效分别返回 `MIGRATION_RUN_VERIFICATION_MISSING/INVALID`，`IMP-M4-16/17` 已覆盖。
 
 ## 明确未完成
 
