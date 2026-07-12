@@ -1297,6 +1297,26 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma.database().migrationRun.count({ where: { id: { startsWith: "shadow-full-cli-blocked-" } } })).toBe(1);
   }, 60_000);
 
+  it("IMP-M4-30 keeps final import fail-closed before Prisma initialization", async () => {
+    let failure: { code?: number; stdout?: string; stderr?: string } | undefined;
+    try {
+      await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+        "src/migration/db-import.cli.ts",
+        "--kind", "final",
+        "--snapshot", "/tmp/missing-snapshot",
+        "--decisions", "/tmp/missing-decisions",
+        "--database-url", "file:/tmp/airoaming-m4-final-import.sqlite",
+        "--report", "/tmp/missing-report",
+        "--format", "json",
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env } });
+    } catch (error) {
+      failure = error as { code?: number; stdout?: string; stderr?: string };
+    }
+    expect(failure?.code).toBe(1);
+    expect(failure?.stdout ?? "").toBe("");
+    expect(failure?.stderr ?? "").toContain("MIGRATION_FINAL_IMPORT_NOT_READY");
+  }, 30_000);
+
   it("IMP-M4-27 rejects missing --import-report before db:verify starts Prisma", async () => {
     const databaseUrl = `file:${path.join(os.tmpdir(), "airoaming-m4-cli-arg-check.sqlite")}`;
     await expect(execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
