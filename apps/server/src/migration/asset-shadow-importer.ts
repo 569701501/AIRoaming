@@ -130,7 +130,14 @@ export class AssetShadowImporter {
       const legacyPath = field(raw, "path", "");
       const type = typeField(raw);
       let metadataJson: Prisma.InputJsonValue;
-      try { metadataJson = JSON.parse(field(raw, "meta", "{}")) as Prisma.InputJsonValue; }
+      try {
+        const parsed = JSON.parse(field(raw, "meta", "{}")) as Prisma.InputJsonValue;
+        const legacyName = field(raw, "name", legacyId);
+        const legacyPath = field(raw, "path", "");
+        metadataJson = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? { ...(parsed as Record<string, Prisma.InputJsonValue>), legacyName, legacyPath }
+          : { value: parsed, legacyName, legacyPath };
+      }
       catch { throw new AssetShadowImportError("MIGRATION_ASSET_METADATA_INVALID"); }
       const metadataDigest = digestCanonicalJson(metadataJson);
       const chapterLegacyId = typeof raw.chapterId === "string" && raw.chapterId.trim() ? raw.chapterId : null;

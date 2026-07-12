@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { NestFactory } from "@nestjs/core";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { createMigrationDecisionArtifact, type MigrationDecisionEntry } from "./migration-decision.js";
@@ -33,13 +35,15 @@ import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-ident
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shared";
+import { ProjectsModule } from "../projects/projects.module.js";
+import { ProjectsService } from "../projects/projects.service.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const schemaPath = path.join(repoRoot, "apps/server/prisma/schema.prisma");
 const prismaCli = path.join(repoRoot, "apps/server/node_modules/prisma/build/index.js");
 const SOURCE = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const;
-const ENV_NAMES = ["AIROAMING_PERSISTENCE_MODE", "DATABASE_URL"] as const;
+const ENV_NAMES = ["AIROAMING_PERSISTENCE_MODE", "DATABASE_URL", "AIROAMING_WORKSPACE_ROOT"] as const;
 const FRESH_INVENTORY_TABLES = [
   "projects",
   "project_script_outlines",
@@ -241,7 +245,23 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
   return new SnapshotService().createSnapshot({ workspaceRoot: workspace, stagingRoot: staging, runtimeBundle: bundlePath });
 }
 
+function semanticWorkbenchSnapshot(snapshot: Awaited<ReturnType<ProjectsService["getWorkbenchSnapshot"]>>) {
+  return {
+    project: { name: snapshot.project.name, type: snapshot.project.type, storyTitle: snapshot.project.storyTitle, genreTags: snapshot.project.genreTags, comicFormat: snapshot.project.comicFormat, artStyle: snapshot.project.artStyle, description: snapshot.project.description },
+    chapters: snapshot.chapters.map((item) => ({ order: item.order, title: item.title, summary: item.summary, sourceTextPreview: item.sourceTextPreview })),
+    scriptOutline: snapshot.scriptOutline && { status: snapshot.scriptOutline.status, title: snapshot.scriptOutline.title, sourceText: snapshot.scriptOutline.sourceText },
+    storyStructure: snapshot.storyStructure && { synopsis: snapshot.storyStructure.structureJson.synopsis, direction: snapshot.storyStructure.structureJson.direction, scenes: snapshot.storyStructure.structureJson.scenes.map((item) => ({ name: item.name, location: item.location, timeOfDay: item.timeOfDay, atmosphere: item.atmosphere, purpose: item.purpose })), beats: snapshot.storyStructure.structureJson.beats.map((item) => ({ order: item.order, title: item.title, summary: item.summary, conflict: item.conflict, visualFocus: item.visualFocus, outcome: item.outcome })) },
+    storyboard: snapshot.storyboard && { notes: snapshot.storyboard.storyboardJson.notes, shots: snapshot.storyboard.storyboardJson.shots.map((item) => ({ order: item.order, coreAction: item.coreAction, emotion: item.emotion, shotType: item.shotType, cameraAngle: item.cameraAngle, comic: item.comic, motion: item.motion, promptDraft: item.promptDraft })) },
+    imagePreflight: snapshot.imagePreflight && { ready: snapshot.imagePreflight.preflightJson.ready, shotCount: snapshot.imagePreflight.preflightJson.shotCount, issues: snapshot.imagePreflight.preflightJson.issues, styleCheck: snapshot.imagePreflight.preflightJson.styleCheck },
+    characters: snapshot.characters.map((item) => ({ name: item.name, role: item.role, level: item.level, entityType: item.entityType, status: item.status, appearance: item.appearance, personality: item.personality, promptFragment: item.promptFragment })),
+    candidates: snapshot.candidates.map((item) => ({ index: item.index, label: item.label, status: item.status, promptDigest: item.promptDigest })),
+    assets: snapshot.assets.map((item) => ({ type: item.type, name: item.name, path: item.path, sourceTaskId: item.sourceTaskId, meta: item.meta })),
+    chapterLayout: snapshot.chapterLayout && { pages: snapshot.chapterLayout.pages.map((item) => ({ pageNumber: item.pageNumber, format: item.format, width: item.width, height: item.height, placements: item.placements.map((placement) => ({ order: placement.order, x: placement.x, y: placement.y, w: placement.w, h: placement.h })) })), exportAssetIds: snapshot.chapterLayout.exportAssetIds },
+  };
+}
+
 describe("G3-M3-A2 Project/Chapter shadow importer", () => {
+  let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | null = null;
   let root: string | null = null;
   let prisma: PrismaService | null = null;
   const previous = new Map(ENV_NAMES.map((name) => [name, process.env[name]] as const));
@@ -267,6 +287,8 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   }
 
   afterEach(async () => {
+    await app?.close();
+    app = null;
     await prisma?.onModuleDestroy();
     prisma = null;
     for (const [name, value] of previous) {
@@ -461,7 +483,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(asset).toMatchObject({ type: "image", role: "character_reference", mimeType: "image/png", status: "staged", chapterId: expect.stringMatching(/^chapter_/) });
     expect(asset.sha256).toBeNull();
     expect(asset.bytes).toBeNull();
-    expect(asset.metadataJson).toEqual({ legacyKind: "reference" });
+    expect(asset.metadataJson).toEqual({ legacyKind: "reference", legacyName: "主角参考图", legacyPath: "assets/characters/asset_001.png" });
     expect(asset.metadataSchemaVersion).toBe(1);
     expect(await prisma!.database().characterVisual.count()).toBe(0);
     expect(await prisma!.database().sceneVisual.count()).toBe(0);
@@ -634,8 +656,6 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       withScriptHistory: true,
       withStoryStructure: true,
       withStoryboard: true,
-      withCharacters: true,
-      withAssets: true,
       withAssetVisuals: true,
       withTasks: "complete",
       withCandidates: true,
@@ -735,6 +755,53 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       await rm(sourceRoot, { recursive: true, force: true });
       for (const databaseRoot of databaseRoots) await rm(databaseRoot, { recursive: true, force: true });
     }
+  }, 120_000);
+
+  it("IMP-M4-API-01 rebuilds the public workbench DTO from a full DB shadow without touching legacy files", async () => {
+    const prepared = await prepare();
+    const sourceRoot = path.join(prepared.root!, "api-dto-source");
+    await mkdir(sourceRoot, { recursive: true });
+    const snapshot = await createSnapshot(sourceRoot, { p1: "vertical_scroll" }, {
+      withScriptHistory: true,
+      withStoryStructure: true,
+      withStoryboard: true,
+      withAssetVisuals: true,
+      withTasks: "complete",
+      withCandidates: true,
+      withLayout: true,
+      withExports: true,
+      withSettings: true,
+      withDialogueRuntime: true,
+    });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const legacyWorkspace = path.join(sourceRoot, "workspace");
+    process.env.AIROAMING_WORKSPACE_ROOT = legacyWorkspace;
+    delete process.env.AIROAMING_PERSISTENCE_MODE;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const fileSnapshot = await app.get(ProjectsService).getWorkbenchSnapshot("p1");
+    const legacyProjectFile = await readFile(path.join(legacyWorkspace, "projects", "p1", "project.json"), "utf8");
+    const legacyScriptFile = await readFile(path.join(legacyWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8");
+    await app.close();
+    app = null;
+
+    process.env.AIROAMING_PERSISTENCE_MODE = "db";
+    process.env.DATABASE_URL = `file:${path.join(prepared.root!, "db.sqlite")}`;
+    await new FullShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { workspaceRoot: legacyWorkspace, runIdPrefix: "m4-api" });
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const dbProjects = app.get(ProjectsService);
+    const dbSnapshot = await dbProjects.getWorkbenchSnapshot(PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1"));
+    expect(semanticWorkbenchSnapshot(dbSnapshot)).toEqual(semanticWorkbenchSnapshot(fileSnapshot));
+    const dbAssets = await prisma!.database().asset.findMany({ orderBy: { storageKey: "asc" } });
+    expect(dbAssets).toHaveLength(2);
+    const expectedCharacterBytes = await readFile(path.join(legacyWorkspace, "projects", "p1", "assets", "characters", "asset_001.png"));
+    expect(dbAssets.find((item) => item.storageKey.endsWith("asset_001"))).toMatchObject({ status: "ready", sha256: `sha256:${createHash("sha256").update(expectedCharacterBytes).digest("hex")}`, bytes: expectedCharacterBytes.byteLength });
+    expect((await prisma!.database().project.findFirstOrThrow()).updatedAt).toBeInstanceOf(Date);
+    const targetProjectId = PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1");
+    const targetChapterId = PrismaMigrationLedgerRepository.stableEntityId("Chapter", "workspace-v1:p1:Chapter:p1-chapter-001");
+    await dbProjects.saveChapterDraft(targetProjectId, targetChapterId, { sourceText: "数据库侧写入，不回写旧工作区。\n" });
+    expect(await readFile(path.join(legacyWorkspace, "projects", "p1", "project.json"), "utf8")).toBe(legacyProjectFile);
+    expect(await readFile(path.join(legacyWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8")).toBe(legacyScriptFile);
+    expect((await dbProjects.getWorkbenchSnapshot(targetProjectId)).currentChapter?.sourceText).toContain("数据库侧写入");
   }, 120_000);
 
   it("IMP-A12-01 imports legacy layout into a sealed-source-aware working copy", async () => {

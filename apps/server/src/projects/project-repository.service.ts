@@ -18,6 +18,7 @@ import {
   type ChapterPendingSourceText,
   type ChapterStoryboard,
   type ChapterStoryStructure,
+  type ChapterLayout,
   type ComicFormat,
   type ImagePreflightCharacterCheck,
   type ImagePreflightIssue,
@@ -25,6 +26,7 @@ import {
   type ImagePreflightSceneCheck,
   type ImagePreflightStyleCheck,
   type ProjectCharacter,
+  type ProjectCandidate,
   type ProjectCharacterEntityType,
   type ProjectCharacterLevel,
   type ProjectCharacterReferenceKind,
@@ -32,6 +34,9 @@ import {
   type ProjectScriptOutline,
   type ProjectWorkflow,
   type ScriptRevisionItem,
+  type StoryDocumentV2,
+  type StoryboardDocumentV2,
+  type PreflightDocumentV2,
   type WorkbenchAsset,
 } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
@@ -58,6 +63,22 @@ const DB_PROJECT_INCLUDE = {
 type DatabaseProject = Prisma.ProjectGetPayload<{
   include: typeof DB_PROJECT_INCLUDE;
 }>;
+
+type DatabaseReadModel = {
+  outlines: Prisma.ProjectScriptOutlineGetPayload<{}>[];
+  pendings: Prisma.ChapterScriptPendingGetPayload<{}>[];
+  revisions: Prisma.ChapterScriptRevisionGetPayload<{}>[];
+  stories: Prisma.StoryVersionGetPayload<{}>[];
+  storyboards: Prisma.StoryboardVersionGetPayload<{}>[];
+  preflights: Prisma.PreflightRevisionGetPayload<{}>[];
+  characters: Prisma.CharacterGetPayload<{}>[];
+  characterVisuals: Prisma.CharacterVisualGetPayload<{}>[];
+  assets: Prisma.AssetGetPayload<{}>[];
+  candidates: Prisma.CandidateGetPayload<{}>[];
+  shots: Prisma.ShotGetPayload<{}>[];
+  locks: Prisma.CandidateLockRevisionGetPayload<{}>[];
+  layouts: Prisma.LayoutWorkingCopyGetPayload<{}>[];
+};
 
 export type ProjectPersistenceWrite =
   | "create_project"
@@ -337,27 +358,9 @@ export class ProjectRepository {
   }
 
   private assertDatabaseProjectShape(project: LocalProject): void {
-    if (
-      project.scriptOutline !== null ||
-      project.characters.length > 0 ||
-      project.assets.length > 0
-    ) {
-      throw new BadRequestException("DB_PERSISTENCE_C3_PROJECT_FIELDS_UNSUPPORTED");
-    }
     for (const chapter of project.chapters) {
-      if (
-        chapter.projectId !== project.id ||
-        chapter.currentStoryVersionId !== null ||
-        chapter.storyStructure !== null ||
-        chapter.storyboard !== null ||
-        (chapter.pendingStoryboard ?? null) !== null ||
-        chapter.pendingSourceText !== null ||
-        chapter.imagePreflight !== null ||
-        chapter.candidates.length > 0 ||
-        chapter.layout !== null ||
-        chapter.lastScriptRevision !== null
-      ) {
-        throw new BadRequestException("DB_PERSISTENCE_C3_CHAPTER_FIELDS_UNSUPPORTED");
+      if (chapter.projectId !== project.id) {
+        throw new BadRequestException("DB_PERSISTENCE_PROJECT_CHAPTER_SCOPE_INVALID");
       }
     }
   }
@@ -622,30 +625,48 @@ export class ProjectRepository {
       include: DB_PROJECT_INCLUDE,
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
     });
+    const projectIds = rows.map((row) => row.id);
+    const chapterIds = rows.flatMap((row) => row.chaptersByProject.map((chapter) => chapter.id));
+    const readModel = await this.loadDatabaseReadModel(projectIds, chapterIds);
     for (const row of rows) {
-      const project = this.databaseProjectToLocal(row);
+      const project = this.databaseProjectToLocal(row, readModel);
       this.projects.set(project.id, project);
     }
     this.projectsLoaded = true;
   }
 
-  private databaseProjectToLocal(row: DatabaseProject): LocalProject {
-    if (row.currentScriptOutlineId !== null) {
-      throw new Error(`DB_PERSISTENCE_RECORD_OUTSIDE_C3:${row.id}`);
+  private async loadDatabaseReadModel(projectIds: string[], chapterIds: string[]): Promise<DatabaseReadModel> {
+    if (projectIds.length === 0) {
+      return { outlines: [], pendings: [], revisions: [], stories: [], storyboards: [], preflights: [], characters: [], characterVisuals: [], assets: [], candidates: [], shots: [], locks: [], layouts: [] };
     }
+    const database = this.database();
+    const [outlines, pendings, revisions, stories, storyboards, preflights, characters, characterVisuals, assets, candidates, shots, locks, layouts] = await Promise.all([
+      database.projectScriptOutline.findMany({ where: { projectId: { in: projectIds } } }),
+      database.chapterScriptPending.findMany({ where: { chapterId: { in: chapterIds } } }),
+      database.chapterScriptRevision.findMany({ where: { chapterId: { in: chapterIds } }, orderBy: { createdAt: "desc" } }),
+      database.storyVersion.findMany({ where: { projectId: { in: projectIds } } }),
+      database.storyboardVersion.findMany({ where: { projectId: { in: projectIds } } }),
+      database.preflightRevision.findMany({ where: { projectId: { in: projectIds } } }),
+      database.character.findMany({ where: { projectId: { in: projectIds } } }),
+      database.characterVisual.findMany({ where: { character: { projectId: { in: projectIds } } } }),
+      database.asset.findMany({ where: { projectId: { in: projectIds } } }),
+      database.candidate.findMany({ where: { projectId: { in: projectIds } } }),
+      database.shot.findMany({ where: { projectId: { in: projectIds } } }),
+      database.candidateLockRevision.findMany({ where: { projectId: { in: projectIds } } }),
+      database.layoutWorkingCopy.findMany({ where: { projectId: { in: projectIds } } }),
+    ]);
+    return { outlines, pendings, revisions, stories, storyboards, preflights, characters, characterVisuals, assets, candidates, shots, locks, layouts };
+  }
+
+  private databaseProjectToLocal(row: DatabaseProject, readModel: DatabaseReadModel): LocalProject {
+    const projectOutlines = readModel.outlines.filter((item) => item.projectId === row.id);
+    const projectCharacters = readModel.characters.filter((item) => item.projectId === row.id);
+    const projectAssets = readModel.assets.filter((item) => item.projectId === row.id);
+    const outline = projectOutlines.find((item) => item.id === row.currentScriptOutlineId)
+      ?? projectOutlines.sort((left, right) => right.version - left.version)[0];
     const chapters = [...row.chaptersByProject]
       .sort((left, right) => left.order - right.order)
       .map((chapter): LocalChapter => {
-        if (
-          chapter.currentStoryboardVersionId !== null ||
-          chapter.pendingStoryboardVersionId !== null ||
-          chapter.currentPreflightRevisionId !== null ||
-          chapter.currentLayoutRevisionId !== null ||
-          chapter.currentExportRevisionId !== null ||
-          chapter.lastScriptRevisionId !== null
-        ) {
-          throw new Error(`DB_PERSISTENCE_RECORD_OUTSIDE_C3:${chapter.id}`);
-        }
         const versions = [...chapter.chapterScriptVersionsByChapter]
           .sort((left, right) => left.version - right.version)
           .map((version): LocalChapterScriptVersion => ({
@@ -661,6 +682,17 @@ export class ProjectRepository {
             createdAt: version.createdAt.toISOString(),
             sourceText: version.sourceText,
           }));
+        const currentStory = readModel.stories.find((item) => item.id === chapter.currentStoryVersionId) ?? null;
+        const pendingStory = readModel.stories.find((item) => item.id === chapter.pendingStoryVersionId) ?? null;
+        const currentStoryboard = readModel.storyboards.find((item) => item.id === chapter.currentStoryboardVersionId) ?? null;
+        const pendingStoryboard = readModel.storyboards.find((item) => item.id === chapter.pendingStoryboardVersionId) ?? null;
+        const currentPreflight = readModel.preflights.find((item) => item.id === chapter.currentPreflightRevisionId) ?? null;
+        const layout = readModel.layouts.find((item) => item.chapterId === chapter.id) ?? null;
+        const pending = readModel.pendings.find((item) => item.chapterId === chapter.id) ?? null;
+        const revision = readModel.revisions.find((item) => item.id === chapter.lastScriptRevisionId) ?? null;
+        const chapterCandidates = readModel.candidates.filter((item) => item.chapterId === chapter.id);
+        const chapterShots = readModel.shots.filter((item) => item.chapterId === chapter.id);
+        const chapterLocks = readModel.locks.filter((item) => item.chapterId === chapter.id);
         return {
           id: chapter.id,
           projectId: chapter.projectId,
@@ -669,21 +701,21 @@ export class ProjectRepository {
           title: chapter.title,
           status: wsDomain.normalizeChapterStatus(chapter.milestoneStatus),
           currentScriptVersionId: chapter.currentScriptVersionId,
-          currentStoryVersionId: null,
+          currentStoryVersionId: chapter.currentStoryVersionId,
           sourceText: chapter.scriptWorkingText,
           summary: chapter.summary ?? "",
-          storyStructure: null,
-          storyboard: null,
-          pendingStoryboard: null,
-          pendingSourceText: null,
-          imagePreflight: null,
-          candidates: [],
-          layout: null,
+          storyStructure: currentStory ? this.databaseStoryToLocal(currentStory, chapter) : null,
+          storyboard: currentStoryboard ? this.databaseStoryboardToLocal(currentStoryboard, chapter, chapterShots, chapterLocks, readModel.candidates) : null,
+          pendingStoryboard: pendingStoryboard ? this.databaseStoryboardToLocal(pendingStoryboard, chapter, chapterShots, chapterLocks, readModel.candidates) : null,
+          pendingSourceText: pending ? this.databasePendingSourceToLocal(pending) : null,
+          imagePreflight: currentPreflight ? this.databasePreflightToLocal(currentPreflight, chapter) : null,
+          candidates: chapterCandidates.map((item) => this.databaseCandidateToLocal(item, chapterLocks)),
+          layout: layout ? this.databaseLayoutToLocal(layout) : null,
           createdAt: chapter.createdAt.toISOString(),
           updatedAt: chapter.updatedAt.toISOString(),
           completedAt: chapter.completedAt?.toISOString() ?? null,
           scriptVersions: versions,
-          lastScriptRevision: null,
+          lastScriptRevision: revision ? this.databaseRevisionToLocal(revision, chapter.projectId, chapter.id) : null,
         };
       });
     if (row.currentChapterId === null) {
@@ -711,13 +743,192 @@ export class ProjectRepository {
       artStyle: wsDomain.normalizeArtStyle(row.artStyle as ArtStyle | undefined),
       description: row.description ?? row.storyTitle ?? row.name,
       sourceText: currentChapter.sourceText,
-      scriptOutline: null,
-      characters: [],
-      assets: [],
+      scriptOutline: outline ? this.databaseOutlineToLocal(outline) : null,
+      characters: projectCharacters.map((item) => this.databaseCharacterToLocal(item, readModel.characterVisuals)),
+      assets: projectAssets.map((item) => this.databaseAssetToLocal(item)),
       chapters,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  private databaseOutlineToLocal(row: Prisma.ProjectScriptOutlineGetPayload<{}>): ProjectScriptOutline {
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      status: row.status === "confirmed" ? "confirmed" : "draft",
+      title: row.title,
+      sourceText: row.sourceText,
+      outlinePath: `projects/${row.projectId}/script-outline.md`,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      confirmedAt: row.confirmedAt?.toISOString() ?? null,
+    };
+  }
+
+  private databaseStoryToLocal(
+    row: Prisma.StoryVersionGetPayload<{}>,
+    chapter: DatabaseProject["chaptersByProject"][number],
+  ): ChapterStoryStructure {
+    const document = this.jsonRecord(row.documentJson) as Partial<StoryDocumentV2>;
+    const structureJson = {
+      schemaVersion: 1 as const,
+      chapterId: chapter.id,
+      chapterTitle: chapter.title,
+      sourceScriptVersionId: row.sourceScriptVersionId,
+      synopsis: typeof document.synopsis === "string" ? document.synopsis : "",
+      direction: document.direction ?? { logline: "", chapterGoal: "", coreConflict: "", emotionalArc: "", endingHook: "" },
+      characters: Array.isArray(document.characters) ? document.characters.map((item) => ({ ...item, level: item.level ?? "extra", entityType: item.entityType ?? "human" })) : [],
+      scenes: Array.isArray(document.scenes) ? document.scenes : [],
+      beats: Array.isArray(document.beats) ? document.beats : [],
+      notes: typeof document.notes === "string" ? document.notes : "",
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      chapterId: row.chapterId,
+      version: row.version,
+      status: row.status === "confirmed" ? "structured" : "pending_confirmation",
+      structurePath: `projects/${row.projectId}/chapters/${chapter.slug}/structure.json`,
+      sourceScriptVersionId: row.sourceScriptVersionId,
+      structureJson,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      confirmedAt: row.confirmedAt?.toISOString() ?? null,
+    };
+  }
+
+  private databaseStoryboardToLocal(
+    row: Prisma.StoryboardVersionGetPayload<{}>,
+    chapter: DatabaseProject["chaptersByProject"][number],
+    shots: Prisma.ShotGetPayload<{}>[],
+    locks: Prisma.CandidateLockRevisionGetPayload<{}>[],
+    candidates: Prisma.CandidateGetPayload<{}>[],
+  ): ChapterStoryboard {
+    const document = this.jsonRecord(row.documentJson) as Partial<StoryboardDocumentV2>;
+    const shotRows = new Map(shots.map((item) => [item.id, item]));
+    const lockRows = new Map(locks.map((item) => [item.id, item]));
+    const candidateRows = new Map(candidates.map((item) => [item.id, item]));
+    const storyboardJson = {
+      schemaVersion: 1 as const,
+      chapterId: chapter.id,
+      chapterTitle: chapter.title,
+      sourceStoryVersionId: row.sourceStoryVersionId,
+      shots: Array.isArray(document.shots) ? document.shots.map((item) => {
+        const shot = shotRows.get(item.id);
+        const lock = shot?.currentCandidateLockRevisionId ? lockRows.get(shot.currentCandidateLockRevisionId) : undefined;
+        const candidate = lock?.candidateId ? candidateRows.get(lock.candidateId) : undefined;
+        return {
+          ...item,
+          lockedCandidateId: lock?.candidateId ?? null,
+          status: lock?.candidateId ? "locked" as const : candidate ? "image_generated" as const : "ready_for_image" as const,
+        };
+      }) : [],
+      notes: typeof document.notes === "string" ? document.notes : "",
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      chapterId: row.chapterId,
+      version: row.version,
+      status: row.status === "confirmed" ? "storyboard_done" : "pending_confirmation",
+      storyboardPath: `projects/${row.projectId}/chapters/${chapter.slug}/storyboard.json`,
+      sourceStoryVersionId: row.sourceStoryVersionId,
+      storyboardJson,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      confirmedAt: row.confirmedAt?.toISOString() ?? null,
+    };
+  }
+
+  private databasePreflightToLocal(
+    row: Prisma.PreflightRevisionGetPayload<{}>,
+    chapter: DatabaseProject["chaptersByProject"][number],
+  ): ChapterImagePreflight {
+    const document = this.jsonRecord(row.documentJson) as Partial<PreflightDocumentV2>;
+    const characterChecks = Array.isArray(document.characterChecks) ? document.characterChecks : [];
+    const sourceSnapshot = document.sourceSnapshot;
+    const preflightJson = {
+      schemaVersion: 1 as const,
+      chapterId: chapter.id,
+      chapterTitle: chapter.title,
+      sourceStoryboardId: sourceSnapshot?.storyboard?.id ?? row.sourceStoryboardVersionId,
+      sourceStoryboardUpdatedAt: null,
+      shotCount: typeof document.shotCount === "number" ? document.shotCount : 0,
+      unresolvedCharacters: characterChecks.filter((item) => !item.referenceReady).map((item) => item.name),
+      characterChecks,
+      sceneChecks: Array.isArray(document.sceneChecks) ? document.sceneChecks : [],
+      styleCheck: (document.styleCheck ? {
+        ...document.styleCheck,
+        artStyle: wsDomain.normalizeArtStyle(document.styleCheck.artStyle as ArtStyle),
+        comicFormat: document.styleCheck.comicFormat === "paged_comic" ? "paged_comic" : "vertical_scroll",
+      } : { comicFormat: "vertical_scroll" as const, comicFormatLabel: "", artStyle: "comic_style" as const, artStyleLabel: "", status: "ok" as const, note: "" }) as ImagePreflightStyleCheck,
+      issues: Array.isArray(document.issues) ? document.issues.map((item) => ({ ...item, relatedName: item.relatedName ?? undefined, relatedCharacterId: item.relatedCharacterId ?? undefined, relatedSceneId: item.relatedSceneId ?? undefined, relatedShotId: item.relatedShotId ?? undefined })) : [],
+      ready: Boolean(document.ready),
+      notes: typeof document.notes === "string" ? document.notes : "",
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.createdAt.toISOString(),
+    };
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      chapterId: row.chapterId,
+      version: row.version,
+      status: "confirmed",
+      preflightPath: `projects/${row.projectId}/chapters/${chapter.slug}/preflight.json`,
+      sourceStoryboardId: preflightJson.sourceStoryboardId,
+      sourceStoryboardUpdatedAt: preflightJson.sourceStoryboardUpdatedAt,
+      preflightJson,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.createdAt.toISOString(),
+      confirmedAt: row.confirmedAt?.toISOString() ?? row.createdAt.toISOString(),
+    };
+  }
+
+  private databasePendingSourceToLocal(row: Prisma.ChapterScriptPendingGetPayload<{}>): ChapterPendingSourceText {
+    const operation = row.operation === "generate_script_from_seed" || row.operation === "update_chapter_draft"
+      ? row.operation
+      : "generate_script_from_outline";
+    return { sourceText: row.sourceText, threadId: row.threadId ?? "", messageId: row.messageId ?? "", toolCallId: row.toolCallId ?? "", operation, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+  }
+
+  private databaseRevisionToLocal(row: Prisma.ChapterScriptRevisionGetPayload<{}>, projectId: string, chapterId: string): ScriptRevisionItem {
+    return { id: row.id, projectId, chapterId, source: "ai_tool", threadId: row.threadId ?? "", messageId: row.messageId ?? "", toolCallId: row.toolCallId ?? "", operation: row.operation as ScriptRevisionItem["operation"], summary: row.summary, createdAt: row.createdAt.toISOString() };
+  }
+
+  private databaseCandidateToLocal(row: Prisma.CandidateGetPayload<{}>, locks: Prisma.CandidateLockRevisionGetPayload<{}>[] = []): ProjectCandidate {
+    const status = locks.some((lock) => lock.candidateId === row.id && lock.action === "lock") ? "locked" : ["generated", "selected", "locked", "rejected", "superseded"].includes(row.status) ? row.status as ProjectCandidate["status"] : "generated";
+    return { id: row.id, projectId: row.projectId, chapterId: row.chapterId, shotId: row.shotId, taskId: row.taskId, assetId: row.assetId, index: row.index, status, label: row.label, promptDigest: row.promptDigest ?? "", generationPurpose: row.generationPurpose === "legacy_unspecified" ? undefined : row.generationPurpose as ProjectCandidate["generationPurpose"], generationSpecVersion: row.generationSpecVersion ?? undefined, generationSpecDigest: row.generationSpecDigest ?? undefined, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+  }
+
+  private databaseAssetToLocal(row: Prisma.AssetGetPayload<{}>): WorkbenchAsset {
+    const metadata = this.jsonRecord(row.metadataJson);
+    const publicMetadata = Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== "legacyName" && key !== "legacyPath" && key !== "physicalEvidence"));
+    const name = typeof metadata.legacyName === "string" ? metadata.legacyName : typeof metadata.name === "string" ? metadata.name : path.basename(row.storageKey) || "未命名素材";
+    const type = ["audio", "video", "document", "archive"].includes(row.type) ? row.type : "image";
+    return { id: row.id, chapterId: row.chapterId, type: type as WorkbenchAsset["type"], name, path: typeof metadata.legacyPath === "string" ? metadata.legacyPath : row.storageKey, sourceTaskId: row.sourceTaskId, meta: JSON.stringify(publicMetadata) };
+  }
+
+  private databaseCharacterToLocal(row: Prisma.CharacterGetPayload<{}>, visuals: Prisma.CharacterVisualGetPayload<{}>[]): ProjectCharacter {
+    const ownVisuals = visuals.filter((item) => item.characterId === row.id).sort((left, right) => left.version - right.version);
+    const preview = ownVisuals.find((item) => item.id === row.previewVisualId);
+    const primary = ownVisuals.find((item) => item.id === row.primaryVisualId);
+    const level = wsCharacter.normalizeCharacterLevel(row.level);
+    return { id: row.id, projectId: row.projectId, name: wsCharacter.normalizeCharacterName(row.name), role: row.role, level, entityType: wsCharacter.normalizeEntityType(row.entityType), status: wsCharacter.normalizeCharacterStatus(row.status), appearance: row.appearance, personality: row.personality, promptFragment: row.promptFragment, referenceAssetIds: ownVisuals.map((item) => item.assetId), previewReferenceAssetId: preview?.assetId ?? null, previewConfirmedAt: preview?.confirmedAt?.toISOString() ?? null, primaryReferenceAssetId: primary?.assetId ?? null, primaryReferenceKind: wsCharacter.normalizeCharacterReferenceKind(primary?.kind ?? "none"), visualVersion: ownVisuals.length ? Math.max(...ownVisuals.map((item) => item.version)) : 0, source: ["imported_script", "manual", "story_structure", "image_preflight"].includes(row.source) ? row.source as ProjectCharacter["source"] : "script_outline", createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), finalizedAt: row.finalizedAt?.toISOString() ?? null };
+  }
+
+  private databaseLayoutToLocal(row: Prisma.LayoutWorkingCopyGetPayload<{}>): ChapterLayout | null {
+    const envelope = this.jsonRecord(row.documentJson);
+    const legacy = envelope.legacyDocument;
+    return legacy && typeof legacy === "object" && !Array.isArray(legacy) ? legacy as ChapterLayout : null;
+  }
+
+  private jsonRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   }
 
   // ====== 加载链 ======
