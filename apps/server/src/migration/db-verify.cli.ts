@@ -24,13 +24,14 @@ async function main(): Promise<number> {
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
   const runId = required("--run-id");
+  const importReport = path.resolve(required("--import-report"));
   const reportPath = path.resolve(required("--report"));
   const workspaceRoot = path.resolve(required("--workspace-root"));
   readJsonFormat(process.argv, () => new MigrationVerifyError("MIGRATION_VERIFY_ARGS_INVALID"));
   if (!databaseUrl.startsWith("file:")) throw new MigrationVerifyError("MIGRATION_DATABASE_URL_INVALID");
   process.env.AIROAMING_PERSISTENCE_MODE = "db"; process.env.DATABASE_URL = databaseUrl;
   const prisma = new PrismaService();
-  try { await prisma.onModuleInit(); const result = await new MigrationVerifyService(prisma).verify(snapshot, runId, workspaceRoot, decisions); await writePrivateJson(reportPath, result.report); process.stdout.write(`${JSON.stringify({ code: result.report.passed ? "MIGRATION_VERIFY_OK" : "MIGRATION_VERIFY_FAILED", runId, passed: result.report.passed, reportDigest: result.report.reportDigest })}\n`); return result.report.passed ? 0 : 2; } finally { await prisma.onModuleDestroy(); }
+  try { await prisma.onModuleInit(); const result = await new MigrationVerifyService(prisma).verify(snapshot, runId, workspaceRoot, decisions, importReport); await writePrivateJson(reportPath, result.report); process.stdout.write(`${JSON.stringify({ code: result.report.passed ? "MIGRATION_VERIFY_OK" : "MIGRATION_VERIFY_FAILED", runId, passed: result.report.passed, reportDigest: result.report.reportDigest })}\n`); return result.report.passed ? 0 : 2; } finally { await prisma.onModuleDestroy(); }
 }
 
 try { process.exitCode = await main(); } catch (error) { process.stderr.write(`${error instanceof MigrationVerifyError ? error.code : "MIGRATION_VERIFY_FAILED"}\n`); process.exitCode = 1; }

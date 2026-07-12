@@ -18,6 +18,7 @@ import { LayoutShadowImporter } from "./layout-shadow-importer.js";
 import { ExportShadowImporter } from "./export-shadow-importer.js";
 import { ProviderShadowImporter } from "./provider-shadow-importer.js";
 import { DialogueShadowImporter } from "./dialogue-shadow-importer.js";
+import type { ComicFormatReport } from "./migration-report.js";
 
 export const FULL_SHADOW_SLICE_ORDER = [
   "project-chapter",
@@ -46,6 +47,7 @@ export interface FullShadowSliceResult {
   status: string;
   reportDigest: string | null;
   counts: Record<string, unknown> | null;
+  report?: ComicFormatReport;
 }
 
 export interface FullShadowImportResult {
@@ -98,6 +100,7 @@ export class FullShadowImporter {
         status: result.run.status,
         reportDigest: result.report.reportDigest,
         counts: result.run.counts,
+        report: result.report,
       });
       // A downstream slice cannot produce a trustworthy shadow when its
       // prerequisite is blocked/failed. Stop at the first non-successful
@@ -114,7 +117,7 @@ export class FullShadowImporter {
     return { ...digestInput, slices: results, reportDigest: digestCanonicalJson(digestInput) };
   }
 
-  private async importSlice(slice: FullShadowSlice, snapshotPath: string, decisionsPath: string, workspaceRoot: string, runId?: string): Promise<{ run: { id: string; status: string; counts: Record<string, unknown> | null }; report: { reportDigest: string } }> {
+  private async importSlice(slice: FullShadowSlice, snapshotPath: string, decisionsPath: string, workspaceRoot: string, runId?: string): Promise<{ run: { id: string; status: string; counts: Record<string, unknown> | null }; report: ComicFormatReport }> {
     const options = runId ? { runId } : {};
     switch (slice) {
       case "project-chapter": return new ProjectChapterShadowImporter(this.prisma, this.ledger).import(snapshotPath, decisionsPath, options);

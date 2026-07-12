@@ -40,6 +40,7 @@ source: code exploration and tests
 - 继续发现 succeeded shadow 可没有 run verification，或把 `sourceManifestVerified`/`snapshotManifestVerified` 声明为 false 仍带着完整 counts 通过。现要求 verification 为 schemaVersion=1 且两个 manifest verification 标志均为 true；缺失/无效分别返回 `MIGRATION_RUN_VERIFICATION_MISSING` / `MIGRATION_RUN_VERIFICATION_INVALID`，由 `IMP-M4-16/17` 锁定。
 - 继续发现成功 shadow 仍可省略 `decisionsDigest`，或在账本被外部篡改时携带非规范 report digest。verifier 现要求 `decisionsDigest` 存在且为 `sha256:<64位小写十六进制>`，并独立检查 `reportDigest` 形状；缺失/非法分别返回 `MIGRATION_DECISIONS_DIGEST_MISSING`、`MIGRATION_DECISIONS_DIGEST_INVALID` 或 `MIGRATION_REPORT_DIGEST_INVALID`。这只做摘要形状与存在性门禁，不声称 verifier 能从数据库反推出完整报告正文；`IMP-M4-18/19` 已锁定。
 - 进一步发现仅检查 `decisionsDigest` 形状仍不能证明它对应本次 snapshot 的 artifact。`db:verify` 现接收显式 decisions 文件，使用同一 decision codec 校验 sourceManifestDigest 与 canonical decisionsDigest，并与 MigrationRun.decisionsDigest 比较；缺文件、codec 失败、source 不匹配或 run digest 不一致均 fail-closed，`IMP-M4-20/21` 已锁定。
+- 继续发现仅检查 `reportDigest` 形状仍不能证明它对应导入器实际输出。新增 `normalizeComicFormatReport`，严格校验报告字段并对 canonical base 重算摘要；`db:verify` 通过显式 `--import-report` 读取 slice 报告，与 MigrationRun.reportDigest 做绑定，缺失、非法或不一致分别返回 `MIGRATION_REPORT_ARTIFACT_MISSING/INVALID`、`MIGRATION_REPORT_DIGEST_MISMATCH`，`IMP-M4-23/24/25` 已锁定。full shadow 结果保留每个成功 slice 的报告对象，供逐片 verifier 使用；聚合 reportDigest 仍排除报告正文，保持双 fresh 可比对。
 
 # M4 结论
 

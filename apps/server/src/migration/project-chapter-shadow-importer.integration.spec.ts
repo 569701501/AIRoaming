@@ -35,6 +35,7 @@ import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-ident
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shared";
+import { createComicFormatReport } from "./migration-report.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { ProjectsService } from "../projects/projects.service.js";
 
@@ -302,6 +303,12 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const decisionsPath = path.join(root!, "decisions.json");
     await writeFile(decisionsPath, `${JSON.stringify(createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, entries), null, 2)}\n`);
     return decisionsPath;
+  }
+
+  async function writeImportReport(baseRoot: string, name: string, report: unknown): Promise<string> {
+    const reportPath = path.join(baseRoot, name);
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    return reportPath;
   }
 
   afterEach(async () => {
@@ -647,7 +654,8 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const decisionsPath = await writeDecisions(snapshot, []);
     const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-verify" });
     const verificationBefore = (await prepared.repository.getRun(run.run.id)).verification;
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
+    const importReportPath = await writeImportReport(prepared.root!, "shadow-m4-verify.report.json", run.report);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath, importReportPath);
     const releaseIdentity = await loadReleaseSchemaIdentityV1(repoRoot);
     expect(result.report.errors).toEqual([]);
     expect(result.report.passed).toBe(true);
@@ -663,7 +671,8 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-base" });
     await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-providers" });
     const dialogue = await new DialogueShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-transformed-dialogue" });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, dialogue.run.id, repoRoot, decisionsPath);
+    const importReportPath = await writeImportReport(prepared.root!, "shadow-m4-transformed.report.json", dialogue.report);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, dialogue.run.id, repoRoot, decisionsPath, importReportPath);
     expect(result.report.passed).toBe(true);
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
@@ -769,7 +778,8 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { omitChapterScript: true });
     const decisionsPath = await writeDecisions(snapshot, []);
     const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-chapter-fallback" });
-    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
+    const importReportPath = await writeImportReport(prepared.root!, "shadow-m4-chapter-fallback.report.json", run.report);
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath, importReportPath);
     expect(result.report.passed).toBe(true);
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
@@ -838,11 +848,13 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(full.status, JSON.stringify(full.slices)).toBe("succeeded");
     expect(full.slices).toHaveLength(FULL_SHADOW_SLICE_ORDER.length);
     for (const slice of full.slices) {
+      const importReportPath = await writeImportReport(prepared.root!, `${slice.runId}.report.json`, slice.report);
       const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(
         snapshot.outputPath,
         slice.runId,
         repoRoot,
         decisionsPath,
+        importReportPath,
       );
       expect(result.report.passed, `${slice.slice}: ${result.report.errors.join(", ")}`).toBe(true);
       expect(result.report.checks).toMatchObject({
@@ -1141,6 +1153,42 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_SOURCE_DIGEST_MISMATCH");
   }, 30_000);
 
+  it("IMP-M4-23 rejects a succeeded shadow verification without an import report artifact", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-report-artifact-missing" });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ reportArtifactPresent: false, reportArtifactValid: false, reportArtifactMatch: false });
+    expect(result.report.errors).toContain("MIGRATION_REPORT_ARTIFACT_MISSING");
+  }, 30_000);
+
+  it("IMP-M4-24 rejects an invalid import report artifact", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-report-artifact-invalid" });
+    const importReportPath = path.join(prepared.root!, "invalid-report.json");
+    await writeFile(importReportPath, "{\"schemaVersion\":1}\n");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath, importReportPath);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ reportArtifactPresent: true, reportArtifactValid: false, reportArtifactMatch: false });
+    expect(result.report.errors).toContain("MIGRATION_REPORT_ARTIFACT_INVALID");
+  }, 30_000);
+
+  it("IMP-M4-25 rejects a valid import report whose digest differs from the run", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-report-artifact-mismatch" });
+    const importReportPath = await writeImportReport(prepared.root!, "alternate-report.json", createComicFormatReport([]));
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot, decisionsPath, importReportPath);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ reportArtifactPresent: true, reportArtifactValid: true, reportArtifactMatch: false });
+    expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_MISMATCH");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
@@ -1252,7 +1300,8 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         expect(full.slices.every((slice) => slice.status === "succeeded")).toBe(true);
         const verifier = new MigrationVerifyService(client);
         for (const slice of full.slices) {
-          const verification = await verifier.verify(snapshot.outputPath, slice.runId, repoRoot, decisionsPath);
+          const importReportPath = await writeImportReport(sourceRoot, `${index}-${slice.runId}.report.json`, slice.report);
+          const verification = await verifier.verify(snapshot.outputPath, slice.runId, repoRoot, decisionsPath, importReportPath);
           expect(verification.report.passed, `slice ${index}:${slice.slice}`).toBe(true);
           expect(verification.report.checks).toMatchObject({ integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
         }

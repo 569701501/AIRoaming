@@ -37,4 +37,5 @@ source: G3-M施工包与当前实现
 - 已知 shadow importer 的 `counts.entityCounts` 本身必须存在、绑定键完整且只包含已登记来源键或明确上下文键（Project、A6 Shot）；缺失或未注册计数键时 `db:verify` fail-closed。
 - succeeded shadow 必须保留 schemaVersion=1 且同时声明 source/snapshot manifest 已验证的 run verification attestation；缺失或无效时 `db:verify` fail-closed。
 - succeeded shadow 的 `db:verify` 必须读取显式 decisions artifact，并同时校验 artifact sourceManifestDigest、artifact decisionsDigest 与 MigrationRun.decisionsDigest；缺失、非法或三方不一致时 fail-closed。
+- succeeded shadow 的 `db:verify` 必须读取显式 `--import-report` artifact，按报告 codec 重算 canonical `reportDigest` 并与 MigrationRun.reportDigest 绑定；缺失、非法或不一致时 fail-closed。
 - typecheck、定向集成测试和全量回归通过。

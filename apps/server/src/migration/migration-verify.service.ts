@@ -6,6 +6,7 @@ import { PrismaService } from "../persistence/prisma.service.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { checkSourceEvidence } from "./migration-source-evidence.registry.js";
 import { MigrationDecisionError, normalizeMigrationDecisionArtifact } from "./migration-decision.js";
+import { MigrationReportCodecError, normalizeComicFormatReport } from "./migration-report.js";
 import type { MigrationRunKind } from "./migration-ledger.js";
 
 export class MigrationVerifyError extends Error {
@@ -28,6 +29,9 @@ export interface MigrationVerificationReport {
     decisionsArtifactPresent: boolean;
     decisionsArtifactValid: boolean;
     decisionsArtifactMatch: boolean;
+    reportArtifactPresent: boolean;
+    reportArtifactValid: boolean;
+    reportArtifactMatch: boolean;
     reportDigestPresent: boolean;
     reportDigestValid: boolean;
     runVerificationPresent: boolean;
@@ -115,6 +119,13 @@ interface DecisionsArtifactAssessment {
   errorCode: string | null;
 }
 
+interface ReportArtifactAssessment {
+  present: boolean;
+  valid: boolean;
+  matches: boolean;
+  errorCode: string | null;
+}
+
 async function assessDecisionsArtifact(
   decisionsPath: string | undefined,
   expectedSourceManifestDigest: string,
@@ -134,6 +145,21 @@ async function assessDecisionsArtifact(
     const code = error instanceof MigrationDecisionError && error.code === "MIGRATION_SOURCE_DIGEST_MISMATCH"
       ? error.code
       : "MIGRATION_DECISIONS_ARTIFACT_INVALID";
+    return { present: true, valid: false, matches: false, errorCode: code };
+  }
+}
+
+async function assessReportArtifact(
+  reportPath: string | undefined,
+  expectedReportDigest: string | null,
+): Promise<ReportArtifactAssessment> {
+  if (!reportPath) return { present: false, valid: false, matches: false, errorCode: null };
+  try {
+    const raw = JSON.parse(await readFile(reportPath, "utf8")) as unknown;
+    const report = normalizeComicFormatReport(raw);
+    return { present: true, valid: true, matches: report.reportDigest === expectedReportDigest, errorCode: null };
+  } catch (error) {
+    const code = error instanceof MigrationReportCodecError ? error.code : "MIGRATION_REPORT_ARTIFACT_INVALID";
     return { present: true, valid: false, matches: false, errorCode: code };
   }
 }
@@ -180,7 +206,7 @@ export class MigrationVerifyService {
     this.ledger = ledger ?? new PrismaMigrationLedgerRepository(prisma);
   }
 
-  async verify(snapshotPath: string, runId: string, workspaceRoot = process.cwd(), decisionsPath?: string): Promise<{ report: MigrationVerificationReport }> {
+  async verify(snapshotPath: string, runId: string, workspaceRoot = process.cwd(), decisionsPath?: string, importReportPath?: string): Promise<{ report: MigrationVerificationReport }> {
     const snapshot = await readVerifiedSnapshot(snapshotPath);
     const run = await this.ledger.getRun(runId);
     const effective = await loadReleaseSchemaIdentityV1(workspaceRoot);
@@ -195,6 +221,7 @@ export class MigrationVerifyService {
     const expectedSourceCounts = sourceCountAssessment.expected;
     const runVerification = assessRunVerification(run.verification);
     const decisionsArtifact = await assessDecisionsArtifact(decisionsPath, snapshot.sourceManifest.manifestDigest, run.decisionsDigest);
+    const reportArtifact = await assessReportArtifact(importReportPath, run.reportDigest);
     const actualSourceCounts = new Map<string, number>();
     for (const row of imported) actualSourceCounts.set(row.entityType, (actualSourceCounts.get(row.entityType) ?? 0) + 1);
     const sourceEvidenceExpectedCount = [...expectedSourceCounts.values()].reduce((sum, count) => sum + count, 0);
@@ -226,6 +253,9 @@ export class MigrationVerifyService {
     if (run.kind === "shadow" && run.status === "succeeded" && !decisionsArtifact.present) errors.push("MIGRATION_DECISIONS_ARTIFACT_MISSING");
     if (run.kind === "shadow" && run.status === "succeeded" && decisionsArtifact.present && !decisionsArtifact.valid) errors.push(decisionsArtifact.errorCode ?? "MIGRATION_DECISIONS_ARTIFACT_INVALID");
     if (run.kind === "shadow" && run.status === "succeeded" && decisionsArtifact.valid && !decisionsArtifact.matches) errors.push("MIGRATION_DECISIONS_DIGEST_MISMATCH");
+    if (run.kind === "shadow" && run.status === "succeeded" && !reportArtifact.present) errors.push("MIGRATION_REPORT_ARTIFACT_MISSING");
+    if (run.kind === "shadow" && run.status === "succeeded" && reportArtifact.present && !reportArtifact.valid) errors.push(reportArtifact.errorCode ?? "MIGRATION_REPORT_ARTIFACT_INVALID");
+    if (run.kind === "shadow" && run.status === "succeeded" && reportArtifact.valid && !reportArtifact.matches) errors.push("MIGRATION_REPORT_DIGEST_MISMATCH");
     if (run.kind === "shadow" && run.status === "succeeded" && !runVerificationPresent) errors.push("MIGRATION_RUN_VERIFICATION_MISSING");
     if (run.kind === "shadow" && run.status === "succeeded" && runVerificationPresent && !runVerificationValid) errors.push("MIGRATION_RUN_VERIFICATION_INVALID");
     if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && !sourceEntityCountsPresent) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_MISSING");
@@ -246,7 +276,7 @@ export class MigrationVerifyService {
       sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       effectiveSchemaManifestDigest: effective.effectiveSchemaManifestDigest,
-      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, decisionsDigestPresent, decisionsDigestValid, decisionsArtifactPresent: decisionsArtifact.present, decisionsArtifactValid: decisionsArtifact.valid, decisionsArtifactMatch: decisionsArtifact.matches, reportDigestPresent, reportDigestValid, runVerificationPresent, runVerificationValid, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEntityCountsPresent, sourceEntityCountsValid, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
+      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, decisionsDigestPresent, decisionsDigestValid, decisionsArtifactPresent: decisionsArtifact.present, decisionsArtifactValid: decisionsArtifact.valid, decisionsArtifactMatch: decisionsArtifact.matches, reportArtifactPresent: reportArtifact.present, reportArtifactValid: reportArtifact.valid, reportArtifactMatch: reportArtifact.matches, reportDigestPresent, reportDigestValid, runVerificationPresent, runVerificationValid, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEntityCountsPresent, sourceEntityCountsValid, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
       passed: errors.length === 0,
       errors: [...errors].sort(),
     };

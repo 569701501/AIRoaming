@@ -62,3 +62,4 @@ source: task_plan.md
 - 本轮继续补齐 decisions/report digest 形状门禁；IMP-M4-18/19 与 46 项迁移集成测试通过，server 全量 47 文件/291 tests、typecheck、G1 三项、Prisma validate、`git diff --check` 均通过，M4 继续保持 `in_progress`。
 - 本轮补齐 decisions artifact 三方绑定；IMP-M4-20/21 与 48 项迁移集成测试通过，server 全量 47 文件/293 tests、typecheck、G1 三项、Prisma validate、`git diff --check` 均通过，M4 继续保持 `in_progress`。
 - 本轮补齐 decisions artifact sourceManifestDigest 绑定；IMP-M4-22 与 49 项迁移集成测试通过，server 全量 47 文件/294 tests、typecheck、G1 三项、Prisma validate、`git diff --check` 均通过，M4 继续保持 `in_progress`。
+- 本轮继续补齐 report artifact：`db:verify` 要求显式 `--import-report`，报告 codec 重算 canonical reportDigest 并与 run 绑定；新增 IMP-M4-23/24/25，定向迁移集成 52 项通过。M4 仍保持 `in_progress`，待全量回归与提交。

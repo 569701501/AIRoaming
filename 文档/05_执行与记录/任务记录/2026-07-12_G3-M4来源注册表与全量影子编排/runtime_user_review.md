@@ -37,8 +37,9 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 17. `IMP-M4-12/13`：未知 shadow importerVersion、缺失 succeeded reportDigest 均被拒绝。
 18. `IMP-M4-14/15`：已知 importer 缺失 `counts.entityCounts`、出现未注册 entity count key 均被拒绝；合法上下文计数不误报。
 19. `IMP-M4-16/17`：succeeded shadow 缺失或无效 verification attestation 均被拒绝。
-20. `IMP-M4-18/19`：succeeded shadow 缺少 `decisionsDigest` 或 report digest 格式非法均被拒绝；本门禁只确认摘要形状与存在性，不虚构报告正文重算能力。
+20. `IMP-M4-18/19`：succeeded shadow 缺少 `decisionsDigest` 或 report digest 格式非法均被拒绝。
 21. `IMP-M4-20/21/22`：`db:verify` 缺少 decisions artifact，或 artifact source/digest 与 run 不一致，均被拒绝。
+22. `IMP-M4-23/24/25`：`db:verify` 缺少 `--import-report`、报告 artifact 非法或其 canonical digest 与 run 不一致，均被拒绝；full shadow 逐片验证使用每个 slice 保留的报告对象。
 
 ## 读取点审计边界
 
