@@ -18,6 +18,7 @@ import { ExportShadowImporter, ExportShadowImportError } from "./export-shadow-i
 import { ProviderShadowImporter, ProviderShadowImportError } from "./provider-shadow-importer.js";
 import { DialogueShadowImporter, DialogueShadowImportError } from "./dialogue-shadow-importer.js";
 import { FullShadowImporter } from "./full-shadow-importer.js";
+import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -55,9 +56,7 @@ async function main(): Promise<number> {
   const workspaceRootValue = workspaceRootIndex >= 0 ? process.argv[workspaceRootIndex + 1] : undefined;
   const workspaceRoot = workspaceRootValue ? path.resolve(workspaceRootValue) : undefined;
   if ((slice === "asset-visuals" || slice === "full") && !workspaceRoot) throw new ShadowImportError("MIGRATION_WORKSPACE_ROOT_INVALID");
-  const formatIndex = process.argv.indexOf("--format");
-  const format = formatIndex >= 0 ? process.argv[formatIndex + 1] : undefined;
-  if (format !== undefined && format !== "json") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  readJsonFormat(process.argv, () => new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID"));
   if (!databaseUrl.startsWith("file:")) throw new ShadowImportError("MIGRATION_DATABASE_URL_INVALID");
   process.env.AIROAMING_PERSISTENCE_MODE = "db";
   process.env.DATABASE_URL = databaseUrl;

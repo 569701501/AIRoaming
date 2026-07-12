@@ -3,6 +3,7 @@ import { chmod, mkdir, open, rename, unlink } from "node:fs/promises";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { MigrationAuditError } from "./migration-audit.service.js";
 import { DatabaseMigrationAuditService } from "./db-audit.service.js";
+import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -30,9 +31,7 @@ async function main(): Promise<number> {
   const snapshot = path.resolve(required("--snapshot"));
   const databaseUrl = required("--database-url");
   const report = path.resolve(required("--report"));
-  const formatIndex = process.argv.indexOf("--format");
-  const format = formatIndex >= 0 ? process.argv[formatIndex + 1] : undefined;
-  if (format !== undefined && format !== "json") throw new MigrationAuditError("MIGRATION_AUDIT_ARGS_INVALID");
+  readJsonFormat(process.argv, () => new MigrationAuditError("MIGRATION_AUDIT_ARGS_INVALID"));
   if (!databaseUrl.startsWith("file:")) throw new MigrationAuditError("MIGRATION_DATABASE_URL_INVALID");
   process.env.AIROAMING_PERSISTENCE_MODE = "db";
   process.env.DATABASE_URL = databaseUrl;

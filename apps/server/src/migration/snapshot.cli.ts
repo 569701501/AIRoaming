@@ -1,4 +1,5 @@
 import { SnapshotError, SnapshotService } from "./snapshot.service.js";
+import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -8,6 +9,7 @@ function required(name: string): string {
 }
 
 async function main(): Promise<void> {
+  const format = readJsonFormat(process.argv, () => new SnapshotError("SNAPSHOT_ARGS_INVALID"));
   const result = await new SnapshotService().createSnapshot({
     workspaceRoot: required("--workspace-root"),
     stagingRoot: required("--staging-root"),
@@ -20,7 +22,7 @@ async function main(): Promise<void> {
     runtimeBundleDigest: result.runtimeBundleDigest,
     transformDigest: result.transformDigest,
   };
-  if (process.argv.includes("--format") && process.argv[process.argv.indexOf("--format") + 1] === "json") {
+  if (format === "json") {
     process.stdout.write(`${JSON.stringify(output)}\n`);
   } else {
     process.stdout.write("SNAPSHOT_SEALED\n");

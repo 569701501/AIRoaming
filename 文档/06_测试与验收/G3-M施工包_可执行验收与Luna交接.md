@@ -151,6 +151,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 ### G3-M4
 
 - 当前基础实现：`MigrationVerifyService`/`db:verify` 只读 sealed snapshot 与目标 DB，检查 run/manifest、`integrity_check`、FK、blocker 和来源追溯锚点；CLI 只接受 `--format json`，非法格式在数据库初始化前 fail-fast；`effectiveSchemaManifestDigest` 使用 Prisma Schema + 全部有序 migration checksum 的 release identity，不再使用 G1 source manifest digest。
+- G3 CLI 参数门禁已统一：`db:verify`、`db:import`、`db:audit`、`migration:audit:check`、`migration:decisions:check`、`db:snapshot`、`maintenance` 和旧格式审计均只接受单个 `--format json`；缺值、非法值、重复 flag 在各自副作用前返回稳定错误码，并由 `cli-format.spec.ts` 与入口 fixture 覆盖。
 - `migration-source-evidence.registry.ts` 已按 entityType 注册单文件允许 storage-key pattern、Chapter 复合（chapter.json + script.md，缺 script.md 时复用 importer 的 chapter.json.sourceText fallback）和 runtime bundle canonical 摘要算法；`db:verify` 同时检查 source/snapshot manifest，settings/runtime 转换输入不会被误判为越界来源。
 - 当前已完成单次 succeeded、转换来源、full replay 特征测试、blocked/failed full fail-fast、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType`、已注册摘要篡改、runtime 错误锚点、单文件 storage-key 越界、replay 当前 run 缺失来源证据和来源计数漂移也已验证 fail-closed；`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个独立 run；M4 仍保留 `in_progress`，等待正式验收签字。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。

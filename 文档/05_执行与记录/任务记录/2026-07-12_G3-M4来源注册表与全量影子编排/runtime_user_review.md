@@ -31,6 +31,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 11. `db-verify --format text`：在数据库初始化前返回 `MIGRATION_VERIFY_ARGS_INVALID`，不会创建或连接目标数据库。
 12. `IMP-M4-08/09`：成功 run 的当前来源证据缺失或超出 importer 报告计数时，verifier 分别返回 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，保持 fail-closed。
 13. `IMP-M4-10`：成功 full shadow 的 16 个独立 slice 均由 verifier 逐个复核，来源计数、摘要锚点和注册类型全部通过。
+14. CLI format fixture：`db:verify`、`db:snapshot`、`maintenance` 的缺值/非法值入口均在 DB、snapshot 或网络副作用前返回稳定错误码；共享 parser 的 5 项边界测试通过。
 
 ## 读取点审计边界
 

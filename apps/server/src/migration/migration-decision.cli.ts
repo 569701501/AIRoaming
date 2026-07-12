@@ -2,6 +2,7 @@ import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import * as path from "node:path";
 import { normalizeMigrationDecisionArtifact } from "./migration-decision.js";
 import type { Digest } from "./migration-issue.js";
+import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -14,8 +15,7 @@ async function main(): Promise<void> {
   const snapshot = path.resolve(required("--snapshot"));
   const inputPath = path.resolve(required("--input"));
   const outputPath = path.resolve(required("--output"));
-  const format = process.argv.includes("--format") ? process.argv[process.argv.indexOf("--format") + 1] : undefined;
-  if (format !== undefined && format !== "json") throw new Error("MIGRATION_DECISION_ARGS_INVALID");
+  readJsonFormat(process.argv, () => new Error("MIGRATION_DECISION_ARGS_INVALID"));
 
   const sealed = JSON.parse(await readFile(path.join(snapshot, "SEALED"), "utf8")) as { kind?: string; sourceManifestDigest?: Digest };
   if (sealed.kind !== "airoaming_snapshot_sealed_v1" || typeof sealed.sourceManifestDigest !== "string") throw new Error("MIGRATION_SNAPSHOT_NOT_SEALED");
@@ -43,4 +43,3 @@ main().catch((error) => {
   process.stderr.write(`${error instanceof Error ? error.message : "MIGRATION_DECISION_FAILED"}\n`);
   process.exitCode = 1;
 });
-

@@ -25,6 +25,7 @@ source: task execution
 - [x] full shadow 捕获 failed slice 的终态摘要并 fail-fast；新增 `IMP-M3-FULL-03`，不丢失失败 run、不创建下游 run。
 - [x] Chapter 缺少 `script.md` 时，verifier 按 importer 同样使用 `chapter.json.sourceText` 备用正文重算复合摘要；新增 `IMP-M4-07`。
 - [x] `db-verify` 补齐 `--format json` 参数校验，非法格式返回 `MIGRATION_VERIFY_ARGS_INVALID`，不启动数据库。
+- [x] 统一 8 个 G3 CLI 的 `--format json` 解析：缺值、非法值和重复 flag 均在副作用前以各自稳定错误码 fail-fast；新增 `cli-format.spec.ts` 5 项回归，并用 `db:verify`、`db:snapshot`、`maintenance` fixture 复核入口行为。
 - [x] verifier 按 importer/entityType 对齐 `counts.entityCounts` 与当前 run 来源行；显式覆盖 A6 Shot 投影、A9 AssetReady→AssetPhysicalEvidence，并新增来源行超额 fail-closed 回归 `IMP-M4-09`。
 - [x] `IMP-M4-10` 对成功 full shadow 的 16 个独立 slice 逐个运行 verifier，确认每个 slice 的来源计数、摘要锚点和注册类型均通过。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
@@ -36,13 +37,13 @@ source: task execution
 # 验证证据
 
 - `pnpm --filter @airoaming/server typecheck`：通过。
-- `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4' --testTimeout=120000`：9 项通过（IMP-M4-01～09）。
+- `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4' --testTimeout=120000`：10 项通过（IMP-M4-01～10）。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M3-FULL' --testTimeout=120000`：3 项通过，覆盖 replay、blocked 和 failed slice。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-FRESH' --testTimeout=120000`：1 项通过；两套 fresh SQLite DB 的 16 个 slice、逐片 verifier、reportDigest 与业务 inventory digest 均一致。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-API-01' --testTimeout=120000`：1 项通过；移走旧 workspace 后 DB 重启仍能读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致、ready Asset sha256/bytes 与旧物理文件一致，DB 草稿写入不重建旧工作区。
 - `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts --run --testTimeout=120000`：37 个迁移集成测试通过；包含 DB-only 断根重启、未知 entityType、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数超额和 full 16-slice 逐片计数校验 fail-fast。
 - `IMP-M4-04`～`IMP-M4-06` 定向测试：3 项通过；覆盖注册类型摘要篡改、runtime 非 `runtime-bundle.json` 锚点和单文件实体错误 storage key。
-- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、274 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数门禁和 full 16-slice 逐片计数校验。
+- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：46 个测试文件、279 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数门禁、full 16-slice 逐片计数校验和统一 CLI format 门禁。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `pnpm --filter @airoaming/server exec tsx src/migration/db-verify.cli.ts ... --format text`：按契约 fail-fast，输出 `MIGRATION_VERIFY_ARGS_INVALID`；typecheck 与 server 全量回归仍通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。

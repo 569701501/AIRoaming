@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { readLegacyProjectComicFormatV1 } from "./legacy-project-comic-format.js";
+import { readJsonFormat } from "../cli-format.js";
 
 interface AuditSummary {
   schemaVersion: 1;
@@ -24,8 +25,13 @@ function arg(name: string): string | undefined {
 
 async function main(): Promise<number> {
   const workspaceRoot = arg("--workspace-root");
-  const format = arg("--format");
-  if (!workspaceRoot || (format !== undefined && format !== "json")) {
+  try {
+    readJsonFormat(process.argv, () => new Error("G3_LEGACY_AUDIT_ARGS_INVALID"));
+  } catch {
+    process.stderr.write("G3_LEGACY_AUDIT_ARGS_INVALID\n");
+    return 1;
+  }
+  if (!workspaceRoot) {
     process.stderr.write("G3_LEGACY_AUDIT_ARGS_INVALID\n");
     return 1;
   }

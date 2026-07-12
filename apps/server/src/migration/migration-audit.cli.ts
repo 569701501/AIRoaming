@@ -1,6 +1,7 @@
 import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import * as path from "node:path";
 import { MigrationAuditError, MigrationAuditService } from "./migration-audit.service.js";
+import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -26,9 +27,7 @@ async function writePrivateJson(filePath: string, value: unknown): Promise<void>
 async function main(): Promise<number> {
   const snapshot = path.resolve(required("--snapshot"));
   const reportPath = path.resolve(required("--report"));
-  const formatIndex = process.argv.indexOf("--format");
-  const format = formatIndex >= 0 ? process.argv[formatIndex + 1] : undefined;
-  if (format !== undefined && format !== "json") throw new MigrationAuditError("MIGRATION_AUDIT_ARGS_INVALID");
+  readJsonFormat(process.argv, () => new MigrationAuditError("MIGRATION_AUDIT_ARGS_INVALID"));
   const result = await new MigrationAuditService().auditComicFormats(snapshot);
   await writePrivateJson(reportPath, result.report);
   process.stdout.write(`${JSON.stringify({ code: result.run.status === "blocked" ? "MIGRATION_AUDIT_BLOCKED" : "MIGRATION_AUDIT_OK", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);

@@ -19,6 +19,7 @@ source: G3-M4 continuation
 - full 编排也已覆盖 failed slice：`IMP-M3-FULL-03` 保留失败 run 摘要并停止，不产生下游空 run。
 - Chapter 复合来源对缺失 `script.md` 的合法 `chapter.json.sourceText` fallback 已与 verifier 对齐，`IMP-M4-07` 通过。
 - `db-verify` 已补齐 `--format json` 稳定参数校验；非法格式不启动 Prisma，返回 `MIGRATION_VERIFY_ARGS_INVALID`。
+- 统一 CLI 参数门禁已接入 8 个 G3 CLI；`--format` 缺值、非法值和重复 flag 均在副作用前 fail-fast，保留各入口稳定错误码，新增 `cli-format.spec.ts` 5 项回归。
 - verifier 已按 importer-specific entity count 绑定并精确比较 `ImportedEntitySource` 行；A6 的 Shot 计数映射到 `StoryboardShotProjection`，A9 的 AssetReady 计数映射到 `AssetPhysicalEvidence`；缺失/超额证据分别以 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH` fail-closed，新增 `IMP-M4-08/09`。`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个 slice。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。

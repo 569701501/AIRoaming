@@ -1,5 +1,6 @@
 import { chmod, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import * as path from "node:path";
+import { readJsonFormat } from "../cli-format.js";
 
 type Action = "status" | "drain" | "close" | "bundle" | "reopen";
 
@@ -13,6 +14,7 @@ function usage(): never {
 }
 
 async function main(): Promise<void> {
+  const format = readJsonFormat(process.argv, () => new Error("MAINTENANCE_FORMAT_INVALID"));
   const action = process.argv[2] as Action | undefined;
   if (!action || !["status", "drain", "close", "bundle", "reopen"].includes(action)) usage();
   const baseArg = arg("--base-url");
@@ -49,7 +51,7 @@ async function main(): Promise<void> {
     if (!output) throw new Error("MAINTENANCE_BUNDLE_OUTPUT_REQUIRED");
     await writePrivateAtomic(output, JSON.stringify(payload.data, null, 2) + "\n");
   }
-  if (process.argv.includes("--format") && arg("--format") === "json") {
+  if (format === "json") {
     process.stdout.write(JSON.stringify(payload.data) + "\n");
   } else if (action !== "bundle") {
     process.stdout.write(`${action.toUpperCase()}_OK\n`);

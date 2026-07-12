@@ -2,6 +2,7 @@ import * as path from "node:path";
 import { chmod, mkdir, open, rename, unlink } from "node:fs/promises";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { MigrationVerifyError, MigrationVerifyService } from "./migration-verify.service.js";
+import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -24,9 +25,7 @@ async function main(): Promise<number> {
   const runId = required("--run-id");
   const reportPath = path.resolve(required("--report"));
   const workspaceRoot = path.resolve(required("--workspace-root"));
-  const formatIndex = process.argv.indexOf("--format");
-  const format = formatIndex >= 0 ? process.argv[formatIndex + 1] : undefined;
-  if (format !== undefined && format !== "json") throw new MigrationVerifyError("MIGRATION_VERIFY_ARGS_INVALID");
+  readJsonFormat(process.argv, () => new MigrationVerifyError("MIGRATION_VERIFY_ARGS_INVALID"));
   if (!databaseUrl.startsWith("file:")) throw new MigrationVerifyError("MIGRATION_DATABASE_URL_INVALID");
   process.env.AIROAMING_PERSISTENCE_MODE = "db"; process.env.DATABASE_URL = databaseUrl;
   const prisma = new PrismaService();
