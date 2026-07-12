@@ -18,7 +18,8 @@
     "g1:migration:write": "tsx src/persistence/g1-migration-plan.cli.ts --write",
     "prisma:validate": "DATABASE_URL=file:./dev.db prisma validate --schema prisma/schema.prisma",
     "g3:comic-format:audit": "tsx src/projects/g3-legacy-comic-format-audit.cli.ts",
-    "maintenance": "tsx src/maintenance/maintenance.cli.ts"
+    "maintenance": "tsx src/maintenance/maintenance.cli.ts",
+    "db:snapshot": "tsx src/migration/snapshot.cli.ts"
   },
   "dependencies": {
     "@airoaming/shared": "workspace:*",

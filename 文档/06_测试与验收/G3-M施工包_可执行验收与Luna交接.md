@@ -17,8 +17,8 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | 范围 | 当前状态 |
 | --- | --- |
 | G3-core | passed，基线 commit `0dbf93d` |
-| G3-M0 maintenance | implemented，待最终 commit 复核 |
-| G3-M1 snapshot/runtime bundle | not_implemented |
+| G3-M0 maintenance | implemented，commit `e2caa13` |
+| G3-M1 snapshot/runtime bundle | implemented，待最终 commit 复核 |
 | G3-M2 decision codec | not_implemented |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | not_implemented |
@@ -85,6 +85,8 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 - pre/post manifest、snapshot transform、redactor、symlink/path guard 与 sealed publish 通过。
 - 源 hash/mtime 不变，两个绝对根同内容摘要一致。
+- 当前实现：`apps/server/src/migration/snapshot.service.ts`、`runtime-bundle-file.service.ts`、`credential-redactor.ts`、`db:snapshot` CLI、SNP-01～06 与 runtime bundle 测试。
+- M1 仍不包含 importer、decision codec、DB audit/import/verify、backup 或 activate；sealed snapshot 只能交给后续 M2/M3。
 
 ### G3-M2
 
@@ -170,14 +172,14 @@ git diff --check
 ## 9. 第一张 Luna 任务书
 
 ```text
-目标切片：G3-M0 maintenance gate
-当前基线 commit：`0dbf93d`；M0 最终 commit 在完成后补入。
+目标切片：G3-M1 snapshot/runtime bundle
+当前基线 commit：`e2caa13`；M1 最终 commit 在完成后补入。
 必读：G3-M 五份施工资料；G1 方案 6.3.2、6.5 C0～C2
-允许修改：apps/server/src/maintenance/**、必要的 App/Projects/Dialogue/Tasks/ToolCallback/Settings 模块接线、对应测试与 package script
-明确禁止：snapshot/importer/backup/activate、真实 workspace、G5、改变 G3-core enum/0010
-实现：open→draining→closed→handed_off；runMutation；五类 participant；loopback+token 本地控制；closed runtime bundle 骨架
-最小测试：MNT-01～06 + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
-退出证据：状态 JSON、503 envelope、同 PID bundle、残留 blocker
+允许修改：apps/server/src/migration/**、必要的 maintenance 接线、对应测试与 package script
+明确禁止：importer/decision/backup/activate、真实 workspace 写入、G5、改变 G3-core enum/0010
+实现：runtime bundle 文件校验/0600 原子写、显式 workspace/staging snapshot、pre/post manifest、settings redaction、path guard、SEALED publish、db:snapshot CLI
+最小测试：SNP-01～06 + runtime bundle + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
+退出证据：sealed snapshot 摘要、source/snapshot manifest digest、transform digest、源 hash/mtime 未变、残留 blocker
 Stop：任何写入口无法被可靠枚举或需要触碰真实数据时停止并报告
 ```
 

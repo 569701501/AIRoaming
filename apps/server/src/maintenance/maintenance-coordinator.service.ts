@@ -1,6 +1,6 @@
 import { HttpException, Injectable } from "@nestjs/common";
-import { createHash } from "node:crypto";
 import { MaintenanceParticipant, MaintenanceParticipantStatus, MaintenanceState, MaintenanceStatus, RuntimeBundleV1 } from "./maintenance.types.js";
+import { digestMaintenanceJson } from "./canonical-json.js";
 
 export class MaintenanceException extends HttpException {
   readonly code: string;
@@ -52,22 +52,6 @@ class LeaseParticipant implements MaintenanceParticipant {
 }
 
 type RuntimeParticipant = MaintenanceParticipant & { enter?: () => void; leave?: () => void };
-
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(String(value));
-}
-
-function digest(value: unknown): `sha256:${string}` {
-  return `sha256:${createHash("sha256").update(canonicalize(value), "utf8").digest("hex")}`;
-}
 
 @Injectable()
 export class MaintenanceCoordinator {
@@ -208,6 +192,6 @@ export class MaintenanceCoordinator {
       unobservableBeforeBridge: ["conversationState", "pendingDialogueState", "legacyTaskTerminalState"],
       redaction: { schemaVersion: 1 as const, redactedCount: 0 },
     };
-    return { ...payload, payloadDigest: digest(payload) };
+    return { ...payload, payloadDigest: digestMaintenanceJson(payload) };
   }
 }
