@@ -1,9 +1,6 @@
 export const PROJECT_TYPES = ["comic", "light_motion", "mixed"] as const;
 export type ProjectType = (typeof PROJECT_TYPES)[number];
 
-export const COMIC_FORMATS = ["vertical_scroll", "page_horizontal", "four_panel"] as const;
-export type ComicFormat = (typeof COMIC_FORMATS)[number];
-
 export const ART_STYLES = [
   "dark_realistic",
   "semi_realistic",
@@ -161,7 +158,9 @@ export const GENERATION_TASK_EVENTS = [
 ] as const;
 export type GenerationTaskEvent = (typeof GENERATION_TASK_EVENTS)[number];
 
-export const CANDIDATE_GENERATION_SPEC_VERSION = 1 as const;
+export const CANDIDATE_GENERATION_SPEC_VERSION = 2 as const;
+export const LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION =
+  "legacy_generation_default_v1" as const;
 export const CANDIDATE_GENERATION_PURPOSES = ["shot_clean_plate", "legacy_unspecified"] as const;
 export type CandidateGenerationPurpose = (typeof CANDIDATE_GENERATION_PURPOSES)[number];
 

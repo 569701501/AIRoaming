@@ -272,4 +272,29 @@ describe("ProjectRepository 写入→重载往返一致性", () => {
 
     expect(reloadedChapter.sourceText).toBe("第二版正文(已修改)");
   });
+
+  it("读取 page_horizontal 时映射为 paged_comic，但无关保存保留原 alias", async () => {
+    const project = buildProject(buildChapter());
+    const writer = new ProjectRepository(workspacePath);
+    await writer.saveProject(project, STUB_WORKFLOW);
+    const projectPath = join(
+      workspacePath.resolveVirtualPath("/workspace/projects/test-project"),
+      "project.json",
+    );
+    const { readFile, writeFile } = await import("node:fs/promises");
+    const metadata = JSON.parse(await readFile(projectPath, "utf8")) as Record<string, unknown>;
+    metadata.comicFormat = "page_horizontal";
+    await writeFile(projectPath, JSON.stringify(metadata, null, 2) + "\n", "utf8");
+
+    const reloader = new ProjectRepository(workspacePath);
+    await reloader.ensureLoaded();
+    const loaded = reloader.getProject("test-project")!;
+    expect(loaded.comicFormat).toBe("paged_comic");
+    expect(loaded.persistenceCompatibility?.comicFormatSource).toMatchObject({
+      kind: "legacy_alias",
+      rawValue: "page_horizontal",
+    });
+    await reloader.saveProject({ ...loaded, description: "无关修改" }, STUB_WORKFLOW);
+    expect(JSON.parse(await readFile(projectPath, "utf8")).comicFormat).toBe("page_horizontal");
+  });
 });

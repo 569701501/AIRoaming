@@ -22,6 +22,7 @@ export type G2DatabaseErrorCode =
   | "PREFLIGHT_SOURCE_CHANGED"
   | "SOURCE_UNRESOLVED"
   | "TASK_TARGET_SUPERSEDED"
+  | "PROJECT_COMIC_FORMAT_CORRUPTED"
   | "G2_DATABASE_CONTRACT_VIOLATION";
 
 export interface G2MappedDatabaseError {

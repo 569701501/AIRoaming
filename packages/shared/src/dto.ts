@@ -3,7 +3,6 @@ import type {
   AssetType,
   CandidateGenerationPurpose,
   ChapterStatus,
-  ComicFormat,
   GenerationTaskStatus,
   GenerationTaskTargetType,
   GenerationTaskType,
@@ -14,6 +13,7 @@ import type {
   ProjectStatus,
   ProjectType,
 } from "./domain.js";
+import type { ComicFormat } from "./comic-format.js";
 import type { ArtifactFreshness, FreshnessReasonCode } from "./versioning/production-state.js";
 
 export interface ApiEnvelope<T> {
@@ -136,9 +136,9 @@ export interface ProjectListItem {
 export interface CreateProjectRequest {
   name: string;
   type: ProjectType;
+  comicFormat: ComicFormat;
   storyTitle?: string;
   genreTags?: string[];
-  comicFormat?: ComicFormat;
   artStyle?: ArtStyle;
   description?: string;
   sourceText?: string;
@@ -148,7 +148,6 @@ export interface UpdateProjectDraftRequest {
   name?: string;
   storyTitle?: string;
   genreTags?: string[];
-  comicFormat?: ComicFormat;
   artStyle?: ArtStyle;
   description?: string;
   sourceText?: string;
@@ -1094,7 +1093,8 @@ export interface CandidatePromptSection {
 }
 
 export interface CandidateGenerationSpec {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  sizePolicyVersion: "legacy_generation_default_v1";
   purpose: "shot_clean_plate";
   projectId: string;
   chapterId: string;

@@ -1,7 +1,8 @@
 import {
   ART_STYLES,
   CHAPTER_STATUSES,
-  COMIC_FORMATS,
+  getComicFormatLabel as getSharedComicFormatLabel,
+  isComicFormat,
   PROJECT_TYPES,
   stripChapterScriptName,
   type ArtStyle,
@@ -51,8 +52,11 @@ export function normalizeProjectType(input: unknown): ProjectType {
   return typeof input === "string" && PROJECT_TYPES.includes(input as ProjectType) ? input as ProjectType : "comic";
 }
 
-export function normalizeComicFormat(input: ComicFormat | undefined): ComicFormat {
-  return input && COMIC_FORMATS.includes(input) ? input : "vertical_scroll";
+export function parseCanonicalComicFormat(input: unknown): ComicFormat {
+  if (isComicFormat(input)) {
+    return input;
+  }
+  throw new TypeError("COMIC_FORMAT_INVALID");
 }
 
 export function normalizeArtStyle(input: ArtStyle | undefined): ArtStyle {
@@ -97,12 +101,7 @@ export function getCurrentChapter(project: LocalProject): LocalChapter | null {
 }
 
 export function getComicFormatLabel(format: ComicFormat): string {
-  const labels: Record<ComicFormat, string> = {
-    vertical_scroll: "竖版条漫 / vertical scrolling webcomic",
-    page_horizontal: "页漫 / page-based comic",
-    four_panel: "四格漫画 / four-panel comic",
-  };
-  return labels[format] ?? "竖版条漫 / vertical scrolling webcomic";
+  return getSharedComicFormatLabel(format);
 }
 
 export function getArtStyleLabel(style: ArtStyle): string {

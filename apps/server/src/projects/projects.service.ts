@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional, type OnModuleInit } from "@nestjs/common";
+import { BadRequestException, HttpException, Inject, Injectable, Logger, NotFoundException, Optional, type OnModuleInit } from "@nestjs/common";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import * as wsJson from "./workspace-json.util.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
@@ -20,6 +20,8 @@ import { ImagePreflightService } from "./image-preflight.service.js";
 import { ImageCandidateService } from "./image-candidate.service.js";
 import { LayoutExportService } from "./layout-export.service.js";
 import { AssetPackageService } from "./asset-package.service.js";
+import { parseCreateProjectRequestV1, parseUpdateProjectDraftRequestV1 } from "./project-input.contract.js";
+import { mapG3ProjectDatabaseError } from "./g3-project-error.mapper.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
@@ -135,6 +137,24 @@ import {
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
+function rethrowMappedG3ProjectError(error: unknown): never {
+  const mapped = mapG3ProjectDatabaseError(error);
+  if (mapped) {
+    throw new HttpException(
+      {
+        success: false,
+        error: {
+          code: mapped.code,
+          message: mapped.message,
+          ...(mapped.details === undefined ? {} : { details: mapped.details }),
+        },
+      },
+      mapped.status,
+    );
+  }
+  throw error;
+}
+
 // LocalChapter / LocalProject / LocalChapterScriptVersion 已抽到 ./local-types.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre)。
 
 interface ProjectAssetFile {
@@ -218,7 +238,11 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async listProjects(): Promise<ProjectListItem[]> {
-    await this.projectStore.ensureProjectsLoaded();
+    try {
+      await this.projectStore.ensureProjectsLoaded();
+    } catch (error) {
+      rethrowMappedG3ProjectError(error);
+    }
     return this.repository.getAllProjects()
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
       .map((project) => this.toProjectListItem(project));
@@ -231,8 +255,13 @@ export class ProjectsService implements OnModuleInit {
     };
   }
 
-  async createProject(input: CreateProjectRequest): Promise<ProjectListItem> {
-    await this.projectStore.ensureProjectsLoaded();
+  async createProject(rawInput: unknown): Promise<ProjectListItem> {
+    const input = parseCreateProjectRequestV1(rawInput);
+    try {
+      await this.projectStore.ensureProjectsLoaded();
+    } catch (error) {
+      rethrowMappedG3ProjectError(error);
+    }
     const now = new Date().toISOString();
     const name = input.name.trim();
     if (!name) {
@@ -241,7 +270,7 @@ export class ProjectsService implements OnModuleInit {
 
     const storyTitle = input.storyTitle?.trim() || input.description?.trim() || name;
     const description = input.description?.trim() || storyTitle;
-    const comicFormat = this.normalizeComicFormat(input.comicFormat);
+    const comicFormat = input.comicFormat;
     const artStyle = this.normalizeArtStyle(input.artStyle);
     const genreTags = this.normalizeGenreTags(input.genreTags);
     const sourceText = input.sourceText?.trim() ?? "";
@@ -267,18 +296,28 @@ export class ProjectsService implements OnModuleInit {
       updatedAt: now,
     };
 
-    await this.projectStore.writeProjectFiles(project, "create_project");
+    try {
+      await this.projectStore.writeProjectFiles(project, "create_project");
+    } catch (error) {
+      rethrowMappedG3ProjectError(error);
+    }
     this.repository.setProject(project);
     return this.toProjectListItem(project);
   }
 
-  async updateProjectDraft(projectId: string, input: UpdateProjectDraftRequest): Promise<ProjectListItem> {
+  async updateProjectDraft(projectId: string, rawInput: unknown): Promise<ProjectListItem> {
+    const input = parseUpdateProjectDraftRequestV1(rawInput);
     // 请求内容的既有校验必须早于存储模式门禁，避免 DB 模式改变公开 API 的参数错误语义。
     if (input.sourceText !== undefined && !input.sourceText.trim()) {
       throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
     }
     this.repository.assertDatabaseOperationSupported("update_project_draft");
-    const project = await this.projectStore.getReadyProject(projectId);
+    let project: LocalProject;
+    try {
+      project = await this.projectStore.getReadyProject(projectId);
+    } catch (error) {
+      rethrowMappedG3ProjectError(error);
+    }
 
     const nextName = input.name === undefined ? project.name : input.name.trim();
     if (!nextName) {
@@ -296,7 +335,6 @@ export class ProjectsService implements OnModuleInit {
       name: nextName,
       storyTitle: nextStoryTitle || nextName,
       genreTags: input.genreTags === undefined ? project.genreTags : this.normalizeGenreTags(input.genreTags),
-      comicFormat: input.comicFormat === undefined ? project.comicFormat : this.normalizeComicFormat(input.comicFormat),
       artStyle: input.artStyle === undefined ? project.artStyle : this.normalizeArtStyle(input.artStyle),
       description: nextDescription || nextStoryTitle || nextName,
       sourceText: nextSourceText,
@@ -304,7 +342,11 @@ export class ProjectsService implements OnModuleInit {
       updatedAt,
     };
 
-    await this.projectStore.writeProjectFiles(nextProject);
+    try {
+      await this.projectStore.writeProjectFiles(nextProject);
+    } catch (error) {
+      rethrowMappedG3ProjectError(error);
+    }
     this.repository.setProject(nextProject);
     return this.toProjectListItem(nextProject);
   }
@@ -821,10 +863,6 @@ export class ProjectsService implements OnModuleInit {
 
   private normalizeProjectType(input: unknown): ProjectType {
     return wsDomain.normalizeProjectType(input);
-  }
-
-  private normalizeComicFormat(input: ComicFormat | undefined): ComicFormat {
-    return wsDomain.normalizeComicFormat(input);
   }
 
   private normalizeArtStyle(input: ArtStyle | undefined): ArtStyle {

@@ -58,6 +58,26 @@ source: AI漫游文档体系
 文档/00_索引/全流程与字段清单.md
 ```
 
+实施 G3 时还必须完整读取以下五份施工资料，不能只读 2026-07-11 的主方案：
+
+```text
+文档/04_方案与决策/2026-07-12_G3施工包_依赖边界与阶段门禁.md
+文档/04_方案与决策/2026-07-12_G3施工包_数据库Overlay与迁移账本.md
+文档/04_方案与决策/2026-07-12_G3施工包_文件兼容与旧值迁移.md
+文档/04_方案与决策/2026-07-12_G3施工包_API错误与Web状态契约.md
+文档/06_测试与验收/G3施工包_下游适配与可执行证据.md
+```
+
+实施 G3 剩余 G3-M 时，改为完整读取以下五份，不得把原 G3-core 施工包当作 importer/cutover 说明：
+
+```text
+文档/04_方案与决策/2026-07-12_G3-M施工包_依赖边界与切片门禁.md
+文档/04_方案与决策/2026-07-12_G3-M施工包_维护快照与运行态封口.md
+文档/04_方案与决策/2026-07-12_G3-M施工包_导入器决议与迁移账本.md
+文档/04_方案与决策/2026-07-12_G3-M施工包_备份恢复与DB-only激活.md
+文档/06_测试与验收/G3-M施工包_可执行验收与Luna交接.md
+```
+
 涉及对话框真实 AI、模型添加、模型切换、provider 配置或 OpenCode 接入时，必须额外读取：
 
 ```text
@@ -124,7 +144,7 @@ apps/server/prisma/contracts/g1-schema-manifest.json
 文档/05_执行与记录/功能完成记录/2026-07-12_G1纠偏与DB垂直切片.md
 ```
 
-G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bundle/CAS 写入门禁，当前状态为 `ready_for_materialization`，digest=`sha256:3d843e2a77b9a1acc44f4e49430a40514df92b10defe4143dc52aaaf1514a036`。它绑定 19 份当前 source closure，并精确描述 44/556/105/210、195 CHECK、194 trigger、10 TaskPolicy、5 OutboxHandler 与 44 PurgeOwnership；正式 `schema.prisma` 未改，G1 0008 的 Working Copy CHECK 已同步支持 current Script 上的空 dirty Working Copy，G2 另加固定 `0009` overlay，已通过 G1/G2 exact check、Prisma validate、fresh deploy、二次 no-pending、integrity/FK 与故障回放。历史 r1～r7 review 文件只作留痕，不参与当前源码闭包、写入授权或 package scripts。
+G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bundle/CAS 写入门禁，当前状态为 `ready_for_materialization`，digest=`sha256:bde3abbff8be158843d7a4803c1fad7f1f5c4e6966728d48fda79db9468be9fb`。它绑定 19 份当前 source closure，并精确描述 44/556/105/210、195 CHECK、194 trigger、10 TaskPolicy、5 OutboxHandler 与 44 PurgeOwnership；正式 `schema.prisma` 结构未因 G3 改列，G1 0008 的 Working Copy CHECK 支持 current Script 上的空 dirty Working Copy，G2 追加固定 `0009`，G3 追加固定 `0010_g3_comic_format_immutable`。当前已通过 G1 exact checks 和 G3 0001～0010 runtime ledger、fresh deploy、integrity/FK 证据。历史 r1～r7 review 文件只作留痕，不参与当前源码闭包、写入授权或 package scripts。
 
 ## 8. 当前产品取舍
 
@@ -132,11 +152,11 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - “可控工作流”统一指 AI 分步生成、用户查看/编辑/确认后推进，不表示用户手工绘图。该七阶段状态机、确认动作和步骤门禁已在当前代码中实现，是现有基线，不是 D2 待开发功能；D2 真正后置的是跨步骤自动推进、批量调度和一键生产的详细边界。
 - 当前七阶段补全入口为 `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`；完整验收入口为 `文档/06_测试与验收/七阶段完整链路验收基线.md`。2026-07-11 用户决定当前开发波次只到 G5，G6 素材包 V2 与 G7 ZIP 总验收后置；仍保留七阶段 workflow，不改回六阶段。`G0至G5开发文档完备性复核.md` 是开发授权前的内容/批准快照；当前 G0 实施状态以任务记录、自动化测试体系和功能完成记录为准。
 - G0 测试安全网已于 2026-07-11 实现：Vitest 新增 8 条 Nest Service characterization，Playwright 覆盖 API-01～API-04、UI-01～UI-05 与独立 provider/server/web 生命周期；环境契约 15/15、prepare 契约 3/3、shared 15/15、server 72/72、Playwright 3/3、重复运行 9/9，并完成失败证据演练与 Runtime/User Review。E2E 使用临时 workspace、唯一 runId/marker、loopback fake provider、假 key 与受控 PID，Node 22.17.1 下显式 `node --import tsx`，Nest/Vite 从 shared source alias 解析且 prepare 禁止构建 shared。G0 完成不代表 UI-06 或 G1～G5 已实现；一镜一页、复制源图和目录式素材包仍不属于绿色契约。详见 `文档/06_测试与验收/自动化测试体系.md` 与 `文档/05_执行与记录/功能完成记录/2026-07-11_G0测试安全网.md`。
-- G1 已完成可执行 Schema/migration artifact 与 Project/Chapter/Script 最小 DB 垂直切片：显式 `AIROAMING_PERSISTENCE_MODE=db` 时，公开 Service 路径支持创建项目、保存章节草稿、完成章节，并能在应用上下文重建后从同一 SQLite 读回；连接后、业务加载前仍核验 G1 八段基线，正式树额外应用 G2 `0009` overlay。默认仍为 file，DB 模式不自动迁移，未支持写路径 fail-closed。Dialogue、SecretStore、持久任务、Asset/Outbox、Layout/Export、正式 importer、真实 snapshot 与全量 DB-only 激活尚未完成；不得把该切片描述为 G1 production cutover。详见 `文档/05_执行与记录/任务记录/2026-07-12_G1纠偏与DB垂直切片/`、对应完成记录、G1 开发方案与验收清单。
+- G1 已完成可执行 Schema/migration artifact 与 Project/Chapter/Script 最小 DB 垂直切片：显式 `AIROAMING_PERSISTENCE_MODE=db` 时，公开 Service 路径支持创建项目、保存章节草稿、完成章节，并能在应用上下文重建后从同一 SQLite 读回；连接后、业务加载前仍核验 G1 八段基线，正式树额外应用 G2 `0009` overlay。默认仍为 file，DB 模式不自动迁移，未支持写路径 fail-closed。G2 后续已接通持久任务与部分 Asset/Candidate completion；Dialogue、SecretStore、独立 Outbox consumer、Layout/Export、正式 importer、真实 cutover snapshot 与全量 DB-only 激活仍未完成。不得把最小切片或 G2 task 闭环描述为 G1 production cutover。
 - G2 开发级方案已于 2026-07-11 获用户确认：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值。`G2-A0`～`G2-F1` 已实现；`G2-F2` 已实现持久任务 create/seal/idempotency、slot、claim/lease、heartbeat、retry/cancel/recovery；`G2-F3` 已实现 `story_parse`/`shot_generate` worker；`G2-F4` 已实现 `shot_prompt_generate`/`image_generate` worker、统一 DB 创建门禁、Asset/Candidate completion 与 historical 隔离。真实 provider smoke test、独立 Outbox consumer、legacy importer 和 capability switch 仍后置；这一阶段性闭环不等于生产 DB-only 切换。2026-07-12 已补齐五份施工资料，并按资料完成 F4 切片。
 - G2-B1 已完成 Script DB repository、CAS/幂等、publish/clear/revert、pending/history API；G2-C1 已完成 Story pending create/update/discard/confirm、projection、source gate、CAS/replay 和 fresh SQLite 重启证据；G2-D1 已完成 Storyboard pending CRUD、stable Shot、projection、confirm/retire；G2-E1 已完成 ProductionState/Workflow 查询、reasonCodes 和四类 NewWorkGate；G2-E2 已完成 Preflight preview/confirm、SourceSnapshot 和 stale 派生；G2-F1～F4 已完成 applicability、持久 runtime、四类 worker、completion transaction、task history 和统一创建门禁；legacy importer、Outbox consumer 与 capability switch 仍未实现。
-- G2-E1/E2/F1 交付边界：production-state API 返回服务端权威 production/workflow/chapterRowVersion；NewWorkGate 对四类任务统一返回稳定 reasonCodes；Preflight API 只允许服务端重建 SourceSnapshot，客户端提交 expected source/digest/rowVersion，不可提交自定义 freshness 或直接写 revision；TaskApplicabilityGuard 在完成前把来源/目标不再 current 的任务标为 historical。缺少 current Preflight 时两类出图任务继续拒绝，持久 worker/claim/lease/history/capability 仍未实现。
-- G3 开发级方案已于 2026-07-11 获用户确认、尚未实现：不新增创建入口或向导，只在已经存在的 `CreateProjectModal.vue` 中补默认空、必选的“漫画版式”，并沿用原创建成功跳转。正式 runtime 只接受 `vertical_scroll/paged_comic`；Create 必填，普通 PATCH 只要出现该字段就 409，SQLite 用无默认值、CHECK 和不可变 trigger 硬锁。`page_horizontal/four_panel/缺失/非法` 只由 maintenance importer 映射或要求决议；分页漫画不等于横屏，旧横幅尺寸/LayoutPage 只作为带版本和 G5 删除点的兼容适配。详见 `文档/04_方案与决策/2026-07-11_G3漫画版式入口与不可变约束开发方案.md`、`文档/04_方案与决策/2026-07-11_G3漫画版式契约与旧值迁移字典.md` 和 `文档/06_测试与验收/G3漫画版式入口与锁定验收清单.md`。
+- G2-E1/E2/F1 交付边界仍有效：production-state API 返回服务端权威 production/workflow/chapterRowVersion；NewWorkGate 对四类任务统一返回稳定 reasonCodes；Preflight API 只允许服务端重建 SourceSnapshot；TaskApplicabilityGuard 在完成前把来源/目标不再 current 的任务标为 historical。其后的 F2～F4 已补齐持久 worker/claim/lease/history 和四类任务闭环；capability switch、独立 Outbox consumer 与真实 provider smoke 仍未实现。
+- G3-core 已于 2026-07-12 实现并通过 36 files/195 tests、静态复核和临时运行环境复核；代码仍在未提交工作树。剩余 G3-M 已补齐独立五份施工资料。G3-M 本质是 G1 M2～M4 maintenance/full importer/backup/cutover runtime 加 G3 comic-format decision plugin，不是独立 mapper。Luna 可以从 M0 maintenance 开始逐切片开发；当前 DB capability、SecretStore、完整 importer、备份恢复和用户授权未满足，因此 production activate 仍为 release_blocked。
 - G4 开发级方案已于 2026-07-11 获用户确认、尚未实现：Candidate 只保留 `generated/rejected/superseded`，收藏不驱动下游；首次定稿、更换、clear 和 clear 后重新定稿使用线性不可变 `CandidateLockRevision`。replace/clear 先 preview，提交带 expected revision + JCS impact digest；丢响应通过 previous/action/target 精确识别重放，真冲突返回 409。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；结构 lock set 与来源 applicability 分轴表达。已导出章节在上游 current 时仍可生新候选，未正式更换前不影响下游。G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
 - G5 开发级方案已于 2026-07-11 获用户确认、尚未实现：条漫/页漫共用严格 `LayoutDocumentV1`，画格与所属图片为受控复合对象，自由图片独立分层；Working Copy 自动保存与显式不可变 LayoutRevision 分离，离开编辑器不自动造版本。正式输出收口为一个 `layout_publication`：页漫必含 PNG 页面并可附 PDF，条漫必含 PNG 切片并可在能力允许时附长图；它是当前 G0–G5 波次的独立终点，也是未来 G6 的唯一 current 输入。E0 首选验证“交互 adapter + 专用 HTML/SVG RenderScene + 固定 Chromium”，同时以 SVG/resvg 对照，原型通过前不锁库。G6 已后置，不是 G0–G5 开工或签收前置。详见 `文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md`、`文档/04_方案与决策/2026-07-11_G5LayoutDocument与编辑命令契约字典.md`、`文档/04_方案与决策/2026-07-11_G5确定性渲染与出版导出契约.md` 和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
 - 先把漫画主链路做扎实，轻漫剧只做基础合成。

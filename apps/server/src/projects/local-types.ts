@@ -53,6 +53,16 @@ export interface LocalChapter {
   lastScriptRevision: ScriptRevisionItem | null;
 }
 
+export interface LocalProjectPersistenceCompatibility {
+  comicFormatSource:
+    | { kind: "canonical" }
+    | {
+        kind: "legacy_alias";
+        rawValue: "page_horizontal";
+        policyVersion: "g3-file-comic-format-read-v1";
+      };
+}
+
 export interface LocalProject {
   id: string;
   name: string;
@@ -70,4 +80,5 @@ export interface LocalProject {
   chapters: LocalChapter[];
   createdAt: string;
   updatedAt: string;
+  persistenceCompatibility?: LocalProjectPersistenceCompatibility;
 }

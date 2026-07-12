@@ -2,7 +2,7 @@
   <main class="project-library">
     <ProjectCommandPanel
       :projects="projects"
-      @create="isCreateOpen = true"
+      @create="openCreateProject"
     />
 
     <section class="project-list-section" aria-label="项目列表">
@@ -50,7 +50,13 @@
       </div>
     </section>
 
-    <CreateProjectModal :loading="loading" :open="isCreateOpen" @close="isCreateOpen = false" @create="createProject" />
+    <CreateProjectModal
+      :loading="creatingProject"
+      :open="isCreateOpen"
+      :error-code="createProjectErrorCode"
+      @close="closeCreateProject"
+      @create="createProject"
+    />
     <DeleteProjectDialog
       :loading="loading"
       :open="Boolean(projectPendingDelete)"
@@ -76,7 +82,7 @@ import { useWorkbenchStore } from "../../stores/workbench-store";
 
 const workbench = useWorkbenchStore();
 const router = useRouter();
-const { activeProjectId, error, loading, projects } = storeToRefs(workbench);
+const { activeProjectId, error, loading, projects, creatingProject, createProjectErrorCode } = storeToRefs(workbench);
 
 const isCreateOpen = ref(false);
 const projectPendingDelete = ref<ProjectListItem | null>(null);
@@ -119,9 +125,20 @@ async function refresh() {
   await workbench.refresh();
 }
 
+function openCreateProject() {
+  workbench.clearCreateProjectError();
+  isCreateOpen.value = true;
+}
+
+function closeCreateProject() {
+  if (creatingProject.value) return;
+  workbench.clearCreateProjectError();
+  isCreateOpen.value = false;
+}
+
 async function createProject(input: CreateProjectRequest) {
   const project = await workbench.createProject(input);
-  if (project && !workbench.error) {
+  if (project) {
     isCreateOpen.value = false;
     await router.push(projectRoute(project.id));
   }

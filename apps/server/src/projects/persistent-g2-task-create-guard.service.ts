@@ -4,6 +4,7 @@ import {
   StoryboardDocumentCodecV2,
   buildTaskSourceProjection,
   digestCanonicalJson,
+  LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type CreateGenerationTaskRequest,
   type Digest,
   type TaskSourceProjectionV1,
@@ -185,7 +186,22 @@ export class PersistentG2TaskCreateGuardService {
         .filter((scene) => scene.sceneKey === shot.sceneId && scene.assetId)
         .map((scene) => ({ assetId: scene.assetId!, kind: "scene_environment", label: scene.sceneKey })),
     ];
-    const image = document.styleCheck.comicFormat === "paged_comic" ? { width: 1536, height: 1024 } : { width: 1024, height: 1536 };
-    return { schemaVersion: 1, projectId: scope.projectId, chapterId: scope.chapterId, shotId: shot.id, positivePrompt, negativePrompt, image, referenceAssets };
+    const image = document.styleCheck.comicFormat === "paged_comic"
+      ? { width: 1536, height: 1024 }
+      : { width: 1024, height: 1536 };
+    return {
+      schemaVersion: 2,
+      sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
+      projectId: scope.projectId,
+      chapterId: scope.chapterId,
+      shotId: shot.id,
+      positivePrompt,
+      negativePrompt,
+      image: {
+        ...image,
+        sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
+      },
+      referenceAssets,
+    };
   }
 }

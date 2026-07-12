@@ -14,7 +14,10 @@ export const G1_RUNTIME_MIGRATION_NAMES = [
   "0008_sqlite_checks_triggers_indexes",
 ] as const;
 
-const OPTIONAL_G2_OVERLAY_MIGRATION_NAME = "0009_g2_version_freshness_overlay";
+export const POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES = [
+  "0009_g2_version_freshness_overlay",
+  "0010_g3_comic_format_immutable",
+] as const;
 
 export interface G1RuntimeMigrationExpectationV1 {
   readonly migrationName: (typeof G1_RUNTIME_MIGRATION_NAMES)[number];
@@ -93,7 +96,12 @@ export async function loadG1RuntimeMigrationExpectationsV1(
   }
   const g1RootEntries = rootEntries
     .map((entry) => entry.name)
-    .filter((entry) => entry !== "0009_g2_version_freshness_overlay");
+    .filter(
+      (entry) =>
+        !POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES.includes(
+          entry as (typeof POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES)[number],
+        ),
+    );
   assertExactNames(
     g1RootEntries,
     ["migration_lock.toml", ...G1_RUNTIME_MIGRATION_NAMES],
@@ -161,7 +169,11 @@ export function assertG1RuntimeMigrationLedgerV1(
       fail("LEDGER_DUPLICATE_NAME", row.migration_name);
     }
     if (!expectedByName.has(row.migration_name as G1RuntimeMigrationExpectationV1["migrationName"])) {
-      if (row.migration_name === OPTIONAL_G2_OVERLAY_MIGRATION_NAME) continue;
+      if (
+        POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES.includes(
+          row.migration_name as (typeof POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES)[number],
+        )
+      ) continue;
       fail("LEDGER_UNEXPECTED", row.migration_name);
     }
     rowsByName.set(row.migration_name, row);
@@ -185,7 +197,12 @@ export function assertG1RuntimeMigrationLedgerV1(
       fail("LEDGER_FAILED", entry.migrationName);
     }
   }
-  const g1Rows = rows.filter((row) => row.migration_name !== OPTIONAL_G2_OVERLAY_MIGRATION_NAME);
+  const g1Rows = rows.filter(
+    (row) =>
+      !POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES.includes(
+        row.migration_name as (typeof POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES)[number],
+      ),
+  );
   if (g1Rows.length !== expected.length) {
     fail("LEDGER_COUNT_MISMATCH", `${g1Rows.length}:${expected.length}`);
   }

@@ -13,6 +13,7 @@ import type {
 } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import type { LocalChapter, LocalProject } from "./local-types.js";
+import { toLegacyLayoutFormatV1 } from "./legacy-layout-format.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import * as wsDomain from "./project-domain.util.js";
@@ -216,11 +217,7 @@ export class LayoutExportService {
     pairs: Array<{ shotId: string; order: number; candidate: ProjectCandidate }>,
     now: string,
   ): LayoutPage[] {
-    const format = project.comicFormat === "page_horizontal"
-      ? "page_horizontal"
-      : project.comicFormat === "four_panel"
-        ? "four_panel"
-        : "vertical_comic";
+    const format = toLegacyLayoutFormatV1(project.comicFormat);
     const width = format === "page_horizontal" ? 1920 : 1080;
     const height = format === "page_horizontal" ? 1080 : 1920;
 

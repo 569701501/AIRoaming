@@ -12,12 +12,12 @@
               <h2 id="create-project-title">创建项目</h2>
             </div>
           </div>
-          <button class="icon-button" type="button" aria-label="关闭" @click="requestClose">
+          <button class="icon-button" type="button" aria-label="关闭" :disabled="loading" @click="requestClose">
             <X :size="19" />
           </button>
         </header>
 
-        <form id="create-form" class="create-form" @submit.prevent="submit">
+        <form id="create-form" class="create-form" :aria-busy="loading" @submit.prevent="submit">
           <label class="form-field">
             <span class="field-label">项目名称</span>
             <span class="input-frame">
@@ -31,6 +31,24 @@
               />
               <span class="char-count">{{ form.name.length }} / 30</span>
             </span>
+          </label>
+
+          <label class="form-field" for="comic-format">
+            <span class="field-label">漫画版式</span>
+            <select
+              id="comic-format"
+              v-model="form.comicFormat"
+              :disabled="loading"
+              :aria-invalid="Boolean(errorMessage)"
+              aria-describedby="comic-format-help comic-format-error"
+            >
+              <option value="">请选择漫画版式</option>
+              <option v-for="definition in COMIC_FORMAT_DEFINITIONS" :key="definition.value" :value="definition.value">
+                {{ definition.label }}
+              </option>
+            </select>
+            <span id="comic-format-help" class="field-help">{{ selectedFormatDescription }}</span>
+            <span v-if="errorMessage" id="comic-format-error" class="field-error" role="alert" aria-live="polite">{{ errorMessage }}</span>
           </label>
 
           <footer class="modal-footer">
@@ -49,11 +67,19 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { FolderPlus, Sparkles, X } from "lucide-vue-next";
-import type { CreateProjectRequest, ProjectType } from "@airoaming/shared";
+import {
+  COMIC_FORMAT_DEFINITIONS,
+  isComicFormat,
+  type ComicFormat,
+  type CreateProjectRequest,
+  type ProjectType,
+} from "@airoaming/shared";
+import type { CreateProjectErrorCode } from "../../stores/workbench-store";
 
 const props = defineProps<{
   open: boolean;
   loading: boolean;
+  errorCode: CreateProjectErrorCode | null;
 }>();
 
 const emit = defineEmits<{
@@ -66,9 +92,27 @@ const nameInput = ref<HTMLInputElement | null>(null);
 const form = reactive({
   name: "",
   type: "comic" as ProjectType,
+  comicFormat: "" as "" | ComicFormat,
 });
 
-const canSubmit = computed(() => form.name.trim().length > 0);
+const errorMessage = computed(() => {
+  const messages: Record<CreateProjectErrorCode, string> = {
+    PROJECT_BODY_INVALID: "请求内容无效，请重试",
+    PROJECT_INPUT_FIELD_UNSUPPORTED: "创建信息包含不支持的字段",
+    PROJECT_NAME_REQUIRED: "请输入项目名称",
+    COMIC_FORMAT_REQUIRED: "请选择漫画版式",
+    COMIC_FORMAT_INVALID: "漫画版式无效，请重新选择",
+    PROJECT_CREATE_FAILED: "项目创建失败，请重试",
+  };
+  return props.errorCode ? messages[props.errorCode] : "";
+});
+
+const selectedFormatDescription = computed(() => {
+  if (!isComicFormat(form.comicFormat)) return "创建后版式不可直接修改。";
+  return COMIC_FORMAT_DEFINITIONS.find((item) => item.value === form.comicFormat)?.description ?? "";
+});
+
+const canSubmit = computed(() => form.name.trim().length > 0 && isComicFormat(form.comicFormat));
 
 watch(
   () => props.open,
@@ -79,6 +123,7 @@ watch(
 
     form.name = "";
     form.type = "comic";
+    form.comicFormat = "";
     await nextTick();
     nameInput.value?.focus();
   },
@@ -91,13 +136,14 @@ function requestClose() {
 }
 
 function submit() {
-  if (!canSubmit.value || props.loading) {
+  if (!canSubmit.value || props.loading || !isComicFormat(form.comicFormat)) {
     return;
   }
 
   emit("create", {
     name: form.name.trim(),
     type: form.type,
+    comicFormat: form.comicFormat,
   });
 }
 </script>
@@ -217,6 +263,40 @@ function submit() {
   color: #e5ebf7;
   font-size: 14px;
   font-weight: 800;
+}
+
+.form-field select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(206, 216, 244, 0.14);
+  border-radius: 12px;
+  outline: none;
+  padding: 0 14px;
+  color: #f8fbff;
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 15px;
+}
+
+.form-field select:focus {
+  border-color: rgba(142, 121, 255, 0.74);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.16);
+}
+
+.form-field select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.field-help {
+  color: #8190aa;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.field-error {
+  color: #ff9d9d;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .input-frame {

@@ -30,7 +30,7 @@ import {
   type WorkbenchSnapshot,
   type WorkspaceInfo,
 } from "@airoaming/shared";
-import { api } from "../services/api";
+import { ApiClientError, api } from "../services/api";
 import {
   getCurrentChapterId,
   getCurrentChapterSourceText,
@@ -67,7 +67,17 @@ interface WorkbenchState {
   tasks: GenerationTaskItem[];
   loading: boolean;
   error: string | null;
+  creatingProject: boolean;
+  createProjectErrorCode: CreateProjectErrorCode | null;
 }
+
+export type CreateProjectErrorCode =
+  | "PROJECT_BODY_INVALID"
+  | "PROJECT_INPUT_FIELD_UNSUPPORTED"
+  | "PROJECT_NAME_REQUIRED"
+  | "COMIC_FORMAT_REQUIRED"
+  | "COMIC_FORMAT_INVALID"
+  | "PROJECT_CREATE_FAILED";
 
 export interface ChapterCompletionPrompt {
   completedChapterId: string;
@@ -96,6 +106,8 @@ export const useWorkbenchStore = defineStore("workbench", {
     tasks: [],
     loading: false,
     error: null,
+    creatingProject: false,
+    createProjectErrorCode: null,
   }),
   getters: {
     runningTaskCount: (state) => state.tasks.filter((task) => task.status === "queued" || task.status === "running" || task.status === "retrying").length,
@@ -141,21 +153,31 @@ export const useWorkbenchStore = defineStore("workbench", {
         ? this.activeChapterId
         : null;
     },
+    clearCreateProjectError() {
+      this.createProjectErrorCode = null;
+    },
     async createProject(input: CreateProjectRequest): Promise<ProjectListItem | null> {
-      this.loading = true;
-      this.error = null;
+      this.creatingProject = true;
+      this.createProjectErrorCode = null;
       try {
         const result = await api.createProject(input);
+        this.projects = [result.project, ...this.projects.filter((project) => project.id !== result.project.id)];
         this.activeProjectId = result.project.id;
         this.activeChapterId = result.project.currentChapterId ?? null;
         this.activeStepKey = "project_story";
-        await this.refresh();
         return result.project;
       } catch (error) {
-        this.error = error instanceof Error ? error.message : "项目创建失败";
+        const code = error instanceof ApiClientError ? error.code : "PROJECT_CREATE_FAILED";
+        this.createProjectErrorCode = (
+          code === "PROJECT_BODY_INVALID"
+          || code === "PROJECT_INPUT_FIELD_UNSUPPORTED"
+          || code === "PROJECT_NAME_REQUIRED"
+          || code === "COMIC_FORMAT_REQUIRED"
+          || code === "COMIC_FORMAT_INVALID"
+        ) ? code : "PROJECT_CREATE_FAILED";
         return null;
       } finally {
-        this.loading = false;
+        this.creatingProject = false;
       }
     },
     async openProject(

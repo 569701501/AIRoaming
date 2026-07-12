@@ -48,9 +48,8 @@ async function readOverlayChecksum(root: string): Promise<string> {
 }
 
 /**
- * Extends, but does not mutate, the G1 eight-migration baseline.  A1 keeps
- * this helper opt-in; PrismaService continues to enforce G1 only until the
- * complete G2 command path is ready for runtime activation.
+ * Extends, but does not mutate, the G1 eight-migration baseline. G3 composes
+ * this helper with the 0010 overlay for the single runtime startup guard.
  */
 export async function loadG2RuntimeMigrationExpectationsV1(
   root = migrationRoot,

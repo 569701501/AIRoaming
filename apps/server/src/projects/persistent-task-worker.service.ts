@@ -5,6 +5,7 @@ import {
   encodeStoryboardDocumentV2,
   digestCanonicalJson,
   taskSourceProjectionDigest,
+  LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type Digest,
   type GenerationTaskItem,
   type TaskSourceProjectionV1,
@@ -87,6 +88,25 @@ const RETRY_DELAY_MS = 5_000;
 function object(value: unknown, field: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new TypeError(`${field} must be an object`);
   return value as Record<string, unknown>;
+}
+
+function assertGenerationPromptSpecV2(
+  spec: Record<string, unknown>,
+): asserts spec is Record<string, unknown> & {
+  schemaVersion: 2;
+  sizePolicyVersion: typeof LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION;
+  image: { width: number; height: number; sizePolicyVersion: typeof LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION };
+} {
+  if (
+    spec.schemaVersion !== 2 ||
+    spec.sizePolicyVersion !== LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION
+  ) {
+    throw new Error("LEGACY_GENERATION_INPUT_UNSUPPORTED");
+  }
+  const image = object(spec.image, "input.promptSpec.image");
+  if (image.sizePolicyVersion !== LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION) {
+    throw new Error("LEGACY_GENERATION_INPUT_UNSUPPORTED");
+  }
 }
 
 function text(value: unknown, field: string): string {
@@ -317,6 +337,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
   private normalizeShotPromptOutput(targetId: string, raw: unknown, input: Record<string, unknown>): ShotPromptTaskOutput {
     const candidate = object(raw, "providerOutput");
     const spec = object(input.promptSpec, "input.promptSpec");
+    assertGenerationPromptSpecV2(spec);
     const prompt = text(candidate.prompt ?? spec.positivePrompt, "providerOutput.prompt");
     const negativePrompt = text(candidate.negativePrompt ?? spec.negativePrompt, "providerOutput.negativePrompt");
     const image = object(candidate.image ?? spec.image, "providerOutput.image");
@@ -333,6 +354,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const rows = candidate.candidates;
     if (!Array.isArray(rows) || rows.length === 0 || rows.length > 6) throw new TypeError("providerOutput.candidates must contain 1..6 items");
     const spec = object(input.promptSpec, "input.promptSpec");
+    assertGenerationPromptSpecV2(spec);
     const requestedImage = object(spec.image, "input.promptSpec.image");
     const seen = new Set<number>();
     const candidates: NormalizedImageArtifact[] = rows.map((row, index) => {
@@ -505,6 +527,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
   private async runShotPromptProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
     const input = context.input;
     const spec = object(input.promptSpec, "input.promptSpec");
+    assertGenerationPromptSpecV2(spec);
     return {
       schemaVersion: 2,
       targetId: text(input.shotId, "input.shotId"),
@@ -519,6 +542,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
   private async runImageProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
     const input = context.input;
     const spec = object(input.promptSpec, "input.promptSpec");
+    assertGenerationPromptSpecV2(spec);
     const image = object(spec.image, "input.promptSpec.image");
     const width = integer(image.width, "input.promptSpec.image.width");
     const height = integer(image.height, "input.promptSpec.image.height");

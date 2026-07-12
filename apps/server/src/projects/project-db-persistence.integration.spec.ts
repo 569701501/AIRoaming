@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { G1_RUNTIME_MIGRATION_NAMES } from "../persistence/g1-runtime-migration-ledger.js";
+import { G3_RUNTIME_MIGRATION_NAMES } from "../persistence/g3-runtime-migration-ledger.js";
 import type { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
@@ -97,7 +98,7 @@ async function runPrismaDeploy(
 
 async function copyFormalMigration(
   prismaRoot: string,
-  migrationName: (typeof G1_RUNTIME_MIGRATION_NAMES)[number],
+  migrationName: (typeof G3_RUNTIME_MIGRATION_NAMES)[number],
 ): Promise<void> {
   const targetDirectory = path.join(prismaRoot, "migrations", migrationName);
   await mkdir(targetDirectory, { recursive: false });
@@ -111,7 +112,7 @@ async function copyFormalMigration(
 
 async function materializePartialPrismaRoot(
   testRoot: string,
-  migrationNames: readonly (typeof G1_RUNTIME_MIGRATION_NAMES)[number][],
+  migrationNames: readonly (typeof G3_RUNTIME_MIGRATION_NAMES)[number][],
 ): Promise<string> {
   const prismaRoot = path.join(testRoot, "partial-prisma");
   await mkdir(path.join(prismaRoot, "migrations"), { recursive: true });
@@ -161,8 +162,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   );
 
   async function prepareDatabase(
-    migrationNames: readonly (typeof G1_RUNTIME_MIGRATION_NAMES)[number][] =
-      G1_RUNTIME_MIGRATION_NAMES,
+    migrationNames: readonly (typeof G3_RUNTIME_MIGRATION_NAMES)[number][] =
+      G3_RUNTIME_MIGRATION_NAMES,
   ): Promise<{
     readonly workspaceRoot: string;
     readonly dataRoot: string;
@@ -187,9 +188,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await handle.close();
     const databaseUrl = `file:${databasePath}`;
     const isFormalTree =
-      migrationNames.length === G1_RUNTIME_MIGRATION_NAMES.length &&
-      migrationNames.every(
-        (migrationName, index) => migrationName === G1_RUNTIME_MIGRATION_NAMES[index],
+      migrationNames.length === G3_RUNTIME_MIGRATION_NAMES.length &&
+        migrationNames.every(
+        (migrationName, index) => migrationName === G3_RUNTIME_MIGRATION_NAMES[index],
       );
     const prismaRoot = isFormalTree
       ? null
@@ -254,7 +255,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_G3_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -299,7 +300,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_G3_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -311,7 +312,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("9 migrations found");
+    expect(deployed.stdout).toContain("10 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -319,7 +320,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const first = await projects.createProject({
       name: "DB 垂直切片一",
       type: "comic",
-      comicFormat: "page_horizontal",
+      comicFormat: "paged_comic",
       artStyle: "comic_style",
     });
     const second = await projects.createProject({

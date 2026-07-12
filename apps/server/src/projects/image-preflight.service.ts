@@ -122,7 +122,7 @@ export class ImagePreflightService {
     const record = typeof input === "object" && input !== null && !Array.isArray(input)
       ? input as Record<string, unknown>
       : {};
-    const comicFormat = wsDomain.normalizeComicFormat(wsJson.getStringField(record, "comicFormat", "vertical_scroll") as ComicFormat);
+    const comicFormat = wsDomain.parseCanonicalComicFormat(wsJson.getStringField(record, "comicFormat", "vertical_scroll"));
     const artStyle = wsDomain.normalizeArtStyle(wsJson.getStringField(record, "artStyle", "comic_style") as ArtStyle);
     return {
       comicFormat,

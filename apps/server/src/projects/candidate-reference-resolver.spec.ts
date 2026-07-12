@@ -32,7 +32,8 @@ describe("CandidateReferenceResolver", () => {
     }
 
     const spec: CandidateGenerationSpec = {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      sizePolicyVersion: "legacy_generation_default_v1",
       purpose: "shot_clean_plate",
       projectId: "project_001",
       chapterId: "chapter_001",

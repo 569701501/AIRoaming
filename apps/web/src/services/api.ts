@@ -70,8 +70,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const payload = (await response.json()) as ApiResponse<T> | Record<string, unknown>;
   if (!response.ok || !isApiSuccess<T>(payload)) {
-    const message = getApiErrorMessage(payload, response.statusText);
-    throw new Error(message || "API request failed");
+    throw parseApiClientError(payload, response.status, response.statusText || "API request failed");
   }
 
   return payload.data;
@@ -81,30 +80,51 @@ function isApiSuccess<T>(payload: ApiResponse<T> | Record<string, unknown>): pay
   return payload.success === true;
 }
 
-function getApiErrorMessage(payload: ApiResponse<unknown> | Record<string, unknown>, fallback: string): string {
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string,
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiClientError";
+  }
+}
+
+export function parseApiClientError(payload: ApiResponse<unknown> | Record<string, unknown>, status: number, fallback: string): ApiClientError {
   if (!isRecord(payload)) {
-    return fallback;
+    return new ApiClientError(fallback, status, "API_REQUEST_FAILED");
   }
 
   const envelopeError = payload.success === false ? payload.error : null;
-  if (isRecord(envelopeError) && typeof envelopeError.message === "string") {
-    return envelopeError.message;
+  if (isRecord(envelopeError)) {
+    return new ApiClientError(
+      typeof envelopeError.message === "string" ? envelopeError.message : fallback,
+      status,
+      typeof envelopeError.code === "string" ? envelopeError.code : "API_REQUEST_FAILED",
+      envelopeError.details,
+    );
   }
 
   const defaultMessage = payload.message;
   if (typeof defaultMessage === "string") {
-    return defaultMessage;
+    return new ApiClientError(defaultMessage, status, "API_REQUEST_FAILED");
   }
 
   if (Array.isArray(defaultMessage)) {
-    return defaultMessage.filter((item): item is string => typeof item === "string").join("，");
+    return new ApiClientError(
+      defaultMessage.filter((item): item is string => typeof item === "string").join("，") || fallback,
+      status,
+      "API_REQUEST_FAILED",
+    );
   }
 
   if (typeof payload.error === "string") {
-    return payload.error;
+    return new ApiClientError(payload.error, status, "API_REQUEST_FAILED");
   }
 
-  return fallback;
+  return new ApiClientError(fallback, status, "API_REQUEST_FAILED");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

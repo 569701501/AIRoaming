@@ -31,7 +31,8 @@ function level(value: string): "lead" | "recurring" | "chapter" | "minor" | "ext
 }
 
 function comicFormat(value: string): "vertical_scroll" | "paged_comic" {
-  return value === "vertical_scroll" ? "vertical_scroll" : "paged_comic";
+  if (value === "vertical_scroll" || value === "paged_comic") return value;
+  throw createG2DatabaseError(500, "PROJECT_COMIC_FORMAT_CORRUPTED");
 }
 
 function requiredReference(value: string, appearanceCount: number): boolean {

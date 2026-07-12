@@ -499,7 +499,8 @@ export class ImageCandidateService {
     }
     const record = value as Partial<CandidateGenerationSpec>;
     if (
-      record.schemaVersion !== 1
+      record.schemaVersion !== 2
+      || record.sizePolicyVersion !== "legacy_generation_default_v1"
       || record.purpose !== "shot_clean_plate"
       || typeof record.projectId !== "string"
       || typeof record.chapterId !== "string"

@@ -639,11 +639,9 @@ function formatTaskTime(value: string): string {
 function getCandidateAspectLabel(value: WorkbenchSnapshot["project"]["comicFormat"]): string {
   switch (value) {
     case "vertical_scroll":
-      return "2:3 竖幅";
-    case "page_horizontal":
-      return "3:2 横幅";
-    case "four_panel":
-      return "1:1 方幅";
+      return "2:3 默认候选画幅";
+    case "paged_comic":
+      return "3:2 默认候选画幅";
   }
 }
 

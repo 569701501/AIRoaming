@@ -60,6 +60,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AlertCircle, ArrowRight, CheckCircle2, ListChecks, Lock, UsersRound } from "lucide-vue-next";
+import { getComicFormatLabel as getSharedComicFormatLabel } from "@airoaming/shared";
 import type { ChapterListItem, GenerationTaskItem, ProjectCharacter, WorkbenchShot, WorkbenchSnapshot } from "@airoaming/shared";
 
 type NextActionAction = "characters" | "confirm" | "candidates" | "wait" | "structure";
@@ -437,12 +438,7 @@ function isReferenceTaskActive(character: ProjectCharacter) {
 }
 
 function getComicFormatLabel(format: WorkbenchSnapshot["project"]["comicFormat"]) {
-  const labels: Record<WorkbenchSnapshot["project"]["comicFormat"], string> = {
-    vertical_scroll: "竖版条漫",
-    page_horizontal: "横版页漫",
-    four_panel: "四格漫画",
-  };
-  return labels[format];
+  return getSharedComicFormatLabel(format);
 }
 
 function getArtStyleLabel(style: WorkbenchSnapshot["project"]["artStyle"]) {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   CANDIDATE_GENERATION_SPEC_VERSION,
+  LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type CandidateGenerationReference,
   type CandidateGenerationSpec,
   type CandidatePromptSection,
@@ -93,7 +94,11 @@ export interface CandidateGenerationTaskInput extends Record<string, unknown> {
   generationSpecVersion: typeof CANDIDATE_GENERATION_SPEC_VERSION;
   generationSpecDigest: string;
   candidateGenerationSpec: CandidateGenerationSpec;
-  image: { width: number; height: number };
+  image: {
+    width: number;
+    height: number;
+    sizePolicyVersion: typeof LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION;
+  };
 }
 
 const SYSTEM_CONSTRAINTS = [
@@ -162,6 +167,7 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
 
   const digestSource = JSON.stringify({
     schemaVersion: CANDIDATE_GENERATION_SPEC_VERSION,
+    sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
     purpose: CANDIDATE_GENERATION_PURPOSE,
     projectId: input.projectId,
     chapterId: input.chapterId,
@@ -174,6 +180,7 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
 
   return {
     schemaVersion: CANDIDATE_GENERATION_SPEC_VERSION,
+    sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
     purpose: CANDIDATE_GENERATION_PURPOSE,
     projectId: input.projectId,
     chapterId: input.chapterId,
@@ -268,20 +275,26 @@ export function createCandidateGenerationSpec(input: CreateCandidateGenerationSp
     scene,
     characters: dedupeById(characters),
     references: dedupeReferences(references),
-    requestedSize: getCandidateRequestedSize(input.project.comicFormat),
+    requestedSize: getLegacyGenerationDefaultSize(input.project.comicFormat).requestedSize,
     visualDescriptionOverride: input.visualDescriptionOverride,
     warnings,
   });
 }
 
 export function getCandidateRequestedSize(comicFormat: ComicFormat): { width: number; height: number } {
-  if (comicFormat === "page_horizontal") {
-    return { width: 1536, height: 1024 };
-  }
-  if (comicFormat === "four_panel") {
-    return { width: 1024, height: 1024 };
-  }
-  return { width: 1024, height: 1536 };
+  return getLegacyGenerationDefaultSize(comicFormat).requestedSize;
+}
+
+export function getLegacyGenerationDefaultSize(comicFormat: ComicFormat): {
+  requestedSize: { width: number; height: number };
+  sizePolicyVersion: typeof LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION;
+} {
+  return {
+    requestedSize: comicFormat === "paged_comic"
+      ? { width: 1536, height: 1024 }
+      : { width: 1024, height: 1536 },
+    sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
+  };
 }
 
 /**
@@ -304,7 +317,7 @@ export function createCandidateGenerationTaskInput(
     generationSpecVersion: spec.schemaVersion,
     generationSpecDigest: spec.digest,
     candidateGenerationSpec: spec,
-    image: { ...spec.requestedSize },
+    image: { ...spec.requestedSize, sizePolicyVersion: spec.sizePolicyVersion },
   };
 }
 

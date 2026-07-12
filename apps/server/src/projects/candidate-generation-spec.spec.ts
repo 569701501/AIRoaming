@@ -251,9 +251,13 @@ describe("buildCandidateGenerationSpec", () => {
     expect(taskInput.candidateCount).toBe(6);
     expect(taskInput.candidateGenerationSpec).toEqual(spec);
     expect(taskInput.generationPurpose).toBe("shot_clean_plate");
-    expect(taskInput.generationSpecVersion).toBe(1);
+    expect(taskInput.generationSpecVersion).toBe(2);
     expect(taskInput.generationSpecDigest).toBe(spec.digest);
-    expect(taskInput.image).toEqual({ width: 1024, height: 1536 });
+    expect(taskInput.image).toEqual({
+      width: 1024,
+      height: 1536,
+      sizePolicyVersion: "legacy_generation_default_v1",
+    });
     expect(taskInput).not.toHaveProperty("positivePrompt");
     expect(taskInput).not.toHaveProperty("negativePrompt");
     expect(taskInput).not.toHaveProperty("referenceAssetIds");

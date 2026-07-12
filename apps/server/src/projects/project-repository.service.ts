@@ -41,6 +41,11 @@ import * as wsJson from "./workspace-json.util.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as storyNormalize from "./story-normalize.util.js";
 import * as wsCharacter from "./character-domain.util.js";
+import {
+  LegacyComicFormatDecisionRequiredAggregateError,
+  LegacyComicFormatDecisionRequiredError,
+  readLegacyProjectComicFormatV1,
+} from "./legacy-project-comic-format.js";
 
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 
@@ -171,7 +176,7 @@ export class ProjectRepository {
       currentChapterId: project.currentChapterId,
       storyTitle: project.storyTitle,
       genreTags: project.genreTags,
-      comicFormat: project.comicFormat,
+      comicFormat: this.persistedProjectComicFormat(project),
       artStyle: project.artStyle,
       description: project.description,
       createdAt: project.createdAt,
@@ -207,6 +212,11 @@ export class ProjectRepository {
     }
   }
 
+  private persistedProjectComicFormat(project: LocalProject): ComicFormat | 'page_horizontal' {
+    return project.persistenceCompatibility?.comicFormatSource.kind === "legacy_alias"
+      ? project.persistenceCompatibility.comicFormatSource.rawValue
+      : project.comicFormat;
+  }
   async clearProjectChaptersDir(projectId: string): Promise<void> {
     this.assertDatabaseOperationSupported("clear_project_chapters");
     await this.workspacePathService.ensureReady();
@@ -317,15 +327,12 @@ export class ProjectRepository {
 
   private toDatabaseComicFormat(value: ComicFormat): string {
     if (value === "vertical_scroll") return value;
-    if (value === "page_horizontal") return "paged_comic";
-    throw new BadRequestException(
-      `DB_PERSISTENCE_COMIC_FORMAT_UNSUPPORTED:${value}`,
-    );
+    if (value === "paged_comic") return value;
+    throw new BadRequestException(`DB_PERSISTENCE_COMIC_FORMAT_UNSUPPORTED:${value}`);
   }
 
   private fromDatabaseComicFormat(value: string): ComicFormat {
-    if (value === "vertical_scroll") return value;
-    if (value === "paged_comic") return "page_horizontal";
+    if (value === "vertical_scroll" || value === "paged_comic") return value;
     throw new Error(`DB_PERSISTENCE_COMIC_FORMAT_INVALID:${value}`);
   }
 
@@ -720,6 +727,7 @@ export class ProjectRepository {
 
     const projectsDir = this.workspacePathService.resolveVirtualPath("/workspace/projects");
     const entries = await wsJson.readOptionalDirectory(projectsDir);
+    const decisionIssues: LegacyComicFormatDecisionRequiredError[] = [];
     for (const entry of entries) {
       if (!entry.isDirectory()) {
         continue;
@@ -731,12 +739,22 @@ export class ProjectRepository {
           this.projects.set(project.id, project);
         }
       } catch (error) {
-        this.logger.warn(`Skip project workspace "${entry.name}": ${this.getErrorMessage(error)}`);
-      }
-    }
+        if (error instanceof LegacyComicFormatDecisionRequiredError) {
+          decisionIssues.push(error);
+          continue;
+        }
+        this.logger.warn("Skip project workspace " + entry.name + ": " + this.getErrorMessage(error));
+     }
+   }
 
     this.projectsLoaded = true;
-  }
+    if (decisionIssues.length > 0) {
+      this.projectsLoaded = false;
+      throw new LegacyComicFormatDecisionRequiredAggregateError(
+        decisionIssues.map((item) => item.issue),
+      );
+    }
+ }
 
   private async readProjectFromWorkspace(projectDirName: string): Promise<LocalProject | null> {
     const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectDirName}`);
@@ -764,6 +782,14 @@ export class ProjectRepository {
     const assets = await this.readProjectAssets(projectDir);
     const characters = await this.readProjectCharacters(projectDir, projectId, createdAt, updatedAt);
     const storyTitle = parsedStoryTitle ?? wsJson.getStringField(metadata, "storyTitle", wsJson.getStringField(metadata, "name", projectId));
+    const comicFormatRead = readLegacyProjectComicFormatV1(metadata.comicFormat);
+    if (comicFormatRead.status === "decision_required") {
+      throw new LegacyComicFormatDecisionRequiredError({
+        projectId,
+        reason: comicFormatRead.reason,
+        safeValueKind: comicFormatRead.safeValueKind,
+      });
+    }
 
     return {
       id: projectId,
@@ -772,7 +798,7 @@ export class ProjectRepository {
       currentChapterId: currentChapter?.id ?? null,
       storyTitle,
       genreTags: wsJson.getStringArrayField(metadata, "genreTags"),
-      comicFormat: wsDomain.normalizeComicFormat(metadata.comicFormat as ComicFormat | undefined),
+      comicFormat: comicFormatRead.runtimeValue,
       artStyle: wsDomain.normalizeArtStyle(metadata.artStyle as ArtStyle | undefined),
       description: wsJson.getStringField(metadata, "description", storyTitle),
       sourceText,
@@ -782,6 +808,15 @@ export class ProjectRepository {
       chapters: wsDomain.sortChapters(readyChapters),
       createdAt,
       updatedAt,
+      persistenceCompatibility: comicFormatRead.status === "auto_mapped_read_only"
+        ? {
+            comicFormatSource: {
+              kind: "legacy_alias",
+              rawValue: comicFormatRead.mappedFrom,
+              policyVersion: comicFormatRead.policyVersion,
+            },
+          }
+        : undefined,
     };
   }
 
@@ -1426,7 +1461,11 @@ export class ProjectRepository {
     const record = typeof input === "object" && input !== null && !Array.isArray(input)
       ? input as Record<string, unknown>
       : {};
-    const comicFormat = wsDomain.normalizeComicFormat(wsJson.getStringField(record, "comicFormat", "vertical_scroll") as ComicFormat);
+    const comicFormatRead = readLegacyProjectComicFormatV1(record.comicFormat);
+    if (comicFormatRead.status === "decision_required") {
+      throw new Error("LEGACY_PREFLIGHT_COMIC_FORMAT_DECISION_REQUIRED:" + comicFormatRead.reason);
+    }
+    const comicFormat = comicFormatRead.runtimeValue;
     const artStyle = wsDomain.normalizeArtStyle(wsJson.getStringField(record, "artStyle", "comic_style") as ArtStyle);
     return {
       comicFormat,

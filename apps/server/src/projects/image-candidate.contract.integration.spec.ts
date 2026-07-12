@@ -99,7 +99,7 @@ describe("候选图生成契约端到端", () => {
     expect(candidate).toMatchObject({
       shotId: SHOT_ID,
       generationPurpose: "shot_clean_plate",
-      generationSpecVersion: 1,
+      generationSpecVersion: 2,
       generationSpecDigest: preview.spec.digest,
     });
 

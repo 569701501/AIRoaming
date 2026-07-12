@@ -59,7 +59,7 @@ export class ProjectsController {
   }
 
   @Post()
-  async create(@Body() body: CreateProjectRequest) {
+  async create(@Body() body: unknown) {
     return ok({ project: await this.projectsService.createProject(body) });
   }
 
@@ -69,7 +69,7 @@ export class ProjectsController {
   }
 
   @Patch(":projectId")
-  async updateDraft(@Param("projectId") projectId: string, @Body() body: UpdateProjectDraftRequest) {
+  async updateDraft(@Param("projectId") projectId: string, @Body() body: unknown) {
     const project = await this.projectsService.updateProjectDraft(projectId, body);
     return ok({
       project,

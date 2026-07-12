@@ -4,6 +4,7 @@ import type {
   ProjectType,
   WorkbenchAsset,
 } from "@airoaming/shared";
+import { getComicFormatDefinition } from "@airoaming/shared";
 import type { LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as wsCharacter from "./character-domain.util.js";
@@ -31,7 +32,7 @@ export function buildScenePrompt(scene: { name: string; location: string; timeOf
 
 export function buildCharacterReferenceStyleGuide(project: Pick<LocalProject, "artStyle" | "comicFormat">): string {
   const artStyle = wsDomain.getArtStyleLabel(project.artStyle);
-  const comicFormat = wsDomain.getComicFormatLabel(project.comicFormat);
+  const comicFormat = getComicFormatDefinition(project.comicFormat).referencePromptHint;
   return [
     `Style guide: ${artStyle}; ${comicFormat}.`,
     "Use stylized comic linework, controlled cel shading or painterly comic shading, clean readable silhouette, and production-ready character consistency.",
@@ -49,7 +50,7 @@ export function buildCharacterReferencePrompt(
     `项目类型：${getProjectTypeLabel(project.type)}。This is a comic/manhua production project, not a live-action casting project.`,
     `作品名：${project.storyTitle || project.name}`,
     project.genreTags.length > 0 ? `题材标签：${project.genreTags.join("、")}` : "",
-    `漫画形式：${wsDomain.getComicFormatLabel(project.comicFormat)}`,
+    `漫画形式：${getComicFormatDefinition(project.comicFormat).referencePromptHint}`,
     `美术风格：${wsDomain.getArtStyleLabel(project.artStyle)}`,
     "风格硬约束：必须是绘制感漫画/条漫/漫画角色设定图，不能生成真人照片、真人演员定妆照、摄影棚肖像、电影剧照、cosplay 照片或 3D 渲染。",
     styleGuide,
