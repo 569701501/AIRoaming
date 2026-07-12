@@ -13,7 +13,8 @@ source: 本轮临时 SQLite / server 回归与 CLI fixture
 ## 基线与范围
 
 - 施工基线：`0c3295b`
-- 当前提交：`e6ff615`
+- 证据生成前代码提交：`e6ff615`
+- 证据提交：`c580050`
 - 本证据只覆盖 shadow importer / verifier；不授权 `final`、backup、activate。
 - 既有截图删除未纳入本轮提交。
 
