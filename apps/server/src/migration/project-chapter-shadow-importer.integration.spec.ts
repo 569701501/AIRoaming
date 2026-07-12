@@ -15,6 +15,7 @@ import { ProjectChapterShadowImporter } from "./project-chapter-shadow-importer.
 import { ScriptOutlineShadowImporter } from "./script-outline-shadow-importer.js";
 import { ScriptPendingRevisionShadowImporter } from "./script-pending-revision-shadow-importer.js";
 import { StoryShadowImporter } from "./story-shadow-importer.js";
+import { StoryboardShadowImporter } from "./storyboard-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 
@@ -29,7 +30,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -52,6 +53,9 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     }
     if (options.withStoryStructure) {
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "structure.json"), `${JSON.stringify({ id: "legacy-story-1", version: 1, status: "structured", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T00:00:00.000Z", confirmedAt: "2026-01-03T00:00:00.000Z", structureJson: { chapterTitle: "第一章", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, synopsis: "夜色中的冲突。", direction: { logline: "夜色落下", chapterGoal: "建立冲突", coreConflict: "未知来客", emotionalArc: "紧张", endingHook: "门外有声" }, scenes: [{ id: "scene_01", name: "巷口", location: "旧城", timeOfDay: "夜", atmosphere: "冷", purpose: "引入" }], beats: [{ id: "beat_01", order: 1, title: "脚步声", summary: "主角听见脚步。", conflict: "是否开门", characters: [], sceneId: "scene_01", visualFocus: "门", outcome: "停在门前" }], characters: [], notes: "" } })}\n`);
+    }
+    if (options.withStoryboard) {
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
     }
     if (options.duplicateChapterOrder) {
       await mkdir(path.join(projectDir, "chapters", "chapter-002"), { recursive: true });
@@ -233,5 +237,29 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.projects[0]).toMatchObject({ importStatus: "blocked", resolutionStatus: "open", issueKey: "chapter:p1-chapter-001:story-source" });
     expect(await prisma!.database().storyVersion.count()).toBe(0);
     expect(await prisma!.database().migrationIssue.findFirstOrThrow()).toMatchObject({ code: "STORY_SOURCE_UNRESOLVED", entityType: "StoryVersion", resolutionStatus: "open" });
+  }, 30_000);
+
+  it("IMP-A6-01 imports confirmed StoryboardVersion and stable Shot projection", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a6-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a6-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a6-story" });
+    const result = await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a6-1" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ StoryboardVersion: 1, Shot: 1, StoryboardShotProjection: 1 });
+    const chapter = await prisma!.database().chapter.findFirstOrThrow();
+    const board = await prisma!.database().storyboardVersion.findFirstOrThrow();
+    expect(chapter.currentStoryboardVersionId).toBe(board.id);
+    expect(chapter.milestoneStatus).toBe("storyboard_done");
+    expect(board).toMatchObject({ status: "confirmed", origin: "legacy_import", sourcePolicyVersion: "storyboard-source-v1", schemaVersion: 2 });
+    expect(await prisma!.database().shot.count()).toBe(1);
+    expect(await prisma!.database().storyboardShotProjection.count()).toBe(1);
+    const rowVersion = chapter.rowVersion;
+    const replay = await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a6-2" });
+    expect(replay.run.status).toBe("succeeded");
+    expect((await prisma!.database().chapter.findFirstOrThrow()).rowVersion).toBe(rowVersion);
+    expect(await prisma!.database().storyboardVersion.count()).toBe(1);
   }, 30_000);
 });
