@@ -22,6 +22,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - verifier 进一步按 importer/entityType 精确对齐来源计数：A6 的 Shot 计数由 `StoryboardShotProjection` 留证，A9 的 AssetReady 计数由 `AssetPhysicalEvidence` 留证；来源缺失或超额分别返回 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`。新增 `IMP-M4-10` 覆盖成功 full shadow 的 16 个 slice 逐片验证。
 - 继续审计 G3 CLI 契约后，8 个 CLI 已统一严格解析 `--format json`；缺值、非法值和重复 flag 均在副作用前以入口稳定错误码 fail-fast，M4 仍不改变 release identity 或 schema/migration/trigger。
 - M4 来源注册表新增契约回归，自动核对所有 shadow importer 的 entityType 均注册且 single/composite/runtime 分类互斥；不改变 release identity 或 schema/migration/trigger。
+- verifier 新增 shadow-only run kind 门禁，成功 audit run 不再可能被当作 shadow 通过；`IMP-M4-11` 已验证 `MIGRATION_RUN_KIND_INVALID`，不改变 release identity 或 schema/migration/trigger。
 
 ## 明确未完成
 

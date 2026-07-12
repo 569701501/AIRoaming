@@ -30,6 +30,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | 投影读取点审计 | 通过（M5 残留阻塞已登记） | `projection_read_point_audit.md`；业务 read-model/Task 走 DB，Settings 旧文件事实源明确不属于 M4 完成范围 |
 | pending Dialogue | 通过 | `IMP-A15-02` 检查 stable ID、scope/FK、payloadDigest、source evidence、replay |
 | verifier/迁移 CLI 参数 | 通过 | 8 个 G3 CLI 共用 `readJsonFormat`；缺值、非法值、重复 flag 均在副作用前 fail-fast，`json` 是唯一输出格式；`db-verify --format text` 返回 `MIGRATION_VERIFY_ARGS_INVALID` |
+| verifier 目标 run 类型 | 通过 | verifier 要求 `MigrationRun.kind=shadow`；`IMP-M4-11` 证明成功 audit run 返回 `MIGRATION_RUN_KIND_INVALID` |
 | 来源计数完整性 | 通过 | verifier 按 importer/entityType 精确比较 `counts.entityCounts` 与当前 run 来源行；A6/A9 特殊映射、replay 空来源和超额来源由 `IMP-M4-08/09` 覆盖，`IMP-M4-10` 逐个验证 full shadow 的 16 个 slice |
 | final/cutover | 保持阻断 | `db:import --kind final`、backup、activate 仍不在本轮实现范围 |
 

@@ -853,6 +853,28 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     }
   }, 60_000);
 
+  it("IMP-M4-11 rejects a succeeded audit run as a shadow verification target", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const auditRun = await prepared.repository.beginRun({
+      id: "shadow-m4-audit-kind",
+      kind: "audit",
+      importerVersion: "g3-m3-a1",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(auditRun.id, {
+      status: "succeeded",
+      counts: null,
+      verification: { schemaVersion: 1, snapshotAudit: true },
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, auditRun.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks.runKind).toBe("audit");
+    expect(result.report.errors).toContain("MIGRATION_RUN_KIND_INVALID");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

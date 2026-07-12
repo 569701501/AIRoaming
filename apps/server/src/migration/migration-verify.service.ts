@@ -4,6 +4,7 @@ import { PrismaMigrationLedgerRepository } from "./prisma-migration-ledger.repos
 import { PrismaService } from "../persistence/prisma.service.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { checkSourceEvidence } from "./migration-source-evidence.registry.js";
+import type { MigrationRunKind } from "./migration-ledger.js";
 
 export class MigrationVerifyError extends Error {
   constructor(readonly code: string) { super(code); }
@@ -17,6 +18,7 @@ export interface MigrationVerificationReport {
   snapshotManifestDigest: string;
   effectiveSchemaManifestDigest: string;
   checks: {
+    runKind: MigrationRunKind;
     runSucceeded: boolean;
     sourceManifestMatch: boolean;
     snapshotManifestMatch: boolean;
@@ -113,6 +115,7 @@ export class MigrationVerifyService {
     );
     const sourceMismatchCount = sourceEvidence.sourceMismatchCount;
     const errors: string[] = [];
+    if (run.kind !== "shadow") errors.push("MIGRATION_RUN_KIND_INVALID");
     if (run.status !== "succeeded") errors.push("MIGRATION_RUN_NOT_SUCCEEDED");
     if (run.sourceManifestDigest !== snapshot.sourceManifest.manifestDigest) errors.push("MIGRATION_SOURCE_DIGEST_MISMATCH");
     if (run.snapshotManifestDigest !== snapshot.snapshotManifest.manifestDigest) errors.push("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
@@ -130,7 +133,7 @@ export class MigrationVerifyService {
       sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       effectiveSchemaManifestDigest: effective.effectiveSchemaManifestDigest,
-      checks: { runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
+      checks: { runKind: run.kind, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
       passed: errors.length === 0,
       errors: [...errors].sort(),
     };
