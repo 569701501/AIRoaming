@@ -157,3 +157,4 @@
 - 大文件拆分方法论(已验证两次)：ProjectsService 8 轮(5236→930)、DialogueService 5 轮(3014→515)。模式：① 纯函数先抽 util(零风险)→ ② 带状态工作流按业务域拆 service(门面委托 + 回调注入解循环/共享状态)→ ③ 清理死代码 → 每轮 typecheck+test+提交。循环依赖用「依赖底层 repository/store 而非门面 service」+「回调注入」解开，类型循环用 `import type`。ESM 项目 import 路径必须带 `.js` 后缀。
 - 2026-07-13 G3-M4 reportDigest 证据链已补齐：`normalizeComicFormatReport` 严格校验 importer 报告并重算 canonical digest；`db:verify` 必须提供 `--decisions` 与 `--import-report`，分别绑定 decisions 的 source/artifact/run 三方和 report artifact/run digest。full shadow 结果保留成功 slice 报告供逐片验证；M4 仍 `in_progress`，M5/M6 未启动。
 - 2026-07-13 M4 真实入口证据已补齐：`IMP-M4-26` 临时 SQLite 执行 `db:verify` CLI 成功路径，`IMP-M4-27` 缺少 `--import-report` 在 Prisma 初始化前稳定失败；M4 仍 `in_progress`，正式验收签字和 M5/M6 仍未开始。
+- 2026-07-13 导入器决议文档的 `db-verify` 示例已与当前 CLI 对齐：必须显式提供 `--decisions`、`--import-report`、`--workspace-root` 和 `--format json`；这是文档契约同步，不改变生产路径。
