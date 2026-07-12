@@ -33,6 +33,7 @@ source: code exploration and tests
 - Chapter importer 在缺少 `script.md` 时会从 `chapter.json.sourceText` 生成备用正文摘要；verifier 注册表现已镜像该 fallback，`IMP-M4-07` 证明合法缺文件快照不会被误报为来源摘要篡改。
 - `db-verify` 原先忽略 `--format`，与 G3-M CLI 稳定参数契约不一致；现只接受 `json`，非法值在数据库初始化前以 `MIGRATION_VERIFY_ARGS_INVALID` fail-fast。
 - 审计发现其余 G3 CLI 对 `--format` 缺值或非法值的处理不一致，`snapshot`/`maintenance` 甚至可能先执行副作用；新增共享 `readJsonFormat`，接入 8 个 CLI，统一拒绝缺值、非法值和重复 flag，并在各自副作用前返回稳定错误码。`cli-format.spec.ts` 锁定 5 种参数边界，额外用 `db:verify`、`db:snapshot`、`maintenance` 入口 fixture 复核 fail-fast。
+- 来源注册表原先只有行为测试，没有防止新增 importer 忘记登记 entityType 的静态契约；新增测试动态扫描所有 `*-shadow-importer.ts` 的来源写入点，要求每个 entityType 恰好落在 single/composite/runtime 某一类，避免未知类型在运行时才暴露。
 - 仅判断当前 run 是否存在任意来源行仍不足以证明来源完整：A6 的 `Shot` 是由 `StoryboardShotProjection` 留证，A9 的 `AssetReady` 由 `AssetPhysicalEvidence` 留证，且报告计数中还包含部分上下文计数。verifier 现维护 importer-specific `(countKey → entityType)` 绑定，按每种来源行精确比较；缺失返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`，超额或未绑定类型返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会把部分证据当作通过。
 
 # M4 结论
