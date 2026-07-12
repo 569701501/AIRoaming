@@ -159,3 +159,4 @@
 - 2026-07-13 M4 真实入口证据已补齐：`IMP-M4-26` 临时 SQLite 执行 `db:verify` CLI 成功路径，`IMP-M4-27` 缺少 `--import-report` 在 Prisma 初始化前稳定失败；M4 仍 `in_progress`，正式验收签字和 M5/M6 仍未开始。
 - 2026-07-13 导入器决议文档的 `db-verify` 示例已与当前 CLI 对齐：必须显式提供 `--decisions`、`--import-report`、`--workspace-root` 和 `--format json`；这是文档契约同步，不改变生产路径。
 - 2026-07-13 G3-M4 证据目录已建立：`evidence/commands.md` 和 `evidence/verification.summary.json` 脱敏记录 16 slice、54 项迁移集成、299 tests、CLI 入口证据和 final/backup/activate 未授权范围。
+- 2026-07-13 当前 HEAD `8a70758` 复核确认 server 47 文件/299 tests、workspace typecheck、G1 manifest/schema/migration、Prisma validate 和 diff check 全部通过；M4 实现证据无新增缺口，仍需正式签字，M5/M6 未启动。

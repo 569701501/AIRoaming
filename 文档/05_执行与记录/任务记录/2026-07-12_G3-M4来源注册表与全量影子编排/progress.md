@@ -58,6 +58,7 @@ source: task execution
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `pnpm --filter @airoaming/server exec tsx src/migration/db-verify.cli.ts ... --format text`：按契约 fail-fast，输出 `MIGRATION_VERIFY_ARGS_INVALID`；typecheck 与 server 全量回归仍通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。
+- 当前 HEAD `8a70758` 复跑 server 全量 47 个测试文件/299 tests、workspace typecheck、G1 manifest/schema/migration check、Prisma validate、`git diff --check` 均通过；未发现新的 importer/M4 缺口，M4 继续保持 `in_progress` 等待正式签字。
 
 # 工作区约束
 
