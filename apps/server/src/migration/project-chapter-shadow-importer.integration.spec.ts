@@ -20,6 +20,7 @@ import { CharacterShadowImporter } from "./character-shadow-importer.js";
 import { AssetShadowImporter } from "./asset-shadow-importer.js";
 import { AssetVisualShadowImporter } from "./asset-visual-shadow-importer.js";
 import { PreflightShadowImporter } from "./preflight-shadow-importer.js";
+import { TaskShadowImporter } from "./task-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shared";
@@ -35,7 +36,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved" } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete" } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -72,6 +73,12 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       const targetBoardId = PrismaMigrationLedgerRepository.stableEntityId("StoryboardVersion", `workspace-v1:${projectId}:StoryboardVersion:${projectId}-chapter-001:v001`);
       const storyboard = encodeStoryboardDocumentV2({ schemaVersion: 2, chapterId: targetChapterId, shots: [{ id: targetShotId, order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" });
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ version: 1, schemaVersion: 2, chapterId: targetChapterId, sourceSnapshot: { schemaVersion: 1, policyVersion: "preflight-source-v1", projectId: targetProjectId, chapterId: targetChapterId, consumerType: "preflight_revision", storyboard: { id: targetBoardId, digest: storyboard.digest }, style: { comicFormat: "vertical_scroll", artStyle: "ink", styleDigest: digestCanonicalJson({ comicFormat: "vertical_scroll", artStyle: "ink" }) }, characters: [], scenes: [] }, shotCount: 1, characterChecks: [], sceneChecks: [], styleCheck: { comicFormat: "vertical_scroll", comicFormatLabel: "竖向条漫", artStyle: "ink", artStyleLabel: "墨线", status: "ok", note: "" }, issues: [], ready: true, notes: "", policyVersion: "preflight-source-v1" })}\n`);
+    }
+    if (options.withTasks) {
+      await mkdir(path.join(projectDir, "tasks"), { recursive: true });
+      const task = { id: "legacy-task-001", projectId, chapterId: `${projectId}-chapter-001`, type: "image_generate", status: "succeeded", phase: "done", target: { type: "shot", id: "shot_001" }, input: { shotId: "shot_001", prompt: "干净画格" }, inputSchemaVersion: 1, inputDigest: SOURCE, createdAt: "2026-01-05T00:00:00.000Z", updatedAt: "2026-01-05T01:00:00.000Z", finishedAt: "2026-01-05T01:00:00.000Z" };
+      await writeFile(path.join(projectDir, "tasks", "legacy-task-001.input.json"), `${JSON.stringify(task)}\n`);
+      if (options.withTasks === "complete") await writeFile(path.join(projectDir, "tasks", "legacy-task-001.output.json"), `${JSON.stringify({ assetId: "asset_001", completedAt: "2026-01-05T01:00:00.000Z" })}\n`);
     }
     if (options.withCharacters) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
@@ -395,5 +402,34 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(chapter.currentPreflightRevisionId).toBe(preflight.id);
     expect((await new PreflightShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a10-resolved-replay" })).run.status).toBe("succeeded");
     expect(await prisma!.database().preflightRevision.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A11A-01 imports complete and incomplete legacy tasks as non-runnable history", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withTasks: "complete" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a11a-base" });
+    const result = await new TaskShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a11a-1" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ GenerationTask: 1 });
+    const task = await prisma!.database().generationTask.findFirstOrThrow();
+    expect(task).toMatchObject({ recordKind: "legacy_imported", provenanceStatus: "complete", status: "succeeded", retryDisabled: true, maxAttempts: 0, attempt: 0, chapterId: expect.stringMatching(/^chapter_/) });
+    expect(await prisma!.database().generationTask.count()).toBe(1);
+    expect((await new TaskShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a11a-2" })).run.status).toBe("succeeded");
+    expect(await prisma!.database().generationTask.count()).toBe(1);
+
+    const stubRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-g3-task-stub-"));
+    try {
+      const stubSnapshot = await createSnapshot(stubRoot, { p2: "vertical_scroll" }, { withTasks: "stub" });
+      const stubDecisions = path.join(stubRoot, "decisions.json");
+      await writeFile(stubDecisions, `${JSON.stringify(createMigrationDecisionArtifact(stubSnapshot.sourceManifest.manifestDigest, []), null, 2)}\n`);
+      await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(stubSnapshot.outputPath, stubDecisions, { runId: "shadow-a11a-stub-base" });
+      const stubResult = await new TaskShadowImporter(prisma!, prepared.repository).import(stubSnapshot.outputPath, stubDecisions, { runId: "shadow-a11a-stub" });
+      expect(stubResult.run.status).toBe("succeeded");
+      const stub = await prisma!.database().generationTask.findFirstOrThrow({ where: { projectId: { startsWith: "project_" }, id: { not: task.id } } });
+      expect(stub).toMatchObject({ recordKind: "legacy_stub", provenanceStatus: "partial", status: null, retryDisabled: true, maxAttempts: 0, attempt: 0 });
+    } finally {
+      await rm(stubRoot, { recursive: true, force: true });
+    }
   }, 30_000);
 });
