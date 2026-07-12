@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, OnModuleInit, Optional } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
@@ -15,6 +15,7 @@ import {
   type AppearanceTheme,
 } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
+import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 
 interface StoredAIKeySettings {
   providerId: string;
@@ -76,7 +77,10 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
 export class SettingsService implements OnModuleInit {
   private settings: StoredAppSettings = this.defaultSettings();
 
-  constructor(@Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService) {}
+  constructor(
+    @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
+    @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     this.settings = await this.readSettings();
@@ -109,30 +113,33 @@ export class SettingsService implements OnModuleInit {
   }
 
   async updateSettings(input: UpdateAppSettingsRequest): Promise<AppSettings> {
-    const current = await this.readSettings();
-    const now = new Date().toISOString();
-    const next: StoredAppSettings = {
-      ...current,
-      aiKey: input.aiKey ? this.updateAIKeySettings(current.aiKey, input.aiKey, now) : current.aiKey,
-      openaiImageProvider: input.openaiImageProvider
-        ? this.updateImageProviderSettings(current.openaiImageProvider, input.openaiImageProvider, now)
-        : current.openaiImageProvider,
-      doubaoImageProvider: input.doubaoImageProvider
-        ? this.updateImageProviderSettings(current.doubaoImageProvider, input.doubaoImageProvider, now)
-        : current.doubaoImageProvider,
-      grokImageProvider: input.grokImageProvider
-        ? this.updateImageProviderSettings(current.grokImageProvider, input.grokImageProvider, now)
-        : current.grokImageProvider,
-      activeImageProvider: input.activeImageProvider === undefined
-        ? current.activeImageProvider
-        : this.normalizeImageProviderType(input.activeImageProvider),
-      appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
-      updatedAt: now,
-    };
+    const execute = async () => {
+      const current = await this.readSettings();
+      const now = new Date().toISOString();
+      const next: StoredAppSettings = {
+        ...current,
+        aiKey: input.aiKey ? this.updateAIKeySettings(current.aiKey, input.aiKey, now) : current.aiKey,
+        openaiImageProvider: input.openaiImageProvider
+          ? this.updateImageProviderSettings(current.openaiImageProvider, input.openaiImageProvider, now)
+          : current.openaiImageProvider,
+        doubaoImageProvider: input.doubaoImageProvider
+          ? this.updateImageProviderSettings(current.doubaoImageProvider, input.doubaoImageProvider, now)
+          : current.doubaoImageProvider,
+        grokImageProvider: input.grokImageProvider
+          ? this.updateImageProviderSettings(current.grokImageProvider, input.grokImageProvider, now)
+          : current.grokImageProvider,
+        activeImageProvider: input.activeImageProvider === undefined
+          ? current.activeImageProvider
+          : this.normalizeImageProviderType(input.activeImageProvider),
+        appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
+        updatedAt: now,
+      };
 
-    await this.writeSettings(next);
-    this.settings = next;
-    return this.toPublicSettings(next);
+      await this.writeSettings(next);
+      this.settings = next;
+      return this.toPublicSettings(next);
+    };
+    return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
   }
 
   private updateImageProviderSettings(

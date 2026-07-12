@@ -1,6 +1,7 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { ExtractProjectCharactersResponse, QueueCharacterReferenceResponse, QueueSceneReferenceResponse } from "@airoaming/shared";
 import { ProjectsService } from "../projects/projects.service.js";
+import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 
 /**
  * 工具回调业务层:接收插件工具的回调,委托 ProjectsService 执行。
@@ -10,7 +11,10 @@ import { ProjectsService } from "../projects/projects.service.js";
 export class ToolCallbackService {
   private readonly callbackToken: string | null;
 
-  constructor(@Inject(ProjectsService) private readonly projectsService: ProjectsService) {
+  constructor(
+    @Inject(ProjectsService) private readonly projectsService: ProjectsService,
+    @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
+  ) {
     this.callbackToken = process.env.AIROAMING_TOOL_CALLBACK_TOKEN?.trim() || null;
   }
 
@@ -29,10 +33,12 @@ export class ToolCallbackService {
     characterName: string;
     prompt?: string;
   }): Promise<QueueCharacterReferenceResponse> {
-    const characterId = await this.resolveCharacterIdByName(input.projectId, input.characterName);
-    return this.projectsService.queueCharacterReference(input.projectId, characterId, {
-      referenceKind: "preview_front",
-      prompt: input.prompt,
+    return this.run("tool-callback.generate-character-image", async () => {
+      const characterId = await this.resolveCharacterIdByName(input.projectId, input.characterName);
+      return this.projectsService.queueCharacterReference(input.projectId, characterId, {
+        referenceKind: "preview_front",
+        prompt: input.prompt,
+      });
     });
   }
 
@@ -42,10 +48,12 @@ export class ToolCallbackService {
     characterName: string;
     prompt?: string;
   }): Promise<QueueCharacterReferenceResponse> {
-    const characterId = await this.resolveCharacterIdByName(input.projectId, input.characterName);
-    return this.projectsService.queueCharacterReference(input.projectId, characterId, {
-      referenceKind: "final_reference",
-      prompt: input.prompt,
+    return this.run("tool-callback.generate-character-final", async () => {
+      const characterId = await this.resolveCharacterIdByName(input.projectId, input.characterName);
+      return this.projectsService.queueCharacterReference(input.projectId, characterId, {
+        referenceKind: "final_reference",
+        prompt: input.prompt,
+      });
     });
   }
 
@@ -71,14 +79,18 @@ export class ToolCallbackService {
     sceneId: string;
     prompt?: string;
   }): Promise<QueueSceneReferenceResponse> {
-    return this.projectsService.queueSceneReference(input.projectId, input.chapterId, input.sceneId, {
+    return this.run("tool-callback.generate-scene-image", () => this.projectsService.queueSceneReference(input.projectId, input.chapterId, input.sceneId, {
       prompt: input.prompt,
-    });
+    }));
   }
 
   /** 提取项目角色:从剧本大纲/剧情结构提取角色进项目角色库 */
   async extractCharacters(input: { projectId: string }): Promise<ExtractProjectCharactersResponse> {
-    return this.projectsService.extractProjectCharacters(input.projectId, {});
+    return this.run("tool-callback.extract-characters", () => this.projectsService.extractProjectCharacters(input.projectId, {}));
+  }
+
+  private run<T>(operation: string, execute: () => Promise<T>): Promise<T> {
+    return this.maintenance ? this.maintenance.runMutation(operation, execute, "tool-callback") : execute();
   }
 
   /**

@@ -16,8 +16,8 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 | 范围 | 当前状态 |
 | --- | --- |
-| G3-core | passed，代码未提交 |
-| G3-M0 maintenance | not_implemented |
+| G3-core | passed，基线 commit `0dbf93d` |
+| G3-M0 maintenance | implemented，待最终 commit 复核 |
 | G3-M1 snapshot/runtime bundle | not_implemented |
 | G3-M2 decision codec | not_implemented |
 | G3-M3 full importer | not_implemented |
@@ -36,10 +36,10 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 3. 预期 package scripts
 
-以下命令是实现目标，当前尚不存在；Luna 在对应切片新增，不得提前把空壳命令标绿：
+以下命令按切片逐步提供；当前只有 `maintenance` 已实现，其余不得提前把空壳命令标绿：
 
 ```text
-maintenance
+maintenance（G3-M0 已提供）
 db:snapshot
 db:audit
 migration:decisions:check
@@ -78,6 +78,8 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - open/draining/closed/handed_off 状态机、mutation lease、participant、loopback token 管理通过。
 - Projects/Dialogue/Tasks/ToolCallback/Settings 的新写入都有覆盖。
 - 退出证据：503 envelope、active=0 status、同 PID runtime bundle。
+- 当前实现：`apps/server/src/maintenance/`、五类写入口接线、`maintenance` CLI、MNT-01～06。
+- M0 bundle 仍是诚实骨架，明确标记 bridge 前不可观察的对话、任务和运行态；不能作为 M1 snapshot 或 importer 输入。
 
 ### G3-M1
 
@@ -169,12 +171,12 @@ git diff --check
 
 ```text
 目标切片：G3-M0 maintenance gate
-当前 commit：交付前填写 git rev-parse --short HEAD
+当前基线 commit：`0dbf93d`；M0 最终 commit 在完成后补入。
 必读：G3-M 五份施工资料；G1 方案 6.3.2、6.5 C0～C2
 允许修改：apps/server/src/maintenance/**、必要的 App/Projects/Dialogue/Tasks/ToolCallback/Settings 模块接线、对应测试与 package script
 明确禁止：snapshot/importer/backup/activate、真实 workspace、G5、改变 G3-core enum/0010
 实现：open→draining→closed→handed_off；runMutation；五类 participant；loopback+token 本地控制；closed runtime bundle 骨架
-最小测试：MNT-01～06 + server 全测 + typecheck + G1 三项 check
+最小测试：MNT-01～06 + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
 退出证据：状态 JSON、503 envelope、同 PID bundle、残留 blocker
 Stop：任何写入口无法被可靠枚举或需要触碰真实数据时停止并报告
 ```

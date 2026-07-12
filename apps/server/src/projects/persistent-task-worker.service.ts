@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, OnModuleDestroy, Optional } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
   encodeStoryDocumentV2,
@@ -26,6 +26,7 @@ import { TaskApplicabilityGuardService } from "./versioning/task-applicability-g
 import { VersionTransactionRunner } from "./versioning/version-transaction-runner.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
+import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { readImageDimensions } from "./image-dimensions.util.js";
 import type { G2VersionTaskType, VersionScopeV1 } from "./versioning/versioning-database.types.js";
 
@@ -159,6 +160,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     @Inject(OpenCodeRuntimeService) private readonly openCode: OpenCodeRuntimeService,
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
     @Inject(WorkspacePathService) private readonly workspacePath: WorkspacePathService,
+    @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {
     this.handlers.set("story_parse", (context) => this.runStoryProvider(context));
     this.handlers.set("shot_generate", (context) => this.runShotProvider(context));
@@ -191,6 +193,11 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
 
   /** Claims and executes at most one G2 provider task. */
   async runOnce(workerId: string, now = new Date()): Promise<GenerationTaskItem | null> {
+    const execute = () => this.runOnceInternal(workerId, now);
+    return this.maintenance ? this.maintenance.runMutation("tasks.worker", execute, "tasks") : execute();
+  }
+
+  private async runOnceInternal(workerId: string, now = new Date()): Promise<GenerationTaskItem | null> {
     if (!this.prismaService.isDatabaseMode()) return null;
     if (this.running) return null;
     this.running = true;

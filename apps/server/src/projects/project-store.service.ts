@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import * as path from "node:path";
 import { type ProjectCharacterReferenceKind } from "@airoaming/shared";
 import * as wsJson from "./workspace-json.util.js";
@@ -11,6 +11,7 @@ import {
   ProjectRepository,
   type ProjectPersistenceWrite,
 } from "./project-repository.service.js";
+import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 
 /**
  * 项目读写骨架(从 ProjectsService 抽出,见任务 2026-06-24_ProjectStore骨架抽取)。
@@ -30,6 +31,7 @@ export class ProjectStore {
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
+    @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {}
 
   /** 注入角色参考图任务状态查询回调(由 ProjectsService.onModuleInit 调用)。 */
@@ -52,21 +54,25 @@ export class ProjectStore {
     project: LocalProject,
     write: ProjectPersistenceWrite = "unsupported",
   ): Promise<void> {
-    if (this.repository.isDatabaseMode()) {
-      await this.repository.saveProject(
+    const execute = async () => {
+      if (this.repository.isDatabaseMode()) {
+        await this.repository.saveProject(
+          project,
+          workflowUtil.buildProjectWorkflow(project, wsDomain.getCurrentChapter(project), false),
+          write,
+        );
+        return;
+      }
+      const currentChapter = wsDomain.getCurrentChapter(project) ?? wsDomain.createDefaultChapter(project.id, project.sourceText, project.createdAt);
+      const workflow = workflowUtil.buildProjectWorkflow(
         project,
-        workflowUtil.buildProjectWorkflow(project, wsDomain.getCurrentChapter(project), false),
-        write,
+        currentChapter,
+        imagePreflightUtil.isChapterImagePreflightReady(project, currentChapter, (pid, cid) => this.referenceTaskChecker(pid, cid, "final_reference")),
       );
-      return;
-    }
-    const currentChapter = wsDomain.getCurrentChapter(project) ?? wsDomain.createDefaultChapter(project.id, project.sourceText, project.createdAt);
-    const workflow = workflowUtil.buildProjectWorkflow(
-      project,
-      currentChapter,
-      imagePreflightUtil.isChapterImagePreflightReady(project, currentChapter, (pid, cid) => this.referenceTaskChecker(pid, cid, "final_reference")),
-    );
-    await this.repository.saveProject(project, workflow, write);
+      await this.repository.saveProject(project, workflow, write);
+    };
+    if (this.maintenance) await this.maintenance.runMutation("projects.write", execute, "projects");
+    else await execute();
   }
 
   /** 切换当前章节(写回 currentChapterId)。 */

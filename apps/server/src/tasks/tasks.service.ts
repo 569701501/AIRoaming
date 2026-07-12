@@ -8,6 +8,7 @@ import type {
 import { CHAPTER_SCOPED_GENERATION_TASK_TYPES } from "@airoaming/shared";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { PersistentTaskRepository, type PersistentTaskCreateInput } from "./persistent-task.repository.js";
+import { MaintenanceCoordinator, MaintenanceException } from "../maintenance/maintenance-coordinator.service.js";
 
 const chapterScopedTaskTypes = new Set<string>(CHAPTER_SCOPED_GENERATION_TASK_TYPES);
 type CreateGenerationTaskGuard = (
@@ -24,6 +25,7 @@ export class TasksService {
   constructor(
     @Optional() @Inject(PrismaService) private readonly prismaService?: PrismaService,
     @Optional() @Inject(PersistentTaskRepository) private readonly persistentTaskRepository?: PersistentTaskRepository,
+    @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {}
 
   isDatabaseMode(): boolean {
@@ -49,9 +51,13 @@ export class TasksService {
   }
 
   async cancelForApi(taskId: string): Promise<GenerationTaskItem> {
-    return this.isDatabaseMode()
-      ? this.requirePersistentRepository().cancel(taskId)
-      : this.cancel(taskId);
+    return this.maintenance
+      ? this.maintenance.runMutation("tasks.cancel", () => this.isDatabaseMode()
+        ? this.requirePersistentRepository().cancel(taskId)
+        : this.cancel(taskId), "tasks")
+      : this.isDatabaseMode()
+        ? this.requirePersistentRepository().cancel(taskId)
+        : this.cancel(taskId);
   }
 
   list(): GenerationTaskItem[] {
@@ -79,18 +85,21 @@ export class TasksService {
   }
 
   async create(input: CreateGenerationTaskRequest): Promise<GenerationTaskItem> {
-    const guardedInput = await this.applyCreateGuard(input);
-    if (this.isDatabaseMode()) {
-      return (await this.requirePersistentRepository().create(guardedInput as PersistentTaskCreateInput)).item;
-    }
-    const task = this.createQueuedTask(guardedInput);
-    const worker = this.workers.get(task.type);
-    if (worker) {
-      void this.runRegisteredWorker(task.id, worker);
-    } else {
-      void this.runMockTask(task.id);
-    }
-    return task;
+    const execute = async () => {
+      const guardedInput = await this.applyCreateGuard(input);
+      if (this.isDatabaseMode()) {
+        return (await this.requirePersistentRepository().create(guardedInput as PersistentTaskCreateInput)).item;
+      }
+      const task = this.createQueuedTask(guardedInput);
+      const worker = this.workers.get(task.type);
+      if (worker) {
+        void this.runRegisteredWorker(task.id, worker);
+      } else {
+        void this.runMockTask(task.id);
+      }
+      return task;
+    };
+    return this.maintenance ? this.maintenance.runMutation("tasks.create", execute, "tasks") : execute();
   }
 
   createControlled(input: CreateGenerationTaskRequest): GenerationTaskItem {
@@ -239,6 +248,18 @@ export class TasksService {
   }
 
   private async runRegisteredWorker(taskId: string, worker: GenerationTaskWorker): Promise<void> {
+    if (this.maintenance) {
+      try {
+        await this.maintenance.runMutation("tasks.worker", () => this.runRegisteredWorkerInternal(taskId, worker), "tasks");
+      } catch (error) {
+        if (!(error instanceof MaintenanceException)) throw error;
+      }
+      return;
+    }
+    await this.runRegisteredWorkerInternal(taskId, worker);
+  }
+
+  private async runRegisteredWorkerInternal(taskId: string, worker: GenerationTaskWorker): Promise<void> {
     const current = this.tasks.get(taskId);
     if (!current || current.status === "cancelled") {
       return;
@@ -260,6 +281,18 @@ export class TasksService {
   }
 
   private async runMockTask(taskId: string): Promise<void> {
+    if (this.maintenance) {
+      try {
+        await this.maintenance.runMutation("tasks.worker", () => this.runMockTaskInternal(taskId), "tasks");
+      } catch (error) {
+        if (!(error instanceof MaintenanceException)) throw error;
+      }
+      return;
+    }
+    await this.runMockTaskInternal(taskId);
+  }
+
+  private async runMockTaskInternal(taskId: string): Promise<void> {
     await this.delay(80);
     const current = this.tasks.get(taskId);
     if (!current || current.status === "cancelled") return;

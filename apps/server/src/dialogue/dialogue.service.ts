@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
   AIRuntimeModelSelection,
@@ -22,6 +22,7 @@ import type {
   DialogueTurn,
   LocalDialogueThread,
 } from "./dialogue-types.js";
+import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 
 @Injectable()
 export class DialogueService {
@@ -34,6 +35,7 @@ export class DialogueService {
     @Inject(ScriptDialogueService) private readonly scriptDialogue: ScriptDialogueService,
     @Inject(StoryStructureDialogueService) private readonly storyStructureDialogue: StoryStructureDialogueService,
     @Inject(StoryboardDialogueService) private readonly storyboardDialogue: StoryboardDialogueService,
+    @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {
     this.projectsService.onProjectDeleted((projectId) => this.deleteProjectRuntimeState(projectId));
     this.scriptDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
@@ -50,6 +52,15 @@ export class DialogueService {
   }
 
   async sendMessage(
+    projectId: string,
+    stepKey: string,
+    input: SendDialogueMessageRequest,
+  ): Promise<SendDialogueMessageResponse> {
+    const execute = () => this.sendMessageInternal(projectId, stepKey, input);
+    return this.maintenance ? this.maintenance.runMutation("dialogue.send", execute, "dialogue") : execute();
+  }
+
+  private async sendMessageInternal(
     projectId: string,
     stepKey: string,
     input: SendDialogueMessageRequest,
@@ -89,6 +100,17 @@ export class DialogueService {
   }
 
   async streamMessage(
+    projectId: string,
+    stepKey: string,
+    input: SendDialogueMessageRequest,
+    emit: (event: DialogueStreamEvent) => void | Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const execute = () => this.streamMessageInternal(projectId, stepKey, input, emit, signal);
+    return this.maintenance ? this.maintenance.runStream("dialogue.stream", execute) : execute();
+  }
+
+  private async streamMessageInternal(
     projectId: string,
     stepKey: string,
     input: SendDialogueMessageRequest,
