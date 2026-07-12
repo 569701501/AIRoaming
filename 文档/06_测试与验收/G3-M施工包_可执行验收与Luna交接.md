@@ -18,8 +18,8 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | --- | --- |
 | G3-core | passed，基线 commit `0dbf93d` |
 | G3-M0 maintenance | implemented，commit `e2caa13` |
-| G3-M1 snapshot/runtime bundle | implemented，待最终 commit 复核 |
-| G3-M2 decision codec | not_implemented |
+| G3-M1 snapshot/runtime bundle | implemented，commit `131fbc2` |
+| G3-M2 decision codec | implemented，待最终 commit 复核 |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | not_implemented |
 | G3-M5 backup/restore | not_implemented |
@@ -92,6 +92,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 - MAP-01～08、DEC-01～04 全绿。
 - 具体 issue code、detail/resolution codec、decisionsDigest 与旧 run 不可变通过。
+- 当前实现：`comic-format-migration.plugin.ts`、`migration-issue.ts`、`migration-decision.ts`、`migration-report.ts`、`migration:decisions:check` CLI；M2 只做 codec，不写 MigrationRun/目标 DB。
 
 ### G3-M3
 
@@ -172,14 +173,14 @@ git diff --check
 ## 9. 第一张 Luna 任务书
 
 ```text
-目标切片：G3-M1 snapshot/runtime bundle
-当前基线 commit：`e2caa13`；M1 最终 commit 在完成后补入。
+目标切片：G3-M2 decision codec
+当前基线 commit：`131fbc2`；M2 最终 commit 在完成后补入。
 必读：G3-M 五份施工资料；G1 方案 6.3.2、6.5 C0～C2
-允许修改：apps/server/src/migration/**、必要的 maintenance 接线、对应测试与 package script
-明确禁止：importer/decision/backup/activate、真实 workspace 写入、G5、改变 G3-core enum/0010
-实现：runtime bundle 文件校验/0600 原子写、显式 workspace/staging snapshot、pre/post manifest、settings redaction、path guard、SEALED publish、db:snapshot CLI
-最小测试：SNP-01～06 + runtime bundle + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
-退出证据：sealed snapshot 摘要、source/snapshot manifest digest、transform digest、源 hash/mtime 未变、残留 blocker
+允许修改：apps/server/src/migration/comic-format-migration.plugin.ts、migration-issue.ts、migration-decision.ts、migration-report.ts、对应测试与 package script
+明确禁止：importer/MigrationRun repository/Prisma 写入/backup/activate、真实 workspace、G5、改变 G3-core enum/0010
+实现：canonical/auto_mapped/decision_required mapper、具体 issue code、detail/resolution codec、decisionsDigest、reportDigest、decision check CLI
+最小测试：MAP-01～08 + DEC-01～04 + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
+退出证据：normalized decisions digest、issue detail/resolution 样例、report digest、残留 blocker
 Stop：任何写入口无法被可靠枚举或需要触碰真实数据时停止并报告
 ```
 
