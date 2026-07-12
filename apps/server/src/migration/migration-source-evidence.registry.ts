@@ -3,12 +3,12 @@ import type { VerifiedSnapshot } from "./migration-audit.service.js";
 
 /**
  * 来源证据注册表：绝不把 sourceStorageKey 当成 sourceDigest 的替代品。
- * 当前 Chapter 使用 chapter.json + script.md 的复合摘要；对话实体使用 sealed
+ * 当前 ProjectScriptOutline 使用 script-outline.md + script-outline.json 的复合摘要，
+ * Chapter 使用 chapter.json + script.md 的复合摘要；对话实体使用 sealed
  * runtime bundle 的 canonical envelope 摘要；其余实体使用单文件摘要。
  */
 export const SINGLE_ITEM_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set([
   "Project",
-  "ProjectScriptOutline",
   "ChapterScriptVersion",
   "ChapterScriptPending",
   "ChapterScriptRevision",
@@ -33,7 +33,7 @@ export const SINGLE_ITEM_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set([
   "AppPreference",
 ] as const);
 
-export const COMPOSITE_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set(["Chapter"]);
+export const COMPOSITE_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set(["Chapter", "ProjectScriptOutline"]);
 export const RUNTIME_BUNDLE_SOURCE_ENTITY_TYPES: ReadonlySet<string> = new Set([
   "ConversationThread",
   "ConversationMessage",
@@ -76,6 +76,17 @@ export async function checkSourceEvidence(
       continue;
     }
     if (COMPOSITE_SOURCE_ENTITY_TYPES.has(row.entityType)) {
+      if (row.entityType === "ProjectScriptOutline") {
+        if (!row.sourceStorageKey?.endsWith("/script-outline.md")) {
+          sourceMismatchCount += 1;
+          continue;
+        }
+        const metadataStorageKey = row.sourceStorageKey.replace(/\/script-outline\.md$/, "/script-outline.json");
+        const metadataItem = items.get(metadataStorageKey);
+        const expected = digestCanonicalJson({ markdownDigest: item.sha256, metadataDigest: metadataItem?.sha256 ?? null });
+        if (expected !== row.sourceDigest) sourceMismatchCount += 1;
+        continue;
+      }
       if (row.entityType !== "Chapter" || !row.sourceStorageKey?.endsWith("/chapter.json")) {
         sourceMismatchCount += 1;
         continue;

@@ -40,9 +40,81 @@ const schemaPath = path.join(repoRoot, "apps/server/prisma/schema.prisma");
 const prismaCli = path.join(repoRoot, "apps/server/node_modules/prisma/build/index.js");
 const SOURCE = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const;
 const ENV_NAMES = ["AIROAMING_PERSISTENCE_MODE", "DATABASE_URL"] as const;
+const FRESH_INVENTORY_TABLES = [
+  "projects",
+  "project_script_outlines",
+  "chapters",
+  "chapter_script_versions",
+  "chapter_script_pending",
+  "chapter_script_revisions",
+  "story_versions",
+  "story_scene_projections",
+  "story_beat_projections",
+  "chapter_scenes",
+  "storyboard_versions",
+  "shots",
+  "storyboard_shot_projections",
+  "storyboard_shot_characters",
+  "preflight_revisions",
+  "characters",
+  "character_visuals",
+  "assets",
+  "scene_visuals",
+  "generation_tasks",
+  "candidates",
+  "candidate_lock_revisions",
+  "layout_working_copies",
+  "export_revisions",
+  "provider_configs",
+  "credential_metadata",
+  "app_preferences",
+  "conversation_threads",
+  "conversation_messages",
+  "dialogue_tool_results",
+  "dialogue_runtime_sessions",
+  "imported_entity_sources",
+  "migration_issues",
+  "migration_runs",
+] as const;
+const VOLATILE_INVENTORY_COLUMNS = new Set([
+  "created_at",
+  "updated_at",
+  "started_at",
+  "finished_at",
+  "ready_at",
+  "recorded_at",
+  "activated_at",
+  "first_business_write_at",
+  "last_verified_at",
+  "available_at",
+  "next_run_at",
+  "lease_expires_at",
+  "heartbeat_at",
+  "processed_at",
+  "closed_at",
+  "completed_at",
+  "confirmed_at",
+  "failed_at",
+  "cancelled_at",
+  "resolved_at",
+  "rotated_at",
+  "imported_at",
+]);
 
 async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
+}
+
+async function readFreshInventory(prisma: PrismaService): Promise<{ digest: `sha256:${string}`; tables: Record<string, unknown> }> {
+    const tables: Record<string, unknown> = {};
+    for (const table of FRESH_INVENTORY_TABLES) {
+      const rows = await prisma.database().$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "${table}"`);
+      const randomIdentity = table === "imported_entity_sources" || table === "migration_issues";
+      tables[table] = rows
+      .map((row) => Object.fromEntries(Object.entries(row).filter(([column]) => !VOLATILE_INVENTORY_COLUMNS.has(column) && !(randomIdentity && column === "id"))))
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  }
+  return { tables, digest: digestCanonicalJson(tables) };
 }
 
 async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean } = {}) {
@@ -598,6 +670,72 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       threads: await prisma!.database().conversationThread.count(),
     }).toEqual(counts);
   }, 60_000);
+
+  it("IMP-M4-FRESH-01 produces identical full-shadow inventories on two fresh DBs and verifies every slice", async () => {
+    const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-g3-m4-source-"));
+    const databaseRoots = await Promise.all([
+      mkdtemp(path.join(os.tmpdir(), "airoaming-g3-m4-db-a-")),
+      mkdtemp(path.join(os.tmpdir(), "airoaming-g3-m4-db-b-")),
+    ]);
+    const previous = new Map(ENV_NAMES.map((name) => [name, process.env[name]] as const));
+    const clients: PrismaService[] = [];
+    try {
+      const snapshot = await createSnapshot(sourceRoot, { p1: "vertical_scroll" }, {
+        withScriptHistory: true,
+        withStoryStructure: true,
+        withStoryboard: true,
+        withCharacters: true,
+        withAssets: true,
+        withAssetVisuals: true,
+        withTasks: "complete",
+        withCandidates: true,
+        withLayout: true,
+        withExports: true,
+        withSettings: true,
+        withDialogueRuntime: true,
+      });
+      const decisionsPath = path.join(sourceRoot, "decisions.json");
+      await writeFile(decisionsPath, `${JSON.stringify(createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, []), null, 2)}\n`);
+      const results: Array<{ full: Awaited<ReturnType<FullShadowImporter["import"]>>; inventory: Awaited<ReturnType<typeof readFreshInventory>> }> = [];
+      for (const [index, databaseRoot] of databaseRoots.entries()) {
+        const databasePath = path.join(databaseRoot, "db.sqlite");
+        const handle = await open(databasePath, "wx", 0o600);
+        await handle.close();
+        const databaseUrl = `file:${databasePath}`;
+        await deploy(databaseUrl);
+        process.env.AIROAMING_PERSISTENCE_MODE = "db";
+        process.env.DATABASE_URL = databaseUrl;
+        const client = new PrismaService();
+        await client.onModuleInit();
+        clients.push(client);
+        const full = await new FullShadowImporter(client).import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(sourceRoot, "workspace"), runIdPrefix: "m4-fresh" });
+        expect(full.status).toBe("succeeded");
+        expect(full.slices).toHaveLength(FULL_SHADOW_SLICE_ORDER.length);
+        expect(full.slices.every((slice) => slice.status === "succeeded")).toBe(true);
+        const verifier = new MigrationVerifyService(client);
+        for (const slice of full.slices) {
+          const verification = await verifier.verify(snapshot.outputPath, slice.runId, repoRoot);
+          expect(verification.report.passed, `slice ${index}:${slice.slice}`).toBe(true);
+          expect(verification.report.checks).toMatchObject({ integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
+        }
+        results.push({ full, inventory: await readFreshInventory(client) });
+      }
+      expect(results[1]!.full.reportDigest).toBe(results[0]!.full.reportDigest);
+      expect(results[1]!.full.slices.map(({ slice, status, reportDigest, counts }) => ({ slice, status, reportDigest, counts }))).toEqual(results[0]!.full.slices.map(({ slice, status, reportDigest, counts }) => ({ slice, status, reportDigest, counts })));
+      for (const table of FRESH_INVENTORY_TABLES) {
+        expect(results[1]!.inventory.tables[table], `inventory table ${table}`).toEqual(results[0]!.inventory.tables[table]);
+      }
+      expect(results[1]!.inventory.digest).toBe(results[0]!.inventory.digest);
+    } finally {
+      for (const client of clients) await client.onModuleDestroy();
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+      await rm(sourceRoot, { recursive: true, force: true });
+      for (const databaseRoot of databaseRoots) await rm(databaseRoot, { recursive: true, force: true });
+    }
+  }, 120_000);
 
   it("IMP-A12-01 imports legacy layout into a sealed-source-aware working copy", async () => {
     const prepared = await prepare();
