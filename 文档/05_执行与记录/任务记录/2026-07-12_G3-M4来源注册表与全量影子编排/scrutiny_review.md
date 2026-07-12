@@ -25,6 +25,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | DB read-model/API | 通过 | `IMP-M4-API-01` 对照 file/DB `WorkbenchSnapshot` 语义字段；移走旧 workspace 后 DB 模式重启仍可读 |
 | Asset 物理证据 | 通过 | ready Asset sha256/bytes 与旧物理文件对照 |
 | DB-only 写隔离 | 通过 | DB `saveChapterDraft` 后旧 workspace 不被重建/写入，归档的 `project.json`/`script.md` 字节不变 |
+| 投影读取点审计 | 通过（M5 残留阻塞已登记） | `projection_read_point_audit.md`；业务 read-model/Task 走 DB，Settings 旧文件事实源明确不属于 M4 完成范围 |
 | pending Dialogue | 通过 | `IMP-A15-02` 检查 stable ID、scope/FK、payloadDigest、source evidence、replay |
 | final/cutover | 保持阻断 | `db:import --kind final`、backup、activate 仍不在本轮实现范围 |
 

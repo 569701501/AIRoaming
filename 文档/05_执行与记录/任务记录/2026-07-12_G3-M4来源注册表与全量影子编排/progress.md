@@ -21,6 +21,7 @@ source: task execution
 - [x] DB-only 重启读隔离：移走旧 workspace 后重新启动 DB 模式仍可读取同一 `WorkbenchSnapshot`；归档旧文件字节保持不变。
 - [x] 新增未知 `entityType` 来源证据回归：`db:verify` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并 fail-closed。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
+- [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
 - [x] M4 任务目录同步 DB read-model/API/Asset 门禁证据；M4 仍等待正式验收签字。
 - [ ] M5 backup/restore、M6 activate/cutover。
@@ -36,6 +37,7 @@ source: task execution
 - 同一命令当前：29 个迁移集成测试通过；新增 `IMP-M3-FULL-02` 验证四格未决议时只保留首个 blocked run，不创建下游 slice。
 - `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：45 个测试文件、266 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue 与 full fail-fast 门禁。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
+- `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。
 
 # 工作区约束
 

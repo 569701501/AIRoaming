@@ -156,6 +156,7 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明移走旧 workspace 后 DB 重启仍可读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不重建旧 workspace，归档旧文件字节不变（代码提交 `f05f8da` 后续补强）。
 - `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed。
+- final cutover 前投影读取点静态审计已记录：业务 read-model/Task 走 DB，Asset physical storage 是允许的文件边界；SettingsService 仍依赖旧 `app-settings.json`，属于 M5 capability/SecretStore blocker，不能作为 M4 或 production-ready 证据。
 - `IMP-A15-02` 已证明 captured pending Dialogue artifact 能按稳定 sourceKey 导入，维持 project/chapter/thread scope、payloadDigest 和 runtime-bundle 来源证据，并在 replay 时保持单行。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。
 

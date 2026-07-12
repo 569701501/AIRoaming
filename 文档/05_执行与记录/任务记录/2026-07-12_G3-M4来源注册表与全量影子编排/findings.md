@@ -32,4 +32,5 @@ source: code exploration and tests
 
 - 实现门禁和临时环境证据已齐：来源注册表、16-slice full shadow、fresh/replay、DB read-model/API、Asset physical evidence、DB-only 写隔离和 pending Dialogue 均有测试证据。
 - `IMP-M3-FULL-02` 已补充 blocked prerequisite fail-fast 证据；它证明未决议的 Project/Chapter 不会触发后续 15 个下游 slice。
+- final cutover 前投影读取点静态审计见 `projection_read_point_audit.md`：Project/Chapter 等业务投影和 Task 持久读已走 DB，物理 Asset storage 仍按允许的 storageKey 读写；SettingsService 仍读写旧 `app-settings.json`，必须作为 M5 capability/SecretStore blocker，不能在 M4 伪装成 DB-only。
 - 本结论不是 production cutover 批准；M4 状态继续保持 `in_progress`，等待正式验收签字。M5/M6 不在本轮范围内。

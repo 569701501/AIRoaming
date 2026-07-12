@@ -25,6 +25,11 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 5. `IMP-M4-03`：向已成功 run 注入未注册 `entityType` 后，verifier 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed。
 6. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
 
+## 读取点审计边界
+
+- 代码静态审计已确认 SettingsService 仍使用旧 `app-settings.json`；这是 M5 capability/SecretStore 的已登记阻塞，不把它伪装为 M4 DB-only 运行证据。
+- 本轮没有连接真实 workspace/生产 settings，也没有执行 M5/M6；因此不能据此批准 production-ready。
+
 ## 结论
 
 临时环境运行证据支持 M4 实现门禁通过；由于没有真实切换授权，不能把该结论升级为 production-ready。M4 继续保持 `in_progress`，等待正式验收签字。
