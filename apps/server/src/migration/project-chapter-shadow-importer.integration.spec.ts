@@ -26,6 +26,7 @@ import { CandidateLockShadowImporter } from "./candidate-lock-shadow-importer.js
 import { MigrationVerifyService } from "./migration-verify.service.js";
 import { LayoutShadowImporter } from "./layout-shadow-importer.js";
 import { ExportShadowImporter } from "./export-shadow-importer.js";
+import { ProviderShadowImporter } from "./provider-shadow-importer.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
@@ -42,7 +43,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -127,6 +128,10 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       await writeFile(path.join(projectDir, "chapters", "chapter-002", "chapter.json"), `${JSON.stringify({ id: `${projectId}-chapter-002`, order: 1, title: "重复顺序", status: "draft" })}\n`);
       await writeFile(path.join(projectDir, "chapters", "chapter-002", "script.md"), "重复。\n");
     }
+  }
+  if (options.withSettings) {
+    await mkdir(path.join(workspace, "settings"), { recursive: true });
+    await writeFile(path.join(workspace, "settings", "app-settings.json"), `${JSON.stringify({ version: 1, aiKey: { providerId: "self", providerName: "自定义 OpenAI 兼容", modelId: "gpt-5.5", baseUrl: null, apiKey: "sk-test-secret-value", keyFingerprint: "sha256:fingerprint", updatedAt: "2026-01-07T00:00:00.000Z" }, openaiImageProvider: { providerId: "openai_image", providerName: "OpenAI 图片生成", modelId: "gpt-image-2", baseUrl: "https://example.test", apiKey: null, keyFingerprint: null, updatedAt: null }, activeImageProvider: "openai", appearance: { theme: "dark" }, updatedAt: "2026-01-07T00:00:00.000Z" })}\n`);
   }
   const coordinator = new MaintenanceCoordinator();
   await coordinator.drain();
@@ -550,5 +555,25 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentExportRevisionId: null });
     await new ExportShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a13-replay" });
     expect(await prisma!.database().exportRevision.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A14-01 imports redacted provider metadata without importing secrets", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withSettings: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const base = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a14-base" });
+    expect(base.run.status).toBe("succeeded");
+    const result = await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a14-providers" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ ProviderConfig: 2, CredentialMetadata: 2, AppPreference: 1 });
+    const providers = await prisma!.database().providerConfig.findMany({ orderBy: { providerId: "asc" } });
+    expect(providers).toHaveLength(2);
+    expect(providers.every((provider) => provider.enabled === false)).toBe(true);
+    const credentials = await prisma!.database().credentialMetadata.findMany();
+    expect(credentials.every((row) => row.configured === false && row.secretRef === null)).toBe(true);
+    expect(await prisma!.database().appPreference.findUnique({ where: { id: "primary" } })).toMatchObject({ theme: "dark", defaultTextProviderId: expect.any(String), activeImageProviderId: expect.any(String) });
+    await new ProviderShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a14-replay" });
+    expect(await prisma!.database().providerConfig.count()).toBe(2);
+    expect(await prisma!.database().credentialMetadata.count()).toBe(2);
   }, 30_000);
 });
