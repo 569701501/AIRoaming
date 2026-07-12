@@ -48,6 +48,6 @@ source: task_plan.md
 
 - 发现 SQLite `trg_imported_entity_sources_provenance_monotonic` 禁止 unchanged replay 仅更新 `lastRunId`；因此没有修改表、migration、trigger，也没有把重放伪装成当前 run 的新来源证据。
 - `MigrationVerifyService` 新增按 importer/entityCounts 判断的来源证据期望值；成功 run 有实体产出但当前 run 查询不到 `ImportedEntitySource` 时返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`，防止空查询 vacuous pass。
-- 新增 `IMP-M4-08`：同库幂等重放在既有 trigger 语义下被 verifier fail-closed；同时修正 importer-specific 计数，避免仅用于上下文的 `Project` 数量误报 A4 等空来源 slice。
-- 回归结果：迁移集成 35/35、server 全量 45 文件/272 tests、typecheck、G1 manifest/schema/migration 三项检查、`git diff --check` 全部通过。
+- 新增 `IMP-M4-08/09`：同库幂等重放空来源、以及摘要正确但来源行超额均被 verifier fail-closed；importer-specific 计数显式覆盖 A6 Shot 投影和 A9 AssetReady→AssetPhysicalEvidence。
+- 回归结果：迁移集成 36/36、server 全量 45 文件/273 tests、typecheck、G1 manifest/schema/migration 三项检查、`git diff --check` 全部通过。
 - M4 仍保持 `in_progress`，正式验收签字、M5 backup/restore、M6 activate 未开始；既有 12 张截图删除继续未触碰。

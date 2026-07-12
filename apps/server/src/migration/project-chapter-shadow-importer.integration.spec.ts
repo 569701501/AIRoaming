@@ -787,6 +787,31 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_MISSING");
   }, 30_000);
 
+  it("IMP-M4-09 fails closed when source evidence count exceeds the importer report", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-source-count" });
+    const projectItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/project.json");
+    expect(projectItem).toBeDefined();
+    await prisma!.database().importedEntitySource.create({
+      data: {
+        sourceKey: "workspace-v1:p1:Project:extra-evidence",
+        entityType: "Project",
+        entityId: "extra-evidence",
+        sourceStorageKey: projectItem!.storageKey,
+        sourceDigest: projectItem!.sha256,
+        provenanceStatus: "complete",
+        firstRunId: run.run.id,
+        lastRunId: run.run.id,
+      },
+    });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, sourceEvidenceExpectedCount: 2, sourceEvidenceCount: 3, sourceEvidenceCountMismatch: true });
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

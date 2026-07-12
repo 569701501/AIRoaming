@@ -32,6 +32,7 @@ source: code exploration and tests
 - full shadow 原先对底层 importer 的 failed 异常直接上抛，聚合结果会丢失失败 run；现改为使用显式 slice runId 捕获 failed 终态、写入聚合摘要并停止，`IMP-M3-FULL-03` 已覆盖重复章节约束冲突。
 - Chapter importer 在缺少 `script.md` 时会从 `chapter.json.sourceText` 生成备用正文摘要；verifier 注册表现已镜像该 fallback，`IMP-M4-07` 证明合法缺文件快照不会被误报为来源摘要篡改。
 - `db-verify` 原先忽略 `--format`，与 G3-M CLI 稳定参数契约不一致；现只接受 `json`，非法值在数据库初始化前以 `MIGRATION_VERIFY_ARGS_INVALID` fail-fast。
+- 仅判断当前 run 是否存在任意来源行仍不足以证明来源完整：A6 的 `Shot` 是由 `StoryboardShotProjection` 留证，A9 的 `AssetReady` 由 `AssetPhysicalEvidence` 留证，且报告计数中还包含部分上下文计数。verifier 现维护 importer-specific `(countKey → entityType)` 绑定，按每种来源行精确比较；缺失返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`，超额或未绑定类型返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会把部分证据当作通过。
 
 # M4 结论
 
@@ -39,3 +40,4 @@ source: code exploration and tests
 - `IMP-M3-FULL-02` 已补充 blocked prerequisite fail-fast 证据；它证明未决议的 Project/Chapter 不会触发后续 15 个下游 slice。
 - final cutover 前投影读取点静态审计见 `projection_read_point_audit.md`：Project/Chapter 等业务投影和 Task 持久读已走 DB，物理 Asset storage 仍按允许的 storageKey 读写；SettingsService 仍读写旧 `app-settings.json`，必须作为 M5 capability/SecretStore blocker，不能在 M4 伪装成 DB-only。
 - 本结论不是 production cutover 批准；M4 状态继续保持 `in_progress`，等待正式验收签字。M5/M6 不在本轮范围内。
+- `IMP-M4-08` 覆盖 unchanged replay 的当前 run 空来源；`IMP-M4-09` 覆盖摘要正确但来源行超额。两者均证明 verifier 的来源证据计数门禁 fail-closed，且不修改 schema/migration/trigger。

@@ -33,4 +33,5 @@ source: G3-M施工包与当前实现
 - 16 slice 的尾部顺序固定为 `... layout → exports → dialogue → providers`；任一前置 slice blocked/failed 时立即停止，不创建下游空 run。
 - full 编排必须保留 failed slice 的终态摘要；底层 slice 抛错时不得丢失失败 run 或继续创建下游 run。
 - `db-verify` 必须只接受稳定的 `--format json` 输出契约，非法格式在连接目标 DB 前 fail-fast。
+- 成功 run 的 `counts.entityCounts` 必须按 importer 绑定到 `ImportedEntitySource.entityType`；来源行缺失、超额或出现未绑定类型时 `db:verify` fail-closed，且 A6 的 Shot 投影、A9 的 AssetPhysicalEvidence 等映射必须显式记录。
 - typecheck、定向集成测试和全量回归通过。

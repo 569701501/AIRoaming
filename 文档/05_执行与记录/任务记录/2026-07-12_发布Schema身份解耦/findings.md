@@ -54,3 +54,4 @@ source: task_plan.md
 - 原 verifier 仅按 `lastRunId = runId` 查询来源；若成功 run 的 `counts.entityCounts` 声称有实体产出但查询为空，会出现 vacuous pass 风险。
 - 处理方式是不改 schema/trigger，而由 verifier 按 16 个 importer 的真实 entity count key 判断是否应有来源证据；缺失时新增 `MIGRATION_SOURCE_EVIDENCE_MISSING` 并 fail-closed。A4 等仅有上下文 Project 计数的 slice 不会误报。
 - `IMP-M4-08` 固化该契约：重放仍可保持导入幂等和聚合摘要一致，但当前 run 的只读 verifier 不会把旧来源行误认成当前 run 证据。M4 仍需正式签字。
+- 后续审计发现“有来源但数量漂移”仍可能绕过非空门禁；已改为 importer-specific countKey→entityType 精确比对，显式处理 A6 Shot 投影与 A9 AssetPhysicalEvidence，并以 `IMP-M4-09` 锁定超额来源 fail-closed。当前迁移集成 36 项、server 全量 273 项通过。
