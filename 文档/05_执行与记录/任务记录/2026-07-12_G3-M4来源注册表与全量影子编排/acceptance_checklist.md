@@ -13,7 +13,7 @@ source: task_plan.md、handoff.md、scrutiny_review.md、runtime_user_review.md�
 ## 1. 验收边界
 
 - 基线：`0c3295b`。
-- 当前实现提交：`4972d8e`；证据同步提交：`c040a1a`。
+- 当前实现提交：`4972d8e`；证据同步提交：`c040a1a`、`4c2d7aa`。
 - 范围：来源证据注册表、16 个 shadow slice、full shadow 编排、`db:verify` 只读校验、DB read-model/API/Asset 等价和 DB-only 写隔离。
 - 当前状态：`in_progress`。本清单不是正式签字，不得据此把 M4 标记为 `completed`。
 - 既有 12 张截图删除不属于本任务，未纳入任何提交。
