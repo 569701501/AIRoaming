@@ -46,7 +46,7 @@ source: task_plan.md
 - `ImportedEntitySource.sourceStorageKey` 是单个主追溯锚点；`sourceDigest` 是实体来源证据摘要，可以由多个文件摘要合成。Project/Chapter importer 已用 `chapter.json + script` 合成 Chapter digest，因此 verifier 不能普遍做单文件相等比较。
 - 当前 M4 能安全验证主追溯锚点仍存在于 sealed source manifest。若要逐实体重算复合摘要，需要后续引入按 `entityType` 注册的来源证据集合与算法；本轮不伪造通用规则。
 - import run 本身已有 `verification` 证据；只读 verifier 的不变性测试必须保存 before 值并比较 after，而不是断言 null。
-- M4 当前只有单次 succeeded shadow、SQLite integrity/FK/blocker/manifest/identity 检查，尚未满足双 fresh shadow、API DTO 和 Asset hash 等完整绿色条件，文档保持 `in_progress`。
+- M4 实现门禁现已覆盖双 fresh shadow、API DTO/Asset hash、DB-only 写隔离、pending Dialogue、来源注册表复算、replay 空/漂移来源 fail-closed、full 16-slice 逐片 verifier 和统一 8 CLI format 契约；正式验收签字仍未完成，文档继续保持 `in_progress`。
 
 ## 后续 M4 重放证据审计
 
@@ -54,4 +54,4 @@ source: task_plan.md
 - 原 verifier 仅按 `lastRunId = runId` 查询来源；若成功 run 的 `counts.entityCounts` 声称有实体产出但查询为空，会出现 vacuous pass 风险。
 - 处理方式是不改 schema/trigger，而由 verifier 按 16 个 importer 的真实 entity count key 判断是否应有来源证据；缺失时新增 `MIGRATION_SOURCE_EVIDENCE_MISSING` 并 fail-closed。A4 等仅有上下文 Project 计数的 slice 不会误报。
 - `IMP-M4-08` 固化该契约：重放仍可保持导入幂等和聚合摘要一致，但当前 run 的只读 verifier 不会把旧来源行误认成当前 run 证据。M4 仍需正式签字。
-- 后续审计发现“有来源但数量漂移”仍可能绕过非空门禁；已改为 importer-specific countKey→entityType 精确比对，显式处理 A6 Shot 投影与 A9 AssetPhysicalEvidence，并以 `IMP-M4-09` 锁定超额来源 fail-closed。当前迁移集成 36 项、server 全量 273 项通过。
+- 后续审计发现“有来源但数量漂移”仍可能绕过非空门禁；已改为 importer-specific countKey→entityType 精确比对，显式处理 A6 Shot 投影与 A9 AssetPhysicalEvidence，并以 `IMP-M4-09` 锁定超额来源 fail-closed；`IMP-M4-10` 再验证 full shadow 的 16 个 slice。当前迁移集成 37 项、server 全量 46 文件/279 项通过；统一 CLI format 边界回归也已通过。
