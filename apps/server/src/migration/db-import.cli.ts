@@ -7,6 +7,7 @@ import { ScriptPendingRevisionShadowImporter, ScriptPendingRevisionShadowImportE
 import { StoryShadowImporter, StoryShadowImportError } from "./story-shadow-importer.js";
 import { StoryboardShadowImporter, StoryboardShadowImportError } from "./storyboard-shadow-importer.js";
 import { CharacterShadowImporter, CharacterShadowImportError } from "./character-shadow-importer.js";
+import { AssetShadowImporter, AssetShadowImportError } from "./asset-shadow-importer.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -35,7 +36,7 @@ async function main(): Promise<number> {
   if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
   const sliceIndex = process.argv.indexOf("--slice");
   const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
-  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "characters") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "characters" && slice !== "assets") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const snapshot = path.resolve(required("--snapshot"));
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
@@ -59,6 +60,8 @@ async function main(): Promise<number> {
           ? await new StoryboardShadowImporter(prisma).import(snapshot, decisions)
             : slice === "characters"
               ? await new CharacterShadowImporter(prisma).import(snapshot, decisions)
+              : slice === "assets"
+                ? await new AssetShadowImporter(prisma).import(snapshot, decisions)
               : await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
     await writePrivateJson(reportPath, result.report);
     process.stdout.write(`${JSON.stringify({ code: result.run.status === "blocked" ? "MIGRATION_IMPORT_BLOCKED" : "MIGRATION_IMPORT_OK", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
@@ -71,7 +74,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError
+  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError
     ? error.code
     : error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
   process.stderr.write(`${code}\n`);

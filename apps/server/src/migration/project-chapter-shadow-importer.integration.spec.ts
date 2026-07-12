@@ -17,6 +17,7 @@ import { ScriptPendingRevisionShadowImporter } from "./script-pending-revision-s
 import { StoryShadowImporter } from "./story-shadow-importer.js";
 import { StoryboardShadowImporter } from "./storyboard-shadow-importer.js";
 import { CharacterShadowImporter } from "./character-shadow-importer.js";
+import { AssetShadowImporter } from "./asset-shadow-importer.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
 
@@ -31,7 +32,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -61,6 +62,10 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     if (options.withCharacters) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
       await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({ characters: [{ id: "char_001", name: "主角", role: "调查者", level: "lead", entityType: "human", status: "draft", appearance: "", personality: "", promptFragment: "", source: "script_outline", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
+    }
+    if (options.withAssets) {
+      await mkdir(path.join(projectDir, "shared"), { recursive: true });
+      await writeFile(path.join(projectDir, "shared", "assets.json"), `${JSON.stringify({ assets: [{ id: "asset_001", chapterId: `${projectId}-chapter-001`, type: "image", role: "character_reference", name: "主角参考图", path: "assets/characters/asset_001.png", sourceTaskId: null, meta: JSON.stringify({ legacyKind: "reference" }), createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
     }
     if (options.duplicateChapterOrder) {
       await mkdir(path.join(projectDir, "chapters", "chapter-002"), { recursive: true });
@@ -282,5 +287,26 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().importedEntitySource.count()).toBe(3);
     expect((await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a7-2" })).run.status).toBe("succeeded");
     expect(await prisma!.database().character.count()).toBe(1);
+  }, 30_000);
+
+  it("IMP-A8-01 imports asset metadata as staged and never fabricates ready evidence", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withAssets: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a8-base" });
+    const result = await new AssetShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a8-1" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ Asset: 1 });
+    const asset = await prisma!.database().asset.findFirstOrThrow();
+    expect(asset).toMatchObject({ type: "image", role: "character_reference", mimeType: "image/png", status: "staged", chapterId: expect.stringMatching(/^chapter_/) });
+    expect(asset.sha256).toBeNull();
+    expect(asset.bytes).toBeNull();
+    expect(asset.metadataJson).toEqual({ legacyKind: "reference" });
+    expect(asset.metadataSchemaVersion).toBe(1);
+    expect(await prisma!.database().characterVisual.count()).toBe(0);
+    expect(await prisma!.database().sceneVisual.count()).toBe(0);
+    expect(await prisma!.database().importedEntitySource.count()).toBe(3);
+    expect((await new AssetShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a8-2" })).run.status).toBe("succeeded");
+    expect(await prisma!.database().asset.count()).toBe(1);
   }, 30_000);
 });
