@@ -2,7 +2,7 @@
 doc_id: AIR-TASK-20260712-RELEASE-SCHEMA-RUNTIME
 status: not_applicable
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: task_plan.md
@@ -18,6 +18,7 @@ source: task_plan.md
 
 - release identity 在仓库正式 artifact 与隔离临时 artifact 树运行。
 - M4 特征测试在 fresh 临时 SQLite 上执行 succeeded shadow 后只读验证。
+- `IMP-M4-12/13` 在临时 SQLite 上验证未知 shadow importerVersion、缺失 succeeded reportDigest 均被 verifier 拒绝；未连接真实 workspace/DB。
 - G1 migration 测试在隔离临时 SQLite 中执行；未连接、修改或激活真实数据库。
 
 ## 禁止误读

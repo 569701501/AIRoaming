@@ -875,6 +875,49 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_RUN_KIND_INVALID");
   }, 30_000);
 
+  it("IMP-M4-12 rejects a shadow run with an unregistered importer version", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-unknown-importer",
+      kind: "shadow",
+      importerVersion: "g3-m3-unknown",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      reportDigest: SOURCE,
+      counts: null,
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ importerVersion: "g3-m3-unknown", importerVersionKnown: false, reportDigestPresent: true });
+    expect(result.report.errors).toContain("MIGRATION_IMPORTER_VERSION_INVALID");
+  }, 30_000);
+
+  it("IMP-M4-13 rejects a succeeded shadow run without a report digest", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-report-digest",
+      kind: "shadow",
+      importerVersion: "g3-m3-a2",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      counts: null,
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ importerVersionKnown: true, reportDigestPresent: false });
+    expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_MISSING");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

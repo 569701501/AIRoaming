@@ -2,7 +2,7 @@
 doc_id: AIR-G3M-TEST-HANDOFF-001
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
@@ -155,10 +155,11 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - `migration-source-evidence.registry.ts` 已按 entityType 注册单文件允许 storage-key pattern、Chapter 复合（chapter.json + script.md，缺 script.md 时复用 importer 的 chapter.json.sourceText fallback）和 runtime bundle canonical 摘要算法；`db:verify` 同时检查 source/snapshot manifest，settings/runtime 转换输入不会被误判为越界来源。
 - 来源注册表契约测试已动态核对所有 shadow importer 的来源写入 entityType，并要求 single/composite/runtime 策略互斥；新增 importer 未登记来源类型会在测试阶段 fail-closed。
 - `MigrationVerifyService` 只接受 `MigrationRun.kind=shadow`；成功 audit run 返回 `MIGRATION_RUN_KIND_INVALID`，`IMP-M4-11` 防止非导入账本被误报为 shadow 验证通过。
+- `MigrationVerifyService` 只接受已注册的 A2～A15 shadow importerVersion；未知版本返回 `MIGRATION_IMPORTER_VERSION_INVALID`。成功 shadow run 必须带非空 `reportDigest`，否则返回 `MIGRATION_REPORT_DIGEST_MISSING`；`IMP-M4-12/13` 已锁定两项门禁。
 - 当前已完成单次 succeeded、转换来源、full replay 特征测试、blocked/failed full fail-fast、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType`、已注册摘要篡改、runtime 错误锚点、单文件 storage-key 越界、replay 当前 run 缺失来源证据和来源计数漂移也已验证 fail-closed；`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个独立 run；M4 仍保留 `in_progress`，等待正式验收签字。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明移走旧 workspace 后 DB 重启仍可读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不重建旧 workspace，归档旧文件字节不变（代码提交 `f05f8da` 后续补强）。
-- `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed；`IMP-M4-04/05/06` 已证明摘要、runtime 锚点和单文件 storage-key 越界均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`；`IMP-M4-07` 已证明缺失 `script.md` 的合法 Chapter fallback 可通过复合摘要校验；`IMP-M4-08` 已证明 unchanged replay 不更新 `lastRunId` 时，成功 run 的空当前来源查询返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`；`IMP-M4-09` 已证明摘要正确但来源行超出 importer 报告计数时返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会 vacuous pass；`IMP-M4-10` 已证明成功 full shadow 的 16 个 slice 均能通过精确来源计数与注册表校验。
+- `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed；`IMP-M4-04/05/06` 已证明摘要、runtime 锚点和单文件 storage-key 越界均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`；`IMP-M4-07` 已证明缺失 `script.md` 的合法 Chapter fallback 可通过复合摘要校验；`IMP-M4-08` 已证明 unchanged replay 不更新 `lastRunId` 时，成功 run 的空当前来源查询返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`；`IMP-M4-09` 已证明摘要正确但来源行超出 importer 报告计数时返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会 vacuous pass；`IMP-M4-10` 已证明成功 full shadow 的 16 个 slice 均能通过精确来源计数与注册表校验；`IMP-M4-12/13` 已证明未知 importerVersion 与缺失 succeeded reportDigest 均被拒绝。
 - final cutover 前投影读取点静态审计已记录：业务 read-model/Task 走 DB，Asset physical storage 是允许的文件边界；SettingsService 仍依赖旧 `app-settings.json`，属于 M5 capability/SecretStore blocker，不能作为 M4 或 production-ready 证据。
 - `IMP-A15-02` 已证明 captured pending Dialogue artifact 能按稳定 sourceKey 导入，维持 project/chapter/thread scope、payloadDigest 和 runtime-bundle 来源证据，并在 replay 时保持单行。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。

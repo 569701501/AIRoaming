@@ -2,7 +2,7 @@
 doc_id: AIR-TASK-20260712-RELEASE-SCHEMA-SCRUTINY
 status: passed
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: ADR-0015、代码 diff 与验证证据
@@ -26,6 +26,7 @@ source: ADR-0015、代码 diff 与验证证据
 | Prisma 版本仍锁定 | 通过 | `schema-contract.spec.ts` 验证 prisma/client 均为 6.19.3 |
 | Schema/migration/trigger 字节不变 | 通过 | 修改前后 SHA-256 一致，Git 对 Schema/migrations 无 diff |
 | verifier 只读 | 通过 | 特征测试比较 MigrationRun verification 前后相等 |
+| shadow importerVersion/reportDigest 具备完成态绑定 | 通过 | `IMP-M4-12/13`：未知 importerVersion 与 succeeded 缺失 reportDigest 均 fail-closed |
 | 不执行真实切换 | 通过 | 仅临时 SQLite/测试，无真实 workspace/DB activate |
 
 ## 对 Luna 草稿的复核

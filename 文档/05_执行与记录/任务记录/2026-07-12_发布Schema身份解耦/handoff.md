@@ -2,7 +2,7 @@
 doc_id: AIR-TASK-20260712-RELEASE-SCHEMA-HANDOFF
 status: completed
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: task_plan.md、progress.md、scrutiny_review.md
@@ -23,6 +23,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - 继续审计 G3 CLI 契约后，8 个 CLI 已统一严格解析 `--format json`；缺值、非法值和重复 flag 均在副作用前以入口稳定错误码 fail-fast，M4 仍不改变 release identity 或 schema/migration/trigger。
 - M4 来源注册表新增契约回归，自动核对所有 shadow importer 的 entityType 均注册且 single/composite/runtime 分类互斥；不改变 release identity 或 schema/migration/trigger。
 - verifier 新增 shadow-only run kind 门禁，成功 audit run 不再可能被当作 shadow 通过；`IMP-M4-11` 已验证 `MIGRATION_RUN_KIND_INVALID`，不改变 release identity 或 schema/migration/trigger。
+- verifier 现在要求 shadow run 的 importerVersion 必须属于 A2～A15 注册表，未知版本返回 `MIGRATION_IMPORTER_VERSION_INVALID`；成功 shadow run 还必须带非空 reportDigest，否则返回 `MIGRATION_REPORT_DIGEST_MISSING`。`IMP-M4-12/13` 已覆盖两项门禁，不改变 release identity 或 schema/migration/trigger。
 
 ## 明确未完成
 

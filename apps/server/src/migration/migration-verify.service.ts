@@ -19,6 +19,9 @@ export interface MigrationVerificationReport {
   effectiveSchemaManifestDigest: string;
   checks: {
     runKind: MigrationRunKind;
+    importerVersion: string;
+    importerVersionKnown: boolean;
+    reportDigestPresent: boolean;
     runSucceeded: boolean;
     sourceManifestMatch: boolean;
     snapshotManifestMatch: boolean;
@@ -75,6 +78,8 @@ const SOURCE_COUNT_BINDINGS_BY_IMPORTER: ReadonlyMap<string, readonly SourceCoun
   ["g3-m3-a15", [{ countKey: "ConversationThread", entityType: "ConversationThread" }, { countKey: "ConversationMessage", entityType: "ConversationMessage" }, { countKey: "DialogueToolResult", entityType: "DialogueToolResult" }, { countKey: "DialogueRuntimeSession", entityType: "DialogueRuntimeSession" }, { countKey: "PendingDialogueArtifact", entityType: "PendingDialogueArtifact" }]],
 ]);
 
+const KNOWN_SHADOW_IMPORTER_VERSIONS = new Set(SOURCE_COUNT_BINDINGS_BY_IMPORTER.keys());
+
 function buildExpectedSourceCounts(importerVersion: string, counts: Record<string, unknown> | null): Map<string, number> {
   const entityCounts = counts?.entityCounts;
   if (!entityCounts || typeof entityCounts !== "object" || Array.isArray(entityCounts)) return new Map();
@@ -114,9 +119,13 @@ export class MigrationVerifyService {
       || [...actualSourceCounts.keys()].some((entityType) => !expectedSourceCounts.has(entityType))
     );
     const sourceMismatchCount = sourceEvidence.sourceMismatchCount;
+    const importerVersionKnown = KNOWN_SHADOW_IMPORTER_VERSIONS.has(run.importerVersion);
+    const reportDigestPresent = typeof run.reportDigest === "string" && run.reportDigest.length > 0;
     const errors: string[] = [];
     if (run.kind !== "shadow") errors.push("MIGRATION_RUN_KIND_INVALID");
+    if (run.kind === "shadow" && !importerVersionKnown) errors.push("MIGRATION_IMPORTER_VERSION_INVALID");
     if (run.status !== "succeeded") errors.push("MIGRATION_RUN_NOT_SUCCEEDED");
+    if (run.kind === "shadow" && run.status === "succeeded" && !reportDigestPresent) errors.push("MIGRATION_REPORT_DIGEST_MISSING");
     if (run.sourceManifestDigest !== snapshot.sourceManifest.manifestDigest) errors.push("MIGRATION_SOURCE_DIGEST_MISMATCH");
     if (run.snapshotManifestDigest !== snapshot.snapshotManifest.manifestDigest) errors.push("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
     if (integrityCheck !== "ok") errors.push("MIGRATION_INTEGRITY_CHECK_FAILED");
@@ -133,7 +142,7 @@ export class MigrationVerifyService {
       sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       effectiveSchemaManifestDigest: effective.effectiveSchemaManifestDigest,
-      checks: { runKind: run.kind, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
+      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, reportDigestPresent, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
       passed: errors.length === 0,
       errors: [...errors].sort(),
     };
