@@ -1,0 +1,28 @@
+---
+doc_id: AIR-G3-M4-REGISTRY-RUNTIME-001
+status: active
+created: 2026-07-12
+updated: 2026-07-12
+owner: AI漫游项目
+audience: human, ai-agent, developer, qa
+source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
+---
+
+# M4 临时环境运行复核
+
+## 运行边界
+
+- 使用临时 fresh SQLite、临时 snapshot/staging/workspace 根和隔离 runId。
+- 未连接真实用户 workspace，未写入生产 DB，未执行 backup/restore 或 activate。
+- 运行复核只验证 shadow 导入、只读 verifier、DB read-model/API 和旧文件不回写。
+
+## 已验证路径
+
+1. `IMP-M4-FRESH-01`：两套 fresh DB 执行完整 16-slice shadow，逐 slice verifier 通过；ledger、实体/指针 inventory、聚合 reportDigest 一致。
+2. `IMP-M3-FULL-01`：同一 snapshot replay 不新增业务实体，聚合摘要保持一致。
+3. `IMP-M4-API-01`：DB read-model 语义 DTO 与 file-mode `WorkbenchSnapshot` 一致；ready Asset 物理 hash/bytes 一致；DB 写入不改旧 workspace 文件。
+4. `IMP-A15-02`：captured pending Dialogue artifact 可恢复，且重放保持单行。
+
+## 结论
+
+临时环境运行证据支持 M4 实现门禁通过；由于没有真实切换授权，不能把该结论升级为 production-ready。M4 继续保持 `in_progress`，等待正式验收签字。

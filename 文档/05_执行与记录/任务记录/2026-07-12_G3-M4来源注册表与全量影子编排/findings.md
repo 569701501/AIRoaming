@@ -24,3 +24,10 @@ source: code exploration and tests
 - 已补 DB full read-model：Project/Outline、Chapter script/pending/revision、Story/Storyboard V2→公共 V1 DTO、Preflight、Character/Visual、Asset、Candidate/Lock、LayoutWorkingCopy 均在 `ProjectRepository` 组装；公共 DTO 对照以稳定语义字段比较，目标 ID 仍由 release stable identity 生成。
 - Asset importer 将旧 `name/path` 作为 `legacyName/legacyPath` 保留在 metadata 侧，公共 API 继续返回旧 DTO 的名称和路径；物理 ready 证据仍使用 DB 的 sha256/bytes，公共 `meta` 排除迁移内部字段。
 - DB-mode `saveChapterDraft` 已允许完整导入项目树通过写入门禁，只更新数据库 working copy；API 集成测试证明旧 workspace 的 `project.json` 与 `script.md` 字节不变。
+- Pending Dialogue 的 runtime bundle 是显式 `dialogue_pending_state_v1`，只捕获 ScriptDialogueService 实际持有的 `script_import`、`inspiration_seeds`、`script_outline_decision` 三类 Map；StoryStructure/Storyboard 继续使用各自领域 pending 真值，不重复建模。
+- `PendingDialogueArtifact` 的 project/chapter/thread 与可选 message/toolResult 引用均在导入前解析为稳定 target；未注册 kind、非 pending 状态、跨 scope 或缺失引用 fail-closed，不创建伪恢复项。
+
+# M4 结论
+
+- 实现门禁和临时环境证据已齐：来源注册表、16-slice full shadow、fresh/replay、DB read-model/API、Asset physical evidence、DB-only 写隔离和 pending Dialogue 均有测试证据。
+- 本结论不是 production cutover 批准；M4 状态继续保持 `in_progress`，等待正式验收签字。M5/M6 不在本轮范围内。

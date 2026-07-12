@@ -13,13 +13,14 @@ source: G3-M4 continuation
 - 来源证据注册表和 M4 verifier 校验已落地。
 - `db:import --kind shadow --slice full --workspace-root <workspace-root>` 已提供 16 slice 编排；可选 `--run-id-prefix` 生成可读的独立 run IDs。
 - full replay 已覆盖 Asset ready/physical evidence 后置增强场景。
+- DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
+- Dialogue runtime 的显式 pending codec/import 已完成：ScriptDialogueService 的三类 pending Map 进入 `PendingDialogueArtifact`，保留稳定 sourceKey、scope、payloadDigest 和 runtime-bundle 来源证据。
 
 # 交给下一阶段
 
-1. 补齐 pending Dialogue artifact 与真实 read-model/API DTO 对照。
-2. 在 fresh DB 上执行正式双轮 full shadow，并逐表固定 ledger/entity/pointer inventory。
-3. 补 Asset 物理文件 hash 与 file-mode/DB-mode API 响应等价检查。
-4. 完成后才能进入 M5 backup/restore；`final` 与 M6 activate 继续保持 fail-closed。
+1. 完成 M4 正式验收签字前的最终审查，并把本目录的证据命令保持可复现。
+2. 继续保持 `db:import --kind final`、M5 backup/restore 和 M6 activate fail-closed。
+3. M4 签字后才进入 M5；M6 仍需 capability、SecretStore、backup 和用户授权前置。
 
 # 当前结论
 
