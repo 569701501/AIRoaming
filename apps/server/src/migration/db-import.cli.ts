@@ -11,6 +11,7 @@ import { AssetShadowImporter, AssetShadowImportError } from "./asset-shadow-impo
 import { AssetVisualShadowImporter, AssetVisualShadowImportError } from "./asset-visual-shadow-importer.js";
 import { PreflightShadowImporter, PreflightShadowImportError } from "./preflight-shadow-importer.js";
 import { TaskShadowImporter, TaskShadowImportError } from "./task-shadow-importer.js";
+import { CandidateShadowImporter, CandidateShadowImportError } from "./candidate-shadow-importer.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -39,7 +40,7 @@ async function main(): Promise<number> {
   if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
   const sliceIndex = process.argv.indexOf("--slice");
   const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
-  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  if (slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "candidates" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const snapshot = path.resolve(required("--snapshot"));
   const decisions = path.resolve(required("--decisions"));
   const databaseUrl = required("--database-url");
@@ -75,6 +76,8 @@ async function main(): Promise<number> {
                     ? await new PreflightShadowImporter(prisma).import(snapshot, decisions)
                     : slice === "tasks"
                       ? await new TaskShadowImporter(prisma).import(snapshot, decisions)
+                      : slice === "candidates"
+                        ? await new CandidateShadowImporter(prisma).import(snapshot, decisions)
                     : await new ProjectChapterShadowImporter(prisma).import(snapshot, decisions);
     await writePrivateJson(reportPath, result.report);
     process.stdout.write(`${JSON.stringify({ code: result.run.status === "blocked" ? "MIGRATION_IMPORT_BLOCKED" : "MIGRATION_IMPORT_OK", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
@@ -87,7 +90,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError || error instanceof TaskShadowImportError
+  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError || error instanceof TaskShadowImportError || error instanceof CandidateShadowImportError
     ? error.code
     : error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
   process.stderr.write(`${code}\n`);
