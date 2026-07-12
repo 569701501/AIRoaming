@@ -774,6 +774,19 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.checks).toMatchObject({ sourceMismatchCount: 0, unregisteredEntityTypeCount: 0 });
   }, 30_000);
 
+  it("IMP-M4-08 fails closed when an idempotent replay has no current-run source evidence", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const importer = new ProjectChapterShadowImporter(prisma!, prepared.repository);
+    await importer.import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-replay-base" });
+    const replay = await importer.import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-replay" });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, replay.run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ sourceEvidenceCount: 0, sourceEvidenceExpected: true, sourceEvidenceMissing: true });
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_EVIDENCE_MISSING");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

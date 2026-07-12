@@ -43,3 +43,11 @@ source: task_plan.md
 - 已执行 server 45 files/255 tests、G1 三项、Prisma validate、workspace typecheck、byte comparison 与 diff check，全部通过。
 - Scrutiny Review：passed；Runtime/User Review：not_applicable。
 - scoped commit 已创建，message 为 `refactor(db): decouple release schema identity`；既有截图删除未纳入。
+
+## 2026-07-12 后续 M4 证据门禁加固
+
+- 发现 SQLite `trg_imported_entity_sources_provenance_monotonic` 禁止 unchanged replay 仅更新 `lastRunId`；因此没有修改表、migration、trigger，也没有把重放伪装成当前 run 的新来源证据。
+- `MigrationVerifyService` 新增按 importer/entityCounts 判断的来源证据期望值；成功 run 有实体产出但当前 run 查询不到 `ImportedEntitySource` 时返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`，防止空查询 vacuous pass。
+- 新增 `IMP-M4-08`：同库幂等重放在既有 trigger 语义下被 verifier fail-closed；同时修正 importer-specific 计数，避免仅用于上下文的 `Project` 数量误报 A4 等空来源 slice。
+- 回归结果：迁移集成 35/35、server 全量 45 文件/272 tests、typecheck、G1 manifest/schema/migration 三项检查、`git diff --check` 全部通过。
+- M4 仍保持 `in_progress`，正式验收签字、M5 backup/restore、M6 activate 未开始；既有 12 张截图删除继续未触碰。

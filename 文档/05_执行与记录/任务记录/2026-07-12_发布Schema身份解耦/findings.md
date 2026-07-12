@@ -47,3 +47,10 @@ source: task_plan.md
 - 当前 M4 能安全验证主追溯锚点仍存在于 sealed source manifest。若要逐实体重算复合摘要，需要后续引入按 `entityType` 注册的来源证据集合与算法；本轮不伪造通用规则。
 - import run 本身已有 `verification` 证据；只读 verifier 的不变性测试必须保存 before 值并比较 after，而不是断言 null。
 - M4 当前只有单次 succeeded shadow、SQLite integrity/FK/blocker/manifest/identity 检查，尚未满足双 fresh shadow、API DTO 和 Asset hash 等完整绿色条件，文档保持 `in_progress`。
+
+## 后续 M4 重放证据审计
+
+- `ImportedEntitySource.lastRunId` 在 unchanged replay 时按设计保持原值；Prisma migration 中的 `trg_imported_entity_sources_provenance_monotonic` 会拒绝只改变 `last_run_id` 的更新，因此不能通过更新该字段来制造“当前 run 已重新观察来源”的假证据。
+- 原 verifier 仅按 `lastRunId = runId` 查询来源；若成功 run 的 `counts.entityCounts` 声称有实体产出但查询为空，会出现 vacuous pass 风险。
+- 处理方式是不改 schema/trigger，而由 verifier 按 16 个 importer 的真实 entity count key 判断是否应有来源证据；缺失时新增 `MIGRATION_SOURCE_EVIDENCE_MISSING` 并 fail-closed。A4 等仅有上下文 Project 计数的 slice 不会误报。
+- `IMP-M4-08` 固化该契约：重放仍可保持导入幂等和聚合摘要一致，但当前 run 的只读 verifier 不会把旧来源行误认成当前 run 证据。M4 仍需正式签字。

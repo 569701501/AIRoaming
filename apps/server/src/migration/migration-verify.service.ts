@@ -23,6 +23,9 @@ export interface MigrationVerificationReport {
     integrityCheck: "ok" | "failed";
     foreignKeyViolationCount: number;
     openBlockerCount: number;
+    sourceEvidenceCount: number;
+    sourceEvidenceExpected: boolean;
+    sourceEvidenceMissing: boolean;
     sourceMismatchCount: number;
     unregisteredEntityTypeCount: number;
   };
@@ -38,6 +41,32 @@ function rows(value: unknown): SqliteRow[] {
 }
 
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
+
+const SOURCE_COUNT_KEYS_BY_IMPORTER: ReadonlyMap<string, readonly string[]> = new Map([
+  ["g3-m3-a2", ["Project", "Chapter"]],
+  ["g3-m3-a3", ["ProjectScriptOutline", "ChapterScriptVersion"]],
+  ["g3-m3-a4", ["ChapterScriptPending", "ChapterScriptRevision"]],
+  ["g3-m3-a5", ["StoryVersion", "StorySceneProjection", "StoryBeatProjection"]],
+  ["g3-m3-a6", ["StoryboardVersion", "Shot", "StoryboardShotProjection"]],
+  ["g3-m3-a7", ["Character"]],
+  ["g3-m3-a8", ["Asset"]],
+  ["g3-m3-a9", ["AssetReady", "CharacterVisual", "SceneVisual"]],
+  ["g3-m3-a10", ["PreflightRevision"]],
+  ["g3-m3-a11a", ["GenerationTask"]],
+  ["g3-m3-a11b", ["Candidate"]],
+  ["g3-m3-a11c", ["CandidateLockRevision"]],
+  ["g3-m3-a12", ["LayoutWorkingCopy"]],
+  ["g3-m3-a13", ["ExportRevision"]],
+  ["g3-m3-a14", ["ProviderConfig", "CredentialMetadata", "AppPreference"]],
+  ["g3-m3-a15", ["ConversationThread", "ConversationMessage", "DialogueToolResult", "DialogueRuntimeSession", "PendingDialogueArtifact"]],
+]);
+
+function expectsSourceEvidence(importerVersion: string, counts: Record<string, unknown> | null): boolean {
+  const entityCounts = counts?.entityCounts;
+  if (!entityCounts || typeof entityCounts !== "object" || Array.isArray(entityCounts)) return false;
+  const keys = SOURCE_COUNT_KEYS_BY_IMPORTER.get(importerVersion) ?? Object.keys(entityCounts as Record<string, unknown>);
+  return keys.some((key) => typeof (entityCounts as Record<string, unknown>)[key] === "number" && Number((entityCounts as Record<string, unknown>)[key]) > 0);
+}
 
 /** M3/M4 只读 verifier：不修改终态 MigrationRun，也不推进 PersistenceState。 */
 export class MigrationVerifyService {
@@ -57,6 +86,8 @@ export class MigrationVerifyService {
     const openBlockerCount = await db.migrationIssue.count({ where: { runId, severity: "blocker", resolutionStatus: "open" } });
     const imported = await db.importedEntitySource.findMany({ where: { lastRunId: runId }, select: { entityType: true, sourceStorageKey: true, sourceDigest: true } });
     const sourceEvidence = await checkSourceEvidence(snapshot, imported);
+    const sourceEvidenceExpected = expectsSourceEvidence(run.importerVersion, run.counts);
+    const sourceEvidenceMissing = run.status === "succeeded" && sourceEvidenceExpected && imported.length === 0;
     const sourceMismatchCount = sourceEvidence.sourceMismatchCount;
     const errors: string[] = [];
     if (run.status !== "succeeded") errors.push("MIGRATION_RUN_NOT_SUCCEEDED");
@@ -67,6 +98,7 @@ export class MigrationVerifyService {
     if (openBlockerCount > 0) errors.push("MIGRATION_OPEN_BLOCKER");
     if (sourceMismatchCount > 0) errors.push("MIGRATION_SOURCE_DIGEST_MISMATCH");
     if (sourceEvidence.unregisteredEntityTypeCount > 0) errors.push("MIGRATION_SOURCE_EVIDENCE_UNREGISTERED");
+    if (sourceEvidenceMissing) errors.push("MIGRATION_SOURCE_EVIDENCE_MISSING");
     const base = {
       schemaVersion: 1 as const,
       kind: "airoaming_migration_verification_v1" as const,
@@ -74,7 +106,7 @@ export class MigrationVerifyService {
       sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       effectiveSchemaManifestDigest: effective.effectiveSchemaManifestDigest,
-      checks: { runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
+      checks: { runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceMissing, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
       passed: errors.length === 0,
       errors: [...errors].sort(),
     };
