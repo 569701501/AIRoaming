@@ -36,6 +36,7 @@ source: task execution
 - [x] `IMP-M4-20/21` 固化 decisions artifact 三方绑定：缺少显式 artifact 或 artifact digest 与 run 不一致时，`db:verify` fail-closed。
 - [x] `IMP-M4-22` 固化 decisions artifact 的 sourceManifestDigest 必须绑定本次 sealed snapshot。
 - [x] `IMP-M4-23/24/25` 固化 `--import-report` artifact：报告缺失、非法或 canonical reportDigest 与 MigrationRun 不一致时 `db:verify` fail-closed；full shadow 保留成功 slice 报告供逐片验证。
+- [x] `IMP-M4-26/27` 补做真实 `db:verify` CLI 成功路径与缺少 `--import-report` 的入口 fail-fast，确认成功输出文件与 slice report artifact 绑定且缺参不启动 Prisma。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
@@ -52,7 +53,7 @@ source: task execution
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-API-01' --testTimeout=120000`：1 项通过；移走旧 workspace 后 DB 重启仍能读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致、ready Asset sha256/bytes 与旧物理文件一致，DB 草稿写入不重建旧工作区。
 - `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts --run --testTimeout=120000`：37 个迁移集成测试通过；包含 DB-only 断根重启、未知 entityType、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数超额和 full 16-slice 逐片计数校验 fail-fast。
 - `IMP-M4-04`～`IMP-M4-06` 定向测试：3 项通过；覆盖注册类型摘要篡改、runtime 非 `runtime-bundle.json` 锚点和单文件实体错误 storage key。
-- `pnpm --filter @airoaming/server test -- --pool=forks --poolOptions.forks.singleFork=true --reporter=dot`：待本轮全量回归确认；定向迁移集成已为 52 项通过，新增报告 artifact 缺失/非法/摘要不一致门禁。
+- 定向迁移集成：54/54 通过；新增报告 artifact 缺失/非法/摘要不一致及真实 CLI 成功/缺参门禁。全量 server 回归将在本轮最终提交前重跑。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `pnpm --filter @airoaming/server exec tsx src/migration/db-verify.cli.ts ... --format text`：按契约 fail-fast，输出 `MIGRATION_VERIFY_ARGS_INVALID`；typecheck 与 server 全量回归仍通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。

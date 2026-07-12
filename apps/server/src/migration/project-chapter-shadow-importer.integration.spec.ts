@@ -1189,6 +1189,45 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_MISMATCH");
   }, 30_000);
 
+  it("IMP-M4-26 verifies a shadow run through the db:verify CLI with explicit artifacts", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const run = await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-m4-cli" });
+    const importReportPath = await writeImportReport(prepared.root!, "shadow-m4-cli.import-report.json", run.report);
+    const verificationPath = path.join(prepared.root!, "shadow-m4-cli.verification.json");
+    const databaseUrl = `file:${path.join(prepared.root!, "db.sqlite")}`;
+    await prisma!.onModuleDestroy();
+    prisma = null;
+    const { stdout } = await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+      "src/migration/db-verify.cli.ts",
+      "--snapshot", snapshot.outputPath,
+      "--decisions", decisionsPath,
+      "--import-report", importReportPath,
+      "--database-url", databaseUrl,
+      "--run-id", run.run.id,
+      "--report", verificationPath,
+      "--workspace-root", repoRoot,
+      "--format", "json",
+    ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: databaseUrl } });
+    expect(JSON.parse(stdout)).toMatchObject({ code: "MIGRATION_VERIFY_OK", runId: run.run.id, passed: true });
+    expect(JSON.parse(await readFile(verificationPath, "utf8"))).toMatchObject({ passed: true, checks: { reportArtifactPresent: true, reportArtifactValid: true, reportArtifactMatch: true } });
+  }, 30_000);
+
+  it("IMP-M4-27 rejects missing --import-report before db:verify starts Prisma", async () => {
+    const databaseUrl = `file:${path.join(os.tmpdir(), "airoaming-m4-cli-arg-check.sqlite")}`;
+    await expect(execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+      "src/migration/db-verify.cli.ts",
+      "--snapshot", "/tmp/missing-snapshot",
+      "--decisions", "/tmp/missing-decisions",
+      "--database-url", databaseUrl,
+      "--run-id", "missing-run",
+      "--report", "/tmp/missing-report",
+      "--workspace-root", repoRoot,
+      "--format", "json",
+    ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env } })).rejects.toMatchObject({ stderr: expect.stringContaining("MIGRATION_VERIFY_ARGS_INVALID") });
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

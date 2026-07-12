@@ -40,6 +40,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 20. `IMP-M4-18/19`：succeeded shadow 缺少 `decisionsDigest` 或 report digest 格式非法均被拒绝。
 21. `IMP-M4-20/21/22`：`db:verify` 缺少 decisions artifact，或 artifact source/digest 与 run 不一致，均被拒绝。
 22. `IMP-M4-23/24/25`：`db:verify` 缺少 `--import-report`、报告 artifact 非法或其 canonical digest 与 run 不一致，均被拒绝；full shadow 逐片验证使用每个 slice 保留的报告对象。
+23. `IMP-M4-26/27`：真实 `db:verify` CLI 在临时 SQLite 上成功输出并写入验证报告；缺少 `--import-report` 时在 Prisma 初始化前稳定失败。
 
 ## 读取点审计边界
 

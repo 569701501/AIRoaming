@@ -29,6 +29,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - succeeded shadow 还必须带规范 `decisionsDigest`，并拒绝非规范 `reportDigest`；`IMP-M4-18/19` 已覆盖 `MIGRATION_DECISIONS_DIGEST_MISSING` 与 `MIGRATION_REPORT_DIGEST_INVALID`。
 - `db:verify` 现在还要求显式 decisions artifact 与 sealed source/run digest 三方一致；`IMP-M4-20/21/22` 已覆盖缺失 artifact、digest 不一致和 source 不一致，不改变 release identity 或 schema/migration/trigger。
 - `db:verify` 现在还要求显式 `--import-report` artifact；报告 codec 会重算 canonical reportDigest 并与 MigrationRun.reportDigest 绑定，`IMP-M4-23/24/25` 已覆盖缺失、非法和摘要不一致，不改变 release identity 或 schema/migration/trigger。
+- `IMP-M4-26/27` 已补做真实 `db:verify` CLI 成功路径与缺少 `--import-report` 的入口 fail-fast，确认 CLI 输出文件与 slice report artifact 绑定且缺参不启动 Prisma。
 
 ## 明确未完成
 
