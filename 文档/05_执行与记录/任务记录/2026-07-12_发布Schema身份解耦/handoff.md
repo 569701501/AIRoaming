@@ -32,6 +32,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - `IMP-M4-26/27` 已补做真实 `db:verify` CLI 成功路径与缺少 `--import-report` 的入口 fail-fast，确认 CLI 输出文件与 slice report artifact 绑定且缺参不启动 Prisma。
 - `IMP-M4-28` 已补做真实 `db:import --kind shadow --slice full` CLI 临时 SQLite 回归，确认聚合报告、16 个 slice 顺序、16 条 MigrationRun 和成功退出码均符合契约。
 - `IMP-M4-29` 已补做 full CLI blocked prerequisite 回归：返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
+- `IMP-M4-30` 已补做 `db:import --kind final` 真实入口回归：在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
 
 ## 明确未完成
 

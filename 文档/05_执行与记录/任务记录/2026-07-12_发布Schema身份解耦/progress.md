@@ -64,3 +64,4 @@ source: task_plan.md
 - 本轮补齐 decisions artifact sourceManifestDigest 绑定；IMP-M4-22 与 49 项迁移集成测试通过，server 全量 47 文件/294 tests、typecheck、G1 三项、Prisma validate、`git diff --check` 均通过，M4 继续保持 `in_progress`。
 - 本轮继续补齐 report artifact：`db:verify` 要求显式 `--import-report`，报告 codec 重算 canonical reportDigest 并与 run 绑定；新增 IMP-M4-23/24/25，定向迁移集成 52 项通过。M4 仍保持 `in_progress`，待全量回归与提交。
 - 本轮补做 `IMP-M4-26/27`：真实 `db:verify` CLI 成功路径与缺少 `--import-report` 的入口 fail-fast 均通过；定向迁移集成增至 54 项，M4 仍保持 `in_progress`。
+- 本轮补做 `IMP-M4-28/29/30`：真实 full shadow CLI 成功/blocked 路径和 `--kind final` fail-closed 路径均通过；迁移集成 57/57、server 全量 47 文件/302 tests、workspace typecheck、G1 三项、Prisma validate、`git diff --check` 均通过。代码提交 `bd5ca13`，M4 仍保持 `in_progress`。

@@ -43,6 +43,7 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 23. `IMP-M4-26/27`：真实 `db:verify` CLI 在临时 SQLite 上成功输出并写入验证报告；缺少 `--import-report` 时在 Prisma 初始化前稳定失败。
 24. `IMP-M4-28`：真实 `db:import --kind shadow --slice full` CLI 在临时 SQLite 上返回 `MIGRATION_IMPORT_OK`，聚合报告含 16 个有序成功 slice，并创建 16 条独立 MigrationRun。
 25. `IMP-M4-29`：full CLI 在未决议四格输入上返回 `MIGRATION_IMPORT_BLOCKED`/退出码 2，报告只含首个 blocked slice，数据库只保留首个 run。
+26. `IMP-M4-30`：`db:import --kind final` 真实入口在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，没有 stdout 或数据库副作用。
 
 ## 读取点审计边界
 

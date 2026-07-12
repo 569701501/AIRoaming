@@ -44,6 +44,7 @@ source: code exploration and tests
 - 进一步补做真实 CLI 入口审计：`IMP-M4-26` 在临时 SQLite 上执行 `db:verify.cli.ts`，确认显式 `--decisions`、`--import-report`、`--report` 的成功输出与写入文件一致；`IMP-M4-27` 缺少 `--import-report` 时在 Prisma 初始化前返回 `MIGRATION_VERIFY_ARGS_INVALID`，没有数据库副作用。
 - 继续审计发现 full importer 只有 service 级回归，没有公开 `db:import --kind shadow --slice full` CLI 回归；新增 `IMP-M4-28`，在临时 SQLite 上确认 `MIGRATION_IMPORT_OK`、规范聚合报告、16 个有序 slice 和 16 条独立 MigrationRun。
 - 继续补齐公开 CLI 失败契约：新增 `IMP-M4-29`，四格未决议输入在临时 SQLite 上返回 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不产生下游空 run。
+- 继续审计 final 入口发现生产分支虽已 fail-closed，但缺少真实 CLI 回归；新增 `IMP-M4-30`，确认 `db:import --kind final` 在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。代码提交为 `bd5ca13`，M4 仍保持 `in_progress`。
 
 # M4 结论
 
