@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { MigrationAuditService } from "./migration-audit.service.js";
+import { MigrationLedger } from "./migration-ledger.js";
 import { SnapshotService } from "./snapshot.service.js";
 
 async function fixture() {
@@ -39,6 +40,15 @@ describe("G3-M3-A0 snapshot audit", () => {
     const fixtureValue = await fixture();
     await writeFile(path.join(fixtureValue.outputPath, "payload", "projects", "p1", "project.json"), '{"id":"p1","comicFormat":"paged_comic"}\n');
     await expect(new MigrationAuditService().auditComicFormats(fixtureValue.outputPath)).rejects.toMatchObject({ code: "MIGRATION_SOURCE_DIGEST_MISMATCH" });
+  });
+
+  it("AUDIT-04 records a failed run when a post-run-start source check fails", async () => {
+    const fixtureValue = await fixture();
+    await writeFile(path.join(fixtureValue.outputPath, "payload", "projects", "p1", "project.json"), '{"id":"p1","comicFormat":"paged_comic"}\n');
+    const ledger = new MigrationLedger();
+    await expect(new MigrationAuditService().auditComicFormats(fixtureValue.outputPath, ledger, { runId: "audit-failed" })).rejects.toMatchObject({ code: "MIGRATION_SOURCE_DIGEST_MISMATCH" });
+    expect(ledger.getRun("audit-failed").status).toBe("failed");
+    expect(ledger.getRun("audit-failed").errorCode).toBe("MIGRATION_SOURCE_DIGEST_MISMATCH");
   });
 
   it("AUDIT-03 does not write a database or mutate snapshot files", async () => {

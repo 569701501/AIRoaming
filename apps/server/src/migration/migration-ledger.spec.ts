@@ -46,6 +46,7 @@ describe("G3-M3-A0 migration ledger", () => {
     const sourceKey = "workspace-v1:p1:Project:p1";
     const entityId = MigrationLedger.stableEntityId("Project", sourceKey);
     ledger.recordImportedEntitySource("run-source", { sourceKey, entityType: "Project", entityId, sourceDigest: SOURCE, provenanceStatus: "reference_only" });
+    expect(ledger.recordImportedEntitySource("run-source", { sourceKey, entityType: "Project", entityId, sourceDigest: SOURCE, provenanceStatus: "partial" }).provenanceStatus).toBe("partial");
     expect(ledger.recordImportedEntitySource("run-source", { sourceKey, entityType: "Project", entityId, sourceDigest: SOURCE, provenanceStatus: "complete" }).provenanceStatus).toBe("complete");
     expect(() => ledger.recordImportedEntitySource("run-source", { sourceKey, entityType: "Project", entityId, sourceDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" })).toThrowError("MIGRATION_SOURCE_CONFLICT");
   });

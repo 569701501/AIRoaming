@@ -63,6 +63,14 @@ export interface RecordImportedEntitySourceInput {
   provenanceStatus?: ProvenanceStatus;
 }
 
+export interface MigrationLedgerPort {
+  beginRun(input: BeginMigrationRunInput): Promise<MigrationRunRecord> | MigrationRunRecord;
+  recordIssue(issue: MigrationIssueRecord): Promise<MigrationIssueRecord> | MigrationIssueRecord;
+  resolveIssue(runId: string, issueKey: string, resolution: ComicFormatResolution, resolvedAt?: string): Promise<MigrationIssueRecord> | MigrationIssueRecord;
+  finishRun(runId: string, input: FinishMigrationRunInput): Promise<MigrationRunRecord> | MigrationRunRecord;
+  listIssues(runId: string): Promise<MigrationIssueRecord[]> | MigrationIssueRecord[];
+}
+
 export class MigrationLedgerError extends Error {
   constructor(readonly code: string) {
     super(code);
@@ -88,7 +96,7 @@ function cloneSource(source: ImportedEntitySourceRecord): ImportedEntitySourceRe
  * M3-A0 的纯账本实现。它模拟 Prisma 约束，先把状态机和冲突语义固定下来，
  * 后续数据库 repository 必须保持同一组错误码和单调规则。
  */
-export class MigrationLedger {
+export class MigrationLedger implements MigrationLedgerPort {
   private readonly runs = new Map<string, MigrationRunRecord>();
   private readonly issues = new Map<string, MigrationIssueRecord>();
   private readonly sources = new Map<string, ImportedEntitySourceRecord>();
@@ -191,6 +199,9 @@ export class MigrationLedger {
     if (input.sourceStorageKey !== undefined && current.sourceStorageKey !== (input.sourceStorageKey ?? null)) throw new MigrationLedgerError("MIGRATION_SOURCE_CONFLICT");
     if (input.payloadDigest !== undefined && current.payloadDigest !== (input.payloadDigest ?? null)) throw new MigrationLedgerError("MIGRATION_PAYLOAD_CONFLICT");
     if (PROVENANCE_RANK[requested] < PROVENANCE_RANK[current.provenanceStatus]) throw new MigrationLedgerError("MIGRATION_PROVENANCE_REGRESSION");
+    if (PROVENANCE_RANK[requested] > PROVENANCE_RANK[current.provenanceStatus] + 1) throw new MigrationLedgerError("MIGRATION_PROVENANCE_STEP_REQUIRED");
+    const payloadUpgrade = current.payloadDigest === null && input.payloadDigest !== undefined && input.payloadDigest !== null;
+    if (requested === current.provenanceStatus && !payloadUpgrade) return cloneSource(current);
     current.provenanceStatus = requested;
     current.lastRunId = runId;
     return cloneSource(current);

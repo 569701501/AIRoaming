@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { digestMaintenanceJson } from "../maintenance/canonical-json.js";
 import { mapLegacyComicFormat } from "./comic-format-migration.plugin.js";
 import { buildComicFormatIssue } from "./migration-issue.js";
-import { MigrationLedger, type MigrationRunRecord } from "./migration-ledger.js";
+import { MigrationLedger, type MigrationLedgerPort, type MigrationRunRecord } from "./migration-ledger.js";
 import { createComicFormatReport, type ComicFormatReport, type ComicFormatReportProject } from "./migration-report.js";
 import type { SealedSnapshot, SnapshotDigest, SnapshotManifest } from "./snapshot.types.js";
 
@@ -73,7 +73,7 @@ function assertManifest(value: unknown): SnapshotManifest {
 
 /** 只读 sealed snapshot 的项目元数据，建立 M3-A0 审计账本，不触碰业务数据库。 */
 export class MigrationAuditService {
-  async auditComicFormats(snapshotPath: string, ledger = new MigrationLedger(), options: { runId?: string; startedAt?: string } = {}): Promise<ComicFormatAuditResult> {
+  async auditComicFormats(snapshotPath: string, ledger: MigrationLedgerPort = new MigrationLedger(), options: { runId?: string; startedAt?: string; importerVersion?: string } = {}): Promise<ComicFormatAuditResult> {
     if (!isAbsolute(snapshotPath)) throw new MigrationAuditError("MIGRATION_SNAPSHOT_PATH_INVALID");
     const root = path.resolve(snapshotPath);
     const sealed = assertSealed(await readJson(path.join(root, "SEALED"), "MIGRATION_SNAPSHOT_NOT_SEALED"));
@@ -82,51 +82,57 @@ export class MigrationAuditService {
     if (sourceManifest.manifestDigest !== sealed.sourceManifestDigest) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
     if (snapshotManifest.manifestDigest !== sealed.snapshotManifestDigest) throw new MigrationAuditError("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
 
-    const run = ledger.beginRun({
+    const run = await ledger.beginRun({
       kind: "audit",
-      importerVersion: "g3-m3-a0",
+      importerVersion: options.importerVersion ?? "g3-m3-a0",
       sourceManifestDigest: sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshotManifest.manifestDigest,
       id: options.runId,
       startedAt: options.startedAt,
     });
-    const projects: ComicFormatReportProject[] = [];
-    const projectItems = sourceManifest.items
-      .filter((item) => /^projects\/[^/]+\/project\.json$/.test(item.storageKey))
-      .sort((left, right) => left.storageKey.localeCompare(right.storageKey));
+    try {
+      const projects: ComicFormatReportProject[] = [];
+      const projectItems = sourceManifest.items
+        .filter((item) => /^projects\/[^/]+\/project\.json$/.test(item.storageKey))
+        .sort((left, right) => left.storageKey.localeCompare(right.storageKey));
 
-    for (const item of projectItems) {
-      const projectId = item.storageKey.split("/")[1];
-      const payloadPath = path.join(root, "payload", ...item.storageKey.split("/"));
-      await assertRegularFile(payloadPath, "MIGRATION_SOURCE_PROJECT_NOT_FOUND");
-      const bytes = await readFile(payloadPath);
-      if (sha256(bytes) !== item.sha256) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
-      const metadata = parseObject(await readJson(payloadPath, "MIGRATION_SOURCE_PROJECT_INVALID"), "MIGRATION_SOURCE_PROJECT_INVALID");
-      const mapping = mapLegacyComicFormat(metadata.comicFormat);
-      const issue = buildComicFormatIssue({ runId: run.id, projectId, sourceStorageKey: item.storageKey, sourceDigest: item.sha256, mapping, createdAt: run.startedAt });
-      if (issue) ledger.recordIssue(issue);
-      projects.push({
-        projectId,
-        sourceStorageKey: item.storageKey,
-        sourceDigest: item.sha256,
-        originalComicFormat: { kind: mapping.originalValueKind, preview: mapping.originalValuePreview },
-        mappingKind: mapping.mappingKind,
-        targetComicFormat: mapping.targetComicFormat,
-        layoutPresetIntent: mapping.layoutPresetIntent,
-        issueKey: issue?.issueKey ?? null,
-        resolutionStatus: issue ? "open" : "not_needed",
-        importStatus: issue ? "blocked" : "not_started",
+      for (const item of projectItems) {
+        const projectId = item.storageKey.split("/")[1];
+        const payloadPath = path.join(root, "payload", ...item.storageKey.split("/"));
+        await assertRegularFile(payloadPath, "MIGRATION_SOURCE_PROJECT_NOT_FOUND");
+        const bytes = await readFile(payloadPath);
+        if (sha256(bytes) !== item.sha256) throw new MigrationAuditError("MIGRATION_SOURCE_DIGEST_MISMATCH");
+        const metadata = parseObject(await readJson(payloadPath, "MIGRATION_SOURCE_PROJECT_INVALID"), "MIGRATION_SOURCE_PROJECT_INVALID");
+        const mapping = mapLegacyComicFormat(metadata.comicFormat);
+        const issue = buildComicFormatIssue({ runId: run.id, projectId, sourceStorageKey: item.storageKey, sourceDigest: item.sha256, mapping, createdAt: run.startedAt });
+        if (issue) await ledger.recordIssue(issue);
+        projects.push({
+          projectId,
+          sourceStorageKey: item.storageKey,
+          sourceDigest: item.sha256,
+          originalComicFormat: { kind: mapping.originalValueKind, preview: mapping.originalValuePreview },
+          mappingKind: mapping.mappingKind,
+          targetComicFormat: mapping.targetComicFormat,
+          layoutPresetIntent: mapping.layoutPresetIntent,
+          issueKey: issue?.issueKey ?? null,
+          resolutionStatus: issue ? "open" : "not_needed",
+          importStatus: issue ? "blocked" : "not_started",
+        });
+      }
+
+      const report = createComicFormatReport(projects);
+      const finished = await ledger.finishRun(run.id, {
+        status: report.summary.unresolvedBlockerCount > 0 ? "blocked" : "succeeded",
+        reportDigest: report.reportDigest,
+        counts: report.summary,
+        verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true, projectFilesVerified: true },
+        finishedAt: new Date().toISOString(),
       });
+      return { run: finished, report, issues: await ledger.listIssues(run.id), sourceManifestDigest: sourceManifest.manifestDigest, snapshotManifestDigest: snapshotManifest.manifestDigest };
+    } catch (error) {
+      const code = error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_AUDIT_FAILED";
+      try { await ledger.finishRun(run.id, { status: "failed", errorCode: code, finishedAt: new Date().toISOString() }); } catch { /* preserve the original audit failure */ }
+      throw error;
     }
-
-    const report = createComicFormatReport(projects);
-    const finished = ledger.finishRun(run.id, {
-      status: report.summary.unresolvedBlockerCount > 0 ? "blocked" : "succeeded",
-      reportDigest: report.reportDigest,
-      counts: report.summary,
-      verification: { schemaVersion: 1, sourceManifestVerified: true, snapshotManifestVerified: true, projectFilesVerified: true },
-      finishedAt: run.startedAt,
-    });
-    return { run: finished, report, issues: ledger.listIssues(run.id), sourceManifestDigest: sourceManifest.manifestDigest, snapshotManifestDigest: snapshotManifest.manifestDigest };
   }
 }

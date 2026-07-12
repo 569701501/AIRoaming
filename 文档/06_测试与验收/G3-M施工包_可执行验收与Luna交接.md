@@ -20,7 +20,8 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 | G3-M0 maintenance | implemented，commit `e2caa13` |
 | G3-M1 snapshot/runtime bundle | implemented，commit `131fbc2` |
 | G3-M2 decision codec | implemented，commit `317e65a` |
-| G3-M3-A0 audit ledger | implemented，commit 待补入；仅纯内存账本 + sealed snapshot 审计 |
+| G3-M3-A0 audit ledger | implemented，commit `830554f`；纯内存账本 + sealed snapshot 审计 |
+| G3-M3-A1 database audit | implemented，当前工作区待提交；Prisma ledger + `db:audit`，不导入业务实体 |
 | G3-M3 full importer | not_implemented |
 | G3-M4 verifier/shadow | not_implemented |
 | G3-M5 backup/restore | not_implemented |
@@ -99,7 +100,9 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 ### G3-M3
 
 - M3-A0 已完成：`migration-ledger.ts` 固化 run/issue/source 状态语义；`migration-audit.service.ts` 验证 sealed snapshot 并生成 comicFormat report；定向 7 项、全量 230 项测试通过。
+- M3-A1 已完成：`prisma-migration-ledger.repository.ts` 接入 fresh SQLite，`db:audit` 持久化 audit run/issue/source；数据库集成 RUN-DB-01～03、AUDIT-DB-01 和全量 235 项测试通过。
 - M3-A0 明确不是 full importer：账本仍是纯内存实现，不接 Prisma，不创建 Project/Chapter，不提供 `db-audit --database-url`、`db-import` 或 `db-verify`。
+- M3-A1 已接 Prisma，但仍不是 full importer：`db:audit` 只审计并写 MigrationRun/MigrationIssue，不创建 Project/Chapter，不消费 decisions artifact。
 - G1 IMP-01～20 与 G3 MIG-01～15 全绿。
 - 两个 fresh DB entity ID/reportDigest 一致；同库 replay 零新增；全量实体/指针，不只 comicFormat。
 
