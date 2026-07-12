@@ -14,6 +14,8 @@ export const G1_RUNTIME_MIGRATION_NAMES = [
   "0008_sqlite_checks_triggers_indexes",
 ] as const;
 
+const OPTIONAL_G2_OVERLAY_MIGRATION_NAME = "0009_g2_version_freshness_overlay";
+
 export interface G1RuntimeMigrationExpectationV1 {
   readonly migrationName: (typeof G1_RUNTIME_MIGRATION_NAMES)[number];
   readonly checksum: string;
@@ -89,8 +91,11 @@ export async function loadG1RuntimeMigrationExpectationsV1(
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
     fail("ARTIFACT_TREE_INVALID", migrationRoot);
   }
+  const g1RootEntries = rootEntries
+    .map((entry) => entry.name)
+    .filter((entry) => entry !== "0009_g2_version_freshness_overlay");
   assertExactNames(
-    rootEntries.map((entry) => entry.name),
+    g1RootEntries,
     ["migration_lock.toml", ...G1_RUNTIME_MIGRATION_NAMES],
     "ARTIFACT_TREE_ENTRIES",
   );
@@ -156,6 +161,7 @@ export function assertG1RuntimeMigrationLedgerV1(
       fail("LEDGER_DUPLICATE_NAME", row.migration_name);
     }
     if (!expectedByName.has(row.migration_name as G1RuntimeMigrationExpectationV1["migrationName"])) {
+      if (row.migration_name === OPTIONAL_G2_OVERLAY_MIGRATION_NAME) continue;
       fail("LEDGER_UNEXPECTED", row.migration_name);
     }
     rowsByName.set(row.migration_name, row);
@@ -179,8 +185,9 @@ export function assertG1RuntimeMigrationLedgerV1(
       fail("LEDGER_FAILED", entry.migrationName);
     }
   }
-  if (rows.length !== expected.length) {
-    fail("LEDGER_COUNT_MISMATCH", `${rows.length}:${expected.length}`);
+  const g1Rows = rows.filter((row) => row.migration_name !== OPTIONAL_G2_OVERLAY_MIGRATION_NAME);
+  if (g1Rows.length !== expected.length) {
+    fail("LEDGER_COUNT_MISMATCH", `${g1Rows.length}:${expected.length}`);
   }
 }
 

@@ -630,8 +630,6 @@ export class ProjectRepository {
       .sort((left, right) => left.order - right.order)
       .map((chapter): LocalChapter => {
         if (
-          chapter.currentStoryVersionId !== null ||
-          chapter.pendingStoryVersionId !== null ||
           chapter.currentStoryboardVersionId !== null ||
           chapter.pendingStoryboardVersionId !== null ||
           chapter.currentPreflightRevisionId !== null ||

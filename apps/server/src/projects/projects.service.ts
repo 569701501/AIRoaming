@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional, type OnModuleInit } from "@nestjs/common";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import * as wsJson from "./workspace-json.util.js";
 import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
@@ -124,6 +124,7 @@ import {
 } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
+import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import {
@@ -206,6 +207,7 @@ export class ProjectsService implements OnModuleInit {
     @Inject(ImageCandidateService) private readonly imageCandidate: ImageCandidateService,
     @Inject(LayoutExportService) private readonly layoutExport: LayoutExportService,
     @Inject(AssetPackageService) private readonly assetPackage: AssetPackageService,
+    @Optional() @Inject(PersistentG2TaskCreateGuardService) private readonly g2TaskCreateGuard?: PersistentG2TaskCreateGuardService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -522,6 +524,10 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private async guardGenerationTaskCreate(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest | void> {
+    if (this.repository.isDatabaseMode()) {
+      if (!this.g2TaskCreateGuard) throw new BadRequestException("G2_TASK_CREATE_GUARD_UNAVAILABLE");
+      return this.g2TaskCreateGuard.prepare(input);
+    }
     this.repository.assertDatabaseOperationSupported("generation_task_create");
     if (!imageCandidateTaskTypes.has(input.type)) {
       return;

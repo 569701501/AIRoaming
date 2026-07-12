@@ -16,13 +16,42 @@ import type {
   UpdateChapterStoryboardRequest,
   UpdateChapterStoryStructureRequest,
   UpdateProjectDraftRequest,
+  ScriptHistoryCopyRequest,
+  ScriptPendingAdoptRequest,
+  ScriptPendingDiscardRequest,
+  ScriptPublishRequest,
+  ScriptWorkingCopyClearRequest,
+  ScriptWorkingCopyRevertRequest,
+  ScriptWorkingCopyUpdateRequest,
+  ConfirmStoryWorkingCopyRequest,
+  CreateStoryWorkingCopyRequest,
+  DiscardStoryWorkingCopyRequest,
+  UpdateStoryWorkingCopyRequest,
+  ConfirmStoryboardWorkingCopyRequest,
+  CreatePendingShotRequest,
+  CreateStoryboardWorkingCopyRequest,
+  DiscardStoryboardWorkingCopyRequest,
+  UpdateStoryboardWorkingCopyRequest,
+  ConfirmChapterPreflightRequest,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
+import { ScriptVersionService } from "./versioning/script-version.service.js";
+import { StoryVersionService } from "./versioning/story-version.service.js";
+import { StoryboardVersionService } from "./versioning/storyboard-version.service.js";
+import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
+import { PreflightRevisionService } from "./versioning/preflight-revision.service.js";
 
 @Controller("projects")
 export class ProjectsController {
-  constructor(@Inject(ProjectsService) private readonly projectsService: ProjectsService) {}
+  constructor(
+    @Inject(ProjectsService) private readonly projectsService: ProjectsService,
+    @Inject(ScriptVersionService) private readonly scriptVersionService: ScriptVersionService,
+    @Inject(StoryVersionService) private readonly storyVersionService: StoryVersionService,
+    @Inject(StoryboardVersionService) private readonly storyboardVersionService: StoryboardVersionService,
+    @Inject(ChapterProductionQueryService) private readonly chapterProductionQueryService: ChapterProductionQueryService,
+    @Inject(PreflightRevisionService) private readonly preflightRevisionService: PreflightRevisionService,
+  ) {}
 
   @Get()
   async list() {
@@ -144,6 +173,208 @@ export class ProjectsController {
   @Post(":projectId/chapters/:chapterId/script/clear")
   async clearChapterScript(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
     return ok(await this.projectsService.clearChapterScript(projectId, chapterId));
+  }
+
+  @Get(":projectId/chapters/:chapterId/script/working-copy")
+  async getScriptWorkingCopy(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.scriptVersionService.getWorkingCopy({ projectId, chapterId }));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/script/working-copy")
+  async updateScriptWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ScriptWorkingCopyUpdateRequest,
+  ) {
+    return ok(await this.scriptVersionService.updateWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/script/working-copy")
+  async clearScriptWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ScriptWorkingCopyClearRequest,
+  ) {
+    return ok(await this.scriptVersionService.clearWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/script/working-copy/revert")
+  async revertScriptWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ScriptWorkingCopyRevertRequest,
+  ) {
+    return ok(await this.scriptVersionService.revertWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/script/publish")
+  async publishScript(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ScriptPublishRequest,
+  ) {
+    return ok(await this.scriptVersionService.publish({ projectId, chapterId }, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/script/pending-suggestion")
+  async getScriptPendingSuggestion(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.scriptVersionService.getPendingSuggestion({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/script/pending-suggestion/adopt")
+  async adoptScriptPendingSuggestion(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ScriptPendingAdoptRequest,
+  ) {
+    return ok(await this.scriptVersionService.adoptPendingSuggestion({ projectId, chapterId }, body));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/script/pending-suggestion")
+  async discardScriptPendingSuggestion(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ScriptPendingDiscardRequest,
+  ) {
+    return ok(await this.scriptVersionService.discardPendingSuggestion({ projectId, chapterId }, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/script/versions")
+  async listScriptVersions(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Query("limit") limit?: string,
+    @Query("beforeVersion") beforeVersion?: string,
+  ) {
+    return ok(await this.scriptVersionService.listHistory({ projectId, chapterId }, {
+      limit: limit === undefined ? undefined : Number(limit),
+      beforeVersion: beforeVersion === undefined ? undefined : Number(beforeVersion),
+    }));
+  }
+
+  @Get(":projectId/chapters/:chapterId/script/versions/:versionId")
+  async getScriptVersion(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("versionId") versionId: string,
+  ) {
+    return ok(await this.scriptVersionService.getHistoryDetail({ projectId, chapterId }, versionId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/script/versions/:versionId/copy-to-working-copy")
+  async copyScriptVersionToWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("versionId") versionId: string,
+    @Body() body: ScriptHistoryCopyRequest,
+  ) {
+    return ok(await this.scriptVersionService.copyHistoryToWorkingCopy({ projectId, chapterId }, versionId, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/story-structure/working-copy")
+  async getStoryWorkingCopy(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.storyVersionService.getWorkingCopy({ projectId, chapterId }));
+  }
+
+  @Get(":projectId/chapters/:chapterId/production-state")
+  async getChapterProductionState(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.chapterProductionQueryService.get({ projectId, chapterId }));
+  }
+
+  @Get(":projectId/chapters/:chapterId/image-preflight/preview")
+  async getChapterPreflightPreview(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string, @Query("notes") notes?: string) {
+    return ok(await this.preflightRevisionService.getPreview({ projectId, chapterId }, notes));
+  }
+
+  @Post(":projectId/chapters/:chapterId/image-preflight/confirm")
+  async confirmChapterPreflight(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string, @Body() body: ConfirmChapterPreflightRequest) {
+    return ok(await this.preflightRevisionService.confirm({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/story-structure/working-copy")
+  async createStoryWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreateStoryWorkingCopyRequest,
+  ) {
+    return ok(await this.storyVersionService.createWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/story-structure/working-copy")
+  async updateStoryWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: UpdateStoryWorkingCopyRequest,
+  ) {
+    return ok(await this.storyVersionService.updateWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/story-structure/working-copy")
+  async discardStoryWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: DiscardStoryWorkingCopyRequest,
+  ) {
+    return ok(await this.storyVersionService.discardWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/story-structure/working-copy/confirm")
+  async confirmStoryWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ConfirmStoryWorkingCopyRequest,
+  ) {
+    return ok(await this.storyVersionService.confirmWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/storyboard/working-copy")
+  async getStoryboardWorkingCopy(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string) {
+    return ok(await this.storyboardVersionService.getWorkingCopy({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/storyboard/working-copy")
+  async createStoryboardWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreateStoryboardWorkingCopyRequest,
+  ) {
+    return ok(await this.storyboardVersionService.createWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Patch(":projectId/chapters/:chapterId/storyboard/working-copy")
+  async updateStoryboardWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: UpdateStoryboardWorkingCopyRequest,
+  ) {
+    return ok(await this.storyboardVersionService.updateWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/storyboard/working-copy")
+  async discardStoryboardWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: DiscardStoryboardWorkingCopyRequest,
+  ) {
+    return ok(await this.storyboardVersionService.discardWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/storyboard/working-copy/confirm")
+  async confirmStoryboardWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ConfirmStoryboardWorkingCopyRequest,
+  ) {
+    return ok(await this.storyboardVersionService.confirmWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/storyboard/working-copy/shots")
+  async createPendingStoryboardShot(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreatePendingShotRequest,
+  ) {
+    return ok(await this.storyboardVersionService.createPendingShot({ projectId, chapterId }, body));
   }
 
   @Patch(":projectId/chapters/:chapterId/draft")

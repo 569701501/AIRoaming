@@ -124,7 +124,7 @@ Repository 公共规则：
 | `projects.module.ts` | 注册 query/repository/deep modules；不新增第二个 ProjectsModule |
 | `projects.controller.ts` | 按 API 施工契约增加路由；旧路由兼容行为显式处理 |
 | `projects.service.ts` | 保持公共门面，委托新 command/query；不吸收事务 SQL |
-| `chapter-script.service.ts` | file mode 保留旧 adapter；db mode 委托 ScriptVersionRepository |
+| `chapter-script.service.ts` | file mode 保留旧 adapter；B1 先由 `ScriptVersionService -> ScriptVersionRepository` 承接新 DB-only API，旧 G1 路径待 capability switch 后再委托/关闭 |
 | `story-structure.service.ts` | db mode 委托 StoryVersionRepository；角色回填在 codec 前完成 |
 | `storyboard.service.ts` | db mode 委托 StoryboardVersionRepository；删除“编辑即清候选/布局”行为 |
 | `image-preflight.service.ts` | db mode 使用 SourceSnapshotBuilder/PreflightRepository |

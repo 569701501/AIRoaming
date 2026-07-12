@@ -49,7 +49,7 @@ export const PROJECT_WORKFLOW_STEP_KEYS = [
 ] as const;
 export type ProjectWorkflowStepKey = (typeof PROJECT_WORKFLOW_STEP_KEYS)[number];
 
-export const PROJECT_WORKFLOW_STEP_STATUSES = ["done", "active", "waiting", "blocked"] as const;
+export const PROJECT_WORKFLOW_STEP_STATUSES = ["done", "active", "waiting", "blocked", "needs_confirmation", "needs_update"] as const;
 export type ProjectWorkflowStepStatus = (typeof PROJECT_WORKFLOW_STEP_STATUSES)[number];
 
 export const PROJECT_WORKFLOW_SCOPES = ["chapter", "project"] as const;

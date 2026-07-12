@@ -8,13 +8,13 @@ export class TasksController {
   constructor(@Inject(TasksService) private readonly tasksService: TasksService) {}
 
   @Get()
-  list() {
-    return ok({ items: this.tasksService.list() });
+  async list() {
+    return ok({ items: await this.tasksService.listForApi() });
   }
 
   @Get(":taskId")
-  detail(@Param("taskId") taskId: string) {
-    return ok({ task: this.tasksService.get(taskId) });
+  async detail(@Param("taskId") taskId: string) {
+    return ok(await this.tasksService.getDetailForApi(taskId));
   }
 
   @Post()
@@ -23,7 +23,7 @@ export class TasksController {
   }
 
   @Post(":taskId/cancel")
-  cancel(@Param("taskId") taskId: string) {
-    return ok({ task: this.tasksService.cancel(taskId) });
+  async cancel(@Param("taskId") taskId: string) {
+    return ok({ task: await this.tasksService.cancelForApi(taskId) });
   }
 }

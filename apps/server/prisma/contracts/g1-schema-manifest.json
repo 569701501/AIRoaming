@@ -44,7 +44,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-schema-check-dsl.ts",
-      "digest": "sha256:f30d6f8cd2c563b9ce27395081b41176e0f5653bea9331057f2e796dfd8fb556",
+      "digest": "sha256:d5bd44ad1080b3b5ad44fcd96f5e8e68085de2c6269e0e0783d30107d1042932",
       "sections": [
         "5.1-11.6",
         "12.2",
@@ -109,7 +109,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-migration-plan.ts",
-      "digest": "sha256:687c210251726d585e90bcfcfd4f992db5861630b5ecf2624e165ecb7cfd931b",
+      "digest": "sha256:514cdb742978f6ea77236812de8e2f02314b3947f95bbc716094ccaa37900a36",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -15940,7 +15940,7 @@
         "ownerStage": "G1",
         "table": "chapters",
         "name": "ck_chapters_working_consistency",
-        "normalizedExpression": "(script_working_state = 'empty' AND script_working_text = '') OR (script_working_state IN ('clean', 'dirty') AND length(script_working_text) > 0)",
+        "normalizedExpression": "(script_working_state = 'empty' AND script_working_text = '') OR (script_working_state = 'dirty' AND current_script_version_id IS NOT NULL AND script_working_text = '') OR (script_working_state IN ('clean', 'dirty') AND length(script_working_text) > 0)",
         "sourceSection": "6.3,12.2"
       },
       {
@@ -21767,7 +21767,7 @@
       {
         "id": "check-gap-v1",
         "sourceDocument": "apps/server/src/persistence/g1-schema-check-dsl.ts",
-        "sourceDigest": "sha256:f30d6f8cd2c563b9ce27395081b41176e0f5653bea9331057f2e796dfd8fb556",
+        "sourceDigest": "sha256:d5bd44ad1080b3b5ad44fcd96f5e8e68085de2c6269e0e0783d30107d1042932",
         "sourceSections": [
           "5.1-11.6",
           "12.2",
@@ -22061,10 +22061,10 @@
             "templateId": "explicit-state-shape-v1",
             "templateVersion": 1,
             "args": {
-              "expression": "(script_working_state = 'empty' AND script_working_text = '') OR (script_working_state IN ('clean', 'dirty') AND length(script_working_text) > 0)"
+              "expression": "(script_working_state = 'empty' AND script_working_text = '') OR (script_working_state = 'dirty' AND current_script_version_id IS NOT NULL AND script_working_text = '') OR (script_working_state IN ('clean', 'dirty') AND length(script_working_text) > 0)"
             },
             "sourceSection": "6.3,12.2",
-            "decisionNotes": "Minimum strong local CHECK: empty/nonempty working-state semantics are provable from this row. Equality to currentScriptVersion is cross-row and remains owned by pointer/repository guards, so this CHECK does not invent a current pointer requirement."
+            "decisionNotes": "Minimum strong local CHECK: empty/nonempty working-state semantics are provable from this row, including a cleared working copy over an existing current ScriptVersion. Equality to currentScriptVersion digest remains cross-row and is owned by pointer/repository guards."
           },
           {
             "name": "ck_conversation_messages_error_pair",
@@ -28953,5 +28953,5 @@
     "issueCount": 0,
     "issues": []
   },
-  "manifestDigest": "sha256:da0d4733afd6291623396144ff51ae40bd00c4b3aa394916d75c2e798012ab6a"
+  "manifestDigest": "sha256:3d843e2a77b9a1acc44f4e49430a40514df92b10defe4143dc52aaaf1514a036"
 }

@@ -14,6 +14,7 @@ import type {
   ProjectStatus,
   ProjectType,
 } from "./domain.js";
+import type { ArtifactFreshness, FreshnessReasonCode } from "./versioning/production-state.js";
 
 export interface ApiEnvelope<T> {
   success: true;
@@ -1019,6 +1020,14 @@ export interface ProjectWorkflowStep {
   evidence: string;
   scope: ProjectWorkflowScope;
   completionCriteria: string[];
+  /** G2 server projection fields; omitted by legacy file-mode workflow. */
+  milestoneReached?: boolean;
+  currentArtifactId?: string | null;
+  freshness?: ArtifactFreshness | null;
+  attention?: "needs_confirmation" | "source_updated" | "blocked" | null;
+  canStartTask?: boolean;
+  historyAvailable?: boolean;
+  reasonCodes?: FreshnessReasonCode[];
 }
 
 export interface ProjectWorkflow {

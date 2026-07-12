@@ -36,7 +36,7 @@ G2 完成后，用户看到的是三个简单结果语言：
 - **来源已更新：** 上游新版本已经生效，本步骤需要基于新来源更新。
 - **历史版本：** 旧版本和旧导出仍可查看，但不再代表当前制作链。
 
-本方案已获用户确认并由 ADR-0013 采纳。2026-07-12 的正式 migration tree 与 C3 Project/Chapter/Script 最小 DB substrate 已满足 G2 开发起点；G2 主体尚未实现，完成仍须本方案自己的发布事务、rowVersion/CAS、并发、隔离与 freshness 证据。允许开始 G2 开发不代表 G1 全量完成或 production DB-only cutover。
+本方案已获用户确认并由 ADR-0013 采纳。2026-07-12 的正式 migration tree 与 C3 Project/Chapter/Script 最小 DB substrate 已满足 G2 开发起点；`G2-A0` 已完成 Shared 侧 canonical JSON/SHA-256、四类 strict codec、SourceSnapshot、Stable Shot ID 和 Freshness/ProductionState 纯函数及单元测试；`G2-A1` 已完成 0009 overlay、direct contract、G2 九行 ledger helper、事务重试/错误映射/Chapter query substrate；`G2-B1` 已完成 Script Working Copy/Version 的 DB repository、CAS/幂等、publish/clear/revert、pending adopt/discard、history 和 DB API facade；`G2-C1` 已完成 Story pending create/update/discard/confirm、V2 codec/source gate、projection、CAS/replay 和 DB API facade；`G2-D1` 已完成 Storyboard pending CRUD、stable Shot requestId replay、projection、confirm/retire 和 DB API facade；`G2-E1` 已完成 ProductionState/Workflow 查询、reasonCodes 和四类 NewWorkGate；`G2-E2` 已完成 Preflight preview、SourceSnapshot 聚合、不可变 revision confirm/replay 和 stale 派生；`G2-F1` 已完成无副作用 TaskApplicabilityGuard。G2-F 其余任务 runtime 仍未实现，G2 总体完成仍须持久 worker、claim/lease/recovery、history、并发、隔离与 freshness 证据。允许开始 G2 开发不代表 G1 全量完成或 production DB-only cutover。
 
 2026-07-12 已补充五份正式施工资料，冻结依赖门禁、`0009` overlay、文件/事务 seam、完整 API/幂等和可执行测试计划。实施时不能只读本主方案后自由补细节；必须同时读取第 17 节列出的施工包，并按 `G2-A0/A1/B/C1/D1/E/F` 小切片交付。
 

@@ -1072,8 +1072,10 @@ export async function assertG1MigrationArtifactTreeV1(
   );
   const expectedRootEntries = ["migration_lock.toml", ...G1_MIGRATION_NAMES].sort();
   const rootEntries = (await readdir(outputRoot)).sort();
+  const persistedG2Overlay = "0009_g2_version_freshness_overlay";
+  const g1RootEntries = rootEntries.filter((entry) => entry !== persistedG2Overlay);
   invariant(
-    JSON.stringify(rootEntries) === JSON.stringify(expectedRootEntries),
+    JSON.stringify(g1RootEntries) === JSON.stringify(expectedRootEntries),
     "G1_MIGRATION_ARTIFACT_ROOT_ENTRIES",
   );
 

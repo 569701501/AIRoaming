@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
   CreateGenerationTaskRequest,
@@ -6,6 +6,8 @@ import type {
   GenerationTaskStatus,
 } from "@airoaming/shared";
 import { CHAPTER_SCOPED_GENERATION_TASK_TYPES } from "@airoaming/shared";
+import { PrismaService } from "../persistence/prisma.service.js";
+import { PersistentTaskRepository, type PersistentTaskCreateInput } from "./persistent-task.repository.js";
 
 const chapterScopedTaskTypes = new Set<string>(CHAPTER_SCOPED_GENERATION_TASK_TYPES);
 type CreateGenerationTaskGuard = (
@@ -18,6 +20,39 @@ export class TasksService {
   private readonly tasks = new Map<string, GenerationTaskItem>();
   private createGuard: CreateGenerationTaskGuard | null = null;
   private readonly workers = new Map<string, GenerationTaskWorker>();
+
+  constructor(
+    @Optional() @Inject(PrismaService) private readonly prismaService?: PrismaService,
+    @Optional() @Inject(PersistentTaskRepository) private readonly persistentTaskRepository?: PersistentTaskRepository,
+  ) {}
+
+  isDatabaseMode(): boolean {
+    return this.prismaService?.isDatabaseMode() ?? false;
+  }
+
+  async listForApi(): Promise<GenerationTaskItem[]> {
+    return this.isDatabaseMode()
+      ? this.requirePersistentRepository().list()
+      : this.list();
+  }
+
+  async getForApi(taskId: string): Promise<GenerationTaskItem> {
+    return this.isDatabaseMode()
+      ? this.requirePersistentRepository().get(taskId)
+      : this.get(taskId);
+  }
+
+  async getDetailForApi(taskId: string): Promise<{ task: GenerationTaskItem; attempts: import("./persistent-task.repository.js").PersistentTaskAttemptItem[]; applicability: string | null }> {
+    if (!this.isDatabaseMode()) return { task: this.get(taskId), attempts: [], applicability: null };
+    const detail = await this.requirePersistentRepository().getDetail(taskId);
+    return { task: detail.item, attempts: detail.attempts, applicability: detail.applicability };
+  }
+
+  async cancelForApi(taskId: string): Promise<GenerationTaskItem> {
+    return this.isDatabaseMode()
+      ? this.requirePersistentRepository().cancel(taskId)
+      : this.cancel(taskId);
+  }
 
   list(): GenerationTaskItem[] {
     return [...this.tasks.values()].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
@@ -45,6 +80,9 @@ export class TasksService {
 
   async create(input: CreateGenerationTaskRequest): Promise<GenerationTaskItem> {
     const guardedInput = await this.applyCreateGuard(input);
+    if (this.isDatabaseMode()) {
+      return (await this.requirePersistentRepository().create(guardedInput as PersistentTaskCreateInput)).item;
+    }
     const task = this.createQueuedTask(guardedInput);
     const worker = this.workers.get(task.type);
     if (worker) {
@@ -267,5 +305,10 @@ export class TasksService {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private requirePersistentRepository(): PersistentTaskRepository {
+    if (!this.persistentTaskRepository) throw new Error("DB_TASK_REPOSITORY_NOT_CONFIGURED");
+    return this.persistentTaskRepository;
   }
 }
