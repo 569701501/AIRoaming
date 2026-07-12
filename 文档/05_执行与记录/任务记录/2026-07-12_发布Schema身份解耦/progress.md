@@ -56,4 +56,5 @@ source: task_plan.md
 
 - verifier 现在只接受已注册的 shadow importerVersion；未知版本返回 `MIGRATION_IMPORTER_VERSION_INVALID`，避免未知计数规则通过空证据路径。
 - succeeded shadow 必须带非空 `reportDigest`；缺失时返回 `MIGRATION_REPORT_DIGEST_MISSING`。新增 `IMP-M4-12/13` 固化两项 fail-closed 语义。
-- 定向 M4（含 FRESH/API）15 项通过；typecheck 通过。待执行全量 server、G1/Prisma 门禁并提交，M4 继续保持 `in_progress`。
+- 定向 M4（含 FRESH/API）17 项通过；typecheck 通过。
+- 最终回归：server 47 个测试文件/287 个测试、G1 manifest/schema/migration、Prisma validate、`git diff --check` 全部通过；M4 继续保持 `in_progress`，本轮代码与证据待提交。

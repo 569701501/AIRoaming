@@ -918,6 +918,78 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.errors).toContain("MIGRATION_REPORT_DIGEST_MISSING");
   }, 30_000);
 
+  it("IMP-M4-14 rejects a succeeded shadow run without importer entity counts", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-entity-counts-missing",
+      kind: "shadow",
+      importerVersion: "g3-m3-a2",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      reportDigest: SOURCE,
+      counts: { projectCount: 1 },
+    });
+    expect(finished.status).toBe("succeeded");
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ sourceEntityCountsPresent: false, sourceEntityCountsValid: false });
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_ENTITY_COUNTS_MISSING");
+  }, 30_000);
+
+  it("IMP-M4-15 rejects an importer report with an unregistered entity count key", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" });
+    const projectItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/project.json");
+    const chapterItem = snapshot.sourceManifest.items.find((item) => item.storageKey === "projects/p1/chapters/chapter-001/chapter.json");
+    expect(projectItem).toBeDefined();
+    expect(chapterItem).toBeDefined();
+    const run = await prepared.repository.beginRun({
+      id: "shadow-m4-entity-counts-extra",
+      kind: "shadow",
+      importerVersion: "g3-m3-a2",
+      sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+      snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
+    });
+    const finished = await prepared.repository.finishRun(run.id, {
+      status: "succeeded",
+      reportDigest: SOURCE,
+      counts: { entityCounts: { Project: 1, Chapter: 1, FutureEntity: 0 } },
+    });
+    expect(finished.status).toBe("succeeded");
+    await prisma!.database().importedEntitySource.createMany({
+      data: [
+        {
+          sourceKey: "workspace-v1:p1:Project:count-check",
+          entityType: "Project",
+          entityId: "project-count-check",
+          sourceStorageKey: projectItem!.storageKey,
+          sourceDigest: projectItem!.sha256,
+          provenanceStatus: "complete",
+          firstRunId: run.id,
+          lastRunId: run.id,
+        },
+        {
+          sourceKey: "workspace-v1:p1:Chapter:count-check",
+          entityType: "Chapter",
+          entityId: "chapter-count-check",
+          sourceStorageKey: chapterItem!.storageKey,
+          sourceDigest: chapterItem!.sha256,
+          provenanceStatus: "complete",
+          firstRunId: run.id,
+          lastRunId: run.id,
+        },
+      ],
+    });
+    const result = await new MigrationVerifyService(prisma!, prepared.repository).verify(snapshot.outputPath, run.id, repoRoot);
+    expect(result.report.passed).toBe(false);
+    expect(result.report.checks).toMatchObject({ sourceEntityCountsPresent: true, sourceEntityCountsValid: false, sourceEvidenceCountMismatch: false });
+    expect(result.report.errors).toContain("MIGRATION_SOURCE_ENTITY_COUNTS_INVALID");
+  }, 30_000);
+
   it("IMP-M3-FULL-01 runs every shadow slice in dependency order and replays with the same aggregate digest", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

@@ -2,7 +2,7 @@
 doc_id: AIR-G3-M4-REGISTRY-PROGRESS-001
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent
 source: task execution
@@ -29,6 +29,8 @@ source: task execution
 - [x] 新增来源注册表契约回归：single/composite/runtime 三类策略互斥，并动态核对所有 shadow importer 写入的 `entityType` 均已注册；3 项测试通过。
 - [x] verifier 按 importer/entityType 对齐 `counts.entityCounts` 与当前 run 来源行；显式覆盖 A6 Shot 投影、A9 AssetReady→AssetPhysicalEvidence，并新增来源行超额 fail-closed 回归 `IMP-M4-09`。
 - [x] `IMP-M4-10` 对成功 full shadow 的 16 个独立 slice 逐个运行 verifier，确认每个 slice 的来源计数、摘要锚点和注册类型均通过。
+- [x] `IMP-M4-12/13` 固化未知 importerVersion、缺失 succeeded reportDigest 的 fail-closed 门禁。
+- [x] `IMP-M4-14/15` 固化已知 importer 缺失 `counts.entityCounts`、以及未注册 entity count key 的 fail-closed 门禁；Project/A6 Shot 上下文计数显式允许。
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
@@ -38,13 +40,13 @@ source: task execution
 # 验证证据
 
 - `pnpm --filter @airoaming/server typecheck`：通过。
-- `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4' --testTimeout=120000`：11 项核心 M4 门禁通过（IMP-M4-01～11；另含 FRESH/API 两项临时环境复核）。
+- `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4' --pool=forks --poolOptions.forks.singleFork=true --reporter=dot`：15 项核心 M4 门禁通过（IMP-M4-01～15；另含 FRESH/API 两项临时环境复核）。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M3-FULL' --testTimeout=120000`：3 项通过，覆盖 replay、blocked 和 failed slice。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-FRESH' --testTimeout=120000`：1 项通过；两套 fresh SQLite DB 的 16 个 slice、逐片 verifier、reportDigest 与业务 inventory digest 均一致。
 - `pnpm --filter @airoaming/server test -- --run src/migration/project-chapter-shadow-importer.integration.spec.ts -t 'IMP-M4-API-01' --testTimeout=120000`：1 项通过；移走旧 workspace 后 DB 重启仍能读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致、ready Asset sha256/bytes 与旧物理文件一致，DB 草稿写入不重建旧工作区。
 - `pnpm --filter @airoaming/server test -- src/migration/project-chapter-shadow-importer.integration.spec.ts --run --testTimeout=120000`：37 个迁移集成测试通过；包含 DB-only 断根重启、未知 entityType、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数超额和 full 16-slice 逐片计数校验 fail-fast。
 - `IMP-M4-04`～`IMP-M4-06` 定向测试：3 项通过；覆盖注册类型摘要篡改、runtime 非 `runtime-bundle.json` 锚点和单文件实体错误 storage key。
-- `pnpm --filter @airoaming/server test -- --run --testTimeout=120000`：47 个测试文件、283 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数门禁、full 16-slice 逐片计数校验、shadow-only run kind 门禁、统一 CLI format 门禁和 importer entityType 注册表契约。
+- `pnpm --filter @airoaming/server test -- --pool=forks --poolOptions.forks.singleFork=true --reporter=dot`：47 个测试文件、287 个测试通过；包含 M4 API/Asset/DB-only/pending Dialogue、full blocked/failed fail-fast、摘要篡改、runtime 锚点、storage-key pattern、Chapter sourceText fallback、replay 空来源、来源计数结构/行级门禁、full 16-slice 逐片计数校验、shadow-only run kind、importerVersion/reportDigest 门禁、统一 CLI format 门禁和 importer entityType 注册表契约。
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `pnpm --filter @airoaming/server exec tsx src/migration/db-verify.cli.ts ... --format text`：按契约 fail-fast，输出 `MIGRATION_VERIFY_ARGS_INVALID`；typecheck 与 server 全量回归仍通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。

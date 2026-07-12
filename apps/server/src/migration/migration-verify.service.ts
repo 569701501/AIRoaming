@@ -31,6 +31,8 @@ export interface MigrationVerificationReport {
     sourceEvidenceCount: number;
     sourceEvidenceExpected: boolean;
     sourceEvidenceExpectedCount: number;
+    sourceEntityCountsPresent: boolean;
+    sourceEntityCountsValid: boolean;
     sourceEvidenceMissing: boolean;
     sourceEvidenceCountMismatch: boolean;
     sourceMismatchCount: number;
@@ -79,14 +81,35 @@ const SOURCE_COUNT_BINDINGS_BY_IMPORTER: ReadonlyMap<string, readonly SourceCoun
 ]);
 
 const KNOWN_SHADOW_IMPORTER_VERSIONS = new Set(SOURCE_COUNT_BINDINGS_BY_IMPORTER.keys());
+interface SourceCountAssessment {
+  expected: Map<string, number>;
+  present: boolean;
+  valid: boolean;
+}
 
-function buildExpectedSourceCounts(importerVersion: string, counts: Record<string, unknown> | null): Map<string, number> {
+function assessSourceCounts(importerVersion: string, counts: Record<string, unknown> | null): SourceCountAssessment {
+  const bindings = SOURCE_COUNT_BINDINGS_BY_IMPORTER.get(importerVersion);
+  if (!bindings) return { expected: new Map(), present: false, valid: false };
   const entityCounts = counts?.entityCounts;
-  if (!entityCounts || typeof entityCounts !== "object" || Array.isArray(entityCounts)) return new Map();
+  if (!entityCounts || typeof entityCounts !== "object" || Array.isArray(entityCounts)) return { expected: new Map(), present: false, valid: false };
   const values = entityCounts as Record<string, unknown>;
-  const bindings = SOURCE_COUNT_BINDINGS_BY_IMPORTER.get(importerVersion)
-    ?? Object.keys(values).map((countKey) => ({ countKey, entityType: countKey }));
-  return new Map(bindings.map(({ countKey, entityType }) => [entityType, typeof values[countKey] === "number" && values[countKey] > 0 ? values[countKey] : 0]));
+  const expectedKeys = new Set(bindings.map(({ countKey }) => countKey));
+  const actualKeys = new Set(Object.keys(values));
+  const keysComplete = bindings.every(({ countKey }) => actualKeys.has(countKey));
+  // Reports carry contextual counts that are not source-evidence rows for
+  // the current slice. Project is present in the shared report summary for
+  // every non-A2 slice; A6 additionally carries Shot while its source rows
+  // are recorded as StoryboardShotProjection.
+  const contextKeys = new Set(["Project"]);
+  if (importerVersion === "g3-m3-a6") contextKeys.add("Shot");
+  const allowedKeys = new Set([...expectedKeys, ...contextKeys]);
+  const keysRegistered = Object.keys(values).every((countKey) => allowedKeys.has(countKey));
+  const valuesValid = Object.values(values).every((value) => Number.isInteger(value) && (value as number) >= 0);
+  return {
+    expected: new Map(bindings.map(({ countKey, entityType }) => [entityType, Number.isInteger(values[countKey]) && (values[countKey] as number) >= 0 ? values[countKey] as number : 0])),
+    present: true,
+    valid: keysComplete && keysRegistered && valuesValid,
+  };
 }
 
 /** M3/M4 只读 verifier：不修改终态 MigrationRun，也不推进 PersistenceState。 */
@@ -107,7 +130,8 @@ export class MigrationVerifyService {
     const openBlockerCount = await db.migrationIssue.count({ where: { runId, severity: "blocker", resolutionStatus: "open" } });
     const imported = await db.importedEntitySource.findMany({ where: { lastRunId: runId }, select: { entityType: true, sourceStorageKey: true, sourceDigest: true } });
     const sourceEvidence = await checkSourceEvidence(snapshot, imported);
-    const expectedSourceCounts = buildExpectedSourceCounts(run.importerVersion, run.counts);
+    const sourceCountAssessment = assessSourceCounts(run.importerVersion, run.counts);
+    const expectedSourceCounts = sourceCountAssessment.expected;
     const actualSourceCounts = new Map<string, number>();
     for (const row of imported) actualSourceCounts.set(row.entityType, (actualSourceCounts.get(row.entityType) ?? 0) + 1);
     const sourceEvidenceExpectedCount = [...expectedSourceCounts.values()].reduce((sum, count) => sum + count, 0);
@@ -121,11 +145,15 @@ export class MigrationVerifyService {
     const sourceMismatchCount = sourceEvidence.sourceMismatchCount;
     const importerVersionKnown = KNOWN_SHADOW_IMPORTER_VERSIONS.has(run.importerVersion);
     const reportDigestPresent = typeof run.reportDigest === "string" && run.reportDigest.length > 0;
+    const sourceEntityCountsPresent = sourceCountAssessment.present;
+    const sourceEntityCountsValid = sourceCountAssessment.valid;
     const errors: string[] = [];
     if (run.kind !== "shadow") errors.push("MIGRATION_RUN_KIND_INVALID");
     if (run.kind === "shadow" && !importerVersionKnown) errors.push("MIGRATION_IMPORTER_VERSION_INVALID");
     if (run.status !== "succeeded") errors.push("MIGRATION_RUN_NOT_SUCCEEDED");
     if (run.kind === "shadow" && run.status === "succeeded" && !reportDigestPresent) errors.push("MIGRATION_REPORT_DIGEST_MISSING");
+    if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && !sourceEntityCountsPresent) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_MISSING");
+    if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && sourceEntityCountsPresent && !sourceEntityCountsValid) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_INVALID");
     if (run.sourceManifestDigest !== snapshot.sourceManifest.manifestDigest) errors.push("MIGRATION_SOURCE_DIGEST_MISMATCH");
     if (run.snapshotManifestDigest !== snapshot.snapshotManifest.manifestDigest) errors.push("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
     if (integrityCheck !== "ok") errors.push("MIGRATION_INTEGRITY_CHECK_FAILED");
@@ -142,7 +170,7 @@ export class MigrationVerifyService {
       sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
       snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       effectiveSchemaManifestDigest: effective.effectiveSchemaManifestDigest,
-      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, reportDigestPresent, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
+      checks: { runKind: run.kind, importerVersion: run.importerVersion, importerVersionKnown, reportDigestPresent, runSucceeded: run.status === "succeeded", sourceManifestMatch: run.sourceManifestDigest === snapshot.sourceManifest.manifestDigest, snapshotManifestMatch: run.snapshotManifestDigest === snapshot.snapshotManifest.manifestDigest, integrityCheck, foreignKeyViolationCount: foreignKeyRows.length, openBlockerCount, sourceEvidenceCount: imported.length, sourceEvidenceExpected, sourceEvidenceExpectedCount, sourceEntityCountsPresent, sourceEntityCountsValid, sourceEvidenceMissing, sourceEvidenceCountMismatch, sourceMismatchCount, unregisteredEntityTypeCount: sourceEvidence.unregisteredEntityTypeCount },
       passed: errors.length === 0,
       errors: [...errors].sort(),
     };

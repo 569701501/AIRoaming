@@ -2,7 +2,7 @@
 doc_id: AIR-G3-M4-REGISTRY-PLAN-001
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent
 source: G3-M施工包与当前实现
@@ -34,4 +34,5 @@ source: G3-M施工包与当前实现
 - full 编排必须保留 failed slice 的终态摘要；底层 slice 抛错时不得丢失失败 run 或继续创建下游 run。
 - `db-verify` 必须只接受稳定的 `--format json` 输出契约，非法格式在连接目标 DB 前 fail-fast。
 - 成功 run 的 `counts.entityCounts` 必须按 importer 绑定到 `ImportedEntitySource.entityType`；来源行缺失、超额或出现未绑定类型时 `db:verify` fail-closed，且 A6 的 Shot 投影、A9 的 AssetPhysicalEvidence 等映射必须显式记录。
+- 已知 shadow importer 的 `counts.entityCounts` 本身必须存在、绑定键完整且只包含已登记来源键或明确上下文键（Project、A6 Shot）；缺失或未注册计数键时 `db:verify` fail-closed。
 - typecheck、定向集成测试和全量回归通过。

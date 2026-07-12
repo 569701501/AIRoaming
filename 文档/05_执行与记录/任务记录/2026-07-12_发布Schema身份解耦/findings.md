@@ -61,3 +61,4 @@ source: task_plan.md
 - 发现 `buildExpectedSourceCounts` 对未知 importerVersion 会退化为运行时自带的任意 count key；若没有来源计数，未知 shadow run 可能绕过来源规则。现以 A2～A15 注册表作为唯一已知 shadow importerVersion 集合，未知版本返回 `MIGRATION_IMPORTER_VERSION_INVALID`。
 - 发现 succeeded shadow run 可以没有 `reportDigest`，导致账本完成态缺少报告绑定。现要求 succeeded shadow 必须带非空 reportDigest，否则返回 `MIGRATION_REPORT_DIGEST_MISSING`。
 - `IMP-M4-12/13` 已分别锁定未知 importerVersion 与缺失 reportDigest；两项均不改 schema/migration/trigger，M4 仍保持 `in_progress`。
+- 继续审计发现已知 importer 的 `counts.entityCounts` 缺失或带未注册键仍可形成空映射；现要求结构完整、值为非负整数，并允许已声明的 Project/A6 Shot 上下文键。`IMP-M4-14/15` 已锁定 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING/INVALID`，不改 schema/migration/trigger。

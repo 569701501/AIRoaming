@@ -2,7 +2,7 @@
 doc_id: AIR-G3-M4-REGISTRY-SCRUTINY-001
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: 当前 M4 代码、测试与 G3-M 交接文档
@@ -32,6 +32,7 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 | verifier/迁移 CLI 参数 | 通过 | 8 个 G3 CLI 共用 `readJsonFormat`；缺值、非法值、重复 flag 均在副作用前 fail-fast，`json` 是唯一输出格式；`db-verify --format text` 返回 `MIGRATION_VERIFY_ARGS_INVALID` |
 | verifier 目标 run 类型 | 通过 | verifier 要求 `MigrationRun.kind=shadow`；`IMP-M4-11` 证明成功 audit run 返回 `MIGRATION_RUN_KIND_INVALID` |
 | 来源计数完整性 | 通过 | verifier 按 importer/entityType 精确比较 `counts.entityCounts` 与当前 run 来源行；A6/A9 特殊映射、replay 空来源和超额来源由 `IMP-M4-08/09` 覆盖，`IMP-M4-10` 逐个验证 full shadow 的 16 个 slice |
+| counts.entityCounts 结构 | 通过 | `IMP-M4-14/15`：已知 importer 缺失计数结构或出现未注册键均 fail-closed；Project/A6 Shot 上下文键有明确白名单 |
 | final/cutover | 保持阻断 | `db:import --kind final`、backup、activate 仍不在本轮实现范围 |
 
 ## 审查结论

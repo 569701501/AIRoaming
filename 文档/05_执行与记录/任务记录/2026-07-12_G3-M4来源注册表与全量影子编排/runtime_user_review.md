@@ -2,7 +2,7 @@
 doc_id: AIR-G3-M4-REGISTRY-RUNTIME-001
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
@@ -34,6 +34,8 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 14. CLI format fixture：`db:verify`、`db:snapshot`、`maintenance` 的缺值/非法值入口均在 DB、snapshot 或网络副作用前返回稳定错误码；共享 parser 的 5 项边界测试通过。
 15. 来源注册表契约：动态扫描 16 个 shadow slice 的来源写入点，3 项测试确认每个 entityType 已登记且策略分类互斥。
 16. `IMP-M4-11`：成功 audit run 被 verifier 拒绝并返回 `MIGRATION_RUN_KIND_INVALID`，避免非 shadow 账本 vacuous pass。
+17. `IMP-M4-12/13`：未知 shadow importerVersion、缺失 succeeded reportDigest 均被拒绝。
+18. `IMP-M4-14/15`：已知 importer 缺失 `counts.entityCounts`、出现未注册 entity count key 均被拒绝；合法上下文计数不误报。
 
 ## 读取点审计边界
 

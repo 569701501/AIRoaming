@@ -2,7 +2,7 @@
 doc_id: AIR-G3-M4-REGISTRY-HANDOFF-001
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-13
 owner: AI漫游项目
 audience: human, ai-agent
 source: G3-M4 continuation
@@ -23,6 +23,7 @@ source: G3-M4 continuation
 - 来源注册表新增 3 项契约回归：三类来源策略互斥，并动态核对所有 shadow importer 写入的 entityType 均已登记；后续新增 importer 若未注册会在测试阶段失败。
 - `MigrationVerifyService` 现明确只接受 `MigrationRun.kind=shadow`；成功 audit run 会返回 `MIGRATION_RUN_KIND_INVALID`，`IMP-M4-11` 已通过。
 - verifier 已按 importer-specific entity count 绑定并精确比较 `ImportedEntitySource` 行；A6 的 Shot 计数映射到 `StoryboardShotProjection`，A9 的 AssetReady 计数映射到 `AssetPhysicalEvidence`；缺失/超额证据分别以 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH` fail-closed，新增 `IMP-M4-08/09`。`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个 slice。
+- 已知 importer 的 `counts.entityCounts` 现在也必须结构完整：缺失返回 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING`，未注册键或非法值返回 `MIGRATION_SOURCE_ENTITY_COUNTS_INVALID`；`Project` 与 A6 `Shot` 作为已声明上下文计数保留。`IMP-M4-14/15` 已通过。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
 - Dialogue runtime 的显式 pending codec/import 已完成：ScriptDialogueService 的三类 pending Map 进入 `PendingDialogueArtifact`，保留稳定 sourceKey、scope、payloadDigest 和 runtime-bundle 来源证据。
