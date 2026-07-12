@@ -24,6 +24,7 @@ import { TaskShadowImporter } from "./task-shadow-importer.js";
 import { CandidateShadowImporter } from "./candidate-shadow-importer.js";
 import { CandidateLockShadowImporter } from "./candidate-lock-shadow-importer.js";
 import { MigrationVerifyService } from "./migration-verify.service.js";
+import { LayoutShadowImporter } from "./layout-shadow-importer.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
@@ -40,7 +41,7 @@ async function deploy(databaseUrl: string): Promise<void> {
   await execFileAsync(process.execPath, [prismaCli, "migrate", "deploy", "--schema", schemaPath], { cwd: repoRoot, env: { ...process.env, DATABASE_URL: databaseUrl } });
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -88,6 +89,10 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       await mkdir(path.join(projectDir, "chapters", "chapter-001"), { recursive: true });
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "candidates.json"), `${JSON.stringify({ schemaVersion: 1, projectId, chapterId: `${projectId}-chapter-001`, candidates: [{ id: "legacy-candidate-001", projectId, chapterId: `${projectId}-chapter-001`, shotId: "shot_001", taskId: "legacy-task-001", assetId: "asset_001", index: 1, status: "locked", label: "旧定稿", notes: "", promptDigest: SOURCE, createdAt: "2026-01-05T02:00:00.000Z", updatedAt: "2026-01-05T02:00:00.000Z" }], updatedAt: "2026-01-05T02:00:00.000Z" })}\n`);
     }
+    if (options.withLayout) {
+      await mkdir(path.join(projectDir, "chapters", "chapter-001", "layout"), { recursive: true });
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "layout", "layout.json"), `${JSON.stringify({ schemaVersion: 1, id: "legacy-layout-001", projectId, chapterId: `${projectId}-chapter-001`, pages: [{ id: "page_001", projectId, chapterId: `${projectId}-chapter-001`, pageNumber: 1, format: "vertical_comic", width: 1080, height: 1920, placements: [{ id: "placement_001", shotId: "shot_001", candidateId: "legacy-candidate-001", assetId: "asset_001", order: 1, x: 0, y: 0, w: 1080, h: 1920 }], exportAssetId: null }], exportAssetIds: [], createdAt: "2026-01-05T03:00:00.000Z", updatedAt: "2026-01-05T03:00:00.000Z", confirmedAt: "2026-01-05T03:00:00.000Z" })}\n`);
+    }
     if (options.withCharacters) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
       await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({ characters: [{ id: "char_001", name: "主角", role: "调查者", level: "lead", entityType: "human", status: "draft", appearance: "", personality: "", promptFragment: "", source: "script_outline", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
@@ -98,6 +103,7 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
     }
     if (options.withAssetVisuals) {
       const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+      await mkdir(path.join(projectDir, "shared"), { recursive: true });
       await mkdir(path.join(projectDir, "assets", "characters"), { recursive: true });
       await mkdir(path.join(projectDir, "chapters", "chapter-001", "scenes", "scene_01"), { recursive: true });
       await writeFile(path.join(projectDir, "assets", "characters", "asset_001.png"), png);
@@ -496,5 +502,30 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(result.report.effectiveSchemaManifestDigest).toBe(releaseIdentity.effectiveSchemaManifestDigest);
     expect(result.report.checks).toMatchObject({ runSucceeded: true, sourceManifestMatch: true, snapshotManifestMatch: true, integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, sourceMismatchCount: 0 });
     expect((await prepared.repository.getRun(run.run.id)).verification).toEqual(verificationBefore);
+  }, 30_000);
+
+  it("IMP-A12-01 imports legacy layout into a sealed-source-aware working copy", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true, withAssetVisuals: true, withTasks: "complete", withCandidates: true, withLayout: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-story" });
+    await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-board" });
+    await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-characters" });
+    await new AssetShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-assets" });
+    await new AssetVisualShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-visuals", workspaceRoot: path.join(prepared.root!, "workspace") });
+    await new TaskShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-tasks" });
+    await new CandidateShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-candidates" });
+    await new CandidateLockShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-lock" });
+    const result = await new LayoutShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-layout" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ LayoutWorkingCopy: 1 });
+    const workingCopy = await prisma!.database().layoutWorkingCopy.findFirstOrThrow();
+    expect(workingCopy).toMatchObject({ documentKind: "legacy_chapter_layout_v1", schemaVersion: 1, sourceLockSetDigest: expect.stringMatching(/^sha256:/), rowVersion: 0 });
+    expect((workingCopy.documentJson as { sourceResolution: string }).sourceResolution).toBe("complete");
+    expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentLayoutRevisionId: null });
+    await new LayoutShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-layout-replay" });
+    expect(await prisma!.database().layoutWorkingCopy.count()).toBe(1);
   }, 30_000);
 });
