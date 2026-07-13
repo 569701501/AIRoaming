@@ -17,11 +17,11 @@ source: M5 documentation readiness work
 - [x] 形成 Luna 第一张任务书。
 - [x] 补齐 full-shadow 16 切片证据集校验，禁止用单个 succeeded run 冒充全量完成。
 - [x] 完成文档交叉复核、JSON 解析、路径存在性和 `git diff --check`；无代码/Schema/migration 变更。
-- [ ] M5-A0 capability registry + CLI 实现。
+- [x] M5-A0 capability registry + CLI 实现：8 个稳定 ID、诚实三态状态、证据 ID 约束和 fail-closed check 已落地。
 - [ ] M5-A1 coordinated backup 实现。
 - [ ] M5-A2 restore 实现。
 - [ ] M5-A3 完整演练与正式验收。
 
 # 当前结论
 
-施工资料已达到 `ready_for_development`；Luna 只能先领取 M5-A0。尚未编写 M5 生产代码，也未执行 M5 Runtime Review。
+M5-A0 已单独实现并通过 CAP-01/02；现在进入 M5-A1 coordinated backup。M5-A1～A3 尚未实现，也未执行 M5 Runtime Review。

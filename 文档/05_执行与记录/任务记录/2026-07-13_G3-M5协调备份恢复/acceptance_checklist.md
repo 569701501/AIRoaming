@@ -14,8 +14,8 @@ source: task_plan.md、implementation_contract.md、G1/G3-M 验收契约
 
 | ID | 场景 | 必须断言 | 初始状态 |
 | --- | --- | --- | --- |
-| CAP-01 | 当前 capability report/check | 8 个稳定 ID 均输出；未完成项诚实为 partial/unsupported；`--check` 退出 2 + `MIGRATION_CAPABILITY_BLOCKED`；Prisma 不在参数失败前初始化 | `not_run` |
-| CAP-02 | implemented 证据约束 | implemented 项必须有非空测试 ID，读/写/重启三项由对应公开 Service/API 测试覆盖；删除证据后契约测试失败 | `not_run` |
+| CAP-01 | 当前 capability report/check | 8 个稳定 ID 均输出；未完成项诚实为 partial/unsupported；`--check` 退出 2 + `MIGRATION_CAPABILITY_BLOCKED`；Prisma 不在参数失败前初始化 | `passed` |
+| CAP-02 | implemented 证据约束 | implemented 项必须有非空测试 ID，读/写/重启三项由对应公开 Service/API 测试覆盖；删除证据后契约测试失败 | `passed` |
 | BAK-01 | coordinated sealed backup | full-shadow artifact 正好包含有序 16 slice，聚合/nested report 可重算且 16 条 succeeded run 共享 source/snapshot/decisions 身份；checkpoint/排他写阻断成功；DB 副本 integrity/FK/ledger 通过；全部 ready Asset bytes/hash 相同；manifest 与 SEALED 可重算 | `not_run` |
 | BAK-02 | fail-closed 故障注入 | 缺 slice/乱序/重复 run、artifact-ledger 摘要不一致、active writer、WAL 未收敛、ready Asset 缺失/篡改、secret sentinel、路径越界任一发生时退出非零且无可接受 SEALED bundle | `not_run` |
 | BAK-03 | 路径与报告稳定性 | 不同绝对临时根的同内容 bundle 不泄漏绝对路径；资产顺序、run summary 和 manifest 字段稳定；`pre-cutover` 当前被 capability/final gate 阻塞 | `not_run` |
@@ -37,6 +37,13 @@ corepack pnpm --filter @airoaming/server g1:migration:check
 corepack pnpm --filter @airoaming/server prisma:validate
 git diff --check
 ```
+
+## M5-A0 证据
+
+- 定向测试：`db-capability-registry.spec.ts` 4/4 通过。
+- server typecheck 通过。
+- `db:capabilities --format json` 返回 8 个稳定 ID；`db:capabilities --check --format json` 返回 `MIGRATION_CAPABILITY_BLOCKED`、退出码 2。
+- 参数错误在 Prisma 初始化前返回 `DB_CAPABILITIES_ARGS_INVALID`。
 
 ## 完成判定
 
