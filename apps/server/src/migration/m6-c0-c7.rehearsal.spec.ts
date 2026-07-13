@@ -35,7 +35,7 @@ async function deploy(databaseUrl: string): Promise<void> {
 }
 
 describe("M6 isolated C0-C7 rehearsal", () => {
-  it("M6A1-C0-C7 / M6A1-CHAIN-01 / M6A1-RDY-01 / M6A1-RDY-02 runs real final import, closed ready, backup, API smoke, activation and first write on isolated SQLite", async () => {
+  it("M6A1-C0-C7 / M6A1-CHAIN-01 / M6A1-RDY-01 / M6A1-RDY-02 / M6A1-ACT-05 runs real final import, closed ready, backup, API smoke, activation and first write on isolated SQLite", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-m6-c0-c7-real-"));
     const previous = {
       DATABASE_URL: process.env.DATABASE_URL,
@@ -154,15 +154,16 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         const activate = new DbActivateService(prisma!);
         await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, maintenanceBundle, cutoverEvidenceRoot: evidenceRoot, gate: "ACT-08", mode: "dry-run" })).resolves.toMatchObject({ activationState: "ready_for_activation", firstBusinessWriteAt: null });
         await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, maintenanceBundle, cutoverEvidenceRoot: evidenceRoot, gate: "ACT-08", mode: "execute" })).resolves.toMatchObject({ activationState: "db_only", firstBusinessWriteAt: null });
-        const project = await prisma!.database().project.findFirstOrThrow();
-        await prisma!.runBusinessTransaction(async (tx) => {
-          await tx.project.update({ where: { id: project.id }, data: { description: "first business write" } });
-        });
-        const state = await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } });
-        expect(state?.activationState).toBe("db_only");
-        expect(state?.firstBusinessWriteAt).toBeInstanceOf(Date);
-        return "activate-execute-and-first-business-write-recorded";
+        return "activate-execute-before-first-business-write";
       });
+      expect(await stat(path.join(evidenceRoot, "COMPLETED"))).toBeTruthy();
+      const project = await prisma!.database().project.findFirstOrThrow();
+      await prisma!.runBusinessTransaction(async (tx) => {
+        await tx.project.update({ where: { id: project.id }, data: { description: "first business write" } });
+      });
+      const state = await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } });
+      expect(state?.activationState).toBe("db_only");
+      expect(state?.firstBusinessWriteAt).toBeInstanceOf(Date);
 
       expect(coordinator.status()).toHaveLength(8);
       expect(coordinator.status().every((item) => item.status === "passed")).toBe(true);
