@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-REMAINING-001
-status: ready_for_luna_next_stage
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: 当前 capability CLI、已提交阶段证据、D2/M6 总实施契约
 ---
 
 # 给 Luna 的剩余工作总施工单
+
+> 已失效。当前剩余工作不是授权材料，而是 M6-A1 真实切换验收补强；入口为 `../2026-07-13_M6-A1真实切换验收补强/handoff.md`。
 
 ## 1. 先说结论
 

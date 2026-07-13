@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-START-002
-status: ready_for_luna
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: 当前 HEAD、capability CLI 与 D2/M6 总施工资料
 ---
 
 # Luna 当前执行入口
+
+> 已失效。当前唯一执行入口为 `../2026-07-13_M6-A1真实切换验收补强/handoff.md`。
 
 > 唯一总入口已改为同目录 `luna_execute_all_remaining.md`。本文件只做跳转和事实摘要，避免与旧 handoff 重复维护。
 

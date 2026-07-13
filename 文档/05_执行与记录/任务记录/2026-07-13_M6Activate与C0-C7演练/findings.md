@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-TASK-FINDINGS-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: M6 代码、测试与 G1/M6 施工包
 ---
 
 # Findings
+
+> 本文件是原 tooling 阶段发现，不能作为当前验收结论。M6-A1 独立复核已确认 pre-cutover、backup identity、持久 evidence、全业务写边界和真实 SQLite 链路仍缺失。
 
 ## 关键结论
 

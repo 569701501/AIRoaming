@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-REAL-CUTOVER-HANDOFF-001
-status: awaiting_authorization
+status: blocked
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -8,11 +8,15 @@ audience: human, ai-agent, qa, release-owner
 source: M6 工具与隔离演练完成记录、G3-M 施工包
 ---
 
-# 真实切换授权 Handoff
+# 真实切换授权 Handoff（已撤回）
 
 ## 当前结论
 
-代码与临时根证据已达到 `ready_for_real_cutover_authorization`。这不是真实切换批准，也不代表真实 workspace、数据库或凭据已经操作。
+2026-07-13 独立复核已撤回 `ready_for_real_cutover_authorization`。当前为 `real_cutover_no_go`，本文件不得作为真实切换授权入口。
+
+恢复申请前必须先完成：
+
+`文档/05_执行与记录/任务记录/2026-07-13_M6-A1真实切换验收补强/handoff.md`
 
 ## 已完成证据
 
@@ -23,7 +27,7 @@ source: M6 工具与隔离演练完成记录、G3-M 施工包
 - capability：8/36，`blockedIds=[]`。
 - 服务端全量：59 files/403 tests 通过。
 
-## 仍需一次明确授权后才能执行
+## M6-A1 通过后仍需一次明确授权才能执行
 
 1. 指定真实 release、dataRoot、workspaceRoot、SecretStore 和维护窗口。
 2. 由责任人确认停写、备份盘空间、恢复联系人和回滚窗口。

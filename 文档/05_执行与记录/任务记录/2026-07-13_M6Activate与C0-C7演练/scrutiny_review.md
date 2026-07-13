@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-TASK-SCRUTINY-001
-status: passed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -10,9 +10,11 @@ source: M6 静态复核
 
 # Scrutiny Review
 
+> 复核撤回：后续独立检查发现 restore 仅接受 coordinated/shadow、activate 未绑定同一 final backup、业务写边界未覆盖全系统。本文件的 passed 只保留为历史记录，当前结论为 `changes_requested`。
+
 ## 结论
 
-通过。M6 新增实现只增加 activate/顺序编排/归档与事务边界，没有放宽 capability、final、release identity 或 backup sealed 门禁。
+`changes_requested`。进入 `../2026-07-13_M6-A1真实切换验收补强/handoff.md` 后重新复核。
 
 ## 检查
 

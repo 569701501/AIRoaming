@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-TASK-PLAN-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: G3-M施工包与D2至M6连续交付总 Handoff
 ---
 
 # M6 activate tooling 与 C0-C7 隔离演练
+
+> 本记录只证明 2026-07-13 的 tooling 骨架和 fake 编排测试。后续独立复核已撤回“可申请真实切换”的结论；当前入口为 `../2026-07-13_M6-A1真实切换验收补强/handoff.md`。
 
 ## 目标
 

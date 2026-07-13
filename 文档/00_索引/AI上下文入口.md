@@ -78,7 +78,10 @@ source: AI漫游文档体系
 文档/06_测试与验收/G3-M施工包_可执行验收与Luna交接.md
 文档/04_方案与决策/2026-07-13_G3-D2与M6推进路线.md
 文档/05_执行与记录/任务记录/2026-07-13_D2至M6连续交付总目标/handoff.md
+文档/05_执行与记录/任务记录/2026-07-13_M6-A1真实切换验收补强/handoff.md
 ```
+
+当前 M6 事实：旧 D2 至 M6 总 Handoff 已 superseded；Luna 必须从 M6-A1 handoff 开始。M6-A1 通过前状态为 `real_cutover_no_go`，不得直接申请或执行真实切换。
 
 涉及对话框真实 AI、模型添加、模型切换、provider 配置或 OpenCode 接入时，必须额外读取：
 

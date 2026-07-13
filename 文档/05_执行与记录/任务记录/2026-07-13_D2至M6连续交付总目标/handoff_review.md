@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-MASTER-REVIEW-001
-status: passed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: D2 至 M6 连续交付总资料、当前代码与 active 文档
 ---
 
 # D2 至 M6 总 Handoff 静态复核
+
+> 本复核已被 M6-A1 独立检查 supersede；原结论没有发现 pre-cutover/activate identity/全业务写边界/fake rehearsal 缺口，不能继续作为真实切换准备证据。
 
 ## 1. 结论
 

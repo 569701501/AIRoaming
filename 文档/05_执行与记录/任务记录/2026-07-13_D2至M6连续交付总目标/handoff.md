@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-MASTER-HANDOFF-001
-status: ready_for_luna
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: M5 完成证据、D2-A0/A1 完成证据、当前 capability registry、G
 ---
 
 # D2 至 M6 连续交付总 Handoff
+
+> 本入口已被 M6-A1 独立复核 supersede。Luna 不得再按本文申请真实切换；当前唯一入口是 `../2026-07-13_M6-A1真实切换验收补强/handoff.md`。
 
 ## 1. Luna 领取指令
 

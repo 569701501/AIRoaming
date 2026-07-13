@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-TASK-PROGRESS-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: M6 实现与测试记录
 ---
 
 # 进度
+
+> 下表是原 tooling 实施的历史结果，其中“综合演练 passed”只代表 fake 编排测试通过，已被 M6-A1 复核结论 supersede。
 
 | 阶段 | 状态 | 证据 |
 | --- | --- | --- |

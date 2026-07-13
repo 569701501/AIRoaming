@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-MASTER-GOAL-001
-status: active
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: D2/M6 路线与连续执行 Handoff
 ---
 
 # D2 至 M6 总目标
+
+> D2/M5 历史交付保留；M6 完成结论已撤回。后续只从 `../2026-07-13_M6-A1真实切换验收补强/handoff.md` 继续。
 
 ## 1. 当前所处阶段（不是 M5）
 

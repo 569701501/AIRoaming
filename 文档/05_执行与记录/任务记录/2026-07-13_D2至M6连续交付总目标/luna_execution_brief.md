@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-BRIEF-001
-status: ready_for_luna
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: 当前代码、capability CLI、D2/M6 总 Handoff
 ---
 
 # Luna 连续施工简版
+
+> 已失效。请从 `../2026-07-13_M6-A1真实切换验收补强/handoff.md` 开始。
 
 ## 1. 领取方式
 

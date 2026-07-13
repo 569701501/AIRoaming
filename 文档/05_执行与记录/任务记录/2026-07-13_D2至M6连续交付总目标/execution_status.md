@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-EXECUTION-STATUS-001
-status: ready
+status: reopened
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -34,9 +34,11 @@ source: 连续执行总 Handoff
 | P8 D2-A6 | passed | `075986f` | 5 P8 定向 + capability | 5/5；慢测独立 45/45 | PASS | PASS | capability=8/36，blockedIds=[]；见 D2-A6 任务目录 |
 | P9 D2-A7 | passed | `7a41d5c` | FIN-01～10 + CLI | 54 files/391 tests | PASS | PASS | final importer/verifier/ready 已隔离验证 |
 | P10 D2-A8 | passed | `07ffa3e` | D2-WIT-01～05 + FIN 回归 | 54 files/392 tests | PASS | PASS | 双 fresh/replay/restart/legacy isolation 通过 |
-| P11 M6 tooling/rehearsal | passed | `c07ec8c` | 5 files/12 tests + C0-C7 8/8 | 59 files/403 tests | PASS | PASS | activate、首写边界、archive、C0-C7 临时根演练通过 |
-| P12 final closure | completed | `c07ec8c` | final static closure | - | PASS | PASS | 已停在真实切换授权边界 |
+| P11 M6 tooling/rehearsal | changes_required | `c07ec8c` | tooling 5 files/12 tests；后续复跑 6 files/12 tests | 历史 59 files/403 tests | SUPERSEDED | SUPERSEDED | tooling 骨架保留；pre-cutover、activate backup identity、持久 evidence、全业务写边界和真实隔离链路未闭合 |
+| P12 final closure | reopened | `f9276f1` | 独立复核发现完成声明高于证据 | - | CHANGES_REQUESTED | CHANGES_REQUESTED | 转入 M6-A1；真实切换继续 no-go |
 
 ## 3. 目标终态
 
-`ready_for_real_cutover_authorization`。真实 R1 不属于当前授权。
+当前终态为 `real_cutover_no_go`。
+
+唯一下一阶段：`文档/05_执行与记录/任务记录/2026-07-13_M6-A1真实切换验收补强/handoff.md`。M6-A1 全部通过后才可重新申请 `ready_for_real_cutover_authorization`；真实 R1 仍不属于当前授权。

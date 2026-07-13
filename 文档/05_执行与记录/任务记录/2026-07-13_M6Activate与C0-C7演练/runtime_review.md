@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-TASK-RUNTIME-001
-status: passed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -10,9 +10,11 @@ source: 临时根 M6 C0-C7 rehearsal
 
 # Runtime Review
 
+> 复核撤回：本测试使用 fake Prisma、fake restore、手写 ready/final state 和 snapshot marker，不是 importer→backup→restore→Nest smoke→activate 的真实临时 SQLite 链路。
+
 ## 结论
 
-通过。`m6-c0-c7.rehearsal.spec.ts` 在独立临时根中依次完成 C0～C7：release/capability、maintenance closed/runtime bundle、snapshot marker、fake SecretStore、ready state、DB smoke、metadata-only archive、activate execute 与首笔业务写。
+`changes_requested`。必须由 M6-A1 真实隔离 Runtime Review 替换；原结果只记为 `tooling_mock_passed`。
 
 ## 证据
 

@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-EXECUTE-001
-status: ready_for_luna
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: 当前 git、capability CLI、M5-A4 验收证据与 D2/M6 总契约
 ---
 
 # Luna 连续执行总施工单（当前唯一入口）
+
+> 本文件不再是当前入口。M6 后续独立复核发现验收缺口，Luna 应改读 `../2026-07-13_M6-A1真实切换验收补强/handoff.md`。
 
 > 这份文件解决一个问题：Luna 领取后，不需要用户逐阶段盯进度；只要当前阶段没有真实授权边界、P0/P1 或连续三轮硬阻塞，就按顺序完成、复核、提交并自动进入下一阶段。
 
