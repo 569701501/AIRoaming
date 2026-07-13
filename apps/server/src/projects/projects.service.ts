@@ -404,14 +404,14 @@ export class ProjectsService implements OnModuleInit {
 
   async extractProjectCharacters(projectId: string,
     input: ExtractProjectCharactersRequest = {},) : Promise<ExtractProjectCharactersResponse> {
-    this.repository.assertDatabaseOperationSupported("extract_characters");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("extract_characters");
     return this.characterRef.extractProjectCharacters(projectId, input);
   }
 
   async updateProjectCharacter(projectId: string,
     characterId: string,
     input: UpdateProjectCharacterRequest,) : Promise<SaveProjectCharacterResponse> {
-    this.repository.assertDatabaseOperationSupported("update_character");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("update_character");
     return this.characterRef.updateProjectCharacter(projectId, characterId, input);
   }
 

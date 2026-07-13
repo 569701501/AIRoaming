@@ -87,6 +87,7 @@ describe("M5-A0 DB capability registry", () => {
     expect(operations.every((operation) => operation.readStatus === "not_applicable")).toBe(true);
     expect(operations.filter((operation) => operation.writeStatus === "implemented").map((operation) => operation.operation)).toEqual([
       "update_project_draft",
+      "update_character",
       "ensure_chapter_exists",
       "write_chapter_draft_from_ai",
       "save_script_outline_from_ai",

@@ -40,6 +40,7 @@ import { ProjectStore } from "./project-store.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { SettingsService } from "../settings/settings.service.js";
+import { PrismaService } from "../persistence/prisma.service.js";
 
 interface ProjectAssetFile {
   buffer: Buffer;
@@ -74,7 +75,12 @@ export class CharacterReferenceService {
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
     @Inject(TasksService) private readonly tasksService: TasksService,
     @Inject(SettingsService) private readonly settingsService: SettingsService,
+    @Inject(PrismaService) private readonly prismaService: PrismaService,
   ) {}
+
+  private isDatabaseMode(): boolean {
+    return this.prismaService.isDatabaseMode();
+  }
 
   // ====== 角色纯函数薄委托(内联,委托 wsCharacter/wsDomain) ======
 
@@ -298,7 +304,9 @@ export class CharacterReferenceService {
   }
 
   async extractProjectCharacters(projectId: string, input: ExtractProjectCharactersRequest = {}): Promise<ExtractProjectCharactersResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
+    const project = this.isDatabaseMode()
+      ? await this.repository.refreshProjectFromDatabase(projectId)
+      : await this.projectStore.getReadyProject(projectId);
     const now = new Date().toISOString();
     const extracted = this.extractCharactersFromProjectSource(project, input.source ?? "auto", now);
     const existingByName = new Map(project.characters.map((character) => [wsCharacter.normalizeCharacterNameKey(character.name), character]));
@@ -332,13 +340,62 @@ export class CharacterReferenceService {
     }
 
     const nextProject: LocalProject = { ...project, characters: this.sortProjectCharacters(nextCharacters), updatedAt: now };
+    if (this.isDatabaseMode()) {
+      await this.prismaService.database().$transaction(async (tx) => {
+        for (const character of nextCharacters) {
+          const exists = await tx.character.findFirst({ where: { id: character.id, projectId } });
+          if (exists) {
+            await tx.character.update({
+              where: { id: character.id },
+              data: {
+                name: character.name,
+                normalizedName: wsCharacter.normalizeCharacterNameKey(character.name),
+                role: character.role,
+                level: character.level,
+                entityType: character.entityType,
+                status: character.status,
+                appearance: character.appearance,
+                personality: character.personality,
+                promptFragment: character.promptFragment,
+                source: character.source,
+                finalizedAt: character.finalizedAt ? new Date(character.finalizedAt) : null,
+              },
+            });
+          } else {
+            await tx.character.create({
+              data: {
+                id: character.id,
+                projectId,
+                name: character.name,
+                normalizedName: wsCharacter.normalizeCharacterNameKey(character.name),
+                role: character.role,
+                level: character.level,
+                entityType: character.entityType,
+                status: character.status,
+                appearance: character.appearance,
+                personality: character.personality,
+                promptFragment: character.promptFragment,
+                source: character.source,
+                createdAt: new Date(character.createdAt),
+                updatedAt: new Date(character.updatedAt),
+                finalizedAt: character.finalizedAt ? new Date(character.finalizedAt) : null,
+              },
+            });
+          }
+        }
+      });
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      return { ...this.toProjectCharactersResponse(refreshed), createdCount, updatedCount };
+    }
     await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return { ...this.toProjectCharactersResponse(nextProject), createdCount, updatedCount };
   }
 
   async updateProjectCharacter(projectId: string, characterId: string, input: UpdateProjectCharacterRequest): Promise<SaveProjectCharacterResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
+    const project = this.isDatabaseMode()
+      ? await this.repository.refreshProjectFromDatabase(projectId)
+      : await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {
       throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
@@ -368,6 +425,28 @@ export class CharacterReferenceService {
       updatedAt,
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, updatedAt);
+    if (this.isDatabaseMode()) {
+      const result = await this.prismaService.database().character.updateMany({
+        where: { id: characterId, projectId, rowVersion: { gte: 0 } },
+        data: {
+          name: nextCharacter.name,
+          normalizedName: wsCharacter.normalizeCharacterNameKey(nextCharacter.name),
+          role: nextCharacter.role,
+          level: nextCharacter.level,
+          status: nextCharacter.status,
+          appearance: nextCharacter.appearance,
+          personality: nextCharacter.personality,
+          promptFragment: nextCharacter.promptFragment,
+          updatedAt: new Date(updatedAt),
+          finalizedAt: nextCharacter.finalizedAt ? new Date(nextCharacter.finalizedAt) : null,
+          rowVersion: { increment: 1 },
+        },
+      });
+      if (result.count !== 1) throw new BadRequestException("PROJECT_CHARACTER_VERSION_CONFLICT");
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      const updated = this.findProjectCharacter(refreshed, characterId);
+      return { ...this.toProjectCharactersResponse(refreshed), character: updated };
+    }
     await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return { ...this.toProjectCharactersResponse(nextProject), character: nextCharacter };

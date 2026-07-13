@@ -20,6 +20,7 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 
 - M5 已完成；“当前是 M5 实施中”不符合最新验收事实。
 - 当前位于 D2：A0、A1、A2-1、A2-2、A3-1 已完成，下一阶段为 A3-2A。
+- A3-2A 已完成第一条 Character identity DB slice（`update_character`）；aggregate 仍 partial，下一步继续 P4 task/source/staging/Visual。
 - M6 仍为 prerequisite_blocked。
 
 ## 2. capability

@@ -518,6 +518,29 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
   }, 20_000);
 
+  it("P4-CHAR-01: updates character identity in DB without workspace writes", async () => {
+    const { databasePath, workspaceRoot, deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P4 角色身份", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const character = await prisma.character.create({
+      data: {
+        id: randomUUID(), projectId: project.id, name: "旧名", normalizedName: "旧名", role: "配角", level: "chapter", entityType: "human", status: "draft",
+        appearance: "旧外观", personality: "旧性格", promptFragment: "旧提示词", source: "manual",
+      },
+    });
+    const marker = path.join(workspaceRoot, "projects", project.id, "legacy-characters.json");
+    await mkdir(path.dirname(marker), { recursive: true });
+    await writeFile(marker, "legacy-must-not-be-touched\n");
+    const updated = await projects.updateProjectCharacter(project.id, character.id, { name: "新名", role: "主角", appearance: "新外观" });
+    expect(updated.character).toMatchObject({ id: character.id, name: "新名", role: "主角", appearance: "新外观" });
+    expect(await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).toMatchObject({ name: "新名", role: "主角", appearance: "新外观", rowVersion: 1 });
+    expect(await readFile(marker, "utf8")).toBe("legacy-must-not-be-touched\n");
+    expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
+  }, 20_000);
+
   it("fails closed when an active DB project has no current chapter", async () => {
     const { databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

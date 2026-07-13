@@ -197,8 +197,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.updateProjectCharacter",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-CHAR-01: updates character identity in DB without workspace writes"],
   },
   {
     operation: "generate_character_reference",
