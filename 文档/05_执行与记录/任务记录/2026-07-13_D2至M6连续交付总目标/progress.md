@@ -53,5 +53,6 @@ source: 本总目标编制过程
 - `extract_characters` 与 `update_character` 已进入 DB Character 直写 + refresh；legacy workspace 隔离证据通过。
 - `queue_character_reference` 已进入 DB 持久 GenerationTask + Character source freeze，支持同输入幂等重放，不调用 provider、不写物理图片。
 - worker 已接入 `character_reference_generate`：fake handler 证据覆盖 claim/source fencing、staged→ready Asset、CharacterVisual 与 preview 指针；迟到结果保留 historical。
-- 定向 26 项、server 全量 54 文件/367 测试、Scrutiny、Runtime 和静态门禁通过；worker 切片待独立提交。
-- Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一切片进入 final confirm/delete 与 SceneVisual。
+- `confirm_character_preview` 与 `confirm_character_reference` 已接入 DB：preview/final pointer、状态与层级规则均有 fresh SQLite 证据。
+- 定向 28 项、server 全量 54 文件/369 测试、Scrutiny、Runtime 和静态门禁通过；确认切片待独立提交。
+- Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一切片处理 delete/SceneVisual 或 CandidateLock。

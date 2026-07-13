@@ -804,6 +804,20 @@ export class CharacterReferenceService {
   }
 
   async confirmCharacterPreview(projectId: string, characterId: string, input: ConfirmCharacterPreviewRequest): Promise<ConfirmCharacterPreviewResponse> {
+    if (this.isDatabaseMode()) {
+      const project = await this.repository.refreshProjectFromDatabase(projectId);
+      const character = this.findProjectCharacter(project, characterId);
+      if (character.status === "in_use") throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+      const asset = await this.prismaService.database().asset.findFirst({ where: { id: input.assetId, projectId }, include: { characterVisualByAsset: true } });
+      const visual = asset?.characterVisualByAsset;
+      if (!asset) throw new NotFoundException("CHARACTER_PREVIEW_ASSET_NOT_FOUND");
+      if (!visual || visual.characterId !== characterId || visual.kind !== "preview_front" || asset.status !== "ready") throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
+      await this.prismaService.database().character.update({ where: { id: characterId }, data: { previewVisualId: visual.id, rowVersion: { increment: 1 }, updatedAt: new Date() } });
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      const nextCharacter = this.findProjectCharacter(refreshed, characterId);
+      const task = nextCharacter.level !== "extra" ? await this.queueCharacterReference(projectId, characterId, { referenceKind: "final_reference" }) : null;
+      return { ...this.toProjectCharactersResponse(refreshed), character: nextCharacter, tasks: task?.tasks ?? [] };
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {
@@ -836,6 +850,18 @@ export class CharacterReferenceService {
   }
 
   async confirmCharacterReference(projectId: string, characterId: string, input: ConfirmCharacterReferenceRequest): Promise<SaveProjectCharacterResponse> {
+    if (this.isDatabaseMode()) {
+      const project = await this.repository.refreshProjectFromDatabase(projectId);
+      const character = this.findProjectCharacter(project, characterId);
+      if (character.status === "in_use" && character.primaryReferenceAssetId !== input.assetId) throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+      const asset = await this.prismaService.database().asset.findFirst({ where: { id: input.assetId, projectId }, include: { characterVisualByAsset: true } });
+      const visual = asset?.characterVisualByAsset;
+      if (!asset) throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
+      if (!visual || visual.characterId !== characterId || visual.kind !== "final_reference" || asset.status !== "ready") throw new BadRequestException("CHARACTER_REFERENCE_KIND_MISMATCH");
+      await this.prismaService.database().character.update({ where: { id: characterId }, data: { primaryVisualId: visual.id, status: character.status === "in_use" ? "in_use" : "finalized", finalizedAt: new Date(), rowVersion: { increment: 1 }, updatedAt: new Date() } });
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      return { ...this.toProjectCharactersResponse(refreshed), character: this.findProjectCharacter(refreshed, characterId) };
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use" && character.primaryReferenceAssetId !== input.assetId) {

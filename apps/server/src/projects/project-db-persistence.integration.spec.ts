@@ -635,6 +635,50 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).previewVisualId).toBeNull();
   }, 20_000);
 
+  it("P4-CHAR-06: confirms a DB preview visual and preserves the final queue boundary", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P4 预览确认", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const character = await prisma.character.create({ data: { id: randomUUID(), projectId: project.id, name: "路人甲", normalizedName: "路人甲", role: "路人", level: "extra", entityType: "human", status: "draft", appearance: "灰衣", personality: "安静", promptFragment: "灰衣路人", source: "manual" } });
+    const queued = await projects.queueCharacterReference(project.id, character.id, { referenceKind: "preview_front", prompt: "预览确认" });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("character_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+    await worker.runOnce("character-worker");
+    const previewAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: queued.tasks[0]!.id } });
+    const confirmed = await projects.confirmCharacterPreview(project.id, character.id, { assetId: previewAsset.id });
+    expect(confirmed.character.previewReferenceAssetId).toBe(previewAsset.id);
+    expect(confirmed.tasks).toHaveLength(0);
+    expect((await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).previewVisualId).toBeTruthy();
+  }, 20_000);
+
+  it("P4-CHAR-07: confirms a DB final visual without workspace writes", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P4 定稿确认", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const character = await prisma.character.create({ data: { id: randomUUID(), projectId: project.id, name: "主角丁", normalizedName: "主角丁", role: "主角", level: "chapter", entityType: "human", status: "draft", appearance: "蓝衣", personality: "坚定", promptFragment: "蓝衣主角", source: "manual" } });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("character_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+    const previewTask = await projects.queueCharacterReference(project.id, character.id, { referenceKind: "preview_front", prompt: "预览" });
+    await worker.runOnce("character-worker");
+    const previewAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: previewTask.tasks[0]!.id } });
+    const previewConfirmed = await projects.confirmCharacterPreview(project.id, character.id, { assetId: previewAsset.id });
+    expect(previewConfirmed.tasks).toHaveLength(1);
+    await worker.runOnce("character-worker");
+    const finalAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: previewConfirmed.tasks[0]!.id } });
+    const saved = await projects.confirmCharacterReference(project.id, character.id, { assetId: finalAsset.id });
+    expect(saved.character.primaryReferenceAssetId).toBe(finalAsset.id);
+    expect(saved.character.status).toBe("finalized");
+    expect((await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).primaryVisualId).toBeTruthy();
+  }, 20_000);
+
   it("fails closed when an active DB project has no current chapter", async () => {
     const { databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

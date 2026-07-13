@@ -90,6 +90,8 @@ describe("M5-A0 DB capability registry", () => {
       "extract_characters",
       "update_character",
       "queue_character_reference",
+      "confirm_character_preview",
+      "confirm_character_reference",
       "ensure_chapter_exists",
       "write_chapter_draft_from_ai",
       "save_script_outline_from_ai",

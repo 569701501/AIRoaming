@@ -247,8 +247,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.confirmCharacterPreview",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-CHAR-06: confirms a DB preview visual and preserves final queue boundary"],
   },
   {
     operation: "confirm_character_reference",
@@ -257,8 +257,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.confirmCharacterReference",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-CHAR-07: confirms a DB final visual without workspace writes"],
   },
   {
     operation: "delete_character_reference",

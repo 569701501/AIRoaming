@@ -453,14 +453,14 @@ export class ProjectsService implements OnModuleInit {
   async confirmCharacterPreview(projectId: string,
     characterId: string,
     input: ConfirmCharacterPreviewRequest,) : Promise<ConfirmCharacterPreviewResponse> {
-    this.repository.assertDatabaseOperationSupported("confirm_character_preview");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("confirm_character_preview");
     return this.characterRef.confirmCharacterPreview(projectId, characterId, input);
   }
 
   async confirmCharacterReference(projectId: string,
     characterId: string,
     input: ConfirmCharacterReferenceRequest,) : Promise<SaveProjectCharacterResponse> {
-    this.repository.assertDatabaseOperationSupported("confirm_character_reference");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("confirm_character_reference");
     return this.characterRef.confirmCharacterReference(projectId, characterId, input);
   }
 
