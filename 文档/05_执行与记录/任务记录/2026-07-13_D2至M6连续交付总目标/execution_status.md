@@ -27,7 +27,7 @@ source: 连续执行总 Handoff
 | P1 D2-A2-1 | passed | `1f22861` | 27 targeted + 54 files/360 tests | 360/360 | PASS | PASS | closed; A2-2 clear/import/reset handled next |
 | P2 D2-A2-2 | passed | `077762d` | 20 targeted + 54 files/361 tests | 361/361 | PASS | PASS | 7 retired operations; blockedIds=5 |
 | P3 D2-A3-1 | passed | `9087115` | 21 targeted + 54 files/362 tests | 362/362 | PASS | PASS | 7 retired operations; blockedIds=4 |
-| P4 D2-A3-2A | in_progress | `e80b8ee`, `f2b4d15`, `71c3a3a`, `0987050`, confirm commit pending | 28 targeted + 54 files/369 tests | 369/369 | PASS | PASS | identity/extract + queue + worker + confirm done; delete/SceneVisual remain |
+| P4 D2-A3-2A | in_progress | `e80b8ee`, `f2b4d15`, `71c3a3a`, `0987050`, `a8486a6` | 28 targeted + 54 files/369 tests | 369/369 | PASS | PASS | identity/extract + queue + worker + confirm done; delete/SceneVisual remain |
 | P5 D2-A3-2B | pending | - | - | - | - | - | - |
 | P6 D2-A4 | pending | - | - | - | - | - | - |
 | P7 D2-A5 | pending | - | - | - | - | - | - |

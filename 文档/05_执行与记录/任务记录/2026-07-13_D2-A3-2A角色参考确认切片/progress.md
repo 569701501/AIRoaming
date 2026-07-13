@@ -12,4 +12,5 @@ source: P4 execution
 
 - DB preview/final confirm 已实现并接入 capability evidence。
 - 定向 registry + integration 28/28；server 全量 54 文件/369 tests；全量静态门禁通过。
+- 独立提交 `a8486a6`。
 - 下一步仍是 Character delete/SceneVisual 或按总路线进入 CandidateLock；不跳 M6。
