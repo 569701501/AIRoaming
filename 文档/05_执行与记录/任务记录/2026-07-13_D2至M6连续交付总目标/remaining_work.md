@@ -22,7 +22,7 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 | P5 D2-A3-2B | CandidateLock、complete images、旧参考图入口退役和 Character delete DB intent 已完成；物理清理由 P8 Outbox 收口 | 3（依赖 P8 才降） |
 | P6 D2-A4 | 已完成并提交 `73cc76f`：LayoutWorkingCopy、LayoutRevision/source binding、layout export、asset package；Character delete 物理清理仍由 P8 收口 | 3 |
 | P7 D2-A5 | 已完成并提交 `fa26908`：Dialogue thread/message/tool/pending/session、restart、maintenance/deleting fence | 2 |
-| P8 D2-A6 | 当前阶段：Project delete、Outbox consumer、五 handler，并回补 Character delete | 0（目标） |
+| P8 D2-A6 | 已完成：Project delete、Outbox consumer、五 handler、Character delete physical cleanup；待独立提交 | 0 |
 | P9 D2-A7 | full final importer、verify、ready coordinator | 0 |
 | P10 D2-A8 | 双 fresh/replay/WIT/secret/capability 总证据 | 0 |
 | P11 M6 tooling | activate/cutover/rollback 实现与隔离 C0～C7 演练 | 0 |

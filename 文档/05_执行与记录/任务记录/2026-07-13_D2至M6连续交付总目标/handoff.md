@@ -35,25 +35,22 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts`；D2-A3-2A/B、D2-A4、D2-A5 已提交并复核 |
-| 工作树状态 | D2-A5 已提交；Luna 不得重复施工，直接从 D2-A6 开始 |
+| 当前已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts`；D2-A6 代码与证据已完成，待独立提交 |
+| 工作树状态 | P8 已完成并已做静态/运行复核；下一阶段从 D2-A7 开始，不能重复施工 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
 | D2-A2-1 | `1f22861` completed |
 | D2-A2-2 | `077762d` completed |
 | D2-A3-1 | `9087115` completed |
-| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 与 Character delete intent 已实现；ensure/generate 旧入口已 retired；物理清理仍待 Outbox 收口 |
+| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done、Character delete intent 与 Outbox physical cleanup 已实现；ensure/generate 旧入口已 retired |
 | D2-A4 当前 | LayoutWorkingCopy、LayoutRevision/source binding、layout export、asset package 已实现并提交 |
-| required capability blocker | 2 个 |
+| required capability blocker | 0 个（P8 已收口） |
 | final importer | 未实现；`db:import --kind final` 固定 fail-closed |
 | `db:activate` | 未实现 |
 | M6 | `prerequisite_blocked` |
 
-当前 2 个 `blockedIds` 必须精确为：
-
-1. `character_scene_asset_candidate_lock`
-2. `project_delete_outbox`
+P8 收口后的 `blockedIds` 必须精确为空数组：`[]`。
 
 `settings_credential_secret_store` 与 `task_create_claim_complete_cancel_recover` 已绿，不得回退或误改。
 
@@ -156,7 +153,7 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 
 只有同时满足以下条件，Luna 才可结束连续开发目标：
 
-- [ ] D2-A2～A6 的公开 DB 用户路径全部闭合，当前 3 个 blocker 按真实 capability report 降为 0。
+- [x] D2-A2～A6 的公开 DB 用户路径全部闭合，真实 capability report 已降为 0。
 - [ ] 36 个登记操作均为有证据的 `implemented`，或为有明确 replacement、退役理由和拒绝测试的 `retired`；不得用拒绝冒充 implemented。
 - [ ] DB-only 运行时不再把旧 JSON/Markdown 当业务事实源；Asset/导出物字节仍可保留为受控物理文件边界。
 - [ ] final importer 覆盖既有 16 slice，产生权威 `MigrationRun(kind=final,status=succeeded)`，并完成 final verification。

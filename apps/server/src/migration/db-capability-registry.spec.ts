@@ -68,14 +68,16 @@ describe("M5-A0 DB capability registry", () => {
     expect(registry.filter((entry) => entry.writeStatus === "implemented").map((entry) => entry.id)).toEqual([
       "project_chapter_script",
       "outline_story_storyboard_preflight",
+      "character_scene_asset_candidate_lock",
       "layout_export",
       "dialogue_pending_runtime",
       "task_create_claim_complete_cancel_recover",
       "settings_credential_secret_store",
+      "project_delete_outbox",
     ]);
     expect(registry.filter((entry) => entry.readStatus === "implemented" || entry.writeStatus === "implemented")
       .every((entry) => entry.evidenceTestIds.length > 0)).toBe(true);
-    expect(getBlockedDbCapabilities(registry).map((entry) => entry.id)).toEqual(["character_scene_asset_candidate_lock", "project_delete_outbox"]);
+    expect(getBlockedDbCapabilities(registry).map((entry) => entry.id)).toEqual([]);
   });
 
   it("D2-A0 registers every operation-level DB gate with an explicit owner, status and evidence", async () => {
@@ -95,6 +97,7 @@ describe("M5-A0 DB capability registry", () => {
       "queue_character_reference",
       "confirm_character_preview",
       "confirm_character_reference",
+      "delete_character_reference",
       "ensure_chapter_exists",
       "write_chapter_draft_from_ai",
       "save_script_outline_from_ai",
@@ -105,6 +108,7 @@ describe("M5-A0 DB capability registry", () => {
       "build_layout",
       "export_layout",
       "export_asset_package",
+      "delete_project",
     ]);
     expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(17);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
@@ -127,13 +131,13 @@ describe("M5-A0 DB capability registry", () => {
     expect(payload.operations).toHaveLength(36);
   });
 
-  it("CAP-01 keeps the current activation gate fail-closed with exit code 2", async () => {
+  it("CAP-01 reports an open activation gate after the D2 delete/outbox closeout", async () => {
     const result = await runCli("--check", "--format", "json");
-    expect(result.code).toBe(2);
+    expect(result.code).toBe(0);
     const payload = JSON.parse(result.stdout) as { code: string; blockedIds: string[] };
-    expect(payload.code).toBe("MIGRATION_CAPABILITY_BLOCKED");
+    expect(payload.code).toBe("DB_CAPABILITIES_REPORTED");
     expect(payload.blockedIds).not.toContain("settings_credential_secret_store");
-    expect(payload.blockedIds).toHaveLength(2);
+    expect(payload.blockedIds).toHaveLength(0);
     expect(payload.blockedIds).not.toContain("project_chapter_script");
   });
 

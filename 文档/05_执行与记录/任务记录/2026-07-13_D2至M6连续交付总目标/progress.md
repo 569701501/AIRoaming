@@ -95,3 +95,12 @@ source: 本总目标编制过程
 - `P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量、typecheck/web build、Prisma/G1、diff check 通过。
 - capability `dialogue_pending_runtime` 已更新为 implemented/restartCovered=true；真实 `blockedIds` 从 3 降至 2。
 - P7 已独立提交 `fa26908`；当前进入 D2-A6 Outbox + Project delete，并回补 Character delete。
+
+## P8 D2-A6 Outbox 与 Project delete（2026-07-13，已完成）
+
+- 新增 `ProjectDeleteOutboxService`：严格 payload、digest/scope/path/sentinel 校验，claim/heartbeat/lease recovery、retry backoff、terminal 不重开。
+- DB 删除 API 先写 `project.delete_files` intent，active 状态先解引用 current 指针再 CAS 进入 deleting；服务重启后可继续处理，processed file event 后才允许 purge。
+- 五类事件已具备 handler：`asset.promote`、`asset.delete`、`project.delete_files`、`secret.delete_old_ref`、`legacy_metadata.archive`。Character delete physical cleanup 已由 `asset.delete` 闭合。
+- P8 定向 5/5、capability registry 5 项复核通过、server typecheck 通过；真实 CLI 为 8 capability/36 operation/`blockedIds=[]`。
+- 默认 server 全量并发命令有 13 个历史慢测在 5 秒阈值下 timeout；备份/G1 慢测提高到 30 秒独立运行 45/45 通过，P8 用例在全量运行中全部通过。
+- P8 已停止在此阶段，下一步是 D2-A7/A8 文档复核与实施，不自动进入 M6。

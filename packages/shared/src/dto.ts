@@ -157,6 +157,8 @@ export interface DeleteProjectResponse {
   deletedProjectId: string;
   deletedTaskCount: number;
   deletedRuntimeStateCount: number;
+  status?: "deleting" | "pending" | "processing" | "processed";
+  cleanupEventId?: string;
 }
 
 export interface ChapterListItem {

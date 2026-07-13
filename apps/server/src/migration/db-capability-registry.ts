@@ -60,14 +60,16 @@ const entries: DbCapabilityEntry[] = [
     id: "character_scene_asset_candidate_lock",
     ownerModule: "projects/character-asset-candidate",
     readStatus: "implemented",
-    writeStatus: "partial",
+    writeStatus: "implemented",
     restartCovered: true,
     requiredForActivate: true,
     evidenceTestIds: [
       "src/projects/seven-stage.characterization.integration.spec.ts#缺少主角定稿图时阻断 preflight 和图片任务，无角色缺口时确认并激活候选阶段",
       "src/projects/image-candidate.contract.integration.spec.ts#从服务端预览生成同一规格，并把候选、资产、任务证据和比例异常一起持久化",
+      "src/projects/project-db-persistence.integration.spec.ts#P5-CHAR-DELETE-01: deletes a DB character reference by intent and persists an asset.delete Outbox event",
+      "src/projects/project-db-persistence.integration.spec.ts#P8-OTB-03/OTB-FS-02: asset.delete verifies the exact owner, path and content hash before unlink",
     ],
-    blocker: "Character reference deletion is not fully closed; physical cleanup still needs the Outbox consumer.",
+    blocker: null,
   },
   {
     id: "layout_export",
@@ -122,12 +124,17 @@ const entries: DbCapabilityEntry[] = [
   {
     id: "project_delete_outbox",
     ownerModule: "projects/delete-outbox",
-    readStatus: "unsupported",
-    writeStatus: "unsupported",
-    restartCovered: false,
+    readStatus: "implemented",
+    writeStatus: "implemented",
+    restartCovered: true,
     requiredForActivate: true,
-    evidenceTestIds: [],
-    blocker: "DB-mode project deletion remains blocked and no outbox deletion workflow is wired to the public API.",
+    evidenceTestIds: [
+      "src/projects/project-db-persistence.integration.spec.ts#P8-OTB-01/DEL-00: persists an idempotent project.delete_files intent, resumes it after a Nest restart, removes the exact project root, and purges DB facts",
+      "src/projects/project-db-persistence.integration.spec.ts#P8-OTB-02/OTB-FS-01: rejects unknown payload fields and leaves the event terminal",
+      "src/projects/project-db-persistence.integration.spec.ts#P8-OTB-05: heartbeats and recovers an expired Outbox lease with bounded retry backoff",
+      "src/projects/project-db-persistence.integration.spec.ts#P8-OTB-04/SEC-11/ACT-archive: deletes an old fake secret reference and archives metadata without asset bytes",
+    ],
+    blocker: null,
   },
 ];
 
@@ -277,8 +284,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.deleteCharacterReference",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P5-CHAR-DELETE-01: creates an idempotent asset.delete intent after detaching a character visual", "src/projects/project-db-persistence.integration.spec.ts#P8-OTB-03/OTB-FS-02: processes the exact asset.delete path with hash fencing"],
   },
   {
     operation: "clear_chapter_script",
@@ -533,8 +540,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.deleteProject",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P8-OTB-01/DEL-00: resumes the persisted project.delete_files intent after restart and purges only after the processed file event"],
   },
 ];
 

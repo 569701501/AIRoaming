@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-REMAINING-001
-status: ready_for_luna
+status: ready_for_luna_next_stage
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -14,11 +14,11 @@ source: 当前 capability CLI、已提交阶段证据、D2/M6 总实施契约
 
 当前不是 M5 施工。M5-A0～A4 已完成；M5 是上游基线。
 
-当前从 **D2-A5** 接管，按下面顺序连续做到最终停点：
+当前从 **D2-A7** 接管，按下面顺序连续做到最终停点：
 
 ```text
 D2-A5 Dialogue runtime（已完成，commit `fa26908`）
-  → D2-A6 Outbox + Project delete（当前开始，同时回补 Character delete）
+  → D2-A6 Outbox + Project delete（已完成，独立提交收口中）
   → D2-A7 final importer / verifier / ready coordinator
   → D2-A8 fresh/replay/restart/secret 综合见证
   → M6 activate tooling + 隔离 C0～C7
@@ -42,16 +42,16 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 | 项目 | 事实 |
 | --- | --- |
-| 最新已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts` |
+| 最新已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts`；P8 代码/证据已完成，待独立提交 |
 | 已完成 | M5、D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4、D2-A5 |
 | capability | 8 个聚合项、36 个 operation；P7 已计入 evidence |
-| 当前 blocker | 2 个：`character_scene_asset_candidate_lock`、`project_delete_outbox` |
+| 当前 blocker | 0 个；P8 capability report 为 `blockedIds=[]` |
 | 已绿且不得回退 | `project_chapter_script`、`outline_story_storyboard_preflight`、`layout_export`、`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store` |
 | final importer | 仍 fail-closed；`db:import --kind final` 不得放行 |
 | `db:activate` | 尚未实现 |
 | 真实环境 | 不得接触真实 workspace、DB、Keychain、provider 或凭据 |
 
-当前工作树已收口到 `fa26908`，D2-A5 的 Dialogue service/module、ScriptDialogue 和 project DB integration spec 已完成审查、测试和独立提交。Luna 不得重复施工 P7；直接从 D2-A6 开始。
+P8 任务目录 `2026-07-13_D2-A6项目删除与Outbox/` 已记录实现、证据与复核。Luna 不得重复施工 P7/P8；先完成 P8 独立提交，然后直接从 D2-A7 开始。
 
 ## 3. 阶段任务与硬退出条件
 
@@ -72,7 +72,7 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 退出证据：`dialogue_pending_runtime=implemented`、`restartCovered=true`，`P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量与静态门禁通过；独立提交 `fa26908`。当前 `blockedIds` 已从 3 降到 2。
 
-### D2-A6：Outbox consumer + Project delete
+### D2-A6：Outbox consumer + Project delete（已完成，勿重复）
 
 目标：同一套可恢复 Outbox 同时收口 Project delete 和 Character reference 物理清理。
 
@@ -98,7 +98,7 @@ legacy_metadata.archive
 
 最小验收证据：`OTB-01`～`OTB-05`、`DEL-00`～`DEL-05`、`SEC-04/05/11`、`OTB-FS-01`～`03`、`DEL-RUN-01`～`03`。
 
-退出：`character_scene_asset_candidate_lock` 与 `project_delete_outbox` 同时变为 implemented，`blockedIds=[]`；独立提交。
+退出证据：P8 定向 5/5、Nest restart、lease recovery、path/hash fencing、fake secret/metadata archive 与 capability 8/36/0；详见 P8 任务目录。先独立提交，再进入 D2-A7。
 
 ### D2-A7：final importer / verifier / ready coordinator
 

@@ -9,6 +9,6 @@ import { SecretStoreService } from "./secret-store.js";
   imports: [WorkspaceModule, PersistenceModule],
   controllers: [SettingsController],
   providers: [SettingsService, SecretStoreService],
-  exports: [SettingsService],
+  exports: [SettingsService, SecretStoreService],
 })
 export class SettingsModule {}

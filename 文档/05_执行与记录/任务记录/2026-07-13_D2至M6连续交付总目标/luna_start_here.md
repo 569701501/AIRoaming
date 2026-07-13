@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-START-002
-status: ready_for_luna
+status: ready_for_luna_next_stage
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -12,19 +12,16 @@ source: 当前 HEAD、capability CLI 与 D2/M6 总施工资料
 
 ## 先看结论
 
-M5 已完成，不要重复施工。D2-A5 Dialogue runtime 也已经完成并独立提交，当前 HEAD 为 `fa26908`。
+M5 已完成，不要重复施工。D2-A5 Dialogue runtime 已完成并独立提交，D2-A6 Outbox/Project delete 也已完成并复核；P8 独立提交正在收口。
 
-Luna 从 **D2-A6 Outbox + Project delete** 开始，连续执行到 M6 隔离演练结束；每阶段内部测试、复核、独立提交后自动进入下一阶段，不需要用户逐步确认。
+Luna 从 **D2-A7 final importer / verifier / ready coordinator** 开始，连续执行到 M6 隔离演练结束；每阶段内部测试、复核、独立提交后自动进入下一阶段，不需要用户逐步确认。
 
 当前真实基线：
 
 ```text
 capabilities = 8
 operations = 36
-blockedIds = [
-  "character_scene_asset_candidate_lock",
-  "project_delete_outbox"
-]
+blockedIds = []
 ```
 
 已绿且不能回退：
@@ -48,11 +45,11 @@ node --import tsx src/migration/db-capabilities.cli.ts --format json
 node --import tsx src/migration/db-capabilities.cli.ts --check --format json
 ```
 
-预期：工作树干净、HEAD 为 `fa26908`、report 为 8/36/2；`--check` 仍因两个 blocker 以 fail-closed 退出，不能手改 registry 数字。
+预期：先确认 P8 独立提交已存在；report 为 8/36/0，`--check` exit 0。若工作树仍有 P8 草稿，先完成提交和记录，不得重复实现。
 
 ## 连续顺序
 
-### 1. D2-A6：Outbox + Project delete（当前阶段）
+### 1. D2-A6：Outbox + Project delete（已完成，禁止重复施工）
 
 交付一个可恢复的 Outbox consumer，并同时完成 Character delete 物理清理：
 
@@ -66,7 +63,7 @@ node --import tsx src/migration/db-capabilities.cli.ts --check --format json
 
 最低证据：`OTB-01～05`、`DEL-00～05`、`SEC-04/05/11`、`OTB-FS-01～03`、`DEL-RUN-01～03`。
 
-退出条件：两个 blocker 同时消失，`db-capabilities --check` exit 0、`blockedIds=[]`；独立 commit。
+退出证据：见 `2026-07-13_D2-A6项目删除与Outbox/`，P8 定向 5/5、restart/lease/path/secret 证据通过，capability `blockedIds=[]`。
 
 ### 2. D2-A7：final importer / verifier / ready coordinator
 

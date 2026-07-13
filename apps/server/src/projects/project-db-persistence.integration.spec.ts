@@ -1,6 +1,6 @@
 import type { INestApplicationContext } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
   access,
@@ -27,6 +27,7 @@ import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
 import { ProjectsService } from "./projects.service.js";
+import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { DialogueModule } from "../dialogue/dialogue.module.js";
 import { DialogueService } from "../dialogue/dialogue.service.js";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
@@ -60,6 +61,8 @@ const ENVIRONMENT_NAMES = [
   "AIROAMING_PERSISTENCE_MODE",
   "AIROAMING_WORKSPACE_ROOT",
   "AIROAMING_DATA_ROOT",
+  "AIROAMING_SECRET_STORE_ADAPTER",
+  "AIROAMING_FAKE_SECRET_STORE_ROOT",
   "DATABASE_URL",
 ] as const;
 
@@ -1599,5 +1602,135 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await reopenedPrisma.project.update({ where: { id: project.id }, data: { lifecycleStatus: "deleting", deletingAt: new Date() } });
     await expect(app.get(DialogueService).sendMessage(project.id, "project_story", { content: "blocked by deleting", model: fakeModel })).rejects.toMatchObject({ message: "PROJECT_NOT_FOUND" });
     expect(await reopenedPrisma.conversationMessage.count({ where: { threadId: first.thread.id } })).toBe(messageCountBeforeDeleting);
+  }, 30_000);
+
+  it("P8-OTB-01/DEL-00: claims strict events and records a DB project deleting intent idempotently", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const outbox = app.get(ProjectDeleteOutboxService);
+    const prisma = app.get(PrismaService).database();
+    const workspace = app.get(WorkspacePathService);
+    const project = await projects.createProject({ name: "P8 删除意图", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    await mkdir(path.join(workspaceRoot, "projects", project.id), { recursive: true });
+    await writeFile(path.join(workspaceRoot, "projects", project.id, "project.json"), "legacy metadata", "utf8");
+    const first = await projects.deleteProject(project.id);
+    expect(first).toMatchObject({ deletedProjectId: project.id, status: "pending", cleanupEventId: expect.any(String) });
+    expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({ lifecycleStatus: "deleting", deletingAt: expect.any(Date) });
+    expect(await prisma.outboxEvent.count({ where: { eventType: "project.delete_files", aggregateId: project.id } })).toBe(1);
+    const replay = await projects.deleteProject(project.id);
+    expect(replay.cleanupEventId).toBe(first.cleanupEventId);
+    expect(await prisma.outboxEvent.count({ where: { eventType: "project.delete_files", aggregateId: project.id } })).toBe(1);
+    await app.close();
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const reopenedOutbox = app.get(ProjectDeleteOutboxService);
+    const reopenedPrisma = app.get(PrismaService).database();
+    const processed = await reopenedOutbox.processNext("p8-worker");
+    expect(processed).toMatchObject({ eventId: first.cleanupEventId, eventType: "project.delete_files", status: "processed", attempt: 1 });
+    expect(await reopenedPrisma.outboxEvent.findUniqueOrThrow({ where: { id: first.cleanupEventId! } })).toMatchObject({ status: "processed", leaseToken: null, processedAt: expect.any(Date) });
+    await expect(access(path.join(workspaceRoot, "projects", project.id))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(app.get(ProjectsService).updateProjectDraft(project.id, { name: "late write" })).rejects.toThrow();
+    await expect(app.get(ProjectsService).purgeDeletedProject(project.id)).resolves.toMatchObject({ projectId: project.id, purged: true });
+    expect(await reopenedPrisma.project.findUnique({ where: { id: project.id } })).toBeNull();
+    expect(workspace.resolveVirtualPath(`/workspace/projects/${project.id}`)).toContain(path.join(workspaceRoot, "projects", project.id));
+  }, 30_000);
+
+  it("P8-OTB-02/OTB-FS-01: rejects unknown payload fields and keeps the event terminal", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const outbox = app.get(ProjectDeleteOutboxService);
+    const prisma = app.get(PrismaService).database();
+    const payload = { schemaVersion: 1, projectId: randomUUID(), projectRootStorageKey: "projects/unknown", assetManifestDigest: digestCanonicalJson([]), unexpected: "must reject" };
+    const event = await prisma.outboxEvent.create({ data: { eventType: "project.delete_files", aggregateType: "project", aggregateId: payload.projectId, payloadJson: payload, payloadSchemaVersion: 1, payloadDigest: digestCanonicalJson(payload), status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `p8-unknown:${randomUUID()}` } });
+    const result = await outbox.processNext("p8-strict");
+    expect(result).toMatchObject({ eventId: event.id, status: "failed", errorCode: "OUTBOX_PROJECT_DELETE_PAYLOAD_UNKNOWN_OR_MISSING_FIELD" });
+    expect(await prisma.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ status: "failed", attempt: 1 });
+    await expect(outbox.processNext("p8-strict-replay")).resolves.toBeNull();
+  }, 30_000);
+
+  it("P8-OTB-05: heartbeat fences the lease and expired processing is recovered", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const outbox = app.get(ProjectDeleteOutboxService);
+    const prisma = app.get(PrismaService).database();
+    const payload = { schemaVersion: 1, projectId: randomUUID(), projectRootStorageKey: "projects/lease", assetManifestDigest: digestCanonicalJson([]) };
+    const event = await prisma.outboxEvent.create({ data: { eventType: "project.delete_files", aggregateType: "project", aggregateId: payload.projectId, payloadJson: { ...payload, unexpected: "lease" }, payloadSchemaVersion: 1, payloadDigest: digestCanonicalJson({ ...payload, unexpected: "lease" }), status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `p8-lease:${randomUUID()}` } });
+    const firstNow = new Date();
+    const first = await outbox.claimNext("lease-a", firstNow);
+    expect(first).toMatchObject({ event: { id: event.id, status: "processing", attempt: 1 }, workerId: "lease-a" });
+    const heartbeat = await outbox.heartbeat(event.id, first!.leaseToken, new Date(firstNow.getTime() + 1_000));
+    expect(heartbeat.leaseOwnerId).toBe("lease-a");
+    const recoveredAt = new Date(firstNow.getTime() + 61_000);
+    expect(await outbox.claimNext("lease-b", recoveredAt)).toBeNull();
+    const recoveryRun = new Date(firstNow.getTime() + 120_000);
+    expect(await outbox.claimNext("lease-b", recoveryRun)).toBeNull();
+    const second = await outbox.claimNext("lease-b", new Date(recoveryRun.getTime() + 6_000));
+    expect(second).toMatchObject({ event: { id: event.id, status: "processing", attempt: 2 }, workerId: "lease-b" });
+    expect(await outbox.processNext("lease-c", new Date(firstNow.getTime() + 68_000))).toBeNull();
+    expect(await prisma.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({ status: "processing", attempt: 2 });
+  }, 30_000);
+
+  it("P8-OTB-03/OTB-FS-02: promotes and deletes an exact asset path with hash fencing", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const outbox = app.get(ProjectDeleteOutboxService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P8 资产事件", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const bytes = Buffer.from("p8-asset-bytes", "utf8");
+    const sha256 = `sha256:${createHash("sha256").update(bytes).digest("hex")}` as `sha256:${string}`;
+    const assetId = randomUUID();
+    const tempStorageKey = `projects/${project.id}/staging/${assetId}.bin`;
+    const finalStorageKey = `projects/${project.id}/assets/${assetId}.bin`;
+    await mkdir(path.join(workspaceRoot, path.dirname(tempStorageKey)), { recursive: true });
+    await writeFile(path.join(workspaceRoot, tempStorageKey), bytes);
+    await prisma.asset.create({ data: { id: assetId, projectId: project.id, chapterId: null, type: "document", role: "test_asset", mimeType: "application/octet-stream", storageKey: finalStorageKey, status: "staged", sha256: null, bytes: null, width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: {}, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson({}), createdAt: new Date(), updatedAt: new Date(), readyAt: null, failedAt: null, deletingAt: null } });
+    const promotePayload = { schemaVersion: 1, assetId, projectId: project.id, chapterId: null, tempStorageKey, finalStorageKey, sha256, bytes: bytes.byteLength };
+    const promote = await prisma.outboxEvent.create({ data: { eventType: "asset.promote", aggregateType: "asset", aggregateId: assetId, payloadJson: promotePayload, payloadSchemaVersion: 1, payloadDigest: digestCanonicalJson(promotePayload), status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `asset.promote:${assetId}:${sha256}` } });
+    expect(await outbox.processNext("p8-asset-worker")).toMatchObject({ eventId: promote.id, status: "processed" });
+    expect(await prisma.asset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({ status: "ready", sha256, bytes: bytes.byteLength, readyAt: expect.any(Date) });
+    await expect(readFile(path.join(workspaceRoot, finalStorageKey))).resolves.toEqual(bytes);
+    const deletePayload = { schemaVersion: 1, assetId, projectId: project.id, chapterId: null, storageKey: finalStorageKey, expectedSha256: sha256, reason: "explicit_delete" as const };
+    const deletion = await prisma.outboxEvent.create({ data: { eventType: "asset.delete", aggregateType: "asset", aggregateId: assetId, payloadJson: deletePayload, payloadSchemaVersion: 1, payloadDigest: digestCanonicalJson(deletePayload), status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `asset.delete:${assetId}:${sha256}:explicit_delete` } });
+    expect(await outbox.processNext("p8-asset-worker")).toMatchObject({ eventId: deletion.id, status: "processed" });
+    await expect(access(path.join(workspaceRoot, finalStorageKey))).rejects.toMatchObject({ code: "ENOENT" });
+  }, 30_000);
+
+  it("P8-OTB-04/SEC-11/ACT-archive: deletes an old fake secret ref and archives metadata without asset bytes", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
+    process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = path.join(testRoot!, "fake-secret-store");
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const outbox = app.get(ProjectDeleteOutboxService);
+    const secretStore = app.get((await import("../settings/secret-store.js")).SecretStoreService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P8 归档与秘密", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const projectJson = Buffer.from("metadata", "utf8");
+    const projectPath = path.join(workspaceRoot, "projects", project.id, "project.json");
+    await mkdir(path.dirname(projectPath), { recursive: true });
+    await writeFile(projectPath, projectJson);
+    const metadataEntry = { storageKey: `projects/${project.id}/project.json`, sha256: `sha256:${createHash("sha256").update(projectJson).digest("hex")}`, bytes: projectJson.byteLength } as const;
+    const metadataDigest = digestCanonicalJson([metadataEntry]);
+    const provider = await prisma.providerConfig.create({ data: { id: randomUUID(), providerId: `p8-${randomUUID()}`, runtimeKind: "image", displayName: "P8 fake", modelId: "fake", baseUrl: null, enabled: false } });
+    const credential = await prisma.credentialMetadata.create({ data: { id: randomUUID(), providerConfigId: provider.id, owner: "image_secret_store", status: "unconfigured", secretRef: null, fingerprint: null, configured: false } });
+    const secretMetadata = await secretStore.put({ credentialId: credential.id, secret: (await import("../settings/secret-store.js")).SecretString.from("p8-secret") });
+    await prisma.credentialMetadata.update({ where: { id: credential.id }, data: { status: "configured", configured: true, secretRef: secretMetadata.secretRef, fingerprint: secretMetadata.fingerprint } });
+    const secretPayload = { schemaVersion: 1, credentialMetadataId: credential.id, oldSecretRef: secretMetadata.secretRef, expectedFingerprint: secretMetadata.fingerprint, reason: "clear" as const };
+    const secretEvent = await prisma.outboxEvent.create({ data: { eventType: "secret.delete_old_ref", aggregateType: "credential_metadata", aggregateId: credential.id, payloadJson: secretPayload, payloadSchemaVersion: 1, payloadDigest: digestCanonicalJson(secretPayload), status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `secret.delete_old_ref:${credential.id}:${secretMetadata.secretRef}` } });
+    await prisma.credentialMetadata.update({ where: { id: credential.id }, data: { status: "clearing", configured: true, secretRef: secretMetadata.secretRef, fingerprint: secretMetadata.fingerprint } });
+    expect(await outbox.processNext("p8-secret-worker")).toMatchObject({ eventId: secretEvent.id, status: "processed" });
+    expect(await prisma.credentialMetadata.findUniqueOrThrow({ where: { id: credential.id } })).toMatchObject({ status: "unconfigured", configured: false, secretRef: null, fingerprint: null });
+    await expect(secretStore.get(credential.id)).rejects.toMatchObject({ message: "SECRET_STORE_ENTRY_MISSING" });
+    const archivePayload = { schemaVersion: 1, cutoverRunId: `p8-run-${randomUUID()}`, projectId: project.id, sourceManifestDigest: metadataDigest, archiveStorageKey: `archives/${project.id}`, metadataEntriesDigest: metadataDigest };
+    const archiveEvent = await prisma.outboxEvent.create({ data: { eventType: "legacy_metadata.archive", aggregateType: "project", aggregateId: project.id, payloadJson: archivePayload, payloadSchemaVersion: 1, payloadDigest: digestCanonicalJson(archivePayload), status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `legacy-metadata.archive:${archivePayload.cutoverRunId}:${project.id}:${metadataDigest}` } });
+    expect(await outbox.processNext("p8-archive-worker")).toMatchObject({ eventId: archiveEvent.id, status: "processed" });
+    await expect(access(path.join(workspaceRoot, "projects", project.id, "project.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(workspaceRoot, archivePayload.archiveStorageKey, "project.json"))).resolves.toEqual(projectJson);
   }, 30_000);
 });

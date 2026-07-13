@@ -20,6 +20,7 @@ import { ImagePreflightService } from "./image-preflight.service.js";
 import { ImageCandidateService } from "./image-candidate.service.js";
 import { LayoutExportService } from "./layout-export.service.js";
 import { AssetPackageService } from "./asset-package.service.js";
+import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { parseCreateProjectRequestV1, parseUpdateProjectDraftRequestV1 } from "./project-input.contract.js";
 import { mapG3ProjectDatabaseError } from "./g3-project-error.mapper.js";
 import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
@@ -237,6 +238,7 @@ export class ProjectsService implements OnModuleInit {
     @Inject(AssetPackageService) private readonly assetPackage: AssetPackageService,
     @Optional() @Inject(PersistentG2TaskCreateGuardService) private readonly g2TaskCreateGuard?: PersistentG2TaskCreateGuardService,
     @Optional() @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
+    @Optional() @Inject(ProjectDeleteOutboxService) private readonly projectDeleteOutbox?: ProjectDeleteOutboxService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -863,6 +865,19 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async deleteProject(projectId: string): Promise<DeleteProjectResponse> {
+    if (this.isDatabaseMode()) {
+      if (!this.projectDeleteOutbox) throw new BadRequestException("PROJECT_DELETE_OUTBOX_UNAVAILABLE");
+      const intent = await this.projectDeleteOutbox.requestProjectDelete(projectId);
+      this.repository.deleteProject(projectId);
+      const deletedRuntimeStateCount = intent.status === "processed" ? this.notifyProjectDeleted(projectId) : 0;
+      return {
+        deletedProjectId: projectId,
+        deletedTaskCount: intent.deletedTaskCount,
+        deletedRuntimeStateCount,
+        status: intent.status,
+        cleanupEventId: intent.eventId,
+      };
+    }
     this.repository.assertDatabaseOperationSupported("delete_project");
     const project = await this.projectStore.getReadyProject(projectId);
 
@@ -878,6 +893,14 @@ export class ProjectsService implements OnModuleInit {
       deletedTaskCount,
       deletedRuntimeStateCount,
     };
+  }
+
+  async purgeDeletedProject(projectId: string): Promise<{ projectId: string; purged: true }> {
+    if (!this.isDatabaseMode() || !this.projectDeleteOutbox) throw new BadRequestException("PROJECT_DELETE_OUTBOX_UNAVAILABLE");
+    const result = await this.projectDeleteOutbox.purgeDeletedProject(projectId);
+    this.repository.deleteProject(projectId);
+    this.notifyProjectDeleted(projectId);
+    return result;
   }
 
   private notifyProjectDeleted(projectId: string): number {

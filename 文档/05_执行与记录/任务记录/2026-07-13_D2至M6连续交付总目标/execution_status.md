@@ -31,7 +31,7 @@ source: 连续执行总 Handoff
 | P5 D2-A3-2B | passed_for_intent_boundary | `a2c46a3` | 33 targeted + 54 files/374 tests（全量命令显式 30s） | PASS | PASS | PASS | Character delete intent 已通过；Outbox consumer/物理清理仍属于 P8，capability 保持 partial |
 | P6 D2-A4 | passed | `73cc76f` | P6-LAYOUT-EXPORT-01 + project DB 28/28；server 全量/门禁通过 | PASS | PASS | PASS | LayoutWorkingCopy、LayoutRevision/bindings、layout ExportRevision/Artifact、asset package 已实现；Character delete 仍待 P8 |
 | P7 D2-A5 | passed | `fa26908` | P7-DIALOGUE-DB-01 + project DB 29/29；server 全量/门禁通过 | PASS | PASS | PASS | Dialogue 已具备 DB thread/message/tool/pending/session、restart、maintenance/deleting fence；blockedIds=2 |
-| P8 D2-A6 | in_progress | - | Outbox + Project delete + Character delete physical cleanup | - | - | - | 当前 Luna 领取阶段；目标 blockedIds=0 |
+| P8 D2-A6 | passed | working tree（待独立提交） | 5 P8 定向 + capability | 5/5；慢测独立 45/45 | PASS | PASS | capability=8/36，blockedIds=[]；见 D2-A6 任务目录 |
 | P9 D2-A7 | pending | - | - | - | - | - | - |
 | P10 D2-A8 | pending | - | - | - | - | - | - |
 | P11 M6 tooling/rehearsal | pending | - | - | - | - | - | - |

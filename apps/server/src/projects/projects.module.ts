@@ -35,6 +35,7 @@ import { TaskApplicabilityGuardService } from "./versioning/task-applicability-g
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
+import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -70,7 +71,8 @@ import { ProjectScriptCommandRepository } from "./project-script-command.reposit
     TaskApplicabilityGuardService,
     PersistentG2TaskCreateGuardService,
     PersistentTaskWorkerService,
+    ProjectDeleteOutboxService,
   ],
-  exports: [ProjectsService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService],
+  exports: [ProjectsService, ProjectDeleteOutboxService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService],
 })
 export class ProjectsModule {}
