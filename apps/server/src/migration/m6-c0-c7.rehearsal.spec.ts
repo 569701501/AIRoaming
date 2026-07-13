@@ -152,8 +152,8 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         const backupEntries = await readdir(backupOutput);
         const backup = path.join(backupOutput, backupEntries.find((entry) => entry.startsWith("backup-"))!);
         const activate = new DbActivateService(prisma!);
-        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, gate: "ACT-08", mode: "dry-run" })).resolves.toMatchObject({ activationState: "ready_for_activation", firstBusinessWriteAt: null });
-        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, gate: "ACT-08", mode: "execute" })).resolves.toMatchObject({ activationState: "db_only", firstBusinessWriteAt: null });
+        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, maintenanceBundle, cutoverEvidenceRoot: evidenceRoot, gate: "ACT-08", mode: "dry-run" })).resolves.toMatchObject({ activationState: "ready_for_activation", firstBusinessWriteAt: null });
+        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, maintenanceBundle, cutoverEvidenceRoot: evidenceRoot, gate: "ACT-08", mode: "execute" })).resolves.toMatchObject({ activationState: "db_only", firstBusinessWriteAt: null });
         const project = await prisma!.database().project.findFirstOrThrow();
         await prisma!.runBusinessTransaction(async (tx) => {
           await tx.project.update({ where: { id: project.id }, data: { description: "first business write" } });

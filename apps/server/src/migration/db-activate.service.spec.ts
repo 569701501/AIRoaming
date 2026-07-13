@@ -49,7 +49,7 @@ describe("DbActivateService", () => {
     expect(restore.restore).toHaveBeenCalledTimes(1);
   });
 
-  it("execute atomically transitions ready_for_activation to db_only without first write", async () => {
+  it("M6A1-ACT-05 execute atomically transitions ready_for_activation to db_only without first write", async () => {
     const { db, state } = fixture();
     const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn(async () => ({ mode: "verify-only" })) } as never);
     await expect(service.activate(input("execute"))).resolves.toMatchObject({ mode: "execute", activationState: "db_only", backupVerified: true, firstBusinessWriteAt: null });
@@ -58,7 +58,7 @@ describe("DbActivateService", () => {
     expect(state.firstBusinessWriteAt).toBeNull();
   });
 
-  it("fails closed on source/effective identity mismatch", async () => {
+  it("M6A1-ACT-03 fails closed on source/effective identity mismatch", async () => {
     const { db } = fixture();
     const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn() } as never);
     await expect(service.activate({ ...input("dry-run"), sourceManifestDigest: "sha256:" + "2".repeat(64) })).rejects.toMatchObject({ code: "ACTIVATE_IDENTITY_MISMATCH" });
@@ -69,5 +69,11 @@ describe("DbActivateService", () => {
     const { db } = fixture();
     const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn() } as never);
     await expect(service.activate(input("dry-run"))).rejects.toMatchObject({ code: "ACTIVATE_BACKUP_UNVERIFIED" });
+  });
+
+  it("M6A1-ACT-04 rejects activation when closed maintenance/evidence has not reached C6", async () => {
+    const { db } = fixture();
+    const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn() } as never);
+    await expect(service.activate({ ...input("dry-run"), maintenanceBundle: "/tmp/missing-runtime-bundle.json", cutoverEvidenceRoot: "/tmp/missing-cutover-evidence" })).rejects.toMatchObject({ code: "ACTIVATE_NOT_READY" });
   });
 });

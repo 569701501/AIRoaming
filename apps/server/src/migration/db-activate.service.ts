@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Prisma } from "@prisma/client";
@@ -6,6 +6,8 @@ import { AppRestoreService } from "../backup/app-restore.service.js";
 import { getBlockedDbCapabilities } from "./db-capability-registry.js";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
+import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
+import { CUTOVER_STEPS } from "./cutover-coordinator.service.js";
 
 export type DbActivateMode = "dry-run" | "execute";
 
@@ -15,6 +17,8 @@ export interface DbActivateInput {
   effectiveManifestDigest: string;
   releaseRoot: string;
   backup: string;
+  maintenanceBundle?: string;
+  cutoverEvidenceRoot?: string;
   gate: "ACT-08";
   mode: DbActivateMode;
 }
@@ -47,6 +51,10 @@ function iso(value: Date | null): string | null {
   return value?.toISOString() ?? null;
 }
 
+async function existsFile(filePath: string): Promise<boolean> {
+  try { await lstat(filePath); return true; } catch { return false; }
+}
+
 /**
  * M6 cutover coordinator. It is deliberately a read-heavy service: the
  * execute path has one conditional transaction, while dry-run never updates
@@ -58,6 +66,19 @@ export class DbActivateService {
     private readonly prisma: PrismaService,
     private readonly restore = new AppRestoreService(),
   ) {}
+
+  private async verifyCutoverEvidence(input: DbActivateInput): Promise<void> {
+    if (!input.maintenanceBundle && !input.cutoverEvidenceRoot) return;
+    if (!input.maintenanceBundle || !input.cutoverEvidenceRoot) throw new DbActivateError("ACTIVATE_NOT_READY");
+    try {
+      await new RuntimeBundleFileService().readAndVerify(absolute(input.maintenanceBundle, "ACTIVATE_NOT_READY"));
+      const root = absolute(input.cutoverEvidenceRoot, "ACTIVATE_NOT_READY");
+      const evidence = JSON.parse(await readFile(path.join(root, "cutover-evidence.json"), "utf8")) as { steps?: Array<{ step?: string; status?: string; stepDigest?: string }>; identity?: { runId?: string } };
+      if (evidence.identity?.runId !== input.runId || !Array.isArray(evidence.steps) || evidence.steps.length < 7 || !CUTOVER_STEPS.slice(0, 7).every((step, index) => evidence.steps?.[index]?.step === step && evidence.steps?.[index]?.status === "passed" && typeof evidence.steps?.[index]?.stepDigest === "string") || !(await existsFile(path.join(root, "C6_READY")))) throw new Error("invalid evidence");
+    } catch {
+      throw new DbActivateError("ACTIVATE_NOT_READY");
+    }
+  }
 
   private async verifyBackup(input: DbActivateInput): Promise<void> {
     const backup = absolute(input.backup, "ACTIVATE_BACKUP_UNVERIFIED");
@@ -122,6 +143,7 @@ export class DbActivateService {
 
   async activate(input: DbActivateInput): Promise<DbActivateResult> {
     await this.assertReady(input);
+    await this.verifyCutoverEvidence(input);
     await this.verifyBackup(input);
     if (input.mode === "dry-run") {
       const state = await this.prisma.database().persistenceState.findUnique({ where: { id: "primary" } });
