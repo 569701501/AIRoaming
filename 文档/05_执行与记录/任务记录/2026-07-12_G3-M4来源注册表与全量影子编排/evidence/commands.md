@@ -16,7 +16,7 @@ source: 本轮临时 SQLite / server 回归与 CLI fixture
 - 证据生成前代码提交：`e6ff615`
 - 证据提交：`c580050`
 - 本证据只覆盖 shadow importer / verifier；不授权 `final`、backup、activate。
-- 既有截图删除未纳入本轮提交。
+- 12 张旧截图删除后来由用户单独授权并在 `65c90fe` 提交；不属于 M4 生产代码或验收证据。
 
 ## 验证命令与结果
 
@@ -35,7 +35,7 @@ source: 本轮临时 SQLite / server 回归与 CLI fixture
 - 复核基线：`8a70758`；本轮新增 `IMP-M4-28/29/30/31` 仅增加 full CLI 成功/blocked/final fail-closed/独立 slice dispatch 回归测试，不改变 importer/verifier 生产逻辑。
 - 后续验证提交：`4972d8e`；补齐 `IMP-M4-31` 的 16 个独立 slice CLI dispatch 回归，未改变 importer/verifier 生产逻辑。
 - 当前复跑：server 47 个测试文件、303 tests 全部通过；workspace typecheck、G1 manifest/schema/migration check、Prisma validate、`git diff --check` 全部通过。
-- 工作区仍只保留既有 12 张截图删除；本轮没有将其纳入提交。
+- 复核 HEAD 为 `65c90fe`，签字前工作树干净；该提交只处理用户授权的旧截图删除，没有 M4 生产代码变化。
 
 ## M4 定向证据
 
@@ -51,5 +51,5 @@ source: 本轮临时 SQLite / server 回归与 CLI fixture
 
 ## 当前残留
 
-- M4 等待正式验收签字，状态保持 `in_progress`。
+- M4 已于 2026-07-13 正式验收通过，状态为 `completed`。
 - `db:import --kind final`、M5 backup/restore、M6 activate/cutover 继续 fail-closed 或未实现。

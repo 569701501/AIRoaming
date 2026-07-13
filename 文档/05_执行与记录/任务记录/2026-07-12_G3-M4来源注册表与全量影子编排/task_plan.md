@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-REGISTRY-PLAN-001
-status: active
+status: completed
 created: 2026-07-12
 updated: 2026-07-13
 owner: AI漫游项目
@@ -39,3 +39,8 @@ source: G3-M施工包与当前实现
 - succeeded shadow 的 `db:verify` 必须读取显式 decisions artifact，并同时校验 artifact sourceManifestDigest、artifact decisionsDigest 与 MigrationRun.decisionsDigest；缺失、非法或三方不一致时 fail-closed。
 - succeeded shadow 的 `db:verify` 必须读取显式 `--import-report` artifact，按报告 codec 重算 canonical `reportDigest` 并与 MigrationRun.reportDigest 绑定；缺失、非法或不一致时 fail-closed。
 - typecheck、定向集成测试和全量回归通过。
+
+# 完成状态
+
+- 2026-07-13 正式复核通过，M4 状态为 `completed`。
+- M5 backup/restore 已转交独立任务包；M6/final/activate 仍不在本任务范围。

@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-REGISTRY-FINDINGS-001
-status: active
+status: completed
 created: 2026-07-12
 updated: 2026-07-13
 owner: AI漫游项目
@@ -44,13 +44,13 @@ source: code exploration and tests
 - 进一步补做真实 CLI 入口审计：`IMP-M4-26` 在临时 SQLite 上执行 `db:verify.cli.ts`，确认显式 `--decisions`、`--import-report`、`--report` 的成功输出与写入文件一致；`IMP-M4-27` 缺少 `--import-report` 时在 Prisma 初始化前返回 `MIGRATION_VERIFY_ARGS_INVALID`，没有数据库副作用。
 - 继续审计发现 full importer 只有 service 级回归，没有公开 `db:import --kind shadow --slice full` CLI 回归；新增 `IMP-M4-28`，在临时 SQLite 上确认 `MIGRATION_IMPORT_OK`、规范聚合报告、16 个有序 slice 和 16 条独立 MigrationRun。
 - 继续补齐公开 CLI 失败契约：新增 `IMP-M4-29`，四格未决议输入在临时 SQLite 上返回 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不产生下游空 run。
-- 继续审计 final 入口发现生产分支虽已 fail-closed，但缺少真实 CLI 回归；新增 `IMP-M4-30`，确认 `db:import --kind final` 在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。代码提交为 `bd5ca13`，M4 仍保持 `in_progress`。
-- 继续审计发现 full CLI 回归不能证明 16 个独立 slice 的公开 dispatch 分支均正确；新增 `IMP-M4-31`，逐个启动 16 个真实 `db:import --kind shadow --slice <slice>` 入口并验证合法报告与 16 条 MigrationRun。代码提交为 `4972d8e`，M4 仍保持 `in_progress`。
+- 继续审计 final 入口发现生产分支虽已 fail-closed，但缺少真实 CLI 回归；新增 `IMP-M4-30`，确认 `db:import --kind final` 在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。代码提交为 `bd5ca13`；该提交时 M4 尚为 `in_progress`。
+- 继续审计发现 full CLI 回归不能证明 16 个独立 slice 的公开 dispatch 分支均正确；新增 `IMP-M4-31`，逐个启动 16 个真实 `db:import --kind shadow --slice <slice>` 入口并验证合法报告与 16 条 MigrationRun。代码提交为 `4972d8e`；该提交时 M4 尚为 `in_progress`。
 
 # M4 结论
 
 - 实现门禁和临时环境证据已齐：来源注册表、16-slice full shadow、fresh/replay、DB read-model/API、Asset physical evidence、DB-only 写隔离和 pending Dialogue 均有测试证据。
 - `IMP-M3-FULL-02` 已补充 blocked prerequisite fail-fast 证据；它证明未决议的 Project/Chapter 不会触发后续 15 个下游 slice。
 - final cutover 前投影读取点静态审计见 `projection_read_point_audit.md`：Project/Chapter 等业务投影和 Task 持久读已走 DB，物理 Asset storage 仍按允许的 storageKey 读写；SettingsService 仍读写旧 `app-settings.json`，必须作为 M5 capability/SecretStore blocker，不能在 M4 伪装成 DB-only。
-- 本结论不是 production cutover 批准；M4 状态继续保持 `in_progress`，等待正式验收签字。M5/M6 不在本轮范围内。
+- 本结论不是 production cutover 批准；M4 已于 2026-07-13 正式签字并更新为 `completed`。M5/M6 仍是独立阶段，不因本结论自动放行。
 - `IMP-M4-08` 覆盖 unchanged replay 的当前 run 空来源；`IMP-M4-09` 覆盖摘要正确但来源行超额；`IMP-M4-10` 对成功 full shadow 的 16 个 slice 逐个执行 verifier。三组证据共同证明 verifier 的来源证据计数门禁 fail-closed，且不修改 schema/migration/trigger。

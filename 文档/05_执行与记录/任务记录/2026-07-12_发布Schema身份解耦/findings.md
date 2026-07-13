@@ -46,7 +46,7 @@ source: task_plan.md
 - `ImportedEntitySource.sourceStorageKey` 是单个主追溯锚点；`sourceDigest` 是实体来源证据摘要，可以由多个文件摘要合成。Project/Chapter importer 已用 `chapter.json + script` 合成 Chapter digest，因此 verifier 不能普遍做单文件相等比较。
 - 当前 M4 能安全验证主追溯锚点仍存在于 sealed source manifest。若要逐实体重算复合摘要，需要后续引入按 `entityType` 注册的来源证据集合与算法；本轮不伪造通用规则。
 - import run 本身已有 `verification` 证据；只读 verifier 的不变性测试必须保存 before 值并比较 after，而不是断言 null。
-- M4 实现门禁现已覆盖双 fresh shadow、API DTO/Asset hash、DB-only 写隔离、pending Dialogue、来源注册表复算、replay 空/漂移来源 fail-closed、full 16-slice 逐片 verifier 和统一 8 CLI format 契约；正式验收签字仍未完成，文档继续保持 `in_progress`。
+- M4 实现门禁当时已覆盖双 fresh shadow、API DTO/Asset hash、DB-only 写隔离、pending Dialogue、来源注册表复算、replay 空/漂移来源 fail-closed、full 16-slice 逐片 verifier 和统一 8 CLI format 契约；该条记录时尚未正式验收，最终状态见 2026-07-13 进度结论。
 
 ## 后续 M4 重放证据审计
 
@@ -60,6 +60,6 @@ source: task_plan.md
 
 - 发现 `buildExpectedSourceCounts` 对未知 importerVersion 会退化为运行时自带的任意 count key；若没有来源计数，未知 shadow run 可能绕过来源规则。现以 A2～A15 注册表作为唯一已知 shadow importerVersion 集合，未知版本返回 `MIGRATION_IMPORTER_VERSION_INVALID`。
 - 发现 succeeded shadow run 可以没有 `reportDigest`，导致账本完成态缺少报告绑定。现要求 succeeded shadow 必须带非空 reportDigest，否则返回 `MIGRATION_REPORT_DIGEST_MISSING`。
-- `IMP-M4-12/13` 已分别锁定未知 importerVersion 与缺失 reportDigest；两项均不改 schema/migration/trigger，M4 仍保持 `in_progress`。
+- `IMP-M4-12/13` 已分别锁定未知 importerVersion 与缺失 reportDigest；两项均不改 schema/migration/trigger，该条记录时 M4 尚为 `in_progress`。
 - 继续审计发现已知 importer 的 `counts.entityCounts` 缺失或带未注册键仍可形成空映射；现要求结构完整、值为非负整数，并允许已声明的 Project/A6 Shot 上下文键。`IMP-M4-14/15` 已锁定 `MIGRATION_SOURCE_ENTITY_COUNTS_MISSING/INVALID`，不改 schema/migration/trigger。
 - 继续审计发现 succeeded shadow 的 verification attestation 可以缺失或声明 source/snapshot 未验证；现要求 schemaVersion=1 且两个 manifest verification 标志均为 true，`IMP-M4-16/17` 锁定 `MIGRATION_RUN_VERIFICATION_MISSING/INVALID`，不改 schema/migration/trigger。

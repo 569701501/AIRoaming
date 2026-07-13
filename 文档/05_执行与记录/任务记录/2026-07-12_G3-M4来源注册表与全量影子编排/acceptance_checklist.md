@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-ACCEPTANCE-001
-status: pending_signoff
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -8,16 +8,16 @@ audience: human, ai-agent, qa, reviewer
 source: task_plan.md、handoff.md、scrutiny_review.md、runtime_user_review.md、evidence/verification.summary.json
 ---
 
-# M4 正式验收清单（待签字）
+# M4 正式验收清单（已通过）
 
 ## 1. 验收边界
 
 - 基线：`0c3295b`。
-- 当前实现提交：`4972d8e`；证据同步提交：`c040a1a`、`4c2d7aa`。
+- M4 最后生产代码提交：`4972d8e`；证据同步提交：`c040a1a`、`4c2d7aa`、`006c5cd`；本次复核 HEAD：`65c90fe`。
 - 范围：来源证据注册表、16 个 shadow slice、full shadow 编排、`db:verify` 只读校验、DB read-model/API/Asset 等价和 DB-only 写隔离。
-- 当前状态：`in_progress`。本清单不是正式签字，不得据此把 M4 标记为 `completed`。
-- 既有 12 张截图删除不属于本任务，未纳入任何提交。
-- 边界复核：`git diff --quiet 0c3295b..HEAD -- apps/server/prisma/schema.prisma apps/server/prisma/migrations` 返回 `SCHEMA_MIGRATIONS_UNCHANGED`；当前工作树仅有既有 12 张截图删除。
+- 当前状态：`completed`。本结论只批准 M4 shadow/verifier 范围，不授权 final import、M5/M6 或 production activate。
+- 12 张旧截图删除已由用户单独授权并在 `65c90fe` 提交，不属于 M4 生产代码或验收证据。
+- 边界复核：当前 HEAD 执行 `git diff --quiet 0c3295b..HEAD -- apps/server/prisma/schema.prisma apps/server/prisma/migrations` 返回 `SCHEMA_MIGRATIONS_UNCHANGED`；签字前工作树干净。
 
 ## 2. 证据矩阵
 
@@ -45,7 +45,7 @@ source: task_plan.md、handoff.md、scrutiny_review.md、runtime_user_review.md�
 
 ## 4. 签字栏
 
-- Reviewer：
-- 复核日期：
-- 决定：`pending`
-- 备注：
+- Reviewer：Codex（GPT-5，受用户委托执行 Scrutiny Review 与临时环境运行证据复核）
+- 复核日期：2026-07-13
+- 决定：`passed`
+- 备注：当前 HEAD 重新执行迁移集成 58/58、server 47 文件/303 tests、workspace typecheck、G1 manifest/schema/migration、Prisma validate 和 `git diff --check` 均通过；签字不等同于真实生产切换授权。

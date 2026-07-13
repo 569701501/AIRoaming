@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "airoaming_g3_m5_document_readiness_v1",
+  "status": "ready_for_development",
+  "reviewedAt": "2026-07-13",
+  "m4AcceptanceHead": "65c90fe",
+  "m4": {
+    "status": "completed",
+    "migrationIntegrationPassed": 58,
+    "migrationIntegrationTotal": 58,
+    "serverTestFilesPassed": 47,
+    "serverTestsPassed": 303,
+    "typecheckPassed": true,
+    "g1ManifestPassed": true,
+    "g1SchemaPassed": true,
+    "g1MigrationsPassed": true,
+    "prismaValidatePassed": true,
+    "schemaAndMigrationTreeChanged": false
+  },
+  "m5": {
+    "slices": ["M5-A0", "M5-A1", "M5-A2", "M5-A3"],
+    "firstAuthorizedSlice": "M5-A0",
+    "implementationStarted": false,
+    "runtimeReview": "not_run"
+  },
+  "blockedScopes": [
+    "final_import",
+    "pre_cutover_backup_success",
+    "secret_store_closure",
+    "required_capability_closure",
+    "production_activate",
+    "M6"
+  ]
+}

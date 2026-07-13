@@ -29,9 +29,9 @@ source: release Schema handoff、G3-M 施工包、当前 server 读写代码
 
 1. M4 的 DB read-model/API 等价门禁覆盖了当前已交付的业务投影，不需要为了“看起来全 DB”把 Settings/M5 偷塞进 M4。
 2. `SettingsService` 的旧文件事实源必须进入 `db-capability-registry` 的 required gate；在 DB-only activate 前，必须完成 DB settings + SecretStore/runtime provider 读写并有重启证据。
-3. 在 M5 完成前，禁止把 DB mode 的 Settings 文件读写描述为 production-ready；M4 继续 `in_progress`，`db:import --kind final`、backup、activate 保持 fail-closed。
+3. M4 已完成签字，但在 D2 capability/SecretStore closure 前，禁止把 DB mode 的 Settings 文件读写描述为 production-ready；`db:import --kind final`、pre-cutover backup、activate 保持 fail-closed。
 
 ## 后续入口
 
-- M5：实现 Settings/Credential capability、脱敏/SecretStore 运行时映射，并补 `CAP-01/02`、重启和旧 settings mutation 隔离测试。
+- M5-A0：先用 capability registry 如实登记 Settings/Credential blocker；M5-A1～A3 只开发临时 coordinated backup/restore。Settings/SecretStore 的 D2 capability closure 必须在 M6 前另行领取，并补重启与旧 settings mutation 隔离测试。
 - M6 前：重新执行本审计，确认除允许的 Asset physical storage 与显式 migration staging 外，runtime 不再以旧 metadata/secret 文件作为 DB 事实源。

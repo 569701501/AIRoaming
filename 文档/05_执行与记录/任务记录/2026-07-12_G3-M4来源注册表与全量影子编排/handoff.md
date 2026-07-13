@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-REGISTRY-HANDOFF-001
-status: active
+status: completed
 created: 2026-07-12
 updated: 2026-07-13
 owner: AI漫游项目
@@ -32,7 +32,7 @@ source: G3-M4 continuation
 - `IMP-M4-29` 已通过 full CLI blocked prerequisite 回归：返回 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
 - `IMP-M4-30` 已通过真实 `db:import --kind final` CLI 回归：在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
 - `IMP-M4-31` 已通过 16 个独立 `db:import --kind shadow --slice <slice>` CLI 回归：每个入口按依赖顺序成功、报告摘要合法，并在 fresh DB 中各创建一条 MigrationRun。
-- 已新增 `acceptance_checklist.md`：逐项绑定 M4 证据、明确 final/backup/activate 非范围，并保持 `pending_signoff`；正式签字前不得把 M4 标记为 completed。
+- `acceptance_checklist.md` 已逐项绑定 M4 证据并明确 final/backup/activate 非范围；2026-07-13 正式签字后状态为 `completed/passed`。
 - 可复现证据已脱敏落在本目录 `evidence/commands.md` 与 `evidence/verification.summary.json`；不包含真实 DB、workspace、报告正文、绝对路径或密钥。
 - final cutover 前投影读取点静态审计已完成：业务 read-model/Task 走 DB，Asset physical storage 保持允许边界；Settings/SecretStore 旧文件事实源明确交给 M5，不得借 M4 绕过 capability gate。
 - DB full shadow 已能重建公共 `WorkbenchSnapshot`；file/DB 语义 DTO、ready Asset sha256/bytes 和 DB-only 写隔离均有集成证据。
@@ -40,10 +40,10 @@ source: G3-M4 continuation
 
 # 交给下一阶段
 
-1. 完成 M4 正式验收签字前的最终审查，并把本目录的证据命令保持可复现。
-2. 继续保持 `db:import --kind final`、M5 backup/restore 和 M6 activate fail-closed。
-3. M4 签字后才进入 M5；M6 仍需 capability、SecretStore、backup 和用户授权前置。
+1. M4 已于 2026-07-13 正式复核通过；继续保持本目录证据命令可复现。
+2. 进入 M5 临时根 backup/restore 工具开发；`db:import --kind final` 和 M6 activate 继续 fail-closed。
+3. M6 仍需 final importer、全量 capability、SecretStore、已演练 backup 和用户再次授权。
 
 # 当前结论
 
-M3 full shadow orchestration 已完成，M4 仍 `in_progress`，不能作为 Luna 的 final cutover 实现依据。
+M3 full shadow orchestration 与 M4 shadow verifier 已完成；可以把 M5 单切片施工包交给 Luna，但本 handoff 仍不能作为 final cutover 或 production activate 依据。

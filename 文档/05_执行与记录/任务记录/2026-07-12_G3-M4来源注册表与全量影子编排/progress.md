@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-REGISTRY-PROGRESS-001
-status: active
+status: completed
 created: 2026-07-12
 updated: 2026-07-13
 owner: AI漫游项目
@@ -44,9 +44,10 @@ source: task execution
 - [x] 修正 full shadow 尾部依赖顺序为 `dialogue → providers`；前置 slice blocked/failed 时 fail-fast，不运行下游 slice。
 - [x] 完成 final cutover 前投影读取点静态审计；确认 Settings 旧文件事实源属于 M5 capability blocker，不在 M4 偷补。
 - [x] pending Dialogue artifact：显式 `dialogue_pending_state_v1` capture、稳定导入、scope/FK、payloadDigest、runtime source evidence 和 replay。
-- [x] M4 任务目录同步 DB read-model/API/Asset 门禁证据；M4 仍等待正式验收签字。
-- [x] 新增 `acceptance_checklist.md`，逐项绑定 `IMP-M4-01～31` 与全量门禁，状态保持 `pending_signoff`。
-- [ ] M5 backup/restore、M6 activate/cutover。
+- [x] M4 任务目录同步 DB read-model/API/Asset 门禁证据，并于 2026-07-13 完成正式签字。
+- [x] `acceptance_checklist.md` 逐项绑定 `IMP-M4-01～31` 与全量门禁，当前状态为 `completed/passed`。
+- [x] 2026-07-13 M4 正式验收签字通过。
+- [ ] M5 backup/restore、M6 activate/cutover：已转交独立阶段任务，不计入 M4 完成范围。
 
 # 验证证据
 
@@ -63,8 +64,8 @@ source: task execution
 - `pnpm --filter @airoaming/server typecheck`、G1 manifest/schema/migration check 与 `git diff --check`：通过。
 - `pnpm --filter @airoaming/server exec tsx src/migration/db-verify.cli.ts ... --format text`：按契约 fail-fast，输出 `MIGRATION_VERIFY_ARGS_INVALID`；typecheck 与 server 全量回归仍通过。
 - `projection_read_point_audit.md`：静态审计确认业务 DB read-model 与物理 Asset storage 边界；Settings/SecretStore 明确保留为 M5 阻塞项。
-- 当前代码复核（含 `IMP-M4-28/29/30/31`）复跑 server 全量 47 个测试文件/303 tests、workspace typecheck、G1 manifest/schema/migration check、Prisma validate、`git diff --check` 均通过；代码提交为 `4972d8e`，M4 继续保持 `in_progress` 等待正式签字。
+- 当前代码复核（含 `IMP-M4-28/29/30/31`）复跑 server 全量 47 个测试文件/303 tests、workspace typecheck、G1 manifest/schema/migration check、Prisma validate、`git diff --check` 均通过；M4 最后生产代码提交为 `4972d8e`，2026-07-13 正式签字通过。
 
 # 工作区约束
 
-- 12 个 `文档/06_测试与验收/截图/` 删除属于既有工作区状态，未修改。
+- 12 个旧截图删除已由用户单独授权并在 `65c90fe` 提交；不属于 M4 生产代码或验收证据。签字前工作树干净。

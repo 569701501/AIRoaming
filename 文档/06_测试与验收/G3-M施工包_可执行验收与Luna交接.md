@@ -12,7 +12,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 1. 当前结论
 
-foundation 与 shadow importer 主要切片已推进到 A15；production cutover 尚未就绪。后续继续按单切片推进，不能把当前 `db:verify` 基础实现或 16 个独立 slice 宣称为 full importer/cutover 完成。
+M0～M4 foundation 已完成并正式签字；production cutover 尚未就绪。后续从 M5-A0 按单切片推进，不能把 full shadow、临时 coordinated backup 或空根 restore 宣称为 final importer/cutover 完成。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -39,8 +39,8 @@ foundation 与 shadow importer 主要切片已推进到 A15；production cutover
 | G3-M3-A14 Provider/settings shadow | implemented，commit `47c7680`；只导入脱敏 provider 元数据，旧 key 不进入 Secret |
 | G3-M3-A15 Dialogue runtime shadow | implemented；captured 对话历史、closed session 与显式 pending Dialogue artifact 均导入并留证，deferred 状态零实体 |
 | G3-M3 full importer | implemented，commit `9e04495`；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
-| G3-M4 verifier/shadow | in_progress；来源证据注册表、复合摘要重算、runtime/settings 转换来源校验、full replay、双 fresh、API/Asset/DB-only 与 pending Dialogue 等价门禁已具备，待正式验收签字 |
-| G3-M5 backup/restore | not_implemented |
+| G3-M4 verifier/shadow | completed；来源注册表、full replay、双 fresh、API/Asset/DB-only、pending Dialogue、真实 CLI 与正式签字均已完成 |
+| G3-M5 backup/restore | ready_for_development；M5-A0～A3 任务包与 Luna 第一张任务书已补齐，生产代码尚未实现 |
 | G3-M6 activate/cutover | prerequisite_blocked |
 
 ## 2. 必读顺序
@@ -68,9 +68,9 @@ db:import --kind shadow --slice full --workspace-root <workspace-root>
 db:verify
 # 需要与本次 shadow run 一起提供已校验的 decisions artifact
 db:verify --snapshot <sealed-dir> --decisions <normalized-decisions.json> --import-report <slice-report.json> --database-url <explicit sqlite url> --run-id <id> --report <output> --workspace-root <repo-root> --format json
-db:capabilities
-app:backup
-app:restore
+db:capabilities（M5-A0 待实现）
+app:backup（M5-A1 待实现）
+app:restore（M5-A2 待实现）
 db:activate
 ```
 
@@ -168,19 +168,22 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 - `IMP-M4-29` 已通过 full CLI blocked prerequisite 回归；返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，报告只含首个 blocked slice，不创建下游 run。
 - `IMP-M4-30` 已通过真实 `db:import --kind final` CLI 回归；在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
 - `IMP-M4-31` 已通过 16 个独立 `db:import --kind shadow --slice <slice>` CLI 回归；每个入口按依赖顺序成功并写出合法报告，fresh DB 保留 16 条 MigrationRun。
-- M4 正式验收前的证据矩阵见任务目录 `acceptance_checklist.md`，其状态必须保持 `pending_signoff`。
-- 当前已完成单次 succeeded、转换来源、full replay 特征测试、blocked/failed full fail-fast、双 fresh DB 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁；DB-only 测试已覆盖移走旧 workspace 后重启读取，未知 `entityType`、已注册摘要篡改、runtime 错误锚点、单文件 storage-key 越界、replay 当前 run 缺失来源证据和来源计数漂移也已验证 fail-closed；`IMP-M4-10` 进一步逐个验证成功 full shadow 的 16 个独立 run；M4 仍保留 `in_progress`，等待正式验收签字。
+- M4 证据矩阵见任务目录 `acceptance_checklist.md`；2026-07-13 已由 Codex 受用户委托完成静态与临时运行证据复核，状态为 `completed`。
+- 单次 succeeded、转换来源、full replay、blocked/failed fail-fast、双 fresh 的 16 slice 逐片验证，以及 API/Asset/DB-only 写隔离门禁均已完成；当前 HEAD 复跑迁移集成 58/58、server 47 文件/303 tests 与全部静态门禁通过。
 - 双 fresh DB 已证明：integrity=ok、FK=0、ledger exact、blocker=0，聚合 reportDigest、规范化 slice summary 和业务 inventory digest 一致（提交 `140092a`）。
 - `IMP-M4-API-01` 已证明移走旧 workspace 后 DB 重启仍可读取，file/DB `WorkbenchSnapshot` 语义 DTO 一致；ready Asset 的 sha256/bytes 与旧物理文件一致；DB-mode 草稿写入不重建旧 workspace，归档旧文件字节不变（代码提交 `f05f8da` 后续补强）。
 - `IMP-M4-03` 已证明 verifier 对未注册 `entityType` 返回 `MIGRATION_SOURCE_EVIDENCE_UNREGISTERED` 并保持 fail-closed；`IMP-M4-04/05/06` 已证明摘要、runtime 锚点和单文件 storage-key 越界均返回 `MIGRATION_SOURCE_DIGEST_MISMATCH`；`IMP-M4-07` 已证明缺失 `script.md` 的合法 Chapter fallback 可通过复合摘要校验；`IMP-M4-08` 已证明 unchanged replay 不更新 `lastRunId` 时，成功 run 的空当前来源查询返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`；`IMP-M4-09` 已证明摘要正确但来源行超出 importer 报告计数时返回 `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`，不会 vacuous pass；`IMP-M4-10` 已证明成功 full shadow 的 16 个 slice 均能通过精确来源计数与注册表校验；`IMP-M4-12/13` 已证明未知 importerVersion 与缺失 succeeded reportDigest 均被拒绝；`IMP-M4-14/15` 已证明已知 importer 的计数结构缺失或出现未注册键均被拒绝；`IMP-M4-16/17` 已证明 succeeded shadow 缺失或无效 verification attestation 均被拒绝；`IMP-M4-18/19` 已证明 decisions/report digest 形状门禁均 fail-closed；`IMP-M4-20/21/22` 已证明 decisions artifact 缺失、run digest 不一致或 source manifest 不一致均 fail-closed；`IMP-M4-23/24/25` 已证明导入报告 artifact 缺失、非法或与 run 摘要不一致均 fail-closed；`IMP-M4-26/27` 已证明真实 `db:verify` CLI 成功输出和缺参 fail-fast 均符合契约；`IMP-M4-28` 已证明真实 `db:import --slice full` CLI 聚合报告、16-slice 顺序、MigrationRun 数量和成功退出码均符合契约；`IMP-M4-29` 已证明 full CLI blocked prerequisite 返回稳定失败码、保留首个 blocked run 且不创建下游 run。
-- final cutover 前投影读取点静态审计已记录：业务 read-model/Task 走 DB，Asset physical storage 是允许的文件边界；SettingsService 仍依赖旧 `app-settings.json`，属于 M5 capability/SecretStore blocker，不能作为 M4 或 production-ready 证据。
+- final cutover 前投影读取点静态审计已记录：业务 read-model/Task 走 DB，Asset physical storage 是允许的文件边界；SettingsService 仍依赖旧 `app-settings.json`，M5-A0 必须如实登记为 unsupported，并在 D2/M6 前另行闭合，不能作为 M4 或 production-ready 证据。
 - `IMP-A15-02` 已证明 captured pending Dialogue artifact 能按稳定 sourceKey 导入，维持 project/chapter/thread scope、payloadDigest 和 runtime-bundle 来源证据，并在 replay 时保持单行。
 - DB-mode 修改旧 metadata 不影响响应；DB 写不改旧文件。
 
 ### G3-M5
 
-- offline backup→空 data/workspace restore→maintenance API smoke 通过。
-- 篡改、secret、ready Asset 缺失、非空目标均 fail-closed。
+- 独立施工入口：`文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/`。
+- M5-A0 先实现 truthful capability registry；当前 `--check` 必须保持 `MIGRATION_CAPABILITY_BLOCKED`。
+- M5-A1 实现临时根 `coordinated` backup；`pre-cutover` 继续被 final/capability/SecretStore 阻断。
+- M5-A2 实现 verify-only 和不存在目标根的 materialize restore。
+- M5-A3 执行 backup→restore→maintenance closed DB read/API smoke；篡改、secret、ready Asset 缺失、writer/WAL、目标已存在和 symlink 均 fail-closed。
 
 ### G3-M6
 
@@ -243,25 +246,22 @@ git diff --check
 
 任一答案为否，当前切片不得通过。
 
-## 9. 第一张 Luna 任务书
+## 9. 当前第一张 Luna 任务书
 
 ```text
-目标切片：G3-M3-A0 audit ledger + sealed snapshot comicFormat audit
-当前基线 commit：`317e65a`；A0 当前工作区提交后补入。
-必读：G3-M 五份施工资料；G1 方案 6.3.2、6.5 C0～C2
-允许修改：apps/server/src/migration/migration-ledger.ts、migration-audit.service.ts、migration-audit.cli.ts、对应测试与 package script
-明确禁止：真实数据库写入、完整 importer、backup/activate、真实 workspace、G5、改变 G3-core enum/0010
-实现：run/issue/source 纯内存状态机、sealed snapshot manifest/payload 验证、project comicFormat audit、确定性 report、audit CLI
-最小测试：RUN-01～03 + AUDIT-01～03 + server 全测 + typecheck + G1 三项 check（已通过，证据见任务目录）
-退出证据：blocked/succeeded run、source conflict、report digest、篡改 fail-closed、明确未完成 full importer
-Stop：任何写入口无法被可靠枚举或需要触碰真实数据时停止并报告
+目标切片：G3-M5-A0 DB capability registry + CLI
+施工入口：文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/handoff.md
+允许范围：db-capability-registry.ts、对应 spec/CLI 与 package script
+明确禁止：backup/restore 实现、Settings/SecretStore、final importer、activate、Schema/migration、真实数据
+退出证据：CAP-01/02、当前 --check 稳定返回 MIGRATION_CAPABILITY_BLOCKED、全量回归与单独 commit
+Stop：需要把未覆盖能力标 implemented、需要改 Schema 或需要访问真实根时停止
 ```
 
-M0 完成并复核后再发 M1，不要一次把 M0～M6 全交给 Luna。
+A0 完成并复核后再发 A1，不要一次把 M5-A0～A3 全交给 Luna。
 
 ## 10. 最终 go/no-go
 
-可以开始 Luna 开发：yes，仅 G3-M0。
+可以开始 Luna 开发：yes，仅 G3-M5-A0，任务书见 M5 handoff。
 
 可以直接要求 Luna 完成全部 G3-M：no，范围跨 G1 maintenance/full importer/SecretStore/backup/cutover，必须逐切片。
 

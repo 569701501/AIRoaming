@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-REGISTRY-RUNTIME-001
-status: active
+status: completed
 created: 2026-07-12
 updated: 2026-07-13
 owner: AI漫游项目
@@ -53,4 +53,4 @@ source: 临时 fresh SQLite 与 Nest DB read-model 集成测试
 
 ## 结论
 
-临时环境运行证据支持 M4 实现门禁通过；由于没有真实切换授权，不能把该结论升级为 production-ready。M4 继续保持 `in_progress`，等待正式验收签字。
+临时环境运行证据支持 M4 范围验收通过；2026-07-13 已完成正式签字，M4 状态为 `completed`。由于没有真实切换授权，该结论不能升级为 production-ready，也不覆盖 M5/M6。

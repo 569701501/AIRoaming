@@ -17,7 +17,7 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - Luna M4 verifier/CLI 已保留并改用 release identity；单次 succeeded shadow 的只读验证通过。
 - G1 source closure 移除完整 package.json，从 19 份收窄为 18 份；Prisma 6.19.3 继续由独立 schema contract 测试锁定。
 - `schema.prisma`、0001～0010 migration SQL 与其中 trigger 字节未改变。
-- G3-M 交接文档已按 Git 历史修正到 A11C，并把 M4 标为 `in_progress`。
+- G3-M 交接文档已按 Git 历史修正到 A11C；M4 后续已于 2026-07-13 正式验收通过。
 - verifier 已增加来源证据缺失的 fail-closed 门禁：unchanged replay 受既有 trigger 约束不会更新 `lastRunId`；成功 run 若按 importer-specific entity count 应有来源但当前 run 查询为空，则返回 `MIGRATION_SOURCE_EVIDENCE_MISSING`。这不改变重放幂等语义，也不改 schema/migration/trigger。
 - verifier 进一步按 importer/entityType 精确对齐来源计数：A6 的 Shot 计数由 `StoryboardShotProjection` 留证，A9 的 AssetReady 计数由 `AssetPhysicalEvidence` 留证；来源缺失或超额分别返回 `MIGRATION_SOURCE_EVIDENCE_MISSING` / `MIGRATION_SOURCE_EVIDENCE_COUNT_MISMATCH`。新增 `IMP-M4-10` 覆盖成功 full shadow 的 16 个 slice 逐片验证。
 - 继续审计 G3 CLI 契约后，8 个 CLI 已统一严格解析 `--format json`；缺值、非法值和重复 flag 均在副作用前以入口稳定错误码 fail-fast，M4 仍不改变 release identity 或 schema/migration/trigger。
@@ -34,23 +34,23 @@ source: task_plan.md、progress.md、scrutiny_review.md
 - `IMP-M4-29` 已补做 full CLI blocked prerequisite 回归：返回稳定 `MIGRATION_IMPORT_BLOCKED`/退出码 2，只保留首个 blocked run，不创建下游 slice。
 - `IMP-M4-30` 已补做 `db:import --kind final` 真实入口回归：在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`，不产生 stdout 或数据库副作用。
 - `IMP-M4-31` 已补做 16 个独立 `db:import --kind shadow --slice <slice>` 真实入口回归：每个 CLI 分支按依赖顺序成功并写出合法报告。
-- M4 正式验收清单已落在 `2026-07-12_G3-M4来源注册表与全量影子编排/acceptance_checklist.md`，当前仅为 `pending_signoff`，不改变 M4 `in_progress` 状态。
+- M4 正式验收清单已落在 `2026-07-12_G3-M4来源注册表与全量影子编排/acceptance_checklist.md`，2026-07-13 状态更新为 `completed/passed`。
 
 ## 明确未完成
 
-- M4 的双 fresh shadow、API DTO/Asset hash 等价、DB-only 写隔离、pending Dialogue artifact、按 entityType 重算复合来源摘要和 replay 空证据 fail-closed 回归已完成；M4 仍待正式验收签字。
+- M4 的双 fresh shadow、API DTO/Asset hash 等价、DB-only 写隔离、pending Dialogue artifact、复合来源摘要和 replay fail-closed 回归均已完成并签字。
 - `--kind final` 继续 fail-closed；backup/restore、capability gate、真实 DB-only activate 尚未实现。
 - backup/restore、capability gate、真实 DB-only activate 未实现也未获本任务授权。
 - 本轮不合表、不删 trigger、不新增 migration；Task 三个 materialize trigger 保持不动。
 
 ## 后续接续点
 
-1. 完成 full importer 缺口，不扩展 G1 大生成器。
-2. M4 建立来源证据注册表：每个 entityType 明确 contributing storage keys 与 digest 算法，再完成双 fresh shadow 验收。
-3. 0011+ 使用小 migration + 小 contract；同步显式 runtime migration catalog。release identity 会自动纳入新目录，但这不等于 runtime 自动放行。
-4. full shadow 两轮通过、final cutover 前执行投影读取点审计；DB-only 稳定后再小批评估低风险 scope trigger。
+1. 从 M5-A0 建立 truthful capability registry 与 `db:capabilities` CLI；当前 required gate 必须诚实阻塞。
+2. 按 M5-A1/A2/A3 依次实现临时 coordinated backup、空根 restore 和恢复后 DB read/API smoke。
+3. final importer、Settings/SecretStore 与 required capability closure 仍是 M6/D2 前置；不得由 M5 临时备份绕过。
+4. 0011+ 使用小 migration + 小 contract；同步显式 runtime migration catalog。release identity 会自动纳入新目录，但这不等于 runtime 自动放行。
 
 ## 工作树边界
 
 - 本任务整合 Luna 原有未提交的 `db:verify` script、CLI、Service 和特征测试。
-- 既有 12 张截图删除不是本任务改动，未触碰、不得随本任务提交。
+- 12 张旧截图删除不是本任务改动；用户后续单独授权并在 `65c90fe` 提交。

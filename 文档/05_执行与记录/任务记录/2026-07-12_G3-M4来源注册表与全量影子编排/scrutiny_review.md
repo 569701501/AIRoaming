@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M4-REGISTRY-SCRUTINY-001
-status: active
+status: completed
 created: 2026-07-12
 updated: 2026-07-13
 owner: AI漫游项目
@@ -42,4 +42,4 @@ source: 当前 M4 代码、测试与 G3-M 交接文档
 
 ## 审查结论
 
-M4 实现门禁没有发现新的 P0/P1 缺口，但正式验收签字尚未执行，因此状态必须继续为 `in_progress`。本文件不构成 production release 或 DB-only activate 授权。
+M4 实现门禁没有发现 P0/P1 缺口。2026-07-13 已基于当前 HEAD 重新执行完整门禁并完成正式签字，M4 状态更新为 `completed`。本文件不构成 production release、final import 或 DB-only activate 授权。
