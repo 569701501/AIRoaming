@@ -68,7 +68,7 @@ Scrutiny 结果：A1-1 静态约束已实现；真实切换、真实 workspace�
 
 Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执行真实授权。
 
-提交：本阶段代码与证据待本次会话末独立提交。
+提交：`e9912ca`（`feat(m6): bind pre-cutover backup and durable evidence`）。
 
 下一步：完成 durable C0-C7 evidence 与真实 pre-cutover activate 语义，随后进入 A1-3 business write boundary。
 
