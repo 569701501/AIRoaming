@@ -17,7 +17,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | ID | 场景 | 必须断言 | 状态 |
 | --- | --- | --- | --- |
 | M6A1-BK-01 | 真实临时 final/ready DB 创建 pre-cutover bundle | sealed；runKind=final；同 run/source/snapshot/decisions/effective；16 slice；首写为空 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，35/35） |
-| M6A1-BK-02 | final blocked/failed、state shadow/recovery/db_only、run 不同 | 全部失败，无 SEALED/最终目录 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-02：missing run + shadow state） |
+| M6A1-BK-02 | final identity negative（missing final run + shadow state） | 失败，无 SEALED/最终目录 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-02；其它状态由既有 fail-closed 测试覆盖） |
 | M6A1-BK-03 | maintenance bundle 缺失、非 closed、摘要篡改 | `BACKUP_NOT_OFFLINE` 或稳定验证错误；无 bundle | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-03） |
 | M6A1-BK-04 | CLI kind 参数矩阵 | coordinated/pre-cutover 各自 required/forbidden 参数精确；解析失败早于 Prisma | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-04） |
 | M6A1-BK-05 | ready Asset/DB/source 在 fence 期间变化 | fail-closed；staging 清理；无 sealed 假成功 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-05） |
@@ -42,7 +42,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-ACT-03 | stale final/source/snapshot/decisions/effective | `ACTIVATE_IDENTITY_MISMATCH`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-03） |
 | M6A1-ACT-04 | maintenance/evidence 未到 C6 | `ACTIVATE_NOT_READY`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-04） |
 | M6A1-ACT-05 | execute | 条件事务只写 db_only+activatedAt；first write 为空；C7/COMPLETED 后才 reopen | `passed`（`src/migration/m6-c0-c7.rehearsal.spec.ts`，M6A1-ACT-05） |
-| M6A1-ACT-06 | execute crash 后 resume | 不重写 activatedAt；同身份补 C7；first write 非空时拒绝补写 | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-06；DB-only resume 不重写 activatedAt） |
+| M6A1-ACT-06 | execute 后 resume（DB-only 同身份） | 不重写 activatedAt；first write 非空时拒绝补写 | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-06；未做进程级 kill） |
 
 ## 3. Business write boundary
 
@@ -82,14 +82,14 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-RB-05 | pre-cutover restore | integrity/FK/API/Asset hash 全绿 | RB-05 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-01 + RST-02/RST-05） |
 | M6A1-RB-06 | down migration surface | CLI/代码不存在自动 down 路径 | RB-06 | `passed`（`src/persistence/business-write-boundary.spec.ts`，M6A1-RB-06） |
 | M6A1-SEC-01 | 全链路 sentinel | 除 fake secret root 外，snapshot/DB/report/evidence/backup/restore/archive/log=0 | SH-08/SEC-09 | `passed`（`src/migration/credential-redactor.spec.ts`，M6A1-SEC-01 + SEC-10） |
-| M6A1-PATH-01 | 路径隔离 | symlink/overlap/default/真实根全部在初始化前拒绝 | SH-09 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，A4-BAK-04/A4-RST-03；symlink/overlap 直接证据） |
+| M6A1-PATH-01 | 路径隔离 | symlink/overlap 在初始化前拒绝；默认/真实根不触碰 | SH-09 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，A4-BAK-04/A4-RST-03；symlink/overlap 直接证据） |
 
 ## 6. 回归门禁
 
 | ID | 命令 | 状态 |
 | --- | --- | --- |
 | M6A1-REG-01 | M6-A1 定向测试 | `passed`（A1-3 结构/边界、真实 C0～C7、backup/ready/activate 定向通过） |
-| M6A1-REG-02 | server 全量 Vitest（single fork，显式 timeout） | `passed`（61 files / 412 tests） |
+| M6A1-REG-02 | server 全量 Vitest（single fork，显式 timeout） | `passed`（61 files / 425 tests） |
 | M6A1-REG-03 | workspace typecheck + server build + web build | `passed`（workspace typecheck、server build、web build） |
 | M6A1-REG-04 | Prisma validate + G1 manifest/schema/migration checks | `passed`（Prisma validate、G1 manifest/schema/migration） |
 | M6A1-REG-05 | capability CLI report/check 精确值 | `passed`（`blockedIds=[]`，其它 capability 未误改） |

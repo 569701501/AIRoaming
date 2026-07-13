@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-HANDOFF-001
-status: ready_for_development
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -8,7 +8,7 @@ audience: human, ai-agent, developer, qa
 source: M6 独立复核、M6-A1 task_plan 与实施契约
 ---
 
-# Handoff：交给 5.6 Luna 的 M6-A1 真实切换验收补强
+# Handoff：5.6 Luna 的 M6-A1 真实切换验收补强（已完成）
 
 ## 1. 唯一目标
 
@@ -38,7 +38,7 @@ ready_for_real_cutover_authorization
 8. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 第 12～18 节。
 9. 当前 backup/restore/final/ready/activate/cutover/persistence 源码与测试。
 
-若旧文档仍写“P11 M6 passed”或“awaiting authorization”，以本施工包的 `real_cutover_no_go` 为当前事实。
+若旧文档仍写“P11 M6 passed”或“awaiting authorization”，以本施工包最终状态 `ready_for_real_cutover_authorization` 为工程事实；真实切换本身仍未授权、未执行。
 
 ## 3. 连续执行阶段
 
@@ -88,13 +88,15 @@ ready_for_real_cutover_authorization
 
 允许 fake SecretStore 和 loopback fake provider；禁止 fake Prisma、fake restore、手写 final state、marker 代替领域产物。
 
-### A1-5：复核、文档、提交
+### A1-5：复核、文档、提交（已完成）
 
 - 定向测试、server 全量、workspace typecheck、web build、Prisma/G1 门禁全部通过。
 - Scrutiny Review 只读复核；Runtime Review 只运行隔离全链路。
 - 只回填 G1 中有直接证据的行；OBS 真实观察期继续 `not_run`。
 - 新增功能完成记录，修正 execution status 和 real cutover handoff。
 - 提交后停止，等待用户决定是否授权真实切换。
+
+最终隔离门禁：server 全量 `61 files / 425 tests`，workspace typecheck、server/web build、Prisma/G1、capability CLI 和 diff check 均通过；test matrix 中隔离项全部 `passed`。
 
 ## 4. 硬性验收
 
@@ -161,15 +163,14 @@ AIROAMING_TASK_WORKER_ENABLED=false，除非当前用例专门验证 worker
 ## 9. 最终交付格式
 
 ```text
-结论：ready_for_real_cutover_authorization / changes_requested
+结论：`ready_for_real_cutover_authorization`（真实切换仍未授权）
 阶段提交：A1-0=<sha> ... A1-5=<sha>
 定向证据：<测试 ID、文件数、测试数>
 全量证据：<命令与结果>
 Scrutiny Review：<路径、结论>
 Runtime Review：<路径、结论>
-G1 回填：<仅列直接通过项；其余 not_run>
+G1 回填：隔离直接证据已回填；真实授权、真实 C0～C7、OBS-01～10 保持 `not_run`
 真实操作：0
 残留风险：<真实 C0～C7、真实 Keychain/provider、观察期>
 停止点：未执行真实切换，未进入 G4/G5
 ```
-

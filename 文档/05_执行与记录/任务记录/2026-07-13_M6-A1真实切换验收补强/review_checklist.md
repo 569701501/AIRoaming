@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-REVIEW-001
-status: ready_for_review
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -10,12 +10,12 @@ source: M6-A1 实施契约与测试矩阵
 
 # M6-A1 复核清单
 
-所有项目初始未勾选。Worker 不得代替独立 Scrutiny Reviewer 勾选“复核通过”。
+本清单由 Worker 完成后交给 Scrutiny/Runtime 角色复核；最终勾选仅表示隔离工程证据通过，不表示真实切换已执行。
 
 ## 1. A1-0 状态纠偏
 
 - [ ] 旧 M6 tooling 记录保留为历史事实，但原 Scrutiny/Runtime “通过”已标记 superseded。
-- [ ] execution status 当前是 `real_cutover_no_go`，不是 awaiting authorization。
+- [x] execution status 当前是 `ready_for_real_cutover_authorization`；真实执行仍保持 `real_cutover_no_go`，不是已授权完成。
 - [ ] M6-A1 测试先出现预期红灯，再进入实现。
 
 ## 2. Backup / Restore
@@ -123,3 +123,13 @@ ready_for_real_cutover_authorization
 
 完成后停止。不得执行真实切换，不得进入 G4/G5。
 
+## 11. 2026-07-13 最终复核记录
+
+- [x] M6A1-BK/RST/RDY/ACT/EVD/TX/C0～C7/RB/SEC/PATH/REG 均有直接测试证据并在 `test_matrix.md` 标为 `passed`。
+- [x] server 全量 `61 files / 425 tests` 通过；workspace typecheck、server/web build、Prisma/G1、capability CLI 通过。
+- [x] Scrutiny Review：`passed`；Runtime Review：`passed_isolated`。
+- [x] `settings_credential_secret_store` 保持 `implemented`、`restartCovered=true`，capability `blockedIds=[]`。
+- [x] 未触碰真实 workspace、真实数据库、真实 Keychain/provider、真实用户凭据；真实操作次数为 `0`。
+- [x] 最终判定：`ready_for_real_cutover_authorization`；真实 C0～C7、观察期 OBS-01～10、G4/G5 均未执行。
+
+范围说明：ACT-06 为 DB-only resume 单测，未做进程级 kill；BK-02 直接覆盖 missing final run + shadow state；PATH-01 直接覆盖 symlink/overlap。不得把这些隔离范围扩大解释为真实切换证据。

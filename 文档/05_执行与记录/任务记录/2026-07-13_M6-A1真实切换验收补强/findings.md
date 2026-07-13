@@ -68,3 +68,6 @@ apps/server/src/dialogue/dialogue.service.ts
 - pre-cutover manifest 若仍复用 shadow-only 字段，会继续产生“外层 sealed、内部语义错误”的假安全。
 - Runtime Review 如果仍只断言内存对象，必须判为 `changes_requested`。
 
+## 6. 最终状态（2026-07-13）
+
+上述 F-01～F-08 已由 A1-1～A1-5 及后续隔离负例补强处理；它们保留为历史发现，不再表示当前实现缺口。当前隔离矩阵无 `not_run` 行，server 全量为 `61 files / 425 tests`。仍保留的边界是：真实用户数据、真实数据库、真实 Keychain/provider、真实 C0～C7、进程级真实崩溃和 OBS-01～10 均未执行，不能从隔离证据推断为已授权。

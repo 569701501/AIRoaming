@@ -42,8 +42,9 @@ source: M6-A1 真实隔离 C0～C7 rehearsal
 - backup、settings、run summary、数据库和恢复根执行 sentinel 检查，隔离链未发现命中。
 - metadata archive 保留资产路径但不复制资产字节。
 - ready 状态下业务写在 mutation callback 前拒绝；首笔 db-only 业务写记录 `firstBusinessWriteAt`。
-- rollback/crash-resume 的未运行负例不能从本次成功链推断为通过；仍按矩阵保持 `not_run`。
+- `M6A1-RB-01/RB-02` 已分别验证 final 失败和 C5 smoke 失败的隔离回滚边界；`M6A1-ACT-06` 验证 DB-only resume 不重写 `activatedAt`，但未做进程级 kill。真实进程崩溃和真实根恢复仍不执行。
+- `M6A1-SEC-01` 递归扫描 DB/settings/report/evidence/backup/restore/archive/log fixture；`M6A1-PATH-01` 直接覆盖 symlink/overlap 目录边界，未读取真实默认根。
 
 ## 结论
 
-`passed_isolated`。这证明隔离临时链路可运行，不表示真实切换已完成。真实用户数据、真实系统凭据、真实 Keychain/provider 和真实授权操作次数均为 `0`。
+`passed_isolated`。这证明隔离临时链路及已声明范围内的负例可运行，不表示真实切换已完成。真实用户数据、真实系统凭据、真实 Keychain/provider 和真实授权操作次数均为 `0`。

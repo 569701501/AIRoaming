@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-PROGRESS-001
-status: in_progress
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -14,7 +14,7 @@ source: M6-A1 task_plan
 
 ### 状态
 
-`in_progress`
+`ready_for_real_cutover_authorization`
 
 ### 已完成
 
@@ -23,11 +23,11 @@ source: M6-A1 task_plan
 - 建立 Handoff、实施契约、测试矩阵、文件地图和复核清单。
 - 将任务拆为 A1-0～A1-5，可由 Luna 连续执行并逐阶段独立提交。
 
-### 当前未执行
+### 最终收口
 
 ### A1-1 / A1-2 / A1-3 / A1-4 Worker 更新
 
-状态：`m6_a1_verification_in_progress`（A1-1～A1-4 已完成，A1-5 隔离复核已完成；矩阵未运行负例仍待补齐）
+状态：`ready_for_real_cutover_authorization`（A1-1～A1-5 已完成；隔离矩阵项均有直接测试证据）
 
 基线 commit：`6a33009`
 
@@ -62,7 +62,7 @@ source: M6-A1 task_plan
 - `pnpm --dir apps/server exec tsc --noEmit`：通过。
 - `pnpm --dir apps/server exec vitest run src/backup/app-backup-restore.integration.spec.ts --pool=forks --poolOptions.forks.singleFork=true --testTimeout=120000`：35/35 通过。
 - Ready/runtime 定向：12/12 通过；activate/cutover 定向：7/7 通过。
-- server 全量 `pnpm --dir apps/server test -- --pool=forks --poolOptions.forks.singleFork=true --testTimeout=60000 --reporter=dot`：60 files / 408 tests 通过（149.80s）。
+- server 全量 `pnpm --dir apps/server test -- --pool=forks --poolOptions.forks.singleFork=true --testTimeout=60000 --reporter=dot`：61 files / 425 tests 通过（147.10s）。
 
 Scrutiny 结果：A1-1 静态约束已实现；真实切换、真实 workspace、真实 Keychain/provider 仍禁止。
 
@@ -70,7 +70,7 @@ Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执
 
 提交：`e9912ca`（`feat(m6): bind pre-cutover backup and durable evidence`）。
 
-下一步：补齐 `luna_next_execution_handoff.md` 列出的临时根故障注入、crash-resume、路径和安全负例；真实切换仍禁止。
+下一步：不再领取下游；若要执行真实 C0～C7，必须先取得用户单独授权并另建真实切换记录。当前不执行真实切换。
 
 ### A1-3 收口
 
@@ -115,12 +115,13 @@ Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执
 - `pnpm --dir apps/server exec tsc --noEmit`：通过。
 - `m6-c0-c7.rehearsal.spec.ts`：1/1 通过；`settings.service.spec.ts`：8/8；`business-write-boundary.spec.ts`：2/2。
 - backup/restore、snapshot、credential-redactor、maintenance、cutover、activate、file-mode 定向复核：7 files / 59 tests 通过；新增 M6A1-BK-04、M6A1-EVD-01/03/04、M6A1-TX-08 证据后，矩阵已回填直接有证据的项。
-- 继续补齐：M6A1-BK-03、M6A1-RDY-01/02、M6A1-ACT-03/04；`CutoverCoordinator` 现写入逐步 digest、`steps/*.json`、`C6_READY`/`COMPLETED`，activate 可校验 closed maintenance 与 C0-C6 evidence。
+- 已补齐 M6A1-BK-03、M6A1-RDY-01/02、M6A1-ACT-03/04，以及 BK-02/BK-05、RB-01/RB-02、SEC-01、PATH-01；`CutoverCoordinator` 现写入逐步 digest、`steps/*.json`、`C6_READY`/`COMPLETED`，activate 可校验 closed maintenance 与 C0-C6 evidence。
+- `M6A1-RB-01`（final 失败链）和 `M6A1-RB-02`（C5 smoke 失败链）已补齐真实临时根直接证据；矩阵不再有 `not_run` 行。
 - C0～C7 每阶段 durable evidence 共 8 步，恢复链和首笔写断言通过；只触碰临时 SQLite、临时 workspace、fake SecretStore。
 
 提交：`b4b4a18`（`test(m6): complete isolated c0-c7 rehearsal`）。
 
-下一步：隔离 Scrutiny/Runtime Review 已完成；继续补跑测试矩阵中仍为 `not_run` 的故障注入、crash-resume、路径和安全负例，完成后再申请最终 readiness 判定。
+下一步：隔离 Scrutiny/Runtime Review 已更新为最终收口；保持真实切换、真实用户数据、真实 Keychain/provider、OBS 观察期为未执行。
 
 ### A1-5 复核与收口
 
@@ -129,9 +130,17 @@ Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执
 - Scrutiny Review：`scrutiny_review.md`，结论为隔离工程证据通过，不授权真实切换。
 - Runtime Review：`runtime_review.md`，结论为 `passed_isolated`。
 - 功能完成记录：`文档/05_执行与记录/功能完成记录/2026-07-13_M6-A1真实隔离验收补强.md`。
-- Luna 后续执行单：`luna_next_execution_handoff.md`，仅覆盖矩阵中仍为 `not_run` 的临时根负例。
-- 代码提交：`b4b4a18`；文档提交待本节同步后完成。
+- Luna 后续执行单：`luna_next_execution_handoff.md`，已改为最终交接与停止说明，不再有待执行矩阵项。
+- 代码提交：`3661939`（含 `90ea779`、`37c2c02`、`61d6ade`、`79f555e` 等 M6-A1 收口提交）；文档提交待本节同步后完成。
 - 真实用户数据、真实 Keychain/provider、真实 C0～C7：均为 `0` 次。
+
+### 最终门禁（2026-07-13）
+
+- server 全量：`61 files / 425 tests` 通过。
+- workspace typecheck、server build、web build：通过（web 仅保留既有 chunk size warning）。
+- Prisma validate、G1 manifest/schema/migration：通过；manifest digest 为 `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`。
+- capability CLI：8 个聚合 capability、`blockedIds=[]`，`settings_credential_secret_store.restartCovered=true`，未误改其它 capability。
+- `test_matrix.md`：M6A1-BK/RST/RDY/ACT/EVD/TX/C0～C7/RB/SEC/PATH/REG 均为 `passed`；真实授权、真实根、OBS-01～10 仍不执行。
 
 ## Worker 更新模板
 

@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-TASK-PLAN-001
-status: in_progress
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -22,15 +22,14 @@ ready_for_real_cutover_authorization
 
 该状态只表示代码和隔离演练满足申请条件，不表示真实切换已授权或已执行。
 
-## 2. 当前事实
+## 2. 当前事实（最终收口）
 
 - M5 coordinated backup/restore、D2 final importer 和 capability 8/36 已完成。
-- `app:backup --kind pre-cutover` 仍 fail-closed。
-- restore 当前只接受 coordinated/shadow bundle。
-- `db:activate` 只证明 bundle 能被 restore verify-only，不证明 bundle 属于同一 final run。
-- C0～C7 测试使用 fake Prisma、fake restore 和 marker 文件，不能作为全链路证据。
-- 多个业务模块仍直接调用 Prisma `$transaction` 或 mutation API，没有统一经过首笔业务写边界。
-- 原 `ready_for_real_cutover_authorization` 结论已撤回，当前为 `real_cutover_no_go`。
+- `app:backup --kind pre-cutover` 已绑定 succeeded final run、ready state、closed maintenance 和当前 identity，失败时 fail-closed。
+- restore 支持 coordinated/pre-cutover；activate 只接受已验证的 pre-cutover bundle。
+- C0～C7 已使用真实临时 SQLite、真实 domain services 和持久 evidence；仅 SecretStore/provider 为 fake。
+- 生产业务 mutation 已统一经过 `PrismaService.runBusinessTransaction`，file bridge 在首写后拒绝。
+- 隔离矩阵项均为 `passed`；工程状态为 `ready_for_real_cutover_authorization`，真实切换仍未授权。
 
 ## 3. 非目标
 
@@ -55,8 +54,8 @@ ready_for_real_cutover_authorization
 
 ## 5. 当前角色
 
-- Orchestrator：本施工包已完成，等待 Luna 领取。
-- Worker：Luna 从 A1-0 开始，严格按顺序执行。
+- Orchestrator：本施工包已完成并完成最终复核。
+- Worker：Luna 执行链已收口，不再领取下游。
 - Scrutiny Review：A1-5 只读复核，不在复核时改代码。
 - Runtime Review：只运行隔离临时根全链路；真实用户数据验收明确不在本轮。
 
@@ -70,11 +69,10 @@ ready_for_real_cutover_authorization
 
 ## 7. 退出标准
 
-- `test_matrix.md` 的 M6A1-BK、RST、ACT、EVD、TX、C0～C7、RB、SEC、REG 全部 `passed`。
+- `test_matrix.md` 的 M6A1-BK、RST、ACT、EVD、TX、C0～C7、RB、SEC、PATH、REG 全部 `passed`；真实授权、真实根、OBS-01～10 仍未执行。
 - 原 fake 综合演练被真实隔离链路替换；不得保留“fake 也算全链路”的表述。
 - Scrutiny Review 和隔离 Runtime Review 分别出具通过结论。
 - G1 清单只回填被本轮直接证明的项目，未执行项继续保持 `not_run`。
 - 新增功能完成记录，所有文档状态一致。
 - 独立提交完成，工作树只允许存在用户原有无关改动。
 - 最终停止，不自动执行真实 C0，也不自动领取 G4/G5。
-
