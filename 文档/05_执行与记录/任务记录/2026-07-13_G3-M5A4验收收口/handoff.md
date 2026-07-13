@@ -14,6 +14,8 @@ source: task_plan.md、implementation_contract.md、acceptance_checklist.md
 
 本 handoff 原本只允许领取 `M5-A4-1 backup 一致性栅栏 + CLI 精确参数`；该切片现已完成并通过定向/全量回归，后续执行者不得把本记录当作 A4-2 的授权。
 
+当前 A4-2 正式入口已改为同目录 `handoff_a4_2.md`；本文件只保留 A4-1 历史。
+
 M5-A0～A3 的代码保留，不推倒重写；本轮修复了独立复核发现的 M5R-01/M5R-07，并补 A4-BAK-02 writer 证据。已完成后停止，等待独立复核和下一张 A4-2 任务书。
 
 ## 2. 必读顺序

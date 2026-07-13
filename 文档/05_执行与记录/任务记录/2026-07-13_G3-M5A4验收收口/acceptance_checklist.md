@@ -56,6 +56,8 @@ source: implementation_contract.md 与 M5R-01～08
 
 以上只收口 A4-1；A4-BAK-03/04、A4-RST-01～05、A4-REG-01 仍保持 `not_run`。
 
+当前下一施工入口为 `handoff_a4_2.md`；A4-2 施工文档通过可执行性复核不等于 A4-RST-01/02 已运行。
+
 ## 最小命令
 
 ```text

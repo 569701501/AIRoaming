@@ -17,13 +17,17 @@ source: M5-A4 task plan
 - [x] 编写 A4 实施契约、验收清单、Luna handoff 与 D2/M6 后续路线。
 - [x] 文档基线复核：server 49 files/314 tests、workspace typecheck、G1 manifest/schema/migration check、`git diff --check` 通过；这些只证明当前回归稳定，不把 A4 `not_run` 项改绿。
 - [x] M5-A4-1 backup 一致性栅栏与 CLI grammar：实现完成，定向 10/10、server 全量 49 files/317 tests 通过。
-- [ ] M5-A4-2 restore identity/ledger。
+- [ ] M5-A4-2 restore identity/ledger：五份施工资料已就绪，等待 Luna 实现。
 - [ ] M5-A4-3 secret/path/compensation fault matrix。
 - [ ] M5-A4-4 完整回归与正式复核。
 
 # 当前交接
 
-本轮只完成并提交 `M5-A4-1`，不得据此推进 A4-2、D2 或 M6。
+上一轮只完成并提交 `M5-A4-1`；本轮只准备 A4-2 施工资料，不据此推进 A4-3、D2 或 M6。
+
+2026-07-13 独立复核确认 M5 仍未完成；已新增 A4-2 handoff、实施契约、测试矩阵、文件地图和复核清单。下一执行者只领取 `handoff_a4_2.md`，完成后先复核，不继续 A4-3。
+
+A4-2 施工文档已完成静态交叉复核，结论见 `scrutiny_review_a4_2_handoff.md`：`passed_for_luna_a4_2`。该结论只允许开工，不把 A4-RST-01/02 改绿。
 
 ## A4-1 实现与证据
 

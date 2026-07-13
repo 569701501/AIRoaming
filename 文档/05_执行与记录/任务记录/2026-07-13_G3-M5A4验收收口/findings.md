@@ -31,6 +31,14 @@ source: commit 91a450c～eb26743、M5 代码与验收文档独立复核
 - WAL 未收敛分支已在生产逻辑中 fail-closed，但专门的非零 WAL 故障注入属于 A4-3/A4-4 证据，不能在本轮宣称完成。
 - M5 仍保持 `hardening_required`，A4-2/A4-3/A4-4 未完成前不得推进 D2 或 M6。
 
+## 7. A4-2 开工复核
+
+- 当前 `AppRestoreService.verifyDatabase()` 只检查 `integrity_check`、FK 和账本表存在；没有读取 16 条 MigrationRun、open MigrationIssue 或 PersistenceState。
+- 当前 `verifyRunSummary()` 没有绑定 `FULL_SHADOW_SLICE_ORDER`、manifest.runIds 和每个 slice 的 exact keys。
+- restore CLI/RestoreInput 没有显式 current `releaseRoot`，manifest 的 effective identity 只检查摘要形状。
+- 现有 tamper 只覆盖 manifest 字节变化；A4-2 必须增加重算外层 seal 后的 ledger/run-summary/PersistenceState 语义篡改，避免把 digest 检查误写成账本验证。
+- 已编写 `handoff_a4_2.md` 等五份施工资料；A4-2 尚未实现，A4-RST-01/02 继续保持 `not_run`。
+
 ## 2. 阻止 M5 正式通过的发现
 
 | ID | 级别 | 代码事实 | 风险 |
