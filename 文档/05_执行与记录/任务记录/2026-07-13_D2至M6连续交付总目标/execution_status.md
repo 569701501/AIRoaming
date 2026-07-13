@@ -23,8 +23,8 @@ source: 连续执行总 Handoff
 
 | phase | status | commit | targeted | full | scrutiny | runtime | blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P0 baseline | pending | - | - | - | - | n/a | - |
-| P1 D2-A2-1 | pending | - | - | - | - | - | - |
+| P0 baseline | passed | 2026-07-13 | baseline CLI | - | - | n/a | capability=8, operations=36, blockedIds=6; final importer fail-closed |
+| P1 D2-A2-1 | in_progress | - | - | - | - | - | code implementation started |
 | P2 D2-A2-2 | pending | - | - | - | - | - | - |
 | P3 D2-A3-1 | pending | - | - | - | - | - | - |
 | P4 D2-A3-2A | pending | - | - | - | - | - | - |

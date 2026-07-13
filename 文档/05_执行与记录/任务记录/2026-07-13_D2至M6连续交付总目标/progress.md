@@ -10,6 +10,13 @@ source: 本总目标编制过程
 
 # 进度
 
+## P0 基线核对（2026-07-13）
+
+- `db-capabilities --format json`：8 个聚合 capability、36 个 operation，`blockedIds` 精确为 6。
+- `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
+- 工作树起点为 `22b9e34 docs(d2): add luna continuous delivery goal`，无未提交代码变更。
+- 结论：P0 PASS，进入 P1 D2-A2-1；未接触真实 workspace、数据库、provider 或凭据。
+
 ## 2026-07-13
 
 - 核实 M5-A0～A4 已完成，M5 状态为 `completed`。

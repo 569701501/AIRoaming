@@ -10,6 +10,12 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 
 # Findings
 
+## P0 基线
+
+- 当前总 capability 数为 8，operation 数为 36；`blockedIds` 为 6，没有提前减少。
+- final importer 继续以 `MIGRATION_FINAL_IMPORT_NOT_READY` 拒绝，符合 fail-closed 停止线。
+- D2-A2-1 代码尚未实现，下一步必须先完成数据库非破坏性公开写闭环，不得跳到 A2-2/A3/M6。
+
 ## 1. 当前阶段
 
 - M5 已完成；“当前是 M5 实施中”不符合最新验收事实。
