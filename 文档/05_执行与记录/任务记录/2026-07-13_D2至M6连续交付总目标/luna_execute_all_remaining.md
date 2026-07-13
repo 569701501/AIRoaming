@@ -68,8 +68,8 @@ node --import tsx src/migration/db-capabilities.cli.ts --check --format json
 | --- | --- | --- | --- | --- |
 | 1 | D2-A7 | final importer、final verifier、ready coordinator | 已完成，`7a41d5c` | `d2_final_import_ready` |
 | 2 | D2-A8 | 双 fresh/replay/restart/secret/capability 综合见证 | 已完成，D2-WIT-01～05 | `d2_passed` |
-| 3 | M6 | activate tooling、rollback 边界、隔离 C0～C7 | 当前阶段，`blockedIds=[]` | `m6_tooling_passed` |
-| 4 | 总收口 | 生成最终证据和真实切换授权请求 | M6 C0～C7 及 RB 全绿 | `ready_for_real_cutover_authorization` |
+| 3 | M6 | activate tooling、rollback 边界、隔离 C0～C7 | 已完成：M6 任务目录、5 files/12 tests、59 files/403 tests | `m6_tooling_passed` |
+| 4 | 总收口 | 生成最终证据和真实切换授权请求 | 当前阶段；不得执行真实切换 | `ready_for_real_cutover_authorization` |
 
 ## 3. D2-A7：先收口当前草稿
 
@@ -110,7 +110,7 @@ sealed snapshot → decisions → final import → verify → ready_for_activati
 
 必须额外证明：同库 replay 零新增、Nest restart 后 DTO/状态一致、旧 metadata 变更不影响 DB 事实、Asset sha256/bytes 一致、DB/settings/report/log/task/artifact/export 全范围 SEC sentinel 为 0、8 capability/36 operation/`blockedIds=[]` 不回退。通过后更新总状态并独立提交综合见证。
 
-## 5. M6：只做工具和隔离演练，不做真实切换
+## 5. M6：已完成（只做工具和隔离演练，不做真实切换）
 
 ### 必须实现
 

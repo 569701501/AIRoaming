@@ -431,8 +431,7 @@ export class ProjectRepository {
     ) {
       throw new BadRequestException("DB_PERSISTENCE_CURRENT_CHAPTER_INVALID");
     }
-    const database = this.database();
-    await database.$transaction(async (transaction) => {
+    await this.prismaService!.runBusinessTransaction(async (transaction) => {
       await transaction.project.create({
         data: {
           id: project.id,
@@ -504,8 +503,7 @@ export class ProjectRepository {
           this.digestText(currentScriptVersion.sourceText) === workingDigest
         ? "clean"
         : "dirty";
-    const database = this.database();
-    await database.$transaction(async (transaction) => {
+    await this.prismaService!.runBusinessTransaction(async (transaction) => {
       await transaction.chapter.update({
         where: { id: chapter.id },
         data: {
@@ -571,8 +569,7 @@ export class ProjectRepository {
       throw new BadRequestException("DB_PERSISTENCE_COMPLETE_TRANSITION_INVALID");
     }
 
-    const database = this.database();
-    await database.$transaction(async (transaction) => {
+    await this.prismaService!.runBusinessTransaction(async (transaction) => {
       for (const newChapter of newChapters) {
         await transaction.chapter.create({ data: this.chapterCreateData(newChapter) });
       }

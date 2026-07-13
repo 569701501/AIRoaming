@@ -14,9 +14,9 @@ source: 当前 HEAD、capability CLI 与 D2/M6 总施工资料
 
 ## 先看结论
 
-M5-A0～A4、D2-A5、D2-A6、D2-A7、D2-A8 均已完成并有证据。当前接管点是 **M6**；不要重复施工 D2 阶段。
+M5-A0～A4、D2-A5、D2-A6、D2-A7、D2-A8、M6 tooling 与临时 C0-C7 rehearsal 均已完成并有证据。当前是**总收口**；不要重复施工 D2/M6。
 
-Luna 从 **M6 activate tooling / C0～C7 隔离演练** 开始，连续执行到最终停点；D2 阶段不要重复施工。
+Luna 若接管，应从总收口开始，复核 M6 证据并生成最终授权 handoff；不执行真实切换。
 
 当前真实基线：
 

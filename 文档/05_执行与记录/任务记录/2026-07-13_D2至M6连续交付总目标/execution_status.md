@@ -33,9 +33,9 @@ source: 连续执行总 Handoff
 | P7 D2-A5 | passed | `fa26908` | P7-DIALOGUE-DB-01 + project DB 29/29；server 全量/门禁通过 | PASS | PASS | PASS | Dialogue 已具备 DB thread/message/tool/pending/session、restart、maintenance/deleting fence；blockedIds=2 |
 | P8 D2-A6 | passed | `075986f` | 5 P8 定向 + capability | 5/5；慢测独立 45/45 | PASS | PASS | capability=8/36，blockedIds=[]；见 D2-A6 任务目录 |
 | P9 D2-A7 | passed | `7a41d5c` | FIN-01～10 + CLI | 54 files/391 tests | PASS | PASS | final importer/verifier/ready 已隔离验证 |
-| P10 D2-A8 | passed | 当前提交 | D2-WIT-01～05 + FIN 回归 | 54 files/392 tests | PASS | PASS | 双 fresh/replay/restart/legacy isolation 通过 |
-| P11 M6 tooling/rehearsal | pending | - | - | - | - | - | - |
-| P12 final closure | pending | - | - | - | - | - | - |
+| P10 D2-A8 | passed | `07ffa3e` | D2-WIT-01～05 + FIN 回归 | 54 files/392 tests | PASS | PASS | 双 fresh/replay/restart/legacy isolation 通过 |
+| P11 M6 tooling/rehearsal | passed | 工作树待提交 | 5 files/12 tests + C0-C7 8/8 | 59 files/403 tests | PASS | PASS | activate、首写边界、archive、C0-C7 临时根演练通过 |
+| P12 final closure | in_progress | - | final static closure | - | - | - | 只剩独立提交、总文档和真实授权停点 |
 
 ## 3. 目标终态
 

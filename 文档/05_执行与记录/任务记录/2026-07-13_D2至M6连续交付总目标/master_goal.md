@@ -24,7 +24,7 @@ D2-A2-1 completed
 D2-A2-2 completed
 D2-A3-1 completed
 D2-A3-2A/B in_progress（Character delete 受 Outbox 约束）
-M6 prerequisite_blocked
+M6 tooling/rehearsal passed；真实切换仍 awaiting_authorization
 ```
 
 因此本轮连续施工从 D2-A3-2A/B 收口开始，不重复 M5 或已经完成的 D2-A2-1～A3-1。

@@ -26,7 +26,7 @@ source: D2 至 M6 连续交付总资料、当前代码与 active 文档
 | 已绿项 | Project/Script、Story/Storyboard/Preflight、Layout/Export、Task、Settings/SecretStore |
 | final importer | 仍 fail-closed |
 | activate | package script/实现尚不存在 |
-| M6 | prerequisite_blocked；只允许先开发 tooling/临时演练 |
+| M6 | tooling/rehearsal passed；真实切换仍需授权 |
 
 ## 3. 覆盖核对
 

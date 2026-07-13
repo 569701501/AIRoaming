@@ -25,7 +25,7 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 - CandidateLock 已完成 DB 线性 revision/current pointer/replay；Character delete 与 complete images 仍需独立切片，聚合 capability 继续 partial。
 - `complete_chapter_images`、Character delete 和 Project delete/Outbox 均已通过真实证据；capability 当前为 8/36/`blockedIds=[]`。
 - 三个同步/批量参考图 operation 已正式 retired，剩余 Character/Asset blocker 只剩 `delete_character_reference`；其物理清理必须等待 D2-A6 Outbox consumer。
-- M6 仍为 prerequisite_blocked。
+- M6 tooling 与临时 C0-C7 rehearsal 已通过；真实切换仍 awaiting_authorization。
 
 ## 2. capability
 
@@ -54,3 +54,8 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 
 - 开发、测试、临时根 execute rehearsal 可连续执行。
 - 真实 workspace/DB/Keychain/provider、真实停写、pre-cutover、archive 和 activate 必须最后单独授权。
+
+## 6. M6 当前结论
+
+- M6 tooling 与临时 C0-C7 rehearsal 已通过；`db:activate` 仍只在显式 ACT-08 + sealed backup + final/release identity 全部匹配时执行。
+- 本阶段没有执行真实 pre-cutover backup、真实停写或真实 activate；总目标下一停点为 `ready_for_real_cutover_authorization`。

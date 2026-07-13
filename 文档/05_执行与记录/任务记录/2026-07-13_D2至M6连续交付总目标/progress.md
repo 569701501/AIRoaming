@@ -15,7 +15,7 @@ source: 本总目标编制过程
 - 当时的阶段基线为 8 个聚合 capability、36 个 operation、2 个 blocker；该值已在 D2-A6 收口后降为 `blockedIds=[]`。
 - `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
 - 当前已提交事实基线为 `075986f feat(d2): close project delete outbox`；D2-A2-1～D2-A6 均已有代码、阶段证据和独立提交。
-- 结论：总 Handoff 已完成 D2-A7 与 D2-A8，当前进入 M6 tooling；真实 `db:activate` 仍未实现。
+- 结论：总 Handoff 已完成 D2-A7、D2-A8 与 M6 tooling/临时演练；真实 `db:activate` 仍需授权。
 
 ## 2026-07-13
 
@@ -104,3 +104,11 @@ source: 本总目标编制过程
 - P8 定向 5/5、capability registry 5 项复核通过、server typecheck 通过；真实 CLI 为 8 capability/36 operation/`blockedIds=[]`。
 - 默认 server 全量并发命令有 13 个历史慢测在 5 秒阈值下 timeout；备份/G1 慢测提高到 30 秒独立运行 45/45 通过，P8 用例在全量运行中全部通过。
 - P8、D2-A7、D2-A8 均已通过并独立留痕；下一步是 M6 工具实现与隔离 C0～C7。
+
+## P11 M6 tooling 与 C0-C7 临时根演练（2026-07-13）
+
+- 新增 `DbActivateService`/`db:activate`：ACT-08、final source/effective identity、release manifest、capability、sealed backup 均 fail-closed；dry-run 零 DB 写，execute 原子写 `ready_for_activation -> db_only`，不写首笔业务时间。
+- `PrismaService.runBusinessTransaction` 统一 ProjectRepository 三条 DB 写路径：首笔 DB-only 业务事务内设置 `firstBusinessWriteAt`，异常回滚不留时间戳；ready/recovery 拒绝写入。
+- 新增显式 file bridge guard、metadata-only archive 和严格 C0-C7 `CutoverCoordinator`。
+- M6 定向 5 files/12 tests；服务端全量 59 files/403 tests；workspace typecheck、web build、Prisma/G1/diff check 全部通过。
+- 临时根 C0-C7 rehearsal 8/8 通过，最终状态 `db_only` + 首写时间；未触碰真实环境，真实切换仍停在授权边界。
