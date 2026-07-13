@@ -80,7 +80,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-RB-03 | settings 已脱敏的回滚 fixture | 只读 fake SecretStore，不恢复 plaintext | RB-03 | `not_run` |
 | M6A1-RB-04 | 首写后回 file | 明确拒绝 | RB-04 | `not_run` |
 | M6A1-RB-05 | pre-cutover restore | integrity/FK/API/Asset hash 全绿 | RB-05 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-01 + RST-02/RST-05） |
-| M6A1-RB-06 | down migration surface | CLI/代码不存在自动 down 路径 | RB-06 | `not_run` |
+| M6A1-RB-06 | down migration surface | CLI/代码不存在自动 down 路径 | RB-06 | `passed`（`src/persistence/business-write-boundary.spec.ts`，M6A1-RB-06） |
 | M6A1-SEC-01 | 全链路 sentinel | 除 fake secret root 外，snapshot/DB/report/evidence/backup/restore/archive/log=0 | SH-08/SEC-09 | `not_run` |
 | M6A1-PATH-01 | 路径隔离 | symlink/overlap/default/真实根全部在初始化前拒绝 | SH-09 | `not_run` |
 

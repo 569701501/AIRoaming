@@ -24,4 +24,11 @@ describe("M6-A1 business write boundary", () => {
       expect(source, item.source).not.toMatch(/(?:database|db|prismaService)\(\)\.[A-Za-z]+\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/);
     }
   });
+
+  it("M6A1-RB-06 has no automatic down-migration surface in production scripts", async () => {
+    const packageJson = await readFile(path.resolve(sourceRoot, "../package.json"), "utf8");
+    const production = await Promise.all(BUSINESS_WRITE_OWNERS.map(async (owner) => readFile(path.join(sourceRoot, owner.source), "utf8")));
+    const text = [packageJson, ...production].join("\n");
+    expect(text).not.toMatch(/migrate\s+(?:reset|down)|migration\s+down/i);
+  });
 });
