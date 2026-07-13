@@ -28,7 +28,7 @@ source: 连续执行总 Handoff
 | P2 D2-A2-2 | passed | `077762d` | 20 targeted + 54 files/361 tests | 361/361 | PASS | PASS | 7 retired operations; blockedIds=5 |
 | P3 D2-A3-1 | passed | `9087115` | 21 targeted + 54 files/362 tests | 362/362 | PASS | PASS | 7 retired operations; blockedIds=4 |
 | P4 D2-A3-2A | in_progress | `e80b8ee`, `f2b4d15`, `71c3a3a`, `0987050`, `a8486a6`, `03eea76`, `bbaece8`, pending | 30 targeted + 54 files/371 tests | 371/371 | PASS | PASS | scene queue/source projection, CandidateLock and images_done now done; Character delete remains |
-| P5 D2-A3-2B | pending | - | - | - | - | - | - |
+| P5 D2-A3-2B | in_progress | `9b097ed`, `30131b5`, pending | 31 targeted + 54 files/372 tests* | 372/372* | PASS | PASS | CandidateLock/images_done done; legacy generate/ensure retired; Character delete remains |
 | P6 D2-A4 | pending | - | - | - | - | - | - |
 | P7 D2-A5 | pending | - | - | - | - | - | - |
 | P8 D2-A6 | pending | - | - | - | - | - | - |

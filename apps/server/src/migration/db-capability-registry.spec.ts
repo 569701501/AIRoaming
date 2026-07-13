@@ -101,7 +101,7 @@ describe("M5-A0 DB capability registry", () => {
       "lock_candidate",
       "complete_chapter_images",
     ]);
-    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(14);
+    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(17);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
       capabilityId: "task_create_claim_complete_cancel_recover",
       ownerModule: "tasks/persistent-task-repository",

@@ -40,24 +40,25 @@ D2-A2-1
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 本总任务编写前代码基线 | `f6981e1`；其中 `3eba98d` 已完成 D2-A1-2 |
+| 当前代码 HEAD | `30131b5`；D2-A3-2A 已连续推进至 scene queue、CandidateLock、images_done |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
-| D2-A2-1 | 五份施工资料已就绪，代码尚未实现 |
-| required capability blocker | 6 个 |
+| D2-A2-1 | `1f22861` completed |
+| D2-A2-2 | `077762d` completed |
+| D2-A3-1 | `9087115` completed |
+| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 已实现；ensure/generate 同步旧入口与 Character delete 仍待收口 |
+| required capability blocker | 4 个 |
 | final importer | 未实现；`db:import --kind final` 固定 fail-closed |
 | `db:activate` | 未实现 |
 | M6 | `prerequisite_blocked` |
 
-当前 6 个 `blockedIds` 必须精确为：
+当前 4 个 `blockedIds` 必须精确为：
 
-1. `project_chapter_script`
-2. `outline_story_storyboard_preflight`
-3. `character_scene_asset_candidate_lock`
-4. `layout_export`
-5. `dialogue_pending_runtime`
-6. `project_delete_outbox`
+1. `character_scene_asset_candidate_lock`
+2. `layout_export`
+3. `dialogue_pending_runtime`
+4. `project_delete_outbox`
 
 `settings_credential_secret_store` 与 `task_create_claim_complete_cancel_recover` 已绿，不得回退或误改。
 
@@ -92,7 +93,7 @@ D2-A2-1
 8. `文档/04_方案与决策/2026-07-13_G3-D2与M6推进路线.md`。
 9. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 中 Repository、Layout/Export、Outbox/Delete、Secret、C0～C7、ACT/RB 部分。
 10. `文档/04_方案与决策/2026-07-12_G3-M施工包_备份恢复与DB-only激活.md`。
-11. 当前阶段对应的既有施工资料；第一阶段使用 `../2026-07-13_D2-A2-1非破坏性公开写闭环/`。
+11. 当前阶段对应的既有施工资料；当前继续读取 `../2026-07-13_D2-A3-2A场景参考任务持久化/`、`../2026-07-13_D2-A3-2A候选锁定持久化/`、`../2026-07-13_D2-A3-2A章节图像完成状态/`。
 
 ## 5. 连续执行权限
 

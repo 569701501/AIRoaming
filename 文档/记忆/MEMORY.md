@@ -169,3 +169,4 @@
 - 2026-07-13 P4 场景 queue 已完成：公开 `queue_scene_reference` 绑定 `ChapterScene` source projection（policy `scene-reference-source-v1`），持久 task 支持 replay；定向 30/30、server 54 files/371 tests、全量静态门禁通过。Character delete/CandidateLock 仍后置，聚合 blockedIds 仍为 4。
 - 2026-07-13 P4 CandidateLock 已完成：DB `lock_candidate` 以 `CandidateLockRevision(origin=runtime)` 线性事务更新 Shot current pointer，同候选 replay 不新增 revision；Candidate.status 不写非法 locked 值。Character delete 与 complete images 仍后置，聚合 blockedIds 仍为 4。
 - 2026-07-13 P4 `complete_chapter_images` 已完成：DB 模式要求 current storyboard、ready confirmed preflight、全镜 current CandidateLockRevision，再以 Chapter rowVersion CAS 推进 `images_done`；Character delete 仍因 Outbox consumer 未实现而后置。
+- 2026-07-13 P4 三个参考图旧 operation 已 retired：`ensure_character_previews`、`generate_character_reference`、`generate_scene_reference` 在 DB 模式稳定 409，replacement 为逐目标 queue + worker；Character delete 仍唯一未收口项。

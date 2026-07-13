@@ -398,6 +398,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async ensureProjectCharacterPreviewTasks(projectId: string) : Promise<QueueCharacterReferenceResponse> {
+    if (this.isDatabaseMode()) this.throwCharacterReferenceRouteRetired(projectId, "ensure_character_previews", "/characters/{characterId}/reference", "批量旧入口不能携带逐角色 source freeze；请逐角色创建持久 queue task。");
     this.repository.assertDatabaseOperationSupported("ensure_character_previews");
     return this.characterRef.ensureProjectCharacterPreviewTasks(projectId);
   }
@@ -418,6 +419,7 @@ export class ProjectsService implements OnModuleInit {
   async generateCharacterReference(projectId: string,
     characterId: string,
     input: GenerateCharacterReferenceRequest & { sourceTaskId?: string } = {},) : Promise<GenerateCharacterReferenceResponse> {
+    if (this.isDatabaseMode()) this.throwCharacterReferenceRouteRetired(projectId, "generate_character_reference", "/characters/{characterId}/reference", "DB 模式不允许同步 provider 出图；请使用 queue_character_reference 后由持久 worker 完成。");
     this.repository.assertDatabaseOperationSupported("generate_character_reference");
     return this.characterRef.generateCharacterReference(projectId, characterId, input);
   }
@@ -438,6 +440,7 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     sceneId: string,
     input: GenerateSceneReferenceRequest & { sourceTaskId?: string } = {},) : Promise<{ storyStructure: ChapterStoryStructure; asset: WorkbenchAsset }> {
+    if (this.isDatabaseMode()) this.throwCharacterReferenceRouteRetired(projectId, "generate_scene_reference", "/chapters/{chapterId}/scenes/{sceneId}/reference", "DB 模式不允许同步 provider 出图；请使用 queue_scene_reference 后由持久 worker 完成。");
     this.repository.assertDatabaseOperationSupported("generate_scene_reference");
     return this.characterRef.generateSceneReference(projectId, chapterId, sceneId, input);
   }
@@ -533,6 +536,10 @@ export class ProjectsService implements OnModuleInit {
         details: { operation, replacement: `/api/projects/${projectId}/chapters/${chapterId}${replacement}`, reason },
       },
     }, 409);
+  }
+
+  private throwCharacterReferenceRouteRetired(projectId: string, operation: string, replacement: string, reason: string): never {
+    throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { operation, replacement: `/api/projects/${projectId}${replacement}`, reason } } }, 409);
   }
 
   /**

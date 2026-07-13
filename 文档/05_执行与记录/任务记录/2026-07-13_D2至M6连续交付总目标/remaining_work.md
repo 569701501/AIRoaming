@@ -18,8 +18,8 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 | P1 D2-A2-1 | Project metadata、ensure chapter、AI pending、Outline、Web G2 Script | 6 |
 | P2 D2-A2-2 | clear/import/reset 安全语义与旧操作退役机制 | 5 |
 | P3 D2-A3-1 | Story/Storyboard/Preflight 公开 DB 闭环 | 4 |
-| P4 D2-A3-2A | Character/Scene reference、Asset/Visual 写闭环 | 4 |
-| P5 D2-A3-2B | CandidateLock、complete images、聚合收口 | 3 |
+| P4 D2-A3-2A | Character/Scene identity、queue/worker、Asset/Visual、公开确认；旧同步 generate、ensure、delete 仍待收口 | 4 |
+| P5 D2-A3-2B | CandidateLock、complete images 已完成；待完成 Character/Scene 同步入口退役/替换与 delete 边界后聚合收口 | 3 |
 | P6 D2-A4 | Layout/Export DB-only | 2 |
 | P7 D2-A5 | Dialogue runtime DB 事实源 | 1 |
 | P8 D2-A6 | Project delete、Outbox consumer、五 handler | 0 |
@@ -166,18 +166,22 @@ blocked 计算只能把满足全部退役条件的 operation 视为已关闭；�
 
 ### 6.1 P4：Character/Scene reference 与 Asset/Visual
 
-关闭：
+已完成：
 
-- `ensure_character_previews`
 - `extract_characters`
 - `update_character`
-- `generate_character_reference`
 - `queue_scene_reference`
-- `generate_scene_reference`
 - `queue_character_reference`
 - `confirm_character_preview`
 - `confirm_character_reference`
-- `delete_character_reference`
+- `scene_reference_generate` worker completion
+- `character_reference_generate` worker completion
+
+仍待收口：
+
+- `ensure_character_previews`：明确替换为角色 identity/queue 工作流，或实现 DB 公开批量 queue。
+- `generate_character_reference`、`generate_scene_reference`：同步旧入口不得在 DB 直接出图；应退役并指向 queue + worker，补稳定拒绝和 replacement 证据。
+- `delete_character_reference`：需要 Outbox 物理清理意图、claim/lease/postcondition 和引用历史保护；在 D2-A6 Outbox consumer 前不得假完成。
 
 要求：
 
@@ -193,7 +197,7 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 
 ### 6.2 P5：CandidateLock 与章节图片完成
 
-关闭：
+已完成：
 
 - `lock_candidate`
 - `complete_chapter_images`
@@ -206,10 +210,10 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 - complete images 只在每个 required Shot 均有 current lock、Asset ready、source fresh 时推进 milestone。
 - 同进程、restart、双客户端冲突和旧文件隔离通过。
 
-退出：
+当前退出条件：
 
-- `character_scene_asset_candidate_lock` 绿。
-- `blockedIds` 从 4 精确降至 3。
+- 上述 P4 剩余 operation 必须 implemented 或合规 retired；Character delete 需等 Outbox consumer。
+- `character_scene_asset_candidate_lock` 才可绿，`blockedIds` 才能从 4 精确降至 3。
 
 ## 7. P6：D2-A4 Layout/Export
 

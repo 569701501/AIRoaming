@@ -518,6 +518,19 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
   }, 20_000);
 
+  it("P4-LEGACY-01: retires synchronous/bulk character reference routes in DB mode", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const project = await projects.createProject({ name: "P4 参考图旧入口", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapterId = project.currentChapterId!;
+    const expectRetired = (promise: Promise<unknown>, operation: string, replacement: string) => expect(promise).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "LEGACY_WRITE_ROUTE_DISABLED", details: expect.objectContaining({ operation, replacement: expect.stringContaining(replacement) }) }) }) });
+    await expectRetired(projects.ensureProjectCharacterPreviewTasks(project.id), "ensure_character_previews", "/characters/");
+    await expectRetired(projects.generateCharacterReference(project.id, "character-1"), "generate_character_reference", "/characters/");
+    await expectRetired(projects.generateSceneReference(project.id, chapterId, "scene-1"), "generate_scene_reference", "/chapters/");
+  }, 20_000);
+
   it("P4-CHAR-01: updates character identity in DB without workspace writes", async () => {
     const { databasePath, workspaceRoot, deployed } = await prepareDatabase();
     expect(deployed.code).toBe(0);
