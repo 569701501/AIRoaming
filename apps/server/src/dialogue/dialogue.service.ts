@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import type {
   AIRuntimeModelSelection,
@@ -10,6 +11,8 @@ import type {
   SendDialogueMessageResponse,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
+import { digestCanonicalJson } from "@airoaming/shared";
+import { redactCredentials } from "../migration/credential-redactor.js";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { ScriptDialogueService } from "./script-dialogue.service.js";
@@ -24,6 +27,7 @@ import type {
   PendingDialogueCaptureArtifact,
 } from "./dialogue-types.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
+import { PrismaService } from "../persistence/prisma.service.js";
 
 @Injectable()
 export class DialogueService {
@@ -36,6 +40,7 @@ export class DialogueService {
     @Inject(ScriptDialogueService) private readonly scriptDialogue: ScriptDialogueService,
     @Inject(StoryStructureDialogueService) private readonly storyStructureDialogue: StoryStructureDialogueService,
     @Inject(StoryboardDialogueService) private readonly storyboardDialogue: StoryboardDialogueService,
+    @Inject(PrismaService) private readonly prismaService: PrismaService,
     @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {
     this.projectsService.onProjectDeleted((projectId) => this.deleteProjectRuntimeState(projectId));
@@ -68,8 +73,15 @@ export class DialogueService {
   }
 
   async getProjectThread(projectId: string, stepKey: string, chapterId?: string | null): Promise<DialogueThread> {
+    await this.assertDatabaseProjectActive(projectId);
     await this.projectsService.getWorkbenchSnapshot(projectId, chapterId ?? undefined);
     const normalizedStepKey = this.normalizeStepKey(stepKey);
+    if (this.prismaService.isDatabaseMode()) {
+      const thread = await this.getOrCreateDatabaseThread(projectId, normalizedStepKey, chapterId ?? null);
+      await this.settleDatabaseRunningMessages(thread.id);
+      const refreshed = await this.getOrCreateDatabaseThread(projectId, normalizedStepKey, chapterId ?? null);
+      return this.toThreadDto(refreshed);
+    }
     const thread = this.getOrCreateThread(projectId, normalizedStepKey, chapterId ?? null);
     this.settleInactiveRunningMessages(thread);
     return this.toThreadDto(thread);
@@ -94,8 +106,11 @@ export class DialogueService {
 
     if (toolResults.length > 0) {
       this.recordToolResults(turn.thread, toolResults);
+      await this.persistToolResults(turn.thread, toolResults);
+      await this.syncPendingArtifactsForThread(turn.thread.projectId, turn.thread.id, input.content);
       const lastResult = toolResults[toolResults.length - 1];
       this.completeAssistantMessage(turn, lastResult.summary, input.model ?? this.openCodeRuntimeService.getDefaultModel());
+      await this.persistMessageUpdate(turn.assistantMessage);
       return {
         thread: this.toThreadDto(turn.thread),
         userMessage: turn.userMessage,
@@ -112,8 +127,10 @@ export class DialogueService {
         content: turn.prompt,
       });
       this.completeAssistantMessage(turn, response.content, response.model);
+      await this.persistMessageUpdate(turn.assistantMessage);
     } catch (error) {
       this.failAssistantMessage(turn, error);
+      await this.persistMessageUpdate(turn.assistantMessage);
     }
 
     return {
@@ -157,6 +174,8 @@ export class DialogueService {
       const toolResults = await this.tryHandleScriptTools(turn, input, signal);
       if (toolResults.length > 0) {
         this.recordToolResults(turn.thread, toolResults);
+        await this.persistToolResults(turn.thread, toolResults);
+        await this.syncPendingArtifactsForThread(turn.thread.projectId, turn.thread.id, input.content);
         for (const toolResult of toolResults) {
           await emit({
             type: "dialogue.tool_result.created",
@@ -170,6 +189,7 @@ export class DialogueService {
         }
         const lastResult = toolResults[toolResults.length - 1];
         this.completeAssistantMessage(turn, lastResult.summary, input.model ?? this.openCodeRuntimeService.getDefaultModel());
+        await this.persistMessageUpdate(turn.assistantMessage);
         await emit({
           type: "dialogue.message.completed",
           threadId: turn.thread.id,
@@ -206,6 +226,7 @@ export class DialogueService {
         },
       );
       this.completeAssistantMessage(turn, response.content, response.model);
+      await this.persistMessageUpdate(turn.assistantMessage);
       await emit({
         type: "dialogue.message.completed",
         threadId: turn.thread.id,
@@ -217,6 +238,7 @@ export class DialogueService {
       });
     } catch (error) {
       this.failAssistantMessage(turn, error);
+      await this.persistMessageUpdate(turn.assistantMessage);
       await emit({
         type: "dialogue.error",
         threadId: turn.thread.id,
@@ -239,6 +261,7 @@ export class DialogueService {
     stepKey: string,
     input: SendDialogueMessageRequest,
   ): Promise<DialogueTurn> {
+    await this.assertDatabaseProjectActive(projectId);
     const normalizedStepKey = this.normalizeStepKey(input.stepKey ?? stepKey);
     const chapterId = this.resolveDialogueChapterId(normalizedStepKey, input);
     const snapshot = await this.projectsService.getWorkbenchSnapshot(projectId, chapterId ?? undefined);
@@ -247,7 +270,9 @@ export class DialogueService {
       throw new BadRequestException("DIALOGUE_MESSAGE_REQUIRED");
     }
 
-    const thread = this.getOrCreateThread(projectId, normalizedStepKey, chapterId);
+    const thread = this.prismaService.isDatabaseMode()
+      ? await this.getOrCreateDatabaseThread(projectId, normalizedStepKey, chapterId)
+      : this.getOrCreateThread(projectId, normalizedStepKey, chapterId);
     this.settleInactiveRunningMessages(thread);
     const now = new Date().toISOString();
     const userMessage: DialogueMessageItem = {
@@ -281,6 +306,10 @@ export class DialogueService {
 
     thread.messages.push(userMessage, assistantMessage);
     thread.updatedAt = now;
+
+    if (this.prismaService.isDatabaseMode()) {
+      await this.persistCreatedTurn(thread, userMessage, assistantMessage, input.model ?? this.openCodeRuntimeService.getDefaultModel());
+    }
 
     return {
       snapshot,
@@ -329,7 +358,152 @@ export class DialogueService {
 
     thread.openCodeSessionId = await this.openCodeRuntimeService.createSession(`${snapshot.project.name} · 对话框`, signal);
     thread.updatedAt = new Date().toISOString();
+    if (this.prismaService.isDatabaseMode()) {
+      const now = new Date();
+      const db = this.prismaService.database();
+      await db.dialogueRuntimeSession.create({
+        data: {
+          id: `dialogue_session_${randomUUID()}`,
+          threadId: thread.id,
+          runtime: "opencode",
+          externalSessionId: thread.openCodeSessionId,
+          status: "active",
+          providerId: this.openCodeRuntimeService.getDefaultModel().providerId,
+          modelId: this.openCodeRuntimeService.getDefaultModel().modelId,
+          variant: null,
+          createdAt: now,
+          updatedAt: now,
+          closedAt: null,
+        },
+      });
+    }
     return thread.openCodeSessionId;
+  }
+
+  private async assertDatabaseProjectActive(projectId: string): Promise<void> {
+    if (!this.prismaService.isDatabaseMode()) return;
+    const project = await this.prismaService.database().project.findUnique({ where: { id: projectId }, select: { lifecycleStatus: true } });
+    if (!project || project.lifecycleStatus !== "active") {
+      throw new BadRequestException("PROJECT_NOT_FOUND");
+    }
+  }
+
+  private async getOrCreateDatabaseThread(projectId: string, stepKey: string, chapterId: string | null): Promise<LocalDialogueThread> {
+    const db = this.prismaService.database();
+    const scopeKey = chapterId ? `chapter:${chapterId}` : "project";
+    const now = new Date();
+    const row = await db.conversationThread.upsert({
+      where: { projectId_stepKey_scopeKey: { projectId, stepKey, scopeKey } },
+      create: { id: `dialogue_thread_${randomUUID()}`, projectId, chapterId, stepKey, scopeKey, title: stepKey, status: "active", createdAt: now, updatedAt: now },
+      update: { updatedAt: now },
+    });
+    const [messages, toolResults, session, pendingArtifacts] = await Promise.all([
+      db.conversationMessage.findMany({ where: { threadId: row.id }, orderBy: { createdAt: "asc" } }),
+      db.dialogueToolResult.findMany({ where: { threadId: row.id }, orderBy: { createdAt: "asc" } }),
+      db.dialogueRuntimeSession.findFirst({ where: { threadId: row.id, status: "active" }, orderBy: { createdAt: "desc" } }),
+      db.pendingDialogueArtifact.findMany({ where: { threadId: row.id, status: "pending" }, orderBy: { createdAt: "asc" } }),
+    ]);
+    const existing = this.threads.get(getThreadKey(projectId, stepKey, chapterId));
+    const thread: LocalDialogueThread = existing ?? {
+      id: row.id,
+      projectId,
+      stepKey,
+      chapterId,
+      openCodeSessionId: session?.externalSessionId ?? null,
+      messages: [],
+      toolResults: [],
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+    thread.id = row.id;
+    thread.openCodeSessionId = session?.externalSessionId ?? null;
+    thread.createdAt = row.createdAt.toISOString();
+    thread.updatedAt = row.updatedAt.toISOString();
+    thread.messages = messages.map((message) => ({
+      id: message.id,
+      projectId,
+      threadId: row.id,
+      stepKey,
+      chapterId,
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.content,
+      status: message.status as DialogueMessageItem["status"],
+      model: message.providerId && message.modelId ? { providerId: message.providerId, modelId: message.modelId } : null,
+      error: message.errorJson && typeof message.errorJson === "object" && !Array.isArray(message.errorJson) ? message.errorJson as DialogueMessageItem["error"] : null,
+      createdAt: message.createdAt.toISOString(),
+      completedAt: message.completedAt?.toISOString() ?? null,
+    }));
+    thread.toolResults = toolResults.map((result) => result.payloadJson as unknown as DialogueToolResult);
+    for (const artifact of pendingArtifacts) {
+      if (digestCanonicalJson(artifact.payloadJson) !== artifact.payloadDigest) continue;
+      this.scriptDialogue.restorePendingArtifact({ id: artifact.id, projectId: artifact.projectId, chapterId: artifact.chapterId, threadId: artifact.threadId, kind: artifact.kind as PendingDialogueCaptureArtifact["kind"], status: "pending", activeSlotKey: artifact.activeSlotKey!, payload: artifact.payloadJson, schemaVersion: 1, createdAt: artifact.createdAt.toISOString(), updatedAt: artifact.updatedAt.toISOString() });
+    }
+    this.threads.set(getThreadKey(projectId, stepKey, chapterId), thread);
+    return thread;
+  }
+
+  private async settleDatabaseRunningMessages(threadId: string): Promise<void> {
+    const db = this.prismaService.database();
+    const activeIds = this.activeStreamingAssistantMessageIds;
+    const running = await db.conversationMessage.findMany({ where: { threadId, status: "running" } });
+    if (running.some((message) => activeIds.has(message.id))) return;
+    const now = new Date();
+    for (const message of running) {
+      await db.conversationMessage.update({ where: { id: message.id }, data: { status: "failed", content: message.content || "上一轮对话连接已中断，请重新发送。", errorJson: { code: "DIALOGUE_STREAM_INTERRUPTED", message: "Dialogue stream was interrupted before completion." }, errorSchemaVersion: 1, completedAt: now, updatedAt: now } });
+    }
+    await db.dialogueRuntimeSession.updateMany({ where: { threadId, status: "active" }, data: { status: "closed", closedAt: now, updatedAt: now } });
+  }
+
+  private async persistCreatedTurn(thread: LocalDialogueThread, userMessage: DialogueMessageItem, assistantMessage: DialogueMessageItem, model: AIRuntimeModelSelection): Promise<void> {
+    const db = this.prismaService.database();
+    const now = new Date(userMessage.createdAt);
+    await db.$transaction(async (tx) => {
+      await tx.conversationMessage.create({ data: { id: userMessage.id, threadId: thread.id, role: "user", content: userMessage.content, status: "completed", providerId: null, modelId: null, errorJson: undefined, errorSchemaVersion: null, createdAt: now, updatedAt: now, completedAt: now } });
+      await tx.conversationMessage.create({ data: { id: assistantMessage.id, threadId: thread.id, role: "assistant", content: "", status: "running", providerId: model.providerId, modelId: model.modelId, errorJson: undefined, errorSchemaVersion: null, createdAt: now, updatedAt: now, completedAt: null } });
+      await tx.conversationThread.update({ where: { id: thread.id }, data: { updatedAt: now } });
+    });
+  }
+
+  private async persistMessageUpdate(message: DialogueMessageItem): Promise<void> {
+    if (!this.prismaService.isDatabaseMode()) return;
+    const redactedError = message.error ? redactCredentials(message.error).value : Prisma.DbNull;
+    await this.prismaService.database().conversationMessage.update({ where: { id: message.id }, data: { content: message.content, status: message.status, providerId: message.model?.providerId ?? null, modelId: message.model?.modelId ?? null, errorJson: redactedError as Prisma.InputJsonValue | typeof Prisma.DbNull, errorSchemaVersion: message.error ? 1 : null, completedAt: message.completedAt ? new Date(message.completedAt) : null, updatedAt: new Date() } });
+  }
+
+  private async persistToolResults(thread: LocalDialogueThread, results: DialogueToolResult[]): Promise<void> {
+    if (!this.prismaService.isDatabaseMode()) return;
+    const db = this.prismaService.database();
+    for (const result of results) {
+      const redacted = redactCredentials(result).value as DialogueToolResult;
+      await db.dialogueToolResult.upsert({
+        where: { threadId_toolCallId: { threadId: thread.id, toolCallId: result.toolCallId } },
+        create: { id: result.id, threadId: thread.id, messageId: result.messageId, toolCallId: result.toolCallId, tool: result.tool, status: result.status, summary: redacted.summary, payloadJson: redacted as unknown as Prisma.InputJsonValue, schemaVersion: 1, payloadDigest: digestCanonicalJson(redacted), createdAt: new Date(result.createdAt) },
+        update: { payloadJson: redacted as unknown as Prisma.InputJsonValue, status: result.status, summary: redacted.summary, payloadDigest: digestCanonicalJson(redacted) },
+      });
+    }
+  }
+
+  private async syncPendingArtifactsForThread(projectId: string, threadId: string, inputContent: string): Promise<void> {
+    if (!this.prismaService.isDatabaseMode()) return;
+    const artifacts = this.scriptDialogue.capturePendingArtifacts(this.threads).filter((artifact) => artifact.projectId === projectId && artifact.threadId === threadId);
+    const db = this.prismaService.database();
+    const currentIds = new Set(artifacts.map((artifact) => artifact.id));
+    const threadChapterId = this.threads.get(threadId)?.chapterId ?? null;
+    for (const artifact of artifacts) {
+      const redacted = redactCredentials(artifact.payload).value;
+      await db.pendingDialogueArtifact.upsert({
+        where: { id: artifact.id },
+        create: { id: artifact.id, projectId: artifact.projectId, chapterId: threadChapterId, threadId: artifact.threadId, kind: artifact.kind, status: "pending", activeSlotKey: artifact.activeSlotKey, payloadJson: redacted as Prisma.InputJsonValue, schemaVersion: artifact.schemaVersion, payloadDigest: digestCanonicalJson(redacted), sourceMessageId: null, toolResultId: null, createdAt: new Date(artifact.createdAt), updatedAt: new Date(artifact.updatedAt), resolvedAt: null },
+        update: { payloadJson: redacted as Prisma.InputJsonValue, payloadDigest: digestCanonicalJson(redacted), updatedAt: new Date(artifact.updatedAt), status: "pending", activeSlotKey: artifact.activeSlotKey, resolvedAt: null },
+      });
+    }
+    const resolutionStatus = /(取消|不要|先不|不生成|别生成|算了)/.test(inputContent.trim()) ? "discarded" : "applied";
+    const stale = await db.pendingDialogueArtifact.findMany({ where: { projectId, threadId, status: "pending" } });
+    const resolvedAt = new Date();
+    for (const artifact of stale) {
+      if (currentIds.has(artifact.id)) continue;
+      await db.pendingDialogueArtifact.update({ where: { id: artifact.id }, data: { status: resolutionStatus, activeSlotKey: null, resolvedAt, updatedAt: resolvedAt } });
+    }
   }
 
   private getOrCreateThread(projectId: string, stepKey: string, chapterId: string | null): LocalDialogueThread {

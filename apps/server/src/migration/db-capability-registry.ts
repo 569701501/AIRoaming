@@ -84,12 +84,14 @@ const entries: DbCapabilityEntry[] = [
   {
     id: "dialogue_pending_runtime",
     ownerModule: "dialogue/runtime",
-    readStatus: "unsupported",
-    writeStatus: "unsupported",
-    restartCovered: false,
+    readStatus: "implemented",
+    writeStatus: "implemented",
+    restartCovered: true,
     requiredForActivate: true,
-    evidenceTestIds: [],
-    blocker: "Dialogue runtime still uses file/process state; imported pending tables are not the runtime fact source.",
+    evidenceTestIds: [
+      "src/projects/project-db-persistence.integration.spec.ts#P7-DIALOGUE-DB-01: persists dialogue thread/messages/tool results/pending artifact/session and fences restart/maintenance/deleting",
+    ],
+    blocker: null,
   },
   {
     id: "task_create_claim_complete_cancel_recover",

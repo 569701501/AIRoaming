@@ -267,7 +267,7 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 
 - REP-08、REP-09 与 restart/pending/tool replay 通过。
 - `dialogue_pending_runtime` 绿。
-- `blockedIds` 从 2 精确降至 1。
+- `blockedIds` 从 3 精确降至 2（Character delete 与 Project delete/Outbox）。
 
 ## 9. P8：D2-A6 Project delete + Outbox
 

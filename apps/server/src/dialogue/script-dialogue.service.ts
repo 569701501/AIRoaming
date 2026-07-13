@@ -177,6 +177,19 @@ export class ScriptDialogueService {
     return artifacts.sort((left, right) => left.activeSlotKey.localeCompare(right.activeSlotKey));
   }
 
+  /** 从 DB runtime artifact 恢复进程内工具状态；payload 仍以 DB digest 为准校验后才进入 Map。 */
+  restorePendingArtifact(artifact: PendingDialogueCaptureArtifact): void {
+    if (artifact.status !== "pending") return;
+    if (artifact.kind === "script_import") {
+      this.pendingScriptImports.set(artifact.threadId, artifact.payload as PendingScriptImport);
+      return;
+    }
+    const prefix = "dialogue:";
+    const slot = artifact.activeSlotKey.startsWith(prefix) ? artifact.activeSlotKey.slice(prefix.length) : artifact.activeSlotKey;
+    if (artifact.kind === "inspiration_seeds") this.pendingInspirationSeeds.set(slot, artifact.payload as PendingInspirationSeeds);
+    else this.pendingScriptOutlines.set(slot, artifact.payload as PendingScriptOutline);
+  }
+
   /**
    * 剧本工具链主入口。
    * 按 tryHandleScriptTools 中剧本分支的顺序调用 import → inspiration → chapter 子流程。

@@ -27,6 +27,10 @@ import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
 import { ProjectsService } from "./projects.service.js";
+import { DialogueModule } from "../dialogue/dialogue.module.js";
+import { DialogueService } from "../dialogue/dialogue.service.js";
+import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
+import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { ScriptVersionRepository } from "./versioning/script-version.repository.js";
 import { ScriptVersionService } from "./versioning/script-version.service.js";
 import { StoryVersionRepository } from "./versioning/story-version.repository.js";
@@ -1532,5 +1536,68 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(packageRevision).toMatchObject({ status: "ready", completionApplicability: "current" });
     expect(await prisma.exportArtifact.count({ where: { exportRevisionId: packageRevision.id } })).toBe(1);
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("exported");
+  }, 30_000);
+
+  it("P7-DIALOGUE-DB-01: persists dialogue thread/messages/session and settles running messages after restart", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(DialogueModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const dialogue = app.get(DialogueService);
+    const runtime = app.get(OpenCodeRuntimeService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P7 对话 DB", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const fakeModel = { providerId: "fake", modelId: "fake-dialogue" };
+    runtime.createSession = async () => "fake-session-1";
+    runtime.sendMessage = async ({ content }) => content.includes("灵感")
+      ? {
+        content: JSON.stringify({ seeds: [
+          { title: "方向一", logline: "一个关于选择的故事", keyConflict: "选择与代价", visualHook: "雨夜车站", firstChapterDirection: "主角在车站做出第一次选择", genreTags: ["剧情"] },
+          { title: "方向二", logline: "一个关于寻找的故事", keyConflict: "真相与谎言", visualHook: "废弃剧院", firstChapterDirection: "主角在剧院发现第一条线索", genreTags: ["悬疑"] },
+          { title: "方向三", logline: "一个关于守护的故事", keyConflict: "责任与自由", visualHook: "海边灯塔", firstChapterDirection: "主角在灯塔守住秘密", genreTags: ["奇幻"] },
+        ]}),
+        model: fakeModel,
+      }
+      : { content: "fake response", model: fakeModel };
+    const first = await dialogue.sendMessage(project.id, "project_story", { content: "hello", model: fakeModel });
+    expect(first.assistantMessage.status).toBe("completed");
+    expect(await prisma.conversationThread.count({ where: { projectId: project.id } })).toBe(1);
+    expect(await prisma.conversationMessage.count({ where: { threadId: first.thread.id } })).toBe(2);
+    expect(await prisma.dialogueRuntimeSession.count({ where: { threadId: first.thread.id, status: "active" } })).toBe(1);
+    const toolTurn = await dialogue.sendMessage(project.id, "project_characters", { content: "请提取项目角色", intent: "generate_project_characters", model: fakeModel });
+    expect(toolTurn.toolResults?.[0]?.status).toBe("failed");
+    expect(await prisma.dialogueToolResult.count({ where: { threadId: toolTurn.thread.id } })).toBe(1);
+    const pendingTurn = await dialogue.sendMessage(project.id, "project_story", { content: "请生成灵感方向", intent: "generate_inspiration_seeds", model: fakeModel });
+    expect(pendingTurn.toolResults?.[0]?.status).toBe("succeeded");
+    expect(await prisma.pendingDialogueArtifact.count({ where: { projectId: project.id, status: "pending" } })).toBe(1);
+    const interruptedId = randomUUID();
+    await prisma.conversationMessage.create({ data: { id: interruptedId, threadId: first.thread.id, role: "assistant", content: "", status: "running", providerId: fakeModel.providerId, modelId: fakeModel.modelId, errorJson: undefined, errorSchemaVersion: null, createdAt: new Date(), updatedAt: new Date(), completedAt: null } });
+    await app.close();
+    app = null;
+    app = await NestFactory.createApplicationContext(DialogueModule, { logger: false });
+    const reopened = await app.get(DialogueService).getProjectThread(project.id, "project_story", null);
+    expect(reopened.messages.find((message) => message.id === interruptedId)).toMatchObject({ status: "failed", error: { code: "DIALOGUE_STREAM_INTERRUPTED" } });
+    const reopenedPrisma = app.get(PrismaService).database();
+    expect(await reopenedPrisma.conversationMessage.findUniqueOrThrow({ where: { id: interruptedId } })).toMatchObject({ status: "failed" });
+    expect(await reopenedPrisma.dialogueRuntimeSession.count({ where: { threadId: first.thread.id, status: "closed" } })).toBe(1);
+    const discarded = await app.get(DialogueService).sendMessage(project.id, "project_story", { content: "取消灵感", model: fakeModel });
+    expect(discarded.toolResults?.[0]).toMatchObject({ tool: "generate_inspiration_seeds", status: "failed" });
+    expect(await reopenedPrisma.pendingDialogueArtifact.count({ where: { projectId: project.id, status: "pending" } })).toBe(0);
+    expect(await reopenedPrisma.pendingDialogueArtifact.count({ where: { projectId: project.id, status: "discarded" } })).toBe(1);
+    const reopenedRuntime = app.get(OpenCodeRuntimeService);
+    reopenedRuntime.createSession = async () => "fake-session-2";
+    reopenedRuntime.sendMessage = async () => ({ content: "fake response after restart", model: fakeModel });
+    await app.get(DialogueService).sendMessage(project.id, "project_story", { content: "hello after restart", model: fakeModel });
+    expect(await reopenedPrisma.dialogueRuntimeSession.count({ where: { threadId: first.thread.id, status: "active" } })).toBe(1);
+    expect(await reopenedPrisma.dialogueRuntimeSession.count({ where: { threadId: first.thread.id } })).toBe(2);
+    const maintenance = app.get(MaintenanceCoordinator);
+    await maintenance.drain(1_000);
+    await maintenance.close();
+    await expect(app.get(DialogueService).sendMessage(project.id, "project_story", { content: "blocked by maintenance", model: fakeModel })).rejects.toMatchObject({ code: "MAINTENANCE_MODE" });
+    await maintenance.reopen();
+    const messageCountBeforeDeleting = await reopenedPrisma.conversationMessage.count({ where: { threadId: first.thread.id } });
+    await reopenedPrisma.project.update({ where: { id: project.id }, data: { lifecycleStatus: "deleting", deletingAt: new Date() } });
+    await expect(app.get(DialogueService).sendMessage(project.id, "project_story", { content: "blocked by deleting", model: fakeModel })).rejects.toMatchObject({ message: "PROJECT_NOT_FOUND" });
+    expect(await reopenedPrisma.conversationMessage.count({ where: { threadId: first.thread.id } })).toBe(messageCountBeforeDeleting);
   }, 30_000);
 });

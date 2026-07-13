@@ -90,3 +90,10 @@ source: 本总目标编制过程
 - 工作树存在未提交的 Dialogue DB 草稿，已覆盖 thread/message/session 的初步持久化、running restart 收敛和 tool result 写入起点；当前不计入完成证据。
 - 仍缺正式 pending adopt/discard restart、tool replay 全链路、maintenance/deleting fence、递归 redaction、完整错误/取消语义和 capability evidence。
 - Luna 接管时先审查并补失败测试，完成 D2-A5 后独立提交；真实 capability 仍为 8/36/3，不能手改 blocker。
+
+## P7 Dialogue runtime DB 闭环（2026-07-13）
+
+- 已完成 thread/message/tool result/pending artifact/runtime session 的 DB 持久化、digest/redaction、restart 收口、maintenance/deleting fence。
+- `P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量、typecheck/web build、Prisma/G1、diff check 通过。
+- capability `dialogue_pending_runtime` 已更新为 implemented/restartCovered=true；真实 `blockedIds` 从 3 降至 2。
+- 待独立提交 P7；提交后进入 D2-A6 Outbox + Project delete，并回补 Character delete。
