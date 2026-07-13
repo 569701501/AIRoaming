@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 
@@ -63,6 +63,7 @@ async function recomputeBundleSeal(bundlePath: string): Promise<string> {
   sealed.bundleDigest = manifest.bundleDigest;
   sealed.manifestDigest = digestCanonicalJson(manifest);
   sealed.databaseDigest = manifest.database.sha256;
+  sealed.assetInventoryDigest = digestCanonicalJson(manifest.assets);
   sealed.runSummaryDigest = summary.runSummaryDigest;
   sealed.configDigest = digestCanonicalJson(JSON.parse(await readFile(settingsPath, "utf8")));
   await writeFile(sealedPath, JSON.stringify(sealed) + "\n", { mode: 0o600 });
@@ -255,6 +256,72 @@ describe("M5-A1 coordinated backup", () => {
     const fixture = await createFixture();
     try {
       await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover" })).rejects.toMatchObject({ code: "MIGRATION_CAPABILITY_BLOCKED" });
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it.each([
+    ["missing slice", (report: { slices: unknown[] }) => { report.slices.pop(); }],
+    ["duplicate slice", (report: { slices: unknown[] }) => { report.slices[1] = report.slices[0]; }],
+  ])("A4-BAK-03 rejects a full-shadow report with %s", async (_label, mutate) => {
+    const fixture = await createFixture();
+    try {
+      const reportPath = fixture.fullImportPath;
+      const report = JSON.parse(await readFile(reportPath, "utf8")) as { slices: unknown[] };
+      mutate(report);
+      await writeFile(reportPath, JSON.stringify(report) + "\n", { mode: 0o600 });
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: reportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_RUN_INVALID" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-BAK-04 rejects a sentinel in DB user text before sealing", async () => {
+    const fixture = await createFixture();
+    try {
+      await fixture.prisma.database().project.update({ where: { id: "p1" }, data: { name: "airoaming-test-secret-db" } });
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_SECRET_DETECTED" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-BAK-04 rejects a sentinel in ready Asset bytes before sealing", async () => {
+    const fixture = await createFixture();
+    try {
+      const bytes = Buffer.from("airoaming-test-secret-asset");
+      await writeFile(fixture.assetPath, bytes, { mode: 0o600 });
+      const database = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));
+      database.exec("DROP TRIGGER IF EXISTS trg_assets_ready_core_immutable_update");
+      database.close();
+      await fixture.prisma.database().asset.update({ where: { id: "asset-1" }, data: { bytes: bytes.byteLength, sha256: `sha256:${createHash("sha256").update(bytes).digest("hex")}` } });
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_SECRET_DETECTED" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-BAK-04 rejects symlink and overlapping backup roots", async () => {
+    const fixture = await createFixture();
+    try {
+      const linkedWorkspace = path.join(fixture.root, "linked-workspace");
+      await symlink(fixture.workspaceRoot, linkedWorkspace);
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: linkedWorkspace, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_PATH_UNSAFE" });
+      const nestedOutput = path.join(fixture.workspaceRoot, "nested-output");
+      await mkdir(nestedOutput);
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: nestedOutput, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_PATH_UNSAFE" });
     } finally {
       await fixture.prisma.onModuleDestroy();
       if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
@@ -485,6 +552,93 @@ describe("M5-A2 restore", () => {
         if (previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = previous.AIROAMING_PERSISTENCE_MODE;
         if (previous.AIROAMING_TASK_WORKER_ENABLED === undefined) delete process.env.AIROAMING_TASK_WORKER_ENABLED; else process.env.AIROAMING_TASK_WORKER_ENABLED = previous.AIROAMING_TASK_WORKER_ENABLED;
       }
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-03 rejects a non-sealed bundle and leaves targets untouched", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const unsealed = path.join(fixture.root, "unsealed-bundle");
+      await cp(result.bundlePath, unsealed, { recursive: true });
+      const dataTarget = path.join(fixture.root, "unsealed-data");
+      const workspaceTarget = path.join(fixture.root, "unsealed-workspace");
+      await expect(new AppRestoreService().restore({ backup: unsealed, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "verify-only" })).rejects.toMatchObject({ code: "BACKUP_NOT_SEALED" });
+      await expect(lstat(dataTarget)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(lstat(workspaceTarget)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-03 rejects symlink and overlapping restore targets", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const linkedTarget = path.join(fixture.root, "linked-target");
+      await mkdir(path.join(fixture.root, "linked-destination"));
+      await symlink(path.join(fixture.root, "linked-destination"), linkedTarget);
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: linkedTarget, targetWorkspaceRoot: path.join(fixture.root, "restore-workspace"), mode: "materialize" })).rejects.toMatchObject({ code: "RESTORE_TARGET_NOT_EMPTY" });
+      const overlapParent = path.join(fixture.root, "overlap-parent");
+      await mkdir(overlapParent);
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(overlapParent, "data"), targetWorkspaceRoot: overlapParent, mode: "verify-only" })).rejects.toMatchObject({ code: "BACKUP_PATH_UNSAFE" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-03 rejects an unsafe storageKey after the outer seal is recomputed", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const manifestPath = path.join(result.bundlePath, "backup-manifest.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as { assets: Array<{ storageKey: string }> };
+      manifest.assets[0].storageKey = "../../escape.txt";
+      await writeFile(manifestPath, JSON.stringify(manifest) + "\n", { mode: 0o600 });
+      const bundlePath = await recomputeBundleSeal(result.bundlePath);
+      await expect(new AppRestoreService().restore({ backup: bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "unsafe-storage-data"), targetWorkspaceRoot: path.join(fixture.root, "unsafe-storage-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-04 safely cleans the first root when the second publish fails", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const dataTarget = path.join(fixture.root, "compensation-data");
+      const workspaceTarget = path.join(fixture.root, "compensation-workspace");
+      const restore = new AppRestoreService({ rename: async (source, destination) => {
+        if (path.basename(destination) === path.basename(workspaceTarget)) throw new Error("INJECTED_SECOND_RENAME");
+        return rename(source, destination);
+      } });
+      await expect(restore.restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+      await expect(lstat(dataTarget)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(lstat(workspaceTarget)).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await readdir(fixture.root)).filter((entry) => entry.includes(".restore-staging-")).length).toBe(0);
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-04 preserves an externally modified first root", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const dataTarget = path.join(fixture.root, "unsafe-compensation-data");
+      const workspaceTarget = path.join(fixture.root, "unsafe-compensation-workspace");
+      const restore = new AppRestoreService({ rename: async (source, destination) => {
+        if (path.basename(destination) === path.basename(workspaceTarget)) {
+          await writeFile(path.join(dataTarget, "external.txt"), "external", { mode: 0o600 });
+          throw new Error("INJECTED_SECOND_RENAME");
+        }
+        return rename(source, destination);
+      } });
+      await expect(restore.restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" })).rejects.toMatchObject({ code: "RESTORE_COMPENSATION_UNSAFE" });
+      expect(await readFile(path.join(dataTarget, "external.txt"), "utf8")).toBe("external");
+      await expect(lstat(workspaceTarget)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
       if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;

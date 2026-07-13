@@ -248,18 +248,18 @@ git diff --check
 ## 9. 当前 Luna 任务书
 
 ```text
-当前没有新的 Luna 任务书：A4-2 已完成并复核。下一切片应另行创建 A4-3 handoff。
-施工入口：暂不进入 A4-3，保持 M5 `hardening_required`
+当前没有新的 Luna 任务书：A4-3 已完成并复核。下一切片应另行创建 A4-4 handoff。
+施工入口：暂不进入 A4-4，保持 M5 `hardening_required`
 明确禁止：D2、M6、final importer、activate、真实数据
-退出证据：A4-3 handoff 创建后再执行
-Stop：不得跳过 A4-3 handoff 或直接推进 D2/M6
+退出证据：A4-4 handoff 创建后再执行
+Stop：不得跳过 A4-4 handoff 或直接推进 D2/M6
 ```
 
-A4-1/A4-2 已完成并复核。下一步先创建并复核 A4-3 handoff；不要一次把 A4-3/A4-4 或 D2/M6 全交给 Luna。
+A4-1/A4-2/A4-3 已完成并复核。下一步先创建并复核 A4-4 handoff；不要一次把 A4-4 或 D2/M6 全交给 Luna。
 
 ## 10. 最终 go/no-go
 
-可以开始 Luna 开发：no，A4-2 已完成；等待单独的 A4-3 handoff。
+可以开始 Luna 开发：no，A4-3 已完成；等待单独的 A4-4 handoff。
 
 可以直接要求 Luna 完成全部 G3-M：no，范围跨 G1 maintenance/full importer/SecretStore/backup/cutover，必须逐切片。
 

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename, rm, stat } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename as fsRename, rm, stat } from "node:fs/promises";
 import * as path from "node:path";
 import type { DatabaseSync as NodeDatabaseSync } from "node:sqlite";
 import { digestCanonicalJson } from "@airoaming/shared";
@@ -36,6 +36,10 @@ export class RestoreError extends Error {
   constructor(readonly code: string) { super(code); }
 }
 
+export interface RestoreFileOperations {
+  readonly rename: (source: string, destination: string) => Promise<void>;
+}
+
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 const MANIFEST_KEYS = ["appCommit", "assets", "backupKind", "bundleDigest", "createdAt", "database", "kind", "migration", "missingAssets", "persistenceState", "schemaVersion", "secretHandling"];
 const MIGRATION_KEYS = ["decisionsDigest", "effectiveSchemaManifestDigest", "fullImportReportDigest", "runIds", "runKind", "runSummaryDigest", "sliceCount", "snapshotManifestDigest", "sourceManifestDigest"];
@@ -61,11 +65,82 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
 
 function digestFile(bytes: Buffer): `sha256:${string}` { return (`sha256:${createHash("sha256").update(bytes).digest("hex")}`) as `sha256:${string}`; }
 
-function containsSecret(value: unknown): boolean {
-  if (typeof value === "string") return /api[_-]?key|authorization|bearer\s|cookie|password|secret|sk-[a-z0-9]/i.test(value);
-  if (Array.isArray(value)) return value.some(containsSecret);
-  if (value && typeof value === "object") return Object.values(value).some(containsSecret);
+const SECRET_SENTINEL = /airoaming-test-secret-[a-z0-9._:-]+|\bsk-[a-z0-9]{8,}\b|\bbearer\s+[a-z0-9._~+/=-]+/i;
+
+function containsSecretSentinel(value: unknown): boolean {
+  if (Buffer.isBuffer(value)) return SECRET_SENTINEL.test(value.toString("utf8"));
+  if (value instanceof Uint8Array) return SECRET_SENTINEL.test(Buffer.from(value).toString("utf8"));
+  if (typeof value === "string") return SECRET_SENTINEL.test(value);
+  if (Array.isArray(value)) return value.some(containsSecretSentinel);
+  if (value && typeof value === "object") return Object.values(value).some(containsSecretSentinel);
   return false;
+}
+
+function quoteIdentifier(value: string): string { return `"${value.replaceAll('"', '""')}"`; }
+
+function sqliteContainsSecretSentinel(databasePath: string): boolean {
+  let database: DatabaseSync;
+  try { database = new DatabaseSync(databasePath, { readOnly: true }); } catch { fail("RESTORE_VERIFICATION_FAILED"); }
+  try {
+    const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name?: unknown }>;
+    for (const table of tables) {
+      if (typeof table.name !== "string") continue;
+      const columns = database.prepare(`PRAGMA table_info(${quoteIdentifier(table.name)})`).all() as Array<{ name?: unknown; type?: unknown }>;
+      const names = columns.filter((column) => typeof column.name === "string" && /text|blob/i.test(String(column.type ?? ""))).map((column) => String(column.name));
+      if (names.length === 0) continue;
+      const rows = database.prepare(`SELECT ${names.map(quoteIdentifier).join(", ")} FROM ${quoteIdentifier(table.name)}`).all() as Array<Record<string, unknown>>;
+      if (rows.some((row) => names.some((name) => containsSecretSentinel(row[name])))) return true;
+    }
+    return false;
+  } finally { database.close(); }
+}
+
+async function directoryContainsSecretSentinel(root: string): Promise<boolean> {
+  const visit = async (directory: string): Promise<boolean> => {
+    const entries = await readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const filePath = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) fail("RESTORE_VERIFICATION_FAILED");
+      if (entry.isDirectory()) {
+        if (await visit(filePath)) return true;
+      } else if (entry.isFile() && containsSecretSentinel(await readFile(filePath))) return true;
+      else if (!entry.isFile()) fail("RESTORE_VERIFICATION_FAILED");
+    }
+    return false;
+  };
+  return visit(root);
+}
+
+async function directoryDigest(root: string): Promise<string> {
+  const inventory: Array<{ path: string; bytes: number; sha256: `sha256:${string}` }> = [];
+  const visit = async (directory: string, relative: string): Promise<void> => {
+    const entries = (await readdir(directory, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      const filePath = path.join(directory, entry.name);
+      const childRelative = relative ? `${relative}/${entry.name}` : entry.name;
+      if (entry.isSymbolicLink()) throw new RestoreError("RESTORE_COMPENSATION_UNSAFE");
+      if (entry.isDirectory()) await visit(filePath, childRelative);
+      else if (entry.isFile()) {
+        const bytes = await readFile(filePath);
+        inventory.push({ path: childRelative, bytes: bytes.byteLength, sha256: digestFile(bytes) });
+      } else throw new RestoreError("RESTORE_COMPENSATION_UNSAFE");
+    }
+  };
+  await visit(root, "");
+  return digestCanonicalJson(inventory);
+}
+
+function storageSegments(storageKey: string): string[] {
+  if (!storageKey || path.isAbsolute(storageKey) || storageKey.includes("\0")) fail("RESTORE_VERIFICATION_FAILED");
+  const segments = storageKey.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".." || segment.includes("\\"))) fail("RESTORE_VERIFICATION_FAILED");
+  return segments;
+}
+
+function storageTarget(root: string, storageKey: string): string {
+  const candidate = path.resolve(root, ...storageSegments(storageKey));
+  if (!isWithin(root, candidate)) fail("RESTORE_VERIFICATION_FAILED");
+  return candidate;
 }
 
 async function readJson(filePath: string): Promise<unknown> {
@@ -75,6 +150,26 @@ async function readJson(filePath: string): Promise<unknown> {
 async function readRegularJson(filePath: string): Promise<unknown> {
   await existingRegularFile(filePath, "RESTORE_VERIFICATION_FAILED");
   return readJson(filePath);
+}
+
+async function assertNoBundleSecretSentinels(bundlePath: string, manifest: BackupManifest): Promise<void> {
+  for (const relative of ["backup-manifest.json", "SEALED", "config/settings.redacted.json", "migration/run-summary.json"]) {
+    if (containsSecretSentinel(await readFile(path.join(bundlePath, relative)))) fail("BACKUP_SECRET_DETECTED");
+  }
+  const databasePath = path.join(bundlePath, "database/app.db");
+  if (containsSecretSentinel(await readFile(databasePath)) || sqliteContainsSecretSentinel(databasePath)) fail("BACKUP_SECRET_DETECTED");
+  for (const item of manifest.assets as BackupAssetEntry[]) {
+    if (containsSecretSentinel(await readFile(await resolveStorageFile(path.join(bundlePath, "assets"), item.storageKey)))) fail("BACKUP_SECRET_DETECTED");
+  }
+}
+
+async function cleanupStaging(directory: string, marker: string): Promise<void> {
+  if (await markerMatches(directory, marker)) await rm(directory, { recursive: true, force: true });
+}
+
+async function cleanupPublishedRoot(directory: string, marker: string, expectedDigest: string): Promise<void> {
+  if (!(await markerMatches(directory, marker)) || await directoryDigest(directory) !== expectedDigest) throw new RestoreError("RESTORE_COMPENSATION_UNSAFE");
+  await rm(directory, { recursive: true, force: false });
 }
 
 function parseSqliteJson(value: unknown): unknown {
@@ -152,9 +247,13 @@ function verifyManifest(value: unknown): { manifest: BackupManifest; manifestDig
 async function verifyAssets(bundlePath: string, manifest: BackupManifest): Promise<void> {
   const previous: string[] = [];
   for (const item of manifest.assets as BackupAssetEntry[]) {
-    if (!item || typeof item.storageKey !== "string" || !isDigest(item.sha256) || !Number.isInteger(item.bytes) || item.bytes <= 0 || previous.includes(item.storageKey) || (previous.length > 0 && previous[previous.length - 1].localeCompare(item.storageKey) >= 0)) fail("RESTORE_VERIFICATION_FAILED");
+    const raw = record(item);
+    exactKeys(raw, ["assetId", "bytes", "mimeType", "sha256", "storageKey"]);
+    if (!item || typeof item.assetId !== "string" || !item.assetId || typeof item.mimeType !== "string" || !item.storageKey || typeof item.storageKey !== "string" || !isDigest(item.sha256) || !Number.isInteger(item.bytes) || item.bytes <= 0 || previous.includes(item.storageKey) || (previous.length > 0 && previous[previous.length - 1].localeCompare(item.storageKey) >= 0)) fail("RESTORE_VERIFICATION_FAILED");
     previous.push(item.storageKey);
-    const assetPath = await resolveStorageFile(path.join(bundlePath, "assets"), item.storageKey.replace(/^projects\//, "projects/"));
+    storageSegments(item.storageKey);
+    let assetPath: string;
+    try { assetPath = await resolveStorageFile(path.join(bundlePath, "assets"), item.storageKey); } catch { fail("RESTORE_VERIFICATION_FAILED"); }
     const bytes = await readFile(assetPath);
     if (bytes.byteLength !== item.bytes || digestFile(bytes) !== item.sha256) fail("RESTORE_VERIFICATION_FAILED");
   }
@@ -172,27 +271,26 @@ async function markerMatches(directory: string, marker: string): Promise<boolean
 }
 
 export class AppRestoreService {
+  constructor(private readonly fileOperations: RestoreFileOperations = { rename: fsRename }) {}
+
   async restore(input: RestoreInput): Promise<RestoreResult> {
     const backupPath = requireAbsolutePath(input.backup, "RESTORE_ARGS_INVALID");
-    const releaseRoot = (() => {
-      try { return requireAbsolutePath(input.releaseRoot, "RESTORE_ARGS_INVALID"); } catch { fail("RESTORE_ARGS_INVALID"); }
-    })();
     const dataPath = requireAbsolutePath(input.targetDataRoot, "RESTORE_ARGS_INVALID");
     const workspacePath = requireAbsolutePath(input.targetWorkspaceRoot, "RESTORE_ARGS_INVALID");
     if (input.mode !== "verify-only" && input.mode !== "materialize") fail("RESTORE_ARGS_INVALID");
-    let releaseIdentity;
-    try {
-      releaseIdentity = await loadReleaseSchemaIdentityV1(releaseRoot);
-    } catch {
-      fail("RESTORE_RELEASE_IDENTITY_MISMATCH");
-    }
+    let releaseRoot: string;
+    try { releaseRoot = await existingDirectory(requireAbsolutePath(input.releaseRoot, "RESTORE_ARGS_INVALID")); } catch { fail("RESTORE_ARGS_INVALID"); }
     const backupRoot = await existingDirectory(backupPath);
-    assertDisjointRoots([backupRoot, dataPath, workspacePath]);
     const dataParent = await existingDirectory(path.dirname(dataPath));
     const workspaceParent = await existingDirectory(path.dirname(workspacePath));
-    for (const target of [dataPath, workspacePath]) {
+    const canonicalDataPath = path.join(dataParent, path.basename(dataPath));
+    const canonicalWorkspacePath = path.join(workspaceParent, path.basename(workspacePath));
+    assertDisjointRoots([backupRoot, releaseRoot, canonicalDataPath, canonicalWorkspacePath]);
+    for (const target of [canonicalDataPath, canonicalWorkspacePath]) {
       try { await lstat(target); fail("RESTORE_TARGET_NOT_EMPTY"); } catch (error) { if (error instanceof RestoreError) throw error; if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("RESTORE_TARGET_NOT_EMPTY"); }
     }
+    let releaseIdentity;
+    try { releaseIdentity = await loadReleaseSchemaIdentityV1(releaseRoot); } catch { fail("RESTORE_RELEASE_IDENTITY_MISMATCH"); }
     const manifestValue = await readRegularJson(path.join(backupRoot, "backup-manifest.json"));
     const { manifest, manifestDigest } = verifyManifest(manifestValue);
     if (path.basename(backupRoot) !== "backup-" + manifest.bundleDigest) fail("BACKUP_NOT_SEALED");
@@ -201,7 +299,7 @@ export class AppRestoreService {
     exactKeys(sealedValue, SEALED_KEYS);
     const settings = await readRegularJson(path.join(backupRoot, "config/settings.redacted.json"));
     if (sealedValue.schemaVersion !== 1 || sealedValue.kind !== "airoaming_backup_sealed_v1" || sealedValue.manifestDigest !== manifestDigest || sealedValue.bundleDigest !== manifest.bundleDigest || sealedValue.databaseDigest !== manifest.database.sha256 || sealedValue.assetInventoryDigest !== digestCanonicalJson(manifest.assets) || sealedValue.configDigest !== digestCanonicalJson(settings) || sealedValue.runSummaryDigest !== manifest.migration.runSummaryDigest) fail("BACKUP_NOT_SEALED");
-    if (containsSecret(manifest) || containsSecret(settings)) fail("BACKUP_SECRET_DETECTED");
+    if (containsSecretSentinel(manifest) || containsSecretSentinel(settings)) fail("BACKUP_SECRET_DETECTED");
     const runSummary = await readRegularJson(path.join(backupRoot, "migration/run-summary.json"));
     const verifiedRunSummary = verifyRunSummary(runSummary, manifest.migration);
     const databasePath = await existingRegularFile(path.join(backupRoot, "database/app.db"), "RESTORE_VERIFICATION_FAILED");
@@ -209,12 +307,15 @@ export class AppRestoreService {
     if (databaseBytes.byteLength !== manifest.database.bytes || digestFile(databaseBytes) !== manifest.database.sha256) fail("RESTORE_VERIFICATION_FAILED");
     verifyDatabase(databasePath, manifest, verifiedRunSummary);
     await verifyAssets(backupRoot, manifest);
+    await assertNoBundleSecretSentinels(backupRoot, manifest);
     if (input.mode === "verify-only") return { mode: input.mode, bundleDigest: manifest.bundleDigest, manifestDigest, assetCount: manifest.assets.length, database: { bytes: databaseBytes.byteLength, sha256: manifest.database.sha256 }, targetDataRoot: null, targetWorkspaceRoot: null };
     const marker = JSON.stringify({ schemaVersion: 1, kind: "airoaming_restore_marker_v1", bundleDigest: manifest.bundleDigest, pid: process.pid }) + "\n";
     const dataStaging = path.join(dataParent, `.restore-staging-${process.pid}-${Date.now()}-data`);
     const workspaceStaging = path.join(workspaceParent, `.restore-staging-${process.pid}-${Date.now()}-workspace`);
     let dataPublished = false;
     let workspacePublished = false;
+    let dataPublishedDigest: string | null = null;
+    let workspacePublishedDigest: string | null = null;
     try {
       await mkdir(path.join(dataStaging, "db"), { recursive: true, mode: 0o700 });
       await mkdir(workspaceStaging, { recursive: true, mode: 0o700 });
@@ -223,20 +324,35 @@ export class AppRestoreService {
       await copyFile(databasePath, path.join(dataStaging, "db/airoaming.sqlite"));
       await chmod(path.join(dataStaging, "db/airoaming.sqlite"), 0o600);
       for (const item of manifest.assets as BackupAssetEntry[]) {
-        const source = path.join(backupRoot, "assets", item.storageKey);
-        const target = path.join(workspaceStaging, ...item.storageKey.split("/"));
+        let source: string;
+        try { source = await resolveStorageFile(path.join(backupRoot, "assets"), item.storageKey); } catch { fail("RESTORE_VERIFICATION_FAILED"); }
+        const target = storageTarget(workspaceStaging, item.storageKey);
         await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
         await copyFile(source, target);
         await chmod(target, 0o600);
       }
-      await rename(dataStaging, dataPath);
+      await this.fileOperations.rename(dataStaging, canonicalDataPath);
       dataPublished = true;
-      await rename(workspaceStaging, workspacePath);
+      dataPublishedDigest = await directoryDigest(canonicalDataPath);
+      await this.fileOperations.rename(workspaceStaging, canonicalWorkspacePath);
       workspacePublished = true;
+      workspacePublishedDigest = await directoryDigest(canonicalWorkspacePath);
+      if (containsSecretSentinel(await readFile(path.join(canonicalDataPath, "db/airoaming.sqlite"))) || sqliteContainsSecretSentinel(path.join(canonicalDataPath, "db/airoaming.sqlite")) || await directoryContainsSecretSentinel(canonicalWorkspacePath)) fail("BACKUP_SECRET_DETECTED");
     } catch (error) {
-      if (dataPublished && !workspacePublished && await markerMatches(dataPath, marker)) await rm(dataPath, { recursive: true, force: true });
-      if (!dataPublished && await markerMatches(dataStaging, marker)) await rm(dataStaging, { recursive: true, force: true });
-      if (!workspacePublished && await markerMatches(workspaceStaging, marker)) await rm(workspaceStaging, { recursive: true, force: true });
+      let unsafe = false;
+      if (workspacePublished) {
+        if (!workspacePublishedDigest) unsafe = true;
+        else { try { await cleanupPublishedRoot(canonicalWorkspacePath, marker, workspacePublishedDigest); } catch { unsafe = true; } }
+      } else {
+        try { await cleanupStaging(workspaceStaging, marker); } catch { unsafe = true; }
+      }
+      if (dataPublished) {
+        if (!dataPublishedDigest) unsafe = true;
+        else { try { await cleanupPublishedRoot(canonicalDataPath, marker, dataPublishedDigest); } catch { unsafe = true; } }
+      } else {
+        try { await cleanupStaging(dataStaging, marker); } catch { unsafe = true; }
+      }
+      if (unsafe) fail("RESTORE_COMPENSATION_UNSAFE");
       if (error instanceof RestoreError) throw error;
       fail("RESTORE_VERIFICATION_FAILED");
     }

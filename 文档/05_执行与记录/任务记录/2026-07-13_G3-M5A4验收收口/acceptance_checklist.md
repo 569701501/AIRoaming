@@ -17,12 +17,12 @@ source: implementation_contract.md 与 M5R-01～08
 | A4-CLI-01 | backup/restore 精确参数 | extra positional、孤立 value、重复/缺失/未知 flag 均在 DB/文件写之前失败 | `passed` |
 | A4-BAK-01 | 同一一致性栅栏 | 16 run/issues/PersistenceState/Asset/settings 的读取与 DB/Asset 复制均受同一 fence 保护；manifest 与副本直查一致 | `passed` |
 | A4-BAK-02 | active writer/WAL | 既有 writer、锁后并发 writer、无法 checkpoint 或 WAL 未收敛均 `BACKUP_NOT_OFFLINE`/被阻断，且无 SEALED | `passed` |
-| A4-BAK-03 | full-shadow/ledger 故障 | 缺 slice、乱序、重复 run、report/counts/source/snapshot/decisions mismatch 任一失败 | `not_run` |
-| A4-BAK-04 | Asset 与 secret | ready Asset 缺失/篡改/复制中变化失败；DB/Asset/report/settings 中任一 sentinel 失败 | `not_run` |
+| A4-BAK-03 | full-shadow/ledger 故障 | 缺 slice、乱序、重复 run、report/counts/source/snapshot/decisions mismatch 任一失败 | `passed` |
+| A4-BAK-04 | Asset 与 secret | ready Asset 缺失/篡改/复制中变化失败；DB/Asset/report/settings 中任一 sentinel 失败 | `passed` |
 | A4-RST-01 | release + ledger identity | current release、16 run、固定 slice 顺序、counts/report、open issue、PersistenceState 全匹配才通过 | `passed` |
 | A4-RST-02 | bundle 篡改矩阵 | manifest/SEALED/run-summary/DB/Asset 任一字节或账本身份篡改均失败 | `passed` |
-| A4-RST-03 | 路径门 | nonsealed、目标已存在、symlink、祖先/后代重叠、storageKey 越界均零目标写入失败 | `not_run` |
-| A4-RST-04 | 第二根发布失败 | 未外部修改时仅清理本 run 产物；外部修改时保留第一根并返回 `RESTORE_COMPENSATION_UNSAFE` | `not_run` |
+| A4-RST-03 | 路径门 | nonsealed、目标已存在、symlink、祖先/后代重叠、storageKey 越界均零目标写入失败 | `passed` |
+| A4-RST-04 | 第二根发布失败 | 未外部修改时仅清理本 run 产物；外部修改时保留第一根并返回 `RESTORE_COMPENSATION_UNSAFE` | `passed` |
 | A4-RST-05 | materialize 后 secret/restart | restored DB/workspace sentinel=0；maintenance closed 启动读 API；firstBusinessWriteAt 仍 null | `not_run` |
 | A4-REG-01 | 全量门禁 | server 全量、workspace typecheck、G1 三项、Prisma validate、diff check 全绿 | `not_run` |
 
@@ -56,7 +56,7 @@ source: implementation_contract.md 与 M5R-01～08
 
 以上已收口 A4-1/A4-2；A4-BAK-03/04、A4-RST-03～05、A4-REG-01 仍保持 `not_run`。
 
-当前下一施工入口为 `handoff_a4_2.md`；A4-2 施工文档通过可执行性复核不等于 A4-RST-01/02 已运行。
+当前下一施工入口为 `handoff_a4_4.md`；A4-3 已完成并通过直接故障注入，A4-RST-05/A4-REG-01 仍待执行。
 
 ## 最小命令
 

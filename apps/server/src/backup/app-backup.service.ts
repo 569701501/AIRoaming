@@ -11,7 +11,7 @@ import { FULL_SHADOW_SLICE_ORDER } from "../migration/full-shadow-importer.js";
 import { normalizeComicFormatReport } from "../migration/migration-report.js";
 import { RuntimeBundleFileService } from "../migration/runtime-bundle-file.service.js";
 import type { SnapshotDigest } from "../migration/snapshot.types.js";
-import type { BackupInput, BackupManifest, BackupResult, BackupRunSummary, BackupRunSummarySlice } from "./backup.types.js";
+import type { BackupAssetEntry, BackupInput, BackupManifest, BackupResult, BackupRunSummary, BackupRunSummarySlice } from "./backup.types.js";
 import { BackupPathError, assertDisjointRoots, emptyDirectory, existingDirectory, existingRegularFile, isWithin, parseSqliteFileUrl, resolveStorageFile } from "./backup-path.js";
 
 const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as {
@@ -73,11 +73,50 @@ function jsonEqual(left: unknown, right: unknown): boolean {
   return digestCanonicalJson(left) === digestCanonicalJson(right);
 }
 
-function containsSecretValue(value: unknown): boolean {
-  if (typeof value === "string") return /api[_-]?key|authorization|bearer\s|cookie|password|secret|sk-[a-z0-9]/i.test(value);
-  if (Array.isArray(value)) return value.some(containsSecretValue);
-  if (value && typeof value === "object") return Object.values(value).some(containsSecretValue);
+const SECRET_SENTINEL = /airoaming-test-secret-[a-z0-9._:-]+|\bsk-[a-z0-9]{8,}\b|\bbearer\s+[a-z0-9._~+/=-]+/i;
+
+function containsSecretSentinel(value: unknown): boolean {
+  if (Buffer.isBuffer(value)) return SECRET_SENTINEL.test(value.toString("utf8"));
+  if (value instanceof Uint8Array) return SECRET_SENTINEL.test(Buffer.from(value).toString("utf8"));
+  if (typeof value === "string") return SECRET_SENTINEL.test(value);
+  if (Array.isArray(value)) return value.some(containsSecretSentinel);
+  if (value && typeof value === "object") return Object.values(value).some(containsSecretSentinel);
   return false;
+}
+
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function sqliteContainsSecretSentinel(databasePath: string): boolean {
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name?: unknown }>;
+    for (const table of tables) {
+      if (typeof table.name !== "string") continue;
+      const columns = database.prepare(`PRAGMA table_info(${quoteIdentifier(table.name)})`).all() as Array<{ name?: unknown; type?: unknown }>;
+      const names = columns.filter((column) => typeof column.name === "string" && /text|blob/i.test(String(column.type ?? ""))).map((column) => String(column.name));
+      if (names.length === 0) continue;
+      const rows = database.prepare(`SELECT ${names.map(quoteIdentifier).join(", ")} FROM ${quoteIdentifier(table.name)}`).all() as Array<Record<string, unknown>>;
+      if (rows.some((row) => names.some((name) => containsSecretSentinel(row[name])))) return true;
+    }
+    return false;
+  } finally {
+    database.close();
+  }
+}
+
+async function assertNoSecretSentinelsInStaging(staging: string, assets: readonly BackupAssetEntry[], includeManifest = true): Promise<"passed"> {
+  const jsonFiles = includeManifest ? ["backup-manifest.json", "config/settings.redacted.json", "migration/run-summary.json"] : ["config/settings.redacted.json", "migration/run-summary.json"];
+  for (const relative of jsonFiles) {
+    if (containsSecretSentinel(await readFile(path.join(staging, relative)))) fail("BACKUP_SECRET_DETECTED");
+  }
+  const databasePath = path.join(staging, "database/app.db");
+  if (containsSecretSentinel(await readFile(databasePath)) || sqliteContainsSecretSentinel(databasePath)) fail("BACKUP_SECRET_DETECTED");
+  for (const asset of assets) {
+    if (containsSecretSentinel(await readFile(path.join(staging, "assets", ...asset.storageKey.split("/"))))) fail("BACKUP_SECRET_DETECTED");
+  }
+  return "passed";
 }
 
 async function writePrivateJson(filePath: string, value: unknown): Promise<void> {
@@ -210,7 +249,7 @@ export class AppBackupService {
     const maintenanceBundle = await existingRegularFile(input.maintenanceBundle, "BACKUP_ARGS_INVALID");
     const fullImportReportPath = await existingRegularFile(input.fullImportReport, "BACKUP_ARGS_INVALID");
     const decisionsPath = await existingRegularFile(input.decisions, "BACKUP_ARGS_INVALID");
-    assertDisjointRoots([workspaceRoot, dataRoot, outputRoot]);
+    assertDisjointRoots([workspaceRoot, dataRoot, releaseRoot, outputRoot]);
     const releaseIdentity = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => fail("BACKUP_RELEASE_IDENTITY_INVALID"));
     await new RuntimeBundleFileService().readAndVerify(maintenanceBundle).catch(() => fail("BACKUP_ARGS_INVALID"));
     const fullShadow = normalizeFullShadowArtifact(await readJson(fullImportReportPath, "BACKUP_RUN_INVALID"));
@@ -267,7 +306,7 @@ export class AppBackupService {
           providers: providers.map((provider) => ({ id: provider.id, providerId: provider.providerId, runtimeKind: provider.runtimeKind, displayName: provider.displayName, modelId: provider.modelId, baseUrl: provider.baseUrl, enabled: provider.enabled, rowVersion: provider.rowVersion, createdAt: provider.createdAt.toISOString(), updatedAt: provider.updatedAt.toISOString() })),
           credentials: credentials.map((credential) => ({ id: credential.id, providerConfigId: credential.providerConfigId, owner: credential.owner, status: credential.status, fingerprint: credential.fingerprint, configured: credential.configured, rotatedAt: safeDate(credential.rotatedAt), createdAt: credential.createdAt.toISOString(), updatedAt: credential.updatedAt.toISOString() })),
         };
-        if (containsSecretValue(settingsRedacted)) fail("BACKUP_SECRET_DETECTED");
+        if (containsSecretSentinel(fullShadow) || containsSecretSentinel(decisions) || containsSecretSentinel(settingsRedacted)) fail("BACKUP_SECRET_DETECTED");
         const runSummaryBase = {
           schemaVersion: 1 as const,
           kind: "airoaming_migration_run_summary_v1" as const,
@@ -289,19 +328,21 @@ export class AppBackupService {
           database: { storageKey: "database/app.db" as const, ...database },
           assets: copiedAssets.sort((left, right) => left.storageKey.localeCompare(right.storageKey)),
           missingAssets,
-          secretHandling: { included: false as const, sentinelScan: "passed" as const },
         };
         return { database, copiedAssets, runSummary, manifestBase, settingsRedacted };
       }, this.consistencyHooks.onFenceAcquired);
       const { database, copiedAssets, runSummary, manifestBase, settingsRedacted } = snapshot;
-      const bundleDigest = digestCanonicalJson(manifestBase);
-      const manifest: BackupManifest = { ...manifestBase, bundleDigest };
-      const manifestDigest = digestCanonicalJson(manifest);
       await mkdir(path.join(staging, "config"), { recursive: true, mode: 0o700 });
       await mkdir(path.join(staging, "migration"), { recursive: true, mode: 0o700 });
       await writePrivateJson(path.join(staging, "config/settings.redacted.json"), settingsRedacted);
       await writePrivateJson(path.join(staging, "migration/run-summary.json"), runSummary);
+      const sentinelScan = await assertNoSecretSentinelsInStaging(staging, copiedAssets, false);
+      const manifestWithSecretScan = { ...manifestBase, secretHandling: { included: false as const, sentinelScan } };
+      const bundleDigest = digestCanonicalJson(manifestWithSecretScan);
+      const manifest: BackupManifest = { ...manifestWithSecretScan, bundleDigest };
+      const manifestDigest = digestCanonicalJson(manifest);
       await writePrivateJson(path.join(staging, "backup-manifest.json"), manifest);
+      await assertNoSecretSentinelsInStaging(staging, copiedAssets);
       await writePrivateJson(path.join(staging, "SEALED"), { schemaVersion: 1, kind: "airoaming_backup_sealed_v1", manifestDigest, bundleDigest, databaseDigest: database.sha256, assetInventoryDigest: digestCanonicalJson(copiedAssets), configDigest: digestCanonicalJson(settingsRedacted), runSummaryDigest: runSummary.runSummaryDigest });
       await chmod(staging, 0o700);
       const finalPath = path.join(outputRoot, "backup-" + bundleDigest);
