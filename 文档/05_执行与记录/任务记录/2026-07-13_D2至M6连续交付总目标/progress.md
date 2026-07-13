@@ -50,6 +50,6 @@ source: 本总目标编制过程
 
 ## P4 D2-A3-2A（Character identity slice，已完成）
 
-- `update_character` 已进入 DB Character 直写 + refresh；legacy workspace 隔离证据通过。
-- 定向 22 项、server 全量 54 文件/363 测试、Scrutiny、Runtime 和静态门禁通过。
+- `extract_characters` 与 `update_character` 已进入 DB Character 直写 + refresh；legacy workspace 隔离证据通过。
+- 定向 23 项、server 全量 54 文件/364 测试、Scrutiny、Runtime 和静态门禁通过。
 - Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；继续进入 task/source freeze/staging/Visual slice。

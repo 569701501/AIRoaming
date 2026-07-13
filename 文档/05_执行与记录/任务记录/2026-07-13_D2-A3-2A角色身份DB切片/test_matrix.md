@@ -15,4 +15,5 @@ source: Character identity slice
 | P4-CHAR-01 | update identity | DB Character 更新、rowVersion+1、response 可读 |
 | P4-CHAR-02 | legacy isolation | workspace marker 字节不变，DB refresh 后 DTO 取 DB 事实 |
 | P4-CHAR-03 | forbidden state | in_use/duplicate name 稳定拒绝 |
+| P4-CHAR-04 | extract identity | source 解析出的 Character 只写 DB，createdCount/DTO 可读 |
 | P4-CAP-01 | capability | update_character implemented，其余 Character/Asset operation blocker 不变 |

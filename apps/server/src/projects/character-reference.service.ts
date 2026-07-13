@@ -509,7 +509,7 @@ export class CharacterReferenceService {
   }
 
   private parseCharacterLine(line: string): { name: string; role: string; description: string } | null {
-    const match = line.match(/^([^：:（(【《「『]+?)[：:（(【《「『]?\s*(.*)$/);
+    const match = line.match(/^([^：:（(【《「『]+)[：:（(【《「『]?\s*(.*)$/);
     if (!match) {
       return null;
     }

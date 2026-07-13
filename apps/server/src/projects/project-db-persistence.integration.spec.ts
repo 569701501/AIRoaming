@@ -541,6 +541,22 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
   }, 20_000);
 
+  it("P4-CHAR-02: extracts character identity into DB without a legacy characters file", async () => {
+    const { databasePath, deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const project = await projects.createProject({
+      name: "P4 角色提取", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style",
+      sourceText: "主要角色：\n林默：调查员，冷静克制\n苏晚：记者，敏锐勇敢\n\n场景：雨夜街口",
+    });
+    const extracted = await projects.extractProjectCharacters(project.id, { source: "current_chapter" });
+    expect(extracted.createdCount).toBe(2);
+    expect(extracted.characters.map((item) => item.name)).toEqual(["林默", "苏晚"]);
+    expect(await app.get(PrismaService).database().character.count({ where: { projectId: project.id } })).toBe(2);
+    expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
+  }, 20_000);
+
   it("fails closed when an active DB project has no current chapter", async () => {
     const { databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
