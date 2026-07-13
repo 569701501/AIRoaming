@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { lstat, mkdir, mkdtemp, open, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
@@ -23,10 +24,24 @@ import { AppRestoreService } from "./app-restore.service.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const serverRoot = path.join(repoRoot, "apps/server");
+const backupCli = path.join(serverRoot, "src/backup/app-backup.cli.ts");
+const restoreCli = path.join(serverRoot, "src/backup/app-restore.cli.ts");
 const prismaCli = path.join(repoRoot, "apps/server/node_modules/prisma/build/index.js");
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as { readonly DatabaseSync: new (path: string) => { exec(sql: string): void; close(): void } };
 const roots: string[] = [];
 const SOURCE_DIGEST = ("sha256:" + "1".repeat(64)) as SnapshotDigest;
 const SNAPSHOT_DIGEST = ("sha256:" + "2".repeat(64)) as SnapshotDigest;
+
+async function runCli(cliPath: string, ...args: string[]) {
+  try {
+    const result = await execFileAsync(process.execPath, ["--import", "tsx", cliPath, ...args], { cwd: serverRoot, env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db" } });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    const result = error as { code?: number; stdout?: string; stderr?: string };
+    return { code: result.code ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+  }
+}
 
 async function createFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-backup-"));
@@ -87,6 +102,81 @@ afterEach(async () => {
 });
 
 describe("M5-A1 coordinated backup", () => {
+  it("A4-CLI-01 rejects extra positional arguments before Prisma initialization", async () => {
+    const backup = await runCli(
+      backupCli,
+      "--database-url", "file:/tmp/airoaming-a4.sqlite",
+      "--workspace-root", "/tmp/airoaming-workspace",
+      "--data-root", "/tmp/airoaming-data",
+      "--release-root", "/tmp/airoaming-release",
+      "--app-commit", "abcdef1234567",
+      "--maintenance-bundle", "/tmp/maintenance-bundle.json",
+      "--full-import-report", "/tmp/full-import.json",
+      "--decisions", "/tmp/decisions.json",
+      "--output", "/tmp/airoaming-output",
+      "--kind", "coordinated",
+      "--format", "json",
+      "unexpected",
+    );
+    expect(backup.code).toBe(1);
+    expect(backup.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+
+    const restore = await runCli(
+      restoreCli,
+      "--backup", "/tmp/airoaming-backup",
+      "--target-data-root", "/tmp/airoaming-restore-data",
+      "--target-workspace-root", "/tmp/airoaming-restore-workspace",
+      "--mode", "verify-only",
+      "--format", "json",
+      "unexpected",
+    );
+    expect(restore.code).toBe(1);
+    expect(restore.stderr.trim()).toContain("RESTORE_ARGS_INVALID");
+  });
+
+  it("A4-BAK-02 rejects an active writer and leaves no sealed bundle", async () => {
+    const fixture = await createFixture();
+    const writer = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));
+    try {
+      writer.exec("PRAGMA busy_timeout = 50");
+      writer.exec("BEGIN IMMEDIATE");
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_NOT_OFFLINE" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+    } finally {
+      try { writer.exec("ROLLBACK"); } catch { /* preserve the assertion */ }
+      writer.close();
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-BAK-01 holds the write fence before a second writer can begin", async () => {
+    const fixture = await createFixture();
+    const writer = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));
+    let writerBlocked = false;
+    try {
+      const result = await new AppBackupService(fixture.prisma, {
+        onFenceAcquired: () => {
+          writer.exec("PRAGMA busy_timeout = 50");
+          try {
+            writer.exec("BEGIN IMMEDIATE");
+          } catch {
+            writerBlocked = true;
+          }
+        },
+      }).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" });
+      expect(result.runCount).toBe(16);
+      expect(writerBlocked).toBe(true);
+    } finally {
+      try { writer.exec("ROLLBACK"); } catch { /* preserve the assertion */ }
+      writer.close();
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
   it("BAK-01 creates a sealed bundle with 16 verified runs and ready assets", async () => {
     const fixture = await createFixture();
     try {

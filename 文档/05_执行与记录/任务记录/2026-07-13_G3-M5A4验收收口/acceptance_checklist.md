@@ -12,11 +12,11 @@ source: implementation_contract.md 与 M5R-01～08
 
 `not_run` 和 `partial` 均不计通过。
 
-| ID | 场景 | 必须断言 | 初始状态 |
+| ID | 场景 | 必须断言 | 状态 |
 | --- | --- | --- | --- |
-| A4-CLI-01 | backup/restore 精确参数 | extra positional、孤立 value、重复/缺失/未知 flag 均在 DB/文件写之前失败 | `not_run` |
-| A4-BAK-01 | 同一一致性栅栏 | 16 run/issues/PersistenceState/Asset/settings 的读取与 DB/Asset 复制均受同一 fence 保护；manifest 与副本直查一致 | `not_run` |
-| A4-BAK-02 | active writer/WAL | 既有 writer、锁后并发 writer、无法 checkpoint 或 WAL 未收敛均 `BACKUP_NOT_OFFLINE`/被阻断，且无 SEALED | `not_run` |
+| A4-CLI-01 | backup/restore 精确参数 | extra positional、孤立 value、重复/缺失/未知 flag 均在 DB/文件写之前失败 | `passed` |
+| A4-BAK-01 | 同一一致性栅栏 | 16 run/issues/PersistenceState/Asset/settings 的读取与 DB/Asset 复制均受同一 fence 保护；manifest 与副本直查一致 | `passed` |
+| A4-BAK-02 | active writer/WAL | 既有 writer、锁后并发 writer、无法 checkpoint 或 WAL 未收敛均 `BACKUP_NOT_OFFLINE`/被阻断，且无 SEALED | `passed` |
 | A4-BAK-03 | full-shadow/ledger 故障 | 缺 slice、乱序、重复 run、report/counts/source/snapshot/decisions mismatch 任一失败 | `not_run` |
 | A4-BAK-04 | Asset 与 secret | ready Asset 缺失/篡改/复制中变化失败；DB/Asset/report/settings 中任一 sentinel 失败 | `not_run` |
 | A4-RST-01 | release + ledger identity | current release、16 run、固定 slice 顺序、counts/report、open issue、PersistenceState 全匹配才通过 | `not_run` |
@@ -47,6 +47,14 @@ source: implementation_contract.md 与 M5R-01～08
 
 - A4-RST-05、A4-REG-01 通过。
 - Scrutiny Review 和 Runtime/User Review 均明确签字。
+
+## A4-1 证据索引
+
+- `A4-CLI-01`：`app-backup-restore.integration.spec.ts` 的 CLI extra positional 测试；parser 在创建 `PrismaService` 前执行，`cli-format.spec.ts` 覆盖 `--format` 重复/缺值语义。
+- `A4-BAK-01`：同一 spec 的第二 SQLite writer 测试；`AppBackupService` 在 `BEGIN IMMEDIATE` 后才读取 runs/issues/PersistenceState/Asset/settings，并在栅栏内复制 DB 与 ready Asset。
+- `A4-BAK-02`：同一 spec 的 active writer 测试与“持锁后第二 writer 被阻断”测试；输出根在失败时保持空目录且不产生 `SEALED`。
+
+以上只收口 A4-1；A4-BAK-03/04、A4-RST-01～05、A4-REG-01 仍保持 `not_run`。
 
 ## 最小命令
 

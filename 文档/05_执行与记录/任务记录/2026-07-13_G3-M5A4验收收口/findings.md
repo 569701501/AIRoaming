@@ -15,7 +15,21 @@ source: commit 91a450c～eb26743、M5 代码与验收文档独立复核
 - capability registry 有 8 个稳定 ID，并诚实保留 7 个 required blocker。
 - coordinated backup happy path 能生成 manifest、DB、ready Asset、脱敏 settings、run-summary 和 SEALED。
 - restore happy path支持 verify-only、空根 materialize、DB restart 与 `GET /api/projects`。
-- 2026-07-13 复跑定向测试 11/11、server typecheck 通过。
+- 2026-07-13 复跑基线定向测试 11/11、server typecheck 通过。
+
+## 5. A4-1 实现后复核事实
+
+- `AppBackupService` 先完成显式输入、路径、runtime bundle、full-shadow report 和 release identity 校验，再创建 staging 并取得 source SQLite 的 `BEGIN IMMEDIATE` 写入栅栏。
+- runs、open issues、PersistenceState、Asset 元数据、DB 副本、ready Asset 文件校验/复制、settings 元数据读取均发生在同一个 fence operation 内；复制 DB 后再次读取源文件摘要并做 integrity/FK/ledger 表检查。
+- 既有 writer 会在 checkpoint/BEGIN 阶段返回 `BACKUP_NOT_OFFLINE`；栅栏已持有时第二 SQLite writer 的 `BEGIN IMMEDIATE` 被阻断。任一失败清理 staging，不生成可接受的 `SEALED`。
+- backup/restore CLI 的 exact grammar 在 parser 阶段拒绝额外 positional、孤立 value、重复/未知/缺值参数；parser 在 Prisma 初始化前执行。
+- A4-1 定向测试 10/10 通过；server 全量回归 49 files/317 tests 通过，workspace typecheck、server typecheck、G1 三项检查和 diff check 通过。
+
+## 6. A4-1 残留风险
+
+- 当前只验证了 A4-1 的一致性栅栏与 CLI 门禁；restore release identity/ledger 精确核对、secret scan 扩展、路径/补偿故障矩阵仍未实现。
+- WAL 未收敛分支已在生产逻辑中 fail-closed，但专门的非零 WAL 故障注入属于 A4-3/A4-4 证据，不能在本轮宣称完成。
+- M5 仍保持 `hardening_required`，A4-2/A4-3/A4-4 未完成前不得推进 D2 或 M6。
 
 ## 2. 阻止 M5 正式通过的发现
 

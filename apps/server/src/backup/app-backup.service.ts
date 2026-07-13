@@ -123,7 +123,15 @@ function sqliteIntegrity(databasePath: string): void {
   }
 }
 
-async function copyDatabaseOffline(source: string, target: string): Promise<{ bytes: number; sha256: SnapshotDigest }> {
+async function copyDatabaseWhileLocked(source: string, target: string): Promise<{ bytes: number; sha256: SnapshotDigest }> {
+  const result = await copyAndDigest(source, target);
+  const sourceBytes = await readFile(source);
+  if (sourceBytes.byteLength !== result.bytes || digestFile(sourceBytes) !== result.sha256) fail("BACKUP_NOT_OFFLINE");
+  sqliteIntegrity(target);
+  return result;
+}
+
+async function withDatabaseWriteFence<T>(source: string, operation: () => Promise<T>, onAcquired?: () => void | Promise<void>): Promise<T> {
   const database = new DatabaseSync(source);
   try {
     database.exec("PRAGMA busy_timeout = 1000");
@@ -137,14 +145,13 @@ async function copyDatabaseOffline(source: string, target: string): Promise<{ by
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
-      const result = await copyAndDigest(source, target);
-      sqliteIntegrity(target);
-      return result;
+      await onAcquired?.();
+      return await operation();
     } finally {
       try { database.exec("ROLLBACK"); } catch { /* preserve original result */ }
     }
   } catch (error) {
-    if (error instanceof BackupError) throw error;
+    if (error instanceof BackupError || error instanceof BackupPathError) throw error;
     throw new BackupError("BACKUP_NOT_OFFLINE");
   } finally {
     database.close();
@@ -186,7 +193,10 @@ function safeDate(value: Date | null | undefined): string | null {
 }
 
 export class AppBackupService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly consistencyHooks: { readonly onFenceAcquired?: () => void | Promise<void> } = {},
+  ) {}
 
   async backup(input: BackupInput): Promise<BackupResult> {
     if (input.kind !== "coordinated") fail("MIGRATION_CAPABILITY_BLOCKED");
@@ -205,83 +215,85 @@ export class AppBackupService {
     await new RuntimeBundleFileService().readAndVerify(maintenanceBundle).catch(() => fail("BACKUP_ARGS_INVALID"));
     const fullShadow = normalizeFullShadowArtifact(await readJson(fullImportReportPath, "BACKUP_RUN_INVALID"));
 
-    const db = this.prisma.database();
-    const runs = await Promise.all(fullShadow.slices.map((slice) => db.migrationRun.findUnique({ where: { id: slice.runId } })));
-    if (runs.some((run) => !run || run.kind !== "shadow" || run.status !== "succeeded" || !run.reportDigest || !run.snapshotManifestDigest || !run.decisionsDigest || !run.verificationJson)) fail("BACKUP_RUN_INVALID");
-    const firstRun = runs[0]!;
-    if (!isDigest(firstRun.sourceManifestDigest) || !isDigest(firstRun.snapshotManifestDigest!) || !isDigest(firstRun.decisionsDigest!)) fail("BACKUP_RUN_INVALID");
-    const decisions = normalizeMigrationDecisionArtifact(await readJson(decisionsPath, "BACKUP_RUN_INVALID"), firstRun.sourceManifestDigest);
-    const sourceManifestDigest = firstRun.sourceManifestDigest as SnapshotDigest;
-    const snapshotManifestDigest = firstRun.snapshotManifestDigest as SnapshotDigest;
-    for (let index = 0; index < runs.length; index += 1) {
-      const run = runs[index]!;
-      const slice = fullShadow.slices[index];
-      if (run.sourceManifestDigest !== sourceManifestDigest || run.snapshotManifestDigest !== snapshotManifestDigest || run.decisionsDigest !== decisions.decisionsDigest || run.reportDigest !== slice.reportDigest || !jsonEqual(run.countsJson, slice.counts)) fail("BACKUP_RUN_INVALID");
-      const verification = record(run.verificationJson, "BACKUP_RUN_INVALID");
-      if (verification.sourceManifestVerified !== true || verification.snapshotManifestVerified !== true) fail("BACKUP_RUN_INVALID");
-      const openIssues = await db.migrationIssue.count({ where: { runId: run.id, resolutionStatus: "open" } });
-      if (openIssues !== 0) fail("BACKUP_RUN_INVALID");
-    }
-    const persistence = await db.persistenceState.findUnique({ where: { id: "primary" } });
-    if (!persistence || persistence.activationState !== "shadow" || persistence.cutoverRunId !== null || persistence.firstBusinessWriteAt !== null) fail("BACKUP_RUN_INVALID");
-    const assets = await db.asset.findMany({ orderBy: { storageKey: "asc" }, select: { id: true, storageKey: true, mimeType: true, status: true, sha256: true, bytes: true } });
-    const readyAssets = assets.filter((asset) => asset.status === "ready");
-    const missingAssets = assets.filter((asset) => asset.status !== "ready").map((asset) => ({ assetId: asset.id, storageKey: asset.storageKey, status: asset.status }));
-    const allAssetEntries: Array<{ source: string; storageKey: string; assetId: string; mimeType: string; expectedBytes: number; expectedSha256: SnapshotDigest }> = [];
-    for (const asset of readyAssets) {
-      if (!asset.sha256 || !isDigest(asset.sha256) || asset.bytes === null) fail("BACKUP_ASSET_MISMATCH");
-      const source = await resolveStorageFile(workspaceRoot, asset.storageKey);
-      const metadata = await stat(source);
-      if (metadata.size !== asset.bytes) fail("BACKUP_ASSET_MISMATCH");
-      const sourceBytes = await readFile(source);
-      if (digestFile(sourceBytes) !== asset.sha256) fail("BACKUP_ASSET_MISMATCH");
-      allAssetEntries.push({ source, storageKey: asset.storageKey, assetId: asset.id, mimeType: asset.mimeType, expectedBytes: asset.bytes, expectedSha256: asset.sha256 as SnapshotDigest });
-    }
-    const preference = await db.appPreference.findUnique({ where: { id: "primary" } });
-    const providers = await db.providerConfig.findMany({ orderBy: { id: "asc" } });
-    const credentials = await db.credentialMetadata.findMany({ orderBy: { id: "asc" } });
-    const settingsRedacted = {
-      schemaVersion: 1,
-      kind: "airoaming_settings_redacted_v1",
-      appPreference: preference ? { id: preference.id, theme: preference.theme, activeImageProviderId: preference.activeImageProviderId, defaultTextProviderId: preference.defaultTextProviderId, defaultTextModelId: preference.defaultTextModelId, rowVersion: preference.rowVersion, updatedAt: preference.updatedAt.toISOString() } : null,
-      providers: providers.map((provider) => ({ id: provider.id, providerId: provider.providerId, runtimeKind: provider.runtimeKind, displayName: provider.displayName, modelId: provider.modelId, baseUrl: provider.baseUrl, enabled: provider.enabled, rowVersion: provider.rowVersion, createdAt: provider.createdAt.toISOString(), updatedAt: provider.updatedAt.toISOString() })),
-      credentials: credentials.map((credential) => ({ id: credential.id, providerConfigId: credential.providerConfigId, owner: credential.owner, status: credential.status, fingerprint: credential.fingerprint, configured: credential.configured, rotatedAt: safeDate(credential.rotatedAt), createdAt: credential.createdAt.toISOString(), updatedAt: credential.updatedAt.toISOString() })),
-    };
-    if (containsSecretValue(settingsRedacted)) fail("BACKUP_SECRET_DETECTED");
-
     const staging = path.join(outputRoot, ".backup-staging-" + process.pid + "-" + Date.now());
     await mkdir(staging, { recursive: true, mode: 0o700 });
     try {
-      const database = await copyDatabaseOffline(databasePath, path.join(staging, "database/app.db"));
-      const copiedAssets = [];
-      for (const asset of allAssetEntries) {
-        const copied = await copyAndDigest(asset.source, path.join(staging, "assets", ...asset.storageKey.split("/")));
-        if (copied.bytes !== asset.expectedBytes || copied.sha256 !== asset.expectedSha256) fail("BACKUP_ASSET_MISMATCH");
-        copiedAssets.push({ assetId: asset.assetId, storageKey: asset.storageKey, mimeType: asset.mimeType, bytes: copied.bytes, sha256: copied.sha256 });
-      }
-      const runSummaryBase = {
-        schemaVersion: 1 as const,
-        kind: "airoaming_migration_run_summary_v1" as const,
-        sourceManifestDigest,
-        snapshotManifestDigest,
-        decisionsDigest: decisions.decisionsDigest,
-        fullImportReportDigest: fullShadow.reportDigest,
-        slices: fullShadow.slices.map((slice, index): BackupRunSummarySlice => ({ slice: slice.slice, runId: slice.runId, importerVersion: runs[index]!.importerVersion, status: "succeeded", reportDigest: slice.reportDigest, counts: slice.counts })),
-      };
-      const runSummary: BackupRunSummary = { ...runSummaryBase, runSummaryDigest: digestCanonicalJson(runSummaryBase) };
-      const manifestBase = {
-        schemaVersion: 1 as const,
-        kind: "airoaming_backup_bundle_v1" as const,
-        backupKind: "coordinated" as const,
-        appCommit: input.appCommit,
-        createdAt: new Date().toISOString(),
-        migration: { runIds: fullShadow.slices.map((slice) => slice.runId), runKind: "shadow" as const, sliceCount: 16 as const, sourceManifestDigest, snapshotManifestDigest, decisionsDigest: decisions.decisionsDigest, fullImportReportDigest: fullShadow.reportDigest, runSummaryDigest: runSummary.runSummaryDigest, effectiveSchemaManifestDigest: releaseIdentity.effectiveSchemaManifestDigest },
-        persistenceState: { activationState: persistence.activationState, cutoverRunId: persistence.cutoverRunId, firstBusinessWriteAt: safeDate(persistence.firstBusinessWriteAt) },
-        database: { storageKey: "database/app.db" as const, ...database },
-        assets: copiedAssets.sort((left, right) => left.storageKey.localeCompare(right.storageKey)),
-        missingAssets,
-        secretHandling: { included: false as const, sentinelScan: "passed" as const },
-      };
+      const snapshot = await withDatabaseWriteFence(databasePath, async () => {
+        const db = this.prisma.database();
+        const runs = await Promise.all(fullShadow.slices.map((slice) => db.migrationRun.findUnique({ where: { id: slice.runId } })));
+        if (runs.some((run) => !run || run.kind !== "shadow" || run.status !== "succeeded" || !run.reportDigest || !run.snapshotManifestDigest || !run.decisionsDigest || !run.verificationJson)) fail("BACKUP_RUN_INVALID");
+        const firstRun = runs[0]!;
+        if (!isDigest(firstRun.sourceManifestDigest) || !isDigest(firstRun.snapshotManifestDigest!) || !isDigest(firstRun.decisionsDigest!)) fail("BACKUP_RUN_INVALID");
+        const decisions = normalizeMigrationDecisionArtifact(await readJson(decisionsPath, "BACKUP_RUN_INVALID"), firstRun.sourceManifestDigest);
+        const sourceManifestDigest = firstRun.sourceManifestDigest as SnapshotDigest;
+        const snapshotManifestDigest = firstRun.snapshotManifestDigest as SnapshotDigest;
+        for (let index = 0; index < runs.length; index += 1) {
+          const run = runs[index]!;
+          const slice = fullShadow.slices[index];
+          if (run.sourceManifestDigest !== sourceManifestDigest || run.snapshotManifestDigest !== snapshotManifestDigest || run.decisionsDigest !== decisions.decisionsDigest || run.reportDigest !== slice.reportDigest || !jsonEqual(run.countsJson, slice.counts)) fail("BACKUP_RUN_INVALID");
+          const verification = record(run.verificationJson, "BACKUP_RUN_INVALID");
+          if (verification.sourceManifestVerified !== true || verification.snapshotManifestVerified !== true) fail("BACKUP_RUN_INVALID");
+          const openIssues = await db.migrationIssue.count({ where: { runId: run.id, resolutionStatus: "open" } });
+          if (openIssues !== 0) fail("BACKUP_RUN_INVALID");
+        }
+        const persistence = await db.persistenceState.findUnique({ where: { id: "primary" } });
+        if (!persistence || persistence.activationState !== "shadow" || persistence.cutoverRunId !== null || persistence.firstBusinessWriteAt !== null) fail("BACKUP_RUN_INVALID");
+        const persistenceState = { activationState: persistence.activationState, cutoverRunId: persistence.cutoverRunId, firstBusinessWriteAt: safeDate(persistence.firstBusinessWriteAt) };
+        const assets = await db.asset.findMany({ orderBy: { storageKey: "asc" }, select: { id: true, storageKey: true, mimeType: true, status: true, sha256: true, bytes: true } });
+        const readyAssets = assets.filter((asset) => asset.status === "ready");
+        const missingAssets = assets.filter((asset) => asset.status !== "ready").map((asset) => ({ assetId: asset.id, storageKey: asset.storageKey, status: asset.status }));
+        const database = await copyDatabaseWhileLocked(databasePath, path.join(staging, "database/app.db"));
+        const copiedAssets: Array<{ assetId: string; storageKey: string; mimeType: string; bytes: number; sha256: SnapshotDigest }> = [];
+        for (const asset of readyAssets) {
+          if (!asset.sha256 || !isDigest(asset.sha256) || asset.bytes === null) fail("BACKUP_ASSET_MISMATCH");
+          const source = await resolveStorageFile(workspaceRoot, asset.storageKey);
+          const metadata = await stat(source);
+          if (metadata.size !== asset.bytes) fail("BACKUP_ASSET_MISMATCH");
+          const sourceBytes = await readFile(source);
+          if (digestFile(sourceBytes) !== asset.sha256) fail("BACKUP_ASSET_MISMATCH");
+          const copied = await copyAndDigest(source, path.join(staging, "assets", ...asset.storageKey.split("/")));
+          if (copied.bytes !== asset.bytes || copied.sha256 !== asset.sha256) fail("BACKUP_ASSET_MISMATCH");
+          const sourceAfter = await readFile(source);
+          if (sourceAfter.byteLength !== asset.bytes || digestFile(sourceAfter) !== asset.sha256) fail("BACKUP_ASSET_MISMATCH");
+          copiedAssets.push({ assetId: asset.id, storageKey: asset.storageKey, mimeType: asset.mimeType, bytes: copied.bytes, sha256: copied.sha256 });
+        }
+        const preference = await db.appPreference.findUnique({ where: { id: "primary" } });
+        const providers = await db.providerConfig.findMany({ orderBy: { id: "asc" } });
+        const credentials = await db.credentialMetadata.findMany({ orderBy: { id: "asc" } });
+        const settingsRedacted = {
+          schemaVersion: 1,
+          kind: "airoaming_settings_redacted_v1",
+          appPreference: preference ? { id: preference.id, theme: preference.theme, activeImageProviderId: preference.activeImageProviderId, defaultTextProviderId: preference.defaultTextProviderId, defaultTextModelId: preference.defaultTextModelId, rowVersion: preference.rowVersion, updatedAt: preference.updatedAt.toISOString() } : null,
+          providers: providers.map((provider) => ({ id: provider.id, providerId: provider.providerId, runtimeKind: provider.runtimeKind, displayName: provider.displayName, modelId: provider.modelId, baseUrl: provider.baseUrl, enabled: provider.enabled, rowVersion: provider.rowVersion, createdAt: provider.createdAt.toISOString(), updatedAt: provider.updatedAt.toISOString() })),
+          credentials: credentials.map((credential) => ({ id: credential.id, providerConfigId: credential.providerConfigId, owner: credential.owner, status: credential.status, fingerprint: credential.fingerprint, configured: credential.configured, rotatedAt: safeDate(credential.rotatedAt), createdAt: credential.createdAt.toISOString(), updatedAt: credential.updatedAt.toISOString() })),
+        };
+        if (containsSecretValue(settingsRedacted)) fail("BACKUP_SECRET_DETECTED");
+        const runSummaryBase = {
+          schemaVersion: 1 as const,
+          kind: "airoaming_migration_run_summary_v1" as const,
+          sourceManifestDigest,
+          snapshotManifestDigest,
+          decisionsDigest: decisions.decisionsDigest,
+          fullImportReportDigest: fullShadow.reportDigest,
+          slices: fullShadow.slices.map((slice, index): BackupRunSummarySlice => ({ slice: slice.slice, runId: slice.runId, importerVersion: runs[index]!.importerVersion, status: "succeeded", reportDigest: slice.reportDigest, counts: slice.counts })),
+        };
+        const runSummary: BackupRunSummary = { ...runSummaryBase, runSummaryDigest: digestCanonicalJson(runSummaryBase) };
+        const manifestBase = {
+          schemaVersion: 1 as const,
+          kind: "airoaming_backup_bundle_v1" as const,
+          backupKind: "coordinated" as const,
+          appCommit: input.appCommit,
+          createdAt: new Date().toISOString(),
+          migration: { runIds: fullShadow.slices.map((slice) => slice.runId), runKind: "shadow" as const, sliceCount: 16 as const, sourceManifestDigest, snapshotManifestDigest, decisionsDigest: decisions.decisionsDigest, fullImportReportDigest: fullShadow.reportDigest, runSummaryDigest: runSummary.runSummaryDigest, effectiveSchemaManifestDigest: releaseIdentity.effectiveSchemaManifestDigest },
+          persistenceState,
+          database: { storageKey: "database/app.db" as const, ...database },
+          assets: copiedAssets.sort((left, right) => left.storageKey.localeCompare(right.storageKey)),
+          missingAssets,
+          secretHandling: { included: false as const, sentinelScan: "passed" as const },
+        };
+        return { database, copiedAssets, runSummary, manifestBase, settingsRedacted };
+      }, this.consistencyHooks.onFenceAcquired);
+      const { database, copiedAssets, runSummary, manifestBase, settingsRedacted } = snapshot;
       const bundleDigest = digestCanonicalJson(manifestBase);
       const manifest: BackupManifest = { ...manifestBase, bundleDigest };
       const manifestDigest = digestCanonicalJson(manifest);

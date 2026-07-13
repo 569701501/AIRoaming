@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-A4-HANDOFF-001
-status: ready_for_development
+status: completed_a4_1
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -8,13 +8,13 @@ audience: human, ai-agent, developer, qa
 source: task_plan.md、implementation_contract.md、acceptance_checklist.md
 ---
 
-# Handoff：交给 5.6 Luna 的 M5-A4-1
+# Handoff：M5-A4-1（已完成，等待后续切片复核）
 
 ## 1. 开工结论
 
-只领取 `M5-A4-1 backup 一致性栅栏 + CLI 精确参数`。
+本 handoff 原本只允许领取 `M5-A4-1 backup 一致性栅栏 + CLI 精确参数`；该切片现已完成并通过定向/全量回归，后续执行者不得把本记录当作 A4-2 的授权。
 
-M5-A0～A3 的代码保留，不推倒重写；本轮修复独立复核发现的 M5R-01/M5R-07，并补 A4-BAK-02 writer/WAL 证据。完成后停止，等待 Codex 复核和下一张 A4-2 任务书。
+M5-A0～A3 的代码保留，不推倒重写；本轮修复了独立复核发现的 M5R-01/M5R-07，并补 A4-BAK-02 writer 证据。已完成后停止，等待独立复核和下一张 A4-2 任务书。
 
 ## 2. 必读顺序
 
@@ -91,3 +91,10 @@ git diff --check
 - 无法在临时 SQLite 中确定性证明 active writer/WAL 门。
 - 只能通过继续使用锁前 Prisma 结果或放宽 manifest 校验让测试通过。
 - 需要访问真实 workspace/DB/SecretStore。
+
+## 9. A4-1 交付结果
+
+- 定向 backup/restore spec：10/10 通过。
+- server 全量回归：49 files/317 tests 通过。
+- server/workspace typecheck、G1 manifest/schema/migration check、`git diff --check`：通过。
+- A4-2/A4-3/A4-4、D2、M6：未执行。
