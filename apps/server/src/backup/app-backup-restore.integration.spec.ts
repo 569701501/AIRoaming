@@ -268,6 +268,23 @@ describe("M5-A1 coordinated backup", () => {
     expect(preCutoverWithReport.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
   });
 
+  it("M6A1-BK-03 rejects missing or non-closed maintenance evidence before sealing", async () => {
+    const fixture = await createFixture();
+    try {
+      const missing = path.join(fixture.root, "missing-maintenance.json");
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: missing, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_ARGS_INVALID" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+      const invalid = path.join(fixture.root, "invalid-maintenance.json");
+      await writeFile(invalid, JSON.stringify({ schemaVersion: 1, kind: "airoaming_runtime_bundle_v1", maintenanceState: "open", activeMutations: 1, activeStreams: 0, payloadDigest: "sha256:" + "0".repeat(64) }) + "\n", { mode: 0o600 });
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: invalid, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_ARGS_INVALID" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
   it("A4-BAK-02 rejects an active writer and leaves no sealed bundle", async () => {
     const fixture = await createFixture();
     const writer = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));

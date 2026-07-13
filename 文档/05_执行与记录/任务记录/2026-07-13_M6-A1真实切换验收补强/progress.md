@@ -114,7 +114,7 @@ Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执
 
 - `pnpm --dir apps/server exec tsc --noEmit`：通过。
 - `m6-c0-c7.rehearsal.spec.ts`：1/1 通过；`settings.service.spec.ts`：8/8；`business-write-boundary.spec.ts`：2/2。
-- backup/restore、snapshot、credential-redactor、maintenance、cutover、activate、file-mode 定向复核：7 files / 59 tests 通过；矩阵已回填直接有证据的 materialize、raw/semantic tamper 和 restore integrity 行。
+- backup/restore、snapshot、credential-redactor、maintenance、cutover、activate、file-mode 定向复核：7 files / 59 tests 通过；新增 M6A1-BK-04、M6A1-EVD-01/03/04、M6A1-TX-08 证据后，矩阵已回填直接有证据的项。
 - C0～C7 每阶段 durable evidence 共 8 步，恢复链和首笔写断言通过；只触碰临时 SQLite、临时 workspace、fake SecretStore。
 
 提交：`b4b4a18`（`test(m6): complete isolated c0-c7 rehearsal`）。

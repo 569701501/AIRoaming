@@ -30,18 +30,15 @@ source: M6-A1 当前代码、测试矩阵、Scrutiny/Runtime Review
 
 - `M6A1-BK-02`：final blocked/failed、shadow/recovery/db_only、run 不同；确认无 `SEALED` 和最终目录。
 - `M6A1-BK-03`：maintenance 缺失/非 closed/摘要篡改；确认 fail-closed。
-- `M6A1-BK-04`：coordinated/pre-cutover 参数 required/forbidden 组合，解析必须早于 Prisma 初始化。
 - `M6A1-BK-05`：ready Asset/DB/source 在 fence 中变化；确认 staging 清理且无 sealed 假成功。
 
 ### Ready / Evidence / Activate
 
 - `M6A1-RDY-01/02`：真实 closed runtime bundle，缺 bundle 或布尔假证据拒绝。
-- `M6A1-EVD-01/03/04`：step/manifest 原子写、跳步、不同 input/identity、raw/reseal tamper。
 - `M6A1-ACT-03/04/05/06`：stale identity、未到 C6、execute 的 C7 落盘顺序、execute 后 crash 同身份补证据且不重写 `activatedAt`。
 
 ### Business / rollback / security
 
-- `M6A1-TX-08`：首写后 file bridge 返回 `FILE_MODE_FORBIDDEN_AFTER_FIRST_WRITE`。
 - `M6A1-RB-01..04/06`：final 失败、C5 失败、settings 回滚、首写后回 file、无 down migration；RB-05 已由现有 pre-cutover restore 证据覆盖。
 - `M6A1-SEC-01`：snapshot、DB、settings、report、evidence、backup、restore、archive、日志 fixture 递归 sentinel 扫描为 0（fake secret root 单独 allowlist）。
 - `M6A1-PATH-01`：symlink、重叠、默认根和非临时根在 Prisma 初始化前拒绝。
