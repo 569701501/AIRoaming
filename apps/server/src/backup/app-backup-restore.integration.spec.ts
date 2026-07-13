@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { lstat, mkdir, mkdtemp, open, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 
@@ -41,6 +41,47 @@ async function runCli(cliPath: string, ...args: string[]) {
     const result = error as { code?: number; stdout?: string; stderr?: string };
     return { code: result.code ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
   }
+}
+
+async function recomputeBundleSeal(bundlePath: string): Promise<string> {
+  const manifestPath = path.join(bundlePath, "backup-manifest.json");
+  const summaryPath = path.join(bundlePath, "migration/run-summary.json");
+  const sealedPath = path.join(bundlePath, "SEALED");
+  const settingsPath = path.join(bundlePath, "config/settings.redacted.json");
+  const summary = JSON.parse(await readFile(summaryPath, "utf8")) as Record<string, unknown>;
+  const { runSummaryDigest: _runSummaryDigest, ...summaryBase } = summary;
+  summary.runSummaryDigest = digestCanonicalJson(summaryBase);
+  await writeFile(summaryPath, JSON.stringify(summary) + "\n", { mode: 0o600 });
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, any>;
+  const databaseBytes = await readFile(path.join(bundlePath, "database/app.db"));
+  manifest.database = { ...manifest.database, bytes: databaseBytes.byteLength, sha256: `sha256:${createHash("sha256").update(databaseBytes).digest("hex")}` };
+  manifest.migration.runSummaryDigest = summary.runSummaryDigest;
+  const { bundleDigest: _bundleDigest, ...manifestBase } = manifest;
+  manifest.bundleDigest = digestCanonicalJson(manifestBase);
+  await writeFile(manifestPath, JSON.stringify(manifest) + "\n", { mode: 0o600 });
+  const sealed = JSON.parse(await readFile(sealedPath, "utf8")) as Record<string, unknown>;
+  sealed.bundleDigest = manifest.bundleDigest;
+  sealed.manifestDigest = digestCanonicalJson(manifest);
+  sealed.databaseDigest = manifest.database.sha256;
+  sealed.runSummaryDigest = summary.runSummaryDigest;
+  sealed.configDigest = digestCanonicalJson(JSON.parse(await readFile(settingsPath, "utf8")));
+  await writeFile(sealedPath, JSON.stringify(sealed) + "\n", { mode: 0o600 });
+  const nextPath = path.join(path.dirname(bundlePath), "backup-" + manifest.bundleDigest);
+  await rename(bundlePath, nextPath);
+  return nextPath;
+}
+
+async function copyReleaseFixture(root: string): Promise<string> {
+  const releaseRoot = path.join(root, "release-fixture");
+  await mkdir(path.join(releaseRoot, "apps/server/prisma"), { recursive: true });
+  await cp(path.join(repoRoot, "apps/server/prisma/schema.prisma"), path.join(releaseRoot, "apps/server/prisma/schema.prisma"));
+  await cp(path.join(repoRoot, "apps/server/prisma/migrations"), path.join(releaseRoot, "apps/server/prisma/migrations"), { recursive: true });
+  return releaseRoot;
+}
+
+function mutateBundleDatabase(bundlePath: string, sql: string): void {
+  const database = new DatabaseSync(path.join(bundlePath, "database/app.db"));
+  try { database.exec(sql); } finally { database.close(); }
 }
 
 async function createFixture() {
@@ -124,6 +165,7 @@ describe("M5-A1 coordinated backup", () => {
     const restore = await runCli(
       restoreCli,
       "--backup", "/tmp/airoaming-backup",
+      "--release-root", "/tmp/airoaming-release",
       "--target-data-root", "/tmp/airoaming-restore-data",
       "--target-workspace-root", "/tmp/airoaming-restore-workspace",
       "--mode", "verify-only",
@@ -229,13 +271,138 @@ describe("M5-A2 restore", () => {
     return { fixture, result };
   }
 
+  it("A4-RST-01B rejects a release identity mismatch before writing targets", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const releaseRoot = await copyReleaseFixture(fixture.root);
+      const migrationPath = path.join(releaseRoot, "apps/server/prisma/migrations/0001_persistence_and_migration/migration.sql");
+      await writeFile(migrationPath, Buffer.concat([await readFile(migrationPath), Buffer.from("\n-- release tamper\n")]));
+      const dataTarget = path.join(fixture.root, "release-mismatch-data");
+      const workspaceTarget = path.join(fixture.root, "release-mismatch-workspace");
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_RELEASE_IDENTITY_MISMATCH" });
+      await expect(lstat(dataTarget)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(lstat(workspaceTarget)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-01H rejects missing, duplicate, or relative release-root before restore side effects", async () => {
+    const base = [
+      "--backup", "/tmp/airoaming-backup",
+      "--target-data-root", "/tmp/airoaming-restore-data",
+      "--target-workspace-root", "/tmp/airoaming-restore-workspace",
+      "--mode", "verify-only",
+      "--format", "json",
+    ];
+    const missing = await runCli(restoreCli, ...base);
+    expect(missing.code).toBe(1);
+    expect(missing.stderr.trim()).toContain("RESTORE_ARGS_INVALID");
+    const duplicate = await runCli(restoreCli, ...base.slice(0, 2), "--release-root", "/tmp/airoaming-release", "--release-root", "/tmp/airoaming-release-2", ...base.slice(2));
+    expect(duplicate.code).toBe(1);
+    expect(duplicate.stderr.trim()).toContain("RESTORE_ARGS_INVALID");
+    const relative = await runCli(restoreCli, ...base.slice(0, 2), "--release-root", "relative-release", ...base.slice(2));
+    expect(relative.code).toBe(1);
+    expect(relative.stderr.trim()).toContain("RESTORE_ARGS_INVALID");
+  });
+
+  it("A4-RST-01C rejects a resealed summary with the wrong fixed slice order", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const summaryPath = path.join(result.bundlePath, "migration/run-summary.json");
+      const summary = JSON.parse(await readFile(summaryPath, "utf8")) as { slices: unknown[] };
+      [summary.slices[0], summary.slices[1]] = [summary.slices[1], summary.slices[0]];
+      await writeFile(summaryPath, JSON.stringify(summary) + "\n", { mode: 0o600 });
+      const bundlePath = await recomputeBundleSeal(result.bundlePath);
+      await expect(new AppRestoreService().restore({ backup: bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "summary-order-data"), targetWorkspaceRoot: path.join(fixture.root, "summary-order-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-01D rejects a resealed summary whose importer version disagrees with the DB ledger", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const summaryPath = path.join(result.bundlePath, "migration/run-summary.json");
+      const summary = JSON.parse(await readFile(summaryPath, "utf8")) as { slices: Array<{ importerVersion: string }> };
+      summary.slices[0].importerVersion = "tampered-importer";
+      await writeFile(summaryPath, JSON.stringify(summary) + "\n", { mode: 0o600 });
+      const bundlePath = await recomputeBundleSeal(result.bundlePath);
+      await expect(new AppRestoreService().restore({ backup: bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "summary-ledger-data"), targetWorkspaceRoot: path.join(fixture.root, "summary-ledger-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-01E rejects a resealed DB ledger mutation", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      mutateBundleDatabase(result.bundlePath, "DROP TRIGGER IF EXISTS trg_migration_runs_terminal_immutable_update; DROP TRIGGER IF EXISTS trg_migration_runs_state_transition; UPDATE migration_runs SET importer_version = 'tampered-importer' WHERE id = 'full-fixture-01';");
+      const bundlePath = await recomputeBundleSeal(result.bundlePath);
+      await expect(new AppRestoreService().restore({ backup: bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "db-ledger-data"), targetWorkspaceRoot: path.join(fixture.root, "db-ledger-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-01F rejects a resealed DB with an open migration issue", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      mutateBundleDatabase(result.bundlePath, "DROP TRIGGER IF EXISTS trg_migration_issues_running_run_insert; INSERT INTO migration_issues (id, run_id, issue_key, severity, code, detail_json, detail_schema_version, resolution_status) VALUES ('tampered-issue', 'full-fixture-01', 'tampered-open', 'warning', 'TAMPERED', '{}', 1, 'open');");
+      const bundlePath = await recomputeBundleSeal(result.bundlePath);
+      await expect(new AppRestoreService().restore({ backup: bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "open-issue-data"), targetWorkspaceRoot: path.join(fixture.root, "open-issue-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("A4-RST-01G rejects a resealed manifest whose PersistenceState leaves coordinated shadow", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const manifestPath = path.join(result.bundlePath, "backup-manifest.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as { persistenceState: { activationState: string } };
+      manifest.persistenceState.activationState = "ready_for_activation";
+      await writeFile(manifestPath, JSON.stringify(manifest) + "\n", { mode: 0o600 });
+      const bundlePath = await recomputeBundleSeal(result.bundlePath);
+      await expect(new AppRestoreService().restore({ backup: bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "persistence-data"), targetWorkspaceRoot: path.join(fixture.root, "persistence-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it.each([
+    ["backup-manifest.json", "RESTORE_VERIFICATION_FAILED"],
+    ["SEALED", "RESTORE_VERIFICATION_FAILED"],
+    ["migration/run-summary.json", "RESTORE_VERIFICATION_FAILED"],
+    ["database/app.db", "RESTORE_VERIFICATION_FAILED"],
+    ["assets/projects/p1/assets/one.txt", "RESTORE_VERIFICATION_FAILED"],
+  ])("A4-RST-02 raw tamper rejects %s", async (relativePath, expectedCode) => {
+    const { fixture, result } = await createBundle();
+    try {
+      const filePath = path.join(result.bundlePath, relativePath);
+      const bytes = await readFile(filePath);
+      bytes[0] = bytes[0] ^ 0xff;
+      await writeFile(filePath, bytes);
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "raw-tamper-data"), targetWorkspaceRoot: path.join(fixture.root, "raw-tamper-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: expectedCode });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
   it("RST-01 verifies without creating targets or changing the bundle", async () => {
     const { fixture, result } = await createBundle();
     try {
       const manifestBefore = await readFile(path.join(result.bundlePath, "backup-manifest.json"));
       const dataTarget = path.join(fixture.root, "restore-data");
       const workspaceTarget = path.join(fixture.root, "restore-workspace");
-      const verified = await new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "verify-only" });
+      const verified = await new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "verify-only" });
       expect(verified.assetCount).toBe(1);
       expect(await readFile(path.join(result.bundlePath, "backup-manifest.json"))).toEqual(manifestBefore);
       await expect(lstat(dataTarget)).rejects.toMatchObject({ code: "ENOENT" });
@@ -251,7 +418,7 @@ describe("M5-A2 restore", () => {
     try {
       const dataTarget = path.join(fixture.root, "restore-data");
       const workspaceTarget = path.join(fixture.root, "restore-workspace");
-      const restored = await new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" });
+      const restored = await new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" });
       expect(restored.targetDataRoot).toBe(dataTarget);
       expect(await readFile(path.join(dataTarget, "db/airoaming.sqlite"))).toEqual(await readFile(path.join(result.bundlePath, "database/app.db")));
       expect(await readFile(path.join(workspaceTarget, "projects/p1/assets/one.txt"))).toEqual(Buffer.from("fixture-image"));
@@ -279,12 +446,12 @@ describe("M5-A2 restore", () => {
       const tampered = JSON.parse(manifestBytes) as Record<string, unknown>;
       tampered.appCommit = "tampered";
       await writeFile(manifestPath, JSON.stringify(tampered) + "\n", { mode: 0o600 });
-      await expect(new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: path.join(fixture.root, "tampered-data"), targetWorkspaceRoot: path.join(fixture.root, "tampered-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(fixture.root, "tampered-data"), targetWorkspaceRoot: path.join(fixture.root, "tampered-workspace"), mode: "verify-only" })).rejects.toMatchObject({ code: "RESTORE_VERIFICATION_FAILED" });
       await writeFile(manifestPath, manifestBytes, { mode: 0o600 });
       const dataTarget = path.join(fixture.root, "restore-data");
       const workspaceTarget = path.join(fixture.root, "restore-workspace");
       await mkdir(dataTarget);
-      await expect(new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" })).rejects.toMatchObject({ code: "RESTORE_TARGET_NOT_EMPTY" });
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" })).rejects.toMatchObject({ code: "RESTORE_TARGET_NOT_EMPTY" });
       expect(await readdir(fixture.outputRoot)).toHaveLength(1);
       await expect(lstat(workspaceTarget)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
@@ -298,7 +465,7 @@ describe("M5-A2 restore", () => {
     try {
       const dataTarget = path.join(fixture.root, "restore-data");
       const workspaceTarget = path.join(fixture.root, "restore-workspace");
-      await new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" });
+      await new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" });
       const previous = { DATABASE_URL: process.env.DATABASE_URL, AIROAMING_PERSISTENCE_MODE: process.env.AIROAMING_PERSISTENCE_MODE, AIROAMING_TASK_WORKER_ENABLED: process.env.AIROAMING_TASK_WORKER_ENABLED };
       process.env.DATABASE_URL = "file:" + path.join(dataTarget, "db/airoaming.sqlite");
       process.env.AIROAMING_PERSISTENCE_MODE = "db";

@@ -37,12 +37,12 @@ function assertExactArguments(args: readonly string[], valueNames: readonly stri
 }
 
 function parseArgs(args: readonly string[]): RestoreInput {
-  const names = ["--backup", "--target-data-root", "--target-workspace-root", "--mode"] as const;
+  const names = ["--backup", "--release-root", "--target-data-root", "--target-workspace-root", "--mode"] as const;
   assertExactArguments(args, names);
   if (readJsonFormat(args, () => new RestoreCliError("RESTORE_ARGS_INVALID")) !== "json") throw new RestoreCliError("RESTORE_ARGS_INVALID");
   const values = Object.fromEntries(names.map((name) => [name, readSingle(args, name)])) as Record<string, string>;
   if (values["--mode"] !== "verify-only" && values["--mode"] !== "materialize") throw new RestoreCliError("RESTORE_ARGS_INVALID");
-  return { backup: absolute(values["--backup"]), targetDataRoot: absolute(values["--target-data-root"]), targetWorkspaceRoot: absolute(values["--target-workspace-root"]), mode: values["--mode"] as RestoreMode };
+  return { backup: absolute(values["--backup"]), releaseRoot: absolute(values["--release-root"]), targetDataRoot: absolute(values["--target-data-root"]), targetWorkspaceRoot: absolute(values["--target-workspace-root"]), mode: values["--mode"] as RestoreMode };
 }
 
 async function main(args = process.argv.slice(2)): Promise<number> {

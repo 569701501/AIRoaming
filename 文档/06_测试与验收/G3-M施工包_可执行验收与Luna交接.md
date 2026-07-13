@@ -12,7 +12,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 1. 当前结论
 
-M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1 已完成并复核，但 M5 整体仍为 `hardening_required`。当前从 M5-A4-2 按单切片推进，不能把 full shadow、临时 coordinated backup 或空根 restore 宣称为 final importer/cutover 完成。
+M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1/A4-2 已完成并复核，但 M5 整体仍为 `hardening_required`。A4-3/A4-4 尚未开始，不能把 full shadow、临时 coordinated backup 或空根 restore 宣称为 final importer/cutover 完成。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -248,19 +248,18 @@ git diff --check
 ## 9. 当前 Luna 任务书
 
 ```text
-目标切片：G3-M5-A4-2 restore release identity + 精确账本验证
-施工入口：文档/05_执行与记录/任务记录/2026-07-13_G3-M5A4验收收口/handoff_a4_2.md
-允许范围：app-restore service/CLI、对应 restore spec 与本任务记录
-明确禁止：backup fence、secret/path/compensation、Settings/SecretStore、final importer、activate、Schema/migration、真实数据
-退出证据：A4-RST-01/02、既有 BAK/RST 回归、typecheck、全量门禁、单独 commit
-Stop：需要改 Schema、无法证明 resealed semantic tamper，或需要访问真实根时停止
+当前没有新的 Luna 任务书：A4-2 已完成并复核。下一切片应另行创建 A4-3 handoff。
+施工入口：暂不进入 A4-3，保持 M5 `hardening_required`
+明确禁止：D2、M6、final importer、activate、真实数据
+退出证据：A4-3 handoff 创建后再执行
+Stop：不得跳过 A4-3 handoff 或直接推进 D2/M6
 ```
 
-A4-1 已完成并复核。A4-2 完成后先复核，再发 A4-3；不要一次把 A4-2～A4-4 或 D2/M6 全交给 Luna。
+A4-1/A4-2 已完成并复核。下一步先创建并复核 A4-3 handoff；不要一次把 A4-3/A4-4 或 D2/M6 全交给 Luna。
 
 ## 10. 最终 go/no-go
 
-可以开始 Luna 开发：yes，仅 G3-M5-A4-2，任务书见 `handoff_a4_2.md`。
+可以开始 Luna 开发：no，A4-2 已完成；等待单独的 A4-3 handoff。
 
 可以直接要求 Luna 完成全部 G3-M：no，范围跨 G1 maintenance/full importer/SecretStore/backup/cutover，必须逐切片。
 

@@ -12,7 +12,7 @@ source: M5 独立代码复核、原 implementation_contract/acceptance_checklist
 
 ## 1. 当前阶段
 
-`ready_for_a4_2`。
+`a4_2_completed_pending_a4_3`。
 
 M5-A0～A3 已有实现且现有 11 个定向测试、server typecheck 通过；但原清单对 BAK-02/03、RST-01/03 的完成判定超出真实证据，且静态复核发现会影响协调备份一致性和恢复可信度的实现缺口。M5 从 `completed` 退回 `hardening_required`，完成 A4 前不得推进 D2/M6。
 
@@ -40,7 +40,7 @@ M5-A0～A3 已有实现且现有 11 个定向测试、server typecheck 通过；
 | M5-A4-3 | secret/path/补偿清理故障矩阵 | DB/Asset/run-summary/restored roots sentinel=0；symlink/重叠/越界/第二 rename 失败安全 |
 | M5-A4-4 | 全量回归、临时重启/API rehearsal、双 Review | A4 清单全绿；原 M5 文档纠正；独立提交与证据齐全 |
 
-当前只完成 `M5-A4-1`，已通过实现后复核；A4-2 五份施工资料已就绪，下一执行者只领取 `handoff_a4_2.md`。A4-3/A4-4 尚未开始，不能推进 D2/M6。
+`M5-A4-1` 与 `M5-A4-2` 已完成并通过本轮实现后复核；A4-3/A4-4 尚未开始，不能推进 D2/M6。下一张 A4-3 handoff 尚未创建。
 
 ## 5. 代码边界
 

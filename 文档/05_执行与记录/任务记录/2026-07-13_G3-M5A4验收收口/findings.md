@@ -31,13 +31,26 @@ source: commit 91a450c～eb26743、M5 代码与验收文档独立复核
 - WAL 未收敛分支已在生产逻辑中 fail-closed，但专门的非零 WAL 故障注入属于 A4-3/A4-4 证据，不能在本轮宣称完成。
 - M5 仍保持 `hardening_required`，A4-2/A4-3/A4-4 未完成前不得推进 D2 或 M6。
 
-## 7. A4-2 开工复核
+## 7. A4-2 开工前复核（历史基线）
 
 - 当前 `AppRestoreService.verifyDatabase()` 只检查 `integrity_check`、FK 和账本表存在；没有读取 16 条 MigrationRun、open MigrationIssue 或 PersistenceState。
 - 当前 `verifyRunSummary()` 没有绑定 `FULL_SHADOW_SLICE_ORDER`、manifest.runIds 和每个 slice 的 exact keys。
 - restore CLI/RestoreInput 没有显式 current `releaseRoot`，manifest 的 effective identity 只检查摘要形状。
 - 现有 tamper 只覆盖 manifest 字节变化；A4-2 必须增加重算外层 seal 后的 ledger/run-summary/PersistenceState 语义篡改，避免把 digest 检查误写成账本验证。
-- 已编写 `handoff_a4_2.md` 等五份施工资料；A4-2 尚未实现，A4-RST-01/02 继续保持 `not_run`。
+- 已编写 `handoff_a4_2.md` 等五份施工资料；A4-2 已实现，A4-RST-01/02 已通过直接测试。
+
+## 8. A4-2 实现后复核事实
+
+- restore CLI/Service 现在必须显式接收 `releaseRoot`，使用 `loadReleaseSchemaIdentityV1()` 对 manifest effective identity 做精确绑定；缺失/重复/相对参数在副作用前返回 `RESTORE_ARGS_INVALID`，release 不兼容返回 `RESTORE_RELEASE_IDENTITY_MISMATCH`。
+- run-summary 顶层和每个 slice 均 exact keys；16 个 slice 的顺序、runId、status、importerVersion、reportDigest 和 counts 与 `FULL_SHADOW_SLICE_ORDER`/manifest 三方绑定。
+- bundle DB 使用 read-only `node:sqlite` + prepared statements，逐 run 核对 kind/status/四类 digest/counts/schema versions/verification，并要求每条 run 的 open MigrationIssue 为 0；PersistenceState 固定核对 `shadow/null/null`。
+- 测试覆盖 resealed summary 顺序/字段篡改、resealed DB ledger/import issue/manifest state 篡改，以及 manifest/SEALED/run-summary/DB/Asset raw tamper；所有失败保持零 target/staging 写入。
+- A4-2 定向 22/22、server 全量 49 files/329 tests、workspace/server typecheck、Prisma validate、G1 三项和 diff check 全部通过。
+
+## 9. A4-2 残留风险
+
+- A4-2 只闭合 release identity 与账本语义，不包含 A4-3 secret scan、路径门和补偿安全，也不包含 A4-4 的最终 M5 双 Review/完整 rehearsal。
+- M5 仍保持 `hardening_required`；下一步只能另行创建并复核 A4-3 handoff。
 
 ## 2. 阻止 M5 正式通过的发现
 
