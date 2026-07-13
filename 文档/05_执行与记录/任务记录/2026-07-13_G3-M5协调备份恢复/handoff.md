@@ -20,7 +20,7 @@ source: task_plan.md、implementation_contract.md、acceptance_checklist.md
 ## 1.1 当前交付状态
 
 - M5-A0 capability registry、M5-A1 coordinated backup、M5-A2 sealed restore、M5-A3 restart/API rehearsal 均已完成。
-- 当前 HEAD 的独立提交顺序为：A0 `91a450c`、A1 `b767e30`、A2 `0f20cff`；A3 证据提交待本轮落库。
+- 当前 HEAD 的独立提交顺序为：A0 `91a450c`、A1 `b767e30`、A2 `0f20cff`、A3 `68bb694`；最终文档记忆同步提交为 `fb56180`。
 - M5 完成只代表临时根演练通过；required capability、SecretStore、final importer、pre-cutover 和 activate 仍阻塞 M6。
 
 ## 2. 必读顺序
