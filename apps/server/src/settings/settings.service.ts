@@ -16,13 +16,22 @@ import {
 } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
+import { PrismaService } from "../persistence/prisma.service.js";
+import {
+  SecretStoreError,
+  SecretStoreService,
+  SecretString,
+  fingerprintSecret,
+} from "./secret-store.js";
 
 interface StoredAIKeySettings {
   providerId: string;
   providerName: string;
   modelId: string;
   baseUrl: string | null;
-  apiKey: string | null;
+  /** Legacy-only field. It is removed before settings are persisted. */
+  apiKey?: string | null;
+  secretRef?: string | null;
   keyFingerprint: string | null;
   updatedAt: string | null;
 }
@@ -76,10 +85,14 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
 @Injectable()
 export class SettingsService implements OnModuleInit {
   private settings: StoredAppSettings = this.defaultSettings();
+  private runtimeAIKey: string | null = null;
+  private readonly runtimeImageSecrets = new Map<string, SecretString>();
 
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
+    @Optional() @Inject(SecretStoreService) private readonly secretStore?: SecretStoreService,
+    @Optional() @Inject(PrismaService) private readonly prismaService?: PrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -91,7 +104,7 @@ export class SettingsService implements OnModuleInit {
       providerId: this.settings.aiKey.providerId,
       modelId: this.settings.aiKey.modelId,
       baseUrl: this.settings.aiKey.baseUrl,
-      apiKey: this.settings.aiKey.apiKey,
+      apiKey: this.runtimeAIKey,
     };
   }
 
@@ -103,7 +116,7 @@ export class SettingsService implements OnModuleInit {
       providerId: stored.providerId,
       modelId: stored.modelId,
       baseUrl: stored.baseUrl,
-      apiKey: stored.apiKey,
+      apiKey: this.runtimeImageSecrets.get(this.credentialIdForImageProvider(active, stored.providerId))?.reveal() ?? null,
     };
   }
 
@@ -119,21 +132,22 @@ export class SettingsService implements OnModuleInit {
       const next: StoredAppSettings = {
         ...current,
         aiKey: input.aiKey ? this.updateAIKeySettings(current.aiKey, input.aiKey, now) : current.aiKey,
-        openaiImageProvider: input.openaiImageProvider
-          ? this.updateImageProviderSettings(current.openaiImageProvider, input.openaiImageProvider, now)
-          : current.openaiImageProvider,
-        doubaoImageProvider: input.doubaoImageProvider
-          ? this.updateImageProviderSettings(current.doubaoImageProvider, input.doubaoImageProvider, now)
-          : current.doubaoImageProvider,
-        grokImageProvider: input.grokImageProvider
-          ? this.updateImageProviderSettings(current.grokImageProvider, input.grokImageProvider, now)
-          : current.grokImageProvider,
         activeImageProvider: input.activeImageProvider === undefined
           ? current.activeImageProvider
           : this.normalizeImageProviderType(input.activeImageProvider),
         appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
         updatedAt: now,
       };
+
+      if (input.openaiImageProvider) {
+        next.openaiImageProvider = await this.updateImageProviderSettings("openai", current.openaiImageProvider, input.openaiImageProvider, now);
+      }
+      if (input.doubaoImageProvider) {
+        next.doubaoImageProvider = await this.updateImageProviderSettings("doubao", current.doubaoImageProvider, input.doubaoImageProvider, now);
+      }
+      if (input.grokImageProvider) {
+        next.grokImageProvider = await this.updateImageProviderSettings("grok", current.grokImageProvider, input.grokImageProvider, now);
+      }
 
       await this.writeSettings(next);
       this.settings = next;
@@ -142,11 +156,12 @@ export class SettingsService implements OnModuleInit {
     return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
   }
 
-  private updateImageProviderSettings(
+  private async updateImageProviderSettings(
+    type: ImageProviderType,
     current: StoredAIKeySettings,
     input: UpdateImageProviderSettingsRequest,
     now: string,
-  ): StoredAIKeySettings {
+  ): Promise<StoredAIKeySettings> {
     const providerId = input.providerId === undefined ? current.providerId : this.normalizeProviderId(input.providerId);
     const providerName = input.providerName === undefined
       ? this.resolveProviderName(providerId, current.providerName)
@@ -156,19 +171,37 @@ export class SettingsService implements OnModuleInit {
     const apiKeyInput = input.apiKey?.trim();
     const providerChanged = input.providerId !== undefined && providerId !== current.providerId;
     const shouldClearApiKey = input.clearApiKey === true || (providerChanged && !apiKeyInput);
-    const apiKey = shouldClearApiKey
-      ? null
-      : apiKeyInput
-        ? apiKeyInput
-        : current.apiKey;
+    if (this.prismaService?.isDatabaseMode() && shouldClearApiKey && current.secretRef) {
+      throw new BadRequestException("SETTINGS_SECRET_CLEAR_REQUIRES_OUTBOX");
+    }
+    const previousCredentialId = this.credentialIdForImageProvider(type, current.providerId);
+    const nextCredentialId = this.credentialIdForImageProvider(type, providerId);
+    if (shouldClearApiKey || (providerId !== current.providerId && !apiKeyInput)) {
+      if (current.secretRef || this.runtimeImageSecrets.has(previousCredentialId)) {
+        await this.requireSecretStore().delete(previousCredentialId);
+      }
+      this.runtimeImageSecrets.delete(previousCredentialId);
+    }
+
+    let secretRef = providerId === current.providerId ? current.secretRef ?? null : null;
+    let keyFingerprint = providerId === current.providerId ? current.keyFingerprint : null;
+    if (apiKeyInput) {
+      const secret = SecretString.from(apiKeyInput);
+      const metadata = await this.requireSecretStore().put({ credentialId: nextCredentialId, secret });
+      this.runtimeImageSecrets.set(nextCredentialId, secret);
+      secretRef = metadata.secretRef;
+      keyFingerprint = metadata.fingerprint;
+    } else if (secretRef && !this.runtimeImageSecrets.has(nextCredentialId)) {
+      this.runtimeImageSecrets.set(nextCredentialId, await this.requireSecretStore().get(nextCredentialId));
+    }
 
     return {
       providerId,
       providerName,
       modelId,
       baseUrl,
-      apiKey,
-      keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : null,
+      secretRef,
+      keyFingerprint,
       updatedAt: now,
     };
   }
@@ -187,15 +220,15 @@ export class SettingsService implements OnModuleInit {
       ? null
       : apiKeyInput
         ? apiKeyInput
-        : current.apiKey;
+        : this.runtimeAIKey;
+    this.runtimeAIKey = apiKey;
 
     return {
       providerId,
       providerName,
       modelId,
       baseUrl,
-      apiKey,
-      keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : null,
+      keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : current.keyFingerprint,
       updatedAt: now,
     };
   }
@@ -213,24 +246,216 @@ export class SettingsService implements OnModuleInit {
   }
 
   private async readSettings(): Promise<StoredAppSettings> {
+    if (this.prismaService?.isDatabaseMode()) {
+      return this.readDatabaseSettings();
+    }
     const filePath = this.getSettingsFilePath();
     try {
       const raw = await readFile(filePath, "utf8");
-      return this.normalizeStoredSettings(JSON.parse(raw) as Partial<StoredAppSettings>);
+      const settings = this.normalizeStoredSettings(JSON.parse(raw) as Partial<StoredAppSettings>);
+      return this.prepareRuntimeSecrets(settings, true);
     } catch (error) {
       if (this.isNotFoundError(error)) {
         const defaults = this.defaultSettings();
-        await this.writeSettings(defaults);
-        return defaults;
+        const prepared = await this.prepareRuntimeSecrets(defaults, false);
+        await this.writeSettings(prepared);
+        return prepared;
       }
       throw error;
     }
   }
 
   private async writeSettings(settings: StoredAppSettings): Promise<void> {
+    if (this.prismaService?.isDatabaseMode()) {
+      await this.writeDatabaseSettings(settings);
+      return;
+    }
     const filePath = this.getSettingsFilePath();
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+    await writeFile(filePath, `${JSON.stringify(this.toPersistedSettings(settings), null, 2)}\n`, "utf8");
+  }
+
+  private async prepareRuntimeSecrets(settings: StoredAppSettings, persistLegacy: boolean): Promise<StoredAppSettings> {
+    if (settings.aiKey.apiKey?.trim()) {
+      this.runtimeAIKey = settings.aiKey.apiKey.trim();
+      // Text credentials are OpenCode-owned, but legacy settings may still
+      // contain one. Mark the file for sanitization without copying it into
+      // AI漫游's persistent metadata.
+    }
+    const hadLegacyTextKey = Boolean(settings.aiKey.apiKey?.trim());
+    settings.aiKey.apiKey = undefined;
+
+    let changed = hadLegacyTextKey;
+    const imageProviders: Array<[ImageProviderType, StoredAIKeySettings]> = [
+      ["openai", settings.openaiImageProvider],
+      ["doubao", settings.doubaoImageProvider],
+      ["grok", settings.grokImageProvider],
+    ];
+    for (const [type, provider] of imageProviders) {
+      const credentialId = this.credentialIdForImageProvider(type, provider.providerId);
+      const legacy = provider.apiKey?.trim();
+      if (legacy) {
+        const secret = SecretString.from(legacy);
+        const metadata = await this.requireSecretStore().put({ credentialId, secret });
+        this.runtimeImageSecrets.set(credentialId, secret);
+        provider.secretRef = metadata.secretRef;
+        provider.keyFingerprint = metadata.fingerprint;
+        provider.apiKey = undefined;
+        changed = true;
+        continue;
+      }
+      provider.apiKey = undefined;
+      if (provider.secretRef) {
+        const secret = this.runtimeImageSecrets.get(credentialId) ?? await this.requireSecretStore().get(credentialId);
+        if (provider.keyFingerprint && fingerprintSecret(secret) !== provider.keyFingerprint) {
+          throw new SecretStoreError("SECRET_STORE_ENTRY_MISSING");
+        }
+        this.runtimeImageSecrets.set(credentialId, secret);
+      } else {
+        this.runtimeImageSecrets.delete(credentialId);
+      }
+    }
+
+    if (changed && persistLegacy) {
+      await this.writeSettings(settings);
+    }
+    return settings;
+  }
+
+  private toPersistedSettings(settings: StoredAppSettings): StoredAppSettings {
+    const strip = (value: StoredAIKeySettings): StoredAIKeySettings => {
+      const { apiKey: _apiKey, ...metadata } = value;
+      return metadata;
+    };
+    return {
+      ...settings,
+      aiKey: strip(settings.aiKey),
+      openaiImageProvider: strip(settings.openaiImageProvider),
+      doubaoImageProvider: strip(settings.doubaoImageProvider),
+      grokImageProvider: strip(settings.grokImageProvider),
+    };
+  }
+
+  private requireSecretStore(): SecretStoreService {
+    if (!this.secretStore) {
+      throw new SecretStoreError("SECRET_STORE_UNAVAILABLE");
+    }
+    return this.secretStore;
+  }
+
+  private credentialIdForImageProvider(type: ImageProviderType, providerId: string): string {
+    return `image_${type}_${providerId}`;
+  }
+
+  private async readDatabaseSettings(): Promise<StoredAppSettings> {
+    const database = this.prismaService?.database();
+    if (!database) {
+      throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
+    }
+    const [preference, providers] = await Promise.all([
+      database.appPreference.findUnique({ where: { id: "primary" } }),
+      database.providerConfig.findMany({ include: { credentialMetadataByProviderConfig: true } }),
+    ]);
+    if (!preference || providers.length === 0) {
+      const defaults = await this.prepareRuntimeSecrets(this.defaultSettings(), false);
+      await this.writeDatabaseSettings(defaults);
+      return defaults;
+    }
+    const textProvider = providers.find((provider) => provider.id === preference.defaultTextProviderId)
+      ?? providers.find((provider) => provider.runtimeKind === "text");
+    const imageProvider = (type: ImageProviderType) => {
+      const providerId = type === "openai" ? "openai_image" : type === "doubao" ? "doubao_image" : "grok_image";
+      return providers.find((provider) => provider.providerId === providerId)
+        ?? providers.find((provider) => provider.runtimeKind === "image" && provider.providerId.includes(type));
+    };
+    const toStored = (provider: typeof providers[number] | undefined, fallback: StoredAIKeySettings): StoredAIKeySettings => provider
+      ? {
+          providerId: provider.providerId,
+          providerName: provider.displayName,
+          modelId: provider.modelId,
+          baseUrl: provider.baseUrl,
+          secretRef: provider.credentialMetadataByProviderConfig?.secretRef ?? null,
+          keyFingerprint: provider.credentialMetadataByProviderConfig?.fingerprint ?? null,
+          updatedAt: provider.updatedAt.toISOString(),
+        }
+      : fallback;
+    const defaults = this.defaultSettings();
+    const activeProviderId = providers.find((provider) => provider.id === preference.activeImageProviderId)?.providerId ?? "openai_image";
+    const activeImageProvider: ImageProviderType = activeProviderId.includes("doubao") ? "doubao" : activeProviderId.includes("grok") ? "grok" : "openai";
+    const settings: StoredAppSettings = {
+      version: 1,
+      aiKey: toStored(textProvider, defaults.aiKey),
+      openaiImageProvider: toStored(imageProvider("openai"), defaults.openaiImageProvider),
+      doubaoImageProvider: toStored(imageProvider("doubao"), defaults.doubaoImageProvider),
+      grokImageProvider: toStored(imageProvider("grok"), defaults.grokImageProvider),
+      activeImageProvider,
+      appearance: { theme: preference.theme as AppAppearanceSettings["theme"] },
+      updatedAt: preference.updatedAt.toISOString(),
+    };
+    return this.prepareRuntimeSecrets(settings, false);
+  }
+
+  private async writeDatabaseSettings(settings: StoredAppSettings): Promise<void> {
+    const database = this.prismaService?.database();
+    if (!database) throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
+    const providers = [
+      { type: "text" as const, settings: settings.aiKey, owner: "opencode" as const },
+      { type: "image" as const, settings: settings.openaiImageProvider, owner: "image_secret_store" as const },
+      { type: "image" as const, settings: settings.doubaoImageProvider, owner: "image_secret_store" as const },
+      { type: "image" as const, settings: settings.grokImageProvider, owner: "image_secret_store" as const },
+    ];
+    await database.$transaction(async (tx) => {
+      const ids = new Map<string, string>();
+      for (const item of providers) {
+        const provider = await tx.providerConfig.upsert({
+          where: { providerId: item.settings.providerId },
+          create: {
+            providerId: item.settings.providerId,
+            runtimeKind: item.type,
+            displayName: item.settings.providerName,
+            modelId: item.settings.modelId,
+            baseUrl: item.settings.baseUrl,
+            enabled: item.type === "text" || Boolean(item.settings.secretRef),
+          },
+          update: {
+            displayName: item.settings.providerName,
+            modelId: item.settings.modelId,
+            baseUrl: item.settings.baseUrl,
+            enabled: item.type === "text" || Boolean(item.settings.secretRef),
+          },
+        });
+        ids.set(item.settings.providerId, provider.id);
+        await tx.credentialMetadata.upsert({
+          where: { providerConfigId: provider.id },
+          create: {
+            providerConfigId: provider.id,
+            owner: item.owner,
+            status: item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint) ? "configured" : "unconfigured",
+            secretRef: item.type === "image" ? item.settings.secretRef ?? null : null,
+            fingerprint: item.settings.keyFingerprint ?? null,
+            configured: Boolean(item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint)),
+          },
+          update: {
+            status: item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint) ? "configured" : "unconfigured",
+            secretRef: item.type === "image" ? item.settings.secretRef ?? null : null,
+            fingerprint: item.settings.keyFingerprint ?? null,
+            configured: Boolean(item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint)),
+          },
+        });
+      }
+      const preferenceData = {
+        theme: settings.appearance.theme,
+        activeImageProviderId: ids.get(this.getStoredImageProvider(settings, settings.activeImageProvider).providerId) ?? null,
+        defaultTextProviderId: ids.get(settings.aiKey.providerId) ?? null,
+        defaultTextModelId: settings.aiKey.modelId,
+      };
+      const existingPreference = await tx.appPreference.findUnique({ where: { id: "primary" } });
+      if (existingPreference) {
+        await tx.appPreference.update({ where: { id: "primary" }, data: preferenceData });
+      } else {
+        await tx.appPreference.create({ data: { id: "primary", ...preferenceData } });
+      }
+    });
   }
 
   private normalizeStoredSettings(input: Partial<StoredAppSettings> & { imageProvider?: unknown }): StoredAppSettings {
@@ -263,7 +488,7 @@ export class SettingsService implements OnModuleInit {
         modelId: this.normalizeModelId(aiKey.modelId ?? defaults.aiKey.modelId),
         baseUrl: this.normalizeBaseUrl(aiKey.baseUrl ?? defaults.aiKey.baseUrl),
         apiKey,
-        keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : null,
+        keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : aiKey.keyFingerprint ?? null,
         updatedAt: typeof aiKey.updatedAt === "string" ? aiKey.updatedAt : null,
       },
       openaiImageProvider: {
@@ -275,7 +500,8 @@ export class SettingsService implements OnModuleInit {
         modelId: this.normalizeModelId(openaiSource.modelId ?? defaults.openaiImageProvider.modelId),
         baseUrl: this.normalizeBaseUrl(openaiSource.baseUrl ?? defaults.openaiImageProvider.baseUrl),
         apiKey: openaiApiKey,
-        keyFingerprint: openaiApiKey ? this.fingerprintKey(openaiApiKey) : null,
+        secretRef: typeof openaiSource.secretRef === "string" ? openaiSource.secretRef : null,
+        keyFingerprint: openaiApiKey ? this.fingerprintKey(openaiApiKey) : openaiSource.keyFingerprint ?? null,
         updatedAt: typeof openaiSource.updatedAt === "string" ? openaiSource.updatedAt : null,
       },
       doubaoImageProvider: {
@@ -287,7 +513,8 @@ export class SettingsService implements OnModuleInit {
         modelId: this.normalizeModelId(doubaoSource.modelId ?? defaults.doubaoImageProvider.modelId),
         baseUrl: this.normalizeBaseUrl(doubaoSource.baseUrl ?? defaults.doubaoImageProvider.baseUrl),
         apiKey: doubaoApiKey,
-        keyFingerprint: doubaoApiKey ? this.fingerprintKey(doubaoApiKey) : null,
+        secretRef: typeof doubaoSource.secretRef === "string" ? doubaoSource.secretRef : null,
+        keyFingerprint: doubaoApiKey ? this.fingerprintKey(doubaoApiKey) : doubaoSource.keyFingerprint ?? null,
         updatedAt: typeof doubaoSource.updatedAt === "string" ? doubaoSource.updatedAt : null,
       },
       grokImageProvider: {
@@ -299,7 +526,8 @@ export class SettingsService implements OnModuleInit {
         modelId: this.normalizeModelId(grokSource.modelId ?? defaults.grokImageProvider.modelId),
         baseUrl: this.normalizeBaseUrl(grokSource.baseUrl ?? defaults.grokImageProvider.baseUrl),
         apiKey: grokApiKey,
-        keyFingerprint: grokApiKey ? this.fingerprintKey(grokApiKey) : null,
+        secretRef: typeof grokSource.secretRef === "string" ? grokSource.secretRef : null,
+        keyFingerprint: grokApiKey ? this.fingerprintKey(grokApiKey) : grokSource.keyFingerprint ?? null,
         updatedAt: typeof grokSource.updatedAt === "string" ? grokSource.updatedAt : null,
       },
       activeImageProvider,
@@ -338,6 +566,7 @@ export class SettingsService implements OnModuleInit {
         modelId: openaiImageModelId,
         baseUrl: this.normalizeBaseUrl(openaiImageBaseUrl),
         apiKey: openaiImageApiKey,
+        secretRef: null,
         keyFingerprint: openaiImageApiKey ? this.fingerprintKey(openaiImageApiKey) : null,
         updatedAt: openaiImageApiKey || openaiImageBaseUrl ? now : null,
       },
@@ -347,6 +576,7 @@ export class SettingsService implements OnModuleInit {
         modelId: DOUBAO_DEFAULT_MODEL,
         baseUrl: DOUBAO_DEFAULT_BASE_URL,
         apiKey: null,
+        secretRef: null,
         keyFingerprint: null,
         updatedAt: null,
       },
@@ -356,6 +586,7 @@ export class SettingsService implements OnModuleInit {
         modelId: grokImageModelId,
         baseUrl: this.normalizeBaseUrl(grokImageBaseUrl),
         apiKey: grokImageApiKey,
+        secretRef: null,
         keyFingerprint: grokImageApiKey ? this.fingerprintKey(grokImageApiKey) : null,
         updatedAt: grokImageApiKey || grokImageBaseUrl ? now : null,
       },
@@ -386,8 +617,8 @@ export class SettingsService implements OnModuleInit {
       providerName: settings.providerName,
       modelId: settings.modelId,
       baseUrl: settings.baseUrl,
-      configured: Boolean(settings.apiKey),
-      keyPreview: settings.apiKey ? this.previewKey(settings.apiKey) : null,
+      configured: Boolean(settings.secretRef),
+      keyPreview: null,
       keyFingerprint: settings.keyFingerprint,
       updatedAt: settings.updatedAt,
     };
@@ -399,8 +630,8 @@ export class SettingsService implements OnModuleInit {
       providerName: settings.providerName,
       modelId: settings.modelId,
       baseUrl: settings.baseUrl,
-      configured: Boolean(settings.apiKey),
-      keyPreview: settings.apiKey ? this.previewKey(settings.apiKey) : null,
+      configured: Boolean(settings.keyFingerprint),
+      keyPreview: null,
       keyFingerprint: settings.keyFingerprint,
       updatedAt: settings.updatedAt,
     };
@@ -471,15 +702,8 @@ export class SettingsService implements OnModuleInit {
     }
   }
 
-  private previewKey(value: string): string {
-    if (value.length <= 10) {
-      return "••••";
-    }
-    return `${value.slice(0, 4)}...${value.slice(-4)}`;
-  }
-
   private fingerprintKey(value: string): string {
-    return createHash("sha256").update(value).digest("hex").slice(0, 12);
+    return `sha256:${createHash("sha256").update(value).digest("hex")}`;
   }
 
   private isNotFoundError(error: unknown): boolean {

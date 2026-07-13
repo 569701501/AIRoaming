@@ -74,7 +74,7 @@
         <div class="key-meta">
           <div>
             <span>当前密钥</span>
-            <strong>{{ aiKeyStatus.keyPreview ?? "未保存" }}</strong>
+            <strong>{{ aiKeyStatus.configured ? "已配置（不显示明文）" : "未配置" }}</strong>
           </div>
           <div>
             <span>指纹</span>
