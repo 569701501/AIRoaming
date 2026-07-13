@@ -20,7 +20,7 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 | P3 D2-A3-1 | 已完成：Story/Storyboard/Preflight 公开 DB 闭环 | 4 |
 | P4 D2-A3-2A | Character/Scene identity、queue/worker、Asset/Visual、公开确认；旧同步 generate/ensure 已 retired，delete 进入 Outbox 依赖 | 4 |
 | P5 D2-A3-2B | CandidateLock、complete images、旧参考图入口退役和 Character delete DB intent 已完成；物理清理由 P8 Outbox 收口 | 4（依赖 P8 才降） |
-| P6 D2-A4 | Layout/Export DB-only；Character delete 未闭合时 blocker 保持 3 | 3（或已提前闭合时 2） |
+| P6 D2-A4 | 已完成：LayoutWorkingCopy、LayoutRevision/source binding、layout export、asset package；Character delete 物理清理仍由 P8 收口 | 3 |
 | P7 D2-A5 | Dialogue runtime DB 事实源；Character delete 未闭合时 blocker 保持 2 | 2（或已提前闭合时 1） |
 | P8 D2-A6 | Project delete、Outbox consumer、五 handler，并回补 Character delete | 0 |
 | P9 D2-A7 | full final importer、verify、ready coordinator | 0 |
@@ -218,6 +218,8 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 
 ## 7. P6：D2-A4 Layout/Export
 
+状态：已完成（2026-07-13）。代码与证据已在当前分支；下一阶段为 P7 Dialogue，不能跳过 P8 的 Outbox/Project delete 收口。
+
 关闭：
 
 - `build_layout`
@@ -243,9 +245,8 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 
 退出：
 
-- LAY-01～06、EXP-01～06 全绿。
-- `layout_export` 绿，restartCovered=true。
-- `blockedIds` 从 3 精确降至 2。
+- `P6-LAYOUT-EXPORT-01` 覆盖 LAY/EXP 的 DB 事实链、物理 staging→fsync→rename、ready Artifact、素材包和 replay；项目 DB 28/28 与 typecheck/file-mode characterization 通过。
+- `layout_export` 已改为 implemented；独立 capability/restart 总证据仍需在 P10 汇总，当前 `blockedIds` 为 3（Character delete、Dialogue、Project delete/Outbox）。
 
 ## 8. P7：D2-A5 Dialogue runtime
 

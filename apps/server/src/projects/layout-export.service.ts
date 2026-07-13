@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import type { Prisma } from "@prisma/client";
+import { createHash, randomUUID } from "node:crypto";
+import { copyFile, mkdir, open, rename, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import type {
   BuildChapterLayoutResponse,
@@ -11,6 +12,8 @@ import type {
   ProjectCandidate,
   WorkbenchAsset,
 } from "@airoaming/shared";
+import { digestCanonicalJson } from "@airoaming/shared";
+import { PrismaService } from "../persistence/prisma.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import { toLegacyLayoutFormatV1 } from "./legacy-layout-format.js";
@@ -26,9 +29,11 @@ export class LayoutExportService {
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
+    @Inject(PrismaService) private readonly prismaService: PrismaService,
   ) {}
 
   async buildChapterLayout(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
+    if (this.repository.isDatabaseMode()) return this.buildChapterLayoutInDatabase(projectId, chapterId);
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
     this.assertReadyForLayout(chapter);
@@ -70,6 +75,7 @@ export class LayoutExportService {
   }
 
   async exportChapterLayout(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
+    if (this.repository.isDatabaseMode()) return this.exportChapterLayoutInDatabase(projectId, chapterId);
     const project = await this.projectStore.getReadyProject(projectId);
     let chapter = this.projectStore.findChapter(project, chapterId);
     this.assertReadyForLayout(chapter);
@@ -177,6 +183,133 @@ export class LayoutExportService {
       assets: nextProject.assets,
       workflow,
     };
+  }
+
+  private async buildChapterLayoutInDatabase(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
+    const db = this.prismaService.database();
+    const input = await this.readDatabaseLayoutInput(projectId, chapterId);
+    const now = new Date();
+    const layout = this.makeLayout(input, now.toISOString());
+    const sourceBindings = input.pairs.map((pair, index) => ({
+      elementId: layout.pages[index]!.id,
+      role: "panel",
+      order: index + 1,
+      shotId: pair.shot.id,
+      candidateId: pair.candidate.id,
+      candidateLockRevisionId: pair.lock.id,
+      assetId: pair.asset.id,
+      sourceDigest: pair.asset.sha256!,
+    }));
+    const sourceLockSetDigest = digestCanonicalJson(sourceBindings.map((binding) => ({ shotId: binding.shotId, candidateLockRevisionId: binding.candidateLockRevisionId, assetId: binding.assetId, sourceDigest: binding.sourceDigest })));
+    const existing = await db.layoutWorkingCopy.findUnique({ where: { chapterId } });
+    const existingDocument = existing?.documentJson && typeof existing.documentJson === "object" && !Array.isArray(existing.documentJson) ? existing.documentJson as { legacyDocument?: unknown } : null;
+    const stableLayout = existing?.sourceLockSetDigest === sourceLockSetDigest && existingDocument?.legacyDocument && typeof existingDocument.legacyDocument === "object" ? existingDocument.legacyDocument as ChapterLayout : layout;
+    const documentJson = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentJson as Prisma.InputJsonValue : ({ schemaVersion: 1, kind: "legacy_chapter_layout_v1", sourceResolution: "complete", legacyDocument: stableLayout, sourceBindings } as unknown as Prisma.InputJsonValue);
+    const documentDigest = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentDigest : digestCanonicalJson(documentJson);
+    if (!existing || existing.documentDigest !== documentDigest || existing.sourceLockSetDigest !== sourceLockSetDigest) {
+      await db.$transaction(async (tx) => {
+        if (!existing) {
+          await tx.layoutWorkingCopy.create({ data: { id: `layout_wc_${chapterId}`, projectId, chapterId, documentKind: "legacy_chapter_layout_v1", documentJson, schemaVersion: 1, documentDigest, sourceLockSetDigest, basedOnRevisionId: input.chapter.currentLayoutRevisionId, rowVersion: 0, createdAt: now, updatedAt: now } });
+          return;
+        }
+        const result = await tx.layoutWorkingCopy.updateMany({ where: { id: existing.id, projectId, chapterId, rowVersion: existing.rowVersion }, data: { documentJson, documentKind: "legacy_chapter_layout_v1", schemaVersion: 1, documentDigest, sourceLockSetDigest, basedOnRevisionId: input.chapter.currentLayoutRevisionId, rowVersion: { increment: 1 }, updatedAt: now } });
+        if (result.count !== 1) throw new BadRequestException("LAYOUT_WORKING_COPY_CONFLICT");
+      });
+    }
+    const project = await this.repository.refreshProjectFromDatabase(projectId);
+    const chapter = this.projectStore.findChapter(project, chapterId);
+    return { layout: chapter.layout!, chapter: wsDomain.toChapterDetail(chapter), chapters: wsDomain.sortChapters(project.chapters).map((item) => wsDomain.toChapterListItem(item)), assets: project.assets };
+  }
+
+  private async exportChapterLayoutInDatabase(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
+    const built = await this.buildChapterLayoutInDatabase(projectId, chapterId);
+    const db = this.prismaService.database();
+    const input = await this.readDatabaseLayoutInput(projectId, chapterId);
+    const workingCopy = await db.layoutWorkingCopy.findUniqueOrThrow({ where: { chapterId } });
+    const existingRevision = input.chapter.currentLayoutRevisionId ? await db.layoutRevision.findUnique({ where: { id: input.chapter.currentLayoutRevisionId } }) : null;
+    const revision = existingRevision && existingRevision.documentDigest === workingCopy.documentDigest && existingRevision.sourceLockSetDigest === workingCopy.sourceLockSetDigest
+      ? existingRevision
+      : await db.$transaction(async (tx) => {
+        const latest = await tx.layoutRevision.findFirst({ where: { projectId, chapterId }, orderBy: { revision: "desc" } });
+        const created = await tx.layoutRevision.create({ data: { id: `layout_rev_${randomUUID()}`, projectId, chapterId, revision: (latest?.revision ?? 0) + 1, previousRevisionId: latest?.id ?? null, contentBasedOnRevisionId: workingCopy.basedOnRevisionId, documentJson: workingCopy.documentJson as Prisma.InputJsonValue, schemaVersion: 1, documentDigest: workingCopy.documentDigest, sourceLockSetDigest: workingCopy.sourceLockSetDigest, origin: "runtime", saveReason: "export_checkpoint", bindingSetSealedAt: null, createdAt: new Date() } });
+        const bindings = Array.isArray((workingCopy.documentJson as { sourceBindings?: unknown }).sourceBindings) ? (workingCopy.documentJson as { sourceBindings: Array<Record<string, unknown>> }).sourceBindings : [];
+        for (const binding of bindings) {
+          await tx.layoutSourceBinding.create({ data: { id: `layout_binding_${randomUUID()}`, layoutRevisionId: created.id, elementId: String(binding.elementId), role: String(binding.role), order: Number(binding.order), shotId: String(binding.shotId), candidateId: String(binding.candidateId), candidateLockRevisionId: String(binding.candidateLockRevisionId), assetId: String(binding.assetId), sourceDigest: String(binding.sourceDigest) } });
+        }
+        const sealed = await tx.layoutRevision.update({ where: { id: created.id }, data: { bindingSetSealedAt: new Date() } });
+        await tx.chapter.update({ where: { id: chapterId }, data: { currentLayoutRevisionId: sealed.id, milestoneStatus: input.chapter.milestoneStatus === "exported" ? "exported" : "layout_done", rowVersion: { increment: 1 } } });
+        return sealed;
+      });
+    const now = new Date();
+    const exportPath = `projects/${projectId}/chapters/${input.chapter.slug}/exports/layout/${revision.id}/layout.json`;
+    const exportAbs = this.workspacePathService.resolveVirtualPath(`/workspace/${exportPath}`);
+    const exportContent = `${JSON.stringify(built.layout, null, 2)}\n`;
+    await this.atomicWrite(exportAbs, exportContent);
+    const bytes = Buffer.byteLength(exportContent, "utf8");
+    const exportSha256 = `sha256:${createHash("sha256").update(exportContent, "utf8").digest("hex")}`;
+    const manifest = { schemaVersion: 1, kind: "layout_publication", exportRevisionId: `export_${revision.id}`, projectId, chapterId, layoutRevisionId: revision.id, files: [{ path: exportPath, role: "layout_json", order: 1, assetId: `export_asset_${revision.id}` }], createdAt: now.toISOString() };
+    const manifestDigest = digestCanonicalJson(manifest);
+    const profile = { schemaVersion: 1, format: input.project.comicFormat, renderer: "db-layout-v1" };
+    const profileDigest = digestCanonicalJson(profile);
+    const current = await db.exportRevision.findFirst({ where: { projectId, chapterId, kind: "layout_publication", layoutRevisionId: revision.id, status: "ready" }, orderBy: { revision: "desc" } });
+    if (!current) {
+      await db.$transaction(async (tx) => {
+        const latest = await tx.exportRevision.findFirst({ where: { projectId, scopeKey: `chapter:${chapterId}`, kind: "layout_publication" }, orderBy: { revision: "desc" } });
+        const exportRevisionId = `export_${revision.id}`;
+        const assetId = `export_asset_${revision.id}`;
+        await tx.asset.create({ data: { id: assetId, projectId, chapterId, type: "document", role: "layout_export", mimeType: "application/json", storageKey: exportPath, status: "staged", sha256: exportSha256, bytes, width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: { kind: "layout_export", layoutRevisionId: revision.id, legacyPath: exportPath }, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson({ kind: "layout_export", layoutRevisionId: revision.id, legacyPath: exportPath }), createdAt: now, updatedAt: now, readyAt: null, failedAt: null, deletingAt: null } });
+        await tx.asset.update({ where: { id: assetId }, data: { status: "ready", readyAt: now } });
+        await tx.exportRevision.create({ data: { id: exportRevisionId, projectId, chapterId, scopeKey: `chapter:${chapterId}`, revision: (latest?.revision ?? 0) + 1, kind: "layout_publication", status: "queued", taskId: null, layoutRevisionId: revision.id, sourceLockSetDigest: revision.sourceLockSetDigest, profileJson: profile as Prisma.InputJsonValue, profileSchemaVersion: 1, profileDigest, preflightDigest: input.preflightDigest, rendererVersion: "db-layout-v1", manifestJson: manifest as Prisma.InputJsonValue, manifestSchemaVersion: 1, manifestDigest, completionApplicability: null, origin: "runtime", createdAt: now, readyAt: null, failedAt: null, cancelledAt: null } });
+        await tx.exportArtifact.create({ data: { id: `export_artifact_${revision.id}`, exportRevisionId, assetId, role: "layout_json", order: 1 } });
+        await tx.exportRevision.update({ where: { id: exportRevisionId }, data: { status: "ready", readyAt: now, completionApplicability: "current" } });
+        await tx.chapter.update({ where: { id: chapterId }, data: { currentExportRevisionId: exportRevisionId, milestoneStatus: input.chapter.milestoneStatus === "exported" ? "exported" : "layout_done", rowVersion: { increment: 1 } } });
+      });
+    }
+    const projectAfter = await this.repository.refreshProjectFromDatabase(projectId);
+    const chapterAfter = this.projectStore.findChapter(projectAfter, chapterId);
+    const exportAssets = projectAfter.assets.filter((asset) => asset.id.startsWith("export_asset_") && asset.chapterId === chapterId);
+    const workflow = workflowUtil.buildProjectWorkflow(projectAfter, chapterAfter, imagePreflightUtil.isChapterImagePreflightReady(projectAfter, chapterAfter, () => false));
+    return { layout: chapterAfter.layout!, exportAssets, chapter: wsDomain.toChapterDetail(chapterAfter), chapters: wsDomain.sortChapters(projectAfter.chapters).map((item) => wsDomain.toChapterListItem(item)), assets: projectAfter.assets, workflow };
+  }
+
+  private async readDatabaseLayoutInput(projectId: string, chapterId: string) {
+    const db = this.prismaService.database();
+    const [project, chapter] = await Promise.all([
+      db.project.findUnique({ where: { id: projectId } }),
+      db.chapter.findUnique({ where: { id: chapterId } }),
+    ]);
+    if (!project || project.lifecycleStatus !== "active") throw new BadRequestException("PROJECT_NOT_FOUND");
+    if (!chapter || chapter.projectId !== projectId) throw new BadRequestException("CHAPTER_NOT_FOUND");
+    if (!["images_done", "layout_done", "exported"].includes(chapter.milestoneStatus)) throw new BadRequestException("CHAPTER_IMAGES_NOT_DONE");
+    const preflight = chapter.currentPreflightRevisionId ? await db.preflightRevision.findUnique({ where: { id: chapter.currentPreflightRevisionId } }) : null;
+    if (!preflight?.ready) throw new BadRequestException("CHAPTER_PREFLIGHT_NOT_READY");
+    const shots = await db.shot.findMany({ where: { projectId, chapterId, lifecycleStatus: "active" }, orderBy: { createdAt: "asc" } });
+    if (shots.length === 0) throw new BadRequestException("NO_SHOTS");
+    const pairs: Array<{ shot: typeof shots[number]; lock: NonNullable<Awaited<ReturnType<typeof db.candidateLockRevision.findUnique>>>; candidate: NonNullable<Awaited<ReturnType<typeof db.candidate.findUnique>>>; asset: NonNullable<Awaited<ReturnType<typeof db.asset.findUnique>>> }> = [];
+    for (const shot of shots) {
+      if (!shot.currentCandidateLockRevisionId) throw new BadRequestException("CHAPTER_CANDIDATES_NOT_FULLY_LOCKED");
+      const lock = await db.candidateLockRevision.findUnique({ where: { id: shot.currentCandidateLockRevisionId } });
+      const candidate = lock?.candidateId ? await db.candidate.findUnique({ where: { id: lock.candidateId } }) : null;
+      const asset = candidate ? await db.asset.findUnique({ where: { id: candidate.assetId } }) : null;
+      if (!lock || lock.action === "clear" || !candidate || candidate.projectId !== projectId || candidate.chapterId !== chapterId || !asset || asset.status !== "ready" || !asset.sha256 || !/^sha256:[0-9a-f]{64}$/.test(asset.sha256)) throw new BadRequestException("CHAPTER_CANDIDATES_NOT_FULLY_LOCKED");
+      pairs.push({ shot, lock, candidate, asset });
+    }
+    return { project, chapter, preflightDigest: preflight.documentDigest, pairs };
+  }
+
+  private makeLayout(input: Awaited<ReturnType<LayoutExportService["readDatabaseLayoutInput"]>>, now: string): ChapterLayout {
+    const format = toLegacyLayoutFormatV1(input.project.comicFormat as LocalProject["comicFormat"]);
+    const width = format === "page_horizontal" ? 1920 : 1080;
+    const height = format === "page_horizontal" ? 1080 : 1920;
+    return { schemaVersion: 1, id: `layout_${input.chapter.id}`, projectId: input.project.id, chapterId: input.chapter.id, pages: input.pairs.map((pair, index) => ({ id: `layout_page_${String(index + 1).padStart(3, "0")}`, projectId: input.project.id, chapterId: input.chapter.id, pageNumber: index + 1, format, width, height, placements: [{ shotId: pair.shot.id, candidateId: pair.candidate.id, assetId: pair.asset.id, order: 1, x: 0, y: 0, w: width, h: height }], exportAssetId: null })), exportAssetIds: [], createdAt: now, updatedAt: now, confirmedAt: null };
+  }
+
+  private async atomicWrite(absolutePath: string, content: string): Promise<void> {
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    const temporary = `${absolutePath}.tmp-${randomUUID()}`;
+    const handle = await open(temporary, "wx", 0o600);
+    try { await handle.writeFile(content, "utf8"); await handle.sync(); } finally { await handle.close(); }
+    await rename(temporary, absolutePath);
   }
 
   private assertReadyForLayout(chapter: LocalChapter): void {

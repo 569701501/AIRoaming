@@ -75,3 +75,12 @@ source: 本总目标编制过程
 - 保护规则覆盖 active project、同 scope、image/character_reference、sha256、Candidate/LayoutSourceBinding/ExportArtifact 历史引用和 in_use 主视觉。
 - 新增 `P5-CHAR-DELETE-01/02`；fresh SQLite + 临时 workspace 通过，证明唯一 event、重复请求、物理文件不变和锁定拒绝。
 - P5 仍不更新 capability registry；物理删除与 processed fencing 由 P8 Outbox consumer 完成后再回补 evidence。
+
+## P6 Layout/Export DB-only（2026-07-13）
+
+- `build_layout` 已切换 DB 分支：只读取 current Preflight、active Shot、current CandidateLock、ready Asset，生成带 `sourceBindings` 与 `sourceLockSetDigest` 的 `LayoutWorkingCopy`；同一锁集重放不改写 row/digest，锁集变化走 rowVersion 更新。
+- `export_layout` 已实现 append-only `LayoutRevision` + `LayoutSourceBinding` 封存；binding seal、Chapter current pointer、milestone 推进在同一事务内完成。物理 `layout.json` 只写受控 workspace 的 temp 文件并 fsync→rename。
+- `ExportRevision(layout_publication)` 从 queued 到 ready，`ExportArtifact` 只引用 staged→ready 的 document Asset；manifest/profile/renderer/preflight/source digest 均落 DB。
+- `export_asset_package` 从 DB LayoutRevision/bindings/ready Asset 生成受控目录和 manifest，并登记 `ExportRevision(kind=asset_package)` 与 archive Artifact；缺文件 fail-closed，重放不重复创建 layout revision。
+- 定向 `P6-LAYOUT-EXPORT-01`、项目 DB 全量 28/28 通过；typecheck 与既有 file-mode characterization 通过。P6 不触碰真实 workspace、provider 或凭据。
+- P6 capability 三 operation 已改为 implemented；Character delete 物理清理由 P8 负责，因此总 `blockedIds` 从 4 降至 3，不能提前改绿 Character aggregate。

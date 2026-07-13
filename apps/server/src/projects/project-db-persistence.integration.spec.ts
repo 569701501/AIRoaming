@@ -1422,7 +1422,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.storyboardVersion.findUniqueOrThrow({ where: { id: boardId } })).rowVersion).toBe(1);
   }, 30_000);
 
-  it("creates shot prompt/image tasks through the DB guard and records late candidates as historical", async () => {
+  it("P6-LAYOUT-EXPORT-01: creates shot prompt/image tasks, locks them, and exports layout/package through DB", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -1505,5 +1505,32 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const completedImages = await projects.completeChapterImages(project.id, scope.chapterId);
     expect(completedImages.chapter.status).toBe("images_done");
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("images_done");
+
+    const layout = await projects.buildChapterLayout(project.id, scope.chapterId);
+    expect(layout.layout.pages).toHaveLength(1);
+    expect(await prisma.layoutWorkingCopy.count({ where: { chapterId: scope.chapterId } })).toBe(1);
+    const exported = await projects.exportChapterLayout(project.id, scope.chapterId);
+    expect(exported.layout.pages).toHaveLength(1);
+    const layoutRevision = await prisma.layoutRevision.findFirstOrThrow({ where: { chapterId: scope.chapterId } });
+    expect(layoutRevision.bindingSetSealedAt).not.toBeNull();
+    expect(await prisma.layoutSourceBinding.count({ where: { layoutRevisionId: layoutRevision.id } })).toBe(1);
+    const exportRevision = await prisma.exportRevision.findFirstOrThrow({ where: { chapterId: scope.chapterId, kind: "layout_publication" } });
+    expect(exportRevision).toMatchObject({ status: "ready", completionApplicability: "current" });
+    expect(await prisma.exportArtifact.count({ where: { exportRevisionId: exportRevision.id } })).toBe(1);
+    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentExportRevisionId).toBe(exportRevision.id);
+    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentLayoutRevisionId).toBe(layoutRevision.id);
+    const workingCopyAfterExport = await prisma.layoutWorkingCopy.findUniqueOrThrow({ where: { chapterId: scope.chapterId } });
+    expect({ wc: workingCopyAfterExport.documentDigest, rev: layoutRevision.documentDigest, wcLocks: workingCopyAfterExport.sourceLockSetDigest, revLocks: layoutRevision.sourceLockSetDigest }).toEqual({ wc: layoutRevision.documentDigest, rev: layoutRevision.documentDigest, wcLocks: layoutRevision.sourceLockSetDigest, revLocks: layoutRevision.sourceLockSetDigest });
+    const replayedExport = await projects.exportChapterLayout(project.id, scope.chapterId);
+    expect(replayedExport.layout.id).toBe(exported.layout.id);
+    expect(await prisma.layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(1);
+    expect(await prisma.exportRevision.count({ where: { chapterId: scope.chapterId, kind: "layout_publication" } })).toBe(1);
+    const packageResult = await projects.exportAssetPackage(project.id, scope.chapterId);
+    expect(packageResult.manifest.files.length).toBeGreaterThan(1);
+    expect(packageResult.asset.type).toBe("archive");
+    const packageRevision = await prisma.exportRevision.findFirstOrThrow({ where: { chapterId: scope.chapterId, kind: "asset_package" } });
+    expect(packageRevision).toMatchObject({ status: "ready", completionApplicability: "current" });
+    expect(await prisma.exportArtifact.count({ where: { exportRevisionId: packageRevision.id } })).toBe(1);
+    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("exported");
   }, 30_000);
 });

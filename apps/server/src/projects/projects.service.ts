@@ -815,17 +815,14 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async buildChapterLayout(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
-    this.repository.assertDatabaseOperationSupported("build_layout");
     return this.layoutExport.buildChapterLayout(projectId, chapterId);
   }
 
   async exportChapterLayout(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
-    this.repository.assertDatabaseOperationSupported("export_layout");
     return this.layoutExport.exportChapterLayout(projectId, chapterId);
   }
 
   async exportAssetPackage(projectId: string, chapterId?: string): Promise<ExportAssetPackageResponse> {
-    this.repository.assertDatabaseOperationSupported("export_asset_package");
     return this.assetPackage.exportAssetPackage(projectId, chapterId);
   }
 

@@ -72,12 +72,14 @@ const entries: DbCapabilityEntry[] = [
   {
     id: "layout_export",
     ownerModule: "projects/layout-export",
-    readStatus: "partial",
-    writeStatus: "unsupported",
-    restartCovered: false,
+    readStatus: "implemented",
+    writeStatus: "implemented",
+    restartCovered: true,
     requiredForActivate: true,
-    evidenceTestIds: [],
-    blocker: "Only the legacy LayoutWorkingCopy read model is available; build/export/package writes remain blocked.",
+    evidenceTestIds: [
+      "src/projects/project-db-persistence.integration.spec.ts#P6-LAYOUT-EXPORT-01: DB layout/export/package and replay",
+    ],
+    blocker: null,
   },
   {
     id: "dialogue_pending_runtime",
@@ -487,8 +489,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.buildChapterLayout",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P6-LAYOUT-EXPORT-01: builds an idempotent DB LayoutWorkingCopy from current locks and assets"],
   },
   {
     operation: "export_layout",
@@ -497,8 +499,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.exportChapterLayout",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P6-LAYOUT-EXPORT-01: seals LayoutRevision/source bindings and materializes a ready ExportRevision/Artifact"],
   },
   {
     operation: "export_asset_package",
@@ -507,8 +509,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.exportAssetPackage",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P6-LAYOUT-EXPORT-01: exports a DB-derived package with ready archive artifact and replay"],
   },
   {
     operation: "reset_project_script",

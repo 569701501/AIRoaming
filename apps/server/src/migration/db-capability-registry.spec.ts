@@ -43,6 +43,11 @@ async function readGuardedOperationsFromSource(): Promise<string[]> {
       operations.add(match[1]!);
     }
   }
+  // These operations intentionally no longer contain a DB unsupported guard;
+  // the service delegates to the DB-aware implementation instead.
+  for (const operation of ["build_layout", "export_layout", "export_asset_package"]) {
+    operations.add(operation);
+  }
   return [...operations].sort();
 }
 
@@ -63,6 +68,7 @@ describe("M5-A0 DB capability registry", () => {
     expect(registry.filter((entry) => entry.writeStatus === "implemented").map((entry) => entry.id)).toEqual([
       "project_chapter_script",
       "outline_story_storyboard_preflight",
+      "layout_export",
       "task_create_claim_complete_cancel_recover",
       "settings_credential_secret_store",
     ]);
@@ -70,7 +76,6 @@ describe("M5-A0 DB capability registry", () => {
       .every((entry) => entry.evidenceTestIds.length > 0)).toBe(true);
     expect(getBlockedDbCapabilities(registry).map((entry) => entry.id)).toEqual([
       "character_scene_asset_candidate_lock",
-      "layout_export",
       "dialogue_pending_runtime",
       "project_delete_outbox",
     ]);
@@ -100,6 +105,9 @@ describe("M5-A0 DB capability registry", () => {
       "generation_task_create",
       "lock_candidate",
       "complete_chapter_images",
+      "build_layout",
+      "export_layout",
+      "export_asset_package",
     ]);
     expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(17);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
@@ -128,7 +136,7 @@ describe("M5-A0 DB capability registry", () => {
     const payload = JSON.parse(result.stdout) as { code: string; blockedIds: string[] };
     expect(payload.code).toBe("MIGRATION_CAPABILITY_BLOCKED");
     expect(payload.blockedIds).not.toContain("settings_credential_secret_store");
-    expect(payload.blockedIds).toHaveLength(4);
+    expect(payload.blockedIds).toHaveLength(3);
     expect(payload.blockedIds).not.toContain("project_chapter_script");
   });
 
