@@ -42,7 +42,7 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 | 项目 | 事实 |
 | --- | --- |
-| 最新已提交基线 | D2-A8 `07ffa3e`；M6 改动待独立提交 |
+| 最新已提交基线 | M6 `c07ec8c`（包含 D2-A8 `07ffa3e`） |
 | 已完成 | M5、D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4、D2-A5 |
 | capability | 8 个聚合项、36 个 operation；P7 已计入 evidence |
 | 当前 blocker | capability report 为 `blockedIds=[]`；真实切换授权尚未提供 |

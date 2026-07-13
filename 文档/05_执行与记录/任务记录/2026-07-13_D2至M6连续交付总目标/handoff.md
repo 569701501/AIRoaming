@@ -37,8 +37,8 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前已提交基线 | D2-A8 `07ffa3e`；M6 改动待独立提交 |
-| 工作树状态 | D2-A7/A8、M6 tooling 与临时 C0-C7 rehearsal 已完成，正在做总收口 |
+| 当前已提交基线 | M6 `c07ec8c`（包含 D2-A8 `07ffa3e`） |
+| 工作树状态 | 干净；D2-A7/A8、M6 tooling 与临时 C0-C7 rehearsal 已完成 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
