@@ -94,10 +94,22 @@ interface CharacterReferenceTaskOutput {
   readonly bytes: number;
   readonly warnings: readonly string[];
 }
+interface SceneReferenceTaskOutput {
+  readonly schemaVersion: 1;
+  readonly sceneId: string;
+  readonly chapterId: string;
+  readonly buffer: Buffer;
+  readonly mimeType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sha256: `sha256:${string}`;
+  readonly bytes: number;
+  readonly warnings: readonly string[];
+}
 
-type NormalizedTaskOutput = VersionDocumentTaskOutputV2 | ShotPromptTaskOutput | ImageTaskOutput | CharacterReferenceTaskOutput;
+type NormalizedTaskOutput = VersionDocumentTaskOutputV2 | ShotPromptTaskOutput | ImageTaskOutput | CharacterReferenceTaskOutput | SceneReferenceTaskOutput;
 
-const HANDLED_TASK_TYPES = ["character_reference_generate", "story_parse", "shot_generate", "shot_prompt_generate", "image_generate"] as const;
+const HANDLED_TASK_TYPES = ["character_reference_generate", "scene_reference_generate", "story_parse", "shot_generate", "shot_prompt_generate", "image_generate"] as const;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const RETRY_DELAY_MS = 5_000;
 
@@ -178,6 +190,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {
     this.handlers.set("character_reference_generate", (context) => this.runCharacterReferenceProvider(context));
+    this.handlers.set("scene_reference_generate", (context) => this.runSceneReferenceProvider(context));
     this.handlers.set("story_parse", (context) => this.runStoryProvider(context));
     this.handlers.set("shot_generate", (context) => this.runShotProvider(context));
     this.handlers.set("shot_prompt_generate", (context) => this.runShotPromptProvider(context));
@@ -243,6 +256,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const input = claim.item.input;
     const operation = claim.item.type as GenerationTaskType;
     if (operation === "character_reference_generate") return this.completeCharacterReferenceClaim(claim, raw);
+    if (operation === "scene_reference_generate") return this.completeSceneReferenceClaim(claim, raw);
     const chapterId = text(input.chapterId, "input.chapterId");
     const projection = object(input.sourceProjection, "input.sourceProjection");
     const sources = projection.sources;
@@ -370,6 +384,45 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     }
   }
 
+  private async completeSceneReferenceClaim(claim: ClaimedPersistentTask, raw: unknown): Promise<GenerationTaskItem> {
+    const input = claim.item.input;
+    const output = this.normalizeSceneReferenceOutput(raw, input);
+    const db = this.prismaService.database();
+    const scene = await db.chapterScene.findFirst({ where: { id: output.sceneId, projectId: claim.item.projectId, chapterId: output.chapterId } });
+    if (!scene) throw new Error("SCENE_DB_NOT_FOUND");
+    const relativePath = `projects/${claim.item.projectId}/chapters/${output.chapterId}/scenes/${scene.sceneKey}/background.webp`;
+    const absolutePath = this.workspacePath.resolveVirtualPath(`/workspace/${relativePath}`);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, output.buffer);
+    try {
+      const projection = object(input.sourceProjection, "input.sourceProjection") as unknown as TaskSourceProjectionV1;
+      const sourceDigest = taskSourceProjectionDigest(projection);
+      const source = projection.sources.find((item) => item.sourceType === "chapter_scene");
+      const currentDigest = digestCanonicalJson({ id: scene.id, projectId: scene.projectId, chapterId: scene.chapterId, sceneKey: scene.sceneKey, updatedAt: scene.updatedAt.toISOString() });
+      const applicability = source?.sourceDigest === currentDigest ? "current" : "historical";
+      const result = await db.$transaction(async (tx) => {
+        const persisted = await tx.generationTask.findUnique({ where: { id: claim.item.id } });
+        if (!persisted || persisted.status !== "running" || persisted.leaseToken !== claim.claimToken) throw new TaskLeaseLostError(claim.item.id);
+        if (persisted.sourceDigest !== sourceDigest) throw new TypeError("TASK_SOURCE_DIGEST_MISMATCH");
+        const latest = await tx.sceneVisual.findFirst({ where: { chapterSceneId: scene.id }, orderBy: { version: "desc" }, select: { version: true } });
+        const version = (latest?.version ?? 0) + 1;
+        const assetId = randomUUID();
+        const visualId = randomUUID();
+        const now = new Date();
+        const metadata = { schemaVersion: 1, taskId: claim.item.id, sceneId: scene.id, chapterId: output.chapterId, sourceDigest, warnings: output.warnings };
+        await tx.asset.create({ data: { id: assetId, projectId: claim.item.projectId, chapterId: output.chapterId, type: "image", role: "scene_reference", mimeType: output.mimeType, storageKey: relativePath, status: "staged", sha256: null, bytes: null, width: null, height: null, durationMs: null, sourceTaskId: claim.item.id, metadataJson: metadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(metadata), createdAt: now, updatedAt: now } });
+        await tx.asset.update({ where: { id: assetId }, data: { status: "ready", sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, readyAt: now } });
+        await tx.sceneVisual.create({ data: { id: visualId, chapterSceneId: scene.id, assetId, sourceTaskId: claim.item.id, version, createdAt: now } });
+        if (applicability === "current") await tx.chapterScene.update({ where: { id: scene.id }, data: { currentVisualId: visualId, updatedAt: now } });
+        return this.tasks.finishInTransaction(tx, { taskId: claim.item.id, claimToken: claim.claimToken, outcome: "succeeded", output: { schemaVersion: 1, sceneId: scene.id, chapterId: output.chapterId, assetId, visualId, storageKey: relativePath, sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, warnings: output.warnings }, applicability });
+      });
+      return result;
+    } catch (error) {
+      await rm(absolutePath, { force: true });
+      throw error;
+    }
+  }
+
   private characterReferenceStorageKey(projectId: string, characterId: string, referenceKind: "preview_front" | "final_reference", version: number): string {
     return `projects/${projectId}/assets/characters/${characterId}/visual-v${String(version).padStart(3, "0")}/${referenceKind === "final_reference" ? "final-reference.webp" : "preview.webp"}`;
   }
@@ -439,6 +492,15 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       bytes: buffer.length,
       warnings,
     };
+  }
+
+  private normalizeSceneReferenceOutput(raw: unknown, input: Record<string, unknown>): SceneReferenceTaskOutput {
+    const candidate = object(raw, "providerOutput");
+    const buffer = candidate.buffer instanceof Uint8Array ? Buffer.from(candidate.buffer) : null;
+    if (!buffer || buffer.length === 0) throw new TypeError("providerOutput.buffer must be non-empty");
+    const dimensions = readImageDimensions(buffer);
+    if (!dimensions) throw new TypeError("providerOutput.buffer must be a supported image");
+    return { schemaVersion: 1, sceneId: text(input.sceneId, "input.sceneId"), chapterId: text(input.chapterId, "input.chapterId"), buffer, mimeType: typeof candidate.mimeType === "string" && candidate.mimeType.trim() ? candidate.mimeType : "image/webp", width: dimensions.width, height: dimensions.height, sha256: `sha256:${createHash("sha256").update(buffer).digest("hex")}`, bytes: buffer.length, warnings: Array.isArray(candidate.warnings) ? candidate.warnings.filter((warning): warning is string => typeof warning === "string") : [] };
   }
 
   private normalizeShotPromptOutput(targetId: string, raw: unknown, input: Record<string, unknown>): ShotPromptTaskOutput {
@@ -631,6 +693,12 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     } else {
       buffer = await this.imageProvider.generateImage({ prompt, size, quality: input.quality === "low" || input.quality === "medium" || input.quality === "high" ? input.quality : "high", outputFormat: "webp" });
     }
+    return { buffer, mimeType: "image/webp", warnings: [] };
+  }
+
+  private async runSceneReferenceProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
+    const input = context.input;
+    const buffer = await this.imageProvider.generateImage({ prompt: text(input.prompt, "input.prompt"), size: "2560x1440", quality: "high", outputFormat: "webp" });
     return { buffer, mimeType: "image/webp", warnings: [] };
   }
 

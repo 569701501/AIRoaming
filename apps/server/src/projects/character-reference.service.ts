@@ -942,6 +942,27 @@ export class CharacterReferenceService {
   // ====== 场景参考图 ======
 
   async queueSceneReference(projectId: string, chapterId: string, sceneId: string, input: GenerateSceneReferenceRequest = {}): Promise<QueueSceneReferenceResponse> {
+    if (this.isDatabaseMode()) {
+      const project = await this.repository.refreshProjectFromDatabase(projectId);
+      const chapter = project.chapters.find((item) => item.id === chapterId);
+      const storyStructure = chapter?.storyStructure;
+      const scene = storyStructure?.structureJson.scenes.find((item) => item.id === sceneId);
+      if (!chapter || !storyStructure) throw new BadRequestException("STORY_STRUCTURE_REQUIRED");
+      if (!scene) throw new NotFoundException("SCENE_NOT_FOUND");
+      const sceneRow = await this.prismaService.database().chapterScene.findFirst({ where: { id: sceneId, projectId, chapterId } })
+        ?? await this.prismaService.database().chapterScene.findFirst({ where: { sceneKey: sceneId, projectId, chapterId } });
+      if (!sceneRow) throw new NotFoundException("SCENE_DB_NOT_FOUND");
+      const sourceProjection = buildTaskSourceProjection({
+        policyVersion: "scene-reference-source-v1", projectId, chapterId, consumerType: "scene_reference_generate",
+        sources: [{ role: "scene", sourceType: "chapter_scene", sourceId: sceneRow.id, sourceDigest: digestCanonicalJson({ id: sceneRow.id, projectId, chapterId, sceneKey: sceneRow.sceneKey, updatedAt: sceneRow.updatedAt.toISOString() }) }],
+      });
+      const task = await this.persistentTaskRepository.create({
+        projectId, type: "scene_reference_generate", target: { type: "scene", id: sceneRow.id, chapterId },
+        input: { schemaVersion: 1, projectId, chapterId, sceneId: sceneRow.id, sceneKey: sceneRow.sceneKey, prompt: input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene), sourceProjection },
+        options: { concurrencyKey: "image-provider", concurrencySlots: 1, maxAttempts: 3 },
+      });
+      return { storyStructure, assets: project.assets, tasks: [task.item], createdCount: task.replayed ? 0 : 1 };
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
     const storyStructure = chapter.storyStructure;

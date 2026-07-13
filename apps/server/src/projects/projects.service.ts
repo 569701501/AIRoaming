@@ -429,7 +429,7 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     sceneId: string,
     input: GenerateSceneReferenceRequest = {},) : Promise<QueueSceneReferenceResponse> {
-    this.repository.assertDatabaseOperationSupported("queue_scene_reference");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("queue_scene_reference");
     return this.characterRef.queueSceneReference(projectId, chapterId, sceneId, input);
   }
 

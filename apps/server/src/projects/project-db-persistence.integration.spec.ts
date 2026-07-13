@@ -38,7 +38,7 @@ import { TaskApplicabilityGuardService } from "./versioning/task-applicability-g
 import { PersistentTaskRepository, TaskLeaseLostError } from "../tasks/persistent-task.repository.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
-import { digestCanonicalJson, encodePreflightDocumentV2, PreflightDocumentCodecV2, encodeScriptTextV1, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
+import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, PreflightDocumentCodecV2, encodeScriptTextV1, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
 
@@ -677,6 +677,29 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(saved.character.primaryReferenceAssetId).toBe(finalAsset.id);
     expect(saved.character.status).toBe("finalized");
     expect((await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).primaryVisualId).toBeTruthy();
+  }, 20_000);
+
+  it("P4-CHAR-08: promotes a DB scene reference through SceneVisual with a fake handler", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const tasks = app.get(PersistentTaskRepository);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P4 场景视觉", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapter = await prisma.chapter.findFirstOrThrow({ where: { projectId: project.id } });
+    const scene = await prisma.chapterScene.create({ data: { id: randomUUID(), projectId: project.id, chapterId: chapter.id, sceneKey: "scene-1" } });
+    const sourceProjection = buildTaskSourceProjection({ policyVersion: "scene-reference-source-v1", projectId: project.id, chapterId: chapter.id, consumerType: "scene_reference_generate", sources: [{ role: "scene", sourceType: "chapter_scene", sourceId: scene.id, sourceDigest: digestCanonicalJson({ id: scene.id, projectId: project.id, chapterId: chapter.id, sceneKey: scene.sceneKey, updatedAt: scene.updatedAt.toISOString() }) }] });
+    const task = await tasks.create({ projectId: project.id, type: "scene_reference_generate", target: { type: "scene", id: scene.id, chapterId: chapter.id }, input: { schemaVersion: 1, projectId: project.id, chapterId: chapter.id, sceneId: scene.id, prompt: "场景测试", sourceProjection } });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("scene_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+    const finished = await worker.runOnce("scene-worker");
+    expect(finished).toMatchObject({ id: task.item.id, status: "succeeded", output: { sceneId: scene.id } });
+    const asset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: task.item.id } });
+    const visual = await prisma.sceneVisual.findFirstOrThrow({ where: { sourceTaskId: task.item.id } });
+    expect(asset).toMatchObject({ status: "ready", role: "scene_reference", chapterId: chapter.id, bytes: png.byteLength, width: 1, height: 1 });
+    expect((await prisma.chapterScene.findUniqueOrThrow({ where: { id: scene.id } })).currentVisualId).toBe(visual.id);
   }, 20_000);
 
   it("fails closed when an active DB project has no current chapter", async () => {
