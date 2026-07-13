@@ -10,7 +10,7 @@ source: D2/M6 路线与连续执行 Handoff
 
 # D2 至 M6 总目标
 
-## 1. 为什么当前不是 M5
+## 1. 当前所处阶段（不是 M5）
 
 M5-A0～A4 已完成并通过静态与临时运行复核。M5 解决的是 coordinated backup/restore 和故障矩阵，不会自动补齐业务 DB 写、final importer 或 activate。
 
@@ -20,11 +20,14 @@ M5-A0～A4 已完成并通过静态与临时运行复核。M5 解决的是 coord
 M5 completed
 D2-A0 completed
 D2-A1-2 completed
-D2-A2-1 documented, code not implemented
+D2-A2-1 completed
+D2-A2-2 completed
+D2-A3-1 completed
+D2-A3-2A/B in_progress（Character delete 受 Outbox 约束）
 M6 prerequisite_blocked
 ```
 
-因此本目标从 D2-A2-1 开始，不重复 M5。
+因此本轮连续施工从 D2-A3-2A/B 收口开始，不重复 M5 或已经完成的 D2-A2-1～A3-1。
 
 ## 2. 用户期望
 

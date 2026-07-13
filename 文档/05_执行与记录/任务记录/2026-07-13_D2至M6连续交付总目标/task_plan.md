@@ -31,7 +31,7 @@ Luna 以 `execution_status.md` 为运行状态，按 P0～P12 顺序自动推进
 ## 4. 退出标准
 
 - 总资料没有把 M5 误写为未完成。
-- 当前 blocker 精确为 6，下降路线可验证。
+- 当前 blocker 精确为 4，Character delete→Outbox 的依赖与下降路线可验证。
 - 所有剩余能力、final importer、M6 tooling、真实切换均有明确归属。
 - Luna 无需用户逐阶段确认。
 - 真实根、真实凭据、真实停写、archive、activate 仍需最后一次明确授权。

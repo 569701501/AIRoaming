@@ -12,21 +12,21 @@ source: 本总目标编制过程
 
 ## P0 基线核对（2026-07-13）
 
-- `db-capabilities --format json`：8 个聚合 capability、36 个 operation，`blockedIds` 精确为 6。
+- `db-capabilities --format json`：8 个聚合 capability、36 个 operation；当前 `blockedIds` 精确为 4：Character/Scene/Asset/CandidateLock、Layout/Export、Dialogue、Project delete/Outbox。
 - `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
-- 工作树起点为 `22b9e34 docs(d2): add luna continuous delivery goal`，无未提交代码变更。
-- 结论：P0 PASS，进入 P1 D2-A2-1；未接触真实 workspace、数据库、provider 或凭据。
+- 当前事实基线为 `34af053 docs(d2): align handoff head`；D2-A2-1～A3-1 已有代码完成，D2-A3-2A/B 主要 slice 已完成。
+- 结论：总 Handoff 已进入 D2-A3-2A/B 收口；未接触真实 workspace、数据库、provider 或凭据。
 
 ## 2026-07-13
 
 - 核实 M5-A0～A4 已完成，M5 状态为 `completed`。
-- 核实 D2-A0、D2-A1-2 已完成，D2-A2-1 只有施工资料、尚无代码。
-- 从 capability registry 与真实 CLI report 核实 8 个聚合项、36 个 operation、6 个 `blockedIds`。
+- 核实 D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1 已完成；D2-A3-2A/B 仍有 Character delete 收口缺口。
+- 从 capability registry 与真实 CLI report 核实 8 个聚合项、36 个 operation、4 个 `blockedIds`。
 - 核实 `db:import --kind final` 仍 fail-closed，`db:activate` package script/实现尚不存在。
 - 读取 G1 Repository、Layout/Export、Outbox/Delete、Secret、ACT/RB 与 C0～C7 验收口径。
 - 已编写总 Handoff、总目标、全量剩余工作、实施契约、测试矩阵、文件地图和自动续跑协议。
 - 已同步现行路线、G3-M 依赖/验收、备份激活文档、A2-1 Handoff、AI 上下文入口和 README。
-- capability 真实 CLI 复核为 8/36/6；36 operation、8 capability、P0～P12、frontmatter/doc_id 与 stale 状态扫描通过。
+- capability 真实 CLI 复核为 8/36/4；36 operation、8 capability、P0～P12、frontmatter/doc_id 与 stale 状态扫描通过。
 - `git diff --check` 通过；静态结论为 `passed_for_luna_continuous_execution`。
 - 已更新会话记忆与长期记忆；待创建本总资料独立 commit。
 
@@ -62,3 +62,9 @@ source: 本总目标编制过程
 - `complete_chapter_images` 已接入 DB：有效 current preflight + 全镜 current lock 后以 Chapter CAS 推进 `images_done`；Character delete 仍受 Outbox 约束未开放。
 - 本片回归：定向 30/30、server 相关 371 条通过；默认 Vitest 5 秒阈值下 3 条已有 G1/M5 慢测超时，使用 30 秒阈值复核为 G1 12/12、M5 33/33 全通过，非本片断言回归。
 - 参考图旧入口已合规 retired：`ensure_character_previews`、`generate_character_reference`、`generate_scene_reference` 均稳定 409 并指向 queue replacement；新增 P4-LEGACY-01，定向 31/31。
+
+## 当前接管点（2026-07-13）
+
+- 当前 HEAD 为 `34af053`；scene queue、CandidateLock、images_done 和旧参考图入口退役均已独立提交并复核。
+- 继续施工的第一优先级是 `delete_character_reference` 的 DB intent 边界；物理清理必须等 P8 Outbox consumer，不能提前把 capability 改绿。
+- Luna 直接按 `luna_execution_brief.md` 执行 P5→P12；P6/P7 可在 Character delete 保持 partial 时继续，但 P8 必须回头补齐 Character delete 并让 `blockedIds=[]`。

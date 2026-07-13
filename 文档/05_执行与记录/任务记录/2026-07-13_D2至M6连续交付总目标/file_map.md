@@ -165,6 +165,7 @@ apps/server/src/migration/cutover-rehearsal.integration.spec.ts
 | 路径 | 用途 |
 | --- | --- |
 | 本目录 `execution_status.md` | 连续阶段状态、commit、证据索引 |
+| 本目录 `luna_execution_brief.md` | Luna 直接执行的阶段顺序、退出条件、固定门禁和停止边界 |
 | 本目录 `stage-notes/` | Luna 按需创建每阶段简短实现/复核记录 |
 | `文档/04_方案与决策/` | 新 ADR 或路线更新 |
 | `文档/05_执行与记录/功能完成记录/` | D2、M6 tooling 完成记录 |

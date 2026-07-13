@@ -21,8 +21,8 @@ source: D2 至 M6 连续交付总资料、当前代码与 active 文档
 | 项目 | 复核结论 |
 | --- | --- |
 | M5 状态 | A0～A4 completed，未误写为当前施工阶段 |
-| D2 状态 | A0/A1 completed；A2-1 docs ready、代码未实现 |
-| capability | 真实 CLI 为 8 capabilities、36 operations、6 blockedIds |
+| D2 状态 | A0/A1/A2-1/A2-2/A3-1 completed；A3-2A/B 已完成主要 slice，Character delete 仍待 Outbox |
+| capability | 真实 CLI 为 8 capabilities、36 operations、4 blockedIds |
 | 已绿项 | Task、Settings/SecretStore |
 | final importer | 仍 fail-closed |
 | activate | package script/实现尚不存在 |
@@ -31,7 +31,7 @@ source: D2 至 M6 连续交付总资料、当前代码与 active 文档
 ## 3. 覆盖核对
 
 - 36 个 operation 均能在 `remaining_work.md` 找到：35 个剩余/阶段项 + 已完成的 `generation_task_create` 基线回归项。
-- 6 个 blocker 的下降里程碑为 6→6→5→4→4→3→2→1→0，聚合状态不会被子阶段提前放绿。
+- 当前 4 个 blocker 的下降由真实 capability report 驱动；Character delete 因 Outbox 依赖可延后至 P8 收口，禁止提前改数字。
 - D2-A2～A8、final importer、ready coordinator、M6 tooling、ACT/RB 和 R1 真实切换均有唯一阶段。
 - 旧危险操作没有用“返回 409”冒充 implemented；`retired` 必须绑定 replacement 和双向证据。
 - 旧 active 路线、G3-M 依赖文档、备份激活文档、Luna 验收入口与 A2-1 Handoff 已同步连续执行语义。
@@ -48,7 +48,7 @@ source: D2 至 M6 连续交付总资料、当前代码与 active 文档
 
 | 检查 | 结果 |
 | --- | --- |
-| capability CLI JSON | 8 / 36 / 6，blockedIds 与 Handoff 完全一致 |
+| capability CLI JSON | 8 / 36 / 4，blockedIds 与 Handoff 完全一致 |
 | operation 文档覆盖 | 36/36 |
 | capability 名称覆盖 | 8/8 |
 | P0～P12 状态表 | 完整 |
@@ -59,8 +59,8 @@ source: D2 至 M6 连续交付总资料、当前代码与 active 文档
 
 ## 6. 非阻塞说明
 
-- 本轮只编写和校正文档，没有实现 D2 代码，因此未运行 server 全量测试。
-- A2-2 的具体 replacement endpoint 名称由 Luna 在阶段内根据现有 API 选择；实施契约已经冻结“不删历史、不回退 milestone、retired 必须覆盖用户意图”的边界，不需要用户逐步确认。
+- 本轮资料编制之外，D2-A2-1～A3-2A/B 代码已经连续推进并有独立提交；当前 server 全量 54 文件/372 测试在 30 秒阈值下通过。
+- Character delete 依赖 P8 Outbox consumer；在 P8 之前只能实现/测试 DB intent 边界，不能提前修改 capability 数字。
 - 真实 cutover 仍需要当时的真实根、维护窗口、release commit 和回滚责任信息；由 P12 `real_cutover_handoff.md` 集中收集。
 
 ## 7. 领取结论

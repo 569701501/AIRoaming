@@ -14,15 +14,15 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 
 | 阶段 | 核心结果 | blocker 预期 |
 | --- | --- | ---: |
-| P0 基线 | 确认 HEAD、6 blocker、测试基线和临时根 | 6 |
-| P1 D2-A2-1 | Project metadata、ensure chapter、AI pending、Outline、Web G2 Script | 6 |
-| P2 D2-A2-2 | clear/import/reset 安全语义与旧操作退役机制 | 5 |
-| P3 D2-A3-1 | Story/Storyboard/Preflight 公开 DB 闭环 | 4 |
-| P4 D2-A3-2A | Character/Scene identity、queue/worker、Asset/Visual、公开确认；旧同步 generate、ensure、delete 仍待收口 | 4 |
-| P5 D2-A3-2B | CandidateLock、complete images 已完成；待完成 Character/Scene 同步入口退役/替换与 delete 边界后聚合收口 | 3 |
-| P6 D2-A4 | Layout/Export DB-only | 2 |
-| P7 D2-A5 | Dialogue runtime DB 事实源 | 1 |
-| P8 D2-A6 | Project delete、Outbox consumer、五 handler | 0 |
+| P0 基线 | 已完成；当前基线为 HEAD `34af053`、4 blocker、测试基线和临时根 | 4 |
+| P1 D2-A2-1 | 已完成：Project metadata、ensure chapter、AI pending、Outline、Web G2 Script | 4 |
+| P2 D2-A2-2 | 已完成：clear/import/reset 安全语义与旧操作退役机制 | 4 |
+| P3 D2-A3-1 | 已完成：Story/Storyboard/Preflight 公开 DB 闭环 | 4 |
+| P4 D2-A3-2A | Character/Scene identity、queue/worker、Asset/Visual、公开确认；旧同步 generate/ensure 已 retired，delete 进入 Outbox 依赖 | 4 |
+| P5 D2-A3-2B | CandidateLock、complete images、旧参考图入口退役已完成；Character delete 只剩 DB intent 边界，物理清理由 P8 Outbox 收口 | 4（依赖 P8 才降） |
+| P6 D2-A4 | Layout/Export DB-only；Character delete 未闭合时 blocker 保持 3 | 3（或已提前闭合时 2） |
+| P7 D2-A5 | Dialogue runtime DB 事实源；Character delete 未闭合时 blocker 保持 2 | 2（或已提前闭合时 1） |
+| P8 D2-A6 | Project delete、Outbox consumer、五 handler，并回补 Character delete | 0 |
 | P9 D2-A7 | full final importer、verify、ready coordinator | 0 |
 | P10 D2-A8 | 双 fresh/replay/WIT/secret/capability 总证据 | 0 |
 | P11 M6 tooling | activate/cutover/rollback 实现与隔离 C0～C7 演练 | 0 |
@@ -35,7 +35,7 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 
 - 确认工作树无未识别改动；只保留用户已有改动，不得覆盖。
 - 记录 `git rev-parse HEAD`。
-- 执行 capability report，断言 8 个聚合项、36 个 operation、6 个 `blockedIds`。
+- 执行 capability report，断言 8 个聚合项、36 个 operation、当前 4 个 `blockedIds`；后续只接受真实 report 的下降。
 - 确认第 36 个操作 `generation_task_create` 已由 `task_create_claim_complete_cancel_recover` 的公开 DB guard 证据完成；后续阶段只做回归，不得改回 partial/unsupported。
 - 确认 `db:import --kind final` 仍在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`。
 - 确认 package scripts 尚无 `db:activate`，作为后续实现基线。
@@ -212,8 +212,9 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 
 当前退出条件：
 
-- 上述 P4 剩余 operation 必须 implemented 或合规 retired；Character delete 需等 Outbox consumer。
-- `character_scene_asset_candidate_lock` 才可绿，`blockedIds` 才能从 4 精确降至 3。
+- CandidateLock、complete images 和旧同步入口已具备真实证据；Character delete 仍需 Outbox consumer 的物理清理证据。
+- 在 P8 之前保持 `character_scene_asset_candidate_lock=partial`、`blockedIds=4` 是正确状态；不得为了推进 P6/P7 先改 registry 数字。
+- P8 完成 Outbox 后必须回头补 `delete_character_reference` evidence，届时该 capability 才能绿；如果 P6/P7 已完成，blockedIds 会按真实 capability report 一次降至 0。
 
 ## 7. P6：D2-A4 Layout/Export
 

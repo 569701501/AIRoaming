@@ -14,21 +14,18 @@ source: M5 完成证据、D2-A0/A1 完成证据、当前 capability registry、G
 
 这是一个连续目标，不是“只做下一小步”的任务。
 
-Luna 从当前仓库事实出发，连续完成：
+Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工作：
 
 ```text
-D2-A2-1
-  -> D2-A2-2
-    -> D2-A3-1
-      -> D2-A3-2A
-        -> D2-A3-2B
-          -> D2-A4
-            -> D2-A5
-              -> D2-A6
-                -> D2-A7
-                  -> D2-A8
-                    -> M6 工具实现与全隔离 C0～C7 演练
-                      -> ready_for_real_cutover_authorization
+已完成：D2-A2-1 -> D2-A2-2 -> D2-A3-1
+  -> 当前：D2-A3-2A/B 收口（Character delete intent；物理清理由 A6 Outbox 完成）
+    -> D2-A4
+      -> D2-A5
+        -> D2-A6（Outbox + Project delete，并回补 Character delete）
+          -> D2-A7
+            -> D2-A8
+              -> M6 工具实现与全隔离 C0～C7 演练
+                -> ready_for_real_cutover_authorization
 ```
 
 每个阶段完成后必须自测、做 Scrutiny Review、做适用的临时根 Runtime Review、更新文档并独立提交；全部通过后自动领取下一阶段，不等待用户逐步回复。
@@ -40,14 +37,14 @@ D2-A2-1
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前代码 HEAD | `e90bbab`；D2-A3-2A/B 已连续推进至 scene queue、CandidateLock、images_done 与旧参考图入口退役 |
+| 当前代码 HEAD | `34af053`；D2-A3-2A/B 已连续推进至 scene queue、CandidateLock、images_done 与旧参考图入口退役 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
 | D2-A2-1 | `1f22861` completed |
 | D2-A2-2 | `077762d` completed |
 | D2-A3-1 | `9087115` completed |
-| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 已实现；ensure/generate 同步旧入口与 Character delete 仍待收口 |
+| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 已实现；ensure/generate 旧入口已 retired；仅 Character delete 仍待 Outbox 收口 |
 | required capability blocker | 4 个 |
 | final importer | 未实现；`db:import --kind final` 固定 fail-closed |
 | `db:activate` | 未实现 |
@@ -84,16 +81,17 @@ D2-A2-1
 开始前完整阅读：
 
 1. 本文件。
-2. `master_goal.md`。
-3. `remaining_work.md`。
-4. `implementation_contract.md`。
-5. `test_matrix.md`。
-6. `file_map.md`。
-7. `autonomy_protocol.md`。
-8. `文档/04_方案与决策/2026-07-13_G3-D2与M6推进路线.md`。
-9. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 中 Repository、Layout/Export、Outbox/Delete、Secret、C0～C7、ACT/RB 部分。
-10. `文档/04_方案与决策/2026-07-12_G3-M施工包_备份恢复与DB-only激活.md`。
-11. 当前阶段对应的既有施工资料；当前继续读取 `../2026-07-13_D2-A3-2A场景参考任务持久化/`、`../2026-07-13_D2-A3-2A候选锁定持久化/`、`../2026-07-13_D2-A3-2A章节图像完成状态/`。
+2. `luna_execution_brief.md`（直接施工清单）。
+3. `master_goal.md`。
+4. `remaining_work.md`。
+5. `implementation_contract.md`。
+6. `test_matrix.md`。
+7. `file_map.md`。
+8. `autonomy_protocol.md`。
+9. `文档/04_方案与决策/2026-07-13_G3-D2与M6推进路线.md`。
+10. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 中 Repository、Layout/Export、Outbox/Delete、Secret、C0～C7、ACT/RB 部分。
+11. `文档/04_方案与决策/2026-07-12_G3-M施工包_备份恢复与DB-only激活.md`。
+12. 当前阶段对应的既有施工资料；当前继续读取 `../2026-07-13_D2-A3-2A场景参考任务持久化/`、`../2026-07-13_D2-A3-2A候选锁定持久化/`、`../2026-07-13_D2-A3-2A章节图像完成状态/`。
 
 ## 5. 连续执行权限
 
@@ -146,13 +144,11 @@ D2-A2-1
 
 | 阶段 | 允许的 `blockedIds` 数量 | 允许移除的 capability |
 | --- | ---: | --- |
-| 基线 | 6 | 无 |
-| D2-A2-1 | 6 | 无；只更新已真实完成的 operation |
-| D2-A2-2 | 5 | `project_chapter_script` |
-| D2-A3-1 | 4 | `outline_story_storyboard_preflight` |
-| D2-A3-2A/B 全部完成 | 3 | `character_scene_asset_candidate_lock` |
-| D2-A4 | 2 | `layout_export` |
-| D2-A5 | 1 | `dialogue_pending_runtime` |
+| 当前基线 | 4 | 无；以真实 CLI 为准 |
+| D2-A2-1/A2-2/A3-1 | 4 | 已完成，不回退已绿 capability |
+| D2-A3-2A/B 功能切片 | 4 | Character delete 受 Outbox 依赖，暂不移除 capability |
+| D2-A4 | 3（若 delete 未闭合） | `layout_export` |
+| D2-A5 | 2（若 delete 未闭合） | `dialogue_pending_runtime` |
 | D2-A6 | 0 | `project_delete_outbox` |
 | D2-A7/A8/M6 | 0 | 不得重新增加 blocker |
 
@@ -162,7 +158,7 @@ D2-A2-1
 
 只有同时满足以下条件，Luna 才可结束连续开发目标：
 
-- [ ] D2-A2～A6 的公开 DB 用户路径全部闭合，6 个 blocker 按表逐步降为 0。
+- [ ] D2-A2～A6 的公开 DB 用户路径全部闭合，当前 4 个 blocker 按真实 capability report 降为 0。
 - [ ] 36 个登记操作均为有证据的 `implemented`，或为有明确 replacement、退役理由和拒绝测试的 `retired`；不得用拒绝冒充 implemented。
 - [ ] DB-only 运行时不再把旧 JSON/Markdown 当业务事实源；Asset/导出物字节仍可保留为受控物理文件边界。
 - [ ] final importer 覆盖既有 16 slice，产生权威 `MigrationRun(kind=final,status=succeeded)`，并完成 final verification。
