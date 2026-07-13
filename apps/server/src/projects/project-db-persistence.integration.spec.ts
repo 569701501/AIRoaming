@@ -692,6 +692,64 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).primaryVisualId).toBeTruthy();
   }, 20_000);
 
+  it("P5-CHAR-DELETE-01: records an idempotent asset.delete intent without physical deletion", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P5 角色删除意图", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const character = await prisma.character.create({ data: { id: randomUUID(), projectId: project.id, name: "待清理角色", normalizedName: "待清理角色", role: "配角", level: "chapter", entityType: "human", status: "draft", appearance: "灰衣", personality: "谨慎", promptFragment: "灰衣角色", source: "manual" } });
+    const queued = await projects.queueCharacterReference(project.id, character.id, { referenceKind: "preview_front", prompt: "删除意图测试" });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("character_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+    await worker.runOnce("character-delete-worker");
+    const asset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: queued.tasks[0]!.id } });
+    const visual = await prisma.characterVisual.findFirstOrThrow({ where: { characterId: character.id, assetId: asset.id } });
+    const first = await projects.deleteCharacterReference(project.id, character.id, asset.id);
+    expect(first).toMatchObject({ deletedAssetId: asset.id, cleanupStatus: "pending", cleanupEventId: expect.any(String) });
+    expect(first.character.previewReferenceAssetId).toBeNull();
+    expect(first.character.referenceAssetIds).not.toContain(asset.id);
+    expect(await prisma.characterVisual.findUniqueOrThrow({ where: { id: visual.id } })).toMatchObject({ status: "removed" });
+    expect(await prisma.asset.findUniqueOrThrow({ where: { id: asset.id } })).toMatchObject({ status: "deleting", deletingAt: expect.any(Date) });
+    const event = await prisma.outboxEvent.findUniqueOrThrow({ where: { id: first.cleanupEventId! } });
+    expect(event).toMatchObject({ eventType: "asset.delete", aggregateType: "asset", aggregateId: asset.id, status: "pending", attempt: 0, maxAttempts: 3, idempotencyKey: `asset.delete:${asset.id}:${asset.sha256}:explicit_delete` });
+    expect(event.payloadJson).toMatchObject({ schemaVersion: 1, assetId: asset.id, projectId: project.id, chapterId: null, storageKey: asset.storageKey, expectedSha256: asset.sha256, reason: "explicit_delete" });
+    await expect(readFile(path.join(workspaceRoot, asset.storageKey))).resolves.toEqual(png);
+
+    const replay = await projects.deleteCharacterReference(project.id, character.id, asset.id);
+    expect(replay.cleanupEventId).toBe(first.cleanupEventId);
+    expect(await prisma.outboxEvent.count({ where: { aggregateId: asset.id, eventType: "asset.delete" } })).toBe(1);
+  }, 20_000);
+
+  it("P5-CHAR-DELETE-02: rejects deleting an in-use primary visual", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P5 角色锁定删除", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const character = await prisma.character.create({ data: { id: randomUUID(), projectId: project.id, name: "锁定角色", normalizedName: "锁定角色", role: "主角", level: "chapter", entityType: "human", status: "draft", appearance: "黑衣", personality: "坚决", promptFragment: "黑衣角色", source: "manual" } });
+    const queued = await projects.queueCharacterReference(project.id, character.id, { referenceKind: "preview_front", prompt: "锁定删除测试" });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("character_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+    await worker.runOnce("character-lock-delete-worker");
+    const previewAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: queued.tasks[0]!.id } });
+    const previewConfirmed = await projects.confirmCharacterPreview(project.id, character.id, { assetId: previewAsset.id });
+    await worker.runOnce("character-lock-delete-final-worker");
+    const finalTaskId = previewConfirmed.tasks[0]!.id;
+    const finalAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: finalTaskId } });
+    await projects.confirmCharacterReference(project.id, character.id, { assetId: finalAsset.id });
+    const asset = finalAsset;
+    const visual = await prisma.characterVisual.findFirstOrThrow({ where: { characterId: character.id, assetId: asset.id } });
+    await prisma.character.update({ where: { id: character.id }, data: { status: "in_use", rowVersion: { increment: 1 } } });
+    await expect(projects.deleteCharacterReference(project.id, character.id, asset.id)).rejects.toMatchObject({ message: "PROJECT_CHARACTER_IN_USE_LOCKED" });
+    expect(await prisma.outboxEvent.count({ where: { eventType: "asset.delete", aggregateId: asset.id } })).toBe(0);
+    expect(await prisma.asset.findUniqueOrThrow({ where: { id: asset.id } })).toMatchObject({ status: "ready" });
+  }, 20_000);
+
   it("P4-CHAR-08: promotes a DB scene reference through SceneVisual with a fake handler", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code).toBe(0);

@@ -1085,7 +1085,7 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         const result = await api.deleteCharacterReference(projectId, characterId, assetId);
         this.applyProjectCharactersUpdate(result.characters, result.assets);
-        this.dialogueNotice = "已删除当前角色图版本。";
+        this.dialogueNotice = result.cleanupStatus === "pending" ? "已提交删除，物理文件将由后台安全清理。" : "已删除当前角色图版本。";
         return result.character;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "删除角色图失败";

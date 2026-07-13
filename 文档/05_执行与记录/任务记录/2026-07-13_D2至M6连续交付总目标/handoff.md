@@ -44,7 +44,7 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | D2-A2-1 | `1f22861` completed |
 | D2-A2-2 | `077762d` completed |
 | D2-A3-1 | `9087115` completed |
-| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 已实现；ensure/generate 旧入口已 retired；仅 Character delete 仍待 Outbox 收口 |
+| D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 与 Character delete intent 已实现；ensure/generate 旧入口已 retired；物理清理仍待 Outbox 收口 |
 | required capability blocker | 4 个 |
 | final importer | 未实现；`db:import --kind final` 固定 fail-closed |
 | `db:activate` | 未实现 |

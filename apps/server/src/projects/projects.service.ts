@@ -49,6 +49,7 @@ import {
   type ConfirmChapterStoryboardRequest,
   type ConfirmChapterStoryStructureRequest,
   type ConfirmCharacterReferenceRequest,
+  type DeleteCharacterReferenceResponse,
   type ConfirmChapterImagePreflightRequest,
   type CompleteChapterRequest,
   type CompleteChapterResponse,
@@ -469,8 +470,8 @@ export class ProjectsService implements OnModuleInit {
 
   async deleteCharacterReference(projectId: string,
     characterId: string,
-    assetId: string,) : Promise<SaveProjectCharacterResponse & { deletedAssetId: string }> {
-    this.repository.assertDatabaseOperationSupported("delete_character_reference");
+    assetId: string,) : Promise<DeleteCharacterReferenceResponse> {
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("delete_character_reference");
     return this.characterRef.deleteCharacterReference(projectId, characterId, assetId);
   }
 

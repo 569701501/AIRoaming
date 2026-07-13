@@ -698,6 +698,8 @@ export interface SaveProjectCharacterResponse extends ProjectCharactersResponse 
 export interface DeleteCharacterReferenceResponse extends ProjectCharactersResponse {
   character: ProjectCharacter;
   deletedAssetId: string;
+  cleanupStatus: "pending" | "processed";
+  cleanupEventId: string | null;
 }
 
 export interface ResolveImagePreflightCharacterResponse extends ProjectCharactersResponse {

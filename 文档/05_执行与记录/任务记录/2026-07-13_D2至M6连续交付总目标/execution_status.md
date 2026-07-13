@@ -28,7 +28,7 @@ source: 连续执行总 Handoff
 | P2 D2-A2-2 | passed | `077762d` | 20 targeted + 54 files/361 tests | 361/361 | PASS | PASS | 7 retired operations; blockedIds=5 |
 | P3 D2-A3-1 | passed | `9087115` | 21 targeted + 54 files/362 tests | 362/362 | PASS | PASS | 7 retired operations; blockedIds=4 |
 | P4 D2-A3-2A | passed | `e80b8ee`…`34af053` | 30 targeted + 54 files/371 tests | 371/371 | PASS | PASS | scene queue/source projection、worker、visual confirm 已通过 |
-| P5 D2-A3-2B | in_progress | `9b097ed`…`34af053` | 31 targeted + 54 files/372 tests | 372/372 | PASS | PASS | CandidateLock/images_done/旧入口 retired 已通过；Character delete intent/Outbox 依赖仍待收口 |
+| P5 D2-A3-2B | passed_for_intent_boundary | pending commit | 33 targeted + 54 files/374 tests（全量命令显式 30s） | PASS | PASS | PASS | Character delete intent 已通过；Outbox consumer/物理清理仍属于 P8，capability 保持 partial |
 | P6 D2-A4 | pending | - | - | - | - | - | - |
 | P7 D2-A5 | pending | - | - | - | - | - | - |
 | P8 D2-A6 | pending | - | - | - | - | - | - |

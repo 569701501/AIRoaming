@@ -9,6 +9,7 @@ import {
   type ConfirmCharacterPreviewRequest,
   type ConfirmCharacterPreviewResponse,
   type ConfirmCharacterReferenceRequest,
+  type DeleteCharacterReferenceResponse,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
   type GenerateCharacterReferenceRequest,
@@ -896,7 +897,124 @@ export class CharacterReferenceService {
     return { ...this.toProjectCharactersResponse(nextProject), character: nextCharacter };
   }
 
-  async deleteCharacterReference(projectId: string, characterId: string, assetId: string): Promise<SaveProjectCharacterResponse & { deletedAssetId: string }> {
+  private async deleteCharacterReferenceInDatabase(projectId: string, characterId: string, assetId: string): Promise<DeleteCharacterReferenceResponse> {
+    const database = this.prismaService.database();
+    const result = await database.$transaction(async (tx) => {
+      const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true, lifecycleStatus: true } });
+      if (!project || project.lifecycleStatus !== "active") {
+        throw new NotFoundException("PROJECT_NOT_FOUND");
+      }
+      const character = await tx.character.findFirst({ where: { id: characterId, projectId } });
+      if (!character) {
+        throw new NotFoundException("PROJECT_CHARACTER_NOT_FOUND");
+      }
+      const visual = await tx.characterVisual.findFirst({ where: { characterId, assetId } });
+      if (!visual) {
+        throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
+      }
+      const asset = await tx.asset.findFirst({ where: { id: assetId, projectId } });
+      if (!asset) {
+        throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
+      }
+      if (asset.type !== "image" || asset.role !== "character_reference") {
+        throw new BadRequestException("CHARACTER_REFERENCE_ASSET_TYPE_INVALID");
+      }
+      if (character.status === "in_use" && character.primaryVisualId === visual.id) {
+        throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+      }
+      if (!['ready', 'missing', 'deleting'].includes(asset.status) || !asset.sha256 || !/^sha256:[0-9a-f]{64}$/.test(asset.sha256)) {
+        throw new BadRequestException("CHARACTER_REFERENCE_ASSET_NOT_READY");
+      }
+
+      const [candidateCount, bindingCount, exportArtifactCount] = await Promise.all([
+        tx.candidate.count({ where: { assetId, projectId } }),
+        tx.layoutSourceBinding.count({ where: { assetId } }),
+        tx.exportArtifact.count({ where: { assetId } }),
+      ]);
+      if (candidateCount > 0 || bindingCount > 0 || exportArtifactCount > 0) {
+        throw new BadRequestException("CHARACTER_REFERENCE_HISTORY_REFERENCED");
+      }
+
+      const expectedSha256 = asset.sha256;
+      const idempotencyKey = `asset.delete:${asset.id}:${expectedSha256}:explicit_delete`;
+      const existing = await tx.outboxEvent.findUnique({ where: { idempotencyKey } });
+      if (existing?.status === "failed") {
+        throw new BadRequestException("CHARACTER_REFERENCE_DELETE_OUTBOX_FAILED");
+      }
+      if (!existing) {
+        const now = new Date();
+        const nextPrimaryVisualId = character.primaryVisualId === visual.id ? null : character.primaryVisualId;
+        const nextPreviewVisualId = character.previewVisualId === visual.id ? null : character.previewVisualId;
+        const remainingPrimaryVisual = nextPrimaryVisualId
+          ? await tx.characterVisual.findUnique({ where: { id: nextPrimaryVisualId }, select: { kind: true } })
+          : null;
+        const nextPrimaryKind = nextPrimaryVisualId
+          ? this.normalizeCharacterReferenceKind(remainingPrimaryVisual?.kind ?? "none")
+          : this.defaultReferenceKindForLevel(this.normalizeCharacterLevel(character.level));
+        const nextStatus = this.resolveCharacterStatusForReference(
+          this.normalizeCharacterLevel(character.level),
+          nextPrimaryVisualId ? character.primaryVisualId : null,
+          false,
+          nextPrimaryKind,
+        );
+        await tx.character.update({
+          where: { id: character.id },
+          data: {
+            previewVisualId: nextPreviewVisualId,
+            primaryVisualId: nextPrimaryVisualId,
+            status: nextStatus,
+            finalizedAt: nextPrimaryVisualId ? character.finalizedAt : null,
+            rowVersion: { increment: 1 },
+            updatedAt: now,
+          },
+        });
+        await tx.characterVisual.update({ where: { id: visual.id }, data: { status: "removed" } });
+        if (asset.status !== "deleting") {
+          await tx.asset.update({ where: { id: asset.id }, data: { status: "deleting", deletingAt: now, updatedAt: now } });
+        }
+        const payload = {
+          schemaVersion: 1,
+          assetId: asset.id,
+          projectId,
+          chapterId: asset.chapterId,
+          storageKey: asset.storageKey,
+          expectedSha256,
+          reason: "explicit_delete",
+        } as const;
+        const created = await tx.outboxEvent.create({
+          data: {
+            eventType: "asset.delete",
+            aggregateType: "asset",
+            aggregateId: asset.id,
+            payloadJson: payload,
+            payloadSchemaVersion: 1,
+            payloadDigest: digestCanonicalJson(payload),
+            status: "pending",
+            attempt: 0,
+            maxAttempts: 3,
+            idempotencyKey,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+        return { eventId: created.id, status: created.status as "pending" | "processed" };
+      }
+      return { eventId: existing.id, status: existing.status === "processed" ? "processed" as const : "pending" as const };
+    });
+    const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+    return {
+      ...this.toProjectCharactersResponse(refreshed),
+      character: this.findProjectCharacter(refreshed, characterId),
+      deletedAssetId: assetId,
+      cleanupStatus: result.status,
+      cleanupEventId: result.eventId,
+    };
+  }
+
+  async deleteCharacterReference(projectId: string, characterId: string, assetId: string): Promise<DeleteCharacterReferenceResponse> {
+    if (this.isDatabaseMode()) {
+      return this.deleteCharacterReferenceInDatabase(projectId, characterId, assetId);
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use" && character.primaryReferenceAssetId === assetId) {
@@ -927,7 +1045,7 @@ export class CharacterReferenceService {
     await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     await this.removeProjectAssetFile(project, asset);
-    return { ...this.toProjectCharactersResponse(nextProject), character: nextCharacter, deletedAssetId: asset.id };
+    return { ...this.toProjectCharactersResponse(nextProject), character: nextCharacter, deletedAssetId: asset.id, cleanupStatus: "processed", cleanupEventId: null };
   }
 
   async getProjectAssetFile(projectId: string, assetId: string): Promise<ProjectAssetFile> {

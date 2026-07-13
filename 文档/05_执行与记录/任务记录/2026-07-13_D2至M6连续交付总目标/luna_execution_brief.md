@@ -52,7 +52,7 @@ project_delete_outbox
 - 公开 API 返回稳定的 pending/accepted 语义；物理删除只能由 P8 Outbox handler 完成。
 - 补“当前视觉删除、主视觉锁定、历史引用保护、重复请求、响应丢失、旧 workspace 隔离”测试。
 
-退出条件：业务测试和契约准备好，但 capability 可保持 `partial`；不得修改 blocker 数字。若为实现 intent 需要 Outbox 共用 repository，可先建立最小 substrate，仍不能跳过 P6/P7，也不能提前将 `delete_character_reference` 标为 implemented。
+退出条件：P5 intent 测试和契约通过后，记录为 `passed_for_intent_boundary`，立即进入 P6；capability 保持 `partial`，不得修改 blocker 数字。物理删除、processed fencing 和 `delete_character_reference` 的最终 evidence 统一在 P8 Outbox 完成后回补。
 
 ### P6：Layout/Export DB-only
 

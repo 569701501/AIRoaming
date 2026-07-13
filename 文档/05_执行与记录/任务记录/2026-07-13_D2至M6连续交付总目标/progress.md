@@ -68,3 +68,10 @@ source: 本总目标编制过程
 - 当前 HEAD 为 `34af053`；scene queue、CandidateLock、images_done 和旧参考图入口退役均已独立提交并复核。
 - 继续施工的第一优先级是 `delete_character_reference` 的 DB intent 边界；物理清理必须等 P8 Outbox consumer，不能提前把 capability 改绿。
 - Luna 直接按 `luna_execution_brief.md` 执行 P5→P12；P6/P7 可在 Character delete 保持 partial 时继续，但 P8 必须回头补齐 Character delete 并让 `blockedIds=[]`。
+
+## P5 Character delete intent（2026-07-13）
+
+- DB 删除入口已从 unsupported guard 切换为事务 intent：Character current/preview 解引用、CharacterVisual→removed、Asset→deleting、`asset.delete` OutboxEvent 同事务提交。
+- 保护规则覆盖 active project、同 scope、image/character_reference、sha256、Candidate/LayoutSourceBinding/ExportArtifact 历史引用和 in_use 主视觉。
+- 新增 `P5-CHAR-DELETE-01/02`；fresh SQLite + 临时 workspace 通过，证明唯一 event、重复请求、物理文件不变和锁定拒绝。
+- P5 仍不更新 capability registry；物理删除与 processed fencing 由 P8 Outbox consumer 完成后再回补 evidence。

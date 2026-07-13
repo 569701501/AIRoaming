@@ -14,6 +14,7 @@ import type {
   ConfirmChapterStoryboardRequest,
   CreateProjectRequest,
   ClearChapterScriptResponse,
+  DeleteCharacterReferenceResponse,
   DeleteProjectResponse,
   DiscardChapterPendingSourceResponse,
   DialogueStreamEvent,
@@ -325,7 +326,7 @@ export const api = {
     projectId: string,
     characterId: string,
     assetId: string,
-  ) => request<SaveProjectCharacterResponse & { deletedAssetId: string }>(
+  ) => request<DeleteCharacterReferenceResponse>(
     `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/references/${encodeURIComponent(assetId)}`,
     {
       method: "DELETE",
