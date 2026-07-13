@@ -62,6 +62,7 @@ describe("M5-A0 DB capability registry", () => {
     ]);
     expect(registry.filter((entry) => entry.writeStatus === "implemented").map((entry) => entry.id)).toEqual([
       "task_create_claim_complete_cancel_recover",
+      "settings_credential_secret_store",
     ]);
     expect(registry.filter((entry) => entry.readStatus === "implemented" || entry.writeStatus === "implemented")
       .every((entry) => entry.evidenceTestIds.length > 0)).toBe(true);
@@ -71,7 +72,6 @@ describe("M5-A0 DB capability registry", () => {
       "character_scene_asset_candidate_lock",
       "layout_export",
       "dialogue_pending_runtime",
-      "settings_credential_secret_store",
       "project_delete_outbox",
     ]);
   });
@@ -113,7 +113,8 @@ describe("M5-A0 DB capability registry", () => {
     expect(result.code).toBe(2);
     const payload = JSON.parse(result.stdout) as { code: string; blockedIds: string[] };
     expect(payload.code).toBe("MIGRATION_CAPABILITY_BLOCKED");
-    expect(payload.blockedIds).toContain("settings_credential_secret_store");
+    expect(payload.blockedIds).not.toContain("settings_credential_secret_store");
+    expect(payload.blockedIds).toHaveLength(6);
   });
 
   it("CAP-01 rejects malformed flags before any database initialization", async () => {

@@ -99,12 +99,16 @@ const entries: DbCapabilityEntry[] = [
   {
     id: "settings_credential_secret_store",
     ownerModule: "settings/secret-store",
-    readStatus: "unsupported",
-    writeStatus: "unsupported",
-    restartCovered: false,
+    readStatus: "implemented",
+    writeStatus: "implemented",
+    restartCovered: true,
     requiredForActivate: true,
-    evidenceTestIds: [],
-    blocker: "SettingsService still reads and writes app-settings.json; no SecretStore runtime exists.",
+    evidenceTestIds: [
+      "src/settings/settings.service.spec.ts#SEC-08 reloads image metadata and secret after a service restart while text key stays OpenCode-owned",
+      "src/settings/macos-keychain-secret-store.spec.ts#KEY-01/02 exercises the production adapter through an injected fake security executor",
+      "src/migration/credential-redactor.spec.ts#SEC-10 scans DB and workspace fixture bytes for secret sentinels",
+    ],
+    blocker: null,
   },
   {
     id: "project_delete_outbox",

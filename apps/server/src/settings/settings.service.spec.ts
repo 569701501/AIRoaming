@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open as openFile, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaService } from "../persistence/prisma.service.js";
-import { SettingsService } from "./settings.service.js";
+import { SettingsService, type AtomicSettingsFileOps, writeSettingsFileAtomically } from "./settings.service.js";
 import { FakeSecretStore } from "./secret-store.js";
 
 describe("D2-A1 SettingsService secret boundary", () => {
@@ -36,6 +36,7 @@ describe("D2-A1 SettingsService secret boundary", () => {
     await service.onModuleInit();
     const publicSettings = await service.getSettings();
     const persisted = await readFile(settingsPath, "utf8");
+    expect((await stat(settingsPath)).mode & 0o777).toBe(0o600);
     expect(persisted).not.toContain("airoaming-text-sentinel");
     expect(persisted).not.toContain("airoaming-image-sentinel");
     expect(publicSettings.aiKey).toMatchObject({ configured: true, keyPreview: null });
@@ -88,6 +89,80 @@ describe("D2-A1 SettingsService secret boundary", () => {
     const result = await service.updateSettings({ openaiImageProvider: { apiKey: "airoaming-update-sentinel" } });
     expect(result.openaiImageProvider).toMatchObject({ configured: true, keyPreview: null });
     expect((await readFile(path.join(workspaceRoot, "settings", "app-settings.json"), "utf8"))).not.toContain("airoaming-update-sentinel");
+  });
+
+  it("SEC-06 keeps the old bytes and removes the temporary file when rename fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-atomic-"));
+    roots.push(root);
+    const settingsPath = path.join(root, "settings", "app-settings.json");
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    const legacy = "{\"apiKey\":\"legacy-only-in-old-file\"}\n";
+    await writeFile(settingsPath, legacy, { encoding: "utf8", mode: 0o600 });
+    const operations: AtomicSettingsFileOps = {
+      mkdir,
+      open: openFile,
+      rename: async () => { throw new Error("RENAME_FAILED"); },
+      rm,
+    };
+    await expect(writeSettingsFileAtomically(settingsPath, "{\"configured\":true}\n", operations))
+      .rejects.toThrow("RENAME_FAILED");
+    expect(await readFile(settingsPath, "utf8")).toBe(legacy);
+    expect((await readdir(path.dirname(settingsPath))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("SEC-06 keeps the old bytes and removes the temporary file when writing fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-atomic-"));
+    roots.push(root);
+    const settingsPath = path.join(root, "settings", "app-settings.json");
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    const legacy = "{\"apiKey\":\"legacy-only-in-old-file\"}\n";
+    await writeFile(settingsPath, legacy, { encoding: "utf8", mode: 0o600 });
+    const operations: AtomicSettingsFileOps = {
+      mkdir,
+      open: async (temporary, flags, mode) => {
+        const handle = await openFile(temporary, flags, mode);
+        return {
+          writeFile: async () => {
+            await handle.writeFile("plaintext-that-must-not-survive", "utf8");
+            throw new Error("WRITE_FAILED");
+          },
+          sync: () => handle.sync(),
+          close: () => handle.close(),
+        };
+      },
+      rename: async () => { throw new Error("RENAME_MUST_NOT_RUN"); },
+      rm,
+    };
+    await expect(writeSettingsFileAtomically(settingsPath, "plaintext-that-must-not-survive", operations))
+      .rejects.toThrow("WRITE_FAILED");
+    expect(await readFile(settingsPath, "utf8")).toBe(legacy);
+    expect((await readdir(path.dirname(settingsPath))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("SEC-06 keeps the old bytes and removes the temporary file when fsync fails", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-atomic-"));
+    roots.push(root);
+    const settingsPath = path.join(root, "settings", "app-settings.json");
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    const legacy = "{\"apiKey\":\"legacy-only-in-old-file\"}\n";
+    await writeFile(settingsPath, legacy, { encoding: "utf8", mode: 0o600 });
+    const operations: AtomicSettingsFileOps = {
+      mkdir,
+      open: async (temporary, flags, mode) => {
+        const handle = await openFile(temporary, flags, mode);
+        return {
+          writeFile: (contents: string, encoding: "utf8") => handle.writeFile(contents, encoding),
+          sync: async () => { throw new Error("FSYNC_FAILED"); },
+          close: () => handle.close(),
+        };
+      },
+      rename: async () => { throw new Error("RENAME_MUST_NOT_RUN"); },
+      rm,
+    };
+    await expect(writeSettingsFileAtomically(settingsPath, "plaintext-that-must-not-survive", operations))
+      .rejects.toThrow("FSYNC_FAILED");
+    expect(await readFile(settingsPath, "utf8")).toBe(legacy);
+    expect((await readdir(path.dirname(settingsPath))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
   });
 
   it("SEC-08 persists image metadata in DB and reloads it after a Prisma restart", async () => {

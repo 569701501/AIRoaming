@@ -6,6 +6,7 @@ import type { DatabaseSync as NodeDatabaseSync } from "node:sqlite";
 import { digestCanonicalJson } from "@airoaming/shared";
 import { FULL_SHADOW_SLICE_ORDER } from "../migration/full-shadow-importer.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
+import { containsSecretSentinel } from "../migration/credential-redactor.js";
 import type { BackupAssetEntry, BackupManifest, BackupRunSummary } from "./backup.types.js";
 import { assertDisjointRoots, existingDirectory, existingRegularFile, isWithin, requireAbsolutePath, resolveStorageFile } from "./backup-path.js";
 
@@ -64,17 +65,6 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
 }
 
 function digestFile(bytes: Buffer): `sha256:${string}` { return (`sha256:${createHash("sha256").update(bytes).digest("hex")}`) as `sha256:${string}`; }
-
-const SECRET_SENTINEL = /airoaming-test-secret-[a-z0-9._:-]+|\bsk-[a-z0-9]{8,}\b|\bbearer\s+[a-z0-9._~+/=-]+/i;
-
-function containsSecretSentinel(value: unknown): boolean {
-  if (Buffer.isBuffer(value)) return SECRET_SENTINEL.test(value.toString("utf8"));
-  if (value instanceof Uint8Array) return SECRET_SENTINEL.test(Buffer.from(value).toString("utf8"));
-  if (typeof value === "string") return SECRET_SENTINEL.test(value);
-  if (Array.isArray(value)) return value.some(containsSecretSentinel);
-  if (value && typeof value === "object") return Object.values(value).some(containsSecretSentinel);
-  return false;
-}
 
 function quoteIdentifier(value: string): string { return `"${value.replaceAll('"', '""')}"`; }
 

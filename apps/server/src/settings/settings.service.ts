@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, OnModuleInit, Optional } from "@nestjs/common";
-import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
 import * as path from "node:path";
 import {
   APPEARANCE_THEMES,
@@ -81,6 +82,38 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
   doubao_image: "豆包图片生成",
   grok_image: "Grok 图片生成",
 };
+
+export interface AtomicSettingsFileOps {
+  mkdir(path: string, options: { recursive: true; mode: number }): Promise<string | undefined>;
+  open(path: string, flags: "wx", mode: number): Promise<Pick<FileHandle, "writeFile" | "sync" | "close">>;
+  rename(source: string, destination: string): Promise<void>;
+  rm(path: string, options: { force: true }): Promise<void>;
+}
+
+const DEFAULT_ATOMIC_SETTINGS_FILE_OPS: AtomicSettingsFileOps = { mkdir, open, rename, rm };
+
+export async function writeSettingsFileAtomically(
+  filePath: string,
+  contents: string,
+  operations: AtomicSettingsFileOps = DEFAULT_ATOMIC_SETTINGS_FILE_OPS,
+): Promise<void> {
+  const directory = path.dirname(filePath);
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+  let handle: Pick<FileHandle, "writeFile" | "sync" | "close"> | undefined;
+  await operations.mkdir(directory, { recursive: true, mode: 0o700 });
+  try {
+    handle = await operations.open(temporaryPath, "wx", 0o600);
+    await handle.writeFile(contents, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await operations.rename(temporaryPath, filePath);
+  } catch (error) {
+    await handle?.close().catch(() => undefined);
+    await operations.rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
@@ -271,8 +304,7 @@ export class SettingsService implements OnModuleInit {
       return;
     }
     const filePath = this.getSettingsFilePath();
-    await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, `${JSON.stringify(this.toPersistedSettings(settings), null, 2)}\n`, "utf8");
+    await writeSettingsFileAtomically(filePath, `${JSON.stringify(this.toPersistedSettings(settings), null, 2)}\n`);
   }
 
   private async prepareRuntimeSecrets(settings: StoredAppSettings, persistLegacy: boolean): Promise<StoredAppSettings> {

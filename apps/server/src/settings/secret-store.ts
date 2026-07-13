@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { inspect } from "node:util";
+import { promisify } from "node:util";
 
 const REDACTED = "[REDACTED]" as const;
 const SECRET_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -17,7 +19,7 @@ export interface SecretMetadata {
 
 export interface CredentialStoreHealth {
   available: boolean;
-  adapter: "fake" | "unavailable";
+  adapter: "fake" | "keychain" | "unavailable";
   reason: string | null;
 }
 
@@ -64,8 +66,132 @@ export function fingerprintSecret(secret: SecretString): `sha256:${string}` {
 }
 
 export class SecretStoreError extends Error {
-  constructor(readonly code: "SECRET_STORE_UNAVAILABLE" | "SECRET_STORE_ROOT_UNSAFE" | "SECRET_STORE_ENTRY_MISSING") {
+  constructor(readonly code:
+    | "SECRET_STORE_UNAVAILABLE"
+    | "SECRET_STORE_ROOT_UNSAFE"
+    | "SECRET_STORE_ENTRY_MISSING"
+    | "SECRET_STORE_OPERATION_FAILED"
+    | "SECRET_STORE_PROBE_FAILED") {
     super(code);
+  }
+}
+
+export interface SecretCommandResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+export interface SecretCommandExecutor {
+  run(file: string, args: readonly string[]): Promise<SecretCommandResult>;
+}
+
+const execFileAsync = promisify(execFile);
+
+class ProcessSecretCommandExecutor implements SecretCommandExecutor {
+  async run(file: string, args: readonly string[]): Promise<SecretCommandResult> {
+    try {
+      const result = await execFileAsync(file, [...args], { encoding: "utf8" });
+      return { code: 0, stdout: result.stdout, stderr: result.stderr };
+    } catch (error) {
+      const failure = error as { code?: number | string; stdout?: string; stderr?: string };
+      return {
+        code: typeof failure.code === "number" ? failure.code : 1,
+        stdout: failure.stdout ?? "",
+        stderr: failure.stderr ?? "",
+      };
+    }
+  }
+}
+
+/**
+ * macOS production adapter. Tests inject SecretCommandExecutor and therefore
+ * never invoke the user's real Keychain or the `security` binary.
+ */
+export class MacOSKeychainSecretStore implements SecretStore {
+  constructor(
+    private readonly executor: SecretCommandExecutor = new ProcessSecretCommandExecutor(),
+    private readonly service = "airoaming.image.credentials",
+    private readonly platform = process.platform,
+  ) {}
+
+  async put(input: { credentialId: string; secret: SecretString }): Promise<SecretMetadata> {
+    this.assertPlatform();
+    this.assertCredentialId(input.credentialId);
+    const result = await this.runSecurity([
+      "add-generic-password",
+      "-a",
+      input.credentialId,
+      "-s",
+      this.service,
+      "-w",
+      input.secret.reveal(),
+      "-U",
+    ]);
+    if (result.code !== 0) throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");
+    return {
+      credentialId: input.credentialId,
+      secretRef: `airoaming:image:v1:${randomUUID()}`,
+      fingerprint: fingerprintSecret(input.secret),
+      configured: true,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async get(credentialId: string): Promise<SecretString> {
+    this.assertPlatform();
+    this.assertCredentialId(credentialId);
+    const result = await this.runSecurity(["find-generic-password", "-a", credentialId, "-s", this.service, "-w"]);
+    if (result.code !== 0) {
+      if (/could not be found|item not found|no password/i.test(result.stderr)) {
+        throw new SecretStoreError("SECRET_STORE_ENTRY_MISSING");
+      }
+      throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");
+    }
+    try {
+      return SecretString.from(result.stdout.trimEnd());
+    } catch {
+      throw new SecretStoreError("SECRET_STORE_ENTRY_MISSING");
+    }
+  }
+
+  async delete(credentialId: string): Promise<void> {
+    this.assertPlatform();
+    this.assertCredentialId(credentialId);
+    const result = await this.runSecurity(["delete-generic-password", "-a", credentialId, "-s", this.service]);
+    if (result.code !== 0 && !/could not be found|item not found|no password/i.test(result.stderr)) {
+      throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");
+    }
+  }
+
+  async probe(): Promise<CredentialStoreHealth> {
+    if (this.platform !== "darwin") {
+      return { available: false, adapter: "unavailable", reason: "SECRET_STORE_UNAVAILABLE" };
+    }
+    try {
+      const result = await this.runSecurity(["default-keychain"]);
+      return result.code === 0
+        ? { available: true, adapter: "keychain", reason: null }
+        : { available: false, adapter: "keychain", reason: "SECRET_STORE_PROBE_FAILED" };
+    } catch {
+      return { available: false, adapter: "keychain", reason: "SECRET_STORE_PROBE_FAILED" };
+    }
+  }
+
+  private assertPlatform(): void {
+    if (this.platform !== "darwin") throw new SecretStoreError("SECRET_STORE_UNAVAILABLE");
+  }
+
+  private assertCredentialId(credentialId: string): void {
+    if (!SECRET_ID_PATTERN.test(credentialId)) throw new SecretStoreError("SECRET_STORE_ROOT_UNSAFE");
+  }
+
+  private async runSecurity(args: readonly string[]): Promise<SecretCommandResult> {
+    try {
+      return await this.executor.run("security", args);
+    } catch {
+      throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");
+    }
   }
 }
 
@@ -201,9 +327,13 @@ export class SecretStoreService implements SecretStore {
   private readonly delegate: SecretStore;
 
   constructor() {
-    this.delegate = process.env.AIROAMING_SECRET_STORE_ADAPTER?.trim() === "fake"
-      ? new FakeSecretStore(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT?.trim() ?? "")
-      : new UnavailableSecretStore();
+    if (process.env.AIROAMING_SECRET_STORE_ADAPTER?.trim() === "fake") {
+      this.delegate = new FakeSecretStore(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT?.trim() ?? "");
+    } else if (process.platform === "darwin") {
+      this.delegate = new MacOSKeychainSecretStore();
+    } else {
+      this.delegate = new UnavailableSecretStore();
+    }
   }
 
   put(input: { credentialId: string; secret: SecretString }): Promise<SecretMetadata> {

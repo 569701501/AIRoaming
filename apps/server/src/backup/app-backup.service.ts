@@ -10,6 +10,7 @@ import { normalizeMigrationDecisionArtifact } from "../migration/migration-decis
 import { FULL_SHADOW_SLICE_ORDER } from "../migration/full-shadow-importer.js";
 import { normalizeComicFormatReport } from "../migration/migration-report.js";
 import { RuntimeBundleFileService } from "../migration/runtime-bundle-file.service.js";
+import { containsSecretSentinel } from "../migration/credential-redactor.js";
 import type { SnapshotDigest } from "../migration/snapshot.types.js";
 import type { BackupAssetEntry, BackupInput, BackupManifest, BackupResult, BackupRunSummary, BackupRunSummarySlice } from "./backup.types.js";
 import { BackupPathError, assertDisjointRoots, emptyDirectory, existingDirectory, existingRegularFile, isWithin, parseSqliteFileUrl, resolveStorageFile } from "./backup-path.js";
@@ -71,17 +72,6 @@ function record(value: unknown, code: string): Record<string, unknown> {
 
 function jsonEqual(left: unknown, right: unknown): boolean {
   return digestCanonicalJson(left) === digestCanonicalJson(right);
-}
-
-const SECRET_SENTINEL = /airoaming-test-secret-[a-z0-9._:-]+|\bsk-[a-z0-9]{8,}\b|\bbearer\s+[a-z0-9._~+/=-]+/i;
-
-function containsSecretSentinel(value: unknown): boolean {
-  if (Buffer.isBuffer(value)) return SECRET_SENTINEL.test(value.toString("utf8"));
-  if (value instanceof Uint8Array) return SECRET_SENTINEL.test(Buffer.from(value).toString("utf8"));
-  if (typeof value === "string") return SECRET_SENTINEL.test(value);
-  if (Array.isArray(value)) return value.some(containsSecretSentinel);
-  if (value && typeof value === "object") return Object.values(value).some(containsSecretSentinel);
-  return false;
 }
 
 function quoteIdentifier(value: string): string {
