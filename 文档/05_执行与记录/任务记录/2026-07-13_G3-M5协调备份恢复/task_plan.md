@@ -12,7 +12,7 @@ source: G3-M 五份施工资料、G1 Secret/backup/restore 契约、M4 正式验
 
 ## 1. 当前阶段
 
-`A3_ready`。M4 已正式通过；M5-A0 capability registry、M5-A1 coordinated backup 与 M5-A2 restore 已实现并单独验收，接下来进入完整 backup → restore → restart/API 演练。M6、final import 和真实 production activate 继续阻塞。
+`completed`。M4 已正式通过；M5-A0～A2 工具与 M5-A3 完整 backup → restore → restart/API 演练均已通过临时根验收。M6、final import、SecretStore 与真实 production activate 继续阻塞。
 
 M4 验收基线为 `65c90fe`；M5 开发基线以“包含本任务包的文档提交”为准，Luna 不应从 `65c90fe` 直接开工。
 
@@ -39,7 +39,7 @@ M4 验收基线为 `65c90fe`；M5 开发基线以“包含本任务包的文档�
 | M5-A0 | capability registry + CLI | M4 completed | 已完成；CAP-01/02 通过；`--check` 当前稳定阻塞 |
 | M5-A1 | coordinated backup | A0 提交并复核 | 已完成；BAK-01～03 通过；失败无 `SEALED` |
 | M5-A2 | verify-only/materialize restore | A1 提交并复核 | 已完成；RST-01～03 通过；只恢复到不存在的空根 |
-| M5-A3 | backup/restore rehearsal | A2 提交并复核 | RST-04、server 全量、typecheck、G1 门禁通过 |
+| M5-A3 | backup/restore rehearsal | A2 提交并复核 | 已完成；RST-04、server 全量、typecheck、G1 门禁通过 |
 
 一次只交给 Luna 一个切片；不得把 A0～A3 合成单次大任务。
 

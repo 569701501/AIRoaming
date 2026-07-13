@@ -20,8 +20,8 @@ source: M5 documentation readiness work
 - [x] M5-A0 capability registry + CLI 实现：8 个稳定 ID、诚实三态状态、证据 ID 约束和 fail-closed check 已落地。
 - [x] M5-A1 coordinated backup 实现：16-slice full-shadow/ledger 校验、SQLite checkpoint + `BEGIN IMMEDIATE`、DB integrity/FK、ready Asset hash/bytes、脱敏 settings、sealed manifest 已落地；BAK-01～03 通过。
 - [x] M5-A2 restore 实现：sealed/manifest/SEALED digest、DB integrity/FK/ledger、Asset 摘要、verify-only、双空根 marker + 原子 materialize 已落地；RST-01～03 通过。
-- [ ] M5-A3 完整演练与正式验收。
+- [x] M5-A3 完整演练与正式验收：full backup → verify-only → materialize → DB restart → Nest HTTP `/api/projects` read smoke 通过；server 全量与 G1 静态门禁通过。
 
 # 当前结论
 
-M5-A0 已单独实现并通过 CAP-01/02；M5-A1 已单独实现并通过 BAK-01～03；M5-A2 已单独实现并通过 RST-01～03，当前进入 M5-A3 完整演练。尚未完成 RST-04、server 全量/G1 门禁与正式 Runtime Review。
+M5-A0 已单独实现并通过 CAP-01/02；M5-A1 已单独实现并通过 BAK-01～03；M5-A2 已单独实现并通过 RST-01～03；M5-A3 已通过 RST-04、server 全量、workspace typecheck、G1 manifest/schema/migration、Prisma validate 与 diff check。M5 正式完成，但 M6 仍被 capability/SecretStore/final gate 阻塞。

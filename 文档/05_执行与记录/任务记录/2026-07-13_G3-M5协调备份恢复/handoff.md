@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-HANDOFF-001
-status: active
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -10,12 +10,18 @@ source: task_plan.md、implementation_contract.md、acceptance_checklist.md
 
 # Handoff：交给 5.6 Luna 的 G3-M5 施工入口
 
-## 1. 开工结论
+## 1. 开工结论（历史入口）
 
 - M4 已正式验收通过；可以开始 M5-A0。
-- 当前只领取 capability registry + CLI，不同时实现 backup/restore。
+- 初始 Luna 交接只领取 capability registry + CLI，不同时实现 backup/restore；该 A0～A3 施工已在当前分支完成并验收。
 - M4 验收 HEAD 为 `65c90fe`；开发必须从包含本 handoff 的后续文档提交开始。
 - 真实 production workspace/DB/SecretStore、final import、activate 均未授权。
+
+## 1.1 当前交付状态
+
+- M5-A0 capability registry、M5-A1 coordinated backup、M5-A2 sealed restore、M5-A3 restart/API rehearsal 均已完成。
+- 当前 HEAD 的独立提交顺序为：A0 `91a450c`、A1 `b767e30`、A2 `0f20cff`；A3 证据提交待本轮落库。
+- M5 完成只代表临时根演练通过；required capability、SecretStore、final importer、pre-cutover 和 activate 仍阻塞 M6。
 
 ## 2. 必读顺序
 

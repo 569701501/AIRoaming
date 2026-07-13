@@ -22,7 +22,7 @@ source: task_plan.md、implementation_contract.md、G1/G3-M 验收契约
 | RST-01 | verify-only | 完整验证 bundle、DB、Asset、ledger；目标路径保持不存在，bundle 字节不变 | `passed` |
 | RST-02 | materialize | 仅接受两个不存在目标；DB 固定恢复到 dataRoot/db/airoaming.sqlite，Asset 按 storageKey 恢复；恢复后全摘要一致、maintenance 仍 closed | `passed` |
 | RST-03 | restore 故障注入 | bundle/Asset/DB 篡改、非 sealed、目标已存在、symlink/重叠根、secret 命中均 fail-closed；只清理由本 run marker 创建的 staging | `passed` |
-| RST-04 | 恢复后重启/API smoke | 用恢复根以 DB mode + maintenance closed 启动；项目/read-model/API 与备份前规范化语义一致；旧 metadata 缺失不影响读；不产生第一笔业务写 | `not_run` |
+| RST-04 | 恢复后重启/API smoke | 用恢复根以 DB mode + maintenance closed 启动；项目/read-model/API 与备份前规范化语义一致；旧 metadata 缺失不影响读；不产生第一笔业务写 | `passed` |
 
 ## 回归门禁
 
@@ -58,6 +58,13 @@ git diff --check
 - RST-01 验证 sealed bundle、manifest/SEALED、DB integrity/FK/ledger、run summary 和 Asset 摘要；verify-only 不创建目标且 bundle 字节不变。
 - RST-02 将 DB 恢复到 `<target-data-root>/db/airoaming.sqlite`、Asset 恢复到 workspace storageKey，并以 DB mode 重启 Prisma 读取项目与 `PersistenceState=shadow`。
 - RST-03 覆盖 manifest 篡改和已存在目标，均在写入前 fail-closed。
+
+## M5-A3 证据
+
+- `app-backup-restore.integration.spec.ts` 7/7 通过，包含 RST-04：恢复根以 DB mode 启动 Nest，`GET /api/projects` 返回恢复项目；任务 worker 明确关闭，`PersistenceState.activationState` 保持 `shadow`。
+- server 全量：49 个测试文件、314 项测试通过。
+- workspace typecheck 通过；G1 manifest/schema/migration、Prisma validate、`git diff --check` 通过。
+- 未执行 final import、pre-cutover 成功路径、activate 或真实 workspace/SecretStore；这些仍是 M6/D2 前置阻塞。
 
 ## 完成判定
 

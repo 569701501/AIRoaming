@@ -12,7 +12,7 @@ source: M5 task package and current code exploration
 
 ## 复核结论
 
-`passed_for_development`。当前任务包已经具备 Luna 开发 M5-A0 所需的独立输入、允许/禁止边界、CLI 语义、数据结构、稳定错误、测试 ID、退出证据和 Stop condition。
+`passed_for_completion`。文档契约与实现边界一致；A0～A3 均有独立提交、定向证据和退出门，未修改 Schema/migration/trigger。
 
 ## 已确认
 
@@ -30,7 +30,8 @@ source: M5 task package and current code exploration
 
 ## 残留风险
 
-- 本复核只证明文档可施工，不证明 M5 代码已实现。
+- 本复核不把临时根演练等同于 production cutover；M6 仍需独立审查。
 - full-shadow artifact 当前没有独立公开 codec；A1 必须以既有 `FullShadowImporter` canonical digest 规则和 `FULL_SHADOW_SLICE_ORDER` 为唯一标准实现严格校验，不得放宽键或顺序。
 - Node SQLite 排他锁与 checkpoint 的最终实现需由 BAK-02 故障注入证明；若无法证明，应停止 A1。
 - M5 完成后仍需独立 D2 capability/SecretStore/final importer 审查，不能直接领取 M6。
+- A3 已复核 server 49 files/314 tests、workspace typecheck、G1 manifest/schema/migration、Prisma validate 与 diff check；Runtime/User Review 已完成。

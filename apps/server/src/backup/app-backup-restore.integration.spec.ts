@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -7,7 +8,9 @@ import * as path from "node:path";
 import * as os from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { NestFactory } from "@nestjs/core";
 import { digestCanonicalJson } from "@airoaming/shared";
+import { AppModule } from "../app.module.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { RuntimeBundleFileService } from "../migration/runtime-bundle-file.service.js";
 import { createMigrationDecisionArtifact } from "../migration/migration-decision.js";
@@ -48,6 +51,7 @@ async function createFixture() {
   await db.persistenceState.create({ data: { id: "primary" } });
   await db.project.create({ data: { id: "p1", name: "Backup fixture", genreTags: [], comicFormat: "vertical_scroll" } });
   await db.chapter.create({ data: { id: "chapter-1", projectId: "p1", slug: "chapter-001", order: 1, title: "第一章", scriptWorkingDigest: digestCanonicalJson("") } });
+  await db.project.update({ where: { id: "p1" }, data: { currentChapterId: "chapter-1" } });
   if (await db.project.count() !== 1 || await db.chapter.count() !== 1) throw new Error("BACKUP_FIXTURE_SCOPE_MISSING");
   const assetBytes = Buffer.from("fixture-image");
   const assetPath = path.join(workspaceRoot, "projects/p1/assets/one.txt");
@@ -193,6 +197,37 @@ describe("M5-A2 restore", () => {
       await expect(new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" })).rejects.toMatchObject({ code: "RESTORE_TARGET_NOT_EMPTY" });
       expect(await readdir(fixture.outputRoot)).toHaveLength(1);
       await expect(lstat(workspaceTarget)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
+  it("RST-04 restarts the server and reads the restored project API without a write", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const dataTarget = path.join(fixture.root, "restore-data");
+      const workspaceTarget = path.join(fixture.root, "restore-workspace");
+      await new AppRestoreService().restore({ backup: result.bundlePath, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" });
+      const previous = { DATABASE_URL: process.env.DATABASE_URL, AIROAMING_PERSISTENCE_MODE: process.env.AIROAMING_PERSISTENCE_MODE, AIROAMING_TASK_WORKER_ENABLED: process.env.AIROAMING_TASK_WORKER_ENABLED };
+      process.env.DATABASE_URL = "file:" + path.join(dataTarget, "db/airoaming.sqlite");
+      process.env.AIROAMING_PERSISTENCE_MODE = "db";
+      process.env.AIROAMING_TASK_WORKER_ENABLED = "false";
+      const app = await NestFactory.create(AppModule, { logger: false });
+      app.setGlobalPrefix("api");
+      await app.listen(0, "127.0.0.1");
+      try {
+        const address = app.getHttpServer().address() as { port: number };
+        const response = await fetch(`http://127.0.0.1:${address.port}/api/projects`);
+        expect(response.status).toBe(200);
+        const body = await response.json() as { success: boolean; data: { items: Array<{ id: string }> } };
+        expect(body).toMatchObject({ success: true, data: { items: [{ id: "p1" }] } });
+      } finally {
+        await app.close();
+        if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+        if (previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = previous.AIROAMING_PERSISTENCE_MODE;
+        if (previous.AIROAMING_TASK_WORKER_ENABLED === undefined) delete process.env.AIROAMING_TASK_WORKER_ENABLED; else process.env.AIROAMING_TASK_WORKER_ENABLED = previous.AIROAMING_TASK_WORKER_ENABLED;
+      }
     } finally {
       if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
       if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;

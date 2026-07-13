@@ -12,7 +12,7 @@ source: 当前代码探索、M4 验收与 G1/G3-M 契约对照
 
 ## 当前代码事实
 
-- `apps/server/src/backup/` 尚不存在；`apps/server/package.json` 没有 `db:capabilities`、`app:backup`、`app:restore`。
+- `apps/server/src/backup/` 已包含 coordinated backup、sealed restore、CLI 与集成测试；`apps/server/package.json` 已登记 `db:capabilities`、`app:backup`、`app:restore`。
 - `SettingsService` 仍直接读写 `/workspace/settings/app-settings.json`，并在内存和文件中持有 apiKey；Provider shadow 只导入脱敏 DB metadata，不等于 runtime SecretStore capability。
 - `AIROAMING_DATA_ROOT` 当前只在测试 fixture 中出现，生产代码没有统一 DataRoot service；M5 CLI 必须依赖显式 `--data-root`，不能推断默认根。
 - `ProjectRepository.assertDatabaseOperationSupported()` 仍阻断大量公开 DB 写入口；内部 version repository 或 importer 可写表不能被 capability registry 当成公开能力完成。
@@ -35,3 +35,9 @@ source: 当前代码探索、M4 验收与 G1/G3-M 契约对照
 - runtime bundle 证明的是 closed 时封口状态，不单独证明复制期间没有 writer；两者必须与 SQLite 排他锁同时满足。
 - capability registry 最容易被误用为“手写绿表”；必须由公开路径测试锁定，importer/内部 repository 测试不能替代。
 - materialize 的补偿清理必须严格校验 restore marker，避免第二根发布失败时误删用户目录。
+
+## M5 实现后发现
+
+- A1 使用 Node 22 `node:sqlite` 执行 `wal_checkpoint(TRUNCATE)`、`BEGIN IMMEDIATE` 和副本 integrity/FK 检查；无 WAL 时 SQLite 返回 `log=-1`，应按“无待收敛 WAL”处理而不是误判失败。
+- G1 Asset ready 只能通过 `staged → ready` 合法状态转移建立；直接 INSERT `status=ready` 会被既有 trigger 拒绝，演练 fixture 已按真实状态机构造。
+- A2 restore 只接受 manifest/SEALED digest 完整的 bundle，并把两个目标根分别以相同 marker 原子发布；不宣称跨根全局事务原子。
