@@ -49,4 +49,28 @@ describe("D2-A1-2 credential redactor and SEC-10", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("M6A1-SEC-01 scans snapshot/DB/settings/report/evidence/backup/restore/archive/log roots", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-m6-sec-"));
+    const sentinel = "airoaming-test-secret-m6-chain";
+    const categories = ["snapshot", "database", "settings", "report", "evidence", "backup", "restore", "archive", "log"];
+    try {
+      for (const category of categories) {
+        const categoryRoot = path.join(root, category);
+        await mkdir(categoryRoot, { recursive: true });
+        await writeFile(path.join(categoryRoot, "fixture.json"), JSON.stringify({ category, payload: sentinel }), { mode: 0o600 });
+        expect(containsSecretSentinel(await readFile(path.join(categoryRoot, "fixture.json")))).toBe(true);
+      }
+      const cleanRoot = path.join(root, "clean");
+      await mkdir(cleanRoot, { recursive: true });
+      for (const category of categories) {
+        const categoryRoot = path.join(cleanRoot, category);
+        await mkdir(categoryRoot, { recursive: true });
+        await writeFile(path.join(categoryRoot, "fixture.json"), JSON.stringify({ category, fingerprint: "sha256:" + "a".repeat(64) }), { mode: 0o600 });
+        expect(containsSecretSentinel(await readFile(path.join(categoryRoot, "fixture.json")))).toBe(false);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

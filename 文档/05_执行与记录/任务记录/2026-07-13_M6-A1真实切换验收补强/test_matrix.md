@@ -17,7 +17,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | ID | 场景 | 必须断言 | 状态 |
 | --- | --- | --- | --- |
 | M6A1-BK-01 | 真实临时 final/ready DB 创建 pre-cutover bundle | sealed；runKind=final；同 run/source/snapshot/decisions/effective；16 slice；首写为空 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，35/35） |
-| M6A1-BK-02 | final blocked/failed、state shadow/recovery/db_only、run 不同 | 全部失败，无 SEALED/最终目录 | `not_run` |
+| M6A1-BK-02 | final blocked/failed、state shadow/recovery/db_only、run 不同 | 全部失败，无 SEALED/最终目录 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-02：missing run + shadow state） |
 | M6A1-BK-03 | maintenance bundle 缺失、非 closed、摘要篡改 | `BACKUP_NOT_OFFLINE` 或稳定验证错误；无 bundle | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-03） |
 | M6A1-BK-04 | CLI kind 参数矩阵 | coordinated/pre-cutover 各自 required/forbidden 参数精确；解析失败早于 Prisma | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-04） |
 | M6A1-BK-05 | ready Asset/DB/source 在 fence 期间变化 | fail-closed；staging 清理；无 sealed 假成功 | `not_run` |
@@ -81,7 +81,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-RB-04 | 首写后回 file | 明确拒绝 | RB-04 | `not_run` |
 | M6A1-RB-05 | pre-cutover restore | integrity/FK/API/Asset hash 全绿 | RB-05 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-01 + RST-02/RST-05） |
 | M6A1-RB-06 | down migration surface | CLI/代码不存在自动 down 路径 | RB-06 | `passed`（`src/persistence/business-write-boundary.spec.ts`，M6A1-RB-06） |
-| M6A1-SEC-01 | 全链路 sentinel | 除 fake secret root 外，snapshot/DB/report/evidence/backup/restore/archive/log=0 | SH-08/SEC-09 | `not_run` |
+| M6A1-SEC-01 | 全链路 sentinel | 除 fake secret root 外，snapshot/DB/report/evidence/backup/restore/archive/log=0 | SH-08/SEC-09 | `passed`（`src/migration/credential-redactor.spec.ts`，M6A1-SEC-01 + SEC-10） |
 | M6A1-PATH-01 | 路径隔离 | symlink/overlap/default/真实根全部在初始化前拒绝 | SH-09 | `not_run` |
 
 ## 6. 回归门禁

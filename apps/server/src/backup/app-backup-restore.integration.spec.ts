@@ -285,6 +285,22 @@ describe("M5-A1 coordinated backup", () => {
     }
   });
 
+  it("M6A1-BK-02 rejects final/state identity that is not ready and leaves no sealed output", async () => {
+    const fixture = await createFixture();
+    try {
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover", runId: "missing-final-run" })).rejects.toMatchObject({ code: "BACKUP_RUN_INVALID" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+      const { finalRunId } = await prepareFinalReadyFixture(fixture);
+      await fixture.prisma.database().persistenceState.update({ where: { id: "primary" }, data: { activationState: "shadow", cutoverRunId: null, sourceManifestDigest: null, effectiveSchemaManifestDigest: null } });
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover", runId: finalRunId })).rejects.toMatchObject({ code: "BACKUP_RUN_INVALID" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
   it("A4-BAK-02 rejects an active writer and leaves no sealed bundle", async () => {
     const fixture = await createFixture();
     const writer = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));
