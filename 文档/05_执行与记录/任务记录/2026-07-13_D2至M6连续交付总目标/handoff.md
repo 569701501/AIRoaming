@@ -18,8 +18,8 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 
 ```text
 已完成：D2-A2-1 -> D2-A2-2 -> D2-A3-1 -> D2-A3-2A/B -> D2-A4
-  -> 当前：D2-A5 Dialogue runtime（工作树有未提交草稿，必须先复核）
-    -> D2-A6（Outbox + Project delete，并回补 Character delete）
+  -> 已完成：D2-A5 Dialogue runtime（commit `fa26908`）
+    -> 当前：D2-A6（Outbox + Project delete，并回补 Character delete）
       -> D2-A7
         -> D2-A8
           -> M6 工具实现与全隔离 C0～C7 演练
@@ -35,8 +35,8 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前已提交基线 | `73cc76f feat(d2): close layout export db flow`；D2-A3-2A/B 与 D2-A4 已提交并复核 |
-| 工作树状态 | 存在未提交的 D2-A5 Dialogue 草稿改动；不得把草稿当完成证据，Luna 先复核后独立提交 |
+| 当前已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts`；D2-A3-2A/B、D2-A4、D2-A5 已提交并复核 |
+| 工作树状态 | D2-A5 已提交；Luna 不得重复施工，直接从 D2-A6 开始 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
@@ -45,16 +45,15 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | D2-A3-1 | `9087115` completed |
 | D2-A3-2A/B 当前 | identity、character/scene queue、worker、visual confirm、CandidateLock、images_done 与 Character delete intent 已实现；ensure/generate 旧入口已 retired；物理清理仍待 Outbox 收口 |
 | D2-A4 当前 | LayoutWorkingCopy、LayoutRevision/source binding、layout export、asset package 已实现并提交 |
-| required capability blocker | 3 个 |
+| required capability blocker | 2 个 |
 | final importer | 未实现；`db:import --kind final` 固定 fail-closed |
 | `db:activate` | 未实现 |
 | M6 | `prerequisite_blocked` |
 
-当前 3 个 `blockedIds` 必须精确为：
+当前 2 个 `blockedIds` 必须精确为：
 
 1. `character_scene_asset_candidate_lock`
-2. `dialogue_pending_runtime`
-3. `project_delete_outbox`
+2. `project_delete_outbox`
 
 `settings_credential_secret_store` 与 `task_create_claim_complete_cancel_recover` 已绿，不得回退或误改。
 
@@ -143,11 +142,11 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 
 | 阶段 | 允许的 `blockedIds` 数量 | 允许移除的 capability |
 | --- | ---: | --- |
-| 当前基线 | 3 | 无；以真实 CLI 为准 |
+| 当前基线 | 2 | 无；以真实 CLI 为准 |
 | D2-A2-1/A2-2/A3-1 | 4 | 已完成，不回退已绿 capability |
 | D2-A3-2A/B 功能切片 | 3 | Character delete 受 Outbox 依赖，暂不移除 capability |
 | D2-A4 | 3（Character delete 仍待 Outbox） | `layout_export` 已移除 |
-| D2-A5 | 2（若 delete 未闭合） | `dialogue_pending_runtime` |
+| D2-A5 | 2（已完成） | `dialogue_pending_runtime` 已移除 |
 | D2-A6 | 0 | `project_delete_outbox` |
 | D2-A7/A8/M6 | 0 | 不得重新增加 blocker |
 

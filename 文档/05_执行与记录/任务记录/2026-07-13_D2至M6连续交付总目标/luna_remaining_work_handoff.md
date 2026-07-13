@@ -17,8 +17,8 @@ source: 当前 capability CLI、已提交阶段证据、D2/M6 总实施契约
 当前从 **D2-A5** 接管，按下面顺序连续做到最终停点：
 
 ```text
-D2-A5 Dialogue runtime
-  → D2-A6 Outbox + Project delete（同时回补 Character delete）
+D2-A5 Dialogue runtime（已完成，commit `fa26908`）
+  → D2-A6 Outbox + Project delete（当前开始，同时回补 Character delete）
   → D2-A7 final importer / verifier / ready coordinator
   → D2-A8 fresh/replay/restart/secret 综合见证
   → M6 activate tooling + 隔离 C0～C7
@@ -42,20 +42,20 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 | 项目 | 事实 |
 | --- | --- |
-| 最新已提交基线 | `73cc76f feat(d2): close layout export db flow` |
-| 已完成 | M5、D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4 |
-| capability | 8 个聚合项、36 个 operation |
-| 当前 blocker | 3 个：`character_scene_asset_candidate_lock`、`dialogue_pending_runtime`、`project_delete_outbox` |
+| 最新已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts` |
+| 已完成 | M5、D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4、D2-A5 |
+| capability | 8 个聚合项、36 个 operation；P7 已计入 evidence |
+| 当前 blocker | 2 个：`character_scene_asset_candidate_lock`、`project_delete_outbox` |
 | 已绿且不得回退 | `project_chapter_script`、`outline_story_storyboard_preflight`、`layout_export`、`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store` |
 | final importer | 仍 fail-closed；`db:import --kind final` 不得放行 |
 | `db:activate` | 尚未实现 |
 | 真实环境 | 不得接触真实 workspace、DB、Keychain、provider 或凭据 |
 
-当前工作树存在一组 **未提交的 D2-A5 草稿改动**，涉及 Dialogue service/module、ScriptDialogue 和 project DB integration spec。它们只能作为待审查起点，不能直接当作完成证据；Luna 必须先审查、补测试、通过门禁，然后以独立 commit 收口。
+当前工作树已收口到 `fa26908`，D2-A5 的 Dialogue service/module、ScriptDialogue 和 project DB integration spec 已完成审查、测试和独立提交。Luna 不得重复施工 P7；直接从 D2-A6 开始。
 
 ## 3. 阶段任务与硬退出条件
 
-### D2-A5：Dialogue runtime DB 事实源
+### D2-A5：Dialogue runtime DB 事实源（已完成，勿重复）
 
 目标：将 `ConversationThread`、`ConversationMessage`、`DialogueToolResult`、`DialogueRuntimeSession`、`PendingDialogueArtifact` 变成可重启事实源。
 
@@ -70,7 +70,7 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 最小验收证据：`REP-08`、`REP-09`、`DLG-01`～`DLG-06`、tool replay、pending restart、fake provider、旧 workspace 隔离。
 
-退出：`dialogue_pending_runtime` 变为 implemented、`restartCovered=true`，真实 `blockedIds` 从 3 降到 2；独立提交。
+退出证据：`dialogue_pending_runtime=implemented`、`restartCovered=true`，`P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量与静态门禁通过；独立提交 `fa26908`。当前 `blockedIds` 已从 3 降到 2。
 
 ### D2-A6：Outbox consumer + Project delete
 

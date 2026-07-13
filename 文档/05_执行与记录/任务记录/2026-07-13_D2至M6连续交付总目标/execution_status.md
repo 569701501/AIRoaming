@@ -23,15 +23,15 @@ source: 连续执行总 Handoff
 
 | phase | status | commit | targeted | full | scrutiny | runtime | blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P0 baseline | passed | 2026-07-13 | baseline CLI | - | - | n/a | capability=8, operations=36, blockedIds=4; final importer fail-closed |
+| P0 baseline | passed | `fa26908` | baseline CLI | - | - | n/a | capability=8, operations=36, blockedIds=2; final importer fail-closed |
 | P1 D2-A2-1 | passed | `1f22861` | 27 targeted + 54 files/360 tests | 360/360 | PASS | PASS | closed; A2-2 clear/import/reset handled next |
 | P2 D2-A2-2 | passed | `077762d` | 20 targeted + 54 files/361 tests | 361/361 | PASS | PASS | 7 retired operations; blockedIds=5 |
 | P3 D2-A3-1 | passed | `9087115` | 21 targeted + 54 files/362 tests | 362/362 | PASS | PASS | 7 retired operations; blockedIds=4 |
 | P4 D2-A3-2A | passed | `e80b8ee`…`34af053` | 30 targeted + 54 files/371 tests | 371/371 | PASS | PASS | scene queue/source projection、worker、visual confirm 已通过 |
 | P5 D2-A3-2B | passed_for_intent_boundary | `a2c46a3` | 33 targeted + 54 files/374 tests（全量命令显式 30s） | PASS | PASS | PASS | Character delete intent 已通过；Outbox consumer/物理清理仍属于 P8，capability 保持 partial |
 | P6 D2-A4 | passed | `73cc76f` | P6-LAYOUT-EXPORT-01 + project DB 28/28；server 全量/门禁通过 | PASS | PASS | PASS | LayoutWorkingCopy、LayoutRevision/bindings、layout ExportRevision/Artifact、asset package 已实现；Character delete 仍待 P8 |
-| P7 D2-A5 | passed | pending commit | P7-DIALOGUE-DB-01 + project DB 29/29；server 全量/门禁通过 | PASS | PASS | PASS | Dialogue 已具备 DB thread/message/tool/pending/session、restart、maintenance/deleting fence；blockedIds=2 |
-| P8 D2-A6 | pending | - | - | - | - | - | - |
+| P7 D2-A5 | passed | `fa26908` | P7-DIALOGUE-DB-01 + project DB 29/29；server 全量/门禁通过 | PASS | PASS | PASS | Dialogue 已具备 DB thread/message/tool/pending/session、restart、maintenance/deleting fence；blockedIds=2 |
+| P8 D2-A6 | in_progress | - | Outbox + Project delete + Character delete physical cleanup | - | - | - | 当前 Luna 领取阶段；目标 blockedIds=0 |
 | P9 D2-A7 | pending | - | - | - | - | - | - |
 | P10 D2-A8 | pending | - | - | - | - | - | - |
 | P11 M6 tooling/rehearsal | pending | - | - | - | - | - | - |

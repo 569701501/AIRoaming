@@ -12,10 +12,10 @@ source: 本总目标编制过程
 
 ## P0 基线核对（2026-07-13）
 
-- `db-capabilities --format json`：8 个聚合 capability、36 个 operation；当前 `blockedIds` 精确为 3：Character/Scene/Asset/CandidateLock、Dialogue、Project delete/Outbox。Layout/Export 已绿。
+- `db-capabilities --format json`：8 个聚合 capability、36 个 operation；当前 `blockedIds` 精确为 2：Character/Scene/Asset/CandidateLock、Project delete/Outbox。Layout/Export 与 Dialogue 已绿。
 - `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
-- 当前已提交事实基线为 `73cc76f feat(d2): close layout export db flow`；D2-A2-1～A4 已有代码和阶段证据完成。
-- 结论：总 Handoff 已进入 D2-A5 Dialogue runtime；未接触真实 workspace、数据库、provider 或凭据。
+- 当前已提交事实基线为 `fa26908 feat(d2): persist dialogue runtime facts`；D2-A2-1～D2-A5 已有代码、阶段证据和独立提交。
+- 结论：总 Handoff 已进入 D2-A6 Outbox + Project delete；未接触真实 workspace、数据库、provider 或凭据。
 
 ## 2026-07-13
 
@@ -56,18 +56,18 @@ source: 本总目标编制过程
 - `confirm_character_preview` 与 `confirm_character_reference` 已接入 DB：preview/final pointer、状态与层级规则均有 fresh SQLite 证据。
 - scene reference worker 已接入 DB completion：staged→ready Asset、SceneVisual 和 currentVisual source fencing 有 fresh SQLite 证据。
 - 公开 `queue_scene_reference` 已接入 ChapterScene source projection、持久 task 与 replay；新增 `P4-SCENE-01`。
-- 定向 30 项、server 全量 54 文件/371 测试、Scrutiny、Runtime 和静态门禁全部通过；本切片待独立提交。
+- 定向 30 项、server 全量 54 文件/371 测试、Scrutiny、Runtime 和静态门禁全部通过；该切片随后已并入独立提交链。
 - Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一步处理 Character delete 或 CandidateLock，不能跳到 M6。
 - `lock_candidate` 已接入 DB CandidateLockRevision 线性事务与幂等 replay；CandidateLock 完成，但 Character delete、`complete_chapter_images` 仍未开放。
 - `complete_chapter_images` 已接入 DB：有效 current preflight + 全镜 current lock 后以 Chapter CAS 推进 `images_done`；Character delete 仍受 Outbox 约束未开放。
 - 本片回归：定向 30/30、server 相关 371 条通过；默认 Vitest 5 秒阈值下 3 条已有 G1/M5 慢测超时，使用 30 秒阈值复核为 G1 12/12、M5 33/33 全通过，非本片断言回归。
 - 参考图旧入口已合规 retired：`ensure_character_previews`、`generate_character_reference`、`generate_scene_reference` 均稳定 409 并指向 queue replacement；新增 P4-LEGACY-01，定向 31/31。
 
-## 当前接管点（2026-07-13）
+## 当前接管点（2026-07-13，已纠偏）
 
-- 当前已提交 HEAD 为 `73cc76f`；scene queue、CandidateLock、images_done、旧参考图入口退役和 Layout/Export 均已独立提交并复核。
-- 工作树存在未提交 D2-A5 Dialogue 草稿；Luna 必须先审查并补齐 pending/replay/fence/redaction 证据，再独立提交。
-- 继续施工按 `luna_remaining_work_handoff.md` 执行 D2-A5→D2-A6→D2-A7→D2-A8→M6；P8 必须回补 Character delete 并让 `blockedIds=[]`。
+- 当前已提交 HEAD 为 `fa26908`；scene queue、CandidateLock、images_done、旧参考图入口退役、Layout/Export 和 Dialogue runtime 均已独立提交并复核。
+- 工作树不再存在 D2-A5 未提交草稿；P7 的 DB thread/message/tool/pending/session、restart、maintenance/deleting fence 证据已计入 capability。
+- 继续施工按 `luna_start_here.md` 与 `luna_remaining_work_handoff.md` 执行 D2-A6→D2-A7→D2-A8→M6；P8 必须回补 Character delete 并让 `blockedIds=[]`。
 
 ## P5 Character delete intent（2026-07-13）
 
@@ -85,15 +85,13 @@ source: 本总目标编制过程
 - 定向 `P6-LAYOUT-EXPORT-01`、项目 DB 全量 28/28 通过；typecheck 与既有 file-mode characterization 通过。P6 不触碰真实 workspace、provider 或凭据。
 - P6 capability 三 operation 已改为 implemented；Character delete 物理清理由 P8 负责，因此总 `blockedIds` 从 4 降至 3，不能提前改绿 Character aggregate。
 
-## P7 Dialogue runtime 接管点（2026-07-13）
+## P7 Dialogue runtime 接管点（历史记录，已完成）
 
-- 工作树存在未提交的 Dialogue DB 草稿，已覆盖 thread/message/session 的初步持久化、running restart 收敛和 tool result 写入起点；当前不计入完成证据。
-- 仍缺正式 pending adopt/discard restart、tool replay 全链路、maintenance/deleting fence、递归 redaction、完整错误/取消语义和 capability evidence。
-- Luna 接管时先审查并补失败测试，完成 D2-A5 后独立提交；真实 capability 仍为 8/36/3，不能手改 blocker。
+- 当时曾存在未提交的 Dialogue DB 草稿；该状态已由后续 P7 收口覆盖，不再是当前入口。
 
 ## P7 Dialogue runtime DB 闭环（2026-07-13）
 
 - 已完成 thread/message/tool result/pending artifact/runtime session 的 DB 持久化、digest/redaction、restart 收口、maintenance/deleting fence。
 - `P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量、typecheck/web build、Prisma/G1、diff check 通过。
 - capability `dialogue_pending_runtime` 已更新为 implemented/restartCovered=true；真实 `blockedIds` 从 3 降至 2。
-- 待独立提交 P7；提交后进入 D2-A6 Outbox + Project delete，并回补 Character delete。
+- P7 已独立提交 `fa26908`；当前进入 D2-A6 Outbox + Project delete，并回补 Character delete。

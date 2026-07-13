@@ -49,7 +49,7 @@ corepack pnpm test:e2e
 
 | ID | 场景 | 通过条件 |
 | --- | --- | --- |
-| MASTER-BASE-01 | capability report | 8 capabilities、36 operations、blockedIds 精确 6 |
+| MASTER-BASE-01 | capability report | 当前基线 8 capabilities、36 operations、blockedIds 精确 2；历史阶段基线见各阶段小节 |
 | MASTER-BASE-02 | final fail-closed | `MIGRATION_FINAL_IMPORT_NOT_READY`，Prisma/目标零副作用 |
 | MASTER-BASE-03 | activate absent | package script 与 CLI 均未冒充已实现 |
 | MASTER-BASE-04 | roots | 所有 fixture 根均为唯一临时路径，无默认根访问 |
@@ -135,7 +135,7 @@ corepack pnpm test:e2e
 | A4-SECRET | export scan | manifest/log/artifact sentinel=0 |
 | A4-CAP | aggregate | layout capability 绿，blockedIds=2 |
 
-## 9. P7 Dialogue
+## 9. P7 Dialogue（已完成）
 
 | ID | 场景 | 通过条件 |
 | --- | --- | --- |
@@ -147,7 +147,7 @@ corepack pnpm test:e2e
 | DLG-04 | stream disconnect | DB 状态收敛，临时 stream state 清理 |
 | DLG-05 | maintenance/delete | draining/closed/deleting 阻断新消息 |
 | DLG-06 | secret | provider error/log/message meta sentinel=0 |
-| DLG-CAP | aggregate | dialogue capability 绿，blockedIds=1 |
+| DLG-CAP | aggregate | dialogue capability 绿；当前总 blockedIds=2（Character delete、Project delete/Outbox） |
 
 ## 10. P8 Outbox/Delete
 

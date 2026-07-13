@@ -14,15 +14,15 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 
 | 阶段 | 核心结果 | blocker 预期 |
 | --- | --- | ---: |
-| P0 基线 | 已完成；已提交基线为 HEAD `73cc76f`，当前真实 report 为 3 blocker | 3 |
+| P0 基线 | 已完成；已提交基线为 HEAD `fa26908`，当前真实 report 为 2 blocker | 2 |
 | P1 D2-A2-1 | 已完成：Project metadata、ensure chapter、AI pending、Outline、Web G2 Script | 4 |
 | P2 D2-A2-2 | 已完成：clear/import/reset 安全语义与旧操作退役机制 | 4 |
 | P3 D2-A3-1 | 已完成：Story/Storyboard/Preflight 公开 DB 闭环 | 4 |
 | P4 D2-A3-2A | Character/Scene identity、queue/worker、Asset/Visual、公开确认；旧同步 generate/ensure 已 retired，delete 进入 Outbox 依赖 | 4 |
 | P5 D2-A3-2B | CandidateLock、complete images、旧参考图入口退役和 Character delete DB intent 已完成；物理清理由 P8 Outbox 收口 | 3（依赖 P8 才降） |
 | P6 D2-A4 | 已完成并提交 `73cc76f`：LayoutWorkingCopy、LayoutRevision/source binding、layout export、asset package；Character delete 物理清理仍由 P8 收口 | 3 |
-| P7 D2-A5 | 当前接管点：Dialogue runtime DB 事实源；工作树有未提交草稿，尚未形成正式 evidence | 3（通过后降至 2） |
-| P8 D2-A6 | Project delete、Outbox consumer、五 handler，并回补 Character delete | 0 |
+| P7 D2-A5 | 已完成并提交 `fa26908`：Dialogue thread/message/tool/pending/session、restart、maintenance/deleting fence | 2 |
+| P8 D2-A6 | 当前阶段：Project delete、Outbox consumer、五 handler，并回补 Character delete | 0（目标） |
 | P9 D2-A7 | full final importer、verify、ready coordinator | 0 |
 | P10 D2-A8 | 双 fresh/replay/WIT/secret/capability 总证据 | 0 |
 | P11 M6 tooling | activate/cutover/rollback 实现与隔离 C0～C7 演练 | 0 |
@@ -33,9 +33,9 @@ source: 当前 36 个 capability operation、Prisma 44-model substrate、D2/M6 �
 
 必须：
 
-- 确认工作树无未识别改动；当前已知有 D2-A5 未提交草稿，只能先审查后收口，不得把它当完成证据。
-- 记录 `git rev-parse HEAD`；已提交基线应为 `73cc76f`。
-- 执行 capability report，断言 8 个聚合项、36 个 operation、当前 3 个 `blockedIds`；后续只接受真实 report 的下降。
+- 确认工作树无未识别改动；D2-A5 已提交，不得重复施工。
+- 记录 `git rev-parse HEAD`；当前已提交基线为 `fa26908`。
+- 执行 capability report，断言 8 个聚合项、36 个 operation、当前 2 个 `blockedIds`；后续只接受真实 report 的下降。
 - 确认第 36 个操作 `generation_task_create` 已由 `task_create_claim_complete_cancel_recover` 的公开 DB guard 证据完成；后续阶段只做回归，不得改回 partial/unsupported。
 - 确认 `db:import --kind final` 仍在 Prisma 初始化前返回 `MIGRATION_FINAL_IMPORT_NOT_READY`。
 - 确认 package scripts 尚无 `db:activate`，作为后续实现基线。
@@ -248,7 +248,7 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 - `P6-LAYOUT-EXPORT-01` 覆盖 LAY/EXP 的 DB 事实链、物理 staging→fsync→rename、ready Artifact、素材包和 replay；项目 DB 28/28 与 typecheck/file-mode characterization 通过。
 - `layout_export` 已改为 implemented；独立 capability/restart 总证据仍需在 P10 汇总，当前 `blockedIds` 为 3（Character delete、Dialogue、Project delete/Outbox）。
 
-## 8. P7：D2-A5 Dialogue runtime
+## 8. P7：D2-A5 Dialogue runtime（已完成）
 
 关闭聚合项 `dialogue_pending_runtime`。
 
@@ -263,11 +263,11 @@ P4 完成后聚合项仍可 partial，`blockedIds` 保持 4。
 - DB 模式读取不依赖 runtime bundle；runtime bundle 只服务迁移/回滚封口。
 - fake provider、secret redaction、maintenance draining/closed、project deleting fence 全部覆盖。
 
-退出：
+已完成证据：
 
 - REP-08、REP-09 与 restart/pending/tool replay 通过。
 - `dialogue_pending_runtime` 绿。
-- `blockedIds` 从 3 精确降至 2（Character delete 与 Project delete/Outbox）。
+- 独立提交 `fa26908`；`blockedIds` 已从 3 精确降至 2（Character delete 与 Project delete/Outbox）。
 
 ## 9. P8：D2-A6 Project delete + Outbox
 
