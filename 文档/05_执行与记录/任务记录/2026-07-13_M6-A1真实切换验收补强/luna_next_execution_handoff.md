@@ -32,9 +32,6 @@ source: M6-A1 当前代码、测试矩阵、Scrutiny/Runtime Review
 - `M6A1-BK-03`：maintenance 缺失/非 closed/摘要篡改；确认 fail-closed。
 - `M6A1-BK-04`：coordinated/pre-cutover 参数 required/forbidden 组合，解析必须早于 Prisma 初始化。
 - `M6A1-BK-05`：ready Asset/DB/source 在 fence 中变化；确认 staging 清理且无 sealed 假成功。
-- `M6A1-RST-02`：pre-cutover materialize 到两组空根，恢复后仍 `ready_for_activation` 且首写为空。
-- `M6A1-RST-04`：raw tamper，verify-only 和 materialize 目标均零写。
-- `M6A1-RST-05`：合法 reseal 后修改 final run/report/state/asset 语义仍拒绝。
 
 ### Ready / Evidence / Activate
 
@@ -45,7 +42,7 @@ source: M6-A1 当前代码、测试矩阵、Scrutiny/Runtime Review
 ### Business / rollback / security
 
 - `M6A1-TX-08`：首写后 file bridge 返回 `FILE_MODE_FORBIDDEN_AFTER_FIRST_WRITE`。
-- `M6A1-RB-01..06`：final 失败、C5 失败、settings 回滚、首写后回 file、restore 完整性、无 down migration。
+- `M6A1-RB-01..04/06`：final 失败、C5 失败、settings 回滚、首写后回 file、无 down migration；RB-05 已由现有 pre-cutover restore 证据覆盖。
 - `M6A1-SEC-01`：snapshot、DB、settings、report、evidence、backup、restore、archive、日志 fixture 递归 sentinel 扫描为 0（fake secret root 单独 allowlist）。
 - `M6A1-PATH-01`：symlink、重叠、默认根和非临时根在 Prisma 初始化前拒绝。
 

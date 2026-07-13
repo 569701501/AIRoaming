@@ -22,10 +22,10 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-BK-04 | CLI kind 参数矩阵 | coordinated/pre-cutover 各自 required/forbidden 参数精确；解析失败早于 Prisma | `not_run` |
 | M6A1-BK-05 | ready Asset/DB/source 在 fence 期间变化 | fail-closed；staging 清理；无 sealed 假成功 | `not_run` |
 | M6A1-RST-01 | verify-only pre-cutover | 识别 final 类型，零 target/staging 写 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`） |
-| M6A1-RST-02 | materialize pre-cutover | 新根 DB/Asset 完整；state 仍 ready；activated/first write 为空 | `not_run` |
+| M6A1-RST-02 | materialize pre-cutover | 新根 DB/Asset 完整；state 仍 ready；activated/first write 为空 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，RST-02/RST-05） |
 | M6A1-RST-03 | coordinated bundle | restore 继续兼容；不能被 activate 接受 | `passed`（backup/restore 集成 + activate 单测） |
-| M6A1-RST-04 | raw tamper | 外层 digest/SEALED 失败，目标零写 | `not_run` |
-| M6A1-RST-05 | reseal semantic tamper | final run/report/state/Asset 任一不一致仍失败 | `not_run` |
+| M6A1-RST-04 | raw tamper | 外层 digest/SEALED 失败，目标零写 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，A4-RST-02 parameterized） |
+| M6A1-RST-05 | reseal semantic tamper | final run/report/state/Asset 任一不一致仍失败 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，A4-RST-01C-G） |
 
 ## 2. Ready / Activate / Evidence
 
@@ -79,7 +79,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-RB-02 | C5 smoke 失败 | pre-cutover materialize 可恢复；file bridge 同版本可用；无首写 | RB-02 | `not_run` |
 | M6A1-RB-03 | settings 已脱敏的回滚 fixture | 只读 fake SecretStore，不恢复 plaintext | RB-03 | `not_run` |
 | M6A1-RB-04 | 首写后回 file | 明确拒绝 | RB-04 | `not_run` |
-| M6A1-RB-05 | pre-cutover restore | integrity/FK/API/Asset hash 全绿 | RB-05 | `not_run` |
+| M6A1-RB-05 | pre-cutover restore | integrity/FK/API/Asset hash 全绿 | RB-05 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-01 + RST-02/RST-05） |
 | M6A1-RB-06 | down migration surface | CLI/代码不存在自动 down 路径 | RB-06 | `not_run` |
 | M6A1-SEC-01 | 全链路 sentinel | 除 fake secret root 外，snapshot/DB/report/evidence/backup/restore/archive/log=0 | SH-08/SEC-09 | `not_run` |
 | M6A1-PATH-01 | 路径隔离 | symlink/overlap/default/真实根全部在初始化前拒绝 | SH-09 | `not_run` |
