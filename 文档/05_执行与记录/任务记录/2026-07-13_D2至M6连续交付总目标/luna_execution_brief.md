@@ -14,7 +14,7 @@ source: 当前代码、capability CLI、D2/M6 总 Handoff
 
 从本文件开始执行，不需要用户逐阶段确认。完整契约仍以同目录的 `handoff.md`、`remaining_work.md`、`implementation_contract.md`、`test_matrix.md` 为准；本文件只把“现在做什么、做到什么算完、下一步是什么”压成可执行清单。
 
-当前不是 M5 施工：M5-A0～A4 已完成。当前仓库位于 D2-A3-2A/B 的收口区，不能跳到 M6，也不能把 409 拒绝当成 implemented。
+当前不是 M5 施工：M5-A0～A4 已完成。当前仓库已完成 D2-A3-2A/B 和 D2-A4，接管点是 D2-A5 Dialogue runtime；不能跳到 M6，也不能把 409 拒绝当成 implemented。
 
 ## 2. 开工前事实检查
 
@@ -31,14 +31,17 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 ```text
 character_scene_asset_candidate_lock
-layout_export
 dialogue_pending_runtime
 project_delete_outbox
 ```
 
-当前已绿且不得回退：`project_chapter_script`、`outline_story_storyboard_preflight`、`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store`。当前 `character_scene_asset_candidate_lock` 仍是 `partial`，唯一未闭合 operation 是 `delete_character_reference`。
+当前已绿且不得回退：`project_chapter_script`、`outline_story_storyboard_preflight`、`layout_export`、`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store`。当前 `character_scene_asset_candidate_lock` 仍是 `partial`，唯一未闭合 operation 是 `delete_character_reference`；此外 Dialogue 与 Project delete/Outbox 仍未实现。
 
 ## 3. 连续执行顺序
+
+### 当前接管点：P7 D2-A5
+
+工作树中已有未提交的 Dialogue 草稿，涉及 `apps/server/src/dialogue/` 和 `project-db-persistence.integration.spec.ts`。先审查这组草稿，补齐 pending adopt/discard、tool replay、maintenance/deleting fence、redaction 和正式 capability evidence，再独立提交；不能直接把草稿当作已完成。
 
 ### P5 收口：Character delete（先做契约，后等 Outbox）
 

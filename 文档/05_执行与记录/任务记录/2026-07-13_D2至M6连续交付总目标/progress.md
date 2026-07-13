@@ -12,21 +12,21 @@ source: 本总目标编制过程
 
 ## P0 基线核对（2026-07-13）
 
-- `db-capabilities --format json`：8 个聚合 capability、36 个 operation；当前 `blockedIds` 精确为 4：Character/Scene/Asset/CandidateLock、Layout/Export、Dialogue、Project delete/Outbox。
+- `db-capabilities --format json`：8 个聚合 capability、36 个 operation；当前 `blockedIds` 精确为 3：Character/Scene/Asset/CandidateLock、Dialogue、Project delete/Outbox。Layout/Export 已绿。
 - `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
-- 当前事实基线为 `34af053 docs(d2): align handoff head`；D2-A2-1～A3-1 已有代码完成，D2-A3-2A/B 主要 slice 已完成。
-- 结论：总 Handoff 已进入 D2-A3-2A/B 收口；未接触真实 workspace、数据库、provider 或凭据。
+- 当前已提交事实基线为 `73cc76f feat(d2): close layout export db flow`；D2-A2-1～A4 已有代码和阶段证据完成。
+- 结论：总 Handoff 已进入 D2-A5 Dialogue runtime；未接触真实 workspace、数据库、provider 或凭据。
 
 ## 2026-07-13
 
 - 核实 M5-A0～A4 已完成，M5 状态为 `completed`。
 - 核实 D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1 已完成；D2-A3-2A/B 仍有 Character delete 收口缺口。
-- 从 capability registry 与真实 CLI report 核实 8 个聚合项、36 个 operation、4 个 `blockedIds`。
+- 从 capability registry 与真实 CLI report 核实 8 个聚合项、36 个 operation、3 个 `blockedIds`。
 - 核实 `db:import --kind final` 仍 fail-closed，`db:activate` package script/实现尚不存在。
 - 读取 G1 Repository、Layout/Export、Outbox/Delete、Secret、ACT/RB 与 C0～C7 验收口径。
 - 已编写总 Handoff、总目标、全量剩余工作、实施契约、测试矩阵、文件地图和自动续跑协议。
 - 已同步现行路线、G3-M 依赖/验收、备份激活文档、A2-1 Handoff、AI 上下文入口和 README。
-- capability 真实 CLI 复核为 8/36/4；36 operation、8 capability、P0～P12、frontmatter/doc_id 与 stale 状态扫描通过。
+- capability 真实 CLI 复核为 8/36/3；36 operation、8 capability、P0～P12、frontmatter/doc_id 与 stale 状态扫描通过。
 - `git diff --check` 通过；静态结论为 `passed_for_luna_continuous_execution`。
 - 已更新会话记忆与长期记忆；待创建本总资料独立 commit。
 
@@ -65,9 +65,9 @@ source: 本总目标编制过程
 
 ## 当前接管点（2026-07-13）
 
-- 当前 HEAD 为 `34af053`；scene queue、CandidateLock、images_done 和旧参考图入口退役均已独立提交并复核。
-- 继续施工的第一优先级是 `delete_character_reference` 的 DB intent 边界；物理清理必须等 P8 Outbox consumer，不能提前把 capability 改绿。
-- Luna 直接按 `luna_execution_brief.md` 执行 P5→P12；P6/P7 可在 Character delete 保持 partial 时继续，但 P8 必须回头补齐 Character delete 并让 `blockedIds=[]`。
+- 当前已提交 HEAD 为 `73cc76f`；scene queue、CandidateLock、images_done、旧参考图入口退役和 Layout/Export 均已独立提交并复核。
+- 工作树存在未提交 D2-A5 Dialogue 草稿；Luna 必须先审查并补齐 pending/replay/fence/redaction 证据，再独立提交。
+- 继续施工按 `luna_remaining_work_handoff.md` 执行 D2-A5→D2-A6→D2-A7→D2-A8→M6；P8 必须回补 Character delete 并让 `blockedIds=[]`。
 
 ## P5 Character delete intent（2026-07-13）
 
@@ -84,3 +84,9 @@ source: 本总目标编制过程
 - `export_asset_package` 从 DB LayoutRevision/bindings/ready Asset 生成受控目录和 manifest，并登记 `ExportRevision(kind=asset_package)` 与 archive Artifact；缺文件 fail-closed，重放不重复创建 layout revision。
 - 定向 `P6-LAYOUT-EXPORT-01`、项目 DB 全量 28/28 通过；typecheck 与既有 file-mode characterization 通过。P6 不触碰真实 workspace、provider 或凭据。
 - P6 capability 三 operation 已改为 implemented；Character delete 物理清理由 P8 负责，因此总 `blockedIds` 从 4 降至 3，不能提前改绿 Character aggregate。
+
+## P7 Dialogue runtime 接管点（2026-07-13）
+
+- 工作树存在未提交的 Dialogue DB 草稿，已覆盖 thread/message/session 的初步持久化、running restart 收敛和 tool result 写入起点；当前不计入完成证据。
+- 仍缺正式 pending adopt/discard restart、tool replay 全链路、maintenance/deleting fence、递归 redaction、完整错误/取消语义和 capability evidence。
+- Luna 接管时先审查并补失败测试，完成 D2-A5 后独立提交；真实 capability 仍为 8/36/3，不能手改 blocker。

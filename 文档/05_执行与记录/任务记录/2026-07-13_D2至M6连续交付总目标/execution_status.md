@@ -29,8 +29,8 @@ source: 连续执行总 Handoff
 | P3 D2-A3-1 | passed | `9087115` | 21 targeted + 54 files/362 tests | 362/362 | PASS | PASS | 7 retired operations; blockedIds=4 |
 | P4 D2-A3-2A | passed | `e80b8ee`…`34af053` | 30 targeted + 54 files/371 tests | 371/371 | PASS | PASS | scene queue/source projection、worker、visual confirm 已通过 |
 | P5 D2-A3-2B | passed_for_intent_boundary | `a2c46a3` | 33 targeted + 54 files/374 tests（全量命令显式 30s） | PASS | PASS | PASS | Character delete intent 已通过；Outbox consumer/物理清理仍属于 P8，capability 保持 partial |
-| P6 D2-A4 | passed | pending commit | P6-LAYOUT-EXPORT-01 + 54 files/374 tests | PASS | PASS | PASS | LayoutWorkingCopy、LayoutRevision/bindings、layout ExportRevision/Artifact、asset package 已实现；Character delete 仍待 P8 |
-| P7 D2-A5 | pending | - | - | - | - | - | - |
+| P6 D2-A4 | passed | `73cc76f` | P6-LAYOUT-EXPORT-01 + project DB 28/28；server 全量/门禁通过 | PASS | PASS | PASS | LayoutWorkingCopy、LayoutRevision/bindings、layout ExportRevision/Artifact、asset package 已实现；Character delete 仍待 P8 |
+| P7 D2-A5 | in_progress | - | 未提交草稿已有 thread/message/session/restart 起点；正式证据尚未收口 | pending | pending | pending | Dialogue capability 仍 unsupported，当前 blockedIds=3 |
 | P8 D2-A6 | pending | - | - | - | - | - | - |
 | P9 D2-A7 | pending | - | - | - | - | - | - |
 | P10 D2-A8 | pending | - | - | - | - | - | - |
