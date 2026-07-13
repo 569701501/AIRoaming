@@ -37,7 +37,7 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前代码 HEAD | `34af053`；D2-A3-2A/B 已连续推进至 scene queue、CandidateLock、images_done 与旧参考图入口退役 |
+| 当前代码 HEAD | `14eff2d`；D2-A3-2A/B 已连续推进至 scene queue、CandidateLock、images_done 与旧参考图入口退役；Luna 剩余施工清单已提交 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
