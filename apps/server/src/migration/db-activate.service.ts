@@ -135,14 +135,15 @@ export class DbActivateService {
       throw new DbActivateError("ACTIVATE_IDENTITY_MISMATCH");
     }
     const state = await db.persistenceState.findUnique({ where: { id: "primary" } });
-    if (!state || state.activationState !== "ready_for_activation" || state.cutoverRunId !== input.runId || state.sourceManifestDigest !== input.sourceManifestDigest || state.effectiveSchemaManifestDigest !== input.effectiveManifestDigest || state.activatedAt !== null || state.firstBusinessWriteAt !== null) {
+    const resumable = input.mode === "execute" && state?.activationState === "db_only" && state.activatedAt !== null && state.firstBusinessWriteAt === null;
+    if (!state || (!resumable && state.activationState !== "ready_for_activation") || state.cutoverRunId !== input.runId || state.sourceManifestDigest !== input.sourceManifestDigest || state.effectiveSchemaManifestDigest !== input.effectiveManifestDigest || (!resumable && state.activatedAt !== null) || state.firstBusinessWriteAt !== null) {
       throw new DbActivateError("ACTIVATE_NOT_READY");
     }
     return { state, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest };
   }
 
   async activate(input: DbActivateInput): Promise<DbActivateResult> {
-    await this.assertReady(input);
+    const ready = await this.assertReady(input);
     await this.verifyCutoverEvidence(input);
     await this.verifyBackup(input);
     if (input.mode === "dry-run") {
@@ -157,6 +158,18 @@ export class DbActivateService {
         backupVerified: true,
         activatedAt: iso(state.activatedAt),
         firstBusinessWriteAt: iso(state.firstBusinessWriteAt),
+      };
+    }
+    if (ready.state.activationState === "db_only") {
+      return {
+        mode: input.mode,
+        activationState: "db_only",
+        runId: input.runId,
+        sourceManifestDigest: input.sourceManifestDigest,
+        effectiveSchemaManifestDigest: input.effectiveManifestDigest,
+        backupVerified: true,
+        activatedAt: iso(ready.state.activatedAt),
+        firstBusinessWriteAt: iso(ready.state.firstBusinessWriteAt),
       };
     }
     const activatedAt = new Date();

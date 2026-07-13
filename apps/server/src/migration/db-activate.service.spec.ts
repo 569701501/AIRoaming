@@ -30,8 +30,9 @@ function fixture() {
     persistenceState: { findUnique: vi.fn(async () => state) },
     $transaction: vi.fn(async (callback: (tx: typeof db) => Promise<unknown>) => callback(db)),
   };
-  db.persistenceState = { findUnique: vi.fn(async () => state), update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(state, data)) } as never;
-  return { db, state };
+  const persistenceUpdate = vi.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(state, data));
+  db.persistenceState = { findUnique: vi.fn(async () => state), update: persistenceUpdate } as never;
+  return { db, state, persistenceUpdate };
 }
 
 function input(mode: "dry-run" | "execute") {
@@ -75,5 +76,17 @@ describe("DbActivateService", () => {
     const { db } = fixture();
     const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn() } as never);
     await expect(service.activate({ ...input("dry-run"), maintenanceBundle: "/tmp/missing-runtime-bundle.json", cutoverEvidenceRoot: "/tmp/missing-cutover-evidence" })).rejects.toMatchObject({ code: "ACTIVATE_NOT_READY" });
+  });
+
+  it("M6A1-ACT-06 resumes an execute after DB commit without rewriting activatedAt", async () => {
+    const { db, state, persistenceUpdate } = fixture();
+    const activatedAt = new Date("2026-07-13T00:10:00.000Z");
+    state.activationState = "db_only";
+    state.activatedAt = activatedAt;
+    state.firstBusinessWriteAt = null;
+    await writeFile(path.join(backupPath, "backup-manifest.json"), JSON.stringify({ backupKind: "pre-cutover", migration: { runKind: "final", finalRunId: runId, sourceManifestDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest } }));
+    const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn(async () => ({ mode: "verify-only" })) } as never);
+    await expect(service.activate(input("execute"))).resolves.toMatchObject({ mode: "execute", activationState: "db_only", activatedAt: activatedAt.toISOString(), firstBusinessWriteAt: null });
+    expect(persistenceUpdate).not.toHaveBeenCalled();
   });
 });

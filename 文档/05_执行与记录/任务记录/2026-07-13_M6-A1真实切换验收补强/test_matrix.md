@@ -42,7 +42,7 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-ACT-03 | stale final/source/snapshot/decisions/effective | `ACTIVATE_IDENTITY_MISMATCH`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-03） |
 | M6A1-ACT-04 | maintenance/evidence 未到 C6 | `ACTIVATE_NOT_READY`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-04） |
 | M6A1-ACT-05 | execute | 条件事务只写 db_only+activatedAt；first write 为空；C7/COMPLETED 后才 reopen | `passed`（`src/migration/m6-c0-c7.rehearsal.spec.ts`，M6A1-ACT-05） |
-| M6A1-ACT-06 | execute crash 后 resume | 不重写 activatedAt；同身份补 C7；first write 非空时拒绝补写 | `not_run` |
+| M6A1-ACT-06 | execute crash 后 resume | 不重写 activatedAt；同身份补 C7；first write 非空时拒绝补写 | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-06；DB-only resume 不重写 activatedAt） |
 
 ## 3. Business write boundary
 
