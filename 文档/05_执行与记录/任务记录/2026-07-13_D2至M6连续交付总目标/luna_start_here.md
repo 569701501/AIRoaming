@@ -14,9 +14,9 @@ source: 当前 HEAD、capability CLI 与 D2/M6 总施工资料
 
 ## 先看结论
 
-M5-A0～A4 已完成，不要重复施工。D2-A5 Dialogue runtime 已完成并独立提交，D2-A6 Outbox/Project delete 已提交 `075986f`。当前接管点是 **D2-A7**；工作树中有一份未验收、未提交的 D2-A7 草稿，必须先审查并收口。
+M5-A0～A4、D2-A5、D2-A6、D2-A7、D2-A8 均已完成并有证据。当前接管点是 **M6**；不要重复施工 D2 阶段。
 
-Luna 从 **D2-A7 final importer / verifier / ready coordinator** 开始，连续执行到 M6 隔离演练结束；每阶段内部测试、复核、独立提交后自动进入下一阶段，不需要用户逐步确认。
+Luna 从 **M6 activate tooling / C0～C7 隔离演练** 开始，连续执行到最终停点；D2 阶段不要重复施工。
 
 当前真实基线：
 
@@ -47,7 +47,7 @@ node --import tsx src/migration/db-capabilities.cli.ts --format json
 node --import tsx src/migration/db-capabilities.cli.ts --check --format json
 ```
 
-预期：report 为 8/36/0，`--check` exit 0。若工作树存在 D2-A7 草稿，先按 `luna_execute_all_remaining.md` 的 FIN-01～10 收口，不得把草稿当作完成。
+预期：report 为 8/36/0，`--check` exit 0。进入 M6 前必须确认工作树只包含 M6 当前改动，不得重做 D2。
 
 ## 连续顺序
 

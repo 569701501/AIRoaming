@@ -15,7 +15,7 @@ source: 本总目标编制过程
 - 当时的阶段基线为 8 个聚合 capability、36 个 operation、2 个 blocker；该值已在 D2-A6 收口后降为 `blockedIds=[]`。
 - `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
 - 当前已提交事实基线为 `075986f feat(d2): close project delete outbox`；D2-A2-1～D2-A6 均已有代码、阶段证据和独立提交。
-- 结论：总 Handoff 已进入 D2-A7 final importer/verifier/ready；工作树草稿尚未验收，不得误报完成。
+- 结论：总 Handoff 已完成 D2-A7 与 D2-A8，当前进入 M6 tooling；真实 `db:activate` 仍未实现。
 
 ## 2026-07-13
 
@@ -67,7 +67,7 @@ source: 本总目标编制过程
 
 - 当前已提交 HEAD 为 `075986f`；D2-A6 Outbox/Project delete 已独立提交并复核，capability 已为 8/36/0。
 - 工作树不再存在 D2-A5 未提交草稿；P7 的 DB thread/message/tool/pending/session、restart、maintenance/deleting fence 证据已计入 capability。
-- 继续施工按 `luna_execute_all_remaining.md` 执行 D2-A7→D2-A8→M6；先收口工作树 D2-A7 草稿，不得重复 P7/P8。
+- 继续施工按 `luna_execute_all_remaining.md` 的 M6 部分执行；不得重复 P7/P8/D2-A7/A8。
 
 ## P5 Character delete intent（2026-07-13）
 
@@ -103,4 +103,4 @@ source: 本总目标编制过程
 - 五类事件已具备 handler：`asset.promote`、`asset.delete`、`project.delete_files`、`secret.delete_old_ref`、`legacy_metadata.archive`。Character delete physical cleanup 已由 `asset.delete` 闭合。
 - P8 定向 5/5、capability registry 5 项复核通过、server typecheck 通过；真实 CLI 为 8 capability/36 operation/`blockedIds=[]`。
 - 默认 server 全量并发命令有 13 个历史慢测在 5 秒阈值下 timeout；备份/G1 慢测提高到 30 秒独立运行 45/45 通过，P8 用例在全量运行中全部通过。
-- P8 已停止在此阶段，下一步是 D2-A7/A8 文档复核与实施，不自动进入 M6。
+- P8、D2-A7、D2-A8 均已通过并独立留痕；下一步是 M6 工具实现与隔离 C0～C7。

@@ -32,7 +32,9 @@ blockedIds: []
 
 D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4、D2-A5、D2-A6 已完成并有独立提交；D2-A6 的独立提交是 `075986f`。
 
-当前工作树存在一份 **D2-A7 草稿但未验收、未提交** 的代码：
+此前工作树存在的 **D2-A7 草稿** 已完成验收并提交 `7a41d5c`；D2-A8 双 fresh/replay 综合见证也已通过，当前下一阶段是 M6。
+
+历史上 D2-A7 草稿包含：
 
 ```text
 apps/server/src/migration/final-import-report.ts
@@ -44,7 +46,7 @@ apps/server/src/migration/migration-verify.service.ts # final verifier 草稿
 apps/server/package.json                              # db:ready 草稿
 ```
 
-这份草稿目前只确认 server typecheck 通过，**不能当作 D2-A7 完成**。Luna 必须先审查、补测试、修复、跑 Runtime Review，再独立提交；不得把它直接跳过，也不得把未通过的草稿当成 ready。
+该草稿已由 FIN-01～10、CLI 门禁、全量回归和双 Review 收口；D2-A8 又完成双 fresh/replay/restart/legacy isolation 见证。Luna 现在从 M6 开始，不得重复 D2-A7/A8。
 
 ### 1.3 接管命令
 
@@ -64,9 +66,9 @@ node --import tsx src/migration/db-capabilities.cli.ts --check --format json
 
 | 顺序 | 阶段 | 目标 | 进入条件 | 退出状态 |
 | --- | --- | --- | --- | --- |
-| 1 | D2-A7 | final importer、final verifier、ready coordinator | D2-A6 `075986f`、当前草稿可审查 | `d2_final_import_ready` |
-| 2 | D2-A8 | 双 fresh/replay/restart/secret/capability 综合见证 | D2-A7 独立提交且 FIN-01～10 全绿 | `d2_passed` |
-| 3 | M6 | activate tooling、rollback 边界、隔离 C0～C7 | D2-A8 全绿且 `blockedIds=[]` | `m6_tooling_passed` |
+| 1 | D2-A7 | final importer、final verifier、ready coordinator | 已完成，`7a41d5c` | `d2_final_import_ready` |
+| 2 | D2-A8 | 双 fresh/replay/restart/secret/capability 综合见证 | 已完成，D2-WIT-01～05 | `d2_passed` |
+| 3 | M6 | activate tooling、rollback 边界、隔离 C0～C7 | 当前阶段，`blockedIds=[]` | `m6_tooling_passed` |
 | 4 | 总收口 | 生成最终证据和真实切换授权请求 | M6 C0～C7 及 RB 全绿 | `ready_for_real_cutover_authorization` |
 
 ## 3. D2-A7：先收口当前草稿

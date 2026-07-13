@@ -1522,6 +1522,96 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(duplicateFailure?.stderr ?? "").toContain("MIGRATION_IMPORT_ARGS_INVALID");
   }, 30_000);
 
+  it("D2-WIT-01/02/03/04/05 completes two fresh final witnesses, replay, restart and legacy isolation", async () => {
+    const options: FinalSnapshotOptions = {
+      withScriptHistory: true,
+      withStoryStructure: true,
+      withStoryboard: true,
+      withAssetVisuals: true,
+      withTasks: "complete",
+      withCandidates: true,
+      withLayout: true,
+      withExports: true,
+      withSettings: true,
+      withDialogueRuntime: true,
+      withPendingDialogue: true,
+    };
+    const fixtureA = await createFinalFixture(options, "d2-witness-shared");
+    const finalA = await runFinalFixture(fixtureA);
+    expect(finalA.run.status).toBe("succeeded");
+    const inventoryA = await readFreshInventory(prisma!);
+    const assetsA = await prisma!.database().asset.findMany({ orderBy: { storageKey: "asc" }, select: { storageKey: true, sha256: true, bytes: true, status: true } });
+
+    const rootB = await mkdtemp(path.join(os.tmpdir(), "airoaming-d2-witness-b-"));
+    let prismaB: PrismaService | null = null;
+    try {
+      const dbPathB = path.join(rootB, "db.sqlite");
+      const handleB = await open(dbPathB, "wx", 0o600);
+      await handleB.close();
+      const databaseUrlB = `file:${dbPathB}`;
+      await deploy(databaseUrlB);
+      const snapshotB = fixtureA.snapshot;
+      const decisionsPathB = fixtureA.decisionsPath;
+      const targetWorkspaceB = path.join(rootB, "target-workspace");
+      const dataRootB = path.join(rootB, "target-data");
+      const secretRootB = path.join(rootB, "target-secret-store");
+      await mkdir(dataRootB);
+      await mkdir(secretRootB);
+      process.env.DATABASE_URL = databaseUrlB;
+      process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
+      process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = secretRootB;
+      prismaB = new PrismaService();
+      await prismaB.onModuleInit();
+      const finalB = await new FinalImportOrchestrator(prismaB).import({ snapshotPath: snapshotB.outputPath, decisionsPath: decisionsPathB, databaseUrl: databaseUrlB, workspaceRoot: targetWorkspaceB, dataRoot: dataRootB, releaseRoot: repoRoot, secretStoreRoot: secretRootB, runId: "d2-witness-shared" });
+      expect(finalB.report.reportDigest).toBe(finalA.report.reportDigest);
+      const inventoryB = await readFreshInventory(prismaB);
+      expect(inventoryB.digest).toBe(inventoryA.digest);
+      expect(inventoryB.tables).toEqual(inventoryA.tables);
+      expect(await prismaB.database().asset.findMany({ orderBy: { storageKey: "asc" }, select: { storageKey: true, sha256: true, bytes: true, status: true } })).toEqual(assetsA);
+    } finally {
+      await prismaB?.onModuleDestroy();
+      await rm(rootB, { recursive: true, force: true });
+      process.env.DATABASE_URL = fixtureA.databaseUrl;
+      process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
+      process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = fixtureA.secretStoreRoot;
+    }
+
+    const countBeforeReplay = await prisma!.database().migrationRun.count();
+    const replayA = await runFinalFixture(fixtureA);
+    expect(replayA.report.reportDigest).toBe(finalA.report.reportDigest);
+    expect(await prisma!.database().migrationRun.count()).toBe(countBeforeReplay);
+
+    const sourceWorkspaceA = path.join(fixtureA.prepared.root!, "workspace");
+    process.env.AIROAMING_WORKSPACE_ROOT = sourceWorkspaceA;
+    delete process.env.AIROAMING_PERSISTENCE_MODE;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const fileSnapshot = await app.get(ProjectsService).getWorkbenchSnapshot("p1");
+    const legacyProjectFile = await readFile(path.join(sourceWorkspaceA, "projects", "p1", "project.json"), "utf8");
+    const legacyScriptFile = await readFile(path.join(sourceWorkspaceA, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8");
+    await app.close();
+    app = null;
+
+    const archivedWorkspace = path.join(fixtureA.prepared.root!, "archived-workspace");
+    await rename(sourceWorkspaceA, archivedWorkspace);
+    await prisma!.onModuleDestroy();
+    prisma = null;
+    process.env.AIROAMING_PERSISTENCE_MODE = "db";
+    process.env.DATABASE_URL = fixtureA.databaseUrl;
+    process.env.AIROAMING_WORKSPACE_ROOT = fixtureA.targetWorkspace;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const dbProjects = app.get(ProjectsService);
+    const targetProjectId = PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1");
+    const dbSnapshot = await dbProjects.getWorkbenchSnapshot(targetProjectId);
+    expect(semanticWorkbenchSnapshot(dbSnapshot)).toEqual(semanticWorkbenchSnapshot(fileSnapshot));
+    const dbScript = app.get(ScriptVersionService);
+    const targetChapterId = PrismaMigrationLedgerRepository.stableEntityId("Chapter", "workspace-v1:p1:Chapter:p1-chapter-001");
+    const workingCopy = await dbScript.getWorkingCopy({ projectId: targetProjectId, chapterId: targetChapterId });
+    await dbScript.updateWorkingCopy({ projectId: targetProjectId, chapterId: targetChapterId }, { sourceText: "D2 witness DB mutation\n", expectedChapterRowVersion: workingCopy.chapterRowVersion });
+    expect(await readFile(path.join(archivedWorkspace, "projects", "p1", "project.json"), "utf8")).toBe(legacyProjectFile);
+    expect(await readFile(path.join(archivedWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8")).toBe(legacyScriptFile);
+    expect((await dbProjects.getWorkbenchSnapshot(targetProjectId)).currentChapter?.sourceText).toContain("D2 witness DB mutation");
+  }, 180_000);
+
   it("IMP-M4-31 dispatches every independent shadow slice through the db:import CLI", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {

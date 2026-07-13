@@ -12,16 +12,16 @@ source: 当前 capability CLI、已提交阶段证据、D2/M6 总实施契约
 
 ## 1. 先说结论
 
-当前不是 M5 施工。M5-A0～A4 已完成；M5 是上游基线。当前唯一执行入口是同目录 `luna_execute_all_remaining.md`。
+当前不是 M5 施工。M5-A0～A4、D2-A7、D2-A8 已完成；当前唯一执行入口是同目录 `luna_execute_all_remaining.md` 的 M6 部分。
 
-当前从 **D2-A7** 接管，按下面顺序连续做到最终停点：
+当前从 **M6** 接管，按下面顺序连续做到最终停点；D2-A7/A8 已完成，不要重复施工：
 
 ```text
 D2-A5 Dialogue runtime（已完成，commit `fa26908`）
   → D2-A6 Outbox + Project delete（已完成，独立提交收口中）
-  → D2-A7 final importer / verifier / ready coordinator
-  → D2-A8 fresh/replay/restart/secret 综合见证
-  → M6 activate tooling + 隔离 C0～C7
+  → D2-A7 final importer / verifier / ready coordinator（已完成 `7a41d5c`）
+  → D2-A8 fresh/replay/restart/secret 综合见证（已完成）
+  → M6 activate tooling + 隔离 C0～C7（当前）
   → ready_for_real_cutover_authorization
 ```
 
@@ -42,16 +42,16 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 | 项目 | 事实 |
 | --- | --- |
-| 最新已提交基线 | `075986f feat(d2): close project delete outbox`；D2-A7 草稿在工作树，尚未验收/提交 |
+| 最新已提交基线 | D2-A7 `7a41d5c`；D2-A8 综合见证已通过，当前进入 M6 |
 | 已完成 | M5、D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4、D2-A5 |
 | capability | 8 个聚合项、36 个 operation；P7 已计入 evidence |
-| 当前 blocker | capability report 为 `blockedIds=[]`；D2-A7 仍是代码验收阻塞，不是 capability blocker |
+| 当前 blocker | capability report 为 `blockedIds=[]`；M6 tooling 尚未实现 |
 | 已绿且不得回退 | `project_chapter_script`、`outline_story_storyboard_preflight`、`layout_export`、`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store` |
 | final importer | 仍 fail-closed；`db:import --kind final` 不得放行 |
-| `db:activate` | 尚未实现 |
+| `db:activate` | 尚未实现，属于当前 M6 |
 | 真实环境 | 不得接触真实 workspace、DB、Keychain、provider 或凭据 |
 
-P8 任务目录 `2026-07-13_D2-A6项目删除与Outbox/` 已记录实现、证据与复核。Luna 不得重复施工 P7/P8；先完成 P8 独立提交，然后直接从 D2-A7 开始。
+P8、D2-A7、D2-A8 任务目录均已记录实现、证据与复核。Luna 不得重复施工这些阶段，直接进入 M6。
 
 ## 3. 阶段任务与硬退出条件
 

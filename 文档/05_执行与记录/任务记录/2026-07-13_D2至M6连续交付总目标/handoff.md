@@ -20,9 +20,9 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 已完成：D2-A2-1 -> D2-A2-2 -> D2-A3-1 -> D2-A3-2A/B -> D2-A4
   -> 已完成：D2-A5 Dialogue runtime（commit `fa26908`）
     -> D2-A6（Outbox + Project delete，并回补 Character delete，已完成，commit `075986f`）
-      -> 当前：D2-A7（final importer / verifier / ready coordinator 草稿待收口）
-        -> D2-A8
-          -> M6 工具实现与全隔离 C0～C7 演练
+      -> D2-A7（final importer / verifier / ready coordinator，已完成，commit `7a41d5c`）
+        -> D2-A8（双 fresh/replay 综合见证，已完成）
+          -> 当前：M6 工具实现与全隔离 C0～C7 演练
             -> ready_for_real_cutover_authorization
 ```
 
@@ -38,7 +38,7 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
 | 当前已提交基线 | `075986f feat(d2): close project delete outbox` |
-| 工作树状态 | D2-A6 已提交；D2-A7 final importer/verifier/ready 草稿未验收、未提交，下一步先收口草稿 |
+| 工作树状态 | D2-A7 已提交；D2-A8 综合见证当前提交前收口，下一步进入 M6 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
