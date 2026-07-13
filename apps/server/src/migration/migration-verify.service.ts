@@ -7,6 +7,8 @@ import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-ident
 import { checkSourceEvidence } from "./migration-source-evidence.registry.js";
 import { MigrationDecisionError, normalizeMigrationDecisionArtifact } from "./migration-decision.js";
 import { MigrationReportCodecError, normalizeComicFormatReport } from "./migration-report.js";
+import { FinalImportReportError, normalizeFinalImportReport, type FinalImportReport } from "./final-import-report.js";
+import { FULL_SHADOW_SLICE_ORDER } from "./full-shadow-importer.js";
 import type { MigrationRunKind } from "./migration-ledger.js";
 
 export class MigrationVerifyError extends Error {
@@ -152,20 +154,39 @@ async function assessDecisionsArtifact(
 async function assessReportArtifact(
   reportPath: string | undefined,
   expectedReportDigest: string | null,
+  runKind: MigrationRunKind,
 ): Promise<ReportArtifactAssessment> {
   if (!reportPath) return { present: false, valid: false, matches: false, errorCode: null };
   try {
     const raw = JSON.parse(await readFile(reportPath, "utf8")) as unknown;
-    const report = normalizeComicFormatReport(raw);
+    const report = runKind === "final" ? normalizeFinalImportReport(raw) : normalizeComicFormatReport(raw);
     return { present: true, valid: true, matches: report.reportDigest === expectedReportDigest, errorCode: null };
   } catch (error) {
-    const code = error instanceof MigrationReportCodecError ? error.code : "MIGRATION_REPORT_ARTIFACT_INVALID";
+    const code = error instanceof MigrationReportCodecError || error instanceof FinalImportReportError ? error.code : "MIGRATION_REPORT_ARTIFACT_INVALID";
     return { present: true, valid: false, matches: false, errorCode: code };
   }
 }
 
-function assessRunVerification(verification: Record<string, unknown> | null): RunVerificationAssessment {
+function assessRunVerification(verification: Record<string, unknown> | null, runKind: MigrationRunKind): RunVerificationAssessment {
   if (!verification) return { present: false, valid: false };
+  if (runKind === "final") {
+    const slices = Array.isArray(verification.slices) ? verification.slices : [];
+    return {
+      present: true,
+      valid: verification.schemaVersion === 1
+        && typeof verification.sourceManifestDigest === "string"
+        && typeof verification.snapshotManifestDigest === "string"
+        && typeof verification.effectiveSchemaManifestDigest === "string"
+        && verification.integrityCheck === "ok"
+        && verification.foreignKeyViolationCount === 0
+        && verification.failedLedgerCount === 0
+        && verification.migrationChecksumStatus === "verified"
+        && verification.openBlockerCount === 0
+        && verification.secretScanCount === 0
+        && slices.length === 16
+        && slices.every((slice) => Boolean(slice && typeof slice === "object" && (slice as Record<string, unknown>).status === "succeeded" && (slice as Record<string, unknown>).passed === true)),
+    };
+  }
   return {
     present: true,
     valid: verification.schemaVersion === 1
@@ -219,9 +240,14 @@ export class MigrationVerifyService {
     const sourceEvidence = await checkSourceEvidence(snapshot, imported);
     const sourceCountAssessment = assessSourceCounts(run.importerVersion, run.counts);
     const expectedSourceCounts = sourceCountAssessment.expected;
-    const runVerification = assessRunVerification(run.verification);
+    const runVerification = assessRunVerification(run.verification, run.kind);
     const decisionsArtifact = await assessDecisionsArtifact(decisionsPath, snapshot.sourceManifest.manifestDigest, run.decisionsDigest);
-    const reportArtifact = await assessReportArtifact(importReportPath, run.reportDigest);
+    const reportArtifact = await assessReportArtifact(importReportPath, run.reportDigest, run.kind);
+    let finalReport: FinalImportReport | null = null;
+    if (run.kind === "final" && importReportPath && reportArtifact.valid) {
+      try { finalReport = normalizeFinalImportReport(JSON.parse(await readFile(importReportPath, "utf8")) as unknown); }
+      catch { finalReport = null; }
+    }
     const actualSourceCounts = new Map<string, number>();
     for (const row of imported) actualSourceCounts.set(row.entityType, (actualSourceCounts.get(row.entityType) ?? 0) + 1);
     const sourceEvidenceExpectedCount = [...expectedSourceCounts.values()].reduce((sum, count) => sum + count, 0);
@@ -243,16 +269,16 @@ export class MigrationVerifyService {
     const sourceEntityCountsPresent = sourceCountAssessment.present;
     const sourceEntityCountsValid = sourceCountAssessment.valid;
     const errors: string[] = [];
-    if (run.kind !== "shadow") errors.push("MIGRATION_RUN_KIND_INVALID");
+    if (run.kind !== "shadow" && run.kind !== "final") errors.push("MIGRATION_RUN_KIND_INVALID");
     if (run.kind === "shadow" && !importerVersionKnown) errors.push("MIGRATION_IMPORTER_VERSION_INVALID");
     if (run.status !== "succeeded") errors.push("MIGRATION_RUN_NOT_SUCCEEDED");
     if (run.kind === "shadow" && run.status === "succeeded" && !reportDigestPresent) errors.push("MIGRATION_REPORT_DIGEST_MISSING");
     if (run.kind === "shadow" && run.status === "succeeded" && reportDigestPresent && !reportDigestValid) errors.push("MIGRATION_REPORT_DIGEST_INVALID");
-    if (run.kind === "shadow" && run.status === "succeeded" && !decisionsDigestPresent) errors.push("MIGRATION_DECISIONS_DIGEST_MISSING");
-    if (run.kind === "shadow" && run.status === "succeeded" && decisionsDigestPresent && !decisionsDigestValid) errors.push("MIGRATION_DECISIONS_DIGEST_INVALID");
-    if (run.kind === "shadow" && run.status === "succeeded" && !decisionsArtifact.present) errors.push("MIGRATION_DECISIONS_ARTIFACT_MISSING");
-    if (run.kind === "shadow" && run.status === "succeeded" && decisionsArtifact.present && !decisionsArtifact.valid) errors.push(decisionsArtifact.errorCode ?? "MIGRATION_DECISIONS_ARTIFACT_INVALID");
-    if (run.kind === "shadow" && run.status === "succeeded" && decisionsArtifact.valid && !decisionsArtifact.matches) errors.push("MIGRATION_DECISIONS_DIGEST_MISMATCH");
+    if ((run.kind === "shadow" || run.kind === "final") && run.status === "succeeded" && !decisionsDigestPresent) errors.push("MIGRATION_DECISIONS_DIGEST_MISSING");
+    if ((run.kind === "shadow" || run.kind === "final") && run.status === "succeeded" && decisionsDigestPresent && !decisionsDigestValid) errors.push("MIGRATION_DECISIONS_DIGEST_INVALID");
+    if ((run.kind === "shadow" || run.kind === "final") && run.status === "succeeded" && !decisionsArtifact.present) errors.push("MIGRATION_DECISIONS_ARTIFACT_MISSING");
+    if ((run.kind === "shadow" || run.kind === "final") && run.status === "succeeded" && decisionsArtifact.present && !decisionsArtifact.valid) errors.push(decisionsArtifact.errorCode ?? "MIGRATION_DECISIONS_ARTIFACT_INVALID");
+    if ((run.kind === "shadow" || run.kind === "final") && run.status === "succeeded" && decisionsArtifact.valid && !decisionsArtifact.matches) errors.push("MIGRATION_DECISIONS_DIGEST_MISMATCH");
     if (run.kind === "shadow" && run.status === "succeeded" && !reportArtifact.present) errors.push("MIGRATION_REPORT_ARTIFACT_MISSING");
     if (run.kind === "shadow" && run.status === "succeeded" && reportArtifact.present && !reportArtifact.valid) errors.push(reportArtifact.errorCode ?? "MIGRATION_REPORT_ARTIFACT_INVALID");
     if (run.kind === "shadow" && run.status === "succeeded" && reportArtifact.valid && !reportArtifact.matches) errors.push("MIGRATION_REPORT_DIGEST_MISMATCH");
@@ -260,6 +286,31 @@ export class MigrationVerifyService {
     if (run.kind === "shadow" && run.status === "succeeded" && runVerificationPresent && !runVerificationValid) errors.push("MIGRATION_RUN_VERIFICATION_INVALID");
     if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && !sourceEntityCountsPresent) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_MISSING");
     if (run.kind === "shadow" && run.status === "succeeded" && importerVersionKnown && sourceEntityCountsPresent && !sourceEntityCountsValid) errors.push("MIGRATION_SOURCE_ENTITY_COUNTS_INVALID");
+    if (run.kind === "final" && run.status === "succeeded" && !reportArtifact.present) errors.push("MIGRATION_FINAL_REPORT_MISSING");
+    if (run.kind === "final" && run.status === "succeeded" && reportArtifact.present && !reportArtifact.valid) errors.push("MIGRATION_FINAL_REPORT_INVALID");
+    if (run.kind === "final" && run.status === "succeeded" && finalReport) {
+      if (finalReport.sourceManifestDigest !== snapshot.sourceManifest.manifestDigest) errors.push("MIGRATION_FINAL_SOURCE_DIGEST_MISMATCH");
+      if (finalReport.snapshotManifestDigest !== snapshot.snapshotManifest.manifestDigest) errors.push("MIGRATION_FINAL_SNAPSHOT_DIGEST_MISMATCH");
+      if (finalReport.decisionsDigest !== (run.decisionsDigest ?? "")) errors.push("MIGRATION_FINAL_DECISIONS_DIGEST_MISMATCH");
+      if (finalReport.effectiveSchemaManifestDigest !== effective.effectiveSchemaManifestDigest) errors.push("MIGRATION_FINAL_RELEASE_IDENTITY_MISMATCH");
+      if (finalReport.slices.length !== FULL_SHADOW_SLICE_ORDER.length) errors.push("MIGRATION_FINAL_SLICE_COUNT_INVALID");
+      if (finalReport.slices.some((slice, index) => slice.slice !== FULL_SHADOW_SLICE_ORDER[index] || slice.status !== "succeeded" || !slice.evidence.passed || !slice.runId || !slice.reportDigest)) errors.push("MIGRATION_FINAL_SLICE_BINDING_INVALID");
+      for (const slice of finalReport.slices) {
+        try {
+          const child = await this.ledger.getRun(slice.runId);
+          if (child.kind !== "shadow" || child.status !== "succeeded" || child.reportDigest !== slice.reportDigest || child.sourceManifestDigest !== run.sourceManifestDigest || child.snapshotManifestDigest !== run.snapshotManifestDigest || child.decisionsDigest !== run.decisionsDigest) errors.push("MIGRATION_FINAL_CHILD_RUN_MISMATCH");
+        } catch { errors.push("MIGRATION_FINAL_CHILD_RUN_MISSING"); }
+      }
+      const verificationSlices = run.verification && Array.isArray(run.verification.slices) ? run.verification.slices : [];
+      if (verificationSlices.length !== finalReport.slices.length || verificationSlices.some((slice, index) => {
+        if (!slice || typeof slice !== "object") return true;
+        const row = slice as Record<string, unknown>;
+        const expected = finalReport!.slices[index];
+        return row.slice !== expected.slice || row.runId !== expected.runId || row.status !== "succeeded" || row.passed !== true;
+      })) errors.push("MIGRATION_FINAL_VERIFICATION_SLICE_BINDING_INVALID");
+    }
+    if (run.kind === "final" && run.status === "succeeded" && !runVerificationPresent) errors.push("MIGRATION_FINAL_VERIFICATION_MISSING");
+    if (run.kind === "final" && run.status === "succeeded" && runVerificationPresent && !runVerificationValid) errors.push("MIGRATION_FINAL_VERIFICATION_INVALID");
     if (run.sourceManifestDigest !== snapshot.sourceManifest.manifestDigest) errors.push("MIGRATION_SOURCE_DIGEST_MISMATCH");
     if (run.snapshotManifestDigest !== snapshot.snapshotManifest.manifestDigest) errors.push("MIGRATION_SNAPSHOT_DIGEST_MISMATCH");
     if (integrityCheck !== "ok") errors.push("MIGRATION_INTEGRITY_CHECK_FAILED");

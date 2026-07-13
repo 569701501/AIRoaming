@@ -18,6 +18,7 @@ import { ExportShadowImporter, ExportShadowImportError } from "./export-shadow-i
 import { ProviderShadowImporter, ProviderShadowImportError } from "./provider-shadow-importer.js";
 import { DialogueShadowImporter, DialogueShadowImportError } from "./dialogue-shadow-importer.js";
 import { FullShadowImporter } from "./full-shadow-importer.js";
+import { FinalImportError, FinalImportOrchestrator } from "./final-importer.js";
 import { readJsonFormat } from "../cli-format.js";
 
 function required(name: string): string {
@@ -25,6 +26,33 @@ function required(name: string): string {
   const value = index >= 0 ? process.argv[index + 1] : undefined;
   if (!value) throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   return value;
+}
+
+const FINAL_FLAGS = ["--kind", "--snapshot", "--decisions", "--database-url", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root", "--run-id", "--format"] as const;
+type FinalArgs = Record<(typeof FINAL_FLAGS)[number], string>;
+
+function parseFinalArgs(args: readonly string[]): FinalArgs {
+  const values = {} as Partial<FinalArgs>;
+  const allowed = new Set<string>(FINAL_FLAGS);
+  for (let index = 0; index < args.length; index += 1) {
+    const flag = args[index];
+    if (!allowed.has(flag)) throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
+    if (values[flag as keyof FinalArgs] !== undefined) throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
+    const value = args[index + 1];
+    if (!value || value.startsWith("--")) throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
+    values[flag as keyof FinalArgs] = value;
+    index += 1;
+  }
+  for (const flag of FINAL_FLAGS) if (values[flag] === undefined) throw new FinalImportError(flag === "--format" ? "MIGRATION_IMPORT_ARGS_INVALID" : "MIGRATION_FINAL_IMPORT_NOT_READY");
+  if (values["--kind"] !== "final" || values["--format"] !== "json") throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  const pathFlags = ["--snapshot", "--decisions", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root"] as const;
+  for (const flag of pathFlags) {
+    const value = values[flag]!;
+    if (!path.isAbsolute(value) || value.includes("\0")) throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  }
+  if (!values["--database-url"]!.startsWith("file:") || !path.isAbsolute(values["--database-url"]!.slice("file:".length))) throw new FinalImportError("MIGRATION_DATABASE_URL_INVALID");
+  if (!values["--run-id"]!.trim()) throw new FinalImportError("MIGRATION_RUN_ID_INVALID");
+  return values as FinalArgs;
 }
 
 async function writePrivateJson(filePath: string, value: unknown): Promise<void> {
@@ -44,7 +72,42 @@ async function writePrivateJson(filePath: string, value: unknown): Promise<void>
 
 async function main(): Promise<number> {
   const kind = required("--kind");
-  if (kind !== "shadow") throw new ShadowImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
+  if (kind === "final") {
+    const args = process.argv.slice(2);
+    const snapshotIndex = process.argv.indexOf("--snapshot");
+    const decisionsIndex = process.argv.indexOf("--decisions");
+    const databaseIndex = process.argv.indexOf("--database-url");
+    const reportIndex = process.argv.indexOf("--report");
+    const workspaceIndex = process.argv.indexOf("--workspace-root");
+    const dataIndex = process.argv.indexOf("--data-root");
+    const releaseIndex = process.argv.indexOf("--release-root");
+    const secretIndex = process.argv.indexOf("--secret-store-root");
+    const runIndex = process.argv.indexOf("--run-id");
+    if ([snapshotIndex, decisionsIndex, databaseIndex, reportIndex, workspaceIndex, dataIndex, releaseIndex, secretIndex, runIndex].some((index) => index < 0)) throw new FinalImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
+    const parsed = parseFinalArgs(args);
+    const snapshot = parsed["--snapshot"];
+    const decisions = parsed["--decisions"];
+    const databaseUrl = parsed["--database-url"];
+    const reportPath = parsed["--report"];
+    const workspaceRoot = parsed["--workspace-root"];
+    const dataRoot = parsed["--data-root"];
+    const releaseRoot = parsed["--release-root"];
+    const secretStoreRoot = parsed["--secret-store-root"];
+    const runId = parsed["--run-id"];
+    process.env.AIROAMING_PERSISTENCE_MODE = "db";
+    process.env.DATABASE_URL = databaseUrl;
+    const prisma = new PrismaService();
+    try {
+      await prisma.onModuleInit();
+      const result = await new FinalImportOrchestrator(prisma).import({ snapshotPath: snapshot, decisionsPath: decisions, databaseUrl, workspaceRoot, dataRoot, releaseRoot, secretStoreRoot, runId });
+      await writePrivateJson(reportPath, result.report);
+      process.stdout.write(`${JSON.stringify({ code: result.run.status === "succeeded" ? "MIGRATION_FINAL_IMPORT_OK" : "MIGRATION_FINAL_IMPORT_BLOCKED", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
+      return result.run.status === "succeeded" ? 0 : 2;
+    } finally {
+      await prisma.onModuleDestroy();
+    }
+  }
+  if (kind !== "shadow") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
   const sliceIndex = process.argv.indexOf("--slice");
   const slice = sliceIndex >= 0 ? process.argv[sliceIndex + 1] : "project-chapter";
   if (slice !== "full" && slice !== "project-chapter" && slice !== "script-outline" && slice !== "script-pending-revision" && slice !== "story" && slice !== "storyboard" && slice !== "preflight" && slice !== "tasks" && slice !== "candidates" && slice !== "candidate-locks" && slice !== "layout" && slice !== "exports" && slice !== "providers" && slice !== "dialogue" && slice !== "characters" && slice !== "assets" && slice !== "asset-visuals") throw new ShadowImportError("MIGRATION_IMPORT_ARGS_INVALID");
@@ -113,7 +176,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  const code = error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError || error instanceof TaskShadowImportError || error instanceof CandidateShadowImportError || error instanceof CandidateLockShadowImportError || error instanceof LayoutShadowImportError || error instanceof ExportShadowImportError || error instanceof ProviderShadowImportError || error instanceof DialogueShadowImportError
+  const code = error instanceof FinalImportError || error instanceof ShadowImportError || error instanceof ScriptOutlineShadowImportError || error instanceof ScriptPendingRevisionShadowImportError || error instanceof StoryShadowImportError || error instanceof StoryboardShadowImportError || error instanceof CharacterShadowImportError || error instanceof AssetShadowImportError || error instanceof AssetVisualShadowImportError || error instanceof PreflightShadowImportError || error instanceof TaskShadowImportError || error instanceof CandidateShadowImportError || error instanceof CandidateLockShadowImportError || error instanceof LayoutShadowImportError || error instanceof ExportShadowImportError || error instanceof ProviderShadowImportError || error instanceof DialogueShadowImportError
     ? error.code
     : error instanceof Error && "code" in error ? String((error as Error & { code: unknown }).code) : "MIGRATION_IMPORT_FAILED";
   process.stderr.write(`${code}\n`);

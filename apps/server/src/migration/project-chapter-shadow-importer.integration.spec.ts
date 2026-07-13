@@ -31,6 +31,9 @@ import { ExportShadowImporter } from "./export-shadow-importer.js";
 import { ProviderShadowImporter } from "./provider-shadow-importer.js";
 import { DialogueShadowImporter } from "./dialogue-shadow-importer.js";
 import { FullShadowImporter, FULL_SHADOW_SLICE_ORDER } from "./full-shadow-importer.js";
+import { ReadyCoordinator } from "./ready-coordinator.js";
+import { FinalImportError, FinalImportOrchestrator } from "./final-importer.js";
+import { normalizeFinalImportReport } from "./final-import-report.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { SnapshotService } from "./snapshot.service.js";
@@ -45,7 +48,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const schemaPath = path.join(repoRoot, "apps/server/prisma/schema.prisma");
 const prismaCli = path.join(repoRoot, "apps/server/node_modules/prisma/build/index.js");
 const SOURCE = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const;
-const ENV_NAMES = ["AIROAMING_PERSISTENCE_MODE", "DATABASE_URL", "AIROAMING_WORKSPACE_ROOT"] as const;
+const ENV_NAMES = ["AIROAMING_PERSISTENCE_MODE", "DATABASE_URL", "AIROAMING_WORKSPACE_ROOT", "AIROAMING_SECRET_STORE_ADAPTER", "AIROAMING_FAKE_SECRET_STORE_ROOT"] as const;
 const FRESH_INVENTORY_TABLES = [
   "projects",
   "project_script_outlines",
@@ -310,6 +313,37 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const reportPath = path.join(baseRoot, name);
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
     return reportPath;
+  }
+
+  type FinalSnapshotOptions = NonNullable<Parameters<typeof createSnapshot>[2]>;
+  async function createFinalFixture(snapshotOptions: FinalSnapshotOptions = {
+    withScriptHistory: true,
+    withStoryStructure: true,
+    withStoryboard: true,
+    withAssetVisuals: true,
+    withTasks: "complete",
+    withCandidates: true,
+    withLayout: true,
+    withExports: true,
+    withSettings: true,
+    withDialogueRuntime: true,
+    withPendingDialogue: true,
+  }, runId = `final-${Date.now()}`, formats: Record<string, string> = { p1: "vertical_scroll" }) {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, formats, snapshotOptions);
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const targetWorkspace = path.join(prepared.root!, `${runId}-workspace`);
+    const dataRoot = path.join(prepared.root!, `${runId}-data`);
+    const secretStoreRoot = path.join(prepared.root!, `${runId}-secret-store`);
+    await mkdir(dataRoot);
+    await mkdir(secretStoreRoot);
+    process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
+    process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = secretStoreRoot;
+    return { prepared, snapshot, decisionsPath, targetWorkspace, dataRoot, secretStoreRoot, runId, databaseUrl: process.env.DATABASE_URL!, reportPath: path.join(prepared.root!, `${runId}.report.json`) };
+  }
+
+  async function runFinalFixture(fixture: Awaited<ReturnType<typeof createFinalFixture>>) {
+    return new FinalImportOrchestrator(prisma!).import({ snapshotPath: fixture.snapshot.outputPath, decisionsPath: fixture.decisionsPath, databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.targetWorkspace, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, secretStoreRoot: fixture.secretStoreRoot, runId: fixture.runId });
   }
 
   afterEach(async () => {
@@ -1316,6 +1350,176 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(failure?.code).toBe(1);
     expect(failure?.stdout ?? "").toBe("");
     expect(failure?.stderr ?? "").toContain("MIGRATION_FINAL_IMPORT_NOT_READY");
+  }, 30_000);
+
+  it("FIN-01 runs the final importer through the explicit CLI and emits a 16-slice report", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, {
+      withScriptHistory: true,
+      withStoryStructure: true,
+      withStoryboard: true,
+      withAssetVisuals: true,
+      withTasks: "complete",
+      withCandidates: true,
+      withLayout: true,
+      withExports: true,
+      withSettings: true,
+      withDialogueRuntime: true,
+      withPendingDialogue: true,
+    });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const databaseUrl = process.env.DATABASE_URL!;
+    const targetWorkspace = path.join(prepared.root!, "final-workspace");
+    const dataRoot = path.join(prepared.root!, "final-data");
+    const secretStoreRoot = path.join(prepared.root!, "fake-secret-store");
+    const reportPath = path.join(prepared.root!, "final-import.report.json");
+    const runId = "final-fin-01";
+    await mkdir(dataRoot);
+    await mkdir(secretStoreRoot);
+    await prisma!.onModuleDestroy();
+    prisma = null;
+    let result: { code?: number; stdout?: string; stderr?: string } | undefined;
+    try {
+      const { stdout } = await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+        "src/migration/db-import.cli.ts",
+        "--kind", "final",
+        "--snapshot", snapshot.outputPath,
+        "--decisions", decisionsPath,
+        "--database-url", databaseUrl,
+        "--report", reportPath,
+        "--workspace-root", targetWorkspace,
+        "--data-root", dataRoot,
+        "--release-root", repoRoot,
+        "--secret-store-root", secretStoreRoot,
+        "--run-id", runId,
+        "--format", "json",
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: databaseUrl, AIROAMING_SECRET_STORE_ADAPTER: "fake", AIROAMING_FAKE_SECRET_STORE_ROOT: secretStoreRoot } });
+      result = { code: 0, stdout };
+    } catch (error) {
+      const failure = error as { code?: number; stdout?: string; stderr?: string };
+      result = { code: failure.code, stdout: failure.stdout, stderr: failure.stderr };
+    }
+    expect(result?.code, `${result?.stderr ?? ""}\n${result?.stdout ?? ""}`).toBe(0);
+    expect(result?.stderr ?? "").toBe("");
+    const stdout = JSON.parse(result?.stdout ?? "{}");
+    expect(stdout).toMatchObject({ code: "MIGRATION_FINAL_IMPORT_OK", runId, status: "succeeded" });
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as { kind: string; slices: Array<{ slice: string; status: string }>; reportDigest: string };
+    expect(report).toMatchObject({ kind: "airoaming_final_import_report_v1", reportDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) });
+    expect(report.slices).toHaveLength(FULL_SHADOW_SLICE_ORDER.length);
+    expect(report.slices.map(({ slice }) => slice)).toEqual([...FULL_SHADOW_SLICE_ORDER]);
+    expect(report.slices.every(({ status }) => status === "succeeded")).toBe(true);
+
+    prisma = new PrismaService();
+    await prisma.onModuleInit();
+    const finalRun = await prisma.database().migrationRun.findUnique({ where: { id: runId } });
+    expect(finalRun).toMatchObject({ kind: "final", status: "succeeded", importerVersion: "d2-a7-final-v1", reportDigest: report.reportDigest });
+    expect(await prisma.database().migrationRun.count({ where: { id: { startsWith: `${runId}-child-` } } })).toBe(FULL_SHADOW_SLICE_ORDER.length);
+  }, 180_000);
+
+  it("FIN-02 records a blocked final run and never writes ready for a blocked slice", async () => {
+    const fixture = await createFinalFixture({}, `final-fin-02-${Date.now()}`, { p1: "four_panel" });
+    const result = await runFinalFixture(fixture);
+    expect(result.run.status).toBe("blocked");
+    expect(result.report.slices).toHaveLength(1);
+    expect(result.report.slices[0]).toMatchObject({ slice: "project-chapter", status: "blocked" });
+    expect(await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } })).toMatchObject({ activationState: "shadow", activatedAt: null, firstBusinessWriteAt: null });
+  }, 120_000);
+
+  it("FIN-03 replays the same final identity without creating another run", async () => {
+    const fixture = await createFinalFixture();
+    const first = await runFinalFixture(fixture);
+    const runCount = await prisma!.database().migrationRun.count();
+    const second = await runFinalFixture(fixture);
+    expect(first.run.status).toBe("succeeded");
+    expect(second.run.status).toBe("succeeded");
+    expect(second.report.reportDigest).toBe(first.report.reportDigest);
+    expect(await prisma!.database().migrationRun.count()).toBe(runCount);
+  }, 120_000);
+
+  it("FIN-04 rejects a different decisions identity for an existing final run", async () => {
+    const fixture = await createFinalFixture();
+    await runFinalFixture(fixture);
+    const alternate = createMigrationDecisionArtifact(fixture.snapshot.sourceManifest.manifestDigest, [{ issueKey: "project:p1:comic-format", sourceKey: "workspace-v1:p1:Project:p1", sourceDigest: fixture.snapshot.sourceManifest.manifestDigest, action: "set_comic_format", chosenComicFormat: "paged_comic", layoutPresetIntent: null }]);
+    await writeFile(fixture.decisionsPath, `${JSON.stringify(alternate, null, 2)}\n`);
+    await expect(runFinalFixture(fixture)).rejects.toMatchObject({ code: "MIGRATION_FINAL_IDENTITY_CONFLICT" });
+  }, 120_000);
+
+  it("FIN-05 rejects a non-empty target workspace before creating a final run", async () => {
+    const fixture = await createFinalFixture();
+    await mkdir(fixture.targetWorkspace);
+    await writeFile(path.join(fixture.targetWorkspace, "preexisting.txt"), "must remain");
+    await expect(runFinalFixture(fixture)).rejects.toMatchObject({ code: "MIGRATION_TARGET_WORKSPACE_NOT_EMPTY" });
+    expect(await prisma!.database().migrationRun.count()).toBe(0);
+    expect(await readFile(path.join(fixture.targetWorkspace, "preexisting.txt"), "utf8")).toBe("must remain");
+  }, 120_000);
+
+  it("FIN-06 makes final report and decisions tampering visible to the verifier", async () => {
+    const fixture = await createFinalFixture();
+    const imported = await runFinalFixture(fixture);
+    await writeFile(fixture.reportPath, `${JSON.stringify({ ...imported.report, summary: { ...imported.report.summary, sliceCount: 999 } }, null, 2)}\n`);
+    const reportTamper = await new MigrationVerifyService(prisma!, fixture.prepared.repository).verify(fixture.snapshot.outputPath, fixture.runId, repoRoot, fixture.decisionsPath, fixture.reportPath);
+    expect(reportTamper.report.passed).toBe(false);
+    expect(reportTamper.report.errors).toContain("MIGRATION_FINAL_REPORT_INVALID");
+    const decisions = JSON.parse(await readFile(fixture.decisionsPath, "utf8")) as Record<string, unknown>;
+    await writeFile(fixture.decisionsPath, `${JSON.stringify({ ...decisions, decisionsDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, null, 2)}\n`);
+    const decisionsTamper = await new MigrationVerifyService(prisma!, fixture.prepared.repository).verify(fixture.snapshot.outputPath, fixture.runId, repoRoot, fixture.decisionsPath, fixture.reportPath);
+    expect(decisionsTamper.report.passed).toBe(false);
+    expect(decisionsTamper.report.errors).toContain("MIGRATION_DECISIONS_ARTIFACT_INVALID");
+  }, 120_000);
+
+  it("FIN-07 rejects a secret sentinel in the prestaged secret root without changing state", async () => {
+    const fixture = await createFinalFixture();
+    await runFinalFixture(fixture);
+    await writeFile(path.join(fixture.secretStoreRoot, "sentinel.txt"), "airoaming-test-secret-fin07");
+    await expect(new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, backupVerified: true, maintenanceClosed: true })).rejects.toMatchObject({ code: "MIGRATION_SECRET_SENTINEL_DETECTED" });
+    expect(await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } })).toMatchObject({ activationState: "shadow", activatedAt: null, firstBusinessWriteAt: null });
+  }, 120_000);
+
+  it("FIN-08 verifies a successful final run through the read-only verifier", async () => {
+    const fixture = await createFinalFixture();
+    const imported = await runFinalFixture(fixture);
+    await writeFile(fixture.reportPath, `${JSON.stringify(imported.report, null, 2)}\n`);
+    const verification = await new MigrationVerifyService(prisma!, fixture.prepared.repository).verify(fixture.snapshot.outputPath, fixture.runId, repoRoot, fixture.decisionsPath, fixture.reportPath);
+    expect(verification.report.passed).toBe(true);
+    expect(verification.report.checks).toMatchObject({ runKind: "final", reportArtifactValid: true, reportArtifactMatch: true, runVerificationValid: true, integrityCheck: "ok", foreignKeyViolationCount: 0 });
+  }, 120_000);
+
+  it("FIN-09 writes ready_for_activation only after final verification and keeps activation timestamps null", async () => {
+    const fixture = await createFinalFixture();
+    await runFinalFixture(fixture);
+    const ready = await new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, backupVerified: true, maintenanceClosed: true });
+    expect(ready).toMatchObject({ activationState: "ready_for_activation", runId: fixture.runId, blockedCapabilityIds: [], secretScanCount: 0 });
+    expect(await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } })).toMatchObject({ activationState: "ready_for_activation", cutoverRunId: fixture.runId, activatedAt: null, firstBusinessWriteAt: null });
+  }, 120_000);
+
+  it("FIN-10 keeps the capability gate green and rejects missing ready preconditions", async () => {
+    const fixture = await createFinalFixture();
+    await runFinalFixture(fixture);
+    await expect(new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, backupVerified: false, maintenanceClosed: true })).rejects.toMatchObject({ code: "MIGRATION_READY_PRECONDITION_FAILED" });
+    const capability = await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), ["src/migration/db-capabilities.cli.ts", "--check", "--format", "json"], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: fixture.databaseUrl } });
+    expect(JSON.parse(capability.stdout)).toMatchObject({ code: "DB_CAPABILITIES_REPORTED", blockedIds: [] });
+  }, 120_000);
+
+  it("FIN-CLI-01 rejects relative and duplicate final flags before Prisma initialization", async () => {
+    let relativeFailure: { code?: number; stdout?: string; stderr?: string } | undefined;
+    try {
+      await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+        "src/migration/db-import.cli.ts", "--kind", "final", "--snapshot", "relative.snapshot", "--decisions", "/tmp/decisions.json", "--database-url", "file:/tmp/final-cli.sqlite", "--report", "/tmp/final-report.json", "--workspace-root", "/tmp/final-workspace", "--data-root", "/tmp/final-data", "--release-root", repoRoot, "--secret-store-root", "/tmp/final-secrets", "--run-id", "final-cli-01", "--format", "json",
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env } });
+    } catch (error) { relativeFailure = error as { code?: number; stdout?: string; stderr?: string }; }
+    expect(relativeFailure?.code).toBe(1);
+    expect(relativeFailure?.stdout ?? "").toBe("");
+    expect(relativeFailure?.stderr ?? "").toContain("MIGRATION_IMPORT_ARGS_INVALID");
+
+    let duplicateFailure: { code?: number; stdout?: string; stderr?: string } | undefined;
+    try {
+      await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+        "src/migration/db-import.cli.ts", "--kind", "final", "--snapshot", "/tmp/snapshot", "--decisions", "/tmp/decisions", "--database-url", "file:/tmp/final-cli.sqlite", "--report", "/tmp/final-report", "--workspace-root", "/tmp/final-workspace", "--data-root", "/tmp/final-data", "--release-root", repoRoot, "--secret-store-root", "/tmp/final-secrets", "--run-id", "final-cli-01", "--format", "json", "--format", "json",
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env } });
+    } catch (error) { duplicateFailure = error as { code?: number; stdout?: string; stderr?: string }; }
+    expect(duplicateFailure?.code).toBe(1);
+    expect(duplicateFailure?.stdout ?? "").toBe("");
+    expect(duplicateFailure?.stderr ?? "").toContain("MIGRATION_IMPORT_ARGS_INVALID");
   }, 30_000);
 
   it("IMP-M4-31 dispatches every independent shadow slice through the db:import CLI", async () => {
