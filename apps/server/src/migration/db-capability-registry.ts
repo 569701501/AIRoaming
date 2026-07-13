@@ -1,4 +1,5 @@
 export type CapabilityStatus = "implemented" | "partial" | "unsupported";
+export type OperationWriteStatus = CapabilityStatus | "retired";
 export type OperationReadStatus = CapabilityStatus | "not_applicable";
 
 export interface DbCapabilityEntry {
@@ -19,8 +20,10 @@ export interface DbCapabilityOperation {
   readonly sourceFile: string;
   readonly sourceSymbol: string;
   readonly readStatus: OperationReadStatus;
-  readonly writeStatus: CapabilityStatus;
+  readonly writeStatus: OperationWriteStatus;
   readonly evidenceTestIds: readonly string[];
+  readonly retirementReason?: string;
+  readonly replacement?: string;
 }
 
 const entries: DbCapabilityEntry[] = [
@@ -28,14 +31,15 @@ const entries: DbCapabilityEntry[] = [
     id: "project_chapter_script",
     ownerModule: "projects/project-repository",
     readStatus: "implemented",
-    writeStatus: "partial",
+    writeStatus: "implemented",
     restartCovered: true,
     requiredForActivate: true,
     evidenceTestIds: [
       "src/projects/project-db-persistence.integration.spec.ts#persists the public create/draft/complete path across a Nest restart without a workspace project tree",
       "src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable",
+      "src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements",
     ],
-    blocker: "DB mode still blocks reset/import/clear and other public write paths.",
+    blocker: null,
   },
   {
     id: "outline_story_storyboard_preflight",
@@ -139,8 +143,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/project-repository.service.ts",
     sourceSymbol: "ProjectRepository.clearProjectChaptersDir",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "DB mode never deletes chapter history or project directories through the legacy helper.",
+    replacement: "GET /api/projects/{projectId}/script/impact-preview, then per-chapter Working Copy clear",
   },
   {
     operation: "clear_legacy_story",
@@ -149,8 +155,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/project-repository.service.ts",
     sourceSymbol: "ProjectRepository.clearLegacyStoryDir",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "Legacy story directory is not a DB fact source and is never physically cleared in DB mode.",
+    replacement: "GET /api/projects/{projectId}/script/impact-preview, then per-chapter Working Copy clear",
   },
   {
     operation: "update_project_draft",
@@ -269,8 +277,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.clearChapterScript",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "Whole-tree legacy clear is replaced by observed-CAS Working Copy clear.",
+    replacement: "DELETE /api/projects/{projectId}/chapters/{chapterId}/script/working-copy",
   },
   {
     operation: "confirm_chapter_pending_source",
@@ -279,8 +289,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.confirmChapterPendingSource",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "Legacy pending source has been replaced by G2 pending suggestion adopt with CAS.",
+    replacement: "POST /api/projects/{projectId}/chapters/{chapterId}/script/pending-suggestion/adopt",
   },
   {
     operation: "discard_chapter_pending_source",
@@ -289,8 +301,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.discardChapterPendingSource",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "Legacy pending source has been replaced by G2 pending suggestion discard with CAS.",
+    replacement: "DELETE /api/projects/{projectId}/chapters/{chapterId}/script/pending-suggestion",
   },
   {
     operation: "import_script_to_chapters",
@@ -299,8 +313,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.importScriptToChapters",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "Whole-file import is not allowed to overwrite formal history; callers must generate or edit each chapter through CAS.",
+    replacement: "POST/AI per-chapter pending suggestion, then explicit adopt or Working Copy update",
   },
   {
     operation: "ensure_chapter_exists",
@@ -481,8 +497,10 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.resetProjectScript",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "retired",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#A2-2: legacy destructive routes are retired with modern replacements"],
+    retirementReason: "Implicit project reset would delete/retire history or regress milestone and is therefore retired.",
+    replacement: "GET /api/projects/{projectId}/script/impact-preview, then explicit per-chapter Working Copy clear or new chapter workflow",
   },
   {
     operation: "delete_project",
@@ -518,7 +536,7 @@ function hasBlockedOperation(
 ): boolean {
   return operationRegistry
     .filter((operation) => operation.capabilityId === entry.id)
-    .some((operation) => operation.writeStatus !== "implemented"
+    .some((operation) => !["implemented", "retired"].includes(operation.writeStatus)
       || operation.evidenceTestIds.length === 0);
 }
 
@@ -549,7 +567,7 @@ export function assertDbCapabilityOperations(
       || !operation.sourceFile
       || !operation.sourceSymbol
       || !["implemented", "partial", "unsupported", "not_applicable"].includes(operation.readStatus)
-      || !["implemented", "partial", "unsupported"].includes(operation.writeStatus)) {
+      || !["implemented", "partial", "unsupported", "retired"].includes(operation.writeStatus)) {
       throw new Error("DB_CAPABILITIES_OPERATION_REGISTRY_INVALID");
     }
     operationIds.add(operation.operation);
@@ -557,9 +575,12 @@ export function assertDbCapabilityOperations(
       || operation.evidenceTestIds.some((testId) => typeof testId !== "string" || !testId.includes("#"))) {
       throw new Error("DB_CAPABILITIES_OPERATION_EVIDENCE_INVALID");
     }
-    if ((operation.writeStatus === "implemented" || operation.writeStatus === "partial")
+    if ((operation.writeStatus === "implemented" || operation.writeStatus === "partial" || operation.writeStatus === "retired")
       && operation.evidenceTestIds.length === 0) {
       throw new Error("DB_CAPABILITIES_OPERATION_EVIDENCE_MISSING");
+    }
+    if (operation.writeStatus === "retired" && (!operation.retirementReason || !operation.replacement)) {
+      throw new Error("DB_CAPABILITIES_RETIRED_OPERATION_METADATA_MISSING");
     }
   }
 }

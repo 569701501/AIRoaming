@@ -29,3 +29,15 @@ source: 本总目标编制过程
 - capability 真实 CLI 复核为 8/36/6；36 operation、8 capability、P0～P12、frontmatter/doc_id 与 stale 状态扫描通过。
 - `git diff --check` 通过；静态结论为 `passed_for_luna_continuous_execution`。
 - 已更新会话记忆与长期记忆；待创建本总资料独立 commit。
+
+## P1 D2-A2-1（已完成）
+
+- 已实现 DB/file 双模式的非破坏性公开写闭环，独立提交 `1f22861`。
+- 定向 27 项、server 全量 54 文件/360 测试、Scrutiny、Runtime 均通过。
+
+## P2 D2-A2-2（已完成）
+
+- 7 个 legacy clear/import/reset/pending 写入口已正式 `retired`，每项具备 reason、replacement 与 fresh SQLite 证据。
+- 新增只读 `GET /api/projects/:projectId/script/impact-preview`；DB 模式旧入口稳定返回 409，零 workspace 副作用。
+- 定向 20 项、server 全量 54 文件/361 测试、typecheck/web build/Prisma/G1/diff check 全部通过；Scrutiny、Runtime 均通过。
+- capability 由 8/36/6 变为 8/36/5；下一阶段进入 P3 D2-A3-1，仍不触碰真实数据、Outbox consumer、final importer 或 M6。

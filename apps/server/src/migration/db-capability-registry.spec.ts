@@ -61,13 +61,13 @@ describe("M5-A0 DB capability registry", () => {
       "project_delete_outbox",
     ]);
     expect(registry.filter((entry) => entry.writeStatus === "implemented").map((entry) => entry.id)).toEqual([
+      "project_chapter_script",
       "task_create_claim_complete_cancel_recover",
       "settings_credential_secret_store",
     ]);
     expect(registry.filter((entry) => entry.readStatus === "implemented" || entry.writeStatus === "implemented")
       .every((entry) => entry.evidenceTestIds.length > 0)).toBe(true);
     expect(getBlockedDbCapabilities(registry).map((entry) => entry.id)).toEqual([
-      "project_chapter_script",
       "outline_story_storyboard_preflight",
       "character_scene_asset_candidate_lock",
       "layout_export",
@@ -93,13 +93,14 @@ describe("M5-A0 DB capability registry", () => {
       "confirm_script_outline",
       "generation_task_create",
     ]);
+    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(7);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
       capabilityId: "task_create_claim_complete_cancel_recover",
       ownerModule: "tasks/persistent-task-repository",
       sourceSymbol: "ProjectsService.guardGenerationTaskCreate",
       evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#creates shot prompt/image tasks through the DB guard and records late candidates as historical"],
     });
-    expect(operations.filter((operation) => operation.writeStatus !== "implemented")
+    expect(operations.filter((operation) => operation.writeStatus === "unsupported")
       .every((operation) => operation.evidenceTestIds.length === 0)).toBe(true);
   });
 
@@ -119,7 +120,8 @@ describe("M5-A0 DB capability registry", () => {
     const payload = JSON.parse(result.stdout) as { code: string; blockedIds: string[] };
     expect(payload.code).toBe("MIGRATION_CAPABILITY_BLOCKED");
     expect(payload.blockedIds).not.toContain("settings_credential_secret_store");
-    expect(payload.blockedIds).toHaveLength(6);
+    expect(payload.blockedIds).toHaveLength(5);
+    expect(payload.blockedIds).not.toContain("project_chapter_script");
   });
 
   it("CAP-01 rejects malformed flags before any database initialization", async () => {

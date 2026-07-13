@@ -24,9 +24,8 @@ source: 连续执行总 Handoff
 | phase | status | commit | targeted | full | scrutiny | runtime | blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | P0 baseline | passed | 2026-07-13 | baseline CLI | - | - | n/a | capability=8, operations=36, blockedIds=6; final importer fail-closed |
-| P1 D2-A2-1 | passed | pending commit | 27 targeted + 54 files/360 tests | 360/360 | PASS | PASS | A2-2 clear/import/reset remains blocked; next phase only after commit |
-| P2 D2-A2-2 | in_progress | - | - | - | - | - | started after P1 review |
-| P2 D2-A2-2 | pending | - | - | - | - | - | - |
+| P1 D2-A2-1 | passed | `1f22861` | 27 targeted + 54 files/360 tests | 360/360 | PASS | PASS | closed; A2-2 clear/import/reset handled next |
+| P2 D2-A2-2 | passed | pending commit | 20 targeted + 54 files/361 tests | 361/361 | PASS | PASS | 7 retired operations; blockedIds=5 |
 | P3 D2-A3-1 | pending | - | - | - | - | - | - |
 | P4 D2-A3-2A | pending | - | - | - | - | - | - |
 | P5 D2-A3-2B | pending | - | - | - | - | - | - |

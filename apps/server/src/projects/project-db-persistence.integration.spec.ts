@@ -366,9 +366,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await projects.getWorkbenchSnapshot(second.id)).chapters).toHaveLength(2);
     expect((await projects.getWorkbenchSnapshot(second.id)).chapters[1]?.id).toBe(`${second.id}_chapter_002`);
 
-    await expect(projects.resetProjectScript(first.id)).rejects.toThrow(
-      "DB_PERSISTENCE_OPERATION_UNSUPPORTED:reset_project_script",
-    );
+    await expect(projects.resetProjectScript(first.id)).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "LEGACY_WRITE_ROUTE_DISABLED" }) }) });
     await expect(
       access(path.join(workspaceRoot, "projects", first.id)),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -477,6 +475,22 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
     expect((await app.get(ProjectsService).getWorkbenchSnapshot(project.id)).scriptOutline?.id).toBe(outline.id);
     expect(readBusinessFacts(databasePath).projects).toBe(1);
+  }, 20_000);
+
+  it("A2-2: legacy destructive routes are retired with modern replacements", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const project = await projects.createProject({ name: "A2-2 退役路由", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const expectRetired = (promise: Promise<unknown>, operation?: string) => expect(promise).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "LEGACY_WRITE_ROUTE_DISABLED", details: expect.objectContaining(operation ? { operation } : {}) }) }) });
+    await expectRetired(projects.resetProjectScript(project.id), "reset_project_script");
+    await expectRetired(projects.importScriptToChapters(project.id, { sourceText: "# 旧导入", sourceName: "legacy.md", threadId: "t", messageId: "m", toolCallId: "c" }), "import_script_to_chapters");
+    await expectRetired(projects.clearChapterScript(project.id, project.currentChapterId!), undefined);
+    await expectRetired(projects.confirmChapterPendingSource(project.id, project.currentChapterId!), undefined);
+    await expectRetired(projects.discardChapterPendingSource(project.id, project.currentChapterId!), undefined);
+    expect((await projects.getScriptImpactPreview(project.id)).replacement).toContain("逐章");
+    expect((await projects.getWorkbenchSnapshot(project.id)).versioningCapability.mode).toBe("g2_db");
   }, 20_000);
 
   it("fails closed when an active DB project has no current chapter", async () => {

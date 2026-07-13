@@ -520,12 +520,17 @@ export class ProjectsService implements OnModuleInit {
     throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { replacement: `/api/projects/${projectId}/chapters/${chapterId}/script/working-copy` } } }, 409);
   }
 
+  private throwProjectScriptRetired(projectId: string, operation: string): never {
+    throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { operation, replacement: `/api/projects/${projectId}/script/impact-preview`, reason: "历史正文与章节里程碑不可由整项目 reset/import 物理删除或回退" } } }, 409);
+  }
+
   /**
    * 内部:写入/覆盖章节正文草稿缓冲(不碰正式 sourceText)。
    * 给 writeChapterDraftFromAI 和三期批量生成调用。
    */
   async importScriptToChapters(projectId: string,
     input: ImportScriptToChaptersInput,) : Promise<ImportScriptToChaptersResult> {
+    if (this.isDatabaseMode()) this.throwProjectScriptRetired(projectId, "import_script_to_chapters");
     this.repository.assertDatabaseOperationSupported("import_script_to_chapters");
     return this.chapterScript.importScriptToChapters(projectId, input);
   }
@@ -785,8 +790,35 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async resetProjectScript(projectId: string) : Promise<ResetProjectScriptResponse> {
+    if (this.isDatabaseMode()) this.throwProjectScriptRetired(projectId, "reset_project_script");
     this.repository.assertDatabaseOperationSupported("reset_project_script");
     return this.chapterScript.resetProjectScript(projectId);
+  }
+
+  /** Read-only preview used before a legacy import/reset is retired. */
+  async getScriptImpactPreview(projectId: string) {
+    const project = await this.projectStore.getReadyProject(projectId);
+    return {
+      projectId,
+      chapterCount: project.chapters.length,
+      chapters: project.chapters.map((chapter) => ({
+        id: chapter.id,
+        order: chapter.order,
+        title: chapter.title,
+        milestoneStatus: chapter.status,
+        workingCopyBytes: Buffer.byteLength(chapter.sourceText, "utf8"),
+        formalHistoryCount: chapter.scriptVersions.length,
+        hasPendingSuggestion: chapter.pendingSourceText !== null,
+        downstream: {
+          story: chapter.storyStructure !== null,
+          storyboard: chapter.storyboard !== null,
+          preflight: chapter.imagePreflight !== null,
+          layout: chapter.layout !== null,
+          candidates: chapter.candidates.length,
+        },
+      })),
+      replacement: "逐章使用 G2 Working Copy clear/adopt/discard 或新建章节；不会删除历史。",
+    };
   }
 
   async analyzeScriptImport(projectId: string, input: AnalyzeScriptImportInput) : Promise<ScriptImportAnalysis> {

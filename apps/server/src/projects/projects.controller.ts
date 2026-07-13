@@ -87,6 +87,11 @@ export class ProjectsController {
     return ok(await this.projectsService.resetProjectScript(projectId));
   }
 
+  @Get(":projectId/script/impact-preview")
+  async scriptImpactPreview(@Param("projectId") projectId: string) {
+    return ok(await this.projectsService.getScriptImpactPreview(projectId));
+  }
+
   @Get(":projectId/chapters")
   async listChapters(@Param("projectId") projectId: string) {
     return ok(await this.projectsService.listChapters(projectId));
