@@ -31,6 +31,7 @@ import * as imagePreflightUtil from "./image-preflight.util.js";
 import { createCandidateGenerationSpec } from "./candidate-generation-spec.js";
 import { CandidateReferenceResolver } from "./candidate-reference-resolver.js";
 import { getImageAspectRatioWarning, readImageDimensions } from "./image-dimensions.util.js";
+import { PrismaService } from "../persistence/prisma.service.js";
 
 const PALETTES = ["#0f766e", "#1d4ed8", "#7c3aed", "#b45309", "#be123c", "#047857"];
 
@@ -47,6 +48,7 @@ export class ImageCandidateService {
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
     @Inject(CandidateReferenceResolver) private readonly candidateReferenceResolver: CandidateReferenceResolver,
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
+    @Inject(PrismaService) private readonly prismaService: PrismaService,
   ) {}
 
   /** 串行执行 image_generate，降低 provider 限流概率。 */
@@ -270,6 +272,9 @@ export class ImageCandidateService {
     chapterId: string,
     input: LockChapterCandidateRequest,
   ): Promise<LockChapterCandidateResponse> {
+    if (this.prismaService.isDatabaseMode()) {
+      return this.lockCandidateInDatabase(projectId, chapterId, input);
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.storyboard) {
@@ -348,6 +353,45 @@ export class ImageCandidateService {
       chapters: wsDomain.sortChapters(nextProject.chapters).map((item) => wsDomain.toChapterListItem(item)),
       storyboard: nextStoryboard,
       assets: nextProject.assets,
+    };
+  }
+
+  private async lockCandidateInDatabase(projectId: string, chapterId: string, input: LockChapterCandidateRequest): Promise<LockChapterCandidateResponse> {
+    const candidateId = input.candidateId?.trim();
+    if (!candidateId) throw new BadRequestException("CANDIDATE_ID_REQUIRED");
+    const db = this.prismaService.database();
+    await db.$transaction(async (tx) => {
+      const chapter = await tx.chapter.findFirst({ where: { id: chapterId, projectId }, include: { currentStoryboardVersion: true } });
+      if (!chapter?.currentStoryboardVersion) throw new BadRequestException("STORYBOARD_REQUIRED");
+      if (chapter.milestoneStatus !== "storyboard_done" && chapter.milestoneStatus !== "images_done") throw new BadRequestException("CHAPTER_NOT_READY_FOR_CANDIDATE_LOCK");
+      const candidate = await tx.candidate.findFirst({ where: { id: candidateId, projectId, chapterId }, include: { asset: true, shot: true } });
+      if (!candidate) throw new BadRequestException("CANDIDATE_NOT_FOUND");
+      if (candidate.status === "rejected") throw new BadRequestException("CANDIDATE_REJECTED");
+      if (candidate.asset.status !== "ready") throw new BadRequestException("CANDIDATE_ASSET_NOT_READY");
+      const shot = await tx.shot.findFirst({ where: { id: candidate.shotId, projectId, chapterId } });
+      if (!shot) throw new BadRequestException("SHOT_NOT_FOUND");
+      const current = shot.currentCandidateLockRevisionId
+        ? await tx.candidateLockRevision.findUnique({ where: { id: shot.currentCandidateLockRevisionId } })
+        : null;
+      if (current?.candidateId === candidate.id) return;
+      const now = new Date();
+      const revision = (current?.revision ?? 0) + 1;
+      const lock = await tx.candidateLockRevision.create({ data: { id: randomUUID(), projectId, chapterId, shotId: shot.id, revision, action: "lock", candidateId: candidate.id, previousRevisionId: current?.id ?? null, origin: "runtime", reason: "user_locked_candidate", decidedAt: now, recordedAt: now } });
+      await tx.shot.update({ where: { id: shot.id }, data: { currentCandidateLockRevisionId: lock.id, updatedAt: now } });
+    });
+    const project = await this.repository.refreshProjectFromDatabase(projectId);
+    const chapter = project.chapters.find((item) => item.id === chapterId);
+    if (!chapter?.storyboard) throw new BadRequestException("STORYBOARD_REQUIRED");
+    const candidate = chapter.candidates?.find((item) => item.id === candidateId);
+    if (!candidate) throw new BadRequestException("CANDIDATE_NOT_FOUND");
+    return {
+      candidate: this.toWorkbenchCandidate(candidate),
+      candidates: (chapter.candidates ?? []).map((item) => this.toWorkbenchCandidate(item)),
+      shots: this.toWorkbenchShots(chapter),
+      chapter: wsDomain.toChapterDetail(chapter),
+      chapters: wsDomain.sortChapters(project.chapters).map((item) => wsDomain.toChapterListItem(item)),
+      storyboard: chapter.storyboard,
+      assets: project.assets,
     };
   }
 

@@ -98,6 +98,7 @@ describe("M5-A0 DB capability registry", () => {
       "save_script_outline_from_ai",
       "confirm_script_outline",
       "generation_task_create",
+      "lock_candidate",
     ]);
     expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(14);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({

@@ -1408,6 +1408,14 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const asset = await prisma.asset.findUniqueOrThrow({ where: { id: candidate.assetId } });
     expect(asset).toMatchObject({ status: "ready", sourceTaskId: imageTask.id, sha256: expect.stringMatching(/^sha256:/) });
     expect((await prisma.shot.findUniqueOrThrow({ where: { id: shotId } })).currentCandidateLockRevisionId).toBeNull();
+    const locked = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
+    expect(locked.candidate).toMatchObject({ id: candidate.id, status: "locked" });
+    expect(locked.shots.find((item) => item.id === shotId)?.lockedCandidateId).toBe(candidate.id);
+    const lockRevision = await prisma.candidateLockRevision.findFirstOrThrow({ where: { shotId }, orderBy: { revision: "desc" } });
+    expect(lockRevision).toMatchObject({ action: "lock", candidateId: candidate.id, revision: 1, origin: "runtime" });
+    const replayLock = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
+    expect(replayLock.candidate.status).toBe("locked");
+    expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(1);
 
     const cancelTask = await tasks.create({ projectId: project.id, type: "image_generate", target: { type: "shot", id: shotId, chapterId: scope.chapterId }, input: { chapterId: scope.chapterId, shotId, requestId: randomUUID(), candidateCount: 1 }, options: { priority: 2 } });
     const cancelled = await tasks.cancelForApi(cancelTask.id);

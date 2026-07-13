@@ -797,7 +797,7 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: LockChapterCandidateRequest,
   ): Promise<LockChapterCandidateResponse> {
-    this.repository.assertDatabaseOperationSupported("lock_candidate");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("lock_candidate");
     return this.imageCandidate.lockCandidate(projectId, chapterId, input);
   }
 

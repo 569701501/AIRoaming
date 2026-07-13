@@ -58,3 +58,4 @@ source: 本总目标编制过程
 - 公开 `queue_scene_reference` 已接入 ChapterScene source projection、持久 task 与 replay；新增 `P4-SCENE-01`。
 - 定向 30 项、server 全量 54 文件/371 测试、Scrutiny、Runtime 和静态门禁全部通过；本切片待独立提交。
 - Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一步处理 Character delete 或 CandidateLock，不能跳到 M6。
+- `lock_candidate` 已接入 DB CandidateLockRevision 线性事务与幂等 replay；CandidateLock 完成，但 Character delete、`complete_chapter_images` 仍未开放。

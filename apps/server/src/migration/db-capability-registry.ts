@@ -461,8 +461,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.lockChapterCandidate",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-LOCK-01: locks a ready DB candidate through a linear CandidateLockRevision and replays safely"],
   },
   {
     operation: "complete_chapter_images",
