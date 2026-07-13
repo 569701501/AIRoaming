@@ -729,6 +729,8 @@ export class CharacterReferenceService {
     if (this.isDatabaseMode()) {
       const project = await this.repository.refreshProjectFromDatabase(projectId);
       const character = this.findProjectCharacter(project, characterId);
+      const characterRow = await this.prismaService.database().character.findUnique({ where: { id: characterId } });
+      if (!characterRow || characterRow.projectId !== projectId) throw new NotFoundException("PROJECT_CHARACTER_NOT_FOUND");
       if (character.status === "in_use") throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
       const referenceKind = this.normalizeRequestedReferenceKind(character, input.referenceKind);
       if (referenceKind === "none") throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
@@ -750,7 +752,7 @@ export class CharacterReferenceService {
             appearance: character.appearance,
             personality: character.personality,
             promptFragment: character.promptFragment,
-            rowVersion: character.visualVersion,
+            rowVersion: characterRow.rowVersion,
           }),
         }],
       });

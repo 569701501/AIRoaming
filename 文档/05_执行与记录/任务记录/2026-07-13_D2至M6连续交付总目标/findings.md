@@ -20,7 +20,7 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 
 - M5 已完成；“当前是 M5 实施中”不符合最新验收事实。
 - 当前位于 D2：A0、A1、A2-1、A2-2、A3-1 已完成，下一阶段为 A3-2A。
-- A3-2A 正在收口 Character/Asset：`extract_characters`、`update_character` 已完成，`queue_character_reference` 已完成 DB task/source freeze 与幂等重放；aggregate 仍 partial，下一步继续 worker/staging/Visual。
+- A3-2A 正在收口 Character/Asset：identity、queue/source freeze、worker staged→ready/CharacterVisual 已完成；aggregate 仍 partial，下一步继续 final confirm/delete 与 SceneVisual。
 - M6 仍为 prerequisite_blocked。
 
 ## 2. capability

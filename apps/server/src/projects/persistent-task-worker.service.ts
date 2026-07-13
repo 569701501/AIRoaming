@@ -8,6 +8,7 @@ import {
   LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type Digest,
   type GenerationTaskItem,
+  type GenerationTaskType,
   type TaskSourceProjectionV1,
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
@@ -28,7 +29,7 @@ import { ImageProviderService } from "./image-provider.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { readImageDimensions } from "./image-dimensions.util.js";
-import type { G2VersionTaskType, VersionScopeV1 } from "./versioning/versioning-database.types.js";
+import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
 
 export interface VersionDocumentTaskOutputV2<TDocument = unknown> {
   readonly schemaVersion: 2;
@@ -80,9 +81,23 @@ interface ImageTaskOutput {
   readonly warnings: readonly string[];
 }
 
-type NormalizedTaskOutput = VersionDocumentTaskOutputV2 | ShotPromptTaskOutput | ImageTaskOutput;
+interface CharacterReferenceTaskOutput {
+  readonly schemaVersion: 1;
+  readonly characterId: string;
+  readonly referenceKind: "preview_front" | "final_reference";
+  readonly generationSpecDigest: Digest;
+  readonly buffer: Buffer;
+  readonly mimeType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sha256: `sha256:${string}`;
+  readonly bytes: number;
+  readonly warnings: readonly string[];
+}
 
-const HANDLED_TASK_TYPES = ["story_parse", "shot_generate", "shot_prompt_generate", "image_generate"] as const;
+type NormalizedTaskOutput = VersionDocumentTaskOutputV2 | ShotPromptTaskOutput | ImageTaskOutput | CharacterReferenceTaskOutput;
+
+const HANDLED_TASK_TYPES = ["character_reference_generate", "story_parse", "shot_generate", "shot_prompt_generate", "image_generate"] as const;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const RETRY_DELAY_MS = 5_000;
 
@@ -162,6 +177,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     @Inject(WorkspacePathService) private readonly workspacePath: WorkspacePathService,
     @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {
+    this.handlers.set("character_reference_generate", (context) => this.runCharacterReferenceProvider(context));
     this.handlers.set("story_parse", (context) => this.runStoryProvider(context));
     this.handlers.set("shot_generate", (context) => this.runShotProvider(context));
     this.handlers.set("shot_prompt_generate", (context) => this.runShotPromptProvider(context));
@@ -173,7 +189,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
   }
 
   /** Register a deterministic/local provider (also useful for integration tests). */
-  setHandler(type: G2VersionTaskType, handler: PersistentTaskHandler): void {
+  setHandler(type: GenerationTaskType, handler: PersistentTaskHandler): void {
     this.handlers.set(type, handler);
   }
 
@@ -225,7 +241,8 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
 
   private async completeClaim(claim: ClaimedPersistentTask, raw: unknown): Promise<GenerationTaskItem> {
     const input = claim.item.input;
-    const operation = claim.item.type as G2VersionTaskType;
+    const operation = claim.item.type as GenerationTaskType;
+    if (operation === "character_reference_generate") return this.completeCharacterReferenceClaim(claim, raw);
     const chapterId = text(input.chapterId, "input.chapterId");
     const projection = object(input.sourceProjection, "input.sourceProjection");
     const sources = projection.sources;
@@ -243,7 +260,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const expectedTargetRowVersion = operation === "story_parse" || operation === "shot_generate"
       ? integer(input.expectedTargetRowVersion, "input.expectedTargetRowVersion")
       : undefined;
-    const output = this.normalizeOutput(operation, targetId, chapterId, raw, input, claim.item.projectId);
+    const output = this.normalizeOutput(operation as "story_parse" | "shot_generate" | "shot_prompt_generate" | "image_generate", targetId, chapterId, raw, input, claim.item.projectId);
     const writtenFiles = await this.writeImageArtifacts(output);
     let artifactCommitted = false;
     try {
@@ -260,7 +277,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
           applicability: "historical",
         }), artifactCommitted: false };
       }
-      const gate = await this.applicability.evaluate(scope, operation, operation === "story_parse" || operation === "shot_generate"
+      const gate = await this.applicability.evaluate(scope, operation as "story_parse" | "shot_generate" | "shot_prompt_generate" | "image_generate", operation === "story_parse" || operation === "shot_generate"
         ? { expectedTargetId: targetId, expectedTargetRowVersion, sourceId, sourceDigest }
         : { targetShotId: targetId, sourceDigest }, tx);
       if (gate.applicability === "current") {
@@ -306,6 +323,63 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     }
   }
 
+  private async completeCharacterReferenceClaim(claim: ClaimedPersistentTask, raw: unknown): Promise<GenerationTaskItem> {
+    const input = claim.item.input;
+    const output = this.normalizeCharacterReferenceOutput(raw, input);
+    const relativePath = this.characterReferenceStorageKey(claim.item.projectId, output.characterId, output.referenceKind, await this.nextCharacterVisualVersion(output.characterId) + 1);
+    const absolutePath = this.workspacePath.resolveVirtualPath(`/workspace/${relativePath}`);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, output.buffer);
+    try {
+      const sourceProjection = object(input.sourceProjection, "input.sourceProjection") as unknown as TaskSourceProjectionV1;
+      const sourceDigest = taskSourceProjectionDigest(sourceProjection);
+      const result = await this.prismaService.database().$transaction(async (tx) => {
+        const persisted = await tx.generationTask.findUnique({ where: { id: claim.item.id } });
+        if (!persisted || persisted.status !== "running" || persisted.leaseToken !== claim.claimToken) throw new TaskLeaseLostError(claim.item.id);
+        if (persisted.sourceDigest !== sourceDigest) throw new TypeError("TASK_SOURCE_DIGEST_MISMATCH");
+        const character = await tx.character.findFirst({ where: { id: output.characterId, projectId: claim.item.projectId } });
+        if (!character) throw new Error("CHARACTER_NOT_FOUND");
+        const source = sourceProjection.sources.find((item) => item.sourceType === "character");
+        const currentDigest = digestCanonicalJson({ id: character.id, name: character.name, role: character.role, level: character.level, entityType: character.entityType, appearance: character.appearance, personality: character.personality, promptFragment: character.promptFragment, rowVersion: character.rowVersion });
+        const applicability = source?.sourceDigest === currentDigest ? "current" : "historical";
+        const now = new Date();
+        const metadata = { schemaVersion: 1, taskId: claim.item.id, characterId: output.characterId, referenceKind: output.referenceKind, sourceDigest, generationSpecDigest: output.generationSpecDigest, warnings: output.warnings };
+        const assetId = randomUUID();
+        const visualId = randomUUID();
+        const version = await this.nextCharacterVisualVersion(output.characterId, tx) + 1;
+        const storageKey = this.characterReferenceStorageKey(claim.item.projectId, output.characterId, output.referenceKind, version);
+        await tx.asset.create({ data: { id: assetId, projectId: claim.item.projectId, chapterId: null, type: "image", role: "character_reference", mimeType: output.mimeType, storageKey, status: "staged", sha256: null, bytes: null, width: null, height: null, durationMs: null, sourceTaskId: claim.item.id, metadataJson: metadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(metadata), createdAt: now, updatedAt: now } });
+        await tx.asset.update({ where: { id: assetId }, data: { status: "ready", sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, readyAt: now } });
+        await tx.characterVisual.create({ data: { id: visualId, characterId: output.characterId, assetId, kind: output.referenceKind, version, sourceVisualId: null, status: "available", createdAt: now, confirmedAt: output.referenceKind === "final_reference" ? now : null } });
+        if (applicability === "current" && output.referenceKind === "preview_front") {
+          await tx.character.update({ where: { id: output.characterId }, data: { previewVisualId: visualId, rowVersion: { increment: 1 } } });
+        }
+        const finished = await this.tasks.finishInTransaction(tx, { taskId: claim.item.id, claimToken: claim.claimToken, outcome: "succeeded", output: { schemaVersion: 1, characterId: output.characterId, referenceKind: output.referenceKind, assetId, visualId, storageKey, sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, warnings: output.warnings }, applicability });
+        return { finished, storageKey };
+      });
+      if (result.storageKey !== relativePath) {
+        const finalPath = this.workspacePath.resolveVirtualPath(`/workspace/${result.storageKey}`);
+        await mkdir(path.dirname(finalPath), { recursive: true });
+        await writeFile(finalPath, output.buffer);
+        await rm(absolutePath, { force: true });
+      }
+      return result.finished;
+    } catch (error) {
+      await rm(absolutePath, { force: true });
+      throw error;
+    }
+  }
+
+  private characterReferenceStorageKey(projectId: string, characterId: string, referenceKind: "preview_front" | "final_reference", version: number): string {
+    return `projects/${projectId}/assets/characters/${characterId}/visual-v${String(version).padStart(3, "0")}/${referenceKind === "final_reference" ? "final-reference.webp" : "preview.webp"}`;
+  }
+
+  private async nextCharacterVisualVersion(characterId: string, tx?: Pick<Prisma.TransactionClient, "characterVisual">): Promise<number> {
+    const reader = tx ?? this.prismaService.database();
+    const latest = await reader.characterVisual.findFirst({ where: { characterId }, orderBy: { version: "desc" }, select: { version: true } });
+    return latest?.version ?? 0;
+  }
+
   private async failClaim(claim: ClaimedPersistentTask, error: unknown, retryable: boolean): Promise<GenerationTaskItem> {
     const retryAt = retryable && claim.attempt < claim.item.maxAttempts ? new Date(Date.now() + RETRY_DELAY_MS) : undefined;
     try {
@@ -323,7 +397,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     }
   }
 
-  private normalizeOutput(operation: G2VersionTaskType, targetId: string, chapterId: string, raw: unknown, input: Record<string, unknown>, projectId: string): NormalizedTaskOutput {
+  private normalizeOutput(operation: GenerationTaskType, targetId: string, chapterId: string, raw: unknown, input: Record<string, unknown>, projectId: string): NormalizedTaskOutput {
     if (operation === "shot_prompt_generate") return this.normalizeShotPromptOutput(targetId, raw, input);
     if (operation === "image_generate") return this.normalizeImageOutput(targetId, raw, input, projectId);
     const candidate = object(raw, "providerOutput");
@@ -338,6 +412,32 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       targetDocument: encoded.value,
       targetDocumentDigest: encoded.digest,
       warnings: (warnings as string[] | undefined) ?? [],
+    };
+  }
+
+  private normalizeCharacterReferenceOutput(raw: unknown, input: Record<string, unknown>): CharacterReferenceTaskOutput {
+    const candidate = object(raw, "providerOutput");
+    const buffer = candidate.buffer instanceof Uint8Array ? Buffer.from(candidate.buffer) : null;
+    if (!buffer || buffer.length === 0) throw new TypeError("providerOutput.buffer must be non-empty");
+    const referenceKind = input.referenceKind === "final_reference" ? "final_reference" : input.referenceKind === "preview_front" ? "preview_front" : null;
+    if (!referenceKind) throw new TypeError("input.referenceKind must be a supported character reference kind");
+    const characterId = text(input.characterId, "input.characterId");
+    const dimensions = readImageDimensions(buffer);
+    if (!dimensions) throw new TypeError("providerOutput.buffer must be a supported image");
+    const mimeType = typeof candidate.mimeType === "string" && candidate.mimeType.trim() ? candidate.mimeType : "image/webp";
+    const warnings = Array.isArray(candidate.warnings) ? candidate.warnings.filter((warning): warning is string => typeof warning === "string") : [];
+    return {
+      schemaVersion: 1,
+      characterId,
+      referenceKind,
+      generationSpecDigest: digestCanonicalJson({ prompt: input.prompt, referenceKind, characterId }),
+      buffer,
+      mimeType,
+      width: dimensions.width,
+      height: dimensions.height,
+      sha256: `sha256:${createHash("sha256").update(buffer).digest("hex")}`,
+      bytes: buffer.length,
+      warnings,
     };
   }
 
@@ -511,6 +611,27 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       ].join("\n\n"),
     });
     return parseProviderJson(response.content);
+  }
+
+  private async runCharacterReferenceProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
+    const input = context.input;
+    const characterId = text(input.characterId, "input.characterId");
+    const referenceKind = input.referenceKind === "final_reference" ? "final_reference" : input.referenceKind === "preview_front" ? "preview_front" : null;
+    if (!referenceKind) throw new TypeError("input.referenceKind must be a supported character reference kind");
+    const character = await this.prismaService.database().character.findFirst({ where: { id: characterId, projectId: context.task.item.projectId }, include: { previewVisual: { include: { asset: true } } } });
+    if (!character) throw new Error("CHARACTER_NOT_FOUND");
+    const prompt = text(input.prompt, "input.prompt");
+    const size = typeof input.size === "string" && input.size.trim() ? input.size : referenceKind === "final_reference" ? "3072x1536" : "1536x2048";
+    let buffer: Buffer;
+    if (referenceKind === "final_reference") {
+      const asset = character.previewVisual?.asset;
+      if (!asset || asset.status !== "ready") throw new Error("CHARACTER_PREVIEW_REFERENCE_REQUIRED");
+      const referencePath = this.workspacePath.resolveVirtualPath(`/workspace/${asset.storageKey}`);
+      buffer = await this.imageProvider.editImage({ prompt, size, quality: input.quality === "low" || input.quality === "medium" || input.quality === "high" ? input.quality : "high", outputFormat: "webp", referenceImage: { buffer: await readFile(referencePath), mimeType: asset.mimeType, fileName: path.basename(asset.storageKey) } });
+    } else {
+      buffer = await this.imageProvider.generateImage({ prompt, size, quality: input.quality === "low" || input.quality === "medium" || input.quality === "high" ? input.quality : "high", outputFormat: "webp" });
+    }
+    return { buffer, mimeType: "image/webp", warnings: [] };
   }
 
   private async runShotProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
