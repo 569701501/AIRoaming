@@ -246,6 +246,28 @@ describe("M5-A1 coordinated backup", () => {
     expect(restore.stderr.trim()).toContain("RESTORE_ARGS_INVALID");
   });
 
+  it("M6A1-BK-04 enforces the coordinated/pre-cutover kind argument matrix before Prisma", async () => {
+    const common = [
+      "--database-url", "file:/tmp/airoaming-a4-kind.sqlite",
+      "--workspace-root", "/tmp/airoaming-workspace",
+      "--data-root", "/tmp/airoaming-data",
+      "--release-root", "/tmp/airoaming-release",
+      "--app-commit", "abcdef1234567",
+      "--maintenance-bundle", "/tmp/maintenance-bundle.json",
+      "--decisions", "/tmp/decisions.json",
+      "--output", "/tmp/airoaming-output",
+      "--format", "json",
+    ];
+    const coordinatedMissingReport = await runCli(backupCli, ...common, "--kind", "coordinated");
+    expect(coordinatedMissingReport.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+    const coordinatedWithRunId = await runCli(backupCli, ...common, "--kind", "coordinated", "--full-import-report", "/tmp/full-import.json", "--run-id", "wrong");
+    expect(coordinatedWithRunId.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+    const preCutoverMissingRun = await runCli(backupCli, ...common, "--kind", "pre-cutover");
+    expect(preCutoverMissingRun.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+    const preCutoverWithReport = await runCli(backupCli, ...common, "--kind", "pre-cutover", "--run-id", "final-run", "--full-import-report", "/tmp/full-import.json");
+    expect(preCutoverWithReport.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+  });
+
   it("A4-BAK-02 rejects an active writer and leaves no sealed bundle", async () => {
     const fixture = await createFixture();
     const writer = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));
