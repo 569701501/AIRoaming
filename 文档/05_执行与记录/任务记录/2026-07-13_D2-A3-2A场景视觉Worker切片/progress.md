@@ -13,3 +13,4 @@ source: P4 execution
 - 已接入 scene reference worker 和 SceneVisual promote。
 - 定向 registry + project integration 29/29；server 全量 54 文件/370 tests；typecheck、web build、Prisma/G1/diff 门禁全部通过。
 - 公开 queue 与 scene source projection 完整化仍待后续切片。
+- 独立提交 `03eea76`。
