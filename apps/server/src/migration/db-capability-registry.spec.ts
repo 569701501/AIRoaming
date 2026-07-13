@@ -62,13 +62,13 @@ describe("M5-A0 DB capability registry", () => {
     ]);
     expect(registry.filter((entry) => entry.writeStatus === "implemented").map((entry) => entry.id)).toEqual([
       "project_chapter_script",
+      "outline_story_storyboard_preflight",
       "task_create_claim_complete_cancel_recover",
       "settings_credential_secret_store",
     ]);
     expect(registry.filter((entry) => entry.readStatus === "implemented" || entry.writeStatus === "implemented")
       .every((entry) => entry.evidenceTestIds.length > 0)).toBe(true);
     expect(getBlockedDbCapabilities(registry).map((entry) => entry.id)).toEqual([
-      "outline_story_storyboard_preflight",
       "character_scene_asset_candidate_lock",
       "layout_export",
       "dialogue_pending_runtime",
@@ -93,7 +93,7 @@ describe("M5-A0 DB capability registry", () => {
       "confirm_script_outline",
       "generation_task_create",
     ]);
-    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(7);
+    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(14);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
       capabilityId: "task_create_claim_complete_cancel_recover",
       ownerModule: "tasks/persistent-task-repository",
@@ -120,7 +120,7 @@ describe("M5-A0 DB capability registry", () => {
     const payload = JSON.parse(result.stdout) as { code: string; blockedIds: string[] };
     expect(payload.code).toBe("MIGRATION_CAPABILITY_BLOCKED");
     expect(payload.blockedIds).not.toContain("settings_credential_secret_store");
-    expect(payload.blockedIds).toHaveLength(5);
+    expect(payload.blockedIds).toHaveLength(4);
     expect(payload.blockedIds).not.toContain("project_chapter_script");
   });
 

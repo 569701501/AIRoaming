@@ -524,6 +524,17 @@ export class ProjectsService implements OnModuleInit {
     throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { operation, replacement: `/api/projects/${projectId}/script/impact-preview`, reason: "历史正文与章节里程碑不可由整项目 reset/import 物理删除或回退" } } }, 409);
   }
 
+  private throwLegacyVersioningRouteDisabled(projectId: string, chapterId: string, operation: string, replacement: string, reason: string): never {
+    throw new HttpException({
+      success: false,
+      error: {
+        code: "LEGACY_WRITE_ROUTE_DISABLED",
+        message: "LEGACY_WRITE_ROUTE_DISABLED",
+        details: { operation, replacement: `/api/projects/${projectId}/chapters/${chapterId}${replacement}`, reason },
+      },
+    }, 409);
+  }
+
   /**
    * 内部:写入/覆盖章节正文草稿缓冲(不碰正式 sourceText)。
    * 给 writeChapterDraftFromAI 和三期批量生成调用。
@@ -572,6 +583,9 @@ export class ProjectsService implements OnModuleInit {
   async confirmChapterStoryStructure(projectId: string,
     chapterId: string,
     input: ConfirmChapterStoryStructureRequest,) : Promise<SaveChapterStoryStructureResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "confirm_story_structure", "/story-structure/working-copy", "旧结构确认绕过 StoryVersion CAS、projection 和 source gate；请使用 G2 Working Copy confirm。");
+    }
     this.repository.assertDatabaseOperationSupported("confirm_story_structure");
     return this.storyStructure.confirmChapterStoryStructure(projectId, chapterId, input);
   }
@@ -579,6 +593,9 @@ export class ProjectsService implements OnModuleInit {
   async updateChapterStoryStructure(projectId: string,
     chapterId: string,
     input: UpdateChapterStoryStructureRequest,) : Promise<SaveChapterStoryStructureResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "update_story_structure", "/story-structure/working-copy", "旧结构编辑会原地覆盖 confirmed document；请使用带 observed rowVersion 的 G2 Working Copy update。");
+    }
     this.repository.assertDatabaseOperationSupported("update_story_structure");
     return this.storyStructure.updateChapterStoryStructure(projectId, chapterId, input);
   }
@@ -594,6 +611,9 @@ export class ProjectsService implements OnModuleInit {
   async confirmChapterImagePreflight(projectId: string,
     chapterId: string,
     input: ConfirmChapterImagePreflightRequest = {},) : Promise<SaveChapterImagePreflightResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "confirm_image_preflight", "/image-preflight/preview", "旧预检确认没有携带 storyboard source digest；请先读取服务端 preview 再 confirm。");
+    }
     this.repository.assertDatabaseOperationSupported("confirm_image_preflight");
     return this.imagePreflight.confirmChapterImagePreflight(projectId, chapterId, input);
   }
@@ -601,6 +621,9 @@ export class ProjectsService implements OnModuleInit {
   async resolveImagePreflightCharacter(projectId: string,
     chapterId: string,
     input: ResolveImagePreflightCharacterRequest,) : Promise<ResolveImagePreflightCharacterResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "resolve_image_preflight_character", "/image-preflight/preview", "角色与视觉写入属于 Character/Asset capability；请先走该能力并重新生成服务端预检。");
+    }
     this.repository.assertDatabaseOperationSupported("resolve_image_preflight_character");
     return this.imagePreflight.resolveImagePreflightCharacter(projectId, chapterId, input);
   }
@@ -742,6 +765,9 @@ export class ProjectsService implements OnModuleInit {
   async savePendingChapterStoryboard(projectId: string,
     chapterId: string,
     input: UpdateChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "save_pending_storyboard", "/storyboard/working-copy", "旧 pending 分镜写入绕过 StoryboardVersion projection/CAS；请使用 G2 Working Copy。");
+    }
     this.repository.assertDatabaseOperationSupported("save_pending_storyboard");
     return this.storyboard.savePendingChapterStoryboard(projectId, chapterId, input);
   }
@@ -749,6 +775,9 @@ export class ProjectsService implements OnModuleInit {
   async confirmChapterStoryboard(projectId: string,
     chapterId: string,
     input: ConfirmChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "confirm_storyboard", "/storyboard/working-copy/confirm", "旧分镜确认没有携带 observed pending/current/source 版本；请使用 G2 Working Copy confirm。");
+    }
     this.repository.assertDatabaseOperationSupported("confirm_storyboard");
     return this.storyboard.confirmChapterStoryboard(projectId, chapterId, input);
   }
@@ -756,6 +785,9 @@ export class ProjectsService implements OnModuleInit {
   async updateChapterStoryboard(projectId: string,
     chapterId: string,
     input: UpdateChapterStoryboardRequest,) : Promise<SaveChapterStoryboardResponse> {
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "update_storyboard", "/storyboard/working-copy", "旧分镜编辑会原地覆盖 confirmed document；请使用带 observed rowVersion 的 G2 Working Copy update。");
+    }
     this.repository.assertDatabaseOperationSupported("update_storyboard");
     return this.storyboard.updateChapterStoryboard(projectId, chapterId, input);
   }

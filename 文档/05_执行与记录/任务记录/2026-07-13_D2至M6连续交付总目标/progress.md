@@ -41,3 +41,9 @@ source: 本总目标编制过程
 - 新增只读 `GET /api/projects/:projectId/script/impact-preview`；DB 模式旧入口稳定返回 409，零 workspace 副作用。
 - 定向 20 项、server 全量 54 文件/361 测试、typecheck/web build/Prisma/G1/diff check 全部通过；Scrutiny、Runtime 均通过。
 - capability 由 8/36/6 变为 8/36/5；下一阶段进入 P3 D2-A3-1，仍不触碰真实数据、Outbox consumer、final importer 或 M6。
+
+## P3 D2-A3-1（已完成）
+
+- 7 个旧 Story/Storyboard/Preflight DB 写入口已退役，统一指向 G2 modern API；角色解析入口明确交给后续 Character/Asset 阶段。
+- 定向 21 项、server 全量 54 文件/362 测试、Scrutiny、Runtime 及全量静态门禁通过。
+- capability 由 8/36/5 变为 8/36/4；下一阶段进入 P4 D2-A3-2A，仍不触碰 Outbox consumer、final importer、M6 或真实 cutover。

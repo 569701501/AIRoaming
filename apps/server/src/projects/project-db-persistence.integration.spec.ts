@@ -493,6 +493,31 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await projects.getWorkbenchSnapshot(project.id)).versioningCapability.mode).toBe("g2_db");
   }, 20_000);
 
+  it("A3-1: legacy story/storyboard/preflight writes are retired with G2 replacements", async () => {
+    const { databasePath, deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const project = await projects.createProject({ name: "A3-1 退役路由", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapterId = project.currentChapterId!;
+    const expectRetired = (promise: Promise<unknown>, operation: string, replacement: string) => expect(promise).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: "LEGACY_WRITE_ROUTE_DISABLED",
+          details: expect.objectContaining({ operation, replacement: expect.stringContaining(replacement) }),
+        }),
+      }),
+    });
+    await expectRetired(projects.confirmChapterStoryStructure(project.id, chapterId, {} as never), "confirm_story_structure", "/story-structure/working-copy");
+    await expectRetired(projects.updateChapterStoryStructure(project.id, chapterId, {} as never), "update_story_structure", "/story-structure/working-copy");
+    await expectRetired(projects.confirmChapterImagePreflight(project.id, chapterId), "confirm_image_preflight", "/image-preflight/preview");
+    await expectRetired(projects.resolveImagePreflightCharacter(project.id, chapterId, { token: "主角", action: "ignore" }), "resolve_image_preflight_character", "/image-preflight/preview");
+    await expectRetired(projects.savePendingChapterStoryboard(project.id, chapterId, {} as never), "save_pending_storyboard", "/storyboard/working-copy");
+    await expectRetired(projects.confirmChapterStoryboard(project.id, chapterId, {} as never), "confirm_storyboard", "/storyboard/working-copy/confirm");
+    await expectRetired(projects.updateChapterStoryboard(project.id, chapterId, {} as never), "update_storyboard", "/storyboard/working-copy");
+    expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
+  }, 20_000);
+
   it("fails closed when an active DB project has no current chapter", async () => {
     const { databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

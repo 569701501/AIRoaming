@@ -14,19 +14,19 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 
 - 当前总 capability 数为 8，operation 数为 36；`blockedIds` 为 6，没有提前减少。
 - final importer 继续以 `MIGRATION_FINAL_IMPORT_NOT_READY` 拒绝，符合 fail-closed 停止线。
-- D2-A2-1 已实现并提交 `1f22861`；D2-A2-2 已完成并待独立提交，下一步为 D2-A3-1，不得跳到 M6。
+- D2-A2-1 已实现并提交 `1f22861`；D2-A2-2 已提交 `077762d`；D2-A3-1 已完成并待独立提交，下一步为 D2-A3-2A，不得跳到 M6。
 
 ## 1. 当前阶段
 
 - M5 已完成；“当前是 M5 实施中”不符合最新验收事实。
-- 当前位于 D2：A0、A1、A2-1、A2-2 已完成，下一阶段为 A3-1。
+- 当前位于 D2：A0、A1、A2-1、A2-2、A3-1 已完成，下一阶段为 A3-2A。
 - M6 仍为 prerequisite_blocked。
 
 ## 2. capability
 
 - registry 有 8 个聚合 capability 和 36 个公开写 operation。
 - 已绿：`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store`。
-- 阻塞 5 项：Story/Storyboard/Preflight、Character/Asset/Lock、Layout/Export、Dialogue、Delete/Outbox；Project/Script 已由 A2-1/A2-2 收口。
+- 阻塞 4 项：Character/Asset/Lock、Layout/Export、Dialogue、Delete/Outbox；Project/Script 与 Story/Storyboard/Preflight 已收口。
 - 仅靠稳定拒绝不能把 operation 写成 implemented；危险 legacy 操作需要正式 `retired + replacement + evidence` 语义。
 
 ## 3. 代码能力
