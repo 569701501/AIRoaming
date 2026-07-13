@@ -22,6 +22,7 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 - 当前位于 D2：A0、A1、A2-1、A2-2、A3-1 已完成，下一阶段为 A3-2A。
 - A3-2A 正在收口 Character/Asset：identity、queue/source freeze、Character worker/Visual confirm、SceneVisual worker、公开 scene queue/source projection 已完成；delete、CandidateLock 仍未完成。
 - CandidateLock 已完成 DB 线性 revision/current pointer/replay；Character delete 与 complete images 仍需独立切片，聚合 capability 继续 partial。
+- `complete_chapter_images` 已完成 DB milestone CAS；Character delete 仍依赖尚未实现的 Outbox consumer，不能误报为完成。
 - M6 仍为 prerequisite_blocked。
 
 ## 2. capability

@@ -396,6 +396,28 @@ export class ImageCandidateService {
   }
 
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
+    if (this.prismaService.isDatabaseMode()) {
+      const project = await this.repository.refreshProjectFromDatabase(projectId);
+      const chapter = project.chapters.find((item) => item.id === chapterId);
+      if (!chapter?.storyboard) throw new BadRequestException("STORYBOARD_REQUIRED");
+      if (!chapter.imagePreflight?.preflightJson.ready || chapter.imagePreflight.sourceStoryboardId !== chapter.storyboard.id) throw new BadRequestException("IMAGE_PREFLIGHT_NOT_CONFIRMED");
+      const shots = chapter.storyboard.storyboardJson.shots;
+      if (shots.length === 0) throw new BadRequestException("STORYBOARD_EMPTY");
+      const unlocked = shots.filter((shot) => !shot.lockedCandidateId);
+      if (unlocked.length > 0) throw new BadRequestException({ code: "CHAPTER_CANDIDATES_NOT_FULLY_LOCKED", message: `还有 ${unlocked.length} 个镜头未锁定候选图`, details: { unlockedShotIds: unlocked.map((shot) => shot.id) } });
+      const db = this.prismaService.database();
+      const row = await db.chapter.findFirst({ where: { id: chapterId, projectId } });
+      if (!row) throw new BadRequestException("CHAPTER_NOT_FOUND");
+      const now = new Date();
+      if (row.milestoneStatus !== "images_done") {
+        const updated = await db.chapter.updateMany({ where: { id: chapterId, projectId, rowVersion: row.rowVersion }, data: { milestoneStatus: "images_done", completedAt: row.completedAt ?? now, updatedAt: now, rowVersion: { increment: 1 } } });
+        if (updated.count !== 1) throw new BadRequestException("CHAPTER_VERSION_CONFLICT");
+      }
+      const nextProject = await this.repository.refreshProjectFromDatabase(projectId);
+      const nextChapter = nextProject.chapters.find((item) => item.id === chapterId);
+      if (!nextChapter) throw new BadRequestException("CHAPTER_NOT_FOUND");
+      return { chapter: wsDomain.toChapterDetail(nextChapter), chapters: wsDomain.sortChapters(nextProject.chapters).map((item) => wsDomain.toChapterListItem(item)), candidates: (nextChapter.candidates ?? []).map((item) => this.toWorkbenchCandidate(item)), shots: this.toWorkbenchShots(nextChapter), storyboard: nextChapter.storyboard, workflow: this.buildWorkflow(nextProject, nextChapter) };
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
     if (!chapter.storyboard) {

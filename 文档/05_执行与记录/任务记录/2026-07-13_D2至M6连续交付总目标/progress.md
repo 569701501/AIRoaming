@@ -59,3 +59,5 @@ source: 本总目标编制过程
 - 定向 30 项、server 全量 54 文件/371 测试、Scrutiny、Runtime 和静态门禁全部通过；本切片待独立提交。
 - Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一步处理 Character delete 或 CandidateLock，不能跳到 M6。
 - `lock_candidate` 已接入 DB CandidateLockRevision 线性事务与幂等 replay；CandidateLock 完成，但 Character delete、`complete_chapter_images` 仍未开放。
+- `complete_chapter_images` 已接入 DB：有效 current preflight + 全镜 current lock 后以 Chapter CAS 推进 `images_done`；Character delete 仍受 Outbox 约束未开放。
+- 本片回归：定向 30/30、server 相关 371 条通过；默认 Vitest 5 秒阈值下 3 条已有 G1/M5 慢测超时，使用 30 秒阈值复核为 G1 12/12、M5 33/33 全通过，非本片断言回归。

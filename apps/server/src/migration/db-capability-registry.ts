@@ -471,8 +471,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.completeChapterImages",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-IMAGES-01: completes a DB chapter after every shot has a current CandidateLockRevision"],
   },
   {
     operation: "build_layout",

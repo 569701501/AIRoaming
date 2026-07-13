@@ -802,7 +802,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
-    this.repository.assertDatabaseOperationSupported("complete_chapter_images");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("complete_chapter_images");
     return this.imageCandidate.completeChapterImages(projectId, chapterId);
   }
 

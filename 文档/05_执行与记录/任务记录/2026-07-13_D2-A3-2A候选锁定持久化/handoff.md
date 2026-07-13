@@ -16,7 +16,7 @@ DB 模式公开 `lock_candidate`，以事务创建线性 `CandidateLockRevision`
 
 ## 非目标
 
-不实现 `complete_chapter_images`、Layout/Export、Dialogue、Outbox、final importer、M6 或真实切换。
+不实现 Layout/Export、Dialogue、Outbox、final importer、M6 或真实切换；`complete_chapter_images` 另有后续独立切片。
 
 ## 证据
 

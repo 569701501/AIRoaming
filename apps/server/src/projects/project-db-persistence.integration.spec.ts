@@ -1408,15 +1408,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const asset = await prisma.asset.findUniqueOrThrow({ where: { id: candidate.assetId } });
     expect(asset).toMatchObject({ status: "ready", sourceTaskId: imageTask.id, sha256: expect.stringMatching(/^sha256:/) });
     expect((await prisma.shot.findUniqueOrThrow({ where: { id: shotId } })).currentCandidateLockRevisionId).toBeNull();
-    const locked = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
-    expect(locked.candidate).toMatchObject({ id: candidate.id, status: "locked" });
-    expect(locked.shots.find((item) => item.id === shotId)?.lockedCandidateId).toBe(candidate.id);
-    const lockRevision = await prisma.candidateLockRevision.findFirstOrThrow({ where: { shotId }, orderBy: { revision: "desc" } });
-    expect(lockRevision).toMatchObject({ action: "lock", candidateId: candidate.id, revision: 1, origin: "runtime" });
-    const replayLock = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
-    expect(replayLock.candidate.status).toBe("locked");
-    expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(1);
-
     const cancelTask = await tasks.create({ projectId: project.id, type: "image_generate", target: { type: "shot", id: shotId, chapterId: scope.chapterId }, input: { chapterId: scope.chapterId, shotId, requestId: randomUUID(), candidateCount: 1 }, options: { priority: 2 } });
     const cancelled = await tasks.cancelForApi(cancelTask.id);
     expect(cancelled.status).toBe("cancelled");
@@ -1430,5 +1421,18 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const staleDone = await worker.runOnce("shot-worker");
     expect(staleDone).toMatchObject({ id: staleTask.id, status: "succeeded" });
     expect((await prisma.generationTask.findUniqueOrThrow({ where: { id: staleTask.id } })).applicability).toBe("historical");
+    const nextPreview = await preflight.getPreview(scope, "shot tasks after replacement");
+    await preflight.confirm(scope, { expectedSourceStoryboardVersionId: nextConfirmed.value.current.id, expectedSourceDigest: nextPreview.sourceDigest, expectedChapterRowVersion: nextPreview.chapterRowVersion, notes: "shot tasks after replacement" });
+    const locked = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
+    expect(locked.candidate).toMatchObject({ id: candidate.id, status: "locked" });
+    expect(locked.shots.find((item) => item.id === shotId)?.lockedCandidateId).toBe(candidate.id);
+    const lockRevision = await prisma.candidateLockRevision.findFirstOrThrow({ where: { shotId }, orderBy: { revision: "desc" } });
+    expect(lockRevision).toMatchObject({ action: "lock", candidateId: candidate.id, revision: 1, origin: "runtime" });
+    const replayLock = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
+    expect(replayLock.candidate.status).toBe("locked");
+    expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(1);
+    const completedImages = await projects.completeChapterImages(project.id, scope.chapterId);
+    expect(completedImages.chapter.status).toBe("images_done");
+    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("images_done");
   }, 30_000);
 });
