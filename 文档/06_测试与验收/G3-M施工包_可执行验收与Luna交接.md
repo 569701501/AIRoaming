@@ -69,8 +69,8 @@ db:verify
 # 需要与本次 shadow run 一起提供已校验的 decisions artifact
 db:verify --snapshot <sealed-dir> --decisions <normalized-decisions.json> --import-report <slice-report.json> --database-url <explicit sqlite url> --run-id <id> --report <output> --workspace-root <repo-root> --format json
 db:capabilities（已实现；required blocker 存在时退出 2）
-app:backup（coordinated 已实现；A4 收口中）
-app:restore（verify/materialize 已实现；A4 收口中）
+app:backup（coordinated 已实现；M5-A4 已完成）
+app:restore（verify/materialize 已实现；M5-A4 已完成）
 db:activate（未实现，D2/D3 阻塞）
 ```
 
@@ -179,16 +179,16 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 ### G3-M5
 
-- 原始实现记录：`文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/`；当前施工入口：相邻 `2026-07-13_G3-M5A4验收收口/`。
-- M5-A0 truthful capability registry 已实现；当前 `--check` 继续为 `MIGRATION_CAPABILITY_BLOCKED`。
-- M5-A1～A3 已实现临时根 coordinated backup、verify/materialize restore 和 restart/API happy path。
-- 原验收没有真实覆盖全部篡改、secret、writer/WAL、symlink/重叠和补偿失败；当前必须按 `文档/05_执行与记录/任务记录/2026-07-13_G3-M5A4验收收口/` 执行 A4-1～A4-4。
+- 原始实现记录：`文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/`；最终收口证据：相邻 `2026-07-13_G3-M5A4验收收口/`。
+- M5-A0 truthful capability registry、A1～A3 happy path 与 A4-1～A4-4 故障矩阵均已实现并复核，M5 状态为 `completed`。
+- 当前 `db:capabilities --check` 仍可能因 D2 业务 capability 返回 `MIGRATION_CAPABILITY_BLOCKED`；这不是 M5 未完成。
 
 ### G3-M6
 
-- CAP required 全绿；用户重新授权；C0～C7 顺序执行。
-- G1 RST/RB/ACT 与 G3 RST-03/RST-05/FLT-04 全绿。
-- firstBusinessWriteAt 前后回滚边界分别演练。
+- M6 tooling 和带 marker 的临时 C0～C7 rehearsal 可在 D2 全绿后由连续总 Handoff 自动执行，不需要逐阶段用户回复。
+- 真实 CAP/C0～C7 执行仍要求用户重新授权；真实阶段必须顺序执行。
+- G1 RST/RB/ACT 与 G3 RST-03/RST-05/FLT-04 在临时根先全绿。
+- firstBusinessWriteAt 前后回滚边界先在隔离 fixture 分别演练；真实切换后再留 Runtime/User Review 证据。
 
 ## 6. 验证命令模板
 
@@ -245,22 +245,20 @@ git diff --check
 
 任一答案为否，当前切片不得通过。
 
-## 9. 当前 Luna 任务书
+## 9. 当前 Luna 连续任务书
 
-```text
-当前没有新的 Luna 任务书：M5-A4 已完成并复核。下一切片如继续开发，应另行创建 D2 handoff。
-施工入口：暂不自动进入 D2，等待独立授权与施工资料
-明确禁止：D2、M6、final importer、activate、真实数据
-退出证据：D2 handoff 创建并复核后再执行
-Stop：不得跳过 D2 handoff 或直接推进 M6
-```
+M5-A4-1～A4-4 已完成并复核。用户已把执行方式改为一个连续总目标：内部仍按 D2-A2～A8、M6 tooling 顺序逐阶段验收和提交，但阶段通过后自动续跑，不再等待用户逐步确认。
 
-M5-A4-1～A4-4 已完成并复核。下一步先创建并复核 D2 handoff；不要一次把 D2 或 M6 全交给 Luna。
+唯一入口：
+
+`文档/05_执行与记录/任务记录/2026-07-13_D2至M6连续交付总目标/handoff.md`
+
+第一内部阶段继续使用 D2-A2-1 五份详细资料。连续任务可以完成 D2 全部代码、final importer、activate tooling 和临时根 C0～C7 演练；不得触碰真实数据、真实凭据或执行真实 cutover。
 
 ## 10. 最终 go/no-go
 
-可以开始 Luna 开发：no，M5 已完成；等待单独的 D2 handoff 与授权。
+可以开始 Luna 连续开发：yes；总 Handoff 已覆盖 D2-A2～A8 与 M6 tooling。
 
-可以直接要求 Luna 完成全部 G3-M：no，范围跨 G1 maintenance/full importer/SecretStore/backup/cutover，必须逐切片。
+可以让 Luna 按一个总目标连续完成剩余开发：yes，但内部必须逐切片、自测、复核、独立提交，不得并行越级。
 
-可以现在运行真实 DB-only activate：no，capability/SecretStore/importer/backup/user authorization 门均未满足。
+可以现在运行真实 DB-only activate：no；其余 capability、final importer、activate tooling、真实停写与用户授权门仍未满足。

@@ -1,0 +1,42 @@
+---
+doc_id: AIR-D2-M6-EXECUTION-STATUS-001
+status: ready
+created: 2026-07-13
+updated: 2026-07-13
+owner: AI漫游项目
+audience: orchestrator, worker, reviewer, human
+source: 连续执行总 Handoff
+---
+
+# 连续执行状态
+
+## 1. 上游
+
+| item | status | evidence |
+| --- | --- | --- |
+| M5 | completed | G3-M5A4 验收收口目录 |
+| D2-A0 | completed | D2-A0 操作级能力盘点目录 |
+| D2-A1-2 | completed | commit `3eba98d` |
+| D2-A2-1 docs | ready | commit `f6981e1` |
+
+## 2. 后续阶段
+
+| phase | status | commit | targeted | full | scrutiny | runtime | blocker |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P0 baseline | pending | - | - | - | - | n/a | - |
+| P1 D2-A2-1 | pending | - | - | - | - | - | - |
+| P2 D2-A2-2 | pending | - | - | - | - | - | - |
+| P3 D2-A3-1 | pending | - | - | - | - | - | - |
+| P4 D2-A3-2A | pending | - | - | - | - | - | - |
+| P5 D2-A3-2B | pending | - | - | - | - | - | - |
+| P6 D2-A4 | pending | - | - | - | - | - | - |
+| P7 D2-A5 | pending | - | - | - | - | - | - |
+| P8 D2-A6 | pending | - | - | - | - | - | - |
+| P9 D2-A7 | pending | - | - | - | - | - | - |
+| P10 D2-A8 | pending | - | - | - | - | - | - |
+| P11 M6 tooling/rehearsal | pending | - | - | - | - | - | - |
+| P12 final closure | pending | - | - | - | - | - | - |
+
+## 3. 目标终态
+
+`ready_for_real_cutover_authorization`。真实 R1 不属于当前授权。

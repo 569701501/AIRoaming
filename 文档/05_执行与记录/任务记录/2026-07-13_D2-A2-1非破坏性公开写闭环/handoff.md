@@ -10,6 +10,8 @@ source: G3-D2 与 M6 推进路线、G2 API 与幂等契约、D2-A0 操作级盘�
 
 # D2-A2-1 非破坏性公开写闭环 Handoff
 
+> 连续执行覆盖：若本文件由 `2026-07-13_D2至M6连续交付总目标/handoff.md` 领取，则“完成后停止”解释为“完成本阶段内部 Scrutiny/Runtime Review、独立提交并更新 execution_status 后自动进入 D2-A2-2”；不得跳过本文件验收，但不再等待用户逐步回复。单独领取本文件时仍按原停止线执行。
+
 ## 1. 给 Luna 的领取指令
 
 你只领取 **D2-A2-1**，目标是把下面这条真实用户链路接到数据库事实源：
@@ -23,7 +25,7 @@ source: G3-D2 与 M6 推进路线、G2 API 与幂等契约、D2-A0 操作级盘�
           -> 同进程刷新、Nest 重启后结果一致
 ```
 
-同时补齐项目级剧本大纲的 draft/confirm 数据库写入。完成后停下，先做 Scrutiny Review 和临时根 Runtime Review；**不得自动领取 D2-A2-2、D2-A3 或更下游任务**。
+同时补齐项目级剧本大纲的 draft/confirm 数据库写入。完成后先做 Scrutiny Review 和临时根 Runtime Review。若由连续总 Handoff 领取，复核、提交通过后自动进入 D2-A2-2；否则停止，不得自行扩大范围。
 
 开始编码前，按顺序完整阅读：
 
@@ -117,7 +119,7 @@ confirm_script_outline
 4. 切换 Web 到 G2 Script 新接口，再给旧入口加稳定拒绝。
 5. 跑 fresh SQLite 的同进程、并发、重放、重启、workspace isolation 测试。
 6. 最后才更新 5 个 operation evidence；运行 capability report，确认 blockedIds 仍为 6。
-7. 完成静态复核和临时根运行复核，独立 commit，然后停止。
+7. 完成静态复核和临时根运行复核，独立 commit；连续总 Handoff 模式下更新总 execution_status 并自动领取下一阶段，单独领取模式下停止。
 
 ## 8. 停止线
 
