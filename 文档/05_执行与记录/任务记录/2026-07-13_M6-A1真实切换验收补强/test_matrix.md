@@ -75,8 +75,8 @@ source: M6-A1 实施契约与 G1 正式验收清单
 
 | ID | 场景 | 必须断言 | G1 映射 | 状态 |
 | --- | --- | --- | --- | --- |
-| M6A1-RB-01 | final import 失败 | 旧源不变、未 ready、可丢弃临时目标 | RB-01 | `not_run` |
-| M6A1-RB-02 | C5 smoke 失败 | pre-cutover materialize 可恢复；file bridge 同版本可用；无首写 | RB-02 | `not_run` |
+| M6A1-RB-01 | final import 失败 | 旧源不变、未 ready、可丢弃临时目标 | RB-01 | `passed`（`src/migration/m6-c0-c7.rehearsal.spec.ts`，M6A1-RB-01） |
+| M6A1-RB-02 | C5 smoke 失败 | pre-cutover materialize 可恢复；file bridge 同版本可用；无首写 | RB-02 | `passed`（`src/migration/m6-c0-c7.rehearsal.spec.ts`，M6A1-RB-02） |
 | M6A1-RB-03 | settings 已脱敏的回滚 fixture | 只读 fake SecretStore，不恢复 plaintext | RB-03 | `passed`（`src/settings/settings.service.spec.ts`，M6A1-RB-03/SEC-06） |
 | M6A1-RB-04 | 首写后回 file | 明确拒绝 | RB-04 | `passed`（`src/persistence/file-mode-guard.spec.ts`，M6A1-RB-04/TX-08） |
 | M6A1-RB-05 | pre-cutover restore | integrity/FK/API/Asset hash 全绿 | RB-05 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，M6A1-BK-01 + RST-02/RST-05） |

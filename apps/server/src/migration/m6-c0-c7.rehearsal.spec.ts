@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { NestFactory } from "@nestjs/core";
@@ -35,7 +35,7 @@ async function deploy(databaseUrl: string): Promise<void> {
 }
 
 describe("M6 isolated C0-C7 rehearsal", () => {
-  it("M6A1-C0-C7 / M6A1-CHAIN-01 / M6A1-RDY-01 / M6A1-RDY-02 / M6A1-ACT-05 runs real final import, closed ready, backup, API smoke, activation and first write on isolated SQLite", async () => {
+  it("M6A1-C0-C7 / M6A1-CHAIN-01 / M6A1-RDY-01 / M6A1-RDY-02 / M6A1-ACT-05 / M6A1-RB-02 runs real final import, restore, closed ready, API smoke and first write on isolated SQLite", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-m6-c0-c7-real-"));
     const previous = {
       DATABASE_URL: process.env.DATABASE_URL,
@@ -46,6 +46,8 @@ describe("M6 isolated C0-C7 rehearsal", () => {
     };
     let prisma: PrismaService | undefined;
     let app: any = null;
+    let materializedDataRoot: string | undefined;
+    let materializedWorkspaceRoot: string | undefined;
     try {
       const sourceWorkspace = path.join(root, "source-workspace");
       const snapshotStaging = path.join(root, "snapshot-staging");
@@ -127,6 +129,9 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         const backup = await new AppBackupService(prisma!).backup({ databaseUrl, workspaceRoot: sourceWorkspace, dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle, decisions: decisionsPath, output: backupOutput, kind: "pre-cutover", runId });
         const restore = await new AppRestoreService().restore({ backup: backup.bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(restoreRoot, "data"), targetWorkspaceRoot: path.join(restoreRoot, "workspace"), mode: "verify-only" });
         expect(restore.mode).toBe("verify-only");
+        materializedDataRoot = path.join(restoreRoot, "materialized-data");
+        materializedWorkspaceRoot = path.join(restoreRoot, "materialized-workspace");
+        await expect(new AppRestoreService().restore({ backup: backup.bundlePath, releaseRoot: repoRoot, targetDataRoot: materializedDataRoot, targetWorkspaceRoot: materializedWorkspaceRoot, mode: "materialize" })).resolves.toMatchObject({ mode: "materialize" });
         return JSON.stringify({ final: finalResult.report.reportDigest, backup: backup.bundleDigest, restore: restore.bundleDigest });
       });
       await coordinator.runStep("C5", async () => {
@@ -140,6 +145,11 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         expect(body).toMatchObject({ success: true, data: { items: [{ id: expect.stringMatching(/^project_/) }] } });
         await expect(prisma!.runBusinessTransaction(async () => "must-not-run")).rejects.toThrow("DB_PERSISTENCE_NOT_ACTIVE");
         expect((await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } }))?.firstBusinessWriteAt).toBeNull();
+        const failedSmoke = await fetch(`http://127.0.0.1:${address.port}/api/m6-c5-smoke-failure`);
+        expect(failedSmoke.status).toBe(404);
+        expect(materializedDataRoot && materializedWorkspaceRoot).toBeTruthy();
+        expect(await stat(path.join(materializedDataRoot!, "db/airoaming.sqlite"))).toBeTruthy();
+        expect(await stat(materializedWorkspaceRoot!)).toBeTruthy();
         return "real-api-read-and-closed-write-rollback-smoke";
       });
       await coordinator.runStep("C6", async () => {
@@ -178,6 +188,58 @@ describe("M6 isolated C0-C7 rehearsal", () => {
       if (previous.AIROAMING_SECRET_STORE_ADAPTER === undefined) delete process.env.AIROAMING_SECRET_STORE_ADAPTER; else process.env.AIROAMING_SECRET_STORE_ADAPTER = previous.AIROAMING_SECRET_STORE_ADAPTER;
       if (previous.AIROAMING_FAKE_SECRET_STORE_ROOT === undefined) delete process.env.AIROAMING_FAKE_SECRET_STORE_ROOT; else process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = previous.AIROAMING_FAKE_SECRET_STORE_ROOT;
       if (previous.AIROAMING_TASK_WORKER_ENABLED === undefined) delete process.env.AIROAMING_TASK_WORKER_ENABLED; else process.env.AIROAMING_TASK_WORKER_ENABLED = previous.AIROAMING_TASK_WORKER_ENABLED;
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("M6A1-RB-01 rejects a tampered final snapshot without changing the source or creating a ready state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-m6-rb-01-"));
+    const previous = { DATABASE_URL: process.env.DATABASE_URL, AIROAMING_PERSISTENCE_MODE: process.env.AIROAMING_PERSISTENCE_MODE, AIROAMING_SECRET_STORE_ADAPTER: process.env.AIROAMING_SECRET_STORE_ADAPTER, AIROAMING_FAKE_SECRET_STORE_ROOT: process.env.AIROAMING_FAKE_SECRET_STORE_ROOT };
+    let prisma: PrismaService | undefined;
+    try {
+      const sourceWorkspace = path.join(root, "source-workspace");
+      const snapshotStaging = path.join(root, "snapshot-staging");
+      const dataRoot = path.join(root, "target-data");
+      const targetWorkspace = path.join(root, "target-workspace");
+      const secretStoreRoot = path.join(root, "fake-secret-store");
+      const databasePath = path.join(dataRoot, "db", "airoaming.sqlite");
+      const databaseUrl = `file:${databasePath}`;
+      await mkdir(path.join(sourceWorkspace, "projects", "p1"), { recursive: true });
+      await mkdir(path.join(dataRoot, "db"), { recursive: true });
+      await mkdir(targetWorkspace, { recursive: true });
+      await mkdir(secretStoreRoot, { recursive: true });
+      await open(databasePath, "wx", 0o600).then((handle) => handle.close());
+      const sourceProject = path.join(sourceWorkspace, "projects/p1/project.json");
+      await writeFile(sourceProject, `${JSON.stringify({ id: "p1", name: "rollback fixture", type: "comic", comicFormat: "vertical_scroll", genreTags: [] })}\n`, { mode: 0o600 });
+      process.env.AIROAMING_PERSISTENCE_MODE = "db";
+      process.env.DATABASE_URL = databaseUrl;
+      process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
+      process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = secretStoreRoot;
+      const maintenance = new MaintenanceCoordinator();
+      await maintenance.drain();
+      await maintenance.close();
+      const maintenanceBundle = path.join(root, "runtime-bundle.json");
+      await new RuntimeBundleFileService().writeAtomic(maintenanceBundle, await maintenance.createRuntimeBundle());
+      const snapshot = await new SnapshotService().createSnapshot({ workspaceRoot: sourceWorkspace, stagingRoot: snapshotStaging, runtimeBundle: maintenanceBundle });
+      const decisionsPath = path.join(root, "decisions.json");
+      await writeFile(decisionsPath, `${JSON.stringify(createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, []))}\n`, { mode: 0o600 });
+      await deploy(databaseUrl);
+      prisma = new PrismaService();
+      await prisma.onModuleInit();
+      const tamperedSnapshot = path.join(root, "tampered-snapshot");
+      await cp(snapshot.outputPath, tamperedSnapshot, { recursive: true });
+      await writeFile(path.join(tamperedSnapshot, "SEALED"), "tampered\n", { mode: 0o600 });
+      const before = await readFile(sourceProject);
+      await expect(new FinalImportOrchestrator(prisma).import({ snapshotPath: tamperedSnapshot, decisionsPath, databaseUrl, workspaceRoot: targetWorkspace, dataRoot, releaseRoot: repoRoot, secretStoreRoot, runId: "m6-rb-01-final" })).rejects.toThrow();
+      expect(await readFile(sourceProject)).toEqual(before);
+      expect(await prisma.database().migrationRun.count()).toBe(0);
+      expect(await prisma.database().persistenceState.findUnique({ where: { id: "primary" } })).toBeNull();
+    } finally {
+      if (prisma) await prisma.onModuleDestroy();
+      if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+      if (previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = previous.AIROAMING_PERSISTENCE_MODE;
+      if (previous.AIROAMING_SECRET_STORE_ADAPTER === undefined) delete process.env.AIROAMING_SECRET_STORE_ADAPTER; else process.env.AIROAMING_SECRET_STORE_ADAPTER = previous.AIROAMING_SECRET_STORE_ADAPTER;
+      if (previous.AIROAMING_FAKE_SECRET_STORE_ROOT === undefined) delete process.env.AIROAMING_FAKE_SECRET_STORE_ROOT; else process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = previous.AIROAMING_FAKE_SECRET_STORE_ROOT;
       await rm(root, { recursive: true, force: true });
     }
   }, 120_000);
