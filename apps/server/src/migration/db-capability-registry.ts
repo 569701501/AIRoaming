@@ -1,4 +1,5 @@
 export type CapabilityStatus = "implemented" | "partial" | "unsupported";
+export type OperationReadStatus = CapabilityStatus | "not_applicable";
 
 export interface DbCapabilityEntry {
   readonly id: string;
@@ -9,6 +10,17 @@ export interface DbCapabilityEntry {
   readonly requiredForActivate: boolean;
   readonly evidenceTestIds: readonly string[];
   readonly blocker: string | null;
+}
+
+export interface DbCapabilityOperation {
+  readonly operation: string;
+  readonly capabilityId: string;
+  readonly ownerModule: string;
+  readonly sourceFile: string;
+  readonly sourceSymbol: string;
+  readonly readStatus: OperationReadStatus;
+  readonly writeStatus: CapabilityStatus;
+  readonly evidenceTestIds: readonly string[];
 }
 
 const entries: DbCapabilityEntry[] = [
@@ -106,24 +118,445 @@ const entries: DbCapabilityEntry[] = [
   },
 ];
 
+/**
+ * 操作级门禁清单。
+ *
+ * 这些操作都来自 `assertDatabaseOperationSupported()` 调用点，不能因为
+ * 同一聚合 capability 的内部 repository 已经可写，就把公开 Service 入口
+ * 误报为已完成。当前仅 `generation_task_create` 有 DB 公开路径证据；其余
+ * 门禁保持 unsupported，直到对应切片补齐并添加稳定测试证据。
+ */
+const operations: DbCapabilityOperation[] = [
+  {
+    operation: "clear_project_chapters",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/project-repository.service.ts",
+    sourceSymbol: "ProjectRepository.clearProjectChaptersDir",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "clear_legacy_story",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/project-repository.service.ts",
+    sourceSymbol: "ProjectRepository.clearLegacyStoryDir",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "update_project_draft",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.updateProjectDraft",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "ensure_character_previews",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.ensureProjectCharacterPreviewTasks",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "extract_characters",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.extractProjectCharacters",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "update_character",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.updateProjectCharacter",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "generate_character_reference",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.generateCharacterReference",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "queue_scene_reference",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.queueSceneReference",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "generate_scene_reference",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.generateSceneReference",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "queue_character_reference",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.queueCharacterReference",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_character_preview",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmCharacterPreview",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_character_reference",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmCharacterReference",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "delete_character_reference",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.deleteCharacterReference",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "clear_chapter_script",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.clearChapterScript",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_chapter_pending_source",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmChapterPendingSource",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "discard_chapter_pending_source",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.discardChapterPendingSource",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "import_script_to_chapters",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.importScriptToChapters",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "ensure_chapter_exists",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.ensureChapterExists",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "write_chapter_draft_from_ai",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.writeChapterDraftFromAI",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "save_script_outline_from_ai",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.saveScriptOutlineFromAI",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_script_outline",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmScriptOutline",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_story_structure",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmChapterStoryStructure",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "update_story_structure",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.updateChapterStoryStructure",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_image_preflight",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmChapterImagePreflight",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "resolve_image_preflight_character",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.resolveImagePreflightCharacter",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "generation_task_create",
+    capabilityId: "task_create_claim_complete_cancel_recover",
+    ownerModule: "tasks/persistent-task-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.guardGenerationTaskCreate",
+    readStatus: "not_applicable",
+    writeStatus: "implemented",
+    evidenceTestIds: [
+      "src/projects/project-db-persistence.integration.spec.ts#creates shot prompt/image tasks through the DB guard and records late candidates as historical",
+    ],
+  },
+  {
+    operation: "save_pending_storyboard",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.savePendingChapterStoryboard",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "confirm_storyboard",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmChapterStoryboard",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "update_storyboard",
+    capabilityId: "outline_story_storyboard_preflight",
+    ownerModule: "projects/versioning",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.updateChapterStoryboard",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "lock_candidate",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.lockChapterCandidate",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "complete_chapter_images",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.completeChapterImages",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "build_layout",
+    capabilityId: "layout_export",
+    ownerModule: "projects/layout-export",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.buildChapterLayout",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "export_layout",
+    capabilityId: "layout_export",
+    ownerModule: "projects/layout-export",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.exportChapterLayout",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "export_asset_package",
+    capabilityId: "layout_export",
+    ownerModule: "projects/layout-export",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.exportAssetPackage",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "reset_project_script",
+    capabilityId: "project_chapter_script",
+    ownerModule: "projects/project-repository",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.resetProjectScript",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+  {
+    operation: "delete_project",
+    capabilityId: "project_delete_outbox",
+    ownerModule: "projects/delete-outbox",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.deleteProject",
+    readStatus: "not_applicable",
+    writeStatus: "unsupported",
+    evidenceTestIds: [],
+  },
+];
+
 function cloneEntry(entry: DbCapabilityEntry): DbCapabilityEntry {
   return { ...entry, evidenceTestIds: [...entry.evidenceTestIds] };
+}
+
+function cloneOperation(operation: DbCapabilityOperation): DbCapabilityOperation {
+  return { ...operation, evidenceTestIds: [...operation.evidenceTestIds] };
 }
 
 export function getDbCapabilityRegistry(): DbCapabilityEntry[] {
   return entries.map(cloneEntry);
 }
 
+export function getDbCapabilityOperations(): DbCapabilityOperation[] {
+  return operations.map(cloneOperation);
+}
+
+function hasBlockedOperation(
+  entry: DbCapabilityEntry,
+  operationRegistry: readonly DbCapabilityOperation[],
+): boolean {
+  return operationRegistry
+    .filter((operation) => operation.capabilityId === entry.id)
+    .some((operation) => operation.writeStatus !== "implemented"
+      || operation.evidenceTestIds.length === 0);
+}
+
 export function getBlockedDbCapabilities(
   registry: readonly DbCapabilityEntry[] = entries,
+  operationRegistry: readonly DbCapabilityOperation[] = operations,
 ): DbCapabilityEntry[] {
   return registry
     .filter((entry) => entry.requiredForActivate)
     .filter((entry) => entry.readStatus !== "implemented"
       || entry.writeStatus !== "implemented"
       || !entry.restartCovered
-      || entry.evidenceTestIds.length === 0)
+      || entry.evidenceTestIds.length === 0
+      || hasBlockedOperation(entry, operationRegistry))
     .map(cloneEntry);
+}
+
+export function assertDbCapabilityOperations(
+  operationRegistry: readonly DbCapabilityOperation[],
+  registry: readonly DbCapabilityEntry[] = entries,
+): void {
+  const capabilityIds = new Set(registry.map((entry) => entry.id));
+  const operationIds = new Set<string>();
+  for (const operation of operationRegistry) {
+    if (!operation.operation || operationIds.has(operation.operation)
+      || !capabilityIds.has(operation.capabilityId)
+      || !operation.ownerModule
+      || !operation.sourceFile
+      || !operation.sourceSymbol
+      || !["implemented", "partial", "unsupported", "not_applicable"].includes(operation.readStatus)
+      || !["implemented", "partial", "unsupported"].includes(operation.writeStatus)) {
+      throw new Error("DB_CAPABILITIES_OPERATION_REGISTRY_INVALID");
+    }
+    operationIds.add(operation.operation);
+    if (!Array.isArray(operation.evidenceTestIds)
+      || operation.evidenceTestIds.some((testId) => typeof testId !== "string" || !testId.includes("#"))) {
+      throw new Error("DB_CAPABILITIES_OPERATION_EVIDENCE_INVALID");
+    }
+    if ((operation.writeStatus === "implemented" || operation.writeStatus === "partial")
+      && operation.evidenceTestIds.length === 0) {
+      throw new Error("DB_CAPABILITIES_OPERATION_EVIDENCE_MISSING");
+    }
+  }
 }
 
 export function assertDbCapabilityRegistry(
@@ -146,6 +579,7 @@ export function assertDbCapabilityRegistry(
       throw new Error("DB_CAPABILITIES_EVIDENCE_MISSING");
     }
   }
+  assertDbCapabilityOperations(operations, registry);
 }
 
 assertDbCapabilityRegistry(entries);

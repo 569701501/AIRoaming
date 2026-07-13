@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 import { promisify } from "node:util";
@@ -8,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertDbCapabilityRegistry,
   getBlockedDbCapabilities,
+  getDbCapabilityOperations,
   getDbCapabilityRegistry,
 } from "./db-capability-registry.js";
 
@@ -27,6 +29,21 @@ async function runCli(...args: string[]) {
     const result = error as { code?: number; stdout?: string; stderr?: string };
     return { code: result.code ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
   }
+}
+
+async function readGuardedOperationsFromSource(): Promise<string[]> {
+  const sourceFiles = [
+    path.join(serverRoot, "src/projects/project-repository.service.ts"),
+    path.join(serverRoot, "src/projects/projects.service.ts"),
+  ];
+  const operations = new Set<string>();
+  for (const sourceFile of sourceFiles) {
+    const source = await readFile(sourceFile, "utf8");
+    for (const match of source.matchAll(/assertDatabaseOperationSupported\("([^"]+)"\)/g)) {
+      operations.add(match[1]!);
+    }
+  }
+  return [...operations].sort();
 }
 
 describe("M5-A0 DB capability registry", () => {
@@ -59,13 +76,36 @@ describe("M5-A0 DB capability registry", () => {
     ]);
   });
 
+  it("D2-A0 registers every operation-level DB gate with an explicit owner, status and evidence", async () => {
+    const registry = getDbCapabilityRegistry();
+    const operations = getDbCapabilityOperations();
+    assertDbCapabilityRegistry(registry);
+    expect(operations.map((operation) => operation.operation).sort()).toEqual(
+      await readGuardedOperationsFromSource(),
+    );
+    expect(operations).toHaveLength(36);
+    expect(operations.every((operation) => operation.readStatus === "not_applicable")).toBe(true);
+    expect(operations.filter((operation) => operation.writeStatus === "implemented").map((operation) => operation.operation)).toEqual([
+      "generation_task_create",
+    ]);
+    expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
+      capabilityId: "task_create_claim_complete_cancel_recover",
+      ownerModule: "tasks/persistent-task-repository",
+      sourceSymbol: "ProjectsService.guardGenerationTaskCreate",
+      evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#creates shot prompt/image tasks through the DB guard and records late candidates as historical"],
+    });
+    expect(operations.filter((operation) => operation.writeStatus !== "implemented")
+      .every((operation) => operation.evidenceTestIds.length === 0)).toBe(true);
+  });
+
   it("CAP-01 reports a complete registry without initializing Prisma", async () => {
     const result = await runCli("--format", "json");
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    const payload = JSON.parse(result.stdout) as { code: string; capabilities: unknown[] };
+    const payload = JSON.parse(result.stdout) as { code: string; capabilities: unknown[]; operations: unknown[] };
     expect(payload.code).toBe("DB_CAPABILITIES_REPORTED");
     expect(payload.capabilities).toHaveLength(8);
+    expect(payload.operations).toHaveLength(36);
   });
 
   it("CAP-01 keeps the current activation gate fail-closed with exit code 2", async () => {

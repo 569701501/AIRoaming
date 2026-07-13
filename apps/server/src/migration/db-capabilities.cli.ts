@@ -2,6 +2,7 @@ import { readJsonFormat } from "../cli-format.js";
 import {
   assertDbCapabilityRegistry,
   getBlockedDbCapabilities,
+  getDbCapabilityOperations,
   getDbCapabilityRegistry,
 } from "./db-capability-registry.js";
 
@@ -26,13 +27,14 @@ function parseArgs(args: readonly string[]): { check: boolean } {
 async function main(args = process.argv.slice(2)): Promise<number> {
   const { check } = parseArgs(args);
   const capabilities = getDbCapabilityRegistry();
+  const operations = getDbCapabilityOperations();
   assertDbCapabilityRegistry(capabilities);
-  const blocked = getBlockedDbCapabilities(capabilities);
+  const blocked = getBlockedDbCapabilities(capabilities, operations);
   if (check && blocked.length > 0) {
-    process.stdout.write(`${JSON.stringify({ code: "MIGRATION_CAPABILITY_BLOCKED", capabilities, blockedIds: blocked.map((entry) => entry.id) })}\n`);
+    process.stdout.write(`${JSON.stringify({ code: "MIGRATION_CAPABILITY_BLOCKED", capabilities, operations, blockedIds: blocked.map((entry) => entry.id) })}\n`);
     return 2;
   }
-  process.stdout.write(`${JSON.stringify({ code: "DB_CAPABILITIES_REPORTED", capabilities, blockedIds: blocked.map((entry) => entry.id) })}\n`);
+  process.stdout.write(`${JSON.stringify({ code: "DB_CAPABILITIES_REPORTED", capabilities, operations, blockedIds: blocked.map((entry) => entry.id) })}\n`);
   return 0;
 }
 
