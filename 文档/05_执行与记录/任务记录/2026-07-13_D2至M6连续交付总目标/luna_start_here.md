@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-LUNA-START-002
-status: ready_for_luna_next_stage
+status: ready_for_luna
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -10,9 +10,11 @@ source: 当前 HEAD、capability CLI 与 D2/M6 总施工资料
 
 # Luna 当前执行入口
 
+> 唯一总入口已改为同目录 `luna_execute_all_remaining.md`。本文件只做跳转和事实摘要，避免与旧 handoff 重复维护。
+
 ## 先看结论
 
-M5 已完成，不要重复施工。D2-A5 Dialogue runtime 已完成并独立提交，D2-A6 Outbox/Project delete 也已完成并复核；P8 独立提交正在收口。
+M5-A0～A4 已完成，不要重复施工。D2-A5 Dialogue runtime 已完成并独立提交，D2-A6 Outbox/Project delete 已提交 `075986f`。当前接管点是 **D2-A7**；工作树中有一份未验收、未提交的 D2-A7 草稿，必须先审查并收口。
 
 Luna 从 **D2-A7 final importer / verifier / ready coordinator** 开始，连续执行到 M6 隔离演练结束；每阶段内部测试、复核、独立提交后自动进入下一阶段，不需要用户逐步确认。
 
@@ -45,9 +47,11 @@ node --import tsx src/migration/db-capabilities.cli.ts --format json
 node --import tsx src/migration/db-capabilities.cli.ts --check --format json
 ```
 
-预期：先确认 P8 独立提交已存在；report 为 8/36/0，`--check` exit 0。若工作树仍有 P8 草稿，先完成提交和记录，不得重复实现。
+预期：report 为 8/36/0，`--check` exit 0。若工作树存在 D2-A7 草稿，先按 `luna_execute_all_remaining.md` 的 FIN-01～10 收口，不得把草稿当作完成。
 
 ## 连续顺序
+
+请直接阅读并执行：[`luna_execute_all_remaining.md`](./luna_execute_all_remaining.md)。
 
 ### 1. D2-A6：Outbox + Project delete（已完成，禁止重复施工）
 

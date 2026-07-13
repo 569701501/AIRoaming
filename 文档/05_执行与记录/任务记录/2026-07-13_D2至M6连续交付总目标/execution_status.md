@@ -14,7 +14,7 @@ source: 连续执行总 Handoff
 
 | item | status | evidence |
 | --- | --- | --- |
-| M5 | completed | G3-M5A4 验收收口目录 |
+| M5 | completed | G3-M5A4：33/33 集成、49 files/340 tests、双 Review |
 | D2-A0 | completed | D2-A0 操作级能力盘点目录 |
 | D2-A1-2 | completed | commit `3eba98d` |
 | D2-A2-1 | completed | commit `1f22861` |
@@ -31,8 +31,8 @@ source: 连续执行总 Handoff
 | P5 D2-A3-2B | passed_for_intent_boundary | `a2c46a3` | 33 targeted + 54 files/374 tests（全量命令显式 30s） | PASS | PASS | PASS | Character delete intent 已通过；Outbox consumer/物理清理仍属于 P8，capability 保持 partial |
 | P6 D2-A4 | passed | `73cc76f` | P6-LAYOUT-EXPORT-01 + project DB 28/28；server 全量/门禁通过 | PASS | PASS | PASS | LayoutWorkingCopy、LayoutRevision/bindings、layout ExportRevision/Artifact、asset package 已实现；Character delete 仍待 P8 |
 | P7 D2-A5 | passed | `fa26908` | P7-DIALOGUE-DB-01 + project DB 29/29；server 全量/门禁通过 | PASS | PASS | PASS | Dialogue 已具备 DB thread/message/tool/pending/session、restart、maintenance/deleting fence；blockedIds=2 |
-| P8 D2-A6 | passed | working tree（待独立提交） | 5 P8 定向 + capability | 5/5；慢测独立 45/45 | PASS | PASS | capability=8/36，blockedIds=[]；见 D2-A6 任务目录 |
-| P9 D2-A7 | pending | - | - | - | - | - | - |
+| P8 D2-A6 | passed | `075986f` | 5 P8 定向 + capability | 5/5；慢测独立 45/45 | PASS | PASS | capability=8/36，blockedIds=[]；见 D2-A6 任务目录 |
+| P9 D2-A7 | in_progress_draft | - | server typecheck 通过；FIN-01～10 未完成 | 未跑 | 未做 | 未做 | final importer/verifier/ready 草稿未验收、未提交 |
 | P10 D2-A8 | pending | - | - | - | - | - | - |
 | P11 M6 tooling/rehearsal | pending | - | - | - | - | - | - |
 | P12 final closure | pending | - | - | - | - | - | - |

@@ -10,6 +10,8 @@ source: G1 验收 ID、D2 施工资料与 M6 C0～C7
 
 # D2 至 M6 连续交付测试矩阵
 
+> 本矩阵保留各历史阶段的基线数字；当前真实 capability 以 CLI 为准，应为 8/36/`blockedIds=[]`。D2-A7 及以后证据以 `luna_execute_all_remaining.md` 的 FIN/ACT/RB 门为准。
+
 ## 1. 执行层级
 
 | 层级 | 频率 | 内容 |

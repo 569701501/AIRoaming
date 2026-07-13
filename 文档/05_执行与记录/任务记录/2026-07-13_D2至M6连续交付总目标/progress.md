@@ -10,12 +10,12 @@ source: 本总目标编制过程
 
 # 进度
 
-## P0 基线核对（2026-07-13）
+## P0 基线核对（历史记录；最新接管状态见 `luna_execute_all_remaining.md`）
 
-- `db-capabilities --format json`：8 个聚合 capability、36 个 operation；当前 `blockedIds` 精确为 2：Character/Scene/Asset/CandidateLock、Project delete/Outbox。Layout/Export 与 Dialogue 已绿。
+- 当时的阶段基线为 8 个聚合 capability、36 个 operation、2 个 blocker；该值已在 D2-A6 收口后降为 `blockedIds=[]`。
 - `db-import --kind final --format json`：保持 `MIGRATION_FINAL_IMPORT_NOT_READY` fail-closed。
-- 当前已提交事实基线为 `fa26908 feat(d2): persist dialogue runtime facts`；D2-A2-1～D2-A5 已有代码、阶段证据和独立提交。
-- 结论：总 Handoff 已进入 D2-A6 Outbox + Project delete；未接触真实 workspace、数据库、provider 或凭据。
+- 当前已提交事实基线为 `075986f feat(d2): close project delete outbox`；D2-A2-1～D2-A6 均已有代码、阶段证据和独立提交。
+- 结论：总 Handoff 已进入 D2-A7 final importer/verifier/ready；工作树草稿尚未验收，不得误报完成。
 
 ## 2026-07-13
 
@@ -65,9 +65,9 @@ source: 本总目标编制过程
 
 ## 当前接管点（2026-07-13，已纠偏）
 
-- 当前已提交 HEAD 为 `fa26908`；scene queue、CandidateLock、images_done、旧参考图入口退役、Layout/Export 和 Dialogue runtime 均已独立提交并复核。
+- 当前已提交 HEAD 为 `075986f`；D2-A6 Outbox/Project delete 已独立提交并复核，capability 已为 8/36/0。
 - 工作树不再存在 D2-A5 未提交草稿；P7 的 DB thread/message/tool/pending/session、restart、maintenance/deleting fence 证据已计入 capability。
-- 继续施工按 `luna_start_here.md` 与 `luna_remaining_work_handoff.md` 执行 D2-A6→D2-A7→D2-A8→M6；P8 必须回补 Character delete 并让 `blockedIds=[]`。
+- 继续施工按 `luna_execute_all_remaining.md` 执行 D2-A7→D2-A8→M6；先收口工作树 D2-A7 草稿，不得重复 P7/P8。
 
 ## P5 Character delete intent（2026-07-13）
 

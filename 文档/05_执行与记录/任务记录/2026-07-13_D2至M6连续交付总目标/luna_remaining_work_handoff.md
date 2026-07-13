@@ -12,7 +12,7 @@ source: 当前 capability CLI、已提交阶段证据、D2/M6 总实施契约
 
 ## 1. 先说结论
 
-当前不是 M5 施工。M5-A0～A4 已完成；M5 是上游基线。
+当前不是 M5 施工。M5-A0～A4 已完成；M5 是上游基线。当前唯一执行入口是同目录 `luna_execute_all_remaining.md`。
 
 当前从 **D2-A7** 接管，按下面顺序连续做到最终停点：
 
@@ -42,10 +42,10 @@ corepack pnpm --filter @airoaming/server exec tsx src/migration/db-capabilities.
 
 | 项目 | 事实 |
 | --- | --- |
-| 最新已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts`；P8 代码/证据已完成，待独立提交 |
+| 最新已提交基线 | `075986f feat(d2): close project delete outbox`；D2-A7 草稿在工作树，尚未验收/提交 |
 | 已完成 | M5、D2-A0、D2-A1-2、D2-A2-1、D2-A2-2、D2-A3-1、D2-A3-2A/B、D2-A4、D2-A5 |
 | capability | 8 个聚合项、36 个 operation；P7 已计入 evidence |
-| 当前 blocker | 0 个；P8 capability report 为 `blockedIds=[]` |
+| 当前 blocker | capability report 为 `blockedIds=[]`；D2-A7 仍是代码验收阻塞，不是 capability blocker |
 | 已绿且不得回退 | `project_chapter_script`、`outline_story_storyboard_preflight`、`layout_export`、`task_create_claim_complete_cancel_recover`、`settings_credential_secret_store` |
 | final importer | 仍 fail-closed；`db:import --kind final` 不得放行 |
 | `db:activate` | 尚未实现 |
@@ -70,7 +70,7 @@ P8 任务目录 `2026-07-13_D2-A6项目删除与Outbox/` 已记录实现、证�
 
 最小验收证据：`REP-08`、`REP-09`、`DLG-01`～`DLG-06`、tool replay、pending restart、fake provider、旧 workspace 隔离。
 
-退出证据：`dialogue_pending_runtime=implemented`、`restartCovered=true`，`P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量与静态门禁通过；独立提交 `fa26908`。当前 `blockedIds` 已从 3 降到 2。
+退出证据：`dialogue_pending_runtime=implemented`、`restartCovered=true`，`P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量与静态门禁通过；独立提交 `fa26908`。这是 P7 历史阶段值；D2-A6 后当前真实 `blockedIds=[]`。
 
 ### D2-A6：Outbox consumer + Project delete（已完成，勿重复）
 

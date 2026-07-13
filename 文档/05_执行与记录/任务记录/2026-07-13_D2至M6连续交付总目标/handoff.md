@@ -19,8 +19,8 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 ```text
 已完成：D2-A2-1 -> D2-A2-2 -> D2-A3-1 -> D2-A3-2A/B -> D2-A4
   -> 已完成：D2-A5 Dialogue runtime（commit `fa26908`）
-    -> 当前：D2-A6（Outbox + Project delete，并回补 Character delete）
-      -> D2-A7
+    -> D2-A6（Outbox + Project delete，并回补 Character delete，已完成，commit `075986f`）
+      -> 当前：D2-A7（final importer / verifier / ready coordinator 草稿待收口）
         -> D2-A8
           -> M6 工具实现与全隔离 C0～C7 演练
             -> ready_for_real_cutover_authorization
@@ -32,11 +32,13 @@ Luna 从当前仓库事实出发，跳过已完成阶段，连续完成剩余工
 
 ## 2. 当前事实
 
+> 2026-07-13 最新接管入口为同目录 `luna_execute_all_remaining.md`。本文件保留完整契约；阶段事实以 `execution_status.md` 和最新 git 为准。
+
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前已提交基线 | `fa26908 feat(d2): persist dialogue runtime facts`；D2-A6 代码与证据已完成，待独立提交 |
-| 工作树状态 | P8 已完成并已做静态/运行复核；下一阶段从 D2-A7 开始，不能重复施工 |
+| 当前已提交基线 | `075986f feat(d2): close project delete outbox` |
+| 工作树状态 | D2-A6 已提交；D2-A7 final importer/verifier/ready 草稿未验收、未提交，下一步先收口草稿 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
@@ -135,7 +137,7 @@ P8 收口后的 `blockedIds` 必须精确为空数组：`[]`。
 
 不得新增 review-attestation、双签、CAS sealed review bundle 或自建审查流水线。复核只需要简洁 Markdown 结论和可复跑命令。
 
-## 8. capability 下降里程碑
+## 8. capability 下降里程碑（历史阶段门；当前真实值以 CLI 为准）
 
 | 阶段 | 允许的 `blockedIds` 数量 | 允许移除的 capability |
 | --- | ---: | --- |

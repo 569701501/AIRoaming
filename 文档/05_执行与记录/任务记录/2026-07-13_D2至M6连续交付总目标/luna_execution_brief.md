@@ -14,7 +14,7 @@ source: 当前代码、capability CLI、D2/M6 总 Handoff
 
 从本文件开始执行，不需要用户逐阶段确认。完整契约仍以同目录的 `handoff.md`、`remaining_work.md`、`implementation_contract.md`、`test_matrix.md` 为准；本文件只把“现在做什么、做到什么算完、下一步是什么”压成可执行清单。
 
-当前不是 M5 施工：M5-A0～A4 已完成。D2-A5 Dialogue runtime 已完成并提交 `fa26908`；当前接管点是 D2-A6 Outbox + Project delete。不能重复施工 P7、不能跳到 M6，也不能把 409 拒绝当成 implemented。
+当前不是 M5 施工：M5-A0～A4 已完成。D2-A5 Dialogue runtime 已完成并提交 `fa26908`，D2-A6 已提交 `075986f`；当前接管点是 D2-A7，工作树有未验收草稿。请以同目录 `luna_execute_all_remaining.md` 为唯一执行入口，不能重复施工 P7/P8、不能跳到 M6，也不能把未验收草稿当成 implemented。
 
 ## 2. 开工前事实检查
 
@@ -38,9 +38,9 @@ project_delete_outbox
 
 ## 3. 连续执行顺序
 
-### 当前接管点：P8 D2-A6
+### 当前接管点：P9 D2-A7
 
-P7 Dialogue 已由 `fa26908` 独立提交，证据包括 `P7-DIALOGUE-DB-01`、项目 DB 29/29、server 全量和静态门禁。不要重复审查/实现 P7，直接按下方 P8 Outbox + Project delete 施工。
+P7 Dialogue 已由 `fa26908` 独立提交，P8 Outbox/Project delete 已由 `075986f` 独立提交。不要重复审查/实现 P7/P8，按 `luna_execute_all_remaining.md` 收口当前 D2-A7 草稿。
 
 ### P5 收口：Character delete（先做契约，后等 Outbox）
 

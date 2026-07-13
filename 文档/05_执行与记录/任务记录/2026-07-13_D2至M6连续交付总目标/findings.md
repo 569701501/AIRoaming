@@ -18,7 +18,8 @@ source: 当前代码、CLI、M5/D2 证据与 G1/M6 文档
 
 ## 1. 当前阶段
 
-- M5 已完成；“当前是 M5 实施中”不符合最新验收事实。
+- M5-A0～A4 已完成；M5 是最后一个已完成里程碑，但“当前继续施工 M5”不符合最新验收事实。
+- D2-A6 已提交 `075986f`；当前接管点为 D2-A7。工作树存在 final importer/verifier/ready coordinator 草稿，server typecheck 已通过，但 FIN-01～10、Scrutiny/Runtime Review 和独立提交仍缺失，不能标记为完成。
 - 当前位于 D2：A0、A1、A2-1、A2-2、A3-1 已完成，下一阶段为 A3-2A。
 - A3-2A 正在收口 Character/Asset：identity、queue/source freeze、Character worker/Visual confirm、SceneVisual worker、公开 scene queue/source projection 已完成；delete、CandidateLock 仍未完成。
 - CandidateLock 已完成 DB 线性 revision/current pointer/replay；Character delete 与 complete images 仍需独立切片，聚合 capability 继续 partial。
