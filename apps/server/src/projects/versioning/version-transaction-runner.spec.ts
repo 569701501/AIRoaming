@@ -19,7 +19,7 @@ describe("VersionTransactionRunner", () => {
       .mockRejectedValueOnce(new Error("SQLITE_BUSY"))
       .mockRejectedValueOnce(new Error("database is locked"))
       .mockResolvedValue("done");
-    const service = { database: () => ({ $transaction: transaction }) } as never;
+    const service = { runBusinessTransaction: transaction } as never;
     const runner = new VersionTransactionRunner(service);
     await expect(runner.run(async () => "ignored")).resolves.toBe("done");
     expect(transaction).toHaveBeenCalledTimes(3);

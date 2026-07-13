@@ -35,7 +35,7 @@ export class VersionTransactionRunner {
     let lastError: unknown;
     for (let attempt = 0; attempt <= G2_TRANSACTION_RETRY_DELAYS_MS.length; attempt += 1) {
       try {
-        return await this.prismaService.database().$transaction(operation);
+        return await this.prismaService.runBusinessTransaction(operation);
       } catch (error) {
         lastError = error;
         if (!isRetryableVersionTransactionError(error) || attempt === G2_TRANSACTION_RETRY_DELAYS_MS.length) {

@@ -360,7 +360,7 @@ export class ImageCandidateService {
     const candidateId = input.candidateId?.trim();
     if (!candidateId) throw new BadRequestException("CANDIDATE_ID_REQUIRED");
     const db = this.prismaService.database();
-    await db.$transaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
       const chapter = await tx.chapter.findFirst({ where: { id: chapterId, projectId }, include: { currentStoryboardVersion: true } });
       if (!chapter?.currentStoryboardVersion) throw new BadRequestException("STORYBOARD_REQUIRED");
       if (chapter.milestoneStatus !== "storyboard_done" && chapter.milestoneStatus !== "images_done") throw new BadRequestException("CHAPTER_NOT_READY_FOR_CANDIDATE_LOCK");
@@ -410,7 +410,7 @@ export class ImageCandidateService {
       if (!row) throw new BadRequestException("CHAPTER_NOT_FOUND");
       const now = new Date();
       if (row.milestoneStatus !== "images_done") {
-        const updated = await db.chapter.updateMany({ where: { id: chapterId, projectId, rowVersion: row.rowVersion }, data: { milestoneStatus: "images_done", completedAt: row.completedAt ?? now, updatedAt: now, rowVersion: { increment: 1 } } });
+        const updated = await this.prismaService.runBusinessTransaction(async (tx) => tx.chapter.updateMany({ where: { id: chapterId, projectId, rowVersion: row.rowVersion }, data: { milestoneStatus: "images_done", completedAt: row.completedAt ?? now, updatedAt: now, rowVersion: { increment: 1 } } }));
         if (updated.count !== 1) throw new BadRequestException("CHAPTER_VERSION_CONFLICT");
       }
       const nextProject = await this.repository.refreshProjectFromDatabase(projectId);

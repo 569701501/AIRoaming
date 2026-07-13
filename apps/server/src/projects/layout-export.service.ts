@@ -207,7 +207,7 @@ export class LayoutExportService {
     const documentJson = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentJson as Prisma.InputJsonValue : ({ schemaVersion: 1, kind: "legacy_chapter_layout_v1", sourceResolution: "complete", legacyDocument: stableLayout, sourceBindings } as unknown as Prisma.InputJsonValue);
     const documentDigest = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentDigest : digestCanonicalJson(documentJson);
     if (!existing || existing.documentDigest !== documentDigest || existing.sourceLockSetDigest !== sourceLockSetDigest) {
-      await db.$transaction(async (tx) => {
+      await this.prismaService.runBusinessTransaction(async (tx) => {
         if (!existing) {
           await tx.layoutWorkingCopy.create({ data: { id: `layout_wc_${chapterId}`, projectId, chapterId, documentKind: "legacy_chapter_layout_v1", documentJson, schemaVersion: 1, documentDigest, sourceLockSetDigest, basedOnRevisionId: input.chapter.currentLayoutRevisionId, rowVersion: 0, createdAt: now, updatedAt: now } });
           return;
@@ -229,7 +229,7 @@ export class LayoutExportService {
     const existingRevision = input.chapter.currentLayoutRevisionId ? await db.layoutRevision.findUnique({ where: { id: input.chapter.currentLayoutRevisionId } }) : null;
     const revision = existingRevision && existingRevision.documentDigest === workingCopy.documentDigest && existingRevision.sourceLockSetDigest === workingCopy.sourceLockSetDigest
       ? existingRevision
-      : await db.$transaction(async (tx) => {
+      : await this.prismaService.runBusinessTransaction(async (tx) => {
         const latest = await tx.layoutRevision.findFirst({ where: { projectId, chapterId }, orderBy: { revision: "desc" } });
         const created = await tx.layoutRevision.create({ data: { id: `layout_rev_${randomUUID()}`, projectId, chapterId, revision: (latest?.revision ?? 0) + 1, previousRevisionId: latest?.id ?? null, contentBasedOnRevisionId: workingCopy.basedOnRevisionId, documentJson: workingCopy.documentJson as Prisma.InputJsonValue, schemaVersion: 1, documentDigest: workingCopy.documentDigest, sourceLockSetDigest: workingCopy.sourceLockSetDigest, origin: "runtime", saveReason: "export_checkpoint", bindingSetSealedAt: null, createdAt: new Date() } });
         const bindings = Array.isArray((workingCopy.documentJson as { sourceBindings?: unknown }).sourceBindings) ? (workingCopy.documentJson as { sourceBindings: Array<Record<string, unknown>> }).sourceBindings : [];
@@ -253,7 +253,7 @@ export class LayoutExportService {
     const profileDigest = digestCanonicalJson(profile);
     const current = await db.exportRevision.findFirst({ where: { projectId, chapterId, kind: "layout_publication", layoutRevisionId: revision.id, status: "ready" }, orderBy: { revision: "desc" } });
     if (!current) {
-      await db.$transaction(async (tx) => {
+      await this.prismaService.runBusinessTransaction(async (tx) => {
         const latest = await tx.exportRevision.findFirst({ where: { projectId, scopeKey: `chapter:${chapterId}`, kind: "layout_publication" }, orderBy: { revision: "desc" } });
         const exportRevisionId = `export_${revision.id}`;
         const assetId = `export_asset_${revision.id}`;

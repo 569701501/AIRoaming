@@ -346,7 +346,7 @@ export class CharacterReferenceService {
 
     const nextProject: LocalProject = { ...project, characters: this.sortProjectCharacters(nextCharacters), updatedAt: now };
     if (this.isDatabaseMode()) {
-      await this.prismaService.database().$transaction(async (tx) => {
+      await this.prismaService.runBusinessTransaction(async (tx) => {
         for (const character of nextCharacters) {
           const exists = await tx.character.findFirst({ where: { id: character.id, projectId } });
           if (exists) {
@@ -431,7 +431,7 @@ export class CharacterReferenceService {
     };
     const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, updatedAt);
     if (this.isDatabaseMode()) {
-      const result = await this.prismaService.database().character.updateMany({
+      const result = await this.prismaService.runBusinessTransaction(async (tx) => tx.character.updateMany({
         where: { id: characterId, projectId, rowVersion: { gte: 0 } },
         data: {
           name: nextCharacter.name,
@@ -446,7 +446,7 @@ export class CharacterReferenceService {
           finalizedAt: nextCharacter.finalizedAt ? new Date(nextCharacter.finalizedAt) : null,
           rowVersion: { increment: 1 },
         },
-      });
+      }));
       if (result.count !== 1) throw new BadRequestException("PROJECT_CHARACTER_VERSION_CONFLICT");
       const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
       const updated = this.findProjectCharacter(refreshed, characterId);
@@ -813,7 +813,7 @@ export class CharacterReferenceService {
       const visual = asset?.characterVisualByAsset;
       if (!asset) throw new NotFoundException("CHARACTER_PREVIEW_ASSET_NOT_FOUND");
       if (!visual || visual.characterId !== characterId || visual.kind !== "preview_front" || asset.status !== "ready") throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
-      await this.prismaService.database().character.update({ where: { id: characterId }, data: { previewVisualId: visual.id, rowVersion: { increment: 1 }, updatedAt: new Date() } });
+      await this.prismaService.runBusinessTransaction(async (tx) => tx.character.update({ where: { id: characterId }, data: { previewVisualId: visual.id, rowVersion: { increment: 1 }, updatedAt: new Date() } }));
       const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
       const nextCharacter = this.findProjectCharacter(refreshed, characterId);
       const task = nextCharacter.level !== "extra" ? await this.queueCharacterReference(projectId, characterId, { referenceKind: "final_reference" }) : null;
@@ -859,7 +859,7 @@ export class CharacterReferenceService {
       const visual = asset?.characterVisualByAsset;
       if (!asset) throw new NotFoundException("CHARACTER_REFERENCE_ASSET_NOT_FOUND");
       if (!visual || visual.characterId !== characterId || visual.kind !== "final_reference" || asset.status !== "ready") throw new BadRequestException("CHARACTER_REFERENCE_KIND_MISMATCH");
-      await this.prismaService.database().character.update({ where: { id: characterId }, data: { primaryVisualId: visual.id, status: character.status === "in_use" ? "in_use" : "finalized", finalizedAt: new Date(), rowVersion: { increment: 1 }, updatedAt: new Date() } });
+      await this.prismaService.runBusinessTransaction(async (tx) => tx.character.update({ where: { id: characterId }, data: { primaryVisualId: visual.id, status: character.status === "in_use" ? "in_use" : "finalized", finalizedAt: new Date(), rowVersion: { increment: 1 }, updatedAt: new Date() } }));
       const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
       return { ...this.toProjectCharactersResponse(refreshed), character: this.findProjectCharacter(refreshed, characterId) };
     }
@@ -899,7 +899,7 @@ export class CharacterReferenceService {
 
   private async deleteCharacterReferenceInDatabase(projectId: string, characterId: string, assetId: string): Promise<DeleteCharacterReferenceResponse> {
     const database = this.prismaService.database();
-    const result = await database.$transaction(async (tx) => {
+    const result = await this.prismaService.runBusinessTransaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true, lifecycleStatus: true } });
       if (!project || project.lifecycleStatus !== "active") {
         throw new NotFoundException("PROJECT_NOT_FOUND");

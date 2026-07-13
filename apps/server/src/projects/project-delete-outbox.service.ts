@@ -242,9 +242,9 @@ export class ProjectDeleteOutboxService {
     for (const event of expired) {
       const stamp = nextStamp(now, event.updatedAt);
       if (event.attempt >= event.maxAttempts) {
-        await this.database().outboxEvent.updateMany({ where: { id: event.id, status: "processing", leaseToken: event.leaseToken }, data: { status: "failed", leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: { code: "OUTBOX_LEASE_EXPIRED_MAX_ATTEMPTS", retryable: false }, updatedAt: stamp } });
+        await this.prismaService.runBusinessTransaction(async (tx) => { await tx.outboxEvent.updateMany({ where: { id: event.id, status: "processing", leaseToken: event.leaseToken }, data: { status: "failed", leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: { code: "OUTBOX_LEASE_EXPIRED_MAX_ATTEMPTS", retryable: false }, updatedAt: stamp } }); });
       } else {
-        await this.database().outboxEvent.updateMany({ where: { id: event.id, status: "processing", leaseToken: event.leaseToken }, data: { status: "pending", availableAt: new Date(stamp.getTime() + OUTBOX_RETRY_BACKOFF_MS[Math.min(event.attempt - 1, OUTBOX_RETRY_BACKOFF_MS.length - 1)]), leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: { code: "OUTBOX_LEASE_EXPIRED", retryable: true }, updatedAt: stamp } });
+        await this.prismaService.runBusinessTransaction(async (tx) => { await tx.outboxEvent.updateMany({ where: { id: event.id, status: "processing", leaseToken: event.leaseToken }, data: { status: "pending", availableAt: new Date(stamp.getTime() + OUTBOX_RETRY_BACKOFF_MS[Math.min(event.attempt - 1, OUTBOX_RETRY_BACKOFF_MS.length - 1)]), leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: { code: "OUTBOX_LEASE_EXPIRED", retryable: true }, updatedAt: stamp } }); });
       }
     }
   }
@@ -257,7 +257,7 @@ export class ProjectDeleteOutboxService {
       const token = randomUUID();
       const stamp = nextStamp(now, candidate.updatedAt);
       const leaseExpiresAt = new Date(stamp.getTime() + OUTBOX_LEASE_MS);
-      const claimed = await this.database().$transaction(async (tx) => {
+      const claimed = await this.prismaService.runBusinessTransaction(async (tx) => {
         const current = await tx.outboxEvent.findUnique({ where: { id: candidate.id } });
         if (!current || current.status !== "pending" || current.availableAt > now || current.attempt >= current.maxAttempts) return null;
         const result = await tx.outboxEvent.updateMany({ where: { id: current.id, status: "pending", attempt: current.attempt }, data: { status: "processing", attempt: current.attempt + 1, leaseOwnerId: workerId, leaseToken: token, leaseExpiresAt, updatedAt: stamp } });
@@ -269,7 +269,7 @@ export class ProjectDeleteOutboxService {
   }
 
   async heartbeat(eventId: string, leaseToken: string, now = new Date()): Promise<OutboxRow> {
-    return this.database().$transaction(async (tx) => {
+    return this.prismaService.runBusinessTransaction(async (tx) => {
       const current = await tx.outboxEvent.findUnique({ where: { id: eventId } });
       if (!current || current.status !== "processing" || current.leaseToken !== leaseToken || !current.leaseExpiresAt || current.leaseExpiresAt <= now) throw new OutboxHandlerError("OUTBOX_LEASE_LOST", false);
       const stamp = nextStamp(now, current.updatedAt);
@@ -280,7 +280,7 @@ export class ProjectDeleteOutboxService {
 
   private async markProcessed(event: OutboxRow, leaseToken: string, now: Date): Promise<OutboxRow> {
     const stamp = nextStamp(now, event.updatedAt);
-    const updated = await this.database().outboxEvent.updateMany({ where: { id: event.id, status: "processing", leaseToken }, data: { status: "processed", processedAt: stamp, leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, updatedAt: stamp } });
+    const updated = await this.prismaService.runBusinessTransaction(async (tx) => tx.outboxEvent.updateMany({ where: { id: event.id, status: "processing", leaseToken }, data: { status: "processed", processedAt: stamp, leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, updatedAt: stamp } }));
     if (updated.count !== 1) throw new OutboxHandlerError("OUTBOX_LEASE_LOST", false);
     return this.database().outboxEvent.findUniqueOrThrow({ where: { id: event.id } });
   }
@@ -292,9 +292,9 @@ export class ProjectDeleteOutboxService {
     const redacted = redactCredentials({ code: error.code, retryable: error.retryable });
     assertNoSecretSentinel(redacted.value);
     const shouldRetry = error.retryable && current.attempt < current.maxAttempts;
-    await this.database().outboxEvent.update({ where: { id: event.id }, data: shouldRetry
+    await this.prismaService.runBusinessTransaction(async (tx) => tx.outboxEvent.update({ where: { id: event.id }, data: shouldRetry
       ? { status: "pending", availableAt: new Date(stamp.getTime() + OUTBOX_RETRY_BACKOFF_MS[Math.min(current.attempt - 1, OUTBOX_RETRY_BACKOFF_MS.length - 1)]), leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: redacted.value as Prisma.InputJsonValue, updatedAt: stamp }
-      : { status: "failed", leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: redacted.value as Prisma.InputJsonValue, updatedAt: stamp } });
+      : { status: "failed", leaseOwnerId: null, leaseToken: null, leaseExpiresAt: null, lastErrorJson: redacted.value as Prisma.InputJsonValue, updatedAt: stamp } }));
     return shouldRetry ? "retrying" : "failed";
   }
 
@@ -356,7 +356,7 @@ export class ProjectDeleteOutboxService {
       await unlink(tempPath).catch((error: unknown) => { if (!(error instanceof Error && "code" in error && (error as { code?: string }).code === "ENOENT")) throw error; });
     }
     const now = new Date();
-    await this.database().$transaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
       const current = await tx.asset.findUnique({ where: { id: payload.assetId } });
       if (!current) throw new OutboxHandlerError("ASSET_NOT_FOUND", false);
       const currentProject = await tx.project.findUnique({ where: { id: payload.projectId }, select: { lifecycleStatus: true } });
@@ -437,7 +437,7 @@ export class ProjectDeleteOutboxService {
   }
 
   private async finalizeSecret(payload: SecretDeletePayload, now: Date): Promise<void> {
-    await this.database().$transaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
       const row = await tx.credentialMetadata.findUnique({ where: { id: payload.credentialMetadataId } });
       if (!row) return;
       if (row.status === "clearing" && row.secretRef === payload.oldSecretRef) {
@@ -496,7 +496,7 @@ export class ProjectDeleteOutboxService {
 
   async requestProjectDelete(projectId: string): Promise<DeleteProjectIntentResult> {
     const database = this.database();
-    return database.$transaction(async (tx) => {
+    return this.prismaService.runBusinessTransaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true, lifecycleStatus: true, rowVersion: true } });
       if (!project) throw new NotFoundException("PROJECT_NOT_FOUND");
       const existing = await tx.outboxEvent.findFirst({ where: { eventType: "project.delete_files", aggregateType: "project", aggregateId: projectId }, orderBy: { createdAt: "desc" } });
@@ -532,7 +532,7 @@ export class ProjectDeleteOutboxService {
    */
   async purgeDeletedProject(projectId: string): Promise<{ projectId: string; purged: true }> {
     const database = this.database();
-    await database.$transaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId }, select: { lifecycleStatus: true } });
       if (!project || project.lifecycleStatus !== "deleting") throw new NotFoundException("PROJECT_NOT_FOUND");
       const event = await tx.outboxEvent.findFirst({ where: { eventType: "project.delete_files", aggregateType: "project", aggregateId: projectId, status: "processed" } });

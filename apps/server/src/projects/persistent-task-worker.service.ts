@@ -347,7 +347,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     try {
       const sourceProjection = object(input.sourceProjection, "input.sourceProjection") as unknown as TaskSourceProjectionV1;
       const sourceDigest = taskSourceProjectionDigest(sourceProjection);
-      const result = await this.prismaService.database().$transaction(async (tx) => {
+      const result = await this.prismaService.runBusinessTransaction(async (tx) => {
         const persisted = await tx.generationTask.findUnique({ where: { id: claim.item.id } });
         if (!persisted || persisted.status !== "running" || persisted.leaseToken !== claim.claimToken) throw new TaskLeaseLostError(claim.item.id);
         if (persisted.sourceDigest !== sourceDigest) throw new TypeError("TASK_SOURCE_DIGEST_MISMATCH");
@@ -400,7 +400,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       const source = projection.sources.find((item) => item.sourceType === "chapter_scene");
       const currentDigest = digestCanonicalJson({ id: scene.id, projectId: scene.projectId, chapterId: scene.chapterId, sceneKey: scene.sceneKey, updatedAt: scene.updatedAt.toISOString() });
       const applicability = source?.sourceDigest === currentDigest ? "current" : "historical";
-      const result = await db.$transaction(async (tx) => {
+      const result = await this.prismaService.runBusinessTransaction(async (tx) => {
         const persisted = await tx.generationTask.findUnique({ where: { id: claim.item.id } });
         if (!persisted || persisted.status !== "running" || persisted.leaseToken !== claim.claimToken) throw new TaskLeaseLostError(claim.item.id);
         if (persisted.sourceDigest !== sourceDigest) throw new TypeError("TASK_SOURCE_DIGEST_MISMATCH");

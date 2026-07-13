@@ -199,7 +199,7 @@ export class PersistentTaskRepository {
     let lastError: unknown;
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
-        return await this.database().$transaction(operation);
+        return await this.prismaService.runBusinessTransaction(operation);
       } catch (error) {
         lastError = error;
         if (!/SQLITE_BUSY|SQLITE_LOCKED|database is locked|database table is locked/i.test(errorText(error)) || attempt === 3) throw error;

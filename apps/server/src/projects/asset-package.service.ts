@@ -268,7 +268,7 @@ export class AssetPackageService {
     const manifestDigest = digestCanonicalJson(manifest);
     const packageAssetId = `package_asset_${packageId}`;
     const exportRevisionId = `package_export_${packageId}`;
-    await db.$transaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
       const latest = await tx.exportRevision.findFirst({ where: { projectId, scopeKey: `chapter:${chapter.id}`, kind: "asset_package" }, orderBy: { revision: "desc" } });
       const profile = { schemaVersion: 1, packageId };
       await tx.asset.create({ data: { id: packageAssetId, projectId, chapterId: chapter.id, type: "archive", role: "asset_package", mimeType: "application/json", storageKey: packageRelativeDir, status: "staged", sha256: manifestDigest, bytes: Buffer.byteLength(JSON.stringify(manifest), "utf8"), width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: { kind: "asset_package", packageId, legacyPath: packageRelativeDir }, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson({ kind: "asset_package", packageId, legacyPath: packageRelativeDir }), createdAt: now, updatedAt: now, readyAt: null, failedAt: null, deletingAt: null } });

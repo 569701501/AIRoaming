@@ -436,7 +436,7 @@ export class SettingsService implements OnModuleInit {
       { type: "image" as const, settings: settings.doubaoImageProvider, owner: "image_secret_store" as const },
       { type: "image" as const, settings: settings.grokImageProvider, owner: "image_secret_store" as const },
     ];
-    await database.$transaction(async (tx) => {
+    await this.prismaService!.runBusinessTransaction(async (tx) => {
       const ids = new Map<string, string>();
       for (const item of providers) {
         const provider = await tx.providerConfig.upsert({

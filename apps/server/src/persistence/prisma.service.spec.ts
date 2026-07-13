@@ -30,5 +30,18 @@ describe("PrismaService business write boundary", () => {
     await expect(service.runBusinessTransaction(async () => "never")).rejects.toThrow("DB_PERSISTENCE_NOT_ACTIVE");
     expect(update).not.toHaveBeenCalled();
   });
-});
 
+  it("rejects writes while recovery_required", async () => {
+    const { service, update } = serviceWithState("recovery_required");
+    await expect(service.runBusinessTransaction(async () => "never")).rejects.toThrow("DB_PERSISTENCE_NOT_ACTIVE");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite an existing first-business-write timestamp", async () => {
+    const first = new Date("2026-07-13T00:00:00.000Z");
+    const { service, state, update } = serviceWithState("db_only", first);
+    await service.runBusinessTransaction(async () => "later-write");
+    expect(update).not.toHaveBeenCalled();
+    expect(state.firstBusinessWriteAt).toBe(first);
+  });
+});

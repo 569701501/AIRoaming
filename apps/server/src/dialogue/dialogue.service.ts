@@ -360,13 +360,12 @@ export class DialogueService {
     thread.updatedAt = new Date().toISOString();
     if (this.prismaService.isDatabaseMode()) {
       const now = new Date();
-      const db = this.prismaService.database();
-      await db.dialogueRuntimeSession.create({
+      await this.prismaService.runBusinessTransaction(async (tx) => tx.dialogueRuntimeSession.create({
         data: {
           id: `dialogue_session_${randomUUID()}`,
           threadId: thread.id,
           runtime: "opencode",
-          externalSessionId: thread.openCodeSessionId,
+          externalSessionId: thread.openCodeSessionId!,
           status: "active",
           providerId: this.openCodeRuntimeService.getDefaultModel().providerId,
           modelId: this.openCodeRuntimeService.getDefaultModel().modelId,
@@ -375,7 +374,7 @@ export class DialogueService {
           updatedAt: now,
           closedAt: null,
         },
-      });
+      }));
     }
     return thread.openCodeSessionId;
   }
@@ -392,11 +391,11 @@ export class DialogueService {
     const db = this.prismaService.database();
     const scopeKey = chapterId ? `chapter:${chapterId}` : "project";
     const now = new Date();
-    const row = await db.conversationThread.upsert({
+    const row = await this.prismaService.runBusinessTransaction(async (tx) => tx.conversationThread.upsert({
       where: { projectId_stepKey_scopeKey: { projectId, stepKey, scopeKey } },
       create: { id: `dialogue_thread_${randomUUID()}`, projectId, chapterId, stepKey, scopeKey, title: stepKey, status: "active", createdAt: now, updatedAt: now },
       update: { updatedAt: now },
-    });
+    }));
     const [messages, toolResults, session, pendingArtifacts] = await Promise.all([
       db.conversationMessage.findMany({ where: { threadId: row.id }, orderBy: { createdAt: "asc" } }),
       db.dialogueToolResult.findMany({ where: { threadId: row.id }, orderBy: { createdAt: "asc" } }),
@@ -448,16 +447,17 @@ export class DialogueService {
     const running = await db.conversationMessage.findMany({ where: { threadId, status: "running" } });
     if (running.some((message) => activeIds.has(message.id))) return;
     const now = new Date();
-    for (const message of running) {
-      await db.conversationMessage.update({ where: { id: message.id }, data: { status: "failed", content: message.content || "上一轮对话连接已中断，请重新发送。", errorJson: { code: "DIALOGUE_STREAM_INTERRUPTED", message: "Dialogue stream was interrupted before completion." }, errorSchemaVersion: 1, completedAt: now, updatedAt: now } });
-    }
-    await db.dialogueRuntimeSession.updateMany({ where: { threadId, status: "active" }, data: { status: "closed", closedAt: now, updatedAt: now } });
+    await this.prismaService.runBusinessTransaction(async (tx) => {
+      for (const message of running) {
+        await tx.conversationMessage.update({ where: { id: message.id }, data: { status: "failed", content: message.content || "上一轮对话连接已中断，请重新发送。", errorJson: { code: "DIALOGUE_STREAM_INTERRUPTED", message: "Dialogue stream was interrupted before completion." }, errorSchemaVersion: 1, completedAt: now, updatedAt: now } });
+      }
+      await tx.dialogueRuntimeSession.updateMany({ where: { threadId, status: "active" }, data: { status: "closed", closedAt: now, updatedAt: now } });
+    });
   }
 
   private async persistCreatedTurn(thread: LocalDialogueThread, userMessage: DialogueMessageItem, assistantMessage: DialogueMessageItem, model: AIRuntimeModelSelection): Promise<void> {
-    const db = this.prismaService.database();
     const now = new Date(userMessage.createdAt);
-    await db.$transaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
       await tx.conversationMessage.create({ data: { id: userMessage.id, threadId: thread.id, role: "user", content: userMessage.content, status: "completed", providerId: null, modelId: null, errorJson: undefined, errorSchemaVersion: null, createdAt: now, updatedAt: now, completedAt: now } });
       await tx.conversationMessage.create({ data: { id: assistantMessage.id, threadId: thread.id, role: "assistant", content: "", status: "running", providerId: model.providerId, modelId: model.modelId, errorJson: undefined, errorSchemaVersion: null, createdAt: now, updatedAt: now, completedAt: null } });
       await tx.conversationThread.update({ where: { id: thread.id }, data: { updatedAt: now } });
@@ -467,43 +467,45 @@ export class DialogueService {
   private async persistMessageUpdate(message: DialogueMessageItem): Promise<void> {
     if (!this.prismaService.isDatabaseMode()) return;
     const redactedError = message.error ? redactCredentials(message.error).value : Prisma.DbNull;
-    await this.prismaService.database().conversationMessage.update({ where: { id: message.id }, data: { content: message.content, status: message.status, providerId: message.model?.providerId ?? null, modelId: message.model?.modelId ?? null, errorJson: redactedError as Prisma.InputJsonValue | typeof Prisma.DbNull, errorSchemaVersion: message.error ? 1 : null, completedAt: message.completedAt ? new Date(message.completedAt) : null, updatedAt: new Date() } });
+    await this.prismaService.runBusinessTransaction(async (tx) => tx.conversationMessage.update({ where: { id: message.id }, data: { content: message.content, status: message.status, providerId: message.model?.providerId ?? null, modelId: message.model?.modelId ?? null, errorJson: redactedError as Prisma.InputJsonValue | typeof Prisma.DbNull, errorSchemaVersion: message.error ? 1 : null, completedAt: message.completedAt ? new Date(message.completedAt) : null, updatedAt: new Date() } }));
   }
 
   private async persistToolResults(thread: LocalDialogueThread, results: DialogueToolResult[]): Promise<void> {
     if (!this.prismaService.isDatabaseMode()) return;
-    const db = this.prismaService.database();
-    for (const result of results) {
-      const redacted = redactCredentials(result).value as DialogueToolResult;
-      await db.dialogueToolResult.upsert({
-        where: { threadId_toolCallId: { threadId: thread.id, toolCallId: result.toolCallId } },
-        create: { id: result.id, threadId: thread.id, messageId: result.messageId, toolCallId: result.toolCallId, tool: result.tool, status: result.status, summary: redacted.summary, payloadJson: redacted as unknown as Prisma.InputJsonValue, schemaVersion: 1, payloadDigest: digestCanonicalJson(redacted), createdAt: new Date(result.createdAt) },
-        update: { payloadJson: redacted as unknown as Prisma.InputJsonValue, status: result.status, summary: redacted.summary, payloadDigest: digestCanonicalJson(redacted) },
-      });
-    }
+    await this.prismaService.runBusinessTransaction(async (tx) => {
+      for (const result of results) {
+        const redacted = redactCredentials(result).value as DialogueToolResult;
+        await tx.dialogueToolResult.upsert({
+          where: { threadId_toolCallId: { threadId: thread.id, toolCallId: result.toolCallId } },
+          create: { id: result.id, threadId: thread.id, messageId: result.messageId, toolCallId: result.toolCallId, tool: result.tool, status: result.status, summary: redacted.summary, payloadJson: redacted as unknown as Prisma.InputJsonValue, schemaVersion: 1, payloadDigest: digestCanonicalJson(redacted), createdAt: new Date(result.createdAt) },
+          update: { payloadJson: redacted as unknown as Prisma.InputJsonValue, status: result.status, summary: redacted.summary, payloadDigest: digestCanonicalJson(redacted) },
+        });
+      }
+    });
   }
 
   private async syncPendingArtifactsForThread(projectId: string, threadId: string, inputContent: string): Promise<void> {
     if (!this.prismaService.isDatabaseMode()) return;
     const artifacts = this.scriptDialogue.capturePendingArtifacts(this.threads).filter((artifact) => artifact.projectId === projectId && artifact.threadId === threadId);
-    const db = this.prismaService.database();
     const currentIds = new Set(artifacts.map((artifact) => artifact.id));
     const threadChapterId = this.threads.get(threadId)?.chapterId ?? null;
-    for (const artifact of artifacts) {
-      const redacted = redactCredentials(artifact.payload).value;
-      await db.pendingDialogueArtifact.upsert({
-        where: { id: artifact.id },
-        create: { id: artifact.id, projectId: artifact.projectId, chapterId: threadChapterId, threadId: artifact.threadId, kind: artifact.kind, status: "pending", activeSlotKey: artifact.activeSlotKey, payloadJson: redacted as Prisma.InputJsonValue, schemaVersion: artifact.schemaVersion, payloadDigest: digestCanonicalJson(redacted), sourceMessageId: null, toolResultId: null, createdAt: new Date(artifact.createdAt), updatedAt: new Date(artifact.updatedAt), resolvedAt: null },
-        update: { payloadJson: redacted as Prisma.InputJsonValue, payloadDigest: digestCanonicalJson(redacted), updatedAt: new Date(artifact.updatedAt), status: "pending", activeSlotKey: artifact.activeSlotKey, resolvedAt: null },
-      });
-    }
     const resolutionStatus = /(取消|不要|先不|不生成|别生成|算了)/.test(inputContent.trim()) ? "discarded" : "applied";
-    const stale = await db.pendingDialogueArtifact.findMany({ where: { projectId, threadId, status: "pending" } });
     const resolvedAt = new Date();
-    for (const artifact of stale) {
-      if (currentIds.has(artifact.id)) continue;
-      await db.pendingDialogueArtifact.update({ where: { id: artifact.id }, data: { status: resolutionStatus, activeSlotKey: null, resolvedAt, updatedAt: resolvedAt } });
-    }
+    await this.prismaService.runBusinessTransaction(async (tx) => {
+      for (const artifact of artifacts) {
+        const redacted = redactCredentials(artifact.payload).value;
+        await tx.pendingDialogueArtifact.upsert({
+          where: { id: artifact.id },
+          create: { id: artifact.id, projectId: artifact.projectId, chapterId: threadChapterId, threadId: artifact.threadId, kind: artifact.kind, status: "pending", activeSlotKey: artifact.activeSlotKey, payloadJson: redacted as Prisma.InputJsonValue, schemaVersion: artifact.schemaVersion, payloadDigest: digestCanonicalJson(redacted), sourceMessageId: null, toolResultId: null, createdAt: new Date(artifact.createdAt), updatedAt: new Date(artifact.updatedAt), resolvedAt: null },
+          update: { payloadJson: redacted as Prisma.InputJsonValue, payloadDigest: digestCanonicalJson(redacted), updatedAt: new Date(artifact.updatedAt), status: "pending", activeSlotKey: artifact.activeSlotKey, resolvedAt: null },
+        });
+      }
+      const stale = await tx.pendingDialogueArtifact.findMany({ where: { projectId, threadId, status: "pending" } });
+      for (const artifact of stale) {
+        if (currentIds.has(artifact.id)) continue;
+        await tx.pendingDialogueArtifact.update({ where: { id: artifact.id }, data: { status: resolutionStatus, activeSlotKey: null, resolvedAt, updatedAt: resolvedAt } });
+      }
+    });
   }
 
   private getOrCreateThread(projectId: string, stepKey: string, chapterId: string | null): LocalDialogueThread {
