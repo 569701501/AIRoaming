@@ -2,7 +2,9 @@ import { lstat, mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Prisma } from "@prisma/client";
+import { digestCanonicalJson } from "@airoaming/shared";
 import { AppRestoreService } from "../backup/app-restore.service.js";
+import type { BackupManifest } from "../backup/backup.types.js";
 import { getBlockedDbCapabilities } from "./db-capability-registry.js";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
@@ -32,6 +34,12 @@ export interface DbActivateResult {
   backupVerified: true;
   activatedAt: string | null;
   firstBusinessWriteAt: string | null;
+}
+
+export interface VerifiedBackup {
+  manifest: BackupManifest;
+  manifestDigest: string;
+  bundleDigest: string;
 }
 
 export class DbActivateError extends Error {
@@ -80,7 +88,7 @@ export class DbActivateService {
     }
   }
 
-  private async verifyBackup(input: DbActivateInput): Promise<void> {
+  private async verifyBackup(input: DbActivateInput): Promise<VerifiedBackup> {
     const backup = absolute(input.backup, "ACTIVATE_BACKUP_UNVERIFIED");
     if (!path.basename(backup).startsWith("backup-")) throw new DbActivateError("ACTIVATE_BACKUP_UNVERIFIED");
     let manifest: Record<string, unknown>;
@@ -105,6 +113,7 @@ export class DbActivateService {
     } finally {
       await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
     }
+    return { manifest: manifest as unknown as BackupManifest, manifestDigest: digestCanonicalJson(manifest), bundleDigest: String(manifest.bundleDigest) };
   }
 
   private async assertReady(input: DbActivateInput): Promise<{
