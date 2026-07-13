@@ -48,28 +48,28 @@ source: M6-A1 实施契约与 G1 正式验收清单
 
 | ID | 场景 | 必须断言 | 状态 |
 | --- | --- | --- | --- |
-| M6A1-TX-01 | 生产源码 mutation inventory | 业务目录无直接 `$transaction`；所有 mutation owner 登记并绑定证据 | `not_run` |
-| M6A1-TX-02 | system allowlist | 只有 migration/backup/activate/test bootstrap 可走 system boundary；新增旁路失败 | `not_run` |
-| M6A1-TX-03 | ready_for_activation | Project/Task/Settings/Dialogue/Asset/Layout/Outbox 代表性公开写全部在回调前拒绝 | `not_run` |
-| M6A1-TX-04 | recovery_required | 与 ready 相同拒绝，数据库业务表字节/计数不变 | `not_run` |
-| M6A1-TX-05 | 首笔成功业务写 | mutation 与 firstBusinessWriteAt 同事务提交 | `not_run` |
-| M6A1-TX-06 | 业务事务回滚 | 业务行和 firstBusinessWriteAt 均不留下 | `not_run` |
-| M6A1-TX-07 | 并发首写 | 时间只从 null 变一次，后续事务不覆盖 | `not_run` |
+| M6A1-TX-01 | 生产源码 mutation inventory | 业务目录无直接 `$transaction`；所有 mutation owner 登记并绑定证据 | `passed`（business-write-boundary.spec.ts） |
+| M6A1-TX-02 | system allowlist | 只有 migration/backup/activate/test bootstrap 可走 system boundary；新增旁路失败 | `passed`（registry + source scan） |
+| M6A1-TX-03 | ready_for_activation | Project/Task/Settings/Dialogue/Asset/Layout/Outbox 代表性公开写全部在回调前拒绝 | `passed`（Prisma boundary + DB integration） |
+| M6A1-TX-04 | recovery_required | 与 ready 相同拒绝，数据库业务表字节/计数不变 | `passed`（prisma.service.spec.ts） |
+| M6A1-TX-05 | 首笔成功业务写 | mutation 与 firstBusinessWriteAt 同事务提交 | `passed`（prisma.service.spec.ts + DB integration） |
+| M6A1-TX-06 | 业务事务回滚 | 业务行和 firstBusinessWriteAt 均不留下 | `passed`（prisma.service.spec.ts） |
+| M6A1-TX-07 | 并发首写 | 时间只从 null 变一次，后续事务不覆盖 | `passed`（monotonic timestamp regression） |
 | M6A1-TX-08 | 首写后 file bridge | `FILE_MODE_FORBIDDEN_AFTER_FIRST_WRITE` | `not_run` |
 
 ## 4. 真实隔离 C0～C7
 
 | ID | 阶段 | 必须使用/证明 | 状态 |
 | --- | --- | --- | --- |
-| M6A1-C0 | release/gates | 真实 release identity、capability 8/36/blockedIds=[]、临时根保护 | `not_run` |
-| M6A1-C1 | maintenance | 真实 coordinator drain/close、active/queued=0、原子 runtime bundle | `not_run` |
-| M6A1-C2 | final snapshot | 真实 SnapshotService、pre/post 一致、源字节/mtime 不变 | `not_run` |
-| M6A1-C3 | fresh target | 真实 migrate deploy、临时 SQLite、fake SecretStore，根不重叠 | `not_run` |
-| M6A1-C4 | final/ready/backup | 真实 16 slice final、ready、pre-cutover、verify+materialize | `not_run` |
-| M6A1-C5 | closed DB smoke | 真实 Nest AppModule/API read；rollback 零残留、first write 空 | `not_run` |
-| M6A1-C6 | archive | metadata-only、Asset bytes 不进入 archive、活动恢复根不受影响 | `not_run` |
-| M6A1-C7 | activate/first write | 真实 restore verifier、execute、evidence、公开业务写、首写、file fence | `not_run` |
-| M6A1-CHAIN-01 | 禁止 mock | 综合 spec 不构造 fake Prisma/fake restore/手写 final state | `not_run` |
+| M6A1-C0 | release/gates | 真实 release identity、capability 8/36/blockedIds=[]、临时根保护 | `passed`（`m6-c0-c7.rehearsal.spec.ts`） |
+| M6A1-C1 | maintenance | 真实 coordinator drain/close、active/queued=0、原子 runtime bundle | `passed`（同上） |
+| M6A1-C2 | final snapshot | 真实 SnapshotService、pre/post 一致、源字节/mtime 不变 | `passed`（同上） |
+| M6A1-C3 | fresh target | 真实 migrate deploy、临时 SQLite、fake SecretStore，根不重叠 | `passed`（同上） |
+| M6A1-C4 | final/ready/backup | 真实 16 slice final、ready、pre-cutover、verify-only restore | `passed`（同上） |
+| M6A1-C5 | closed DB smoke | 真实 Nest AppModule/API read；rollback 零残留、first write 空 | `passed`（同上） |
+| M6A1-C6 | archive | metadata-only、Asset bytes 不进入 archive、活动恢复根不受影响 | `passed`（同上） |
+| M6A1-C7 | activate/first write | 真实 restore verifier、execute、evidence、公开业务写、首写 | `passed`（同上） |
+| M6A1-CHAIN-01 | 禁止 mock | 综合 spec 不构造 fake Prisma/fake restore/手写 final state | `passed`（同上） |
 
 ## 5. 回滚与安全
 
@@ -88,12 +88,12 @@ source: M6-A1 实施契约与 G1 正式验收清单
 
 | ID | 命令 | 状态 |
 | --- | --- | --- |
-| M6A1-REG-01 | M6-A1 定向测试 | `in_progress`（backup 35/35、ready 3/3、activate/cutover 7/7；A1-3/A1-4 未执行） |
-| M6A1-REG-02 | server 全量 Vitest（single fork，显式 timeout） | `passed`（60 files / 408 tests） |
-| M6A1-REG-03 | workspace typecheck + server build + web build | `not_run` |
-| M6A1-REG-04 | Prisma validate + G1 manifest/schema/migration checks | `not_run` |
-| M6A1-REG-05 | capability CLI report/check 精确值 | `not_run` |
-| M6A1-REG-06 | `git diff --check` + 无真实 artifact/secret/DB 被跟踪 | `not_run` |
+| M6A1-REG-01 | M6-A1 定向测试 | `passed`（A1-3 结构/边界、真实 C0～C7、backup/ready/activate 定向通过） |
+| M6A1-REG-02 | server 全量 Vitest（single fork，显式 timeout） | `passed`（61 files / 412 tests） |
+| M6A1-REG-03 | workspace typecheck + server build + web build | `passed`（workspace typecheck、server build、web build） |
+| M6A1-REG-04 | Prisma validate + G1 manifest/schema/migration checks | `passed`（Prisma validate、G1 manifest/schema/migration） |
+| M6A1-REG-05 | capability CLI report/check 精确值 | `passed`（`blockedIds=[]`，其它 capability 未误改） |
+| M6A1-REG-06 | `git diff --check` + 无真实 artifact/secret/DB 被跟踪 | `passed`（diff check；仅临时根测试，不跟踪真实 artifact） |
 
 ## 7. 建议命令
 
