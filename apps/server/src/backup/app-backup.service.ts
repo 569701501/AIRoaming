@@ -8,9 +8,11 @@ import { PrismaService } from "../persistence/prisma.service.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { normalizeMigrationDecisionArtifact } from "../migration/migration-decision.js";
 import { FULL_SHADOW_SLICE_ORDER } from "../migration/full-shadow-importer.js";
+import { normalizeFinalImportReport } from "../migration/final-import-report.js";
 import { normalizeComicFormatReport } from "../migration/migration-report.js";
 import { RuntimeBundleFileService } from "../migration/runtime-bundle-file.service.js";
 import { containsSecretSentinel } from "../migration/credential-redactor.js";
+import { getBlockedDbCapabilities } from "../migration/db-capability-registry.js";
 import type { SnapshotDigest } from "../migration/snapshot.types.js";
 import type { BackupAssetEntry, BackupInput, BackupManifest, BackupResult, BackupRunSummary, BackupRunSummarySlice } from "./backup.types.js";
 import { BackupPathError, assertDisjointRoots, emptyDirectory, existingDirectory, existingRegularFile, isWithin, parseSqliteFileUrl, resolveStorageFile } from "./backup-path.js";
@@ -228,8 +230,8 @@ export class AppBackupService {
   ) {}
 
   async backup(input: BackupInput): Promise<BackupResult> {
-    if (input.kind !== "coordinated") fail("MIGRATION_CAPABILITY_BLOCKED");
     if (!/^[0-9a-f]{7,40}$/.test(input.appCommit)) fail("BACKUP_RELEASE_IDENTITY_INVALID");
+    if (input.kind === "pre-cutover" && getBlockedDbCapabilities().length > 0) fail("MIGRATION_CAPABILITY_BLOCKED");
     const workspaceRoot = await existingDirectory(input.workspaceRoot);
     const dataRoot = await existingDirectory(input.dataRoot);
     const releaseRoot = await existingDirectory(input.releaseRoot);
@@ -237,37 +239,84 @@ export class AppBackupService {
     const databasePath = await existingRegularFile(parseSqliteFileUrl(input.databaseUrl));
     if (!isWithin(dataRoot, databasePath)) fail("BACKUP_PATH_UNSAFE");
     const maintenanceBundle = await existingRegularFile(input.maintenanceBundle, "BACKUP_ARGS_INVALID");
-    const fullImportReportPath = await existingRegularFile(input.fullImportReport, "BACKUP_ARGS_INVALID");
+    const fullImportReportPath = input.kind === "coordinated" ? await existingRegularFile(input.fullImportReport, "BACKUP_ARGS_INVALID") : null;
     const decisionsPath = await existingRegularFile(input.decisions, "BACKUP_ARGS_INVALID");
     assertDisjointRoots([workspaceRoot, dataRoot, releaseRoot, outputRoot]);
     const releaseIdentity = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => fail("BACKUP_RELEASE_IDENTITY_INVALID"));
-    await new RuntimeBundleFileService().readAndVerify(maintenanceBundle).catch(() => fail("BACKUP_ARGS_INVALID"));
-    const fullShadow = normalizeFullShadowArtifact(await readJson(fullImportReportPath, "BACKUP_RUN_INVALID"));
+    const maintenance = await new RuntimeBundleFileService().readAndVerify(maintenanceBundle).catch(() => fail("BACKUP_ARGS_INVALID"));
+    const fullShadow = fullImportReportPath ? normalizeFullShadowArtifact(await readJson(fullImportReportPath, "BACKUP_RUN_INVALID")) : null;
 
     const staging = path.join(outputRoot, ".backup-staging-" + process.pid + "-" + Date.now());
     await mkdir(staging, { recursive: true, mode: 0o700 });
     try {
       const snapshot = await withDatabaseWriteFence(databasePath, async () => {
         const db = this.prisma.database();
-        const runs = await Promise.all(fullShadow.slices.map((slice) => db.migrationRun.findUnique({ where: { id: slice.runId } })));
-        if (runs.some((run) => !run || run.kind !== "shadow" || run.status !== "succeeded" || !run.reportDigest || !run.snapshotManifestDigest || !run.decisionsDigest || !run.verificationJson)) fail("BACKUP_RUN_INVALID");
-        const firstRun = runs[0]!;
-        if (!isDigest(firstRun.sourceManifestDigest) || !isDigest(firstRun.snapshotManifestDigest!) || !isDigest(firstRun.decisionsDigest!)) fail("BACKUP_RUN_INVALID");
-        const decisions = normalizeMigrationDecisionArtifact(await readJson(decisionsPath, "BACKUP_RUN_INVALID"), firstRun.sourceManifestDigest);
-        const sourceManifestDigest = firstRun.sourceManifestDigest as SnapshotDigest;
-        const snapshotManifestDigest = firstRun.snapshotManifestDigest as SnapshotDigest;
-        for (let index = 0; index < runs.length; index += 1) {
-          const run = runs[index]!;
-          const slice = fullShadow.slices[index];
-          if (run.sourceManifestDigest !== sourceManifestDigest || run.snapshotManifestDigest !== snapshotManifestDigest || run.decisionsDigest !== decisions.decisionsDigest || run.reportDigest !== slice.reportDigest || !jsonEqual(run.countsJson, slice.counts)) fail("BACKUP_RUN_INVALID");
-          const verification = record(run.verificationJson, "BACKUP_RUN_INVALID");
-          if (verification.sourceManifestVerified !== true || verification.snapshotManifestVerified !== true) fail("BACKUP_RUN_INVALID");
-          const openIssues = await db.migrationIssue.count({ where: { runId: run.id, resolutionStatus: "open" } });
-          if (openIssues !== 0) fail("BACKUP_RUN_INVALID");
+        let sourceManifestDigest: SnapshotDigest;
+        let snapshotManifestDigest: SnapshotDigest;
+        let decisionsDigest: SnapshotDigest;
+        let fullImportReportDigest: SnapshotDigest;
+        let migrationRunIds: string[];
+        let runSummarySlices: BackupRunSummarySlice[];
+        let persistenceState: { activationState: "shadow" | "ready_for_activation"; cutoverRunId: string | null; activatedAt: null; firstBusinessWriteAt: string | null };
+        let finalRunId: string | null = null;
+        let sourceEvidence: unknown;
+
+        if (input.kind === "coordinated") {
+          const shadow = fullShadow!;
+          const runs = await Promise.all(shadow.slices.map((slice) => db.migrationRun.findUnique({ where: { id: slice.runId } })));
+          if (runs.some((run) => !run || run.kind !== "shadow" || run.status !== "succeeded" || !run.reportDigest || !run.snapshotManifestDigest || !run.decisionsDigest || !run.verificationJson)) fail("BACKUP_RUN_INVALID");
+          const firstRun = runs[0]!;
+          if (!isDigest(firstRun.sourceManifestDigest) || !isDigest(firstRun.snapshotManifestDigest!) || !isDigest(firstRun.decisionsDigest!)) fail("BACKUP_RUN_INVALID");
+          const decisions = normalizeMigrationDecisionArtifact(await readJson(decisionsPath, "BACKUP_RUN_INVALID"), firstRun.sourceManifestDigest);
+          sourceManifestDigest = firstRun.sourceManifestDigest as SnapshotDigest;
+          snapshotManifestDigest = firstRun.snapshotManifestDigest as SnapshotDigest;
+          decisionsDigest = decisions.decisionsDigest;
+          fullImportReportDigest = shadow.reportDigest;
+          migrationRunIds = shadow.slices.map((slice) => slice.runId);
+          sourceEvidence = shadow;
+          for (let index = 0; index < runs.length; index += 1) {
+            const run = runs[index]!;
+            const slice = shadow.slices[index];
+            if (run.sourceManifestDigest !== sourceManifestDigest || run.snapshotManifestDigest !== snapshotManifestDigest || run.decisionsDigest !== decisionsDigest || run.reportDigest !== slice.reportDigest || !jsonEqual(run.countsJson, slice.counts)) fail("BACKUP_RUN_INVALID");
+            const verification = record(run.verificationJson, "BACKUP_RUN_INVALID");
+            if (verification.sourceManifestVerified !== true || verification.snapshotManifestVerified !== true) fail("BACKUP_RUN_INVALID");
+            const openIssues = await db.migrationIssue.count({ where: { runId: run.id, resolutionStatus: "open" } });
+            if (openIssues !== 0) fail("BACKUP_RUN_INVALID");
+          }
+          runSummarySlices = shadow.slices.map((slice, index): BackupRunSummarySlice => ({ slice: slice.slice, runId: slice.runId, importerVersion: runs[index]!.importerVersion, status: "succeeded", reportDigest: slice.reportDigest, counts: slice.counts }));
+          persistenceState = { activationState: "shadow", cutoverRunId: null, activatedAt: null, firstBusinessWriteAt: null };
+        } else {
+          const finalRun = await db.migrationRun.findUnique({ where: { id: input.runId } });
+          if (!finalRun || finalRun.kind !== "final" || finalRun.status !== "succeeded" || finalRun.importerVersion !== "d2-a7-final-v1" || !finalRun.reportDigest || !finalRun.snapshotManifestDigest || !finalRun.decisionsDigest || !finalRun.verificationJson || !isDigest(finalRun.sourceManifestDigest) || !isDigest(finalRun.snapshotManifestDigest) || !isDigest(finalRun.decisionsDigest)) fail("BACKUP_RUN_INVALID");
+          const verification = record(finalRun.verificationJson, "BACKUP_RUN_INVALID");
+          if (verification.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest || verification.sourceManifestDigest !== finalRun.sourceManifestDigest || verification.snapshotManifestDigest !== finalRun.snapshotManifestDigest || verification.decisionsDigest !== finalRun.decisionsDigest || verification.integrityCheck !== "ok" || verification.foreignKeyViolationCount !== 0 || verification.failedLedgerCount !== 0 || verification.migrationChecksumStatus !== "verified" || verification.openBlockerCount !== 0 || verification.secretScanCount !== 0) fail("BACKUP_RUN_INVALID");
+          const counts = record(finalRun.countsJson, "BACKUP_RUN_INVALID");
+          let finalReport;
+          try { finalReport = normalizeFinalImportReport(counts.aggregateReport); } catch { fail("BACKUP_RUN_INVALID"); }
+          if (finalReport.reportDigest !== finalRun.reportDigest || finalReport.sourceManifestDigest !== finalRun.sourceManifestDigest || finalReport.snapshotManifestDigest !== finalRun.snapshotManifestDigest || finalReport.decisionsDigest !== finalRun.decisionsDigest || finalReport.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest || finalReport.slices.length !== FULL_SHADOW_SLICE_ORDER.length || finalReport.slices.some((slice, index) => slice.slice !== FULL_SHADOW_SLICE_ORDER[index] || slice.status !== "succeeded" || !slice.reportDigest || slice.evidence.passed !== true)) fail("BACKUP_RUN_INVALID");
+          const decisions = normalizeMigrationDecisionArtifact(await readJson(decisionsPath, "BACKUP_RUN_INVALID"), finalRun.sourceManifestDigest);
+          if (decisions.decisionsDigest !== finalRun.decisionsDigest) fail("BACKUP_RUN_INVALID");
+          const childRuns = await Promise.all(finalReport.slices.map((slice) => db.migrationRun.findUnique({ where: { id: slice.runId } })));
+          if (childRuns.some((run) => !run || run.kind !== "shadow" || run.status !== "succeeded" || !run.reportDigest || !run.snapshotManifestDigest || !run.decisionsDigest || !run.verificationJson)) fail("BACKUP_RUN_INVALID");
+          sourceManifestDigest = finalRun.sourceManifestDigest as SnapshotDigest;
+          snapshotManifestDigest = finalRun.snapshotManifestDigest as SnapshotDigest;
+          decisionsDigest = finalRun.decisionsDigest as SnapshotDigest;
+          fullImportReportDigest = finalRun.reportDigest as SnapshotDigest;
+          migrationRunIds = [finalRun.id];
+          finalRunId = finalRun.id;
+          sourceEvidence = finalReport;
+          runSummarySlices = finalReport.slices.map((slice, index): BackupRunSummarySlice => {
+            const child = childRuns[index]!;
+            if (child.sourceManifestDigest !== sourceManifestDigest || child.snapshotManifestDigest !== snapshotManifestDigest || child.decisionsDigest !== decisionsDigest || child.reportDigest !== slice.reportDigest || !jsonEqual(child.countsJson, slice.counts)) fail("BACKUP_RUN_INVALID");
+            const childVerification = record(child.verificationJson, "BACKUP_RUN_INVALID");
+            if (childVerification.sourceManifestVerified !== true || childVerification.snapshotManifestVerified !== true) fail("BACKUP_RUN_INVALID");
+            return { slice: slice.slice, runId: slice.runId, importerVersion: child.importerVersion, status: "succeeded", reportDigest: slice.reportDigest as SnapshotDigest, counts: slice.counts };
+          });
+          for (const child of childRuns) if (await db.migrationIssue.count({ where: { runId: child!.id, resolutionStatus: "open" } }) !== 0) fail("BACKUP_RUN_INVALID");
+          persistenceState = { activationState: "ready_for_activation", cutoverRunId: finalRun.id, activatedAt: null, firstBusinessWriteAt: null };
         }
         const persistence = await db.persistenceState.findUnique({ where: { id: "primary" } });
-        if (!persistence || persistence.activationState !== "shadow" || persistence.cutoverRunId !== null || persistence.firstBusinessWriteAt !== null) fail("BACKUP_RUN_INVALID");
-        const persistenceState = { activationState: persistence.activationState, cutoverRunId: persistence.cutoverRunId, firstBusinessWriteAt: safeDate(persistence.firstBusinessWriteAt) };
+        if (!persistence || persistence.activationState !== persistenceState.activationState || persistence.cutoverRunId !== persistenceState.cutoverRunId || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null || (persistenceState.activationState === "ready_for_activation" && (persistence.sourceManifestDigest !== sourceManifestDigest || persistence.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest))) fail("BACKUP_RUN_INVALID");
         const assets = await db.asset.findMany({ orderBy: { storageKey: "asc" }, select: { id: true, storageKey: true, mimeType: true, status: true, sha256: true, bytes: true } });
         const readyAssets = assets.filter((asset) => asset.status === "ready");
         const missingAssets = assets.filter((asset) => asset.status !== "ready").map((asset) => ({ assetId: asset.id, storageKey: asset.storageKey, status: asset.status }));
@@ -296,24 +345,27 @@ export class AppBackupService {
           providers: providers.map((provider) => ({ id: provider.id, providerId: provider.providerId, runtimeKind: provider.runtimeKind, displayName: provider.displayName, modelId: provider.modelId, baseUrl: provider.baseUrl, enabled: provider.enabled, rowVersion: provider.rowVersion, createdAt: provider.createdAt.toISOString(), updatedAt: provider.updatedAt.toISOString() })),
           credentials: credentials.map((credential) => ({ id: credential.id, providerConfigId: credential.providerConfigId, owner: credential.owner, status: credential.status, fingerprint: credential.fingerprint, configured: credential.configured, rotatedAt: safeDate(credential.rotatedAt), createdAt: credential.createdAt.toISOString(), updatedAt: credential.updatedAt.toISOString() })),
         };
-        if (containsSecretSentinel(fullShadow) || containsSecretSentinel(decisions) || containsSecretSentinel(settingsRedacted)) fail("BACKUP_SECRET_DETECTED");
+        if (containsSecretSentinel(sourceEvidence) || containsSecretSentinel(settingsRedacted)) fail("BACKUP_SECRET_DETECTED");
         const runSummaryBase = {
           schemaVersion: 1 as const,
           kind: "airoaming_migration_run_summary_v1" as const,
           sourceManifestDigest,
           snapshotManifestDigest,
-          decisionsDigest: decisions.decisionsDigest,
-          fullImportReportDigest: fullShadow.reportDigest,
-          slices: fullShadow.slices.map((slice, index): BackupRunSummarySlice => ({ slice: slice.slice, runId: slice.runId, importerVersion: runs[index]!.importerVersion, status: "succeeded", reportDigest: slice.reportDigest, counts: slice.counts })),
+          decisionsDigest,
+          fullImportReportDigest,
+          slices: runSummarySlices,
         };
         const runSummary: BackupRunSummary = { ...runSummaryBase, runSummaryDigest: digestCanonicalJson(runSummaryBase) };
         const manifestBase = {
           schemaVersion: 1 as const,
           kind: "airoaming_backup_bundle_v1" as const,
-          backupKind: "coordinated" as const,
+          backupKind: input.kind,
           appCommit: input.appCommit,
           createdAt: new Date().toISOString(),
-          migration: { runIds: fullShadow.slices.map((slice) => slice.runId), runKind: "shadow" as const, sliceCount: 16 as const, sourceManifestDigest, snapshotManifestDigest, decisionsDigest: decisions.decisionsDigest, fullImportReportDigest: fullShadow.reportDigest, runSummaryDigest: runSummary.runSummaryDigest, effectiveSchemaManifestDigest: releaseIdentity.effectiveSchemaManifestDigest },
+          maintenanceBundleDigest: maintenance.digest,
+          migration: input.kind === "coordinated"
+            ? { runIds: migrationRunIds, runKind: "shadow" as const, sliceCount: 16 as const, sourceManifestDigest, snapshotManifestDigest, decisionsDigest, fullImportReportDigest, runSummaryDigest: runSummary.runSummaryDigest, effectiveSchemaManifestDigest: releaseIdentity.effectiveSchemaManifestDigest }
+            : { runIds: [finalRunId!] as [string], finalRunId: finalRunId!, runKind: "final" as const, sliceCount: 16 as const, sourceManifestDigest, snapshotManifestDigest, decisionsDigest, fullImportReportDigest, runSummaryDigest: runSummary.runSummaryDigest, effectiveSchemaManifestDigest: releaseIdentity.effectiveSchemaManifestDigest },
           persistenceState,
           database: { storageKey: "database/app.db" as const, ...database },
           assets: copiedAssets.sort((left, right) => left.storageKey.localeCompare(right.storageKey)),
@@ -329,7 +381,7 @@ export class AppBackupService {
       const sentinelScan = await assertNoSecretSentinelsInStaging(staging, copiedAssets, false);
       const manifestWithSecretScan = { ...manifestBase, secretHandling: { included: false as const, sentinelScan } };
       const bundleDigest = digestCanonicalJson(manifestWithSecretScan);
-      const manifest: BackupManifest = { ...manifestWithSecretScan, bundleDigest };
+      const manifest = { ...manifestWithSecretScan, bundleDigest } as BackupManifest;
       const manifestDigest = digestCanonicalJson(manifest);
       await writePrivateJson(path.join(staging, "backup-manifest.json"), manifest);
       await assertNoSecretSentinelsInStaging(staging, copiedAssets);
@@ -337,7 +389,7 @@ export class AppBackupService {
       await chmod(staging, 0o700);
       const finalPath = path.join(outputRoot, "backup-" + bundleDigest);
       await rename(staging, finalPath);
-      return { bundlePath: finalPath, bundleDigest, manifestDigest, database: { storageKey: "database/app.db", ...database }, assetCount: copiedAssets.length, runCount: 16 };
+      return { bundlePath: finalPath, bundleDigest, manifestDigest, database: { storageKey: "database/app.db", ...database }, assetCount: copiedAssets.length, runCount: input.kind === "coordinated" ? 16 : 1 };
     } catch (error) {
       await rm(staging, { recursive: true, force: true }).catch(() => undefined);
       if (error instanceof BackupError) throw error;

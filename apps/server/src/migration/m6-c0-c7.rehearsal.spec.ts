@@ -26,7 +26,12 @@ describe("M6 isolated C0-C7 rehearsal", () => {
       const sourceDigest = "sha256:" + "3".repeat(64);
       const runId = "m6-rehearsal-final";
       const state: Record<string, unknown> = { id: "primary", activationState: "ready_for_activation", cutoverRunId: runId, sourceManifestDigest: sourceDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, activatedAt: null, firstBusinessWriteAt: null };
-      const run = { id: runId, kind: "final", status: "succeeded", sourceManifestDigest: sourceDigest, verificationJson: { effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, sourceManifestDigest: sourceDigest, integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, secretScanCount: 0 } };
+      const snapshotDigest = "sha256:" + "4".repeat(64);
+      const decisionsDigest = "sha256:" + "5".repeat(64);
+      const run = { id: runId, kind: "final", status: "succeeded", sourceManifestDigest: sourceDigest, snapshotManifestDigest: snapshotDigest, decisionsDigest, verificationJson: { effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, sourceManifestDigest: sourceDigest, snapshotManifestDigest: snapshotDigest, decisionsDigest, integrityCheck: "ok", foreignKeyViolationCount: 0, failedLedgerCount: 0, migrationChecksumStatus: "verified", openBlockerCount: 0, secretScanCount: 0 } };
+      const backup = path.join(root, "backup-m6-rehearsal");
+      await mkdir(backup, { recursive: true });
+      await writeFile(path.join(backup, "backup-manifest.json"), JSON.stringify({ backupKind: "pre-cutover", migration: { runKind: "final", finalRunId: runId, sourceManifestDigest: sourceDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest } }));
       const db: any = {
         migrationRun: { findUnique: async () => run },
         persistenceState: {
@@ -61,7 +66,7 @@ describe("M6 isolated C0-C7 rehearsal", () => {
       await coordinator.runStep("C5", async () => { expect((await db.persistenceState.findUnique()).firstBusinessWriteAt).toBeNull(); return "closed-db-read-and-rollback-smoke"; });
       const archive = path.join(root, "metadata-archive");
       await coordinator.runStep("C6", async () => { const result = await new MetadataArchiveService().archive({ workspaceRoot: workspace, archiveRoot: archive, marker: "m6-rehearsal" }); expect(result.assetPathCount).toBe(1); return "metadata-only-archive-assets-retained-by-path"; });
-      await coordinator.runStep("C7", async () => { await activate.activate({ runId, sourceManifestDigest: sourceDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup: "/tmp/backup-m6-rehearsal", gate: "ACT-08", mode: "execute" }); await fakePrisma.runBusinessTransaction(async () => "first-write"); return "db-only-reopened-and-first-write-recorded"; });
+      await coordinator.runStep("C7", async () => { await activate.activate({ runId, sourceManifestDigest: sourceDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, gate: "ACT-08", mode: "execute" }); await fakePrisma.runBusinessTransaction(async () => "first-write"); return "db-only-reopened-and-first-write-recorded"; });
 
       expect(coordinator.status()).toHaveLength(8);
       expect(state.activationState).toBe("db_only");

@@ -10,17 +10,21 @@ import * as os from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { NestFactory } from "@nestjs/core";
+import type { Prisma } from "@prisma/client";
 import { digestCanonicalJson } from "@airoaming/shared";
 import { AppModule } from "../app.module.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { RuntimeBundleFileService } from "../migration/runtime-bundle-file.service.js";
 import { createMigrationDecisionArtifact } from "../migration/migration-decision.js";
 import { createComicFormatReport } from "../migration/migration-report.js";
+import { createFinalImportReport } from "../migration/final-import-report.js";
 import { FULL_SHADOW_SLICE_ORDER } from "../migration/full-shadow-importer.js";
 import type { SnapshotDigest } from "../migration/snapshot.types.js";
 import { PrismaService } from "../persistence/prisma.service.js";
+import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { AppBackupService } from "./app-backup.service.js";
 import { AppRestoreService } from "./app-restore.service.js";
+import { DbActivateService } from "../migration/db-activate.service.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -137,6 +141,42 @@ async function createFixture() {
   return { root, workspaceRoot, dataRoot, outputRoot, databaseUrl, fullImportPath, decisionsPath, maintenanceBundle, assetPath, prisma, previous };
 }
 
+async function prepareFinalReadyFixture(fixture: Awaited<ReturnType<typeof createFixture>>) {
+  const release = await loadReleaseSchemaIdentityV1(repoRoot);
+  const childRuns = await fixture.prisma.database().migrationRun.findMany({ orderBy: { id: "asc" } });
+  const slices = FULL_SHADOW_SLICE_ORDER.map((slice, index) => ({
+    slice,
+    runId: childRuns[index]!.id,
+    status: "succeeded" as const,
+    reportDigest: childRuns[index]!.reportDigest as SnapshotDigest,
+    counts: childRuns[index]!.countsJson as Record<string, unknown>,
+    evidence: { verificationReportDigest: childRuns[index]!.reportDigest as SnapshotDigest, passed: true },
+  }));
+  const finalReport = createFinalImportReport({ schemaVersion: 1, kind: "airoaming_final_import_report_v1", sourceManifestDigest: SOURCE_DIGEST, snapshotManifestDigest: SNAPSHOT_DIGEST, decisionsDigest: (await fixture.prisma.database().migrationRun.findFirstOrThrow()).decisionsDigest as SnapshotDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, slices });
+  const finalRunId = "final-fixture-ready";
+  await fixture.prisma.database().migrationRun.create({ data: {
+    id: finalRunId,
+    kind: "final",
+    status: "running",
+    importerVersion: "d2-a7-final-v1",
+    sourceManifestDigest: SOURCE_DIGEST,
+    startedAt: new Date("2026-07-13T00:02:00.000Z"),
+  } });
+  await fixture.prisma.database().migrationRun.update({ where: { id: finalRunId }, data: {
+    status: "succeeded",
+    snapshotManifestDigest: SNAPSHOT_DIGEST,
+    decisionsDigest: finalReport.decisionsDigest,
+    reportDigest: finalReport.reportDigest,
+    countsJson: { aggregateReport: finalReport } as unknown as Prisma.InputJsonValue,
+    countsSchemaVersion: 1,
+    verificationJson: { schemaVersion: 1, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, sourceManifestDigest: SOURCE_DIGEST, snapshotManifestDigest: SNAPSHOT_DIGEST, decisionsDigest: finalReport.decisionsDigest, integrityCheck: "ok", foreignKeyViolationCount: 0, failedLedgerCount: 0, migrationChecksumStatus: "verified", openBlockerCount: 0, secretScanCount: 0 },
+    verificationSchemaVersion: 1,
+    finishedAt: new Date("2026-07-13T00:03:00.000Z"),
+  } });
+  await fixture.prisma.database().persistenceState.update({ where: { id: "primary" }, data: { activationState: "ready_for_activation", cutoverRunId: finalRunId, sourceManifestDigest: SOURCE_DIGEST, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, lastVerifiedAt: new Date("2026-07-13T00:03:00.000Z") } });
+  return { finalRunId, finalReport };
+}
+
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
   delete process.env.DATABASE_URL;
@@ -144,6 +184,35 @@ afterEach(async () => {
 });
 
 describe("M5-A1 coordinated backup", () => {
+  it("M6A1-BK-01 creates and restores a sealed pre-cutover final/ready bundle", async () => {
+    const fixture = await createFixture();
+    const restoreRoot = await mkdtemp(path.join(fixture.root, "restore-"));
+    try {
+      const { finalRunId, finalReport } = await prepareFinalReadyFixture(fixture);
+      const result = await new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover", runId: finalRunId });
+      const manifest = JSON.parse(await readFile(path.join(result.bundlePath, "backup-manifest.json"), "utf8")) as { backupKind: string; migration: { runKind: string; finalRunId: string; runIds: string[]; fullImportReportDigest: string }; persistenceState: { activationState: string; cutoverRunId: string | null; activatedAt: string | null; firstBusinessWriteAt: string | null } };
+      expect(result.runCount).toBe(1);
+      expect(manifest).toMatchObject({ backupKind: "pre-cutover", migration: { runKind: "final", finalRunId, runIds: [finalRunId], fullImportReportDigest: finalReport.reportDigest }, persistenceState: { activationState: "ready_for_activation", cutoverRunId: finalRunId, activatedAt: null, firstBusinessWriteAt: null } });
+      await expect(new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: path.join(restoreRoot, "data"), targetWorkspaceRoot: path.join(restoreRoot, "workspace"), mode: "verify-only" })).resolves.toMatchObject({ mode: "verify-only", bundleDigest: result.bundleDigest });
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+    }
+  });
+
+  it("M6A1-ACT-01 dry-runs and executes only the matching pre-cutover bundle", async () => {
+    const fixture = await createFixture();
+    try {
+      const { finalRunId } = await prepareFinalReadyFixture(fixture);
+      const backup = await new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover", runId: finalRunId });
+      const release = await loadReleaseSchemaIdentityV1(repoRoot);
+      const activate = new DbActivateService(fixture.prisma);
+      await expect(activate.activate({ runId: finalRunId, sourceManifestDigest: SOURCE_DIGEST, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup: backup.bundlePath, gate: "ACT-08", mode: "dry-run" })).resolves.toMatchObject({ mode: "dry-run", activationState: "ready_for_activation", firstBusinessWriteAt: null });
+      expect((await fixture.prisma.database().persistenceState.findUnique({ where: { id: "primary" } }))?.activationState).toBe("ready_for_activation");
+      await expect(activate.activate({ runId: finalRunId, sourceManifestDigest: SOURCE_DIGEST, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup: backup.bundlePath, gate: "ACT-08", mode: "execute" })).resolves.toMatchObject({ mode: "execute", activationState: "db_only", firstBusinessWriteAt: null });
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+    }
+  });
   it("A4-CLI-01 rejects extra positional arguments before Prisma initialization", async () => {
     const backup = await runCli(
       backupCli,
@@ -252,10 +321,10 @@ describe("M5-A1 coordinated backup", () => {
     }
   });
 
-  it("BAK-03 keeps pre-cutover fail-closed even with a valid coordinated fixture", async () => {
+  it("BAK-03 requires a final run for pre-cutover backup", async () => {
     const fixture = await createFixture();
     try {
-      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover" })).rejects.toMatchObject({ code: "MIGRATION_CAPABILITY_BLOCKED" });
+      await expect(new AppBackupService(fixture.prisma).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "pre-cutover", runId: "missing-final" })).rejects.toMatchObject({ code: "BACKUP_RUN_INVALID" });
     } finally {
       await fixture.prisma.onModuleDestroy();
       if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;

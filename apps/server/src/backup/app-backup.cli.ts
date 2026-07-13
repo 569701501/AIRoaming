@@ -8,7 +8,7 @@ class BackupCliError extends Error {
   constructor(readonly code: string) { super(code); }
 }
 
-const REQUIRED = ["--database-url", "--workspace-root", "--data-root", "--release-root", "--app-commit", "--maintenance-bundle", "--full-import-report", "--decisions", "--output", "--kind"] as const;
+const COMMON = ["--database-url", "--workspace-root", "--data-root", "--release-root", "--app-commit", "--maintenance-bundle", "--decisions", "--output", "--kind"] as const;
 
 function readSingle(args: readonly string[], name: string): string {
   const indexes = args.flatMap((value, index) => value === name ? [index] : []);
@@ -41,23 +41,25 @@ function assertExactArguments(args: readonly string[], valueNames: readonly stri
 }
 
 function parseArgs(args: readonly string[]): BackupInput {
-  assertExactArguments(args, REQUIRED);
+  const kind = readSingle(args, "--kind");
+  if (kind !== "coordinated" && kind !== "pre-cutover") throw new BackupCliError("BACKUP_ARGS_INVALID");
+  const names = kind === "coordinated" ? [...COMMON, "--full-import-report"] as const : [...COMMON, "--run-id"] as const;
+  assertExactArguments(args, names);
   if (readJsonFormat(args, () => new BackupCliError("BACKUP_ARGS_INVALID")) !== "json") throw new BackupCliError("BACKUP_ARGS_INVALID");
-  const values = Object.fromEntries(REQUIRED.map((name) => [name, readSingle(args, name)])) as Record<string, string>;
-  if (values["--kind"] !== "coordinated" && values["--kind"] !== "pre-cutover") throw new BackupCliError("BACKUP_ARGS_INVALID");
-  if (values["--kind"] === "pre-cutover") throw new BackupCliError("MIGRATION_CAPABILITY_BLOCKED");
-  return {
+  const values = Object.fromEntries(names.map((name) => [name, readSingle(args, name)])) as Record<string, string>;
+  const common = {
     databaseUrl: values["--database-url"],
     workspaceRoot: requireAbsoluteArgument(values["--workspace-root"]),
     dataRoot: requireAbsoluteArgument(values["--data-root"]),
     releaseRoot: requireAbsoluteArgument(values["--release-root"]),
     appCommit: values["--app-commit"],
     maintenanceBundle: requireAbsoluteArgument(values["--maintenance-bundle"]),
-    fullImportReport: requireAbsoluteArgument(values["--full-import-report"]),
     decisions: requireAbsoluteArgument(values["--decisions"]),
     output: requireAbsoluteArgument(values["--output"]),
-    kind: "coordinated",
   };
+  return kind === "coordinated"
+    ? { ...common, kind, fullImportReport: requireAbsoluteArgument(values["--full-import-report"]) }
+    : { ...common, kind, runId: values["--run-id"] };
 }
 
 async function main(args = process.argv.slice(2)): Promise<number> {

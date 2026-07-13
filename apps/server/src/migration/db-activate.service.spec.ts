@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { DbActivateError, DbActivateService } from "./db-activate.service.js";
@@ -6,7 +7,12 @@ import { DbActivateError, DbActivateService } from "./db-activate.service.js";
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
 const release = await loadReleaseSchemaIdentityV1(repoRoot);
 const sourceManifestDigest = "sha256:" + "1".repeat(64);
+const snapshotManifestDigest = "sha256:" + "3".repeat(64);
+const decisionsDigest = "sha256:" + "4".repeat(64);
 const runId = "final-m6-test";
+const backupPath = "/tmp/backup-test-sealed";
+await mkdir(backupPath, { recursive: true });
+await writeFile(path.join(backupPath, "backup-manifest.json"), JSON.stringify({ backupKind: "pre-cutover", migration: { runKind: "final", finalRunId: runId, sourceManifestDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest } }));
 
 function fixture() {
   const state: Record<string, unknown> = {
@@ -16,7 +22,8 @@ function fixture() {
   };
   const run = {
     id: runId, kind: "final", status: "succeeded", sourceManifestDigest,
-    verificationJson: { effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, sourceManifestDigest, integrityCheck: "ok", foreignKeyViolationCount: 0, openBlockerCount: 0, secretScanCount: 0 },
+    snapshotManifestDigest, decisionsDigest,
+    verificationJson: { effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest, sourceManifestDigest, snapshotManifestDigest, decisionsDigest, integrityCheck: "ok", foreignKeyViolationCount: 0, failedLedgerCount: 0, migrationChecksumStatus: "verified", openBlockerCount: 0, secretScanCount: 0 },
   };
   const db = {
     migrationRun: { findUnique: vi.fn(async () => run) },
@@ -28,7 +35,7 @@ function fixture() {
 }
 
 function input(mode: "dry-run" | "execute") {
-  return { runId, sourceManifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup: "/tmp/backup-test-sealed", gate: "ACT-08" as const, mode };
+  return { runId, sourceManifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup: backupPath, gate: "ACT-08" as const, mode };
 }
 
 describe("DbActivateService", () => {
@@ -55,5 +62,12 @@ describe("DbActivateService", () => {
     const { db } = fixture();
     const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn() } as never);
     await expect(service.activate({ ...input("dry-run"), sourceManifestDigest: "sha256:" + "2".repeat(64) })).rejects.toMatchObject({ code: "ACTIVATE_IDENTITY_MISMATCH" });
+  });
+
+  it("rejects a coordinated shadow bundle even when its outer path is sealed-looking", async () => {
+    await writeFile(path.join(backupPath, "backup-manifest.json"), JSON.stringify({ backupKind: "coordinated", migration: { runKind: "shadow", sourceManifestDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest } }));
+    const { db } = fixture();
+    const service = new DbActivateService({ database: () => db } as never, { restore: vi.fn() } as never);
+    await expect(service.activate(input("dry-run"))).rejects.toMatchObject({ code: "ACTIVATE_BACKUP_UNVERIFIED" });
   });
 });

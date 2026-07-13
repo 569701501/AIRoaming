@@ -106,7 +106,7 @@ describe("runtime bundle file", () => {
   it("rejects tampered payloads and secret-bearing bundles", async () => {
     const fixture = await makeFixture();
     const service = new RuntimeBundleFileService();
-    const payload = { schemaVersion: 1 as const, kind: "airoaming_runtime_bundle_v1" as const, createdAt: "2026-07-12T00:00:00.000Z", participants: {}, conversationState: {}, pendingDialogueState: {}, legacyTaskTerminalState: {}, unobservableBeforeBridge: [], redaction: { schemaVersion: 1 as const, redactedCount: 0 } };
+    const payload = { schemaVersion: 1 as const, kind: "airoaming_runtime_bundle_v1" as const, createdAt: "2026-07-12T00:00:00.000Z", maintenanceState: "closed" as const, activeMutations: 0 as const, activeStreams: 0 as const, participants: {}, conversationState: {}, pendingDialogueState: {}, legacyTaskTerminalState: {}, unobservableBeforeBridge: [], redaction: { schemaVersion: 1 as const, redactedCount: 0 } };
     const tampered = { ...payload, participants: { secret: "sk-test-secret-value" }, payloadDigest: digestMaintenanceJson({ ...payload, participants: { secret: "sk-test-secret-value" } }) } as RuntimeBundleEnvelope;
     await writeFile(fixture.bundlePath, `${JSON.stringify(tampered)}\n`);
     await chmod(fixture.bundlePath, 0o600);

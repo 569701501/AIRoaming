@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Prisma } from "@prisma/client";
@@ -62,6 +62,10 @@ export class DbActivateService {
   private async verifyBackup(input: DbActivateInput): Promise<void> {
     const backup = absolute(input.backup, "ACTIVATE_BACKUP_UNVERIFIED");
     if (!path.basename(backup).startsWith("backup-")) throw new DbActivateError("ACTIVATE_BACKUP_UNVERIFIED");
+    let manifest: Record<string, unknown>;
+    try { manifest = JSON.parse(await readFile(path.join(backup, "backup-manifest.json"), "utf8")) as Record<string, unknown>; } catch { throw new DbActivateError("ACTIVATE_BACKUP_UNVERIFIED"); }
+    const migration = manifest.migration && typeof manifest.migration === "object" && !Array.isArray(manifest.migration) ? manifest.migration as Record<string, unknown> : null;
+    if (manifest.backupKind !== "pre-cutover" || !migration || migration.runKind !== "final" || migration.finalRunId !== input.runId || migration.sourceManifestDigest !== input.sourceManifestDigest || migration.effectiveSchemaManifestDigest !== input.effectiveManifestDigest) throw new DbActivateError("ACTIVATE_BACKUP_UNVERIFIED");
     const scratch = await mkdtemp(path.join(os.tmpdir(), "airoaming-activate-"));
     const releaseRoot = absolute(input.releaseRoot, "ACTIVATE_IDENTITY_MISMATCH");
     try {
@@ -106,7 +110,7 @@ export class DbActivateService {
     const verification = run.verificationJson && typeof run.verificationJson === "object" && !Array.isArray(run.verificationJson)
       ? run.verificationJson as Record<string, unknown>
       : null;
-    if (!verification || verification.effectiveSchemaManifestDigest !== input.effectiveManifestDigest || verification.sourceManifestDigest !== input.sourceManifestDigest || verification.integrityCheck !== "ok" || verification.foreignKeyViolationCount !== 0 || verification.openBlockerCount !== 0 || verification.secretScanCount !== 0) {
+    if (!verification || verification.effectiveSchemaManifestDigest !== input.effectiveManifestDigest || verification.sourceManifestDigest !== input.sourceManifestDigest || verification.snapshotManifestDigest !== run.snapshotManifestDigest || verification.decisionsDigest !== run.decisionsDigest || verification.integrityCheck !== "ok" || verification.foreignKeyViolationCount !== 0 || verification.failedLedgerCount !== 0 || verification.migrationChecksumStatus !== "verified" || verification.openBlockerCount !== 0 || verification.secretScanCount !== 0) {
       throw new DbActivateError("ACTIVATE_IDENTITY_MISMATCH");
     }
     const state = await db.persistenceState.findUnique({ where: { id: "primary" } });

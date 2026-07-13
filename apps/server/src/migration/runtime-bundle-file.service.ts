@@ -29,7 +29,7 @@ export class RuntimeBundleFileService {
     } catch {
       throw new RuntimeBundleFileError("RUNTIME_BUNDLE_INVALID");
     }
-    if (bundle.schemaVersion !== 1 || bundle.kind !== "airoaming_runtime_bundle_v1" || typeof bundle.payloadDigest !== "string") {
+    if (bundle.schemaVersion !== 1 || bundle.kind !== "airoaming_runtime_bundle_v1" || bundle.maintenanceState !== "closed" || bundle.activeMutations !== 0 || bundle.activeStreams !== 0 || typeof bundle.payloadDigest !== "string") {
       throw new RuntimeBundleFileError("RUNTIME_BUNDLE_INVALID");
     }
     const { payloadDigest, ...payload } = bundle;

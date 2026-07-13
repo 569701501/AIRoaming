@@ -5,6 +5,7 @@ import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-ident
 import { containsSecretSentinel } from "./credential-redactor.js";
 import { getBlockedDbCapabilities } from "./db-capability-registry.js";
 import { FINAL_IMPORTER_VERSION, normalizeFinalImportReport } from "./final-import-report.js";
+import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 
 export class ReadyCoordinatorError extends Error {
   constructor(readonly code: string) { super(code); }
@@ -15,8 +16,7 @@ export interface ReadyCoordinatorInput {
   releaseRoot: string;
   workspaceRoot: string;
   secretStoreRoot: string;
-  backupVerified: boolean;
-  maintenanceClosed: boolean;
+  maintenanceBundle: string;
 }
 
 export interface ReadyCoordinatorResult {
@@ -62,10 +62,16 @@ export class ReadyCoordinator {
   constructor(private readonly prisma: PrismaService) {}
 
   async markReady(input: ReadyCoordinatorInput): Promise<ReadyCoordinatorResult> {
-    if (!input.runId.trim() || !input.backupVerified || !input.maintenanceClosed) throw new ReadyCoordinatorError("MIGRATION_READY_PRECONDITION_FAILED");
+    if (!input.runId.trim()) throw new ReadyCoordinatorError("MIGRATION_READY_PRECONDITION_FAILED");
     const releaseRoot = absolute(input.releaseRoot, "MIGRATION_RELEASE_ROOT_INVALID");
     const workspaceRoot = absolute(input.workspaceRoot, "MIGRATION_WORKSPACE_ROOT_INVALID");
     const secretStoreRoot = absolute(input.secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID");
+    const maintenanceBundle = absolute(input.maintenanceBundle, "MIGRATION_MAINTENANCE_BUNDLE_INVALID");
+    try {
+      await new RuntimeBundleFileService().readAndVerify(maintenanceBundle);
+    } catch {
+      throw new ReadyCoordinatorError("MIGRATION_MAINTENANCE_BUNDLE_INVALID");
+    }
     if (process.env.AIROAMING_SECRET_STORE_ADAPTER !== "fake" || path.resolve(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT ?? "") !== secretStoreRoot) throw new ReadyCoordinatorError("MIGRATION_SECRET_STORE_BINDING_INVALID");
     const release = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => { throw new ReadyCoordinatorError("MIGRATION_RELEASE_IDENTITY_INVALID"); });
     const run = await this.prisma.database().migrationRun.findUnique({ where: { id: input.runId } });

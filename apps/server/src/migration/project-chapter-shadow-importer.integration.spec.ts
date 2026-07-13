@@ -339,7 +339,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     await mkdir(secretStoreRoot);
     process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
     process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = secretStoreRoot;
-    return { prepared, snapshot, decisionsPath, targetWorkspace, dataRoot, secretStoreRoot, runId, databaseUrl: process.env.DATABASE_URL!, reportPath: path.join(prepared.root!, `${runId}.report.json`) };
+    return { prepared, snapshot, decisionsPath, targetWorkspace, dataRoot, secretStoreRoot, maintenanceBundle: path.join(snapshot.outputPath, "runtime-bundle.json"), runId, databaseUrl: process.env.DATABASE_URL!, reportPath: path.join(prepared.root!, `${runId}.report.json`) };
   }
 
   async function runFinalFixture(fixture: Awaited<ReturnType<typeof createFinalFixture>>) {
@@ -1471,7 +1471,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     const fixture = await createFinalFixture();
     await runFinalFixture(fixture);
     await writeFile(path.join(fixture.secretStoreRoot, "sentinel.txt"), "airoaming-test-secret-fin07");
-    await expect(new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, backupVerified: true, maintenanceClosed: true })).rejects.toMatchObject({ code: "MIGRATION_SECRET_SENTINEL_DETECTED" });
+    await expect(new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, maintenanceBundle: fixture.maintenanceBundle })).rejects.toMatchObject({ code: "MIGRATION_SECRET_SENTINEL_DETECTED" });
     expect(await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } })).toMatchObject({ activationState: "shadow", activatedAt: null, firstBusinessWriteAt: null });
   }, 120_000);
 
@@ -1487,7 +1487,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("FIN-09 writes ready_for_activation only after final verification and keeps activation timestamps null", async () => {
     const fixture = await createFinalFixture();
     await runFinalFixture(fixture);
-    const ready = await new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, backupVerified: true, maintenanceClosed: true });
+    const ready = await new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, maintenanceBundle: fixture.maintenanceBundle });
     expect(ready).toMatchObject({ activationState: "ready_for_activation", runId: fixture.runId, blockedCapabilityIds: [], secretScanCount: 0 });
     expect(await prisma!.database().persistenceState.findUnique({ where: { id: "primary" } })).toMatchObject({ activationState: "ready_for_activation", cutoverRunId: fixture.runId, activatedAt: null, firstBusinessWriteAt: null });
   }, 120_000);
@@ -1495,7 +1495,7 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
   it("FIN-10 keeps the capability gate green and rejects missing ready preconditions", async () => {
     const fixture = await createFinalFixture();
     await runFinalFixture(fixture);
-    await expect(new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, backupVerified: false, maintenanceClosed: true })).rejects.toMatchObject({ code: "MIGRATION_READY_PRECONDITION_FAILED" });
+    await expect(new ReadyCoordinator(prisma!).markReady({ runId: fixture.runId, releaseRoot: repoRoot, workspaceRoot: fixture.targetWorkspace, secretStoreRoot: fixture.secretStoreRoot, maintenanceBundle: path.join(fixture.prepared.root!, "missing-runtime-bundle.json") })).rejects.toMatchObject({ code: "MIGRATION_MAINTENANCE_BUNDLE_INVALID" });
     const capability = await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), ["src/migration/db-capabilities.cli.ts", "--check", "--format", "json"], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: fixture.databaseUrl } });
     expect(JSON.parse(capability.stdout)).toMatchObject({ code: "DB_CAPABILITIES_REPORTED", blockedIds: [] });
   }, 120_000);

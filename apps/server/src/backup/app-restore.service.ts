@@ -5,6 +5,7 @@ import * as path from "node:path";
 import type { DatabaseSync as NodeDatabaseSync } from "node:sqlite";
 import { digestCanonicalJson } from "@airoaming/shared";
 import { FULL_SHADOW_SLICE_ORDER } from "../migration/full-shadow-importer.js";
+import { normalizeFinalImportReport } from "../migration/final-import-report.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { containsSecretSentinel } from "../migration/credential-redactor.js";
 import type { BackupAssetEntry, BackupManifest, BackupRunSummary } from "./backup.types.js";
@@ -42,8 +43,9 @@ export interface RestoreFileOperations {
 }
 
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
-const MANIFEST_KEYS = ["appCommit", "assets", "backupKind", "bundleDigest", "createdAt", "database", "kind", "migration", "missingAssets", "persistenceState", "schemaVersion", "secretHandling"];
-const MIGRATION_KEYS = ["decisionsDigest", "effectiveSchemaManifestDigest", "fullImportReportDigest", "runIds", "runKind", "runSummaryDigest", "sliceCount", "snapshotManifestDigest", "sourceManifestDigest"];
+const MANIFEST_KEYS = ["appCommit", "assets", "backupKind", "bundleDigest", "createdAt", "database", "kind", "maintenanceBundleDigest", "migration", "missingAssets", "persistenceState", "schemaVersion", "secretHandling"];
+const COORDINATED_MIGRATION_KEYS = ["decisionsDigest", "effectiveSchemaManifestDigest", "fullImportReportDigest", "runIds", "runKind", "runSummaryDigest", "sliceCount", "snapshotManifestDigest", "sourceManifestDigest"];
+const PRE_CUTOVER_MIGRATION_KEYS = [...COORDINATED_MIGRATION_KEYS, "finalRunId"];
 const SEALED_KEYS = ["assetInventoryDigest", "bundleDigest", "configDigest", "databaseDigest", "kind", "manifestDigest", "runSummaryDigest", "schemaVersion"];
 const RUN_SUMMARY_KEYS = ["decisionsDigest", "fullImportReportDigest", "kind", "runSummaryDigest", "schemaVersion", "slices", "snapshotManifestDigest", "sourceManifestDigest"];
 const RUN_SUMMARY_SLICE_KEYS = ["counts", "importerVersion", "reportDigest", "runId", "slice", "status"];
@@ -176,8 +178,7 @@ function verifyDatabase(databasePath: string, manifest: BackupManifest, runSumma
     if (integrity.length !== 1 || integrity[0]?.integrity_check !== "ok" || foreignKeys.length !== 0) fail("RESTORE_VERIFICATION_FAILED");
     const runStatement = database.prepare("SELECT id, kind, status, importer_version, source_manifest_digest, snapshot_manifest_digest, decisions_digest, report_digest, counts_json, counts_schema_version, verification_json, verification_schema_version FROM migration_runs WHERE id = ?");
     const issueStatement = database.prepare("SELECT COUNT(*) AS count FROM migration_issues WHERE run_id = ? AND resolution_status = 'open'");
-    for (let index = 0; index < runSummary.slices.length; index += 1) {
-      const expected = runSummary.slices[index];
+    const verifyShadowRun = (expected: BackupRunSummary["slices"][number]): void => {
       const row = runStatement.get(expected.runId) as Record<string, unknown> | undefined;
       if (!row || row.id !== expected.runId || row.kind !== "shadow" || row.status !== "succeeded" || row.importer_version !== expected.importerVersion || row.source_manifest_digest !== manifest.migration.sourceManifestDigest || row.snapshot_manifest_digest !== manifest.migration.snapshotManifestDigest || row.decisions_digest !== manifest.migration.decisionsDigest || row.report_digest !== expected.reportDigest || row.counts_schema_version !== 1 || row.verification_schema_version !== 1) fail("RESTORE_VERIFICATION_FAILED");
       if (digestCanonicalJson(parseSqliteJson(row.counts_json)) !== digestCanonicalJson(expected.counts)) fail("RESTORE_VERIFICATION_FAILED");
@@ -185,11 +186,27 @@ function verifyDatabase(databasePath: string, manifest: BackupManifest, runSumma
       if (verification.schemaVersion !== 1 || verification.sourceManifestVerified !== true || verification.snapshotManifestVerified !== true) fail("RESTORE_VERIFICATION_FAILED");
       const issueRow = issueStatement.get(expected.runId) as { count?: number } | undefined;
       if ((issueRow?.count ?? -1) !== 0) fail("RESTORE_VERIFICATION_FAILED");
+    };
+    for (const expected of runSummary.slices) verifyShadowRun(expected);
+    if (manifest.backupKind === "pre-cutover") {
+      const finalRow = runStatement.get(manifest.migration.finalRunId) as Record<string, unknown> | undefined;
+      if (!finalRow || finalRow.id !== manifest.migration.finalRunId || finalRow.kind !== "final" || finalRow.status !== "succeeded" || finalRow.source_manifest_digest !== manifest.migration.sourceManifestDigest || finalRow.snapshot_manifest_digest !== manifest.migration.snapshotManifestDigest || finalRow.decisions_digest !== manifest.migration.decisionsDigest || finalRow.report_digest !== manifest.migration.fullImportReportDigest || finalRow.counts_schema_version !== 1 || finalRow.verification_schema_version !== 1) fail("RESTORE_VERIFICATION_FAILED");
+      const finalCounts = record(parseSqliteJson(finalRow.counts_json));
+      try {
+        const finalReport = normalizeFinalImportReport(finalCounts.aggregateReport);
+        if (finalReport.reportDigest !== manifest.migration.fullImportReportDigest || finalReport.slices.length !== FULL_SHADOW_SLICE_ORDER.length || finalReport.slices.some((slice, index) => slice.runId !== runSummary.slices[index]?.runId || slice.status !== "succeeded" || slice.reportDigest !== runSummary.slices[index]?.reportDigest || slice.evidence.passed !== true)) fail("RESTORE_VERIFICATION_FAILED");
+      } catch (error) {
+        if (error instanceof RestoreError) throw error;
+        fail("RESTORE_VERIFICATION_FAILED");
+      }
+      const finalVerification = record(parseSqliteJson(finalRow.verification_json));
+      if (finalVerification.schemaVersion !== 1 || finalVerification.effectiveSchemaManifestDigest !== manifest.migration.effectiveSchemaManifestDigest || finalVerification.sourceManifestDigest !== manifest.migration.sourceManifestDigest || finalVerification.snapshotManifestDigest !== manifest.migration.snapshotManifestDigest || finalVerification.decisionsDigest !== manifest.migration.decisionsDigest || finalVerification.integrityCheck !== "ok" || finalVerification.foreignKeyViolationCount !== 0 || finalVerification.failedLedgerCount !== 0 || finalVerification.migrationChecksumStatus !== "verified" || finalVerification.openBlockerCount !== 0 || finalVerification.secretScanCount !== 0) fail("RESTORE_VERIFICATION_FAILED");
+      if ((issueStatement.get(manifest.migration.finalRunId) as { count?: number } | undefined)?.count !== 0) fail("RESTORE_VERIFICATION_FAILED");
     }
-    const persistenceRows = database.prepare("SELECT id, activation_state, cutover_run_id, first_business_write_at FROM persistence_states WHERE id = 'primary'").all() as Array<Record<string, unknown>>;
+    const persistenceRows = database.prepare("SELECT id, activation_state, cutover_run_id, source_manifest_digest, effective_schema_manifest_digest, activated_at, first_business_write_at FROM persistence_states WHERE id = 'primary'").all() as Array<Record<string, unknown>>;
     if (persistenceRows.length !== 1) fail("RESTORE_VERIFICATION_FAILED");
     const persistence = persistenceRows[0];
-    if (persistence.activation_state !== "shadow" || persistence.activation_state !== manifest.persistenceState.activationState || persistence.cutover_run_id !== manifest.persistenceState.cutoverRunId || persistence.first_business_write_at !== manifest.persistenceState.firstBusinessWriteAt || persistence.cutover_run_id !== null || persistence.first_business_write_at !== null) fail("RESTORE_VERIFICATION_FAILED");
+    if (persistence.activation_state !== manifest.persistenceState.activationState || persistence.cutover_run_id !== manifest.persistenceState.cutoverRunId || persistence.activated_at !== manifest.persistenceState.activatedAt || persistence.first_business_write_at !== manifest.persistenceState.firstBusinessWriteAt || (manifest.backupKind === "coordinated" && persistence.activation_state !== "shadow") || (manifest.backupKind === "pre-cutover" && (persistence.activation_state !== "ready_for_activation" || persistence.source_manifest_digest !== manifest.migration.sourceManifestDigest || persistence.effective_schema_manifest_digest !== manifest.migration.effectiveSchemaManifestDigest))) fail("RESTORE_VERIFICATION_FAILED");
   } catch (error) {
     if (error instanceof RestoreError) throw error;
     fail("RESTORE_VERIFICATION_FAILED");
@@ -209,7 +226,7 @@ function verifyRunSummary(value: unknown, expected: BackupManifest["migration"])
   const slices = summary.slices.map((item, index) => {
     const slice = record(item);
     exactKeys(slice, RUN_SUMMARY_SLICE_KEYS);
-    if (slice.slice !== FULL_SHADOW_SLICE_ORDER[index] || slice.runId !== expected.runIds[index] || typeof slice.runId !== "string" || !slice.runId || typeof slice.importerVersion !== "string" || !slice.importerVersion || slice.status !== "succeeded" || !isDigest(slice.reportDigest) || (slice.counts !== null && (!slice.counts || typeof slice.counts !== "object" || Array.isArray(slice.counts)))) fail("RESTORE_VERIFICATION_FAILED");
+    if (slice.slice !== FULL_SHADOW_SLICE_ORDER[index] || (expected.runKind === "shadow" && slice.runId !== expected.runIds[index]) || typeof slice.runId !== "string" || !slice.runId || typeof slice.importerVersion !== "string" || !slice.importerVersion || slice.status !== "succeeded" || !isDigest(slice.reportDigest) || (slice.counts !== null && (!slice.counts || typeof slice.counts !== "object" || Array.isArray(slice.counts)))) fail("RESTORE_VERIFICATION_FAILED");
     return slice as unknown as BackupRunSummary["slices"][number];
   });
   const runIds = slices.map((item) => item.runId);
@@ -220,15 +237,21 @@ function verifyRunSummary(value: unknown, expected: BackupManifest["migration"])
 function verifyManifest(value: unknown): { manifest: BackupManifest; manifestDigest: `sha256:${string}` } {
   const raw = record(value);
   exactKeys(raw, MANIFEST_KEYS);
-  if (raw.schemaVersion !== 1 || raw.kind !== "airoaming_backup_bundle_v1" || raw.backupKind !== "coordinated" || typeof raw.appCommit !== "string" || !raw.appCommit || typeof raw.createdAt !== "string") fail("RESTORE_VERIFICATION_FAILED");
-  if (!isDigest(raw.bundleDigest)) fail("RESTORE_VERIFICATION_FAILED");
+  if (raw.schemaVersion !== 1 || raw.kind !== "airoaming_backup_bundle_v1" || (raw.backupKind !== "coordinated" && raw.backupKind !== "pre-cutover") || typeof raw.appCommit !== "string" || !raw.appCommit || typeof raw.createdAt !== "string" || !isDigest(raw.maintenanceBundleDigest) || !isDigest(raw.bundleDigest)) fail("RESTORE_VERIFICATION_FAILED");
   const migration = record(raw.migration);
-  exactKeys(migration, MIGRATION_KEYS);
-  if (migration.runKind !== "shadow" || migration.sliceCount !== 16 || !Array.isArray(migration.runIds) || migration.runIds.length !== 16 || !isDigest(migration.sourceManifestDigest) || !isDigest(migration.snapshotManifestDigest) || !isDigest(migration.decisionsDigest) || !isDigest(migration.fullImportReportDigest) || !isDigest(migration.runSummaryDigest) || !isDigest(migration.effectiveSchemaManifestDigest)) fail("RESTORE_VERIFICATION_FAILED");
+  exactKeys(migration, raw.backupKind === "coordinated" ? COORDINATED_MIGRATION_KEYS : PRE_CUTOVER_MIGRATION_KEYS);
+  if (!isDigest(migration.sourceManifestDigest) || !isDigest(migration.snapshotManifestDigest) || !isDigest(migration.decisionsDigest) || !isDigest(migration.fullImportReportDigest) || !isDigest(migration.runSummaryDigest) || !isDigest(migration.effectiveSchemaManifestDigest) || migration.sliceCount !== 16 || !Array.isArray(migration.runIds)) fail("RESTORE_VERIFICATION_FAILED");
+  if (raw.backupKind === "coordinated") {
+    if (migration.runKind !== "shadow" || migration.runIds.length !== 16 || migration.runIds.some((id) => typeof id !== "string" || !id)) fail("RESTORE_VERIFICATION_FAILED");
+  } else if (migration.runKind !== "final" || migration.runIds.length !== 1 || typeof migration.finalRunId !== "string" || !migration.finalRunId || migration.runIds[0] !== migration.finalRunId) fail("RESTORE_VERIFICATION_FAILED");
   const database = record(raw.database);
   if (database.storageKey !== "database/app.db" || !isDigest(database.sha256) || !Number.isInteger(database.bytes) || (database.bytes as number) <= 0) fail("RESTORE_VERIFICATION_FAILED");
   const secretHandling = record(raw.secretHandling);
   if (!Array.isArray(raw.assets) || !Array.isArray(raw.missingAssets) || !record(raw.persistenceState) || secretHandling.included !== false || secretHandling.sentinelScan !== "passed") fail("RESTORE_VERIFICATION_FAILED");
+  const persistence = raw.persistenceState as Record<string, unknown>;
+  exactKeys(persistence, ["activationState", "activatedAt", "cutoverRunId", "firstBusinessWriteAt"]);
+  if (raw.backupKind === "coordinated" && (persistence.activationState !== "shadow" || persistence.cutoverRunId !== null || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null)) fail("RESTORE_VERIFICATION_FAILED");
+  if (raw.backupKind === "pre-cutover" && (persistence.activationState !== "ready_for_activation" || persistence.cutoverRunId !== migration.finalRunId || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null)) fail("RESTORE_VERIFICATION_FAILED");
   const { bundleDigest, ...unsigned } = raw;
   if (digestCanonicalJson(unsigned) !== bundleDigest) fail("RESTORE_VERIFICATION_FAILED");
   return { manifest: raw as unknown as BackupManifest, manifestDigest: digestCanonicalJson(raw) };

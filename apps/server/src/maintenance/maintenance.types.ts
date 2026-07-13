@@ -25,6 +25,9 @@ export interface RuntimeBundleV1 {
   schemaVersion: 1;
   kind: "airoaming_runtime_bundle_v1";
   createdAt: string;
+  maintenanceState: "closed";
+  activeMutations: 0;
+  activeStreams: 0;
   participants: Record<string, unknown>;
   conversationState: unknown;
   pendingDialogueState: unknown;

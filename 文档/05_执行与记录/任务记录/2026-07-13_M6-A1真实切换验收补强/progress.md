@@ -14,7 +14,7 @@ source: M6-A1 task_plan
 
 ### 状态
 
-`ready_for_worker`
+`in_progress`
 
 ### 已完成
 
@@ -25,9 +25,52 @@ source: M6-A1 task_plan
 
 ### 当前未执行
 
-- 未修改业务代码。
-- 未运行真实数据、真实系统凭据或真实切换。
-- 所有 M6-A1 新测试 ID 初始为 `not_run`。
+### A1-1 / A1-2 Worker 更新
+
+状态：`in_progress`（A1-1 已完成，A1-2 进行中）
+
+基线 commit：`6a33009`
+
+修改文件：
+
+- `apps/server/src/backup/backup.types.ts`
+- `apps/server/src/backup/app-backup.service.ts`
+- `apps/server/src/backup/app-backup.cli.ts`
+- `apps/server/src/backup/app-restore.service.ts`
+- `apps/server/src/backup/app-backup-restore.integration.spec.ts`
+- `apps/server/src/migration/runtime-bundle-file.service.ts`
+- `apps/server/src/migration/snapshot.types.ts`
+- `apps/server/src/maintenance/maintenance.types.ts`
+- `apps/server/src/maintenance/maintenance-coordinator.service.ts`
+- `apps/server/src/migration/ready-coordinator.ts`
+- `apps/server/src/migration/db-ready.cli.ts`
+- `apps/server/src/migration/db-activate.service.ts`
+- `apps/server/src/migration/cutover-coordinator.service.ts`
+
+新增或更新测试 ID：
+
+- `M6A1-BK-01`：真实临时 SQLite final/ready pre-cutover bundle + verify-only restore，已通过。
+- `M6A1-ACT-01`：真实临时 bundle dry-run/execute，已通过。
+- `M6A1-RST-01`：pre-cutover verify-only，已通过。
+- `M6A1-RST-03`：coordinated 兼容回归，已通过。
+- `M6A1-RST-04/05`：既有 raw/semantic tamper 回归，已通过。
+- Ready runtime bundle closed/active=0 校验与 boolean 假证据退役，相关 FIN 用例已通过。
+- durable C0 evidence restart/identity 保护单测已通过。
+
+验证命令与通过数：
+
+- `pnpm --dir apps/server exec tsc --noEmit`：通过。
+- `pnpm --dir apps/server exec vitest run src/backup/app-backup-restore.integration.spec.ts --pool=forks --poolOptions.forks.singleFork=true --testTimeout=120000`：35/35 通过。
+- Ready/runtime 定向：12/12 通过；activate/cutover 定向：7/7 通过。
+- server 全量 `pnpm --dir apps/server test -- --pool=forks --poolOptions.forks.singleFork=true --testTimeout=60000 --reporter=dot`：60 files / 408 tests 通过（149.80s）。
+
+Scrutiny 结果：A1-1 静态约束已实现；真实切换、真实 workspace、真实 Keychain/provider 仍禁止。
+
+Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执行真实授权。
+
+提交：本阶段代码与证据待本次会话末独立提交。
+
+下一步：完成 durable C0-C7 evidence 与真实 pre-cutover activate 语义，随后进入 A1-3 business write boundary。
 
 ## Worker 更新模板
 
@@ -47,4 +90,3 @@ Runtime 结果：
 ```
 
 不得只写“已完成”或覆盖历史记录。
-

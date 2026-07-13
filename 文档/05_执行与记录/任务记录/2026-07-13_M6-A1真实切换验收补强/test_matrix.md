@@ -16,14 +16,14 @@ source: M6-A1 实施契约与 G1 正式验收清单
 
 | ID | 场景 | 必须断言 | 状态 |
 | --- | --- | --- | --- |
-| M6A1-BK-01 | 真实临时 final/ready DB 创建 pre-cutover bundle | sealed；runKind=final；同 run/source/snapshot/decisions/effective；16 slice；首写为空 | `not_run` |
+| M6A1-BK-01 | 真实临时 final/ready DB 创建 pre-cutover bundle | sealed；runKind=final；同 run/source/snapshot/decisions/effective；16 slice；首写为空 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`，35/35） |
 | M6A1-BK-02 | final blocked/failed、state shadow/recovery/db_only、run 不同 | 全部失败，无 SEALED/最终目录 | `not_run` |
 | M6A1-BK-03 | maintenance bundle 缺失、非 closed、摘要篡改 | `BACKUP_NOT_OFFLINE` 或稳定验证错误；无 bundle | `not_run` |
 | M6A1-BK-04 | CLI kind 参数矩阵 | coordinated/pre-cutover 各自 required/forbidden 参数精确；解析失败早于 Prisma | `not_run` |
 | M6A1-BK-05 | ready Asset/DB/source 在 fence 期间变化 | fail-closed；staging 清理；无 sealed 假成功 | `not_run` |
-| M6A1-RST-01 | verify-only pre-cutover | 识别 final 类型，零 target/staging 写 | `not_run` |
+| M6A1-RST-01 | verify-only pre-cutover | 识别 final 类型，零 target/staging 写 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`） |
 | M6A1-RST-02 | materialize pre-cutover | 新根 DB/Asset 完整；state 仍 ready；activated/first write 为空 | `not_run` |
-| M6A1-RST-03 | coordinated bundle | restore 继续兼容；不能被 activate 接受 | `not_run` |
+| M6A1-RST-03 | coordinated bundle | restore 继续兼容；不能被 activate 接受 | `passed`（backup/restore 集成 + activate 单测） |
 | M6A1-RST-04 | raw tamper | 外层 digest/SEALED 失败，目标零写 | `not_run` |
 | M6A1-RST-05 | reseal semantic tamper | final run/report/state/Asset 任一不一致仍失败 | `not_run` |
 
@@ -34,11 +34,11 @@ source: M6-A1 实施契约与 G1 正式验收清单
 | M6A1-RDY-01 | markReady 使用真实 closed runtime bundle | final/capability/secret/closed 全绿才写 ready | `not_run` |
 | M6A1-RDY-02 | 布尔假证据退役 | API/类型中不存在 `backupVerified`、`maintenanceClosed`；缺 bundle 必失败 | `not_run` |
 | M6A1-EVD-01 | C0→C6 持久证据 | step/manifest 原子写、摘要链、C6_READY 可验证 | `not_run` |
-| M6A1-EVD-02 | 新实例 resume | 从下一步继续；相同已完成输入幂等且 action 不重跑 | `not_run` |
+| M6A1-EVD-02 | 新实例 resume | 从下一步继续；相同已完成输入幂等且 action 不重跑 | `passed`（`src/migration/cutover-coordinator.service.spec.ts`） |
 | M6A1-EVD-03 | 跳步/改 identity/改 input | `CUTOVER_ORDER_INVALID`/`CUTOVER_RESUME_CONFLICT`，旧证据字节不变 | `not_run` |
 | M6A1-EVD-04 | evidence raw/reseal tamper | digest/语义校验失败，activate 零写 | `not_run` |
-| M6A1-ACT-01 | dry-run + 真实 pre-cutover bundle | 返回 ready；DB 字节/state/evidence 全不变 | `not_run` |
-| M6A1-ACT-02 | coordinated/shadow bundle | `ACTIVATE_BACKUP_UNVERIFIED`，state 保持 ready | `not_run` |
+| M6A1-ACT-01 | dry-run + 真实 pre-cutover bundle | 返回 ready；DB 字节/state/evidence 全不变 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`） |
+| M6A1-ACT-02 | coordinated/shadow bundle | `ACTIVATE_BACKUP_UNVERIFIED`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`） |
 | M6A1-ACT-03 | stale final/source/snapshot/decisions/effective | `ACTIVATE_IDENTITY_MISMATCH`，state 保持 ready | `not_run` |
 | M6A1-ACT-04 | maintenance/evidence 未到 C6 | `ACTIVATE_NOT_READY`，state 保持 ready | `not_run` |
 | M6A1-ACT-05 | execute | 条件事务只写 db_only+activatedAt；first write 为空；C7/COMPLETED 后才 reopen | `not_run` |
@@ -88,8 +88,8 @@ source: M6-A1 实施契约与 G1 正式验收清单
 
 | ID | 命令 | 状态 |
 | --- | --- | --- |
-| M6A1-REG-01 | M6-A1 定向测试 | `not_run` |
-| M6A1-REG-02 | server 全量 Vitest（single fork，显式 timeout） | `not_run` |
+| M6A1-REG-01 | M6-A1 定向测试 | `in_progress`（backup 35/35、ready 3/3、activate/cutover 7/7；A1-3/A1-4 未执行） |
+| M6A1-REG-02 | server 全量 Vitest（single fork，显式 timeout） | `passed`（60 files / 408 tests） |
 | M6A1-REG-03 | workspace typecheck + server build + web build | `not_run` |
 | M6A1-REG-04 | Prisma validate + G1 manifest/schema/migration checks | `not_run` |
 | M6A1-REG-05 | capability CLI report/check 精确值 | `not_run` |
@@ -132,4 +132,3 @@ git diff --check
 - SH-10 人工 MigrationReport 签署，只有真实责任人签署后才能 passed；Luna 不得自签。
 - OBS-01～10 全部继续 `not_run`，直到真实 DB-only 观察期。
 - 每个回填项必须写测试 ID、spec 路径和结果；不能只写 commit。
-
