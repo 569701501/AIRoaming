@@ -91,7 +91,7 @@ describe("D2-A1 SettingsService secret boundary", () => {
     expect((await readFile(path.join(workspaceRoot, "settings", "app-settings.json"), "utf8"))).not.toContain("airoaming-update-sentinel");
   });
 
-  it("SEC-06 keeps the old bytes and removes the temporary file when rename fails", async () => {
+  it("M6A1-RB-03 / SEC-06 keeps the old bytes and removes the temporary file when rename fails", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-atomic-"));
     roots.push(root);
     const settingsPath = path.join(root, "settings", "app-settings.json");

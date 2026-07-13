@@ -17,7 +17,7 @@ describe("file mode bridge guard", () => {
     await expect(assertFileModeBridgeAllowed("postgres://invalid")).rejects.toThrow("FILE_MODE_DATABASE_URL_INVALID");
   });
 
-  it("M6A1-TX-08 rejects a file bridge after the first db-only business write", async () => {
+  it("M6A1-TX-08 / M6A1-RB-04 rejects a file bridge after the first db-only business write", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-file-bridge-"));
     const databasePath = path.join(root, "db.sqlite");
     await writeFile(databasePath, "", { mode: 0o600 });

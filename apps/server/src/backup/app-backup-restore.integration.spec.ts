@@ -301,6 +301,20 @@ describe("M5-A1 coordinated backup", () => {
     }
   });
 
+  it("M6A1-BK-05 fails closed when an asset changes after the DB fence is acquired", async () => {
+    const fixture = await createFixture();
+    try {
+      const before = await readFile(fixture.assetPath);
+      await expect(new AppBackupService(fixture.prisma, { onFenceAcquired: async () => writeFile(fixture.assetPath, Buffer.from("changed-after-fence"), { mode: 0o600 }) }).backup({ databaseUrl: fixture.databaseUrl, workspaceRoot: fixture.workspaceRoot, dataRoot: fixture.dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle: fixture.maintenanceBundle, fullImportReport: fixture.fullImportPath, decisions: fixture.decisionsPath, output: fixture.outputRoot, kind: "coordinated" })).rejects.toMatchObject({ code: "BACKUP_ASSET_MISMATCH" });
+      expect(await readdir(fixture.outputRoot)).toEqual([]);
+      expect(before).not.toEqual(await readFile(fixture.assetPath));
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
+
   it("A4-BAK-02 rejects an active writer and leaves no sealed bundle", async () => {
     const fixture = await createFixture();
     const writer = new DatabaseSync(path.join(fixture.dataRoot, "db/airoaming.sqlite"));
@@ -437,7 +451,7 @@ describe("M5-A1 coordinated backup", () => {
     }
   });
 
-  it("A4-BAK-04 rejects symlink and overlapping backup roots", async () => {
+  it("A4-BAK-04 / M6A1-PATH-01 rejects symlink and overlapping backup roots", async () => {
     const fixture = await createFixture();
     try {
       const linkedWorkspace = path.join(fixture.root, "linked-workspace");
@@ -698,7 +712,7 @@ describe("M5-A2 restore", () => {
     }
   });
 
-  it("A4-RST-03 rejects symlink and overlapping restore targets", async () => {
+  it("A4-RST-03 / M6A1-PATH-01 rejects symlink and overlapping restore targets", async () => {
     const { fixture, result } = await createBundle();
     try {
       const linkedTarget = path.join(fixture.root, "linked-target");
