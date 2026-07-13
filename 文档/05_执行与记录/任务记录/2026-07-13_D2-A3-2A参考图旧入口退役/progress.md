@@ -14,4 +14,4 @@ source: 参考图旧入口退役实施
 - [x] stable rejection/replacement
 - [x] registry evidence
 - [x] targeted 31/31
-- [x] independent commit pending
+- [x] independent commit `5ad342f` + documentation `cbf89e0`
