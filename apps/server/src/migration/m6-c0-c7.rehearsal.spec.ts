@@ -35,7 +35,7 @@ async function deploy(databaseUrl: string): Promise<void> {
 }
 
 describe("M6 isolated C0-C7 rehearsal", () => {
-  it("M6A1-C0-C7 / M6A1-CHAIN-01 runs real final import, backup, ready, API smoke, activation and first write on isolated SQLite", async () => {
+  it("M6A1-C0-C7 / M6A1-CHAIN-01 / M6A1-RDY-01 / M6A1-RDY-02 runs real final import, closed ready, backup, API smoke, activation and first write on isolated SQLite", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-m6-c0-c7-real-"));
     const previous = {
       DATABASE_URL: process.env.DATABASE_URL,
@@ -121,6 +121,7 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         const finalResult = await new FinalImportOrchestrator(prisma!).import({ snapshotPath: snapshot.outputPath, decisionsPath, databaseUrl, workspaceRoot: targetWorkspace, dataRoot, releaseRoot: repoRoot, secretStoreRoot, runId });
         expect(finalResult.run.status).toBe("succeeded");
         expect(finalResult.report.slices).toHaveLength(16);
+        await expect(new ReadyCoordinator(prisma!).markReady({ runId, releaseRoot: repoRoot, workspaceRoot: targetWorkspace, secretStoreRoot, maintenanceBundle: path.join(root, "missing-runtime-bundle.json") })).rejects.toMatchObject({ code: "MIGRATION_MAINTENANCE_BUNDLE_INVALID" });
         const ready = await new ReadyCoordinator(prisma!).markReady({ runId, releaseRoot: repoRoot, workspaceRoot: targetWorkspace, secretStoreRoot, maintenanceBundle });
         expect(ready.activationState).toBe("ready_for_activation");
         const backup = await new AppBackupService(prisma!).backup({ databaseUrl, workspaceRoot: sourceWorkspace, dataRoot, releaseRoot: repoRoot, appCommit: "abcdef1234567", maintenanceBundle, decisions: decisionsPath, output: backupOutput, kind: "pre-cutover", runId });
