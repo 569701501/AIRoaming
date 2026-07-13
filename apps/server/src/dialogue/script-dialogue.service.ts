@@ -593,7 +593,7 @@ export class ScriptDialogueService {
       return this.createFailedToolResult(turn, "generate_script_from_outline", targetChapter.error);
     }
 
-    const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId);
+    const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId, outline.id);
     const toolCallId = randomUUID();
     let sourceText: string;
     try {
@@ -651,7 +651,7 @@ export class ScriptDialogueService {
     range: { start: number; count: number },
     signal?: AbortSignal,
   ): Promise<DialogueToolResult> {
-    const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId);
+    const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId, outline.id);
     const toolCallId = randomUUID();
     const generatedChapters: ChapterListItem[] = [];
     const summaries: string[] = [];

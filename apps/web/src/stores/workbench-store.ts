@@ -28,6 +28,8 @@ import {
   type StoryboardJson,
   type UpdateProjectDraftRequest,
   type WorkbenchSnapshot,
+  type ScriptWorkingCopyDto,
+  type ScriptPendingSuggestionDto,
   type WorkspaceInfo,
 } from "@airoaming/shared";
 import { ApiClientError, api } from "../services/api";
@@ -56,6 +58,8 @@ interface WorkbenchState {
   activeChapterId: string | null;
   activeStepKey: string;
   snapshot: WorkbenchSnapshot | null;
+  scriptWorkingCopy: ScriptWorkingCopyDto | null;
+  scriptPendingSuggestion: ScriptPendingSuggestionDto | null;
   dialogueThread: DialogueThread | null;
   chapterCompletionPrompt: ChapterCompletionPrompt | null;
   dialogueSending: boolean;
@@ -95,6 +99,8 @@ export const useWorkbenchStore = defineStore("workbench", {
     activeChapterId: null,
     activeStepKey: "project_story",
     snapshot: null,
+    scriptWorkingCopy: null,
+    scriptPendingSuggestion: null,
     dialogueThread: null,
     chapterCompletionPrompt: null,
     dialogueSending: false,
@@ -132,6 +138,15 @@ export const useWorkbenchStore = defineStore("workbench", {
           const workbench = await api.workbench(this.activeProjectId, this.activeChapterId);
           this.snapshot = workbench.snapshot;
           this.activeChapterId = workbench.snapshot.currentChapter?.id ?? null;
+          if (workbench.snapshot.versioningCapability.mode === "g2_db" && this.activeChapterId) {
+            [this.scriptWorkingCopy, this.scriptPendingSuggestion] = await Promise.all([
+              api.getScriptWorkingCopy(this.activeProjectId, this.activeChapterId),
+              api.getScriptPendingSuggestion(this.activeProjectId, this.activeChapterId),
+            ]);
+          } else {
+            this.scriptWorkingCopy = null;
+            this.scriptPendingSuggestion = null;
+          }
           const dialogue = await api.dialogueThread(this.activeProjectId, this.activeStepKey, this.getActiveDialogueChapterId());
           this.dialogueThread = dialogue.thread;
         } else {
@@ -192,6 +207,8 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.activeStepKey = stepKey;
       if (!shouldPreserveSnapshot) {
         this.snapshot = null;
+        this.scriptWorkingCopy = null;
+        this.scriptPendingSuggestion = null;
       }
       this.dialogueThread = null;
       this.dialogueError = null;
@@ -459,8 +476,15 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
-        const result = await api.saveChapterDraft(projectId, chapterId, input);
-        this.applyChapterUpdate(result.chapter, result.chapters);
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.scriptWorkingCopy || this.scriptWorkingCopy.chapterId !== chapterId) throw new Error("剧本工作稿尚未加载，请刷新后重试");
+          const result = await api.updateScriptWorkingCopy(projectId, chapterId, { sourceText: input.sourceText, title: input.title, summary: input.summary, expectedChapterRowVersion: this.scriptWorkingCopy.chapterRowVersion });
+          this.scriptWorkingCopy = result.value;
+          await this.refreshActiveProjectRuntime();
+        } else {
+          const result = await api.saveChapterDraft(projectId, chapterId, input);
+          this.applyChapterUpdate(result.chapter, result.chapters);
+        }
       } catch (error) {
         this.error = error instanceof Error ? error.message : "章节草稿保存失败";
       } finally {
@@ -475,8 +499,20 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
-        const completed = await api.completeChapter(projectId, chapterId, input);
-        this.applyChapterUpdate(completed.completedChapter, completed.chapters);
+        let completed: CompleteChapterResponse;
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.scriptWorkingCopy || this.scriptWorkingCopy.chapterId !== chapterId) throw new Error("剧本工作稿尚未加载，请刷新后重试");
+          const updated = await api.updateScriptWorkingCopy(projectId, chapterId, { sourceText: input.sourceText ?? this.scriptWorkingCopy.sourceText, title: input.title, summary: input.summary, expectedChapterRowVersion: this.scriptWorkingCopy.chapterRowVersion });
+          const published = await api.publishScript(projectId, chapterId, { expectedCurrentScriptVersionId: updated.value.currentVersion?.id ?? null, expectedWorkingDigest: updated.value.digest, expectedChapterRowVersion: updated.value.chapterRowVersion, createNextChapter: input.createNextChapter ?? true });
+          this.scriptWorkingCopy = published.workingCopy;
+          await this.refreshActiveProjectRuntime();
+          const snapshot = this.snapshot!;
+          const publishedChapter = snapshot.chapters.find((item) => item.id === chapterId) ?? snapshot.currentChapter!;
+          completed = { completedChapter: publishedChapter as ChapterDetail, activeChapter: publishedChapter as ChapterDetail, chapters: snapshot.chapters, scriptVersion: published.scriptVersion as unknown as CompleteChapterResponse["scriptVersion"], createdNextChapter: published.createdNextChapter };
+        } else {
+          completed = await api.completeChapter(projectId, chapterId, input);
+          this.applyChapterUpdate(completed.completedChapter, completed.chapters);
+        }
         const nextChapter = completed.chapters.find((item) => item.order > completed.completedChapter.order) ?? null;
         this.chapterCompletionPrompt = {
           completedChapterId: completed.completedChapter.id,
@@ -503,9 +539,18 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
-        const result = await api.confirmChapterPendingSource(projectId, chapterId);
-        this.applyChapterUpdate(result.chapter, result.chapters);
-        this.dialogueNotice = `已采用「${result.chapter.title}」的草稿，正式正文已更新。`;
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.scriptPendingSuggestion || this.scriptPendingSuggestion.chapterId !== chapterId || !this.scriptWorkingCopy) throw new Error("没有可采用的 AI 草稿");
+          const result = await api.adoptScriptPendingSuggestion(projectId, chapterId, { pendingId: this.scriptPendingSuggestion.id, expectedPendingRowVersion: this.scriptPendingSuggestion.rowVersion, expectedPendingDigest: this.scriptPendingSuggestion.digest, expectedChapterRowVersion: this.scriptPendingSuggestion.chapterRowVersion });
+          this.scriptWorkingCopy = result.value;
+          this.scriptPendingSuggestion = null;
+          await this.refreshActiveProjectRuntime();
+          this.dialogueNotice = "已采用 AI 草稿，正式正文仍需发布后才会形成历史版本。";
+        } else {
+          const result = await api.confirmChapterPendingSource(projectId, chapterId);
+          this.applyChapterUpdate(result.chapter, result.chapters);
+          this.dialogueNotice = `已采用「${result.chapter.title}」的草稿，正式正文已更新。`;
+        }
       } catch (error) {
         this.error = error instanceof Error ? error.message : "采用草稿失败";
       } finally {
@@ -520,9 +565,17 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
-        const result = await api.discardChapterPendingSource(projectId, chapterId);
-        this.applyChapterUpdate(result.chapter, result.chapters);
-        this.dialogueNotice = `已丢弃「${result.chapter.title}」的草稿。`;
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.scriptPendingSuggestion || this.scriptPendingSuggestion.chapterId !== chapterId) throw new Error("没有可丢弃的 AI 草稿");
+          await api.discardScriptPendingSuggestion(projectId, chapterId, { pendingId: this.scriptPendingSuggestion.id, expectedPendingRowVersion: this.scriptPendingSuggestion.rowVersion });
+          this.scriptPendingSuggestion = null;
+          await this.refreshActiveProjectRuntime();
+          this.dialogueNotice = "已丢弃 AI 草稿。";
+        } else {
+          const result = await api.discardChapterPendingSource(projectId, chapterId);
+          this.applyChapterUpdate(result.chapter, result.chapters);
+          this.dialogueNotice = `已丢弃「${result.chapter.title}」的草稿。`;
+        }
       } catch (error) {
         this.error = error instanceof Error ? error.message : "丢弃草稿失败";
       } finally {

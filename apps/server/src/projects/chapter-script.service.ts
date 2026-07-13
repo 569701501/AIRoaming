@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, HttpException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
   extractChapterScriptName,
@@ -37,6 +37,8 @@ import * as scriptImportUtil from "./script-import.util.js";
 import { DEFAULT_CHAPTER_ID, getDefaultChapterTitle } from "./project-domain.util.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
+import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
+import { G2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 
 /**
  * 章节剧本编排(从 ProjectsService 抽出,见任务 2026-06-24_ChapterScriptService抽取)。
@@ -48,7 +50,23 @@ export class ChapterScriptService {
   constructor(
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
+    @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
   ) {}
+
+  private isDatabaseMode(): boolean {
+    return (this.repository as unknown as { isDatabaseMode?: () => boolean }).isDatabaseMode?.() === true;
+  }
+
+  private async runDbCommand<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof G2DatabaseError) {
+        throw new HttpException({ success: false, error: { code: error.code, message: error.message, details: error.details } }, error.status);
+      }
+      throw error;
+    }
+  }
 
   createChapterScriptVersion(
     chapter: LocalChapter,
@@ -588,6 +606,14 @@ export class ChapterScriptService {
     chapterId: string,
     input: WriteChapterDraftFromAIInput,
   ): Promise<WriteChapterDraftFromAIResult> {
+    if (this.isDatabaseMode()) {
+      if (!this.scriptCommands) throw new Error("DB_SCRIPT_COMMAND_REPOSITORY_MISSING");
+      await this.runDbCommand(() => this.scriptCommands!.createAiPendingSuggestion(projectId, chapterId, input));
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      const chapter = refreshed.chapters.find((item) => item.id === chapterId);
+      if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      return { chapter: wsDomain.toChapterDetail(chapter), chapters: wsDomain.sortChapters(refreshed.chapters).map((item) => wsDomain.toChapterListItem(item)), revision: chapter.lastScriptRevision ?? { id: "", projectId, chapterId, source: "ai_tool", threadId: input.threadId, messageId: input.messageId, toolCallId: input.toolCallId, operation: input.operation, summary: input.summary, createdAt: new Date().toISOString() } };
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
     const nextProject = await this.applyChapterPendingSource(project, chapter, input);
@@ -617,6 +643,14 @@ export class ChapterScriptService {
 
 
   async saveScriptOutlineFromAI(projectId: string, input: SaveScriptOutlineFromAIInput): Promise<ProjectScriptOutline> {
+    if (this.isDatabaseMode()) {
+      if (!this.scriptCommands) throw new Error("DB_SCRIPT_COMMAND_REPOSITORY_MISSING");
+      const result = await this.runDbCommand(() => this.scriptCommands!.saveScriptOutline(projectId, input));
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      const outline = refreshed.scriptOutline;
+      if (!outline || outline.id !== result.outlineId) throw new NotFoundException("VERSION_NOT_FOUND");
+      return outline;
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const sourceText = input.sourceText.trim();
     if (!sourceText) {
@@ -650,7 +684,16 @@ export class ChapterScriptService {
 
 
 
-  async confirmScriptOutline(projectId: string): Promise<ProjectScriptOutline> {
+  async confirmScriptOutline(projectId: string, expectedOutlineId?: string): Promise<ProjectScriptOutline> {
+    if (this.isDatabaseMode()) {
+      if (!expectedOutlineId?.trim()) throw new BadRequestException("VERSION_DOCUMENT_INVALID");
+      if (!this.scriptCommands) throw new Error("DB_SCRIPT_COMMAND_REPOSITORY_MISSING");
+      const result = await this.runDbCommand(() => this.scriptCommands!.confirmScriptOutline(projectId, expectedOutlineId));
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      const outline = refreshed.scriptOutline;
+      if (!outline || outline.id !== result.outlineId) throw new NotFoundException("VERSION_NOT_FOUND");
+      return outline;
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     if (!project.scriptOutline) {
       throw new BadRequestException("SCRIPT_OUTLINE_REQUIRED");
@@ -702,6 +745,14 @@ export class ChapterScriptService {
 
 
   async ensureChapterExists(projectId: string, order: number, title?: string): Promise<ChapterDetail> {
+    if (this.isDatabaseMode()) {
+      if (!this.scriptCommands) throw new Error("DB_SCRIPT_COMMAND_REPOSITORY_MISSING");
+      const result = await this.runDbCommand(() => this.scriptCommands!.ensureChapter(projectId, order, title));
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      const chapter = refreshed.chapters.find((item) => item.id === result.id);
+      if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
+      return wsDomain.toChapterDetail(chapter);
+    }
     const project = await this.projectStore.getReadyProject(projectId);
     const existing = project.chapters.find((chapter) => chapter.order === order);
     if (existing) {

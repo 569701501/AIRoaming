@@ -55,6 +55,15 @@ import type {
   UpdateProjectDraftRequest,
   WorkspaceInfo,
   WorkbenchSnapshot,
+  ScriptWorkingCopyDto,
+  ScriptWorkingCopyUpdateRequest,
+  ScriptWorkingCopyClearRequest,
+  ScriptPublishRequest,
+  ScriptPublishResponse,
+  ScriptPendingSuggestionDto,
+  ScriptPendingAdoptRequest,
+  ScriptPendingDiscardRequest,
+  ScriptMutationResult,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -349,6 +358,27 @@ export const api = {
     {
       method: "DELETE",
     },
+  ),
+  getScriptWorkingCopy: (projectId: string, chapterId: string) => request<ScriptWorkingCopyDto>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/working-copy`,
+  ),
+  updateScriptWorkingCopy: (projectId: string, chapterId: string, input: ScriptWorkingCopyUpdateRequest) => request<ScriptMutationResult<ScriptWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/working-copy`, { method: "PATCH", body: JSON.stringify(input) },
+  ),
+  clearScriptWorkingCopy: (projectId: string, chapterId: string, input: ScriptWorkingCopyClearRequest) => request<ScriptMutationResult<ScriptWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/working-copy`, { method: "DELETE", body: JSON.stringify(input) },
+  ),
+  publishScript: (projectId: string, chapterId: string, input: ScriptPublishRequest) => request<ScriptPublishResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/publish`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  getScriptPendingSuggestion: (projectId: string, chapterId: string) => request<ScriptPendingSuggestionDto | null>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/pending-suggestion`,
+  ),
+  adoptScriptPendingSuggestion: (projectId: string, chapterId: string, input: ScriptPendingAdoptRequest) => request<ScriptMutationResult<ScriptWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/pending-suggestion/adopt`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  discardScriptPendingSuggestion: (projectId: string, chapterId: string, input: ScriptPendingDiscardRequest) => request<ScriptMutationResult<null>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/pending-suggestion`, { method: "DELETE", body: JSON.stringify(input) },
   ),
   confirmChapterStoryStructure: (
     projectId: string,

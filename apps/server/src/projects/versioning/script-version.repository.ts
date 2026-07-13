@@ -284,7 +284,7 @@ export class ScriptVersionRepository {
     this.assertDatabaseMode();
     const chapter = await this.chapterQuery.findByScope(scope);
     if (!chapter) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
-    return chapter.chapterScriptPendingByChapter ? this.toPending(chapter.chapterScriptPendingByChapter) : null;
+    return chapter.chapterScriptPendingByChapter ? this.toPending(chapter.chapterScriptPendingByChapter, chapter.rowVersion) : null;
   }
 
   async adoptPendingSuggestion(
@@ -454,7 +454,7 @@ export class ScriptVersionRepository {
     };
   }
 
-  private toPending(row: NonNullable<ChapterVersionQueryRow["chapterScriptPendingByChapter"]>): ScriptPendingSuggestionDto {
+  private toPending(row: NonNullable<ChapterVersionQueryRow["chapterScriptPendingByChapter"]>, chapterRowVersion: number): ScriptPendingSuggestionDto {
     return {
       id: row.id,
       chapterId: row.chapterId,
@@ -462,6 +462,7 @@ export class ScriptVersionRepository {
       digest: digest(row.sourceDigest),
       operation: row.operation,
       rowVersion: row.rowVersion,
+      chapterRowVersion,
       threadId: row.threadId,
       messageId: row.messageId,
       toolCallId: row.toolCallId,
@@ -481,7 +482,7 @@ export class ScriptVersionRepository {
     const suffix = String(nextOrder).padStart(3, "0");
     return tx.chapter.create({
       data: {
-        id: randomUUID(),
+        id: `${projectId}_chapter_${String(nextOrder).padStart(3, "0")}`,
         projectId,
         slug: `chapter-${suffix}`,
         order: nextOrder,

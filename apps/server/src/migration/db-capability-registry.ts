@@ -33,6 +33,7 @@ const entries: DbCapabilityEntry[] = [
     requiredForActivate: true,
     evidenceTestIds: [
       "src/projects/project-db-persistence.integration.spec.ts#persists the public create/draft/complete path across a Nest restart without a workspace project tree",
+      "src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable",
     ],
     blocker: "DB mode still blocks reset/import/clear and other public write paths.",
   },
@@ -158,8 +159,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.updateProjectDraft",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable"],
   },
   {
     operation: "ensure_character_previews",
@@ -308,8 +309,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.ensureChapterExists",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable"],
   },
   {
     operation: "write_chapter_draft_from_ai",
@@ -318,8 +319,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.writeChapterDraftFromAI",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable"],
   },
   {
     operation: "save_script_outline_from_ai",
@@ -328,8 +329,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.saveScriptOutlineFromAI",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable"],
   },
   {
     operation: "confirm_script_outline",
@@ -338,8 +339,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.confirmScriptOutline",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable"],
   },
   {
     operation: "confirm_story_structure",

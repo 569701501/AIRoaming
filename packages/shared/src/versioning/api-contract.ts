@@ -50,6 +50,7 @@ export interface ScriptPendingSuggestionDto {
   digest: Digest;
   operation: string;
   rowVersion: number;
+  chapterRowVersion: number;
   threadId: string | null;
   messageId: string | null;
   toolCallId: string | null;

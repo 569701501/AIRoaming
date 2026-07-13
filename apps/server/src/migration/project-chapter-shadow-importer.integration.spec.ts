@@ -38,6 +38,7 @@ import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shar
 import { createComicFormatReport } from "./migration-report.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { ProjectsService } from "../projects/projects.service.js";
+import { ScriptVersionService } from "../projects/versioning/script-version.service.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -1559,7 +1560,9 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect((await prisma!.database().project.findFirstOrThrow()).updatedAt).toBeInstanceOf(Date);
     const targetProjectId = PrismaMigrationLedgerRepository.stableEntityId("Project", "workspace-v1:p1:Project:p1");
     const targetChapterId = PrismaMigrationLedgerRepository.stableEntityId("Chapter", "workspace-v1:p1:Chapter:p1-chapter-001");
-    await dbProjects.saveChapterDraft(targetProjectId, targetChapterId, { sourceText: "数据库侧写入，不回写旧工作区。\n" });
+    const dbScript = app.get(ScriptVersionService);
+    const dbWorking = await dbScript.getWorkingCopy({ projectId: targetProjectId, chapterId: targetChapterId });
+    await dbScript.updateWorkingCopy({ projectId: targetProjectId, chapterId: targetChapterId }, { sourceText: "数据库侧写入，不回写旧工作区。\n", expectedChapterRowVersion: dbWorking.chapterRowVersion });
     await expect(readFile(path.join(legacyWorkspace, "projects", "p1", "project.json"), "utf8")).rejects.toThrow();
     await expect(readFile(path.join(legacyWorkspace, "projects", "p1", "chapters", "chapter-001", "script.md"), "utf8")).rejects.toThrow();
     expect(await readFile(path.join(archivedWorkspace, "projects", "p1", "project.json"), "utf8")).toBe(legacyProjectFile);

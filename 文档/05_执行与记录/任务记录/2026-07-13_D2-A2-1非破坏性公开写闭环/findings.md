@@ -29,14 +29,20 @@ source: 当前代码、schema、trigger 与 D2/G2 文档核对
 - Web 根据 runtime capability 双模式运行，M6 前不移除 file-mode bridge。
 - A2-1 完成后 capability 仍阻塞，blockedIds 不变。
 
-## 待 Worker 验证
+## Worker 已验证
 
-- status-only 的 confirmed outline -> archived 更新是否被全部正式 trigger 接受；必须由 fresh SQLite 测试确认，不能只靠静态阅读。
-- identity-map refresh 在 mutation commit 后失败时的重试体验；至少保证命令 replay/CAS 安全。
-- 现有 Web 组件能否只改 API/store 完成 modern pending 显示；若需要改 props，保持最小 diff。
+- confirmed outline -> archived 的状态变更在 fresh SQLite 主链路通过；旧 confirmed 正文未改写。
+- ProjectRepository 和 ScriptVersionService 在 DB mutation 后主动 refresh identity map；同进程、重启和 workspace 伪文件隔离均通过。
+- Web 只改 API/store 即接入 modern Script Working Copy/Pending；组件公开 props 未扩大。
 
 ## 当前风险
 
 - 如果 Worker 用 click-time GET 最新 rowVersion 再写，会让 CAS 看似存在但双客户端保护失效。
 - 如果 Worker直接启用旧 Service 写路径，会违反 G2 已批准的 legacy fail-closed 契约。
 - 如果把旧 workspace 文件测试当 DB 写证据，会重复 D2-A0 已明确禁止的证据错误。
+
+## A2-1 实现偏差与风险
+
+- 既有 SQLite check constraint 不允许“仅 toolCallId 存在、thread/message 缺失”的组合；实现选择三者全 null，符合“不伪造 Conversation 行”和数据库硬约束，但在 D2-A5 Conversation runtime 接入前无法持久化缺失命令的 toolCallId。确定性 ID 仍用于重放与冲突判定。
+- G2 publish 的 next chapter ID 已改为 `{projectId}_chapter_{order}`，保证公开 ensure/publish 生成的章节身份稳定且可重启复用。
+- Web DB 完成动作把当前观察到的 Working Copy CAS 作为 update 输入，再使用 update 响应的 digest/rowVersion publish；没有 click-time pre-read。

@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
   Optional,
 } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -122,6 +123,28 @@ export class ProjectRepository {
       });
     }
     await this.projectsLoadPromise;
+  }
+
+  /**
+   * Refresh one DB-backed identity-map entry after a focused command write.
+   * This deliberately reads Prisma only; it never scans or merges workspace
+   * files, so a stale legacy fixture cannot shadow database facts.
+   */
+  async refreshProjectFromDatabase(projectId: string): Promise<LocalProject> {
+    if (!this.isDatabaseMode()) {
+      const project = this.projects.get(projectId);
+      if (!project) throw new NotFoundException("PROJECT_NOT_FOUND");
+      return project;
+    }
+    const row = await this.database().project.findUnique({ where: { id: projectId }, include: DB_PROJECT_INCLUDE });
+    if (!row || row.lifecycleStatus !== "active") {
+      this.projects.delete(projectId);
+      throw new NotFoundException("PROJECT_NOT_FOUND");
+    }
+    const readModel = await this.loadDatabaseReadModel([projectId], row.chaptersByProject.map((chapter) => chapter.id));
+    const project = this.databaseProjectToLocal(row, readModel);
+    this.projects.set(projectId, project);
+    return project;
   }
 
   getProject(projectId: string): LocalProject | undefined {
@@ -893,11 +916,11 @@ export class ProjectRepository {
     const operation = row.operation === "generate_script_from_seed" || row.operation === "update_chapter_draft"
       ? row.operation
       : "generate_script_from_outline";
-    return { sourceText: row.sourceText, threadId: row.threadId ?? "", messageId: row.messageId ?? "", toolCallId: row.toolCallId ?? "", operation, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+    return { sourceText: row.sourceText, threadId: row.threadId, messageId: row.messageId, toolCallId: row.toolCallId, operation, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
   }
 
   private databaseRevisionToLocal(row: Prisma.ChapterScriptRevisionGetPayload<{}>, projectId: string, chapterId: string): ScriptRevisionItem {
-    return { id: row.id, projectId, chapterId, source: "ai_tool", threadId: row.threadId ?? "", messageId: row.messageId ?? "", toolCallId: row.toolCallId ?? "", operation: row.operation as ScriptRevisionItem["operation"], summary: row.summary, createdAt: row.createdAt.toISOString() };
+    return { id: row.id, projectId, chapterId, source: "ai_tool", threadId: row.threadId, messageId: row.messageId, toolCallId: row.toolCallId, operation: row.operation as ScriptRevisionItem["operation"], summary: row.summary, createdAt: row.createdAt.toISOString() };
   }
 
   private databaseCandidateToLocal(row: Prisma.CandidateGetPayload<{}>, locks: Prisma.CandidateLockRevisionGetPayload<{}>[] = []): ProjectCandidate {

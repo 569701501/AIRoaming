@@ -118,8 +118,8 @@ export function summarizeDraftUpdate(instruction: string): string {
   return "根据用户要求更新当前章节草稿。";
 }
 
-export function formatRevisionSource(revision: { threadId: string; messageId: string; toolCallId: string }): string {
-  return `thread=${shortId(revision.threadId)} message=${shortId(revision.messageId)} tool=${shortId(revision.toolCallId)}`;
+export function formatRevisionSource(revision: { threadId: string | null; messageId: string | null; toolCallId: string | null }): string {
+  return `thread=${shortId(revision.threadId ?? "")} message=${shortId(revision.messageId ?? "")} tool=${shortId(revision.toolCallId ?? "")}`;
 }
 
 export function shortId(id: string): string {

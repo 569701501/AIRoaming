@@ -28,6 +28,7 @@ import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
 import { ProjectsService } from "./projects.service.js";
 import { ScriptVersionRepository } from "./versioning/script-version.repository.js";
+import { ScriptVersionService } from "./versioning/script-version.service.js";
 import { StoryVersionRepository } from "./versioning/story-version.repository.js";
 import { StoryboardVersionRepository } from "./versioning/storyboard-version.repository.js";
 import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
@@ -334,41 +335,36 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(first.currentChapterId).not.toBe(second.currentChapterId);
 
     const draftText = "雨夜里，信使把最后一封信交到门前。";
-    const normalizedDraftText = `${draftText}\n`;
-    const draft = await projects.saveChapterDraft(
-      first.id,
-      first.currentChapterId!,
-      { sourceText: draftText, title: "雨夜来信", summary: "信使抵达" },
-    );
-    expect(draft.chapter.sourceText).toBe(normalizedDraftText);
-    const completed = await projects.completeChapter(
-      first.id,
-      first.currentChapterId!,
-      { sourceText: draftText, createNextChapter: false },
-    );
-    expect(completed.createdNextChapter).toBe(false);
-    expect(completed.completedChapter.status).toBe("script_done");
-    expect(completed.scriptVersion.status).toBe("current");
-    await projects.saveChapterDraft(first.id, first.currentChapterId!, {
-      sourceText: draftText,
-      title: "雨夜来信",
-      summary: "信使抵达",
+    const normalizedDraftText = draftText;
+    const script = app.get(ScriptVersionService);
+    const firstWorking = await script.getWorkingCopy({ projectId: first.id, chapterId: first.currentChapterId! });
+    const draft = await script.updateWorkingCopy({ projectId: first.id, chapterId: first.currentChapterId! }, { sourceText: draftText, title: "雨夜来信", summary: "信使抵达", expectedChapterRowVersion: firstWorking.chapterRowVersion });
+    expect(draft.value.sourceText).toBe(draftText);
+    const completed = await script.publish({ projectId: first.id, chapterId: first.currentChapterId! }, {
+      expectedCurrentScriptVersionId: null,
+      expectedWorkingDigest: draft.value.digest,
+      expectedChapterRowVersion: draft.value.chapterRowVersion,
+      createNextChapter: false,
     });
+    expect(completed.createdNextChapter).toBe(false);
+    expect(completed.scriptVersion.status).toBe("current");
     expect(
       (await app.get(PrismaService).database().chapter.findUniqueOrThrow({
         where: { id: first.currentChapterId! },
       })).scriptWorkingState,
     ).toBe("clean");
 
-    const secondCompletion = await projects.completeChapter(
-      second.id,
-      second.currentChapterId!,
-      { sourceText: "第二个项目也完成第一章。" },
-    );
+    const secondWorking = await script.getWorkingCopy({ projectId: second.id, chapterId: second.currentChapterId! });
+    const secondDraft = await script.updateWorkingCopy({ projectId: second.id, chapterId: second.currentChapterId! }, { sourceText: "第二个项目也完成第一章。", expectedChapterRowVersion: secondWorking.chapterRowVersion });
+    const secondCompletion = await script.publish({ projectId: second.id, chapterId: second.currentChapterId! }, {
+      expectedCurrentScriptVersionId: null,
+      expectedWorkingDigest: secondDraft.value.digest,
+      expectedChapterRowVersion: secondDraft.value.chapterRowVersion,
+      createNextChapter: true,
+    });
     expect(secondCompletion.createdNextChapter).toBe(true);
-    expect(secondCompletion.chapters).toHaveLength(2);
-    expect(new Set(secondCompletion.chapters.map((chapter) => chapter.id)).size).toBe(2);
-    expect(secondCompletion.chapters[1]?.id).toBe(`${second.id}_chapter_002`);
+    expect((await projects.getWorkbenchSnapshot(second.id)).chapters).toHaveLength(2);
+    expect((await projects.getWorkbenchSnapshot(second.id)).chapters[1]?.id).toBe(`${second.id}_chapter_002`);
 
     await expect(projects.resetProjectScript(first.id)).rejects.toThrow(
       "DB_PERSISTENCE_OPERATION_UNSUPPORTED:reset_project_script",
@@ -386,9 +382,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       id: first.currentChapterId,
       title: "雨夜来信",
       status: "script_done",
-      sourceText: normalizedDraftText,
       currentScriptVersionId: completed.scriptVersion.id,
     });
+    expect(reopened.chapter.sourceText.trim()).toBe(draftText);
     expect((await projects.listProjects()).map((project) => project.id)).toEqual(
       expect.arrayContaining([first.id, second.id]),
     );
@@ -416,10 +412,10 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(projectRow.comicFormat).toBe("paged_comic");
     expect(chapterRow).toMatchObject({
       milestoneStatus: "script_done",
-      scriptWorkingText: normalizedDraftText,
       scriptWorkingState: "clean",
       currentScriptVersionId: completed.scriptVersion.id,
     });
+    expect(chapterRow.scriptWorkingText.trim()).toBe(draftText);
     expect(versionRows).toHaveLength(1);
     expect(versionRows[0]).toMatchObject({
       id: completed.scriptVersion.id,
@@ -436,6 +432,51 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       access(path.join(workspaceRoot, "projects", first.id)),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  }, 20_000);
+
+  it("D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable", async () => {
+    const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const script = app.get(ScriptVersionService);
+    const project = await projects.createProject({ name: "A2-1 命令闭环", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+
+    const before = await projects.getWorkbenchSnapshot(project.id);
+    expect(before.versioningCapability).toMatchObject({ mode: "g2_db", schemaVersion: 2, supports: { scriptWorkingCopy: true, importer: false } });
+    const metadata = await projects.updateProjectDraft(project.id, { name: "A2-1 已更新", description: "只改 metadata" });
+    expect(metadata.name).toBe("A2-1 已更新");
+    const ensured = await projects.ensureChapterExists(project.id, 2, "第二章");
+    const replayedChapter = await projects.ensureChapterExists(project.id, 2, "不会覆盖标题");
+    expect(replayedChapter.id).toBe(ensured.id);
+    expect(replayedChapter.title).toBe("第二章");
+
+    const aiInput = { sourceText: "第二章正文\n", title: "第二章", summary: "AI 建议", threadId: "missing-thread", messageId: "missing-message", toolCallId: "tool-a2-1", operation: "generate_script_from_outline" as const };
+    const pendingResult = await projects.writeChapterDraftFromAI(project.id, ensured.id, aiInput);
+    const pendingReplay = await projects.writeChapterDraftFromAI(project.id, ensured.id, aiInput);
+    expect(pendingReplay.revision.id).toBe(pendingResult.revision.id);
+    const pending = await script.getPendingSuggestion({ projectId: project.id, chapterId: ensured.id });
+    expect(pending).toMatchObject({ sourceText: "第二章正文", threadId: null, messageId: null, toolCallId: null });
+    const adopted = await script.adoptPendingSuggestion({ projectId: project.id, chapterId: ensured.id }, { pendingId: pending!.id, expectedPendingRowVersion: pending!.rowVersion, expectedPendingDigest: pending!.digest, expectedChapterRowVersion: pending!.chapterRowVersion });
+    expect(adopted.value.sourceText.trim()).toBe("第二章正文");
+    expect((await app.get(PrismaService).database().chapterScriptVersion.count({ where: { chapterId: ensured.id } }))).toBe(0);
+
+    const outlineInput = { sourceText: "# A2-1 大纲\n\n第一幕", threadId: "missing-thread", messageId: "missing-message", toolCallId: "outline-a2-1" };
+    const outline = await projects.saveScriptOutlineFromAI(project.id, outlineInput);
+    expect(outline.status).toBe("draft");
+    expect((await projects.saveScriptOutlineFromAI(project.id, outlineInput)).id).toBe(outline.id);
+    const confirmed = await projects.confirmScriptOutline(project.id, outline.id);
+    expect(confirmed.status).toBe("confirmed");
+    await expect(projects.confirmScriptOutline(project.id, "stale-outline")).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "VERSION_NOT_FOUND" }) }) });
+
+    expect((await projects.getWorkbenchSnapshot(project.id)).currentChapter?.sourceText.trim()).toBe("第二章正文");
+    await writeFile(path.join(workspaceRoot, "projects", project.id, "project.json"), "{\"name\":\"tampered\"}\n").catch(() => undefined);
+    expect((await projects.getWorkbenchSnapshot(project.id)).project.name).toBe("A2-1 已更新");
+    await app.close();
+    app = null;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    expect((await app.get(ProjectsService).getWorkbenchSnapshot(project.id)).scriptOutline?.id).toBe(outline.id);
+    expect(readBusinessFacts(databasePath).projects).toBe(1);
   }, 20_000);
 
   it("fails closed when an active DB project has no current chapter", async () => {

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 
 export type G2DatabaseErrorCode =
   | "G2_DB_MODE_REQUIRED"
+  | "PROJECT_NOT_FOUND"
   | "CHAPTER_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "SCRIPT_VERSION_MISSING"

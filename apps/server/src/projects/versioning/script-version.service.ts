@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable } from "@nestjs/common";
+import { HttpException, Inject, Injectable, Optional } from "@nestjs/common";
 import type {
   ScriptHistoryCopyRequest,
   ScriptHistoryDetail,
@@ -17,29 +17,33 @@ import type {
 import { createG2DatabaseError, G2DatabaseError } from "./g2-database-error.mapper.js";
 import { ScriptVersionRepository } from "./script-version.repository.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
+import { ProjectRepository } from "../project-repository.service.js";
 
 @Injectable()
 export class ScriptVersionService {
-  constructor(@Inject(ScriptVersionRepository) private readonly repository: ScriptVersionRepository) {}
+  constructor(
+    @Inject(ScriptVersionRepository) private readonly repository: ScriptVersionRepository,
+    @Optional() @Inject(ProjectRepository) private readonly projectRepository?: ProjectRepository,
+  ) {}
 
   getWorkingCopy(scope: VersionScopeV1): Promise<ScriptWorkingCopyDto> {
     return this.execute(() => this.repository.getWorkingCopy(scope));
   }
 
   updateWorkingCopy(scope: VersionScopeV1, request: ScriptWorkingCopyUpdateRequest): Promise<ScriptMutationResult<ScriptWorkingCopyDto>> {
-    return this.execute(() => { validateUpdateRequest(request); return this.repository.updateWorkingCopy(scope, request); });
+    return this.executeAndRefresh(scope, () => { validateUpdateRequest(request); return this.repository.updateWorkingCopy(scope, request); });
   }
 
   clearWorkingCopy(scope: VersionScopeV1, request: ScriptWorkingCopyClearRequest): Promise<ScriptMutationResult<ScriptWorkingCopyDto>> {
-    return this.execute(() => { validateClearRequest(request); return this.repository.clearWorkingCopy(scope, request); });
+    return this.executeAndRefresh(scope, () => { validateClearRequest(request); return this.repository.clearWorkingCopy(scope, request); });
   }
 
   revertWorkingCopy(scope: VersionScopeV1, request: ScriptWorkingCopyRevertRequest): Promise<ScriptMutationResult<ScriptWorkingCopyDto>> {
-    return this.execute(() => { validateRevertRequest(request); return this.repository.revertWorkingCopy(scope, request); });
+    return this.executeAndRefresh(scope, () => { validateRevertRequest(request); return this.repository.revertWorkingCopy(scope, request); });
   }
 
   publish(scope: VersionScopeV1, request: ScriptPublishRequest): Promise<ScriptPublishResponse> {
-    return this.execute(() => { validatePublishRequest(request); return this.repository.publish(scope, request); });
+    return this.executeAndRefresh(scope, () => { validatePublishRequest(request); return this.repository.publish(scope, request); });
   }
 
   getPendingSuggestion(scope: VersionScopeV1): Promise<ScriptPendingSuggestionDto | null> {
@@ -47,11 +51,11 @@ export class ScriptVersionService {
   }
 
   adoptPendingSuggestion(scope: VersionScopeV1, request: ScriptPendingAdoptRequest): Promise<ScriptMutationResult<ScriptWorkingCopyDto>> {
-    return this.execute(() => { validateAdoptRequest(request); return this.repository.adoptPendingSuggestion(scope, request); });
+    return this.executeAndRefresh(scope, () => { validateAdoptRequest(request); return this.repository.adoptPendingSuggestion(scope, request); });
   }
 
   discardPendingSuggestion(scope: VersionScopeV1, request: ScriptPendingDiscardRequest): Promise<ScriptMutationResult<null>> {
-    return this.execute(() => { validateDiscardRequest(request); return this.repository.discardPendingSuggestion(scope, request); });
+    return this.executeAndRefresh(scope, () => { validateDiscardRequest(request); return this.repository.discardPendingSuggestion(scope, request); });
   }
 
   listHistory(scope: VersionScopeV1, options?: { limit?: number; beforeVersion?: number }): Promise<ScriptHistoryPage> {
@@ -63,7 +67,7 @@ export class ScriptVersionService {
   }
 
   copyHistoryToWorkingCopy(scope: VersionScopeV1, versionId: string, request: ScriptHistoryCopyRequest): Promise<ScriptMutationResult<ScriptWorkingCopyDto>> {
-    return this.execute(() => { validateHistoryCopyRequest(request); return this.repository.copyHistoryToWorkingCopy(scope, versionId, request); });
+    return this.executeAndRefresh(scope, () => { validateHistoryCopyRequest(request); return this.repository.copyHistoryToWorkingCopy(scope, versionId, request); });
   }
 
   private async execute<T>(operation: () => Promise<T>): Promise<T> {
@@ -75,6 +79,12 @@ export class ScriptVersionService {
       }
       throw error;
     }
+  }
+
+  private async executeAndRefresh<T>(scope: VersionScopeV1, operation: () => Promise<T>): Promise<T> {
+    const result = await this.execute(operation);
+    if (this.projectRepository) await this.projectRepository.refreshProjectFromDatabase(scope.projectId);
+    return result;
   }
 }
 

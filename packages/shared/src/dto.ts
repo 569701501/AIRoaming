@@ -193,9 +193,9 @@ export interface ChapterPendingSourceText {
   /** 草稿正文文本。 */
   sourceText: string;
   /** 生成该草稿的来源对话消息 id,用于追溯。 */
-  threadId: string;
-  messageId: string;
-  toolCallId: string;
+  threadId: string | null;
+  messageId: string | null;
+  toolCallId: string | null;
   /** 生成操作类型。 */
   operation: "generate_script_from_seed" | "generate_script_from_outline" | "update_chapter_draft";
   /** 生成时间。 */
@@ -854,9 +854,9 @@ export interface ScriptRevisionItem {
   projectId: string;
   chapterId: string | null;
   source: "ai_tool";
-  threadId: string;
-  messageId: string;
-  toolCallId: string;
+  threadId: string | null;
+  messageId: string | null;
+  toolCallId: string | null;
   operation: "import_script_to_chapters" | "update_chapter_draft" | "generate_script_from_seed" | "generate_script_from_outline";
   summary: string;
   createdAt: string;
@@ -1272,6 +1272,7 @@ export interface WorkbenchAsset {
 }
 
 export interface WorkbenchSnapshot {
+  versioningCapability: VersioningCapability;
   project: {
     id: string;
     name: string;
@@ -1304,4 +1305,17 @@ export interface WorkbenchSnapshot {
     title: string;
     body: string;
   }>;
+}
+
+export interface VersioningCapability {
+  mode: "legacy_file" | "g2_db";
+  schemaVersion: 2;
+  supports: {
+    scriptWorkingCopy: boolean;
+    storyWorkingCopy: boolean;
+    storyboardWorkingCopy: boolean;
+    preflightRevision: boolean;
+    persistentTaskRuntime: boolean;
+    importer: boolean;
+  };
 }

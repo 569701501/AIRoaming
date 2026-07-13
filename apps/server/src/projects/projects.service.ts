@@ -116,6 +116,7 @@ import {
   type UpdateProjectDraftRequest,
   type WorkbenchAsset,
   type WorkbenchSnapshot,
+  type VersioningCapability,
   normalizeCameraAngle,
   normalizeCameraMovement,
   normalizeFrameType,
@@ -129,6 +130,8 @@ import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
+import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
+import { G2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import {
   createCandidateGenerationSpec,
   createCandidateGenerationTaskInput,
@@ -212,6 +215,10 @@ export class ProjectsService implements OnModuleInit {
   private characterReferenceQueue: Promise<void> = Promise.resolve();
   private readonly projectDeletedListeners = new Set<ProjectDeletedListener>();
 
+  private isDatabaseMode(): boolean {
+    return (this.repository as unknown as { isDatabaseMode?: () => boolean }).isDatabaseMode?.() === true;
+  }
+
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(TasksService) private readonly tasksService: TasksService,
@@ -228,6 +235,7 @@ export class ProjectsService implements OnModuleInit {
     @Inject(LayoutExportService) private readonly layoutExport: LayoutExportService,
     @Inject(AssetPackageService) private readonly assetPackage: AssetPackageService,
     @Optional() @Inject(PersistentG2TaskCreateGuardService) private readonly g2TaskCreateGuard?: PersistentG2TaskCreateGuardService,
+    @Optional() @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -307,6 +315,28 @@ export class ProjectsService implements OnModuleInit {
 
   async updateProjectDraft(projectId: string, rawInput: unknown): Promise<ProjectListItem> {
     const input = parseUpdateProjectDraftRequestV1(rawInput);
+    if (this.isDatabaseMode()) {
+      if (rawInput && typeof rawInput === "object" && Object.prototype.hasOwnProperty.call(rawInput, "sourceText")) {
+        throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { replacement: `/api/projects/${projectId}/chapters/{currentChapterId}/script/working-copy` } } }, 409);
+      }
+      try {
+        if (!this.scriptCommands) throw new Error("DB_SCRIPT_COMMAND_REPOSITORY_MISSING");
+        await this.scriptCommands.updateProjectMetadata(projectId, {
+          name: input.name,
+          storyTitle: input.storyTitle,
+          genreTags: input.genreTags,
+          artStyle: input.artStyle,
+          description: input.description,
+        });
+      } catch (error) {
+        if (error instanceof G2DatabaseError) {
+          throw new HttpException({ success: false, error: { code: error.code, message: error.message, details: error.details } }, error.status);
+        }
+        throw error;
+      }
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      return this.toProjectListItem(refreshed);
+    }
     // 请求内容的既有校验必须早于存储模式门禁，避免 DB 模式改变公开 API 的参数错误语义。
     if (input.sourceText !== undefined && !input.sourceText.trim()) {
       throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
@@ -448,16 +478,19 @@ export class ProjectsService implements OnModuleInit {
   async saveChapterDraft(projectId: string,
     chapterId: string,
     input: SaveChapterDraftRequest,) : Promise<SaveChapterDraftResponse> {
+    if (this.isDatabaseMode()) this.throwLegacyWriteDisabled(projectId, chapterId, "PATCH");
     return this.chapterScript.saveChapterDraft(projectId, chapterId, input);
   }
 
   async completeChapter(projectId: string,
     chapterId: string,
     input: CompleteChapterRequest,) : Promise<CompleteChapterResponse> {
+    if (this.isDatabaseMode()) this.throwLegacyWriteDisabled(projectId, chapterId, "POST");
     return this.chapterScript.completeChapter(projectId, chapterId, input);
   }
 
   async clearChapterScript(projectId: string, chapterId: string) : Promise<ClearChapterScriptResponse> {
+    if (this.isDatabaseMode()) this.throwLegacyWriteDisabled(projectId, chapterId, "POST");
     this.repository.assertDatabaseOperationSupported("clear_chapter_script");
     return this.chapterScript.clearChapterScript(projectId, chapterId);
   }
@@ -468,6 +501,7 @@ export class ProjectsService implements OnModuleInit {
    */
   async confirmChapterPendingSource(projectId: string,
     chapterId: string,) : Promise<ConfirmChapterPendingSourceResponse> {
+    if (this.isDatabaseMode()) this.throwLegacyWriteDisabled(projectId, chapterId, "POST");
     this.repository.assertDatabaseOperationSupported("confirm_chapter_pending_source");
     return this.chapterScript.confirmChapterPendingSource(projectId, chapterId);
   }
@@ -477,8 +511,13 @@ export class ProjectsService implements OnModuleInit {
    */
   async discardChapterPendingSource(projectId: string,
     chapterId: string,) : Promise<DiscardChapterPendingSourceResponse> {
+    if (this.isDatabaseMode()) this.throwLegacyWriteDisabled(projectId, chapterId, "DELETE");
     this.repository.assertDatabaseOperationSupported("discard_chapter_pending_source");
     return this.chapterScript.discardChapterPendingSource(projectId, chapterId);
+  }
+
+  private throwLegacyWriteDisabled(projectId: string, chapterId: string, _method: string): never {
+    throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { replacement: `/api/projects/${projectId}/chapters/${chapterId}/script/working-copy` } } }, 409);
   }
 
   /**
@@ -497,7 +536,7 @@ export class ProjectsService implements OnModuleInit {
    * 用于批量逐章生成时,每生成一章前确保目标章节已就位。
    */
   async ensureChapterExists(projectId: string, order: number, title?: string) : Promise<ChapterDetail> {
-    this.repository.assertDatabaseOperationSupported("ensure_chapter_exists");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("ensure_chapter_exists");
     return this.chapterScript.ensureChapterExists(projectId, order, title);
   }
 
@@ -507,18 +546,18 @@ export class ProjectsService implements OnModuleInit {
     if (!stripChapterScriptName(input.sourceText.trim())) {
       throw new BadRequestException("AI_CHAPTER_DRAFT_REQUIRED");
     }
-    this.repository.assertDatabaseOperationSupported("write_chapter_draft_from_ai");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("write_chapter_draft_from_ai");
     return this.chapterScript.writeChapterDraftFromAI(projectId, chapterId, input);
   }
 
   async saveScriptOutlineFromAI(projectId: string, input: SaveScriptOutlineFromAIInput) : Promise<ProjectScriptOutline> {
-    this.repository.assertDatabaseOperationSupported("save_script_outline_from_ai");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("save_script_outline_from_ai");
     return this.chapterScript.saveScriptOutlineFromAI(projectId, input);
   }
 
-  async confirmScriptOutline(projectId: string): Promise<ProjectScriptOutline> {
-    this.repository.assertDatabaseOperationSupported("confirm_script_outline");
-    return this.chapterScript.confirmScriptOutline(projectId);
+  async confirmScriptOutline(projectId: string, expectedOutlineId?: string): Promise<ProjectScriptOutline> {
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("confirm_script_outline");
+    return this.chapterScript.confirmScriptOutline(projectId, expectedOutlineId);
   }
 
   async getChapterStoryStructure(projectId: string, chapterId: string) : Promise<GetChapterStoryStructureResponse> {
@@ -566,7 +605,7 @@ export class ProjectsService implements OnModuleInit {
   }
 
   private async guardGenerationTaskCreate(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest | void> {
-    if (this.repository.isDatabaseMode()) {
+    if (this.isDatabaseMode()) {
       if (!this.g2TaskCreateGuard) throw new BadRequestException("G2_TASK_CREATE_GUARD_UNAVAILABLE");
       return this.g2TaskCreateGuard.prepare(input);
     }
@@ -794,6 +833,9 @@ export class ProjectsService implements OnModuleInit {
     const workflow = this.buildProjectWorkflow(readyProject, currentChapter);
 
     return {
+      versioningCapability: this.isDatabaseMode()
+        ? { mode: "g2_db", schemaVersion: 2, supports: { scriptWorkingCopy: true, storyWorkingCopy: true, storyboardWorkingCopy: true, preflightRevision: true, persistentTaskRuntime: true, importer: false } }
+        : { mode: "legacy_file", schemaVersion: 2, supports: { scriptWorkingCopy: false, storyWorkingCopy: false, storyboardWorkingCopy: false, preflightRevision: false, persistentTaskRuntime: false, importer: false } } satisfies VersioningCapability,
       project: {
         id: readyProject.id,
         name: readyProject.name,

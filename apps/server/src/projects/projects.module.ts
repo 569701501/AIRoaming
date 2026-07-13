@@ -34,12 +34,14 @@ import { PreflightRevisionService } from "./versioning/preflight-revision.servic
 import { TaskApplicabilityGuardService } from "./versioning/task-applicability-guard.service.js";
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
+import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
   controllers: [ProjectsController],
   providers: [
     ProjectRepository,
+    ProjectScriptCommandRepository,
     ImageProviderService,
     CandidateReferenceResolver,
     ProjectStore,
