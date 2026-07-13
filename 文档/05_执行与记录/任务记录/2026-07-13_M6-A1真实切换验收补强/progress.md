@@ -70,7 +70,7 @@ Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执
 
 提交：`e9912ca`（`feat(m6): bind pre-cutover backup and durable evidence`）。
 
-下一步：完成真实临时 SQLite 的 C0～C7 综合链，随后做 A1-5 Scrutiny/Runtime Review。
+下一步：补齐 `luna_next_execution_handoff.md` 列出的临时根故障注入、crash-resume、路径和安全负例；真实切换仍禁止。
 
 ### A1-3 收口
 
