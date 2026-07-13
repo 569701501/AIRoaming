@@ -54,6 +54,7 @@ source: 本总目标编制过程
 - `queue_character_reference` 已进入 DB 持久 GenerationTask + Character source freeze，支持同输入幂等重放，不调用 provider、不写物理图片。
 - worker 已接入 `character_reference_generate`：fake handler 证据覆盖 claim/source fencing、staged→ready Asset、CharacterVisual 与 preview 指针；迟到结果保留 historical。
 - `confirm_character_preview` 与 `confirm_character_reference` 已接入 DB：preview/final pointer、状态与层级规则均有 fresh SQLite 证据。
-- scene reference worker 已接入 DB completion：staged→ready Asset、SceneVisual 和 currentVisual source fencing 有 fresh SQLite 证据；公开 scene queue 仍 blocked。
-- 定向 29 项、server 全量 54 文件/370 测试、Scrutiny、Runtime 和静态门禁通过；SceneVisual worker 待独立提交。
-- Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一步补齐公开 scene queue/source projection 或进入 CandidateLock。
+- scene reference worker 已接入 DB completion：staged→ready Asset、SceneVisual 和 currentVisual source fencing 有 fresh SQLite 证据。
+- 公开 `queue_scene_reference` 已接入 ChapterScene source projection、持久 task 与 replay；新增 `P4-SCENE-01`。
+- 定向 30 项、server 全量 54 文件/371 测试、Scrutiny、Runtime 和静态门禁全部通过；本切片待独立提交。
+- Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一步处理 Character delete 或 CandidateLock，不能跳到 M6。

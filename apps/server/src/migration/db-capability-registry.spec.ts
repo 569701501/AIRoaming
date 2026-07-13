@@ -89,6 +89,7 @@ describe("M5-A0 DB capability registry", () => {
       "update_project_draft",
       "extract_characters",
       "update_character",
+      "queue_scene_reference",
       "queue_character_reference",
       "confirm_character_preview",
       "confirm_character_reference",

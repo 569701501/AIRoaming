@@ -132,7 +132,7 @@ const entries: DbCapabilityEntry[] = [
  *
  * 这些操作都来自 `assertDatabaseOperationSupported()` 调用点，不能因为
  * 同一聚合 capability 的内部 repository 已经可写，就把公开 Service 入口
- * 误报为已完成。当前仅 `generation_task_create` 有 DB 公开路径证据；其余
+ * 误报为已完成。每个已开放门禁都必须同时具备 DB 集成测试证据；其余
  * 门禁保持 unsupported，直到对应切片补齐并添加稳定测试证据。
  */
 const operations: DbCapabilityOperation[] = [
@@ -217,8 +217,8 @@ const operations: DbCapabilityOperation[] = [
     sourceFile: "apps/server/src/projects/projects.service.ts",
     sourceSymbol: "ProjectsService.queueSceneReference",
     readStatus: "not_applicable",
-    writeStatus: "unsupported",
-    evidenceTestIds: [],
+    writeStatus: "implemented",
+    evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-SCENE-01: queues a DB scene reference with chapter-scene source freeze and replay"],
   },
   {
     operation: "generate_scene_reference",

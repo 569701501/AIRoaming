@@ -702,6 +702,61 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.chapterScene.findUniqueOrThrow({ where: { id: scene.id } })).currentVisualId).toBe(visual.id);
   }, 20_000);
 
+  it("P4-SCENE-01: queues a DB scene reference with chapter-scene source freeze and replay", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const prisma = app.get(PrismaService).database();
+    const scripts = app.get(ScriptVersionRepository);
+    const stories = app.get(StoryVersionRepository);
+    const project = await projects.createProject({ name: "P4 场景排队", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapter = await prisma.chapter.findFirstOrThrow({ where: { projectId: project.id } });
+    const scope = { projectId: project.id, chapterId: chapter.id };
+    const scriptText = "场景测试剧本";
+    const scriptEncoded = encodeScriptTextV1(scriptText, { allowEmpty: false });
+    const scriptWorking = await scripts.updateWorkingCopy(scope, { sourceText: scriptText, expectedChapterRowVersion: chapter.rowVersion });
+    const published = await scripts.publish(scope, {
+      expectedCurrentScriptVersionId: null,
+      expectedWorkingDigest: scriptEncoded.digest,
+      expectedChapterRowVersion: scriptWorking.value.chapterRowVersion,
+      createNextChapter: false,
+    });
+    const storyCreated = await stories.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: published.scriptVersion.id,
+      expectedChapterRowVersion: published.workingCopy.chapterRowVersion,
+    });
+    const document: StoryDocumentV2 = { schemaVersion: 2, chapterId: chapter.id, direction: { logline: "", chapterGoal: "", coreConflict: "", emotionalArc: "", endingHook: "" }, synopsis: "", characters: [], scenes: [{ id: "scene-1", name: "旧街", location: "旧街", timeOfDay: "夜", atmosphere: "雨", purpose: "铺垫" }], beats: [], notes: "" };
+    const storyUpdated = await stories.updateWorkingCopy(scope, {
+      pendingVersionId: storyCreated.value.pending!.id,
+      document,
+      expectedPendingRowVersion: 0,
+      expectedChapterRowVersion: storyCreated.chapterRowVersion,
+    });
+    const storyConfirmed = await stories.confirmWorkingCopy(scope, {
+      pendingVersionId: storyCreated.value.pending!.id,
+      expectedPendingDocumentDigest: storyUpdated.value.pending!.documentDigest,
+      expectedPendingRowVersion: 1,
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: published.scriptVersion.id,
+      expectedSourceDigest: published.scriptVersion.sourceDigest,
+      expectedChapterRowVersion: storyUpdated.chapterRowVersion,
+    });
+    expect(storyConfirmed.value.current?.id).toBe(storyCreated.value.pending!.id);
+    const scene = await prisma.chapterScene.findFirstOrThrow({ where: { projectId: project.id, chapterId: chapter.id, sceneKey: "scene-1" } });
+    const queued = await projects.queueSceneReference(project.id, chapter.id, "scene-1", { prompt: "固定场景提示词" });
+    expect(queued.createdCount).toBe(1);
+    expect(queued.tasks[0]).toMatchObject({ type: "scene_reference_generate", target: { type: "scene", id: scene.id, chapterId: chapter.id }, status: "queued" });
+    const task = await prisma.generationTask.findUniqueOrThrow({ where: { id: queued.tasks[0]!.id }, include: { generationTaskSourcesByTask: true } });
+    expect(task.sourceSetSealedAt).not.toBeNull();
+    expect(task.generationTaskSourcesByTask[0]).toMatchObject({ sourceType: "chapter_scene", sourceId: scene.id, role: "scene" });
+    const replay = await projects.queueSceneReference(project.id, chapter.id, "scene-1", { prompt: "固定场景提示词" });
+    expect(replay.createdCount).toBe(0);
+    expect(replay.tasks[0]!.id).toBe(queued.tasks[0]!.id);
+  }, 20_000);
+
   it("fails closed when an active DB project has no current chapter", async () => {
     const { databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
