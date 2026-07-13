@@ -31,16 +31,16 @@ source: M6-A1 实施契约与 G1 正式验收清单
 
 | ID | 场景 | 必须断言 | 状态 |
 | --- | --- | --- | --- |
-| M6A1-RDY-01 | markReady 使用真实 closed runtime bundle | final/capability/secret/closed 全绿才写 ready | `not_run` |
-| M6A1-RDY-02 | 布尔假证据退役 | API/类型中不存在 `backupVerified`、`maintenanceClosed`；缺 bundle 必失败 | `not_run` |
+| M6A1-RDY-01 | markReady 使用真实 closed runtime bundle | final/capability/secret/closed 全绿才写 ready | `passed`（`src/migration/m6-c0-c7.rehearsal.spec.ts`，M6A1-RDY-01） |
+| M6A1-RDY-02 | 布尔假证据退役 | API/类型中不存在 `backupVerified`、`maintenanceClosed`；缺 bundle 必失败 | `passed`（`src/migration/m6-c0-c7.rehearsal.spec.ts`，M6A1-RDY-02） |
 | M6A1-EVD-01 | C0→C6 持久证据 | step/manifest 原子写、摘要链、C6_READY 可验证 | `passed`（`src/migration/cutover-coordinator.service.spec.ts`，M6A1-EVD-01） |
 | M6A1-EVD-02 | 新实例 resume | 从下一步继续；相同已完成输入幂等且 action 不重跑 | `passed`（`src/migration/cutover-coordinator.service.spec.ts`） |
 | M6A1-EVD-03 | 跳步/改 identity/改 input | `CUTOVER_ORDER_INVALID`/`CUTOVER_RESUME_CONFLICT`，旧证据字节不变 | `passed`（`src/migration/cutover-coordinator.service.spec.ts`，M6A1-EVD-03） |
 | M6A1-EVD-04 | evidence raw/reseal tamper | digest/语义校验失败，activate 零写 | `passed`（`src/migration/cutover-coordinator.service.spec.ts`，M6A1-EVD-04） |
 | M6A1-ACT-01 | dry-run + 真实 pre-cutover bundle | 返回 ready；DB 字节/state/evidence 全不变 | `passed`（`src/backup/app-backup-restore.integration.spec.ts`） |
 | M6A1-ACT-02 | coordinated/shadow bundle | `ACTIVATE_BACKUP_UNVERIFIED`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`） |
-| M6A1-ACT-03 | stale final/source/snapshot/decisions/effective | `ACTIVATE_IDENTITY_MISMATCH`，state 保持 ready | `not_run` |
-| M6A1-ACT-04 | maintenance/evidence 未到 C6 | `ACTIVATE_NOT_READY`，state 保持 ready | `not_run` |
+| M6A1-ACT-03 | stale final/source/snapshot/decisions/effective | `ACTIVATE_IDENTITY_MISMATCH`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-03） |
+| M6A1-ACT-04 | maintenance/evidence 未到 C6 | `ACTIVATE_NOT_READY`，state 保持 ready | `passed`（`src/migration/db-activate.service.spec.ts`，M6A1-ACT-04） |
 | M6A1-ACT-05 | execute | 条件事务只写 db_only+activatedAt；first write 为空；C7/COMPLETED 后才 reopen | `not_run` |
 | M6A1-ACT-06 | execute crash 后 resume | 不重写 activatedAt；同身份补 C7；first write 非空时拒绝补写 | `not_run` |
 

@@ -35,7 +35,7 @@ source: M6-A1 当前代码、测试矩阵、Scrutiny/Runtime Review
 ### Ready / Evidence / Activate
 
 - `M6A1-RDY-01/02`：真实 closed runtime bundle，缺 bundle 或布尔假证据拒绝。
-- `M6A1-ACT-03/04/05/06`：stale identity、未到 C6、execute 的 C7 落盘顺序、execute 后 crash 同身份补证据且不重写 `activatedAt`。
+- `M6A1-ACT-05/06`：execute 的 C7 落盘顺序、execute 后 crash 同身份补证据且不重写 `activatedAt`。
 
 ### Business / rollback / security
 
