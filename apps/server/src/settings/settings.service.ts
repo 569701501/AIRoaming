@@ -384,13 +384,18 @@ export class SettingsService implements OnModuleInit {
     if (!database) {
       throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
     }
-    const [preference, providers] = await Promise.all([
+    const [preference, providers, persistenceState] = await Promise.all([
       database.appPreference.findUnique({ where: { id: "primary" } }),
       database.providerConfig.findMany({ include: { credentialMetadataByProviderConfig: true } }),
+      database.persistenceState.findUnique({ where: { id: "primary" } }),
     ]);
     if (!preference || providers.length === 0) {
       const defaults = await this.prepareRuntimeSecrets(this.defaultSettings(), false);
-      await this.writeDatabaseSettings(defaults);
+      // A read-only API restart is allowed while the cutover fence is closed.
+      // Do not attempt to seed default provider rows through the business-write
+      // boundary in ready/recovery states; activation owns reopening writes.
+      const writesClosed = persistenceState && ["ready_for_activation", "recovery_required"].includes(persistenceState.activationState);
+      if (!writesClosed) await this.writeDatabaseSettings(defaults);
       return defaults;
     }
     const textProvider = providers.find((provider) => provider.id === preference.defaultTextProviderId)
