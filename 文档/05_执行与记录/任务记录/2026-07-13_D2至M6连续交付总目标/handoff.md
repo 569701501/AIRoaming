@@ -40,7 +40,7 @@ D2-A2-1
 | 项目 | 当前状态 |
 | --- | --- |
 | 当前分支 | `codex/g0-test-safety-net` |
-| 当前代码 HEAD | `30131b5`；D2-A3-2A 已连续推进至 scene queue、CandidateLock、images_done |
+| 当前代码 HEAD | `2824dbe`；D2-A3-2A/B 已连续推进至 scene queue、CandidateLock、images_done 与旧参考图入口退役 |
 | M5 | `completed`；A0～A4 已实现并复核 |
 | D2-A0 | `completed`；8 个聚合 capability、36 个操作已登记 |
 | D2-A1-2 | `completed`；Settings/SecretStore 已绿 |
