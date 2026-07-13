@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-RUNTIME-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -12,7 +12,7 @@ source: acceptance_checklist.md
 
 ## 当前状态
 
-`completed`。M5-A3 已在全新临时 data/workspace/SQLite 根完成 backup → restore → restart/API 演练；未触碰真实根、SecretStore、final import 或 activate。
+`partial`。M5-A3 已在全新临时 data/workspace/SQLite 根完成 happy-path backup → restore → restart/API 演练；未触碰真实根、SecretStore、final import 或 activate。但 writer/WAL、完整 tamper、symlink/重叠、secret 和补偿失败未执行，不能标 completed。
 
 ## A3 必须执行的临时路径
 
@@ -28,4 +28,4 @@ source: acceptance_checklist.md
 
 ## 通过条件
 
-通过证据：A1 3/3、A2/A3 4/4、server 49 files/314 tests、workspace typecheck、G1 三项检查、Prisma validate 和 diff check 全部通过。M6 仍需另行复核 capability、SecretStore、final importer 和 activate。
+已有证据：A1 3/3、A2/A3 4/4、server 49 files/314 tests、workspace typecheck、G1 三项检查、Prisma validate 和 diff check通过。专项缺口转入 `2026-07-13_G3-M5A4验收收口/runtime_user_review.md`，补齐前 M5 不通过。

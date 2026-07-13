@@ -12,7 +12,7 @@ source: G3-M 五份施工资料、G1 Secret/backup/restore 契约、M4 正式验
 
 ## 1. 当前阶段
 
-`completed`。M4 已正式通过；M5-A0～A2 工具与 M5-A3 完整 backup → restore → restart/API 演练均已通过临时根验收。M6、final import、SecretStore 与真实 production activate 继续阻塞。
+`hardening_required`。M4 已正式通过，M5-A0～A3 已有实现；但 2026-07-13 独立复核确认原验收把未执行的故障矩阵写成通过，并发现 backup 一致性窗口、restore ledger/release identity、secret 扫描和补偿清理缺口。当前必须先执行 `2026-07-13_G3-M5A4验收收口`，M6、final import、SecretStore 与真实 production activate 继续阻塞。
 
 M4 验收基线为 `65c90fe`；M5 开发基线以“包含本任务包的文档提交”为准，Luna 不应从 `65c90fe` 直接开工。
 
@@ -37,9 +37,10 @@ M4 验收基线为 `65c90fe`；M5 开发基线以“包含本任务包的文档�
 | 切片 | 目标 | 允许开始条件 | 退出条件 |
 | --- | --- | --- | --- |
 | M5-A0 | capability registry + CLI | M4 completed | 已完成；CAP-01/02 通过；`--check` 当前稳定阻塞 |
-| M5-A1 | coordinated backup | A0 提交并复核 | 已完成；BAK-01～03 通过；失败无 `SEALED` |
-| M5-A2 | verify-only/materialize restore | A1 提交并复核 | 已完成；RST-01～03 通过；只恢复到不存在的空根 |
-| M5-A3 | backup/restore rehearsal | A2 提交并复核 | 已完成；RST-04、server 全量、typecheck、G1 门禁通过 |
+| M5-A1 | coordinated backup | A0 提交并复核 | 实现已提交；验收为 partial，待 A4 补一致性与故障注入 |
+| M5-A2 | verify-only/materialize restore | A1 提交并复核 | 实现已提交；验收为 partial，待 A4 补 ledger/release/secret/补偿门 |
+| M5-A3 | backup/restore rehearsal | A2 提交并复核 | happy path 已执行；不能替代未运行的 BAK/RST 矩阵 |
+| M5-A4 | backup/restore acceptance hardening | A3 独立复核 | 当前待开发；入口见 `../2026-07-13_G3-M5A4验收收口/handoff.md` |
 
 一次只交给 Luna 一个切片；不得把 A0～A3 合成单次大任务。
 
@@ -92,4 +93,4 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts
 
 ## 8. 完成定义
 
-M5 `completed` 只表示临时根 coordinated backup/restore 工具和演练通过。它不代表 capability 全绿、SecretStore 完成、final import 完成或 production cutover 可执行。
+M5 当前不是 `completed`。只有 M5-A4 全部通过并重新完成双 Review，才可恢复为 completed；即使恢复，也只表示临时根 coordinated backup/restore 通过，不代表 capability、SecretStore、final import 或 production cutover 完成。

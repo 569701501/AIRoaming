@@ -10,6 +10,8 @@ source: task_plan.md、G3-M backup/activate 施工资料与当前 CLI 约定
 
 # G3-M5 实施契约
 
+> 2026-07-13 独立复核后，本契约的验收收口由相邻任务目录 `2026-07-13_G3-M5A4验收收口/implementation_contract.md` 补充；冲突处以 A4 更严格规则为准。尤其 restore 必须新增显式 release root 并完成 ledger/release identity 核对。
+
 ## 1. Capability registry
 
 ### 1.1 数据结构

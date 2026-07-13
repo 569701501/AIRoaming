@@ -12,7 +12,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 1. 当前结论
 
-M0～M4 foundation 已完成并正式签字；production cutover 尚未就绪。后续从 M5-A0 按单切片推进，不能把 full shadow、临时 coordinated backup 或空根 restore 宣称为 final importer/cutover 完成。
+M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，但独立复核后为 `hardening_required`。后续从 M5-A4-1 按单切片推进，不能把 full shadow、临时 coordinated backup 或空根 restore 宣称为 final importer/cutover 完成。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -40,7 +40,7 @@ M0～M4 foundation 已完成并正式签字；production cutover 尚未就绪。
 | G3-M3-A15 Dialogue runtime shadow | implemented；captured 对话历史、closed session 与显式 pending Dialogue artifact 均导入并留证，deferred 状态零实体 |
 | G3-M3 full importer | implemented，commit `9e04495`；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
 | G3-M4 verifier/shadow | completed；来源注册表、full replay、双 fresh、API/Asset/DB-only、pending Dialogue、真实 CLI 与正式签字均已完成 |
-| G3-M5 backup/restore | ready_for_development；M5-A0～A3 任务包与 Luna 第一张任务书已补齐，生产代码尚未实现 |
+| G3-M5 backup/restore | hardening_required；A0～A3 已实现，A4 负责一致性、identity 与完整故障矩阵收口 |
 | G3-M6 activate/cutover | prerequisite_blocked |
 
 ## 2. 必读顺序
@@ -68,10 +68,10 @@ db:import --kind shadow --slice full --workspace-root <workspace-root>
 db:verify
 # 需要与本次 shadow run 一起提供已校验的 decisions artifact
 db:verify --snapshot <sealed-dir> --decisions <normalized-decisions.json> --import-report <slice-report.json> --database-url <explicit sqlite url> --run-id <id> --report <output> --workspace-root <repo-root> --format json
-db:capabilities（M5-A0 待实现）
-app:backup（M5-A1 待实现）
-app:restore（M5-A2 待实现）
-db:activate
+db:capabilities（已实现；required blocker 存在时退出 2）
+app:backup（coordinated 已实现；A4 收口中）
+app:restore（verify/materialize 已实现；A4 收口中）
+db:activate（未实现，D2/D3 阻塞）
 ```
 
 每个 CLI 支持 --format json；成功/失败都返回稳定 code，不打印物理根、正文、prompt 或 secret。
@@ -179,11 +179,10 @@ tests/e2e/api/g3m-maintenance-cutover.spec.ts                      临时进程�
 
 ### G3-M5
 
-- 独立施工入口：`文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/`。
-- M5-A0 先实现 truthful capability registry；当前 `--check` 必须保持 `MIGRATION_CAPABILITY_BLOCKED`。
-- M5-A1 实现临时根 `coordinated` backup；`pre-cutover` 继续被 final/capability/SecretStore 阻断。
-- M5-A2 实现 verify-only 和不存在目标根的 materialize restore。
-- M5-A3 执行 backup→restore→maintenance closed DB read/API smoke；篡改、secret、ready Asset 缺失、writer/WAL、目标已存在和 symlink 均 fail-closed。
+- 原始实现记录：`文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/`；当前施工入口：相邻 `2026-07-13_G3-M5A4验收收口/`。
+- M5-A0 truthful capability registry 已实现；当前 `--check` 继续为 `MIGRATION_CAPABILITY_BLOCKED`。
+- M5-A1～A3 已实现临时根 coordinated backup、verify/materialize restore 和 restart/API happy path。
+- 原验收没有真实覆盖全部篡改、secret、writer/WAL、symlink/重叠和补偿失败；当前必须按 `文档/05_执行与记录/任务记录/2026-07-13_G3-M5A4验收收口/` 执行 A4-1～A4-4。
 
 ### G3-M6
 
@@ -249,19 +248,19 @@ git diff --check
 ## 9. 当前第一张 Luna 任务书
 
 ```text
-目标切片：G3-M5-A0 DB capability registry + CLI
-施工入口：文档/05_执行与记录/任务记录/2026-07-13_G3-M5协调备份恢复/handoff.md
-允许范围：db-capability-registry.ts、对应 spec/CLI 与 package script
-明确禁止：backup/restore 实现、Settings/SecretStore、final importer、activate、Schema/migration、真实数据
-退出证据：CAP-01/02、当前 --check 稳定返回 MIGRATION_CAPABILITY_BLOCKED、全量回归与单独 commit
-Stop：需要把未覆盖能力标 implemented、需要改 Schema 或需要访问真实根时停止
+目标切片：G3-M5-A4-1 backup 一致性栅栏 + CLI 精确参数
+施工入口：文档/05_执行与记录/任务记录/2026-07-13_G3-M5A4验收收口/handoff.md
+允许范围：app-backup service/CLI/path/types、对应 backup spec 与本任务记录
+明确禁止：restore identity、Settings/SecretStore、final importer、activate、Schema/migration、真实数据
+退出证据：A4-CLI-01、A4-BAK-01/02、既有 BAK 回归、typecheck、diff check、单独 commit
+Stop：无法证明同一 fence、需要改 Schema 或需要访问真实根时停止
 ```
 
-A0 完成并复核后再发 A1，不要一次把 M5-A0～A3 全交给 Luna。
+A4-1 完成并复核后再发 A4-2，不要一次把 A4-1～A4-4 或 D2/M6 全交给 Luna。
 
 ## 10. 最终 go/no-go
 
-可以开始 Luna 开发：yes，仅 G3-M5-A0，任务书见 M5 handoff。
+可以开始 Luna 开发：yes，仅 G3-M5-A4-1，任务书见 A4 handoff。
 
 可以直接要求 Luna 完成全部 G3-M：no，范围跨 G1 maintenance/full importer/SecretStore/backup/cutover，必须逐切片。
 

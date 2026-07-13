@@ -41,3 +41,10 @@ source: 当前代码探索、M4 验收与 G1/G3-M 契约对照
 - A1 使用 Node 22 `node:sqlite` 执行 `wal_checkpoint(TRUNCATE)`、`BEGIN IMMEDIATE` 和副本 integrity/FK 检查；无 WAL 时 SQLite 返回 `log=-1`，应按“无待收敛 WAL”处理而不是误判失败。
 - G1 Asset ready 只能通过 `staged → ready` 合法状态转移建立；直接 INSERT `status=ready` 会被既有 trigger 拒绝，演练 fixture 已按真实状态机构造。
 - A2 restore 只接受 manifest/SEALED digest 完整的 bundle，并把两个目标根分别以相同 marker 原子发布；不宣称跨根全局事务原子。
+
+## 2026-07-13 独立复核纠正
+
+- backup 的 runs/issues/PersistenceState/Asset/settings 读取发生在 `BEGIN IMMEDIATE` 之前，存在 manifest 与副本不同时刻的窗口。
+- restore 只确认 ledger 表存在，未逐项核对 16 run、run-summary、PersistenceState 与 current release effective identity。
+- secret、writer/WAL、symlink/重叠、DB/Asset tamper 和第二根发布失败等清单项没有对应故障注入，不能继续标记 passed。
+- 详细证据与修复入口见 `../2026-07-13_G3-M5A4验收收口/`。

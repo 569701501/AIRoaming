@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-HANDOFF-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: task_plan.md、implementation_contract.md、acceptance_checklist.md
 ---
 
 # Handoff：交给 5.6 Luna 的 G3-M5 施工入口
+
+> 本 handoff 仅保留 A0 历史。当前开工入口已改为相邻目录 `2026-07-13_G3-M5A4验收收口/handoff.md`；不得继续按本文声明 M5 completed。
 
 ## 1. 开工结论（历史入口）
 
@@ -19,9 +21,9 @@ source: task_plan.md、implementation_contract.md、acceptance_checklist.md
 
 ## 1.1 当前交付状态
 
-- M5-A0 capability registry、M5-A1 coordinated backup、M5-A2 sealed restore、M5-A3 restart/API rehearsal 均已完成。
+- M5-A0 capability registry 已通过；M5-A1 coordinated backup、M5-A2 sealed restore、M5-A3 restart/API rehearsal 已有实现和 happy path，但完整验收为 partial。
 - 当前 HEAD 的独立提交顺序为：A0 `91a450c`、A1 `b767e30`、A2 `0f20cff`、A3 `68bb694`；最终文档记忆同步提交为 `fb56180`。
-- M5 完成只代表临时根演练通过；required capability、SecretStore、final importer、pre-cutover 和 activate 仍阻塞 M6。
+- M5 当前为 `hardening_required`，先完成 M5-A4；required capability、SecretStore、final importer、pre-cutover 和 activate 继续阻塞 M6。
 
 ## 2. 必读顺序
 

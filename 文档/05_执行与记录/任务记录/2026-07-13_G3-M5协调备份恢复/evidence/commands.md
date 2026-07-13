@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-DOC-EVIDENCE-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: M4 current-HEAD acceptance rerun and M5 document readiness review
 ---
 
 # M4 验收与 M5 文档就绪证据
+
+> 本文件保留 M5 开工前的历史证据；当前状态已由 `../../2026-07-13_G3-M5A4验收收口/` 取代。
 
 ## M4 当前 HEAD 复跑
 
@@ -30,4 +32,4 @@ source: M4 current-HEAD acceptance rerun and M5 document readiness review
 
 ## 结论
 
-M4 正式通过；M5 文档状态为 `ready_for_development`。Luna 当前只能从 M5-A0 开始，不得同时领取 A1～A3。
+历史结论：M4 正式通过，M5 当时可从 A0 开始。当前 A0～A3 已提交但专项验收为 `hardening_required`，Luna 只可从 M5-A4-1 继续。
