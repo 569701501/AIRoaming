@@ -28,6 +28,8 @@ import {
   type StoryStructureJson,
   type UpdateProjectCharacterRequest,
   type WorkbenchAsset,
+  buildTaskSourceProjection,
+  digestCanonicalJson,
 } from "@airoaming/shared";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import { CHARACTER_LEVEL_ORDER } from "./project-domain.util.js";
@@ -41,6 +43,7 @@ import { ImageProviderService } from "./image-provider.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 import { PrismaService } from "../persistence/prisma.service.js";
+import { PersistentTaskRepository } from "../tasks/persistent-task.repository.js";
 
 interface ProjectAssetFile {
   buffer: Buffer;
@@ -76,6 +79,7 @@ export class CharacterReferenceService {
     @Inject(TasksService) private readonly tasksService: TasksService,
     @Inject(SettingsService) private readonly settingsService: SettingsService,
     @Inject(PrismaService) private readonly prismaService: PrismaService,
+    @Inject(PersistentTaskRepository) private readonly persistentTaskRepository: PersistentTaskRepository,
   ) {}
 
   private isDatabaseMode(): boolean {
@@ -722,6 +726,50 @@ export class CharacterReferenceService {
   }
 
   async queueCharacterReference(projectId: string, characterId: string, input: GenerateCharacterReferenceRequest = {}): Promise<QueueCharacterReferenceResponse> {
+    if (this.isDatabaseMode()) {
+      const project = await this.repository.refreshProjectFromDatabase(projectId);
+      const character = this.findProjectCharacter(project, characterId);
+      if (character.status === "in_use") throw new BadRequestException("PROJECT_CHARACTER_IN_USE_LOCKED");
+      const referenceKind = this.normalizeRequestedReferenceKind(character, input.referenceKind);
+      if (referenceKind === "none") throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
+      const sourceProjection = buildTaskSourceProjection({
+        policyVersion: "character-reference-source-v1",
+        projectId,
+        chapterId: null,
+        consumerType: "character_reference_generate",
+        sources: [{
+          role: "character",
+          sourceType: "character",
+          sourceId: character.id,
+          sourceDigest: digestCanonicalJson({
+            id: character.id,
+            name: character.name,
+            role: character.role,
+            level: character.level,
+            entityType: character.entityType,
+            appearance: character.appearance,
+            personality: character.personality,
+            promptFragment: character.promptFragment,
+            rowVersion: character.visualVersion,
+          }),
+        }],
+      });
+      const task = await this.persistentTaskRepository.create({
+        projectId,
+        type: "character_reference_generate",
+        target: { type: "character", id: character.id },
+        input: {
+          schemaVersion: 1,
+          projectId,
+          characterId: character.id,
+          referenceKind,
+          prompt: input.prompt?.trim() || referencePromptUtil.buildCharacterReferencePrompt(project, character, referenceKind),
+          sourceProjection,
+        },
+        options: { concurrencyKey: "image-provider", concurrencySlots: 1, maxAttempts: 3 },
+      });
+      return { ...this.toProjectCharactersResponse(project), tasks: [task.item], createdCount: task.replayed ? 0 : 1 };
+    }
     let project = await this.projectStore.getReadyProject(projectId);
     let character = this.findProjectCharacter(project, characterId);
     if (character.status === "in_use") {

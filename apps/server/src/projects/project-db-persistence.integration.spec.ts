@@ -557,6 +557,31 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
   }, 20_000);
 
+  it("P4-CHAR-03: queues a DB character reference task with frozen source", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P4 角色任务", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const character = await prisma.character.create({
+      data: {
+        id: randomUUID(), projectId: project.id, name: "角色甲", normalizedName: "角色甲", role: "主角", level: "lead", entityType: "human", status: "needs_reference",
+        appearance: "黑发", personality: "冷静", promptFragment: "黑发主角", source: "manual",
+      },
+    });
+    const queued = await projects.queueCharacterReference(project.id, character.id, { referenceKind: "preview_front", prompt: "固定测试提示词" });
+    expect(queued.createdCount).toBe(1);
+    expect(queued.tasks[0]).toMatchObject({ type: "character_reference_generate", target: { type: "character", id: character.id }, status: "queued" });
+    const task = await prisma.generationTask.findUniqueOrThrow({ where: { id: queued.tasks[0]!.id }, include: { generationTaskSourcesByTask: true } });
+    expect(task.sourceSetSealedAt).not.toBeNull();
+    expect(task.generationTaskSourcesByTask).toHaveLength(1);
+    expect(task.generationTaskSourcesByTask[0]).toMatchObject({ sourceType: "character", sourceId: character.id, role: "character" });
+    const replay = await projects.queueCharacterReference(project.id, character.id, { referenceKind: "preview_front", prompt: "固定测试提示词" });
+    expect(replay.createdCount).toBe(0);
+    expect(replay.tasks[0]!.id).toBe(queued.tasks[0]!.id);
+  }, 20_000);
+
   it("fails closed when an active DB project has no current chapter", async () => {
     const { databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

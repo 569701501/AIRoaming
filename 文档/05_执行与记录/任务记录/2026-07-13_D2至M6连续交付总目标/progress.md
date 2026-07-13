@@ -48,8 +48,9 @@ source: 本总目标编制过程
 - 定向 21 项、server 全量 54 文件/362 测试、Scrutiny、Runtime 及全量静态门禁通过。
 - capability 由 8/36/5 变为 8/36/4；下一阶段进入 P4 D2-A3-2A，仍不触碰 Outbox consumer、final importer、M6 或真实 cutover。
 
-## P4 D2-A3-2A（Character identity slice，已完成）
+## P4 D2-A3-2A（Character/Asset，进行中）
 
 - `extract_characters` 与 `update_character` 已进入 DB Character 直写 + refresh；legacy workspace 隔离证据通过。
-- 定向 23 项、server 全量 54 文件/364 测试、Scrutiny、Runtime 和静态门禁通过。
-- Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；继续进入 task/source freeze/staging/Visual slice。
+- `queue_character_reference` 已进入 DB 持久 GenerationTask + Character source freeze，支持同输入幂等重放，不调用 provider、不写物理图片。
+- 定向 24 项、server 全量 54 文件/365 测试、Scrutiny、Runtime 和静态门禁通过；队列切片待独立提交。
+- Character/Asset aggregate 仍 partial，`blockedIds` 保持 4；下一切片进入 worker claim/source fencing 与 staged Asset/Visual。

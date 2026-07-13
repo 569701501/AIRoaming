@@ -446,7 +446,7 @@ export class ProjectsService implements OnModuleInit {
   async queueCharacterReference(projectId: string,
     characterId: string,
     input: GenerateCharacterReferenceRequest = {},) : Promise<QueueCharacterReferenceResponse> {
-    this.repository.assertDatabaseOperationSupported("queue_character_reference");
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("queue_character_reference");
     return this.characterRef.queueCharacterReference(projectId, characterId, input);
   }
 
