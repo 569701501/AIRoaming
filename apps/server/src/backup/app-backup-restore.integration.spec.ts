@@ -644,4 +644,45 @@ describe("M5-A2 restore", () => {
       if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
     }
   });
+
+  it("A4-RST-05 materializes clean roots and restarts in closed maintenance", async () => {
+    const { fixture, result } = await createBundle();
+    try {
+      const dataTarget = path.join(fixture.root, "rst-05-data");
+      const workspaceTarget = path.join(fixture.root, "rst-05-workspace");
+      await new AppRestoreService().restore({ backup: result.bundlePath, releaseRoot: repoRoot, targetDataRoot: dataTarget, targetWorkspaceRoot: workspaceTarget, mode: "materialize" });
+      const restoredDatabaseBytes = await readFile(path.join(dataTarget, "db/airoaming.sqlite"));
+      const restoredAssetBytes = await readFile(path.join(workspaceTarget, "projects/p1/assets/one.txt"));
+      expect(restoredDatabaseBytes.toString("utf8")).not.toContain("airoaming-test-secret-");
+      expect(restoredAssetBytes.toString("utf8")).not.toContain("airoaming-test-secret-");
+      const previous = { DATABASE_URL: process.env.DATABASE_URL, AIROAMING_PERSISTENCE_MODE: process.env.AIROAMING_PERSISTENCE_MODE, AIROAMING_TASK_WORKER_ENABLED: process.env.AIROAMING_TASK_WORKER_ENABLED, AIROAMING_MAINTENANCE_MODE: process.env.AIROAMING_MAINTENANCE_MODE };
+      process.env.DATABASE_URL = "file:" + path.join(dataTarget, "db/airoaming.sqlite");
+      process.env.AIROAMING_PERSISTENCE_MODE = "db";
+      process.env.AIROAMING_TASK_WORKER_ENABLED = "false";
+      process.env.AIROAMING_MAINTENANCE_MODE = "closed";
+      const app = await NestFactory.create(AppModule, { logger: false });
+      app.setGlobalPrefix("api");
+      await app.listen(0, "127.0.0.1");
+      try {
+        const coordinator = app.get(MaintenanceCoordinator);
+        expect(coordinator.getState()).toBe("closed");
+        expect((await coordinator.status()).state).toBe("closed");
+        const state = await app.get(PrismaService).database().persistenceState.findUnique({ where: { id: "primary" } });
+        expect(state).toMatchObject({ activationState: "shadow", cutoverRunId: null, firstBusinessWriteAt: null });
+        const address = app.getHttpServer().address() as { port: number };
+        const response = await fetch(`http://127.0.0.1:${address.port}/api/projects`);
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({ success: true, data: { items: [{ id: "p1" }] } });
+      } finally {
+        await app.close();
+        if (previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.DATABASE_URL;
+        if (previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = previous.AIROAMING_PERSISTENCE_MODE;
+        if (previous.AIROAMING_TASK_WORKER_ENABLED === undefined) delete process.env.AIROAMING_TASK_WORKER_ENABLED; else process.env.AIROAMING_TASK_WORKER_ENABLED = previous.AIROAMING_TASK_WORKER_ENABLED;
+        if (previous.AIROAMING_MAINTENANCE_MODE === undefined) delete process.env.AIROAMING_MAINTENANCE_MODE; else process.env.AIROAMING_MAINTENANCE_MODE = previous.AIROAMING_MAINTENANCE_MODE;
+      }
+    } finally {
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
 });

@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-A4-ACCEPTANCE-001
-status: active
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -23,8 +23,8 @@ source: implementation_contract.md 与 M5R-01～08
 | A4-RST-02 | bundle 篡改矩阵 | manifest/SEALED/run-summary/DB/Asset 任一字节或账本身份篡改均失败 | `passed` |
 | A4-RST-03 | 路径门 | nonsealed、目标已存在、symlink、祖先/后代重叠、storageKey 越界均零目标写入失败 | `passed` |
 | A4-RST-04 | 第二根发布失败 | 未外部修改时仅清理本 run 产物；外部修改时保留第一根并返回 `RESTORE_COMPENSATION_UNSAFE` | `passed` |
-| A4-RST-05 | materialize 后 secret/restart | restored DB/workspace sentinel=0；maintenance closed 启动读 API；firstBusinessWriteAt 仍 null | `not_run` |
-| A4-REG-01 | 全量门禁 | server 全量、workspace typecheck、G1 三项、Prisma validate、diff check 全绿 | `not_run` |
+| A4-RST-05 | materialize 后 secret/restart | restored DB/workspace sentinel=0；maintenance closed 启动读 API；firstBusinessWriteAt 仍 null | `passed` |
+| A4-REG-01 | 全量门禁 | server 全量、workspace typecheck、G1 三项、Prisma validate、diff check 全绿 | `passed` |
 
 ## 子切片退出门
 
@@ -54,9 +54,9 @@ source: implementation_contract.md 与 M5R-01～08
 - `A4-BAK-01`：同一 spec 的第二 SQLite writer 测试；`AppBackupService` 在 `BEGIN IMMEDIATE` 后才读取 runs/issues/PersistenceState/Asset/settings，并在栅栏内复制 DB 与 ready Asset。
 - `A4-BAK-02`：同一 spec 的 active writer 测试与“持锁后第二 writer 被阻断”测试；输出根在失败时保持空目录且不产生 `SEALED`。
 
-以上已收口 A4-1/A4-2；A4-BAK-03/04、A4-RST-03～05、A4-REG-01 仍保持 `not_run`。
+以上已收口 A4-1～A4-4；全部 A4 acceptance ID 已有直接证据，最终 Scrutiny/Runtime Review 已通过，M5 恢复 `completed`。
 
-当前下一施工入口为 `handoff_a4_4.md`；A4-3 已完成并通过直接故障注入，A4-RST-05/A4-REG-01 仍待执行。
+当前没有新的 M5 施工入口；A4-4 已完成并通过最终复核。后续如继续开发，应另行创建 D2 handoff。
 
 ## 最小命令
 

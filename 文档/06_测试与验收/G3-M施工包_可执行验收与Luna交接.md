@@ -12,7 +12,7 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 ## 1. 当前结论
 
-M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1/A4-2 已完成并复核，但 M5 整体仍为 `hardening_required`。A4-3/A4-4 尚未开始，不能把 full shadow、临时 coordinated backup 或空根 restore 宣称为 final importer/cutover 完成。
+M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1～A4-4 已完成并复核，M5 恢复为 `completed`。这不代表 full shadow 是 final importer，也不代表 pre-cutover/activate 或 M6 已完成。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -40,7 +40,7 @@ M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1/A4-
 | G3-M3-A15 Dialogue runtime shadow | implemented；captured 对话历史、closed session 与显式 pending Dialogue artifact 均导入并留证，deferred 状态零实体 |
 | G3-M3 full importer | implemented，commit `9e04495`；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
 | G3-M4 verifier/shadow | completed；来源注册表、full replay、双 fresh、API/Asset/DB-only、pending Dialogue、真实 CLI 与正式签字均已完成 |
-| G3-M5 backup/restore | hardening_required；A0～A3 已实现，A4 负责一致性、identity 与完整故障矩阵收口 |
+| G3-M5 backup/restore | completed；A0～A3 与 A4-1～A4-4 已实现并复核，D2/M6 仍独立后置 |
 | G3-M6 activate/cutover | prerequisite_blocked |
 
 ## 2. 必读顺序
@@ -248,18 +248,18 @@ git diff --check
 ## 9. 当前 Luna 任务书
 
 ```text
-当前没有新的 Luna 任务书：A4-3 已完成并复核。下一切片应另行创建 A4-4 handoff。
-施工入口：暂不进入 A4-4，保持 M5 `hardening_required`
+当前没有新的 Luna 任务书：M5-A4 已完成并复核。下一切片如继续开发，应另行创建 D2 handoff。
+施工入口：暂不自动进入 D2，等待独立授权与施工资料
 明确禁止：D2、M6、final importer、activate、真实数据
-退出证据：A4-4 handoff 创建后再执行
-Stop：不得跳过 A4-4 handoff 或直接推进 D2/M6
+退出证据：D2 handoff 创建并复核后再执行
+Stop：不得跳过 D2 handoff 或直接推进 M6
 ```
 
-A4-1/A4-2/A4-3 已完成并复核。下一步先创建并复核 A4-4 handoff；不要一次把 A4-4 或 D2/M6 全交给 Luna。
+M5-A4-1～A4-4 已完成并复核。下一步先创建并复核 D2 handoff；不要一次把 D2 或 M6 全交给 Luna。
 
 ## 10. 最终 go/no-go
 
-可以开始 Luna 开发：no，A4-3 已完成；等待单独的 A4-4 handoff。
+可以开始 Luna 开发：no，M5 已完成；等待单独的 D2 handoff 与授权。
 
 可以直接要求 Luna 完成全部 G3-M：no，范围跨 G1 maintenance/full importer/SecretStore/backup/cutover，必须逐切片。
 

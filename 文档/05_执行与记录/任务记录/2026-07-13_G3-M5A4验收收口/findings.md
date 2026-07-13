@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-A4-FINDINGS-001
-status: active
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -51,6 +51,13 @@ source: commit 91a450c～eb26743、M5 代码与验收文档独立复核
 
 - A4-2 只闭合 release identity 与账本语义，不包含 A4-3 secret scan、路径门和补偿安全，也不包含 A4-4 的最终 M5 双 Review/完整 rehearsal。
 - M5 仍保持 `hardening_required`；下一步只能另行创建并复核 A4-3 handoff。
+
+## 10. A4-3/A4-4 完成事实
+
+- A4-3 已闭合 DB/Asset/report/settings/restored roots sentinel、symlink/重叠/storageKey 和第二根发布补偿故障矩阵；外部修改第一根时保留目录并返回 `RESTORE_COMPENSATION_UNSAFE`。
+- A4-4 在临时根完成 materialize 后 sentinel=0、closed maintenance、项目 API 读取和 `PersistenceState shadow/null/null` 运行复核。
+- 全量 server 49 files/340 tests、workspace/server typecheck、G1 三项、Prisma validate、diff check 全部通过；Scrutiny/Runtime Review 均通过。
+- M5-A4 全部 acceptance ID 已通过，M5 可恢复 `completed`；D2/M6、SecretStore、final importer、pre-cutover、activate 仍不属于本任务。
 
 ## 2. 阻止 M5 正式通过的发现
 

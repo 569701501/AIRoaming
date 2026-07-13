@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-A4-PLAN-001
-status: active
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -12,7 +12,7 @@ source: M5 独立代码复核、原 implementation_contract/acceptance_checklist
 
 ## 1. 当前阶段
 
-`a4_3_completed_pending_a4_4`。
+`m5_completed_pending_d2_authorization`。
 
 M5-A0～A3 已有实现且现有 11 个定向测试、server typecheck 通过；但原清单对 BAK-02/03、RST-01/03 的完成判定超出真实证据，且静态复核发现会影响协调备份一致性和恢复可信度的实现缺口。M5 从 `completed` 退回 `hardening_required`，完成 A4 前不得推进 D2/M6。
 
@@ -40,7 +40,7 @@ M5-A0～A3 已有实现且现有 11 个定向测试、server typecheck 通过；
 | M5-A4-3 | secret/path/补偿清理故障矩阵 | DB/Asset/run-summary/restored roots sentinel=0；symlink/重叠/越界/第二 rename 失败安全 |
 | M5-A4-4 | 全量回归、临时重启/API rehearsal、双 Review | A4 清单全绿；原 M5 文档纠正；独立提交与证据齐全 |
 
-`M5-A4-1`、`M5-A4-2` 与 `M5-A4-3` 已完成并通过本轮实现后复核；A4-4 尚未开始，不能推进 D2/M6。下一张 A4-4 handoff 尚未创建。
+`M5-A4-1`～`M5-A4-4` 已完成并通过实现后复核；M5 可恢复 `completed`。D2/M6 尚未开始，必须另行授权和创建施工资料。
 
 ## 5. 代码边界
 

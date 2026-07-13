@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G3-M5-A4-PROGRESS-001
-status: active
+status: completed
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -19,13 +19,13 @@ source: M5-A4 task plan
 - [x] M5-A4-1 backup 一致性栅栏与 CLI grammar：实现完成，定向 10/10、server 全量 49 files/317 tests 通过。
 - [x] M5-A4-2 restore identity/ledger：实现完成，定向 22/22、server 全量 49 files/329 tests 通过。
 - [x] M5-A4-3 secret/path/compensation fault matrix：实现完成，新增故障证据与原集成 spec 合计 32/32 通过。
-- [ ] M5-A4-4 完整回归与正式复核。
+- [x] M5-A4-4 完整回归与正式复核：server 49 files/340 tests、全量门禁、Runtime/User Review、Scrutiny Review 全部通过。
 
 # 当前交接
 
-上一轮已完成并提交 `M5-A4-1`、`M5-A4-2`；本轮完成 `M5-A4-3`，先做复核后停止，不推进 A4-4、D2 或 M6。
+M5-A4-1～A4-3 已分阶段提交；本轮完成 A4-4 最终回归和双 Review，M5 恢复 `completed`，不推进 D2 或 M6。
 
-2026-07-13 独立复核确认 M5 仍未完成；A4-2 与 A4-3 五份施工资料均已落地并执行。下一执行者只领取 `handoff_a4_4.md`，完成后先复核，不继续 D2/M6。
+2026-07-13 A4-2～A4-4 五份施工资料均已落地并执行；最终 Scrutiny/Runtime Review 通过，M5 完成。D2/M6 仍需独立授权，不从本任务自动开始。
 
 A4-2 施工文档先通过 `passed_for_luna_a4_2`，实现后又通过 `passed_for_a4_2`；A4-RST-01/02 已有直接测试和全量回归证据。
 
@@ -52,7 +52,7 @@ A4-2 施工文档先通过 `passed_for_luna_a4_2`，实现后又通过 `passed_f
 ### 留存边界
 
 - A4-2 未实现 DB/Asset/report/settings/restored roots 的 secret scan、symlink/storageKey/重叠门、第二根发布补偿安全或 A4-4 全量 rehearsal。
-- A4-4 仍为 `not_run`；M5 仍保持 `hardening_required`，不推进 D2/M6。
+- A4-4 已完成；M5 已恢复 `completed`。D2/M6 不在本任务范围内。
 
 ## A4-3 实现与证据
 
@@ -71,8 +71,14 @@ A4-2 施工文档先通过 `passed_for_luna_a4_2`，实现后又通过 `passed_f
 
 ### 留存边界
 
-- A4-3 未实现 A4-4 的完整重启/API/secret 后运行态 rehearsal 与最终双 Review 收口。
-- A4-4 仍为 `not_run`；M5 仍保持 `hardening_required`，不推进 D2/M6。
+- A4-3 阶段未包含 A4-4 的完整重启/API/secret 后运行态 rehearsal 与最终双 Review；该缺口已由 A4-4 补齐。
+
+## A4-4 最终回归与证据
+
+- A4-RST-05：33/33 集成 spec 中直接验证恢复 DB/workspace sentinel=0、closed maintenance、`GET /api/projects` 和 `PersistenceState shadow/null/null`。
+- A4-REG-01：server 49 files/340 tests、workspace/server typecheck、G1 三项、Prisma validate、`git diff --check` 全部通过。
+- Scrutiny Review：`passed_for_m5`；Runtime/User Review：`passed_for_m5_backend_fixture`。
+- A4 全部 acceptance ID 已标记 `passed`；M5 状态恢复 `completed`。
 
 ## A4-1 实现与证据
 
@@ -97,4 +103,4 @@ A4-2 施工文档先通过 `passed_for_luna_a4_2`，实现后又通过 `passed_f
 ### 留存边界
 
 - A4-1 未实现 restore release identity/ledger 精确核对、SecretStore/secret fault matrix、路径补偿矩阵或全量 runtime rehearsal。
-- 当时 M5 仍保持 `hardening_required`；现 A4-2/A4-3 已完成，A4-4 仍为 `not_run`，不能据此进入 D2/M6。
+- A4-1 结束时 M5 仍保持 `hardening_required`；随后 A4-2～A4-4 已完成，不能据此自动进入 D2/M6。
