@@ -290,7 +290,7 @@ export class AppBackupService {
       await writePrivateJson(path.join(staging, "config/settings.redacted.json"), settingsRedacted);
       await writePrivateJson(path.join(staging, "migration/run-summary.json"), runSummary);
       await writePrivateJson(path.join(staging, "backup-manifest.json"), manifest);
-      await writePrivateJson(path.join(staging, "SEALED"), { schemaVersion: 1, kind: "airoaming_backup_sealed_v1", manifestDigest, bundleDigest, databaseDigest: database.sha256, runSummaryDigest: runSummary.runSummaryDigest });
+      await writePrivateJson(path.join(staging, "SEALED"), { schemaVersion: 1, kind: "airoaming_backup_sealed_v1", manifestDigest, bundleDigest, databaseDigest: database.sha256, assetInventoryDigest: digestCanonicalJson(copiedAssets), configDigest: digestCanonicalJson(settingsRedacted), runSummaryDigest: runSummary.runSummaryDigest });
       await chmod(staging, 0o700);
       const finalPath = path.join(outputRoot, "backup-" + bundleDigest);
       await rename(staging, finalPath);

@@ -19,9 +19,9 @@ source: M5 documentation readiness work
 - [x] 完成文档交叉复核、JSON 解析、路径存在性和 `git diff --check`；无代码/Schema/migration 变更。
 - [x] M5-A0 capability registry + CLI 实现：8 个稳定 ID、诚实三态状态、证据 ID 约束和 fail-closed check 已落地。
 - [x] M5-A1 coordinated backup 实现：16-slice full-shadow/ledger 校验、SQLite checkpoint + `BEGIN IMMEDIATE`、DB integrity/FK、ready Asset hash/bytes、脱敏 settings、sealed manifest 已落地；BAK-01～03 通过。
-- [ ] M5-A2 restore 实现。
+- [x] M5-A2 restore 实现：sealed/manifest/SEALED digest、DB integrity/FK/ledger、Asset 摘要、verify-only、双空根 marker + 原子 materialize 已落地；RST-01～03 通过。
 - [ ] M5-A3 完整演练与正式验收。
 
 # 当前结论
 
-M5-A0 已单独实现并通过 CAP-01/02；M5-A1 已单独实现并通过 BAK-01～03，当前进入 M5-A2 restore。M5-A2～A3 尚未实现，也未执行 M5 Runtime Review。
+M5-A0 已单独实现并通过 CAP-01/02；M5-A1 已单独实现并通过 BAK-01～03；M5-A2 已单独实现并通过 RST-01～03，当前进入 M5-A3 完整演练。尚未完成 RST-04、server 全量/G1 门禁与正式 Runtime Review。
