@@ -127,7 +127,7 @@ async function readFreshInventory(prisma: PrismaService): Promise<{ digest: `sha
   return { tables, digest: digestCanonicalJson(tables) };
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withCharacterReferences?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved" | "legacy-resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; candidateStatus?: "generated" | "selected" | "locked" | "rejected" | "superseded"; candidateLockedEvidence?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withCharacterReferences?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved" | "legacy-resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; candidateStatus?: "generated" | "selected" | "locked" | "rejected" | "superseded"; candidateLockedEvidence?: boolean; candidateLockedEvidenceId?: string | null; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -152,7 +152,12 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "structure.json"), `${JSON.stringify({ id: "legacy-story-1", version: 1, status: "structured", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T00:00:00.000Z", confirmedAt: "2026-01-03T00:00:00.000Z", structureJson: { chapterTitle: "第一章", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, synopsis: "夜色中的冲突。", direction: { logline: "夜色落下", chapterGoal: "建立冲突", coreConflict: "未知来客", emotionalArc: "紧张", endingHook: "门外有声" }, scenes: [{ id: "scene_01", name: "巷口", location: "旧城", timeOfDay: "夜", atmosphere: "冷", purpose: "引入" }], beats: [{ id: "beat_01", order: 1, title: "脚步声", summary: "主角听见脚步。", conflict: "是否开门", characters: options.withCharacterReferences ? ["主角"] : [], sceneId: "scene_01", visualFocus: "门", outcome: "停在门前" }], characters: options.withCharacterReferences ? [{ id: "story_char_001", projectCharacterId: "char_001", name: "主角", role: "lead", level: "chapter", entityType: "human", motivation: "", relationship: "", visualTraits: "", notes: "" }] : [], notes: "" } })}\n`);
     }
     if (options.withStoryboard) {
-      await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: options.withCharacterReferences ? ["主角"] : [], lockedCandidateId: options.withCandidates && options.candidateLockedEvidence !== false ? "legacy-candidate-001" : null, coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
+      const lockedCandidateId = options.candidateLockedEvidenceId !== undefined
+        ? options.candidateLockedEvidenceId
+        : options.withCandidates && options.candidateLockedEvidence !== false
+          ? "legacy-candidate-001"
+          : null;
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: options.withCharacterReferences ? ["主角"] : [], lockedCandidateId, coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
     }
     if (options.withPreflight === "unresolved") {
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ id: "legacy-preflight-1", version: 1, status: "ready", sourceStoryboardId: "legacy-board-1", updatedAt: "2026-01-05T00:00:00.000Z" })}\n`);
@@ -805,9 +810,104 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
       status: "staged",
     });
     expect(result.run.status).toBe("blocked");
+    expect(await prisma!.database().migrationIssue.findMany({
+      where: { runId: result.run.id },
+      select: { code: true },
+    })).toEqual([{ code: "LOCKED_CANDIDATE_ASSET_UNRESOLVED" }]);
     expect(await prisma!.database().candidateLockRevision.count()).toBe(0);
     expect(await prisma!.database().shot.findFirstOrThrow()).toMatchObject({
       currentCandidateLockRevisionId: null,
+    });
+  }, 30_000);
+
+  it("MIG-02 leaves a precise blocker and no revision when lockedCandidateId is missing", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(
+      prepared.root!,
+      { p1: "vertical_scroll" },
+      {
+        withScriptHistory: true,
+        withStoryStructure: true,
+        withStoryboard: true,
+        candidateLockedEvidenceId: "missing-candidate",
+      },
+    );
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-missing-lock-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-missing-lock-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-missing-lock-story" });
+    await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-missing-lock-board" });
+    const result = await new CandidateLockShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-missing-lock" });
+
+    expect(result.run.status).toBe("blocked");
+    expect(await prisma!.database().migrationIssue.findMany({
+      where: { runId: result.run.id },
+      select: { code: true },
+    })).toEqual([{ code: "LOCKED_CANDIDATE_MISSING" }]);
+    expect(await prisma!.database().candidateLockRevision.count()).toBe(0);
+    expect(await prisma!.database().shot.findFirstOrThrow()).toMatchObject({
+      currentCandidateLockRevisionId: null,
+    });
+  }, 30_000);
+
+  it("MIG-04 preserves an existing runtime current and blocks conflicting direct legacy evidence", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(
+      prepared.root!,
+      { p1: "vertical_scroll" },
+      {
+        withScriptHistory: true,
+        withStoryStructure: true,
+        withStoryboard: true,
+        withAssets: true,
+        withAssetVisuals: true,
+        withTasks: "complete",
+        withCandidates: true,
+      },
+    );
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-story" });
+    await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-board" });
+    await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-characters" });
+    await new AssetShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-assets" });
+    await new AssetVisualShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-asset-visuals", workspaceRoot: path.join(prepared.root!, "workspace") });
+    await new TaskShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-tasks" });
+    await new CandidateShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock-candidates" });
+    const shot = await prisma!.database().shot.findFirstOrThrow();
+    const candidate = await prisma!.database().candidate.findFirstOrThrow();
+    await prisma!.database().candidateLockRevision.create({
+      data: {
+        id: "runtime-current-before-import",
+        projectId: shot.projectId,
+        chapterId: shot.chapterId,
+        shotId: shot.id,
+        revision: 1,
+        action: "lock",
+        candidateId: candidate.id,
+        previousRevisionId: null,
+        origin: "runtime",
+        reason: "existing runtime authority",
+        decidedAt: new Date("2026-07-15T00:00:00.000Z"),
+      },
+    });
+    await prisma!.database().shot.update({
+      where: { id: shot.id },
+      data: { currentCandidateLockRevisionId: "runtime-current-before-import" },
+    });
+
+    const result = await new CandidateLockShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "g4-conflict-lock" });
+    expect(result.run.status).toBe("blocked");
+    expect(await prisma!.database().migrationIssue.findMany({
+      where: { runId: result.run.id },
+      select: { code: true },
+    })).toEqual([{ code: "LOCKED_CANDIDATE_CURRENT_CONFLICT" }]);
+    expect(await prisma!.database().candidateLockRevision.findMany({
+      select: { id: true, origin: true },
+    })).toEqual([{ id: "runtime-current-before-import", origin: "runtime" }]);
+    expect(await prisma!.database().shot.findUniqueOrThrow({ where: { id: shot.id } })).toMatchObject({
+      currentCandidateLockRevisionId: "runtime-current-before-import",
     });
   }, 30_000);
 

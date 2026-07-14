@@ -190,6 +190,11 @@ describe("D2-A1 SettingsService secret boundary", () => {
       const first = createService(workspaceRoot, store, firstPrisma);
       await first.onModuleInit();
       await first.updateSettings({ openaiImageProvider: { apiKey: "airoaming-db-image-sentinel" } });
+      await first.updateSettings({ openaiImageProvider: { apiKey: "airoaming-db-image-sentinel" } });
+      await expect(first.updateSettings({ openaiImageProvider: { apiKey: "airoaming-db-image-replacement" } }))
+        .rejects.toThrow("SETTINGS_SECRET_ROTATION_REQUIRES_OUTBOX");
+      expect((await store.get("image_openai_openai_image")).reveal()).toBe("airoaming-db-image-sentinel");
+      expect(first.getRuntimeImageProviderSettings().apiKey).toBe("airoaming-db-image-sentinel");
       const metadata = await firstPrisma.database().credentialMetadata.findFirst({
         where: { owner: "image_secret_store", configured: true },
       });

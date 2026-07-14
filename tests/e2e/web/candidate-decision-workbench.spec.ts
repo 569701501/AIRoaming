@@ -1,15 +1,23 @@
 import type { WorkbenchSnapshot } from "@airoaming/shared";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "../support/e2e-fixture.ts";
 import {
+  generateG4Candidates,
   prepareG4CandidateFixture,
   replaceCandidate,
 } from "../support/g4-candidate-fixture.ts";
 
-test("G4-E：候选收藏、废弃恢复、两阶段定稿、冲突重预览、历史与排版来源提示", async ({
+test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历史与来源门禁", async ({
   api,
   page,
   rainSmokeProject,
 }) => {
+  test.setTimeout(60_000);
+  const evidenceRoot = path.resolve(
+    "文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence",
+  );
+  await mkdir(evidenceRoot, { recursive: true });
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   const [candidateA, candidateB, candidateC] = fixture.candidateIds;
   await page.goto(`/projects/${fixture.projectId}/candidates`);
@@ -42,13 +50,53 @@ test("G4-E：候选收藏、废弃恢复、两阶段定稿、冲突重预览、�
     await expect(cardA.getByRole("button", { name: "当前定稿" })).toBeDisabled();
   });
 
+  await test.step("A→B→clear→A 只追加线性历史，不复用旧 revision", async () => {
+    await cardB.getByRole("button", { name: "更换为此图" }).click();
+    let dialog = page.getByRole("dialog", { name: "确认候选定稿影响" });
+    await expect(dialog).toContainText("更换定稿");
+    await dialog.getByRole("button", { name: "确认变更" }).click();
+    expect(await currentCandidateId(api, fixture.projectId, fixture.chapterId, fixture.shotId)).toBe(candidateB);
+
+    await page.getByRole("button", { name: "清空当前定稿" }).click();
+    dialog = page.getByRole("dialog", { name: "确认候选定稿影响" });
+    await dialog.getByRole("button", { name: "确认变更" }).click();
+    expect(await currentCandidateId(api, fixture.projectId, fixture.chapterId, fixture.shotId)).toBeNull();
+
+    await cardA.getByRole("button", { name: "定稿此图" }).click();
+    dialog = page.getByRole("dialog", { name: "确认候选定稿影响" });
+    await dialog.getByRole("button", { name: "确认变更" }).click();
+    expect(await currentCandidateId(api, fixture.projectId, fixture.chapterId, fixture.shotId)).toBe(candidateA);
+  });
+
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/build`);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/export`);
+
+  await test.step("已导出后只生成新候选不会改变当前定稿或来源 freshness", async () => {
+    const before = await api.get<{ snapshot: WorkbenchSnapshot }>(`/projects/${fixture.projectId}/workbench?chapterId=${fixture.chapterId}`);
+    await generateG4Candidates(api, fixture, 1);
+    const after = await api.get<{ snapshot: WorkbenchSnapshot }>(`/projects/${fixture.projectId}/workbench?chapterId=${fixture.chapterId}`);
+    expect(after.data.snapshot.candidates).toHaveLength(before.data.snapshot.candidates.length + 1);
+    expect(after.data.snapshot.shots.find((item) => item.id === fixture.shotId)?.currentCandidateDecision).toMatchObject({
+      state: "finalized",
+      candidateId: candidateA,
+      revision: 4,
+    });
+    expect(after.data.snapshot.candidateSources).toMatchObject({
+      currentLayout: { source: { sourceResolution: "current" } },
+      currentExport: { source: { sourceResolution: "current" } },
+      gates: {
+        exportLayout: { allowed: true },
+        exportPackage: { allowed: true },
+      },
+    });
+  });
+
   await page.reload();
   await expect(page.getByRole("region", { name: "候选图工作台", exact: true })).toBeVisible();
 
   await test.step("409 后自动重算影响，但绝不自动提交", async () => {
+    await page.getByRole("button", { name: "第 1 次生成 3 张" }).click();
     const currentCards = page.locator(".candidate-card");
     await currentCards.filter({ hasText: "候选 2" }).getByRole("button", { name: "更换为此图" }).click();
     const dialog = page.getByRole("dialog", { name: "确认候选定稿影响" });
@@ -59,6 +107,10 @@ test("G4-E：候选收藏、废弃恢复、两阶段定稿、冲突重预览、�
     await expect(dialog).toContainText("影响清单已重新计算");
     await expect(dialog).toContainText("本页面没有自动提交");
     expect(await currentCandidateId(api, fixture.projectId, fixture.chapterId, fixture.shotId)).toBe(candidateC);
+    await page.screenshot({
+      path: path.join(evidenceRoot, "g4_f_conflict_repreview.png"),
+      fullPage: true,
+    });
 
     await dialog.getByRole("button", { name: "确认变更" }).click();
     await expect(dialog).not.toBeVisible();
@@ -69,15 +121,23 @@ test("G4-E：候选收藏、废弃恢复、两阶段定稿、冲突重预览、�
   await test.step("历史可读，排版页明确显示来源已变化并阻止导出", async () => {
     await page.getByRole("button", { name: "定稿历史" }).click();
     const history = page.getByRole("region", { name: "定稿历史" });
-    await expect(history).toContainText("第 3 版 · 更换定稿");
-    await expect(history).toContainText("第 2 版 · 更换定稿");
+    await expect(history).toContainText("第 6 版 · 更换定稿");
+    await expect(history).toContainText("第 5 版 · 更换定稿");
+    await expect(history).toContainText("第 4 版 · 首次定稿");
     await expect(history).toContainText("第 1 版 · 首次定稿");
+    await history.screenshot({
+      path: path.join(evidenceRoot, "g4_f_candidate_history.png"),
+    });
 
     await page.goto(`/projects/${fixture.projectId}/layout`);
     const sourceStatus = page.getByTestId("candidate-source-status");
     await expect(sourceStatus).toContainText("候选定稿已变化");
     await expect(sourceStatus).toContainText("实际换图与裁切将在成稿编辑阶段处理");
     await expect(page.getByRole("button", { name: "导出 PNG 序列" })).toBeDisabled();
+    await page.screenshot({
+      path: path.join(evidenceRoot, "g4_f_layout_stale.png"),
+      fullPage: true,
+    });
   });
 
   await test.step("清空当前定稿同样走影响确认，排版页保持 fail-closed", async () => {

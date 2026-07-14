@@ -180,6 +180,31 @@ export async function replaceCandidate(
   })).data;
 }
 
+export async function generateG4Candidates(
+  api: E2EApiClient,
+  fixture: G4CandidateFixture,
+  candidateCount = 1,
+): Promise<GenerationTaskItem> {
+  const task = await api.post<{ task: GenerationTaskItem }>("/tasks", {
+    projectId: fixture.projectId,
+    type: "image_generate",
+    target: {
+      type: "shot",
+      id: fixture.shotId,
+      chapterId: fixture.chapterId,
+    },
+    input: {
+      chapterId: fixture.chapterId,
+      shotId: fixture.shotId,
+      requestId: randomUUID(),
+      candidateCount,
+    },
+    options: { candidateCount, provider: "default" },
+  });
+  await waitForTask(api, task.data.task.id);
+  return task.data.task;
+}
+
 async function waitForTask(api: E2EApiClient, taskId: string): Promise<void> {
   const deadline = Date.now() + 25_000;
   while (Date.now() < deadline) {

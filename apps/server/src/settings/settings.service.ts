@@ -225,10 +225,20 @@ export class SettingsService implements OnModuleInit {
     let keyFingerprint = providerId === current.providerId ? current.keyFingerprint : null;
     if (apiKeyInput) {
       const secret = SecretString.from(apiKeyInput);
-      const metadata = await this.requireSecretStore().put({ credentialId: nextCredentialId, secret });
-      this.runtimeImageSecrets.set(nextCredentialId, secret);
-      secretRef = metadata.secretRef;
-      keyFingerprint = metadata.fingerprint;
+      const nextFingerprint = fingerprintSecret(secret);
+      if (providerId === current.providerId && current.secretRef && current.keyFingerprint === nextFingerprint) {
+        this.runtimeImageSecrets.set(nextCredentialId, secret);
+        secretRef = current.secretRef;
+        keyFingerprint = current.keyFingerprint;
+      } else {
+        if (this.prismaService?.isDatabaseMode() && current.secretRef) {
+          throw new BadRequestException("SETTINGS_SECRET_ROTATION_REQUIRES_OUTBOX");
+        }
+        const metadata = await this.requireSecretStore().put({ credentialId: nextCredentialId, secret });
+        this.runtimeImageSecrets.set(nextCredentialId, secret);
+        secretRef = metadata.secretRef;
+        keyFingerprint = metadata.fingerprint;
+      }
     } else if (secretRef && !this.runtimeImageSecrets.has(nextCredentialId)) {
       this.runtimeImageSecrets.set(nextCredentialId, await this.requireSecretStore().get(nextCredentialId));
     }

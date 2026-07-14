@@ -50,8 +50,24 @@ interface LockPlan {
 
 interface LockPlans {
   plans: LockPlan[];
-  blockers: number;
-  issueStorageKey?: string;
+  issues: LockIssue[];
+}
+
+type LockIssueCode =
+  | "MIGRATION_TARGET_NOT_FOUND"
+  | "LOCKED_CANDIDATE_MISSING"
+  | "LOCKED_CANDIDATE_SCOPE_MISMATCH"
+  | "LOCKED_CANDIDATE_ASSET_UNRESOLVED"
+  | "LOCKED_CANDIDATE_NOT_LOCKABLE"
+  | "LOCKED_CANDIDATE_CURRENT_CONFLICT";
+
+interface LockIssue {
+  issueKey: string;
+  code: LockIssueCode;
+  entityId: string;
+  sourceKey: string;
+  storageKey: string;
+  reason: string;
 }
 
 function object(value: unknown, code: string): Record<string, unknown> {
@@ -97,6 +113,15 @@ function lockSourceKey(
   shotId: string,
 ): string {
   return `workspace-v1:${projectId}:CandidateLockRevision:${chapterId}:${shotId}:v001`;
+}
+
+function lockIssue(
+  input: Omit<LockIssue, "issueKey">,
+): LockIssue {
+  return {
+    ...input,
+    issueKey: `${input.sourceKey}:issue:${input.code}`,
+  };
 }
 
 function stableId(type: string, sourceKey: string): string {
@@ -199,8 +224,13 @@ export class CandidateLockShadowImporter {
             )
           : {
               plans: [],
-              blockers: 1,
-              issueStorageKey: projectItem.storageKey,
+              issues: [lockIssue({
+                code: "MIGRATION_TARGET_NOT_FOUND",
+                entityId: targetProjectId,
+                sourceKey: projectSourceKey(legacyProjectId),
+                storageKey: projectItem.storageKey,
+                reason: "Project/Chapter shadow must run first",
+              })],
             };
 
         if (targetProject && result.plans.length > 0) {
@@ -211,12 +241,8 @@ export class CandidateLockShadowImporter {
             }
           });
         }
-        blockers += result.blockers;
-        const issueKey = !targetProject
-          ? `project:${legacyProjectId}:lock-target`
-          : result.blockers > 0
-            ? `project:${legacyProjectId}:lock-source`
-            : null;
+        blockers += result.issues.length;
+        const issueKey = result.issues[0]?.issueKey ?? null;
         projects.push({
           projectId: legacyProjectId,
           sourceStorageKey: projectItem.storageKey,
@@ -233,25 +259,23 @@ export class CandidateLockShadowImporter {
           resolutionStatus: issueKey ? "open" : "not_needed",
           importStatus: issueKey ? "blocked" : "imported",
         });
-        if (issueKey) {
-          await this.ledger.withTransaction((tx) =>
-            this.ledger.recordGenericIssueInTransaction(tx, run.id, {
-              issueKey,
-              code: !targetProject
-                ? "MIGRATION_TARGET_NOT_FOUND"
-                : "CANDIDATE_LOCK_SOURCE_UNRESOLVED",
-              entityType: "CandidateLockRevision",
-              entityId: targetProjectId,
-              sourceKey: projectSourceKey(legacyProjectId),
-              storageKey: result.issueStorageKey ?? projectItem.storageKey,
-              detailJson: jsonValue({
-                schemaVersion: 1,
-                reason: !targetProject
-                  ? "Project/Chapter shadow must run first"
-                  : "lockedCandidateId candidate/asset/scope/current evidence unresolved",
-              }),
-            }),
-          );
+        if (result.issues.length > 0) {
+          await this.ledger.withTransaction(async (tx) => {
+            for (const issue of result.issues) {
+              await this.ledger.recordGenericIssueInTransaction(tx, run.id, {
+                issueKey: issue.issueKey,
+                code: issue.code,
+                entityType: "CandidateLockRevision",
+                entityId: issue.entityId,
+                sourceKey: issue.sourceKey,
+                storageKey: issue.storageKey,
+                detailJson: jsonValue({
+                  schemaVersion: 1,
+                  reason: issue.reason,
+                }),
+              });
+            }
+          });
         }
       }
 
@@ -325,8 +349,7 @@ export class CandidateLockShadowImporter {
     recordedAt: Date,
   ): Promise<LockPlans> {
     const plans: LockPlan[] = [];
-    let blockers = 0;
-    let issueStorageKey: string | undefined;
+    const issues: LockIssue[] = [];
     const items = snapshot.sourceManifest.items.filter(
       (item) =>
         item.storageKey.startsWith(`projects/${legacyProjectId}/chapters/`) &&
@@ -341,8 +364,13 @@ export class CandidateLockShadowImporter {
           `projects/${legacyProjectId}/chapters/${slug}/chapter.json`,
       );
       if (!chapterItem) {
-        blockers += 1;
-        issueStorageKey = item.storageKey;
+        issues.push(lockIssue({
+          code: "LOCKED_CANDIDATE_SCOPE_MISMATCH",
+          entityId: projectId,
+          sourceKey: `workspace-v1:${legacyProjectId}:CandidateLockRevision:${slug}:unknown`,
+          storageKey: item.storageKey,
+          reason: "Locked Candidate evidence has no matching Chapter metadata",
+        }));
         continue;
       }
       const chapterMeta = (await payload(snapshot, chapterItem.storageKey)).value;
@@ -383,19 +411,65 @@ export class CandidateLockShadowImporter {
             include: { asset: true },
           }),
         ]);
+        const sourceKey = lockSourceKey(
+          legacyProjectId,
+          legacyChapterId,
+          legacyShotId,
+        );
+        if (!targetShot) {
+          issues.push(lockIssue({
+            code: "LOCKED_CANDIDATE_SCOPE_MISMATCH",
+            entityId: shotId,
+            sourceKey,
+            storageKey: item.storageKey,
+            reason: "Locked Candidate evidence has no matching target Shot",
+          }));
+          continue;
+        }
+        if (!candidate) {
+          issues.push(lockIssue({
+            code: "LOCKED_CANDIDATE_MISSING",
+            entityId: shotId,
+            sourceKey,
+            storageKey: item.storageKey,
+            reason: "lockedCandidateId does not resolve to an imported Candidate",
+          }));
+          continue;
+        }
         if (
-          !targetShot ||
-          !candidate ||
           targetShot.projectId !== projectId ||
           targetShot.chapterId !== chapterId ||
           candidate.projectId !== projectId ||
           candidate.chapterId !== chapterId ||
-          candidate.shotId !== shotId ||
-          candidate.status !== "generated" ||
-          candidate.asset.status !== "ready"
+          candidate.shotId !== shotId
         ) {
-          blockers += 1;
-          issueStorageKey = item.storageKey;
+          issues.push(lockIssue({
+            code: "LOCKED_CANDIDATE_SCOPE_MISMATCH",
+            entityId: shotId,
+            sourceKey,
+            storageKey: item.storageKey,
+            reason: "lockedCandidateId does not belong to the evidenced Project/Chapter/Shot",
+          }));
+          continue;
+        }
+        if (candidate.status !== "generated") {
+          issues.push(lockIssue({
+            code: "LOCKED_CANDIDATE_NOT_LOCKABLE",
+            entityId: shotId,
+            sourceKey,
+            storageKey: item.storageKey,
+            reason: "lockedCandidateId resolves to a Candidate that is not generated",
+          }));
+          continue;
+        }
+        if (candidate.asset.status !== "ready") {
+          issues.push(lockIssue({
+            code: "LOCKED_CANDIDATE_ASSET_UNRESOLVED",
+            entityId: shotId,
+            sourceKey,
+            storageKey: item.storageKey,
+            reason: "lockedCandidateId Candidate Asset is not ready",
+          }));
           continue;
         }
 
@@ -420,16 +494,16 @@ export class CandidateLockShadowImporter {
             targetShot.currentCandidateLockRevisionId !== existingForCandidate?.id
           )
         ) {
-          blockers += 1;
-          issueStorageKey = item.storageKey;
+          issues.push(lockIssue({
+            code: "LOCKED_CANDIDATE_CURRENT_CONFLICT",
+            entityId: shotId,
+            sourceKey,
+            storageKey: item.storageKey,
+            reason: "Existing Candidate lock history/current pointer conflicts with direct legacy evidence",
+          }));
           continue;
         }
 
-        const sourceKey = lockSourceKey(
-          legacyProjectId,
-          legacyChapterId,
-          legacyShotId,
-        );
         const targetId = existingForCandidate?.id
           ?? stableId("CandidateLockRevision", sourceKey);
         plans.push({
@@ -458,7 +532,7 @@ export class CandidateLockShadowImporter {
         });
       }
     }
-    return { plans, blockers, issueStorageKey };
+    return { plans, issues };
   }
 
   private async importPlan(

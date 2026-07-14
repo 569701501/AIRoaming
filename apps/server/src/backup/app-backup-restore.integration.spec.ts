@@ -141,6 +141,170 @@ async function createFixture() {
   return { root, workspaceRoot, dataRoot, outputRoot, databaseUrl, fullImportPath, decisionsPath, maintenanceBundle, assetPath, prisma, previous };
 }
 
+async function seedG4BackupHistory(
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+) {
+  const db = fixture.prisma.database();
+  const secondBytes = Buffer.from("fixture-image-two");
+  const secondStorageKey = "projects/p1/assets/two.txt";
+  const secondPath = path.join(fixture.workspaceRoot, secondStorageKey);
+  await writeFile(secondPath, secondBytes, { mode: 0o600 });
+  const secondDigest = `sha256:${createHash("sha256").update(secondBytes).digest("hex")}`;
+  await db.asset.create({
+    data: {
+      id: "asset-2",
+      projectId: "p1",
+      chapterId: "chapter-1",
+      type: "image",
+      role: "candidate",
+      mimeType: "text/plain",
+      storageKey: secondStorageKey,
+      status: "staged",
+      sourceTaskId: null,
+      metadataJson: {},
+      metadataSchemaVersion: 1,
+      metadataDigest: digestCanonicalJson({}),
+    },
+  });
+  await db.asset.update({
+    where: { id: "asset-2" },
+    data: {
+      status: "ready",
+      sha256: secondDigest,
+      bytes: secondBytes.byteLength,
+      width: 1,
+      height: 1,
+      readyAt: new Date("2026-07-15T00:00:00.000Z"),
+    },
+  });
+  await db.shot.create({
+    data: { id: "g4-shot", projectId: "p1", chapterId: "chapter-1" },
+  });
+  await db.generationTask.create({
+    data: {
+      id: "g4-legacy-task",
+      projectId: "p1",
+      chapterId: "chapter-1",
+      type: "image_generate",
+      recordKind: "legacy_imported",
+      provenanceStatus: "complete",
+      status: "succeeded",
+      phase: "completed",
+      progressPercent: 100,
+      targetType: "shot",
+      targetId: "g4-shot",
+      retryDisabled: true,
+      maxAttempts: 0,
+      attempt: 0,
+      applicability: "current",
+      importSource: "g4-backup-fixture",
+      importedAt: new Date("2026-07-15T00:00:00.000Z"),
+      finishedAt: new Date("2026-07-15T00:00:00.000Z"),
+    },
+  });
+  await db.candidate.createMany({
+    data: [
+      {
+        id: "g4-candidate-a",
+        projectId: "p1",
+        chapterId: "chapter-1",
+        shotId: "g4-shot",
+        taskId: "g4-legacy-task",
+        assetId: "asset-1",
+        index: 1,
+        status: "generated",
+        generationPurpose: "legacy_unspecified",
+      },
+      {
+        id: "g4-candidate-b",
+        projectId: "p1",
+        chapterId: "chapter-1",
+        shotId: "g4-shot",
+        taskId: "g4-legacy-task",
+        assetId: "asset-2",
+        index: 2,
+        status: "generated",
+        generationPurpose: "legacy_unspecified",
+      },
+    ],
+  });
+  await db.candidateLockRevision.create({
+    data: {
+      id: "g4-lock-a",
+      projectId: "p1",
+      chapterId: "chapter-1",
+      shotId: "g4-shot",
+      revision: 1,
+      action: "lock",
+      candidateId: "g4-candidate-a",
+      previousRevisionId: null,
+      origin: "runtime",
+      reason: "backup fixture A",
+      decidedAt: new Date("2026-07-15T00:01:00.000Z"),
+    },
+  });
+  await db.shot.update({
+    where: { id: "g4-shot" },
+    data: { currentCandidateLockRevisionId: "g4-lock-a" },
+  });
+  await db.candidateLockRevision.create({
+    data: {
+      id: "g4-lock-b",
+      projectId: "p1",
+      chapterId: "chapter-1",
+      shotId: "g4-shot",
+      revision: 2,
+      action: "replace",
+      candidateId: "g4-candidate-b",
+      previousRevisionId: "g4-lock-a",
+      origin: "runtime",
+      reason: "backup fixture B",
+      decidedAt: new Date("2026-07-15T00:02:00.000Z"),
+    },
+  });
+  await db.shot.update({
+    where: { id: "g4-shot" },
+    data: { currentCandidateLockRevisionId: "g4-lock-b" },
+  });
+  return readG4BackupFacts(fixture.prisma);
+}
+
+async function readG4BackupFacts(prisma: PrismaService) {
+  const db = prisma.database();
+  const shot = await db.shot.findUniqueOrThrow({
+    where: { id: "g4-shot" },
+    select: { id: true, currentCandidateLockRevisionId: true },
+  });
+  const revisions = await db.candidateLockRevision.findMany({
+    where: { shotId: shot.id },
+    orderBy: { revision: "asc" },
+    select: {
+      id: true,
+      revision: true,
+      action: true,
+      candidateId: true,
+      previousRevisionId: true,
+    },
+  });
+  const candidates = await db.candidate.findMany({
+    where: { shotId: shot.id },
+    orderBy: { index: "asc" },
+    select: {
+      id: true,
+      asset: { select: { id: true, storageKey: true, sha256: true, status: true } },
+    },
+  });
+  return {
+    shot,
+    revisions,
+    candidates,
+    currentLockSetDigest: digestCanonicalJson([{
+      shotId: shot.id,
+      candidateLockRevisionId: shot.currentCandidateLockRevisionId,
+    }]),
+  };
+}
+
 async function prepareFinalReadyFixture(fixture: Awaited<ReturnType<typeof createFixture>>) {
   const release = await loadReleaseSchemaIdentityV1(repoRoot);
   const childRuns = await fixture.prisma.database().migrationRun.findMany({ orderBy: { id: "asc" } });
@@ -261,6 +425,7 @@ describe("M5-A1 coordinated backup", () => {
         where: { id: "primary" },
         data: { firstBusinessWriteAt },
       });
+      const expectedG4Facts = await seedG4BackupHistory(fixture);
 
       const result = await new AppBackupService(fixture.prisma).backup({
         databaseUrl: fixture.databaseUrl,
@@ -298,15 +463,30 @@ describe("M5-A1 coordinated backup", () => {
           effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest,
         },
       });
+      const targetDataRoot = path.join(restoreRoot, "data");
+      const targetWorkspaceRoot = path.join(restoreRoot, "workspace");
       await expect(
         new AppRestoreService().restore({
           backup: result.bundlePath,
           releaseRoot: repoRoot,
-          targetDataRoot: path.join(restoreRoot, "data"),
-          targetWorkspaceRoot: path.join(restoreRoot, "workspace"),
+          targetDataRoot,
+          targetWorkspaceRoot,
           mode: "materialize",
         }),
       ).resolves.toMatchObject({ mode: "materialize", bundleDigest: result.bundleDigest });
+      const previousDatabaseUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = `file:${path.join(targetDataRoot, "db/airoaming.sqlite")}`;
+      const restoredPrisma = new PrismaService();
+      await restoredPrisma.onModuleInit();
+      try {
+        expect(await readG4BackupFacts(restoredPrisma)).toEqual(expectedG4Facts);
+        expect(await readFile(path.join(targetWorkspaceRoot, "projects/p1/assets/one.txt"))).toEqual(Buffer.from("fixture-image"));
+        expect(await readFile(path.join(targetWorkspaceRoot, "projects/p1/assets/two.txt"))).toEqual(Buffer.from("fixture-image-two"));
+      } finally {
+        await restoredPrisma.onModuleDestroy();
+        if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = previousDatabaseUrl;
+      }
     } finally {
       await fixture.prisma.onModuleDestroy();
       if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
