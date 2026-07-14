@@ -18,6 +18,7 @@ export const POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES = [
   "0009_g2_version_freshness_overlay",
   "0010_g3_comic_format_immutable",
   "0011_g2_project_purge_pointer_teardown",
+  "0012_g4_candidate_lock_linear_history",
 ] as const;
 
 export interface G1RuntimeMigrationExpectationV1 {

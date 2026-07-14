@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@prisma/client";
 
-import { assertProjectPurgeRuntimeMigrationReadyV1 } from "./project-purge-runtime-migration-ledger.js";
+import { assertG4RuntimeMigrationReadyV1 } from "./g4-runtime-migration-ledger.js";
 import { assertFileModeBridgeAllowed } from "./file-mode-guard.js";
 
 export type AiroamingPersistenceMode = "file" | "db";
@@ -76,7 +76,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       await this.client.$connect();
-      await assertProjectPurgeRuntimeMigrationReadyV1(this.client);
+      await assertG4RuntimeMigrationReadyV1(this.client);
     } catch (error) {
       await this.client.$disconnect().catch(() => undefined);
       throw error;

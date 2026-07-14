@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { G1_RUNTIME_MIGRATION_NAMES } from "../persistence/g1-runtime-migration-ledger.js";
-import { PROJECT_PURGE_RUNTIME_MIGRATION_NAMES } from "../persistence/project-purge-runtime-migration-ledger.js";
+import { G4_RUNTIME_MIGRATION_NAMES } from "../persistence/g4-runtime-migration-ledger.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
@@ -106,7 +106,7 @@ async function runPrismaDeploy(
 
 async function copyFormalMigration(
   prismaRoot: string,
-  migrationName: (typeof PROJECT_PURGE_RUNTIME_MIGRATION_NAMES)[number],
+  migrationName: (typeof G4_RUNTIME_MIGRATION_NAMES)[number],
 ): Promise<void> {
   const targetDirectory = path.join(prismaRoot, "migrations", migrationName);
   await mkdir(targetDirectory, { recursive: false });
@@ -120,7 +120,7 @@ async function copyFormalMigration(
 
 async function materializePartialPrismaRoot(
   testRoot: string,
-  migrationNames: readonly (typeof PROJECT_PURGE_RUNTIME_MIGRATION_NAMES)[number][],
+  migrationNames: readonly (typeof G4_RUNTIME_MIGRATION_NAMES)[number][],
 ): Promise<string> {
   const prismaRoot = path.join(testRoot, "partial-prisma");
   await mkdir(path.join(prismaRoot, "migrations"), { recursive: true });
@@ -170,8 +170,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   );
 
   async function prepareDatabase(
-    migrationNames: readonly (typeof PROJECT_PURGE_RUNTIME_MIGRATION_NAMES)[number][] =
-      PROJECT_PURGE_RUNTIME_MIGRATION_NAMES,
+    migrationNames: readonly (typeof G4_RUNTIME_MIGRATION_NAMES)[number][] =
+      G4_RUNTIME_MIGRATION_NAMES,
   ): Promise<{
     readonly workspaceRoot: string;
     readonly dataRoot: string;
@@ -196,9 +196,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await handle.close();
     const databaseUrl = `file:${databasePath}`;
     const isFormalTree =
-      migrationNames.length === PROJECT_PURGE_RUNTIME_MIGRATION_NAMES.length &&
+      migrationNames.length === G4_RUNTIME_MIGRATION_NAMES.length &&
         migrationNames.every(
-        (migrationName, index) => migrationName === PROJECT_PURGE_RUNTIME_MIGRATION_NAMES[index],
+        (migrationName, index) => migrationName === G4_RUNTIME_MIGRATION_NAMES[index],
       );
     const prismaRoot = isFormalTree
       ? null
@@ -263,7 +263,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_PROJECT_PURGE_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_G4_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -308,7 +308,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_PROJECT_PURGE_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_G4_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -320,7 +320,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("11 migrations found");
+    expect(deployed.stdout).toContain("12 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -1585,12 +1585,12 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const nextPreview = await preflight.getPreview(scope, "shot tasks after replacement");
     await preflight.confirm(scope, { expectedSourceStoryboardVersionId: nextConfirmed.value.current.id, expectedSourceDigest: nextPreview.sourceDigest, expectedChapterRowVersion: nextPreview.chapterRowVersion, notes: "shot tasks after replacement" });
     const locked = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
-    expect(locked.candidate).toMatchObject({ id: candidate.id, status: "locked" });
+    expect(locked.candidate).toMatchObject({ id: candidate.id, status: "generated" });
     expect(locked.shots.find((item) => item.id === shotId)?.lockedCandidateId).toBe(candidate.id);
     const lockRevision = await prisma.candidateLockRevision.findFirstOrThrow({ where: { shotId }, orderBy: { revision: "desc" } });
     expect(lockRevision).toMatchObject({ action: "lock", candidateId: candidate.id, revision: 1, origin: "runtime" });
     const replayLock = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
-    expect(replayLock.candidate.status).toBe("locked");
+    expect(replayLock.candidate.status).toBe("generated");
     expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(1);
     const completedImages = await projects.completeChapterImages(project.id, scope.chapterId);
     expect(completedImages.chapter.status).toBe("images_done");

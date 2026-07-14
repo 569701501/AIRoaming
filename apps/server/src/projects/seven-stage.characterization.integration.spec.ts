@@ -258,7 +258,7 @@ describe("七阶段 Service 行为刻画", () => {
         { id: "shot_001", lockedCandidateId: firstCandidate!.id },
         { id: "shot_002", lockedCandidateId: secondCandidate!.id },
       ]);
-    expect(snapshot.candidates.every((candidate) => candidate.status === "locked")).toBe(true);
+    expect(snapshot.candidates.every((candidate) => candidate.status === "generated")).toBe(true);
   });
 
   it("图片阶段未完成时排版与素材包入口都拒绝且不产生成功事实", async () => {

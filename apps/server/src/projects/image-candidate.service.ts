@@ -298,15 +298,7 @@ export class ImageCandidateService {
     }
 
     const now = new Date().toISOString();
-    const nextCandidates = candidates.map((item) => {
-      if (item.id === target.id) {
-        return { ...item, status: "locked" as const, updatedAt: now };
-      }
-      if (item.shotId === target.shotId && item.status === "locked") {
-        return { ...item, status: "generated" as const, updatedAt: now };
-      }
-      return item;
-    });
+    const nextCandidates = candidates;
 
     const nextStoryboardJson: StoryboardJson = {
       ...chapter.storyboard.storyboardJson,
@@ -320,7 +312,7 @@ export class ImageCandidateService {
           status: "locked",
         };
       }),
-      // 锁定候选只改 shot.lockedCandidateId/status(出图阶段状态),不改分镜内容;
+      // 旧 file projection 只改 Shot 决策，不再把 Candidate.status 当当前定稿；
       // 不更新 storyboardJson.updatedAt,避免让已确认的 preflight 因时间戳不匹配而误失效。
     };
     const nextStoryboard: ChapterStoryboard = {

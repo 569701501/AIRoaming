@@ -1,5 +1,6 @@
 export * from "./domain.js";
 export * from "./comic-format.js";
+export * from "./candidate-lock.js";
 export * from "./dto.js";
 export * from "./script-format.js";
 export * from "./storyboard-normalize.js";

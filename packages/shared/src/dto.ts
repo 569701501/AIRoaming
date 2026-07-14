@@ -14,6 +14,7 @@ import type {
   ProjectType,
 } from "./domain.js";
 import type { ComicFormat } from "./comic-format.js";
+import type { CandidateStatus } from "./candidate-lock.js";
 import type { ArtifactFreshness, FreshnessReasonCode } from "./versioning/production-state.js";
 
 export interface ApiEnvelope<T> {
@@ -1076,8 +1077,6 @@ export interface WorkbenchShot {
   status: StoryboardShotStatus;
   lockedCandidateId: string | null;
 }
-
-export type CandidateStatus = "generated" | "selected" | "locked" | "rejected" | "superseded";
 
 export type CandidateGenerationReferenceKind = "character_identity" | "scene_environment";
 

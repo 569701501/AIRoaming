@@ -9,6 +9,8 @@ import { MigrationDecisionError, normalizeMigrationDecisionArtifact } from "./mi
 import { MigrationReportCodecError, normalizeComicFormatReport } from "./migration-report.js";
 import { FinalImportReportError, normalizeFinalImportReport, type FinalImportReport } from "./final-import-report.js";
 import { FULL_SHADOW_SLICE_ORDER } from "./full-shadow-importer.js";
+import { CANDIDATE_SHADOW_IMPORTER_VERSION } from "./candidate-shadow-importer.js";
+import { CANDIDATE_LOCK_SHADOW_IMPORTER_VERSION } from "./candidate-lock-shadow-importer.js";
 import type { MigrationRunKind } from "./migration-ledger.js";
 
 export class MigrationVerifyError extends Error {
@@ -90,6 +92,8 @@ const SOURCE_COUNT_BINDINGS_BY_IMPORTER: ReadonlyMap<string, readonly SourceCoun
   ["g3-m3-a11a", [{ countKey: "GenerationTask", entityType: "GenerationTask" }]],
   ["g3-m3-a11b", [{ countKey: "Candidate", entityType: "Candidate" }]],
   ["g3-m3-a11c", [{ countKey: "CandidateLockRevision", entityType: "CandidateLockRevision" }]],
+  [CANDIDATE_SHADOW_IMPORTER_VERSION, [{ countKey: "Candidate", entityType: "Candidate" }]],
+  [CANDIDATE_LOCK_SHADOW_IMPORTER_VERSION, [{ countKey: "CandidateLockRevision", entityType: "CandidateLockRevision" }]],
   ["g3-m3-a12", [{ countKey: "LayoutWorkingCopy", entityType: "LayoutWorkingCopy" }]],
   ["g3-m3-a13", [{ countKey: "ExportRevision", entityType: "ExportRevision" }]],
   ["g3-m3-a14", [{ countKey: "ProviderConfig", entityType: "ProviderConfig" }, { countKey: "CredentialMetadata", entityType: "CredentialMetadata" }, { countKey: "AppPreference", entityType: "AppPreference" }]],

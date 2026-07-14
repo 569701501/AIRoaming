@@ -227,8 +227,12 @@ const shotThumbMap = computed(() => {
     }
   }
   const result = new Map<string, { url: string; locked: boolean; count: number }>();
+  const currentCandidateIdByShot = new Map(
+    props.snapshot.shots.map((shot) => [shot.id, shot.lockedCandidateId]),
+  );
   for (const [shotId, list] of byShot) {
-    const locked = list.find((c) => c.status === "locked");
+    const currentCandidateId = currentCandidateIdByShot.get(shotId);
+    const locked = list.find((candidate) => candidate.id === currentCandidateId);
     const target = locked ?? [...list].sort((a, b) => Date.parse(b.createdAt ?? "0") - Date.parse(a.createdAt ?? "0"))[0];
     if (target?.assetId) {
       result.set(shotId, {

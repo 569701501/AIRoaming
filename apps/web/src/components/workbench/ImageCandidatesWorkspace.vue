@@ -200,7 +200,7 @@
               <span>候选结果</span>
               <strong>{{ selectedCandidates.length }} 张 · {{ candidateBatches.length }} 批</strong>
             </div>
-            <span class="lock-progress">已锁定 {{ lockedShotCount }}/{{ shots.length }}</span>
+            <span class="lock-progress">已定稿 {{ lockedShotCount }}/{{ shots.length }}</span>
           </div>
 
           <div v-if="selectedCandidates.length === 0" class="candidate-grid-empty">
@@ -221,7 +221,7 @@
                 v-for="candidate in batch.candidates"
                 :key="candidate.id"
                 class="candidate-card"
-                :class="[`is-${candidate.status}`, { 'is-locked': candidate.status === 'locked' }]"
+                :class="[`is-${candidate.status}`, { 'is-locked': isCurrentCandidate(candidate) }]"
               >
                 <button
                   v-if="getCandidatePreviewUrl(candidate.assetId)"
@@ -238,7 +238,7 @@
                 <div class="candidate-meta">
                   <div class="candidate-meta-top">
                     <strong>{{ candidate.label }}</strong>
-                    <span class="candidate-status">{{ getCandidateStatusLabel(candidate.status) }}</span>
+                    <span class="candidate-status">{{ isCurrentCandidate(candidate) ? "当前定稿" : getCandidateStatusLabel(candidate.status) }}</span>
                   </div>
                   <span v-if="candidate.promptDigest" class="digest-tag" :title="`prompt 摘要 ${candidate.promptDigest}`">{{ candidate.promptDigest.slice(0, 6) }}</span>
                   <span
@@ -250,11 +250,11 @@
                   <button
                     class="lock-action"
                     type="button"
-                    :disabled="loading || candidate.status === 'locked'"
+                    :disabled="loading || isCurrentCandidate(candidate)"
                     @click="$emit('lockCandidate', candidate.id)"
                   >
                     <Lock :size="13" />
-                    <span>{{ candidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+                    <span>{{ isCurrentCandidate(candidate) ? "当前定稿" : "定稿此图" }}</span>
                   </button>
                 </div>
               </article>
@@ -273,15 +273,15 @@
         <img :src="getCandidatePreviewUrl(previewCandidate.assetId)!" :alt="previewCandidate.label" />
         <div class="preview-info">
           <strong>{{ previewCandidate.label }}</strong>
-          <span>{{ getCandidateStatusLabel(previewCandidate.status) }}</span>
+          <span>{{ isCurrentCandidate(previewCandidate) ? "当前定稿" : getCandidateStatusLabel(previewCandidate.status) }}</span>
           <button
             class="preview-lock-btn"
             type="button"
-            :disabled="loading || previewCandidate.status === 'locked'"
+            :disabled="loading || isCurrentCandidate(previewCandidate)"
             @click="$emit('lockCandidate', previewCandidate.id); previewCandidate = null"
           >
             <Lock :size="15" />
-            <span>{{ previewCandidate.status === "locked" ? "已锁定" : "锁定此图" }}</span>
+            <span>{{ isCurrentCandidate(previewCandidate) ? "当前定稿" : "定稿此图" }}</span>
           </button>
         </div>
       </div>
@@ -349,6 +349,11 @@ const currentChapter = computed(() => props.snapshot.currentChapter);
 const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
+const currentCandidateIds = computed(() => new Set(
+  shots.value
+    .map((shot) => shot.lockedCandidateId)
+    .filter((candidateId): candidateId is string => candidateId !== null),
+));
 const selectedShot = computed(() => shots.value.find((shot) => shot.id === selectedShotId.value) ?? shots.value[0] ?? null);
 const promptSections = computed(() => candidateGenerationSpec.value?.sections ?? []);
 const candidateReferences = computed(() => [...(candidateGenerationSpec.value?.references ?? [])]
@@ -572,10 +577,6 @@ function getCandidatePreviewUrl(assetId: string): string | null {
 
 function getCandidateStatusLabel(status: CandidateStatus): string {
   switch (status) {
-    case "locked":
-      return "已锁定";
-    case "selected":
-      return "已选中";
     case "rejected":
       return "已废弃";
     case "superseded":
@@ -583,6 +584,10 @@ function getCandidateStatusLabel(status: CandidateStatus): string {
     default:
       return "已生成";
   }
+}
+
+function isCurrentCandidate(candidate: WorkbenchCandidate): boolean {
+  return currentCandidateIds.value.has(candidate.id);
 }
 
 function getTaskChapterId(task: GenerationTaskItem): string | null {

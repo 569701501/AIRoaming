@@ -920,8 +920,8 @@ export class ProjectRepository {
     return { id: row.id, projectId, chapterId, source: "ai_tool", threadId: row.threadId, messageId: row.messageId, toolCallId: row.toolCallId, operation: row.operation as ScriptRevisionItem["operation"], summary: row.summary, createdAt: row.createdAt.toISOString() };
   }
 
-  private databaseCandidateToLocal(row: Prisma.CandidateGetPayload<{}>, locks: Prisma.CandidateLockRevisionGetPayload<{}>[] = []): ProjectCandidate {
-    const status = locks.some((lock) => lock.candidateId === row.id && lock.action === "lock") ? "locked" : ["generated", "selected", "locked", "rejected", "superseded"].includes(row.status) ? row.status as ProjectCandidate["status"] : "generated";
+  private databaseCandidateToLocal(row: Prisma.CandidateGetPayload<{}>, _locks: Prisma.CandidateLockRevisionGetPayload<{}>[] = []): ProjectCandidate {
+    const status = ["generated", "rejected", "superseded"].includes(row.status) ? row.status as ProjectCandidate["status"] : "generated";
     return { id: row.id, projectId: row.projectId, chapterId: row.chapterId, shotId: row.shotId, taskId: row.taskId, assetId: row.assetId, index: row.index, status, label: row.label, promptDigest: row.promptDigest ?? "", generationPurpose: row.generationPurpose === "legacy_unspecified" ? undefined : row.generationPurpose as ProjectCandidate["generationPurpose"], generationSpecVersion: row.generationSpecVersion ?? undefined, generationSpecDigest: row.generationSpecDigest ?? undefined, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
   }
 
@@ -1267,9 +1267,7 @@ export class ProjectRepository {
       return input
         .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item))
         .map((item, index): import("@airoaming/shared").ProjectCandidate => {
-          const status: import("@airoaming/shared").CandidateStatus = item.status === "selected"
-            || item.status === "locked"
-            || item.status === "rejected"
+          const status: import("@airoaming/shared").CandidateStatus = item.status === "rejected"
             || item.status === "superseded"
             ? item.status
             : "generated";

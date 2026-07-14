@@ -104,9 +104,15 @@ export class AssetPackageService {
       { type: "json", chapterId: chapter.id },
     );
 
-    // locked candidates + layout export assets
+    // Candidate status is preference/lifecycle only. Current-final identity is
+    // derived from the Shot decision pointer (legacy file projection here).
+    const currentCandidateIds = new Set(
+      chapter.storyboard?.storyboardJson.shots
+        .map((shot) => shot.lockedCandidateId)
+        .filter((candidateId): candidateId is string => candidateId !== null) ?? [],
+    );
     for (const candidate of chapter.candidates ?? []) {
-      if (candidate.status !== "locked") {
+      if (!currentCandidateIds.has(candidate.id)) {
         continue;
       }
       const asset = project.assets.find((item) => item.id === candidate.assetId);

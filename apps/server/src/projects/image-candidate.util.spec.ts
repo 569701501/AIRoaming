@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ProjectCandidate, StoryboardShot } from "@airoaming/shared";
 
 /**
- * 纯函数级锁定规则测试（与 ImageCandidateService.lockCandidate 对齐）：
- * 同一 shot 只能有一个 locked 候选。
+ * 旧 file projection 锁定规则（与 ImageCandidateService.lockCandidate 对齐）：
+ * 当前定稿只由 Shot 指针表达，Candidate.status 不承载 locked 语义。
  */
 function applyLock(
   candidates: ProjectCandidate[],
@@ -15,15 +15,7 @@ function applyLock(
   if (!target) {
     throw new Error("CANDIDATE_NOT_FOUND");
   }
-  const nextCandidates = candidates.map((item) => {
-    if (item.id === target.id) {
-      return { ...item, status: "locked" as const, updatedAt: now };
-    }
-    if (item.shotId === target.shotId && item.status === "locked") {
-      return { ...item, status: "generated" as const, updatedAt: now };
-    }
-    return item;
-  });
+  const nextCandidates = candidates;
   const nextShots = shots.map((shot) => {
     if (shot.id !== target.shotId) {
       return shot;
@@ -94,18 +86,18 @@ function makeShot(id: string, lockedCandidateId: string | null = null): Storyboa
 describe("candidate lock rules", () => {
   it("同一镜头只能保留一个锁定候选", () => {
     const candidates = [
-      makeCandidate("a", "shot_1", "locked"),
+      makeCandidate("a", "shot_1"),
       makeCandidate("b", "shot_1", "generated"),
-      makeCandidate("c", "shot_2", "locked"),
+      makeCandidate("c", "shot_2"),
     ];
     const shots = [
       makeShot("shot_1", "a"),
       makeShot("shot_2", "c"),
     ];
     const result = applyLock(candidates, shots, "b", "2026-07-09T01:00:00.000Z");
-    expect(result.candidates.find((item) => item.id === "b")?.status).toBe("locked");
+    expect(result.candidates.find((item) => item.id === "b")?.status).toBe("generated");
     expect(result.candidates.find((item) => item.id === "a")?.status).toBe("generated");
-    expect(result.candidates.find((item) => item.id === "c")?.status).toBe("locked");
+    expect(result.candidates.find((item) => item.id === "c")?.status).toBe("generated");
     expect(result.shots.find((item) => item.id === "shot_1")?.lockedCandidateId).toBe("b");
   });
 
