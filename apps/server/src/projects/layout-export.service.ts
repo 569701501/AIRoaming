@@ -277,6 +277,7 @@ export class LayoutExportService {
         await tx.asset.update({ where: { id: assetId }, data: { status: "ready", readyAt: now } });
         await tx.exportRevision.create({ data: { id: exportRevisionId, projectId, chapterId, scopeKey: `chapter:${chapterId}`, revision: (latest?.revision ?? 0) + 1, kind: "layout_publication", status: "queued", taskId: null, layoutRevisionId: revision.id, sourceLockSetDigest: revision.sourceLockSetDigest, profileJson: profile as Prisma.InputJsonValue, profileSchemaVersion: 1, profileDigest, preflightDigest: input.preflightDigest, rendererVersion: "db-layout-v1", manifestJson: manifest as Prisma.InputJsonValue, manifestSchemaVersion: 1, manifestDigest, completionApplicability: null, origin: "runtime", createdAt: now, readyAt: null, failedAt: null, cancelledAt: null } });
         await tx.exportArtifact.create({ data: { id: `export_artifact_${revision.id}`, exportRevisionId, assetId, role: "layout_json", order: 1 } });
+        await tx.exportRevision.update({ where: { id: exportRevisionId }, data: { status: "rendering" } });
         await tx.exportRevision.update({ where: { id: exportRevisionId }, data: { status: "ready", readyAt: now, completionApplicability: "current" } });
         await tx.chapter.update({ where: { id: chapterId }, data: { currentExportRevisionId: exportRevisionId, milestoneStatus: input.chapter.milestoneStatus === "exported" ? "exported" : "layout_done", rowVersion: { increment: 1 } } });
       });

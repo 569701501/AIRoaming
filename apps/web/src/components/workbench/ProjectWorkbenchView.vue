@@ -6,8 +6,9 @@
       @select-step="$emit('selectStep', $event)"
     />
 
-    <section class="workbench-content" :aria-label="`${currentStageLabel}工作区`">
+    <section class="workbench-content" :class="{ 'is-layout-step': isLayoutStep }" :aria-label="`${currentStageLabel}工作区`">
       <ProjectDialoguePanel
+        v-if="!isLayoutStep"
         :active-step-key="activeStepKey"
         :dialogue-error="dialogueError"
         :dialogue-notice="dialogueNotice"
@@ -382,6 +383,10 @@ function continueNextChapter() {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.workbench-content.is-layout-step {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .script-middle-column {

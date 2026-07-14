@@ -39,6 +39,7 @@ import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { CandidateLockRepository } from "./candidate-lock.repository.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
+import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -78,7 +79,8 @@ import { CandidateSourceQueryService } from "./candidate-source-query.service.js
     CandidateLockRepository,
     CandidateDecisionService,
     CandidateSourceQueryService,
+    LayoutWorkingCopyService,
   ],
-  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService],
+  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutWorkingCopyService],
 })
 export class ProjectsModule {}

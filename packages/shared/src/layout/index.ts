@@ -7,3 +7,4 @@ export * from "./digest.js";
 export * from "./publication.js";
 export * from "./presets.js";
 export * from "./commands.js";
+export * from "./working-copy.js";

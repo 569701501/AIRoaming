@@ -34,6 +34,8 @@ import type {
   UpdateStoryboardWorkingCopyRequest,
   ConfirmChapterPreflightRequest,
   VersionHistoryCopyRequest,
+  InitializeLayoutWorkingCopyRequestV1,
+  SaveLayoutWorkingCopyRequestV1,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
@@ -43,6 +45,7 @@ import { StoryboardVersionService } from "./versioning/storyboard-version.servic
 import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
 import { PreflightRevisionService } from "./versioning/preflight-revision.service.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
+import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 
 @Controller("projects")
 export class ProjectsController {
@@ -54,6 +57,7 @@ export class ProjectsController {
     @Inject(ChapterProductionQueryService) private readonly chapterProductionQueryService: ChapterProductionQueryService,
     @Inject(PreflightRevisionService) private readonly preflightRevisionService: PreflightRevisionService,
     @Inject(CandidateDecisionService) private readonly candidateDecisionService: CandidateDecisionService,
+    @Inject(LayoutWorkingCopyService) private readonly layoutWorkingCopyService: LayoutWorkingCopyService,
   ) {}
 
   @Get()
@@ -594,6 +598,32 @@ export class ProjectsController {
     @Param("chapterId") chapterId: string,
   ) {
     return ok(await this.projectsService.completeChapterImages(projectId, chapterId));
+  }
+
+  @Get(":projectId/chapters/:chapterId/layout/working-copy")
+  async getLayoutWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutWorkingCopyService.get({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/working-copy/initialize")
+  async initializeLayoutWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: InitializeLayoutWorkingCopyRequestV1,
+  ) {
+    return ok(await this.layoutWorkingCopyService.initialize({ projectId, chapterId }, body));
+  }
+
+  @Put(":projectId/chapters/:chapterId/layout/working-copy")
+  async saveLayoutWorkingCopy(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: SaveLayoutWorkingCopyRequestV1,
+  ) {
+    return ok(await this.layoutWorkingCopyService.save({ projectId, chapterId }, body));
   }
 
   @Post(":projectId/chapters/:chapterId/layout/build")

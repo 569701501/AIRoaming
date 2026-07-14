@@ -86,6 +86,11 @@ import type {
   ConfirmChapterPreflightRequest,
   ConfirmChapterPreflightResponse,
   VersionHistoryCopyRequest,
+  InitializeLayoutWorkingCopyRequestV1,
+  InitializeLayoutWorkingCopyResponseV1,
+  LayoutWorkingCopyResponseV1,
+  SaveLayoutWorkingCopyRequestV1,
+  SaveLayoutWorkingCopyResponseV1,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -606,6 +611,25 @@ export const api = {
   ),
   candidateGenerationPreview: (projectId: string, chapterId: string, shotId: string) => request<CandidateGenerationPreviewResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-generation-preview`,
+  ),
+  getLayoutWorkingCopy: (projectId: string, chapterId: string) => request<LayoutWorkingCopyResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
+  ),
+  initializeLayoutWorkingCopy: (
+    projectId: string,
+    chapterId: string,
+    input: InitializeLayoutWorkingCopyRequestV1,
+  ) => request<InitializeLayoutWorkingCopyResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy/initialize`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  saveLayoutWorkingCopy: (
+    projectId: string,
+    chapterId: string,
+    input: SaveLayoutWorkingCopyRequestV1,
+  ) => request<SaveLayoutWorkingCopyResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
+    { method: "PUT", body: JSON.stringify(input) },
   ),
   buildChapterLayout: (projectId: string, chapterId: string) => request<BuildChapterLayoutResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/build`,

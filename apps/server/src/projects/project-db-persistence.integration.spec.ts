@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { G1_RUNTIME_MIGRATION_NAMES } from "../persistence/g1-runtime-migration-ledger.js";
-import { G4_RUNTIME_MIGRATION_NAMES } from "../persistence/g4-runtime-migration-ledger.js";
+import { G5_RUNTIME_MIGRATION_NAMES } from "../persistence/g5-runtime-migration-ledger.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
@@ -45,7 +45,8 @@ import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
-import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
+import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
+import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
 
@@ -108,7 +109,7 @@ async function runPrismaDeploy(
 
 async function copyFormalMigration(
   prismaRoot: string,
-  migrationName: (typeof G4_RUNTIME_MIGRATION_NAMES)[number],
+  migrationName: (typeof G5_RUNTIME_MIGRATION_NAMES)[number],
 ): Promise<void> {
   const targetDirectory = path.join(prismaRoot, "migrations", migrationName);
   await mkdir(targetDirectory, { recursive: false });
@@ -122,7 +123,7 @@ async function copyFormalMigration(
 
 async function materializePartialPrismaRoot(
   testRoot: string,
-  migrationNames: readonly (typeof G4_RUNTIME_MIGRATION_NAMES)[number][],
+  migrationNames: readonly (typeof G5_RUNTIME_MIGRATION_NAMES)[number][],
 ): Promise<string> {
   const prismaRoot = path.join(testRoot, "partial-prisma");
   await mkdir(path.join(prismaRoot, "migrations"), { recursive: true });
@@ -172,8 +173,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   );
 
   async function prepareDatabase(
-    migrationNames: readonly (typeof G4_RUNTIME_MIGRATION_NAMES)[number][] =
-      G4_RUNTIME_MIGRATION_NAMES,
+    migrationNames: readonly (typeof G5_RUNTIME_MIGRATION_NAMES)[number][] =
+      G5_RUNTIME_MIGRATION_NAMES,
   ): Promise<{
     readonly workspaceRoot: string;
     readonly dataRoot: string;
@@ -198,9 +199,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await handle.close();
     const databaseUrl = `file:${databasePath}`;
     const isFormalTree =
-      migrationNames.length === G4_RUNTIME_MIGRATION_NAMES.length &&
+      migrationNames.length === G5_RUNTIME_MIGRATION_NAMES.length &&
         migrationNames.every(
-        (migrationName, index) => migrationName === G4_RUNTIME_MIGRATION_NAMES[index],
+        (migrationName, index) => migrationName === G5_RUNTIME_MIGRATION_NAMES[index],
       );
     const prismaRoot = isFormalTree
       ? null
@@ -265,7 +266,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_G4_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_G5_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -310,7 +311,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_G4_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_G5_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -322,7 +323,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("12 migrations found");
+    expect(deployed.stdout).toContain("13 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -1231,6 +1232,49 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await app.get(PrismaService).database().shot.count({ where: { chapterId: scope.chapterId, lifecycleStatus: "retired" } })).toBe(1);
   }, 30_000);
 
+  it("G5-M3: creates and restores a blank DB-only Working Copy without a formal revision", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const scripts = app.get(ScriptVersionRepository);
+    const stories = app.get(StoryVersionRepository);
+    const boards = app.get(StoryboardVersionRepository);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "G5 M3 空白草稿", type: "comic", comicFormat: "paged_comic", artStyle: "comic_style" });
+    const scope = { projectId: project.id, chapterId: project.currentChapterId! };
+    const chapter = await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } });
+    const scriptText = "空白成稿草稿的上游脚本";
+    const scriptWorking = await scripts.updateWorkingCopy(scope, { sourceText: scriptText, expectedChapterRowVersion: chapter.rowVersion });
+    const published = await scripts.publish(scope, { expectedCurrentScriptVersionId: null, expectedWorkingDigest: scriptWorking.value.digest, expectedChapterRowVersion: scriptWorking.value.chapterRowVersion, createNextChapter: false });
+    const story = await stories.createWorkingCopy(scope, { mode: "empty", expectedCurrentVersionId: null, expectedSourceScriptVersionId: published.scriptVersion.id, expectedChapterRowVersion: published.workingCopy.chapterRowVersion });
+    const storyDocument: StoryDocumentV2 = { schemaVersion: 2, chapterId: scope.chapterId, synopsis: "", direction: { logline: "", chapterGoal: "", coreConflict: "", emotionalArc: "", endingHook: "" }, characters: [], scenes: [], beats: [], notes: "" };
+    const storyUpdated = await stories.updateWorkingCopy(scope, { pendingVersionId: story.value.pending!.id, document: storyDocument, expectedPendingRowVersion: 0, expectedChapterRowVersion: story.chapterRowVersion });
+    const storyConfirmed = await stories.confirmWorkingCopy(scope, { pendingVersionId: story.value.pending!.id, expectedPendingDocumentDigest: storyUpdated.value.pending!.documentDigest, expectedPendingRowVersion: 1, expectedCurrentVersionId: null, expectedSourceScriptVersionId: published.scriptVersion.id, expectedSourceDigest: published.scriptVersion.sourceDigest, expectedChapterRowVersion: storyUpdated.chapterRowVersion });
+    const board = await boards.createWorkingCopy(scope, { mode: "empty", expectedCurrentVersionId: null, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedChapterRowVersion: storyConfirmed.chapterRowVersion });
+    const boardConfirmed = await boards.confirmWorkingCopy(scope, { pendingVersionId: board.value.pending!.id, expectedPendingDocumentDigest: board.value.pending!.documentDigest, expectedPendingRowVersion: 0, expectedCurrentVersionId: null, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedSourceDigest: storyConfirmed.value.current.documentDigest, expectedChapterRowVersion: board.chapterRowVersion });
+    expect(await prisma.storyboardShotProjection.count({ where: { storyboardVersionId: boardConfirmed.value.current.id } })).toBe(0);
+
+    const metadata = { schemaVersion: 1, kind: "layout_font", family: "G5 M3 Blank" };
+    await prisma.asset.create({ data: { id: `font_${project.id}`, projectId: project.id, chapterId: null, type: "font", role: "layout_font", mimeType: "font/ttf", storageKey: `projects/${project.id}/fonts/blank.ttf`, status: "staged", metadataJson: metadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(metadata) } });
+    await prisma.asset.update({ where: { id: `font_${project.id}` }, data: { status: "ready", sha256: `sha256:${"2".repeat(64)}`, bytes: 4, readyAt: new Date() } });
+    const created = await app.get(LayoutWorkingCopyService).initialize(scope, {
+      schemaVersion: 1,
+      profile: { kind: "paged", presetId: "portrait_3_4", width: 1800, height: 2400, safeArea: { top: 72, right: 72, bottom: 72, left: 72 }, panelReadingDirection: "ltr_ttb" },
+      initializationMode: "blank",
+      expectedCurrentLayoutRevisionId: null,
+    });
+    expect(created).toMatchObject({ result: "created", value: { rowVersion: 0, basedOnRevisionId: null, document: { comicFormat: "paged_comic", canvases: [{ kind: "page", elements: [] }] } } });
+    expect(await prisma.layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(0);
+    await expect(access(path.join(workspaceRoot, "projects", project.id))).rejects.toMatchObject({ code: "ENOENT" });
+
+    await app.close();
+    app = null;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    expect(await app.get(LayoutWorkingCopyService).get(scope)).toMatchObject({ id: created.value.id, rowVersion: 0, document: { canvases: [{ elements: [] }] } });
+    expect(await app.get(PrismaService).database().layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(0);
+  }, 30_000);
+
   it("projects production state and enforces the new-work gate across a restart", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
@@ -1725,6 +1769,107 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(replayedExport.layout.id).toBe(exported.layout.id);
     expect(await prisma.layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(1);
     expect(await prisma.exportRevision.count({ where: { chapterId: scope.chapterId, kind: "layout_publication" } })).toBe(1);
+
+    const fontMetadata = { schemaVersion: 1, kind: "layout_font", family: "G5 M3 Test" };
+    await prisma.asset.create({
+      data: {
+        id: `layout_font_${project.id}`,
+        projectId: project.id,
+        chapterId: null,
+        type: "font",
+        role: "layout_font",
+        mimeType: "font/ttf",
+        storageKey: `projects/${project.id}/fonts/g5-m3-test.ttf`,
+        status: "staged",
+        metadataJson: fontMetadata,
+        metadataSchemaVersion: 1,
+        metadataDigest: digestCanonicalJson(fontMetadata),
+      },
+    });
+    await prisma.asset.update({
+      where: { id: `layout_font_${project.id}` },
+      data: {
+        status: "ready",
+        sha256: `sha256:${"1".repeat(64)}`,
+        bytes: 4,
+        readyAt: new Date(),
+      },
+    });
+    await prisma.layoutWorkingCopy.delete({ where: { chapterId: scope.chapterId } });
+    const layoutWorkingCopies = app.get(LayoutWorkingCopyService);
+    const initializedV1 = await layoutWorkingCopies.initialize(scope, {
+      schemaVersion: 1,
+      profile: {
+        kind: "vertical_strip",
+        presetId: "webtoon_1080",
+        width: 1080,
+        defaultSectionHeight: 1920,
+        safeInsetX: 64,
+      },
+      initializationMode: "default_storyboard_layout",
+      expectedCurrentLayoutRevisionId: layoutRevision.id,
+    });
+    expect(initializedV1).toMatchObject({
+      result: "created",
+      value: {
+        rowVersion: 0,
+        document: { kind: "layout_document_v1", canvases: [{ elements: [{ type: "panel_frame" }] }] },
+        sourceEvaluation: { sourceResolution: "current" },
+      },
+    });
+    const workingCopyResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/layout/working-copy`);
+    expect(workingCopyResponse.status).toBe(200);
+    expect((await workingCopyResponse.json() as { data: { id: string; rowVersion: number } }).data).toEqual(expect.objectContaining({ id: initializedV1.value.id, rowVersion: 0 }));
+    expect(await layoutWorkingCopies.initialize(scope, {
+      schemaVersion: 1,
+      profile: initializedV1.value.document.profile,
+      initializationMode: "blank",
+      expectedCurrentLayoutRevisionId: layoutRevision.id,
+    })).toMatchObject({ result: "existing", value: { id: initializedV1.value.id, rowVersion: 0 } });
+
+    const tabADocument = structuredClone(initializedV1.value.document);
+    tabADocument.canvases[0]!.name = "Tab A saved";
+    const tabAEncoded = LayoutDocumentCodecV1.encode(tabADocument);
+    const tabARequest = {
+      schemaVersion: 1 as const,
+      expectedRowVersion: initializedV1.value.rowVersion,
+      baseDocumentDigest: initializedV1.value.documentDigest,
+      documentDigest: tabAEncoded.digest,
+      document: tabAEncoded.value,
+    };
+    const tabASaved = await layoutWorkingCopies.save(scope, tabARequest);
+    expect(tabASaved).toMatchObject({ result: "updated", value: { rowVersion: 1, document: { canvases: [{ name: "Tab A saved" }] } } });
+    expect(await layoutWorkingCopies.save(scope, tabARequest)).toMatchObject({ result: "replayed", value: { rowVersion: 1 } });
+    expect(await layoutWorkingCopies.save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: tabASaved.value.rowVersion,
+      baseDocumentDigest: tabASaved.value.documentDigest,
+      documentDigest: tabASaved.value.documentDigest,
+      document: tabASaved.value.document,
+    })).toMatchObject({ result: "no_op", value: { rowVersion: 1 } });
+
+    const tabBDocument = structuredClone(tabASaved.value.document);
+    tabBDocument.canvases[0]!.name = "Tab B wins";
+    const tabCDocument = structuredClone(tabASaved.value.document);
+    tabCDocument.canvases[0]!.name = "Tab C stale";
+    const tabBEncoded = LayoutDocumentCodecV1.encode(tabBDocument);
+    const tabCEncoded = LayoutDocumentCodecV1.encode(tabCDocument);
+    expect(await layoutWorkingCopies.save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: 1,
+      baseDocumentDigest: tabASaved.value.documentDigest,
+      documentDigest: tabBEncoded.digest,
+      document: tabBEncoded.value,
+    })).toMatchObject({ result: "updated", value: { rowVersion: 2 } });
+    await expect(layoutWorkingCopies.save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: 1,
+      baseDocumentDigest: tabASaved.value.documentDigest,
+      documentDigest: tabCEncoded.digest,
+      document: tabCEncoded.value,
+    })).rejects.toMatchObject({ status: 409, response: { error: { code: "LAYOUT_WORKING_COPY_CONFLICT" } } });
+    expect(await layoutWorkingCopies.get(scope)).toMatchObject({ rowVersion: 2, document: { canvases: [{ name: "Tab B wins" }] } });
+
     const packageResult = await projects.exportAssetPackage(project.id, scope.chapterId);
     expect(packageResult.manifest.files.length).toBeGreaterThan(1);
     expect(packageResult.asset.type).toBe("archive");
@@ -1867,6 +2012,11 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await app.close();
     app = null;
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    expect(await app.get(LayoutWorkingCopyService).get(scope)).toMatchObject({
+      rowVersion: 2,
+      document: { canvases: [{ name: "Tab B wins" }] },
+      sourceEvaluation: { sourceResolution: "stale" },
+    });
     const reopenedProduction = await app.get(ChapterProductionQueryService).get(scope);
     expect(reopenedProduction.productionState.candidateSources).toEqual(staleProduction.productionState.candidateSources);
     expect(reopenedProduction.workflow.currentStepKey).toBe("layout_export");

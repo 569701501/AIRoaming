@@ -19,6 +19,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       { confirm: dbConfirm } as never,
       {} as never,
+      {} as never,
     );
     await expect(controller.confirmChapterPreflight("p", "c", {} as never)).resolves.toEqual({ success: true, data: { mode: "db" } });
     expect(dbConfirm).toHaveBeenCalledOnce();
@@ -31,6 +32,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       {} as never,
       { confirm: dbConfirm } as never,
+      {} as never,
       {} as never,
     );
     await expect(fileController.confirmChapterPreflight("p", "c", {} as never)).resolves.toEqual({ success: true, data: { mode: "file" } });
@@ -59,6 +61,7 @@ describe("W1 DB-only Web route gate", () => {
     expect(apiSource).toContain("commitCandidateDecision");
     expect(candidateSource).toContain("影响清单已重新计算；请重新确认，本页面没有自动提交");
     expect(candidateSource).toContain("这里不会自动换图、裁切或生成新排版");
-    expect(layoutSource).toContain("实际换图与裁切将在成稿编辑阶段处理");
+    expect(layoutSource).toContain("查看候选定稿");
+    expect(layoutSource).toContain("来源待处理");
   });
 });
