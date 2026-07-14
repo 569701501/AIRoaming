@@ -2,7 +2,7 @@
 doc_id: AIR-RCUT-FINDINGS-001
 status: active
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-14
 owner: AI漫游项目
 audience: orchestrator, worker, reviewer, human
 source: 当前源码、M6-A1 契约与 G1 正式验收清单
@@ -58,6 +58,23 @@ source: 当前源码、M6-A1 契约与 G1 正式验收清单
 - 单一“授权继续”会把停写、关闭旧进程和不可逆激活混在一起，必须拆成三门。
 - 把测试 rehearsal 当生产 runner 会缺少进程管理、人工门、resume 和真实 artifact 路径保护。
 
+## R0-B 只读发现新增事实
+
+| ID | 只读证据 | 结论 |
+| --- | --- | --- |
+| F-22 | 当前 release 仓库内的开发期 `workspace/` 位于 `releaseRoot` 之下；私有 plan 使用真实路径复核时返回 `CUTOVER_PLAN_ROOT_OVERLAP` | 真实 plan 不能直接复用当前开发布局；必须由 release owner 提供不与 release root 重叠的正式 workspace 根，不能复制临时根冒充生产源 |
+| F-23 | 同一 sealed snapshot 在两个 fresh SQLite shadow target 上执行，两个 aggregate reportDigest 相同；45 张表计数摘要相同 | SH-01/SH-02 只读 shadow 一致性通过；A/B 目标未接触源 workspace |
+| F-24 | 两个 shadow 均在 storyboard slice 停止，issue=`chapter:chapter_001:storyboard-source`，unresolvedBlockerCount=1 | SH-03 未通过；MigrationReport 不能签 SH-10，不能生成 AUTH 或进入 C0/C1 |
+| F-25 | settings 只读递归扫描发现 3 个 credential 字段、sentinel=0；snapshot 将 settings 转为 redacted artifact | settings 起点暂按 `legacy_plaintext_requires_two_phase / prestage_legacy` 记录，最终仍需 release owner/ Migration reviewer 人工核对；未读取 Keychain 值 |
+| F-26 | shadow A/B 目标的 45 张表计数摘要均为 `sha256:709c2a3101c3efd0bd5076c17bb03c34c1d373cd389771779d1a9320855820f2`，目标 workspace 未产生源文件回写 | fresh target isolation 与数据库计数一致；不代表 integrity/FK/API/restart/backup-restore/SH-10 已通过 |
+| F-27 | 源章节存在 `storyboard.json`，其 `sourceStoryVersionId` 指向旧 StoryVersion；同章没有 `structure.json`，Story shadow 导入数量为 0 | `storyboard-source` blocker 的直接原因是当前源缺少可匹配的 StoryVersion；必须由 release owner 决定补齐/恢复结构源或登记正式迁移决议，不能在 shadow 中猜测或改写真实源 |
+| F-28 | recovery backup 的 archive digest=`336c9f...6f23`，其中 structure member digest=`4eac7b...0dd3`、22819 bytes；project/chapter/story/script identity 与当前源一致，12/12 projectCharacterId 唯一对应 shared characters | 已有可审计恢复候选；仍须先 overlay 验证，真实源只允许在明确授权后 no-clobber 原子新增该单文件 |
+| F-29 | 临时 overlay 仅补入候选 structure 后，两个 fresh shadow 都在 Story slice 以 `MIGRATION_STORY_DOCUMENT_INVALID` 失败，aggregate reportDigest 同为 `sha256:50884a02b5e92b0ddefdfd8070064647adf03313cd9aebaa23ccb96853717f1a` | 不能只恢复文件；当前 importer 不兼容旧 Story beat 的名称引用 |
+| F-30 | 候选 structure 的 43/43 beat character token 均能按唯一精确名称解析到 structure character card id，0 缺失、0 歧义 | Story importer 可做确定性 ID/唯一名称兼容；未知或重复名称必须 fail-closed |
+| F-31 | 当前 storyboard 的 65/65 shot character token 均能按 shared characters 唯一精确名称解析，0 缺失、0 歧义；现 importer 对任一非空数组直接失败且未创建 `storyboard_shot_characters` | 必须同时补 resolver、正式 Character 目标验证、child relation 投影与 replay，不能只删掉错误判断 |
+| F-32 | full shadow 当前顺序为 `story -> storyboard -> characters` | 改为 `story -> characters -> storyboard` 才能让 V2 Storyboard 引用正式 Character；16-slice consumer 必须全量回归 |
+| F-33 | release identity loader 和 runner 需要 repo-style releaseRoot；从最终 remediation commit 创建仓库外 detached worktree 可与真实 source workspace disjoint | root overlap 不需要移动或复制真实 source workspace；appCommit 必须从旧 `3fda7d0` 更新为最终修复提交 |
+
 ## R0-A 新增验证
 
 - C7 execute 已提交 `PersistenceState=db_only + activatedAt` 后，在证据写入前模拟进程中断；新 `DbCutoverService` 实例按同一 identity resume，仅执行 execute，不重复 dry-run，不改写 `activatedAt`，随后补齐 C7/COMPLETED。
@@ -69,8 +86,24 @@ source: 当前源码、M6-A1 契约与 G1 正式验收清单
 
 ```text
 M6-A1 isolated_complete
-production_entry_changes_required
+R0-A isolated_complete
+R0-B blocker_remediation_documented_waiting_luna_authorization
 real_cutover_no_go
 ```
 
-下一工作不是填写真实路径，而是先让 Luna 完成 R0-A 代码收口；完成后再次复核并停止，等待真实授权。
+下一工作不是人工签 SH-10 或执行 C0～C7，而是把 `luna_r0b_blocker_remediation_handoff.md` 及其授权文本交给 Luna。Luna 完成代码修复、overlay、条件式单文件恢复、外置 release worktree 和 SH-01～09 后必须停下，再由 Migration reviewer 人工完成 SH-10；在此之前不得生成 AUTH、停写或进入 R1。
+## R0-B remediation 执行新增事实
+
+| ID | 证据 | 结论 |
+| --- | --- | --- |
+| F-34 | `74a6d71` 的 resolver、Story/Storyboard importer、full order、child relation 与 contextual count 改动；78 项定向测试和 71 spec/482 tests 全量通过 | R0-B 代码阻塞已在代码层收口，未修改 schema/migration/trigger |
+| F-35 | 真实候选 overlay 暴露旧章节已是 `storyboard_done`；Story 无条件写 `structured` 触发 G1 单调保护 | Story importer 改为只在当前 milestone 低于 `structured` 时推进，不降级既有状态 |
+| F-36 | 旧 shared character 的 preview 记录带 `previewConfirmedAt`，但 G1 要求 `preview_front.confirmed_at IS NULL` | 预览确认旧证据由 source digest 保留，DB preview relation 不写 confirmedAt；final reference 继续绑定 finalizedAt |
+| F-37 | clean A/B overlay 使用独立 source/target 根，前 8 slice 两边完全一致，Storyboard child=65；第 9 slice 两边同报 `PREFLIGHT_SOURCE_UNRESOLVED` | 代码修复后的 R0-B gate 已推进到既有 preflight blocker；不是角色引用或目标 workspace 隔离问题 |
+| F-38 | preflight legacy 文件 `schemaVersion=1` 且没有 `sourceSnapshot`，当前 importer 明确要求 `schemaVersion=2 + sourceSnapshot` | 该 blocker 超出 R0-B 契约；不得为了让 full shadow 变绿而修改其他真实源或伪造证据 |
+
+## R0-B 执行停止条件
+
+- 真实 source target 仍不存在，recovery archive/member digest 未改变。
+- source overlay 未被 target workspace 回写；A/B target 均为独立根。
+- 未生成 AUTH、未停写、未执行 C0～C7、未访问默认 Keychain/真实凭据。

@@ -2,7 +2,7 @@
 doc_id: AIR-RCUT-EVIDENCE-001
 status: active
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-14
 owner: AI漫游项目
 audience: developer, qa, reviewer, release-owner, ai-agent
 source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
@@ -20,6 +20,8 @@ source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
 | `passed_real_disposable` | 已在明确授权的临时 disposable 资源上执行并有脱敏证据；不代表真实用户资源或真实 plan |
 | `failed` | 已执行但不符合契约 |
 | `blocked` | 前置或人工授权缺失 |
+| `observed_preliminary` | 在最终 release/root/source 修复前观察到的一致性，只作诊断，不算正式 SH 通过 |
+| `not_ready` | 前置 gate 未通过，尚不能进入该人工或不可逆门 |
 
 静态代码阅读不能改成 `passed_isolated`；隔离测试不能改成 `passed_real`；Luna/Codex 不能把 SH-10 或 AUTH 门自签为通过。
 
@@ -105,18 +107,20 @@ source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
 
 以下项目必须绑定 release-specific plan；M6 临时 fixture 只能作为先验，不能直接改为真实通过。
 
+本轮 `passed_release_shadow` 仅表示同一只读 snapshot 在两个 fresh 目标上的一致性；它不等价于 `passed_real`，也不绕过 SH-03/SH-10。
+
 | ID | 条件 | 状态 |
 | --- | --- | --- |
-| SH-01 | 同一真实只读 snapshot 两次 fresh import | `not_run` |
-| SH-02 | 规范化 reportDigest 相同 | `not_run` |
-| SH-03 | blocker=0 | `not_run` |
-| SH-04 | integrity/FK/schema contract 全绿 | `not_run` |
+| SH-01 | 同一只读 overlay snapshot 两次 fresh import | `observed_preliminary`（clean overlay A/B 一致；非 real-source） |
+| SH-02 | 规范化 reportDigest 相同 | `observed_preliminary`（A/B=`sha256:20a85df7121a639738d0fb5f8c6231a9a21b9966e1328d91edb25cfacf96cf47`；非 real-source） |
+| SH-03 | blocker=0 | `blocked_preflight_source`（两边在 preflight slice 同报 `PREFLIGHT_SOURCE_UNRESOLVED`） |
+| SH-04 | integrity/FK/schema contract 全绿 | `not_run`（被 SH-03 阻断） |
 | SH-05 | API DTO 对照通过 | `not_run` |
 | SH-06 | DB-mode restart 通过 | `not_run` |
 | SH-07 | old metadata mutation isolation | `not_run` |
 | SH-08 | global secret sentinel=0 | `not_run` |
 | SH-09 | release-specific backup/restore rehearsal | `not_run` |
-| SH-10 | 人工审阅 MigrationReport 并签署 | `not_run` |
+| SH-10 | 人工审阅 MigrationReport 并签署 | `not_ready` |
 | AUTH-C1 | C0 passed 后，用户授权真实停写及 plan 指定的 C3 Keychain verify/prestage | `not_run` |
 | AUTH-C5 | 用户授权关闭旧 file 进程并进入 DB smoke/archive | `not_run` |
 | AUTH-C7 | 用户理解不可逆边界并授权 activate execute | `not_run` |

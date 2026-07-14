@@ -2,7 +2,7 @@
 doc_id: AIR-RCUT-HANDOFF-001
 status: active
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-14
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa, release-owner
 source: M6-A1 实现复核、G1 正式验收清单、G3-M 备份恢复与 DB-only 激活契约
@@ -15,13 +15,15 @@ source: M6-A1 实现复核、G1 正式验收清单、G3-M 备份恢复与 DB-onl
 ```text
 M6-A1 isolated engineering evidence = passed
 R0-A production cutover entry = passed
-R0-B/R1 real workspace / database / stop-write authorization = not_granted
+R0-B read-only discovery = blocker_reproduced
+R0-B remediation = documented_waiting_luna_authorization
+R1 real workspace / database / stop-write authorization = not_granted
 default user Keychain / real credentials = not_touched
 ```
 
-本 Handoff 的 R0-A 已完成并经 Luna 独立复核；下一步只允许在获得新授权后进入 R0-B 只读发现。当前不授权读取真实用户目录、执行真实停写、final import、backup、restore 或 `db:activate --execute`。
+本 Handoff 的 R0-A 已完成并经 Luna 独立复核；R0-B 只读发现证明两个 shadow 报告一致但 blocker=1。进一步只读核对已找到摘要和 identity 匹配的结构恢复候选，并复现出两个 importer 兼容缺口：Story beat 仍使用角色名；Storyboard 非空人物引用被无条件拒绝且未落关系行。当前不是“等待 SH-10 签字”，而是必须先按施工包完成阻塞修复，让 SH-01～SH-09 全绿后再交人工 SH-10。
 
-R0-A 完成并经独立复核后，Luna 必须停止。R0-B、R1 和 R2 需要用户新的、明确的授权记录。
+Luna 的唯一下一入口是 `luna_r0b_blocker_remediation_handoff.md`。该文件给出可一次授权连续执行的代码修复、overlay、条件式单文件恢复、外置 release worktree 和 real-source 双 shadow；完成后必须停止。R1 和 R2 仍需要用户新的、明确授权记录。
 
 ## 2. 当前剩余阻塞（R0-A 已部分收口）
 
@@ -32,24 +34,22 @@ R0-A 完成并经独立复核后，Luna 必须停止。R0-B、R1 和 R2 需要�
 | RCUT-B10 | Luna Scrutiny=`passed`，Runtime=`passed_isolated`；disposable Keychain smoke 已通过 | 只关闭 R0-A；真实 SH gate、AUTH 和 C0～C7 仍需新授权 |
 | RCUT-B11 | C3 后置失败资源清理、C0 shadow gate 与 Keychain 平台证据均已补齐 | R0-B 仍需 release-specific plan、只读 shadow 和人工 SH-10 |
 
-因此当前总状态改为：
+因此当前总状态为：
 
 ```text
-ready_for_real_cutover_authorization_review / real_cutover_no_go
+R0_B_REMEDIATION_REQUIRED / real_cutover_no_go
 ```
 
 ## 3. Luna 必读顺序
 
-1. `luna_independent_review_handoff.md`（当前下一步，优先级最高）。
-2. 本文件。
-3. `implementation_contract.md`。
-4. `real_cutover_runbook.md`。
-5. `evidence_and_test_matrix.md`。
-6. `review_authorization_checklist.md`。
-7. `task_plan.md`、`findings.md`、`progress.md`。
-8. `文档/05_执行与记录/任务记录/2026-07-13_M6-A1真实切换验收补强/implementation_contract.md`。
-9. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 第 11～18 节。
-10. 当前 final/ready/activate/cutover/maintenance/backup/restore/SecretStore 源码与测试。
+1. `luna_r0b_blocker_remediation_handoff.md`（当前唯一下一步）。
+2. `r0b_blocker_remediation_contract.md`。
+3. `r0b_blocker_remediation_test_matrix.md`。
+4. `r0b_blocker_remediation_file_map.md`。
+5. `r0b_blocker_remediation_review_checklist.md`。
+6. 本文件、`task_plan.md`、`findings.md`、`progress.md`。
+7. `implementation_contract.md`、`real_cutover_runbook.md`、`evidence_and_test_matrix.md`。
+8. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 第 11～18 节。
 
 ## 4. 连续执行范围
 
@@ -84,7 +84,7 @@ ready_for_real_cutover_authorization_review / real_cutover_no_go
 
 ## 5. R0-B、R1、R2 边界
 
-### R0-B：真实授权准备
+### R0-B：真实授权准备（当前需先修复 blocker）
 
 只有用户明确授权后才可以：
 
@@ -93,6 +93,8 @@ ready_for_real_cutover_authorization_review / real_cutover_no_go
 - 在独立目标根执行 release-specific shadow、backup/restore rehearsal。
 - 由真实责任人审阅 MigrationReport 并完成 SH-10；Luna 不得自签。
 - 登记维护窗口、空间、release owner、rollback owner 和恢复联系办法。
+
+本轮证据：同一 sealed snapshot 的两个 fresh full shadow aggregate reportDigest 相同，但 `storyboard` slice 的 unresolved blocker=1（`chapter:chapter_001:storyboard-source`）。只读恢复核对找到固定备份中的匹配 `structure.json`；在临时 overlay 恢复该文件后又复现 `MIGRATION_STORY_DOCUMENT_INVALID`，根因是 43 个 beat token 使用角色名。当前 storyboard 另有 65 个名称 token，而 importer 会无条件报 `MIGRATION_STORYBOARD_CHARACTER_UNRESOLVED`，且 `characters` 排在 `storyboard` 后、没有落 `storyboard_shot_characters`。私有 plan root review 另发现 `CUTOVER_PLAN_ROOT_OVERLAP`，应通过最终 remediation commit 的外置 release worktree 解决。完整施工入口见 `luna_r0b_blocker_remediation_handoff.md`。
 
 ### R1：真实 C0～C7
 
@@ -123,12 +125,13 @@ ready_for_real_cutover_authorization_review / real_cutover_no_go
 
 本轮没有授权：
 
-- 访问真实 workspace/dataRoot/数据库。
+- 修改真实 workspace/dataRoot/数据库；本轮只读访问源 workspace 并只写两个仓库外 fresh shadow target。
 - 调用真实 Keychain 或读取 provider/OpenCode 凭据。
-- 真实停写、shadow、snapshot、final import、backup、restore、archive、activate。
+- 真实停写、AUTH、C1～C7、final import、backup、restore、archive、activate；shadow 仅限本轮已记录的两个 fresh release-specific target。
+- `luna_r0b_blocker_remediation_handoff.md` §3 中的扩展 remediation 授权尚未由用户给出；现有只读授权不能推定为允许真实源恢复。
 - 自动领取 R0-B、R1、R2、G4 或 G5。
 
-下一步可申请的最小授权仅为：R0-B 只读发现（release identity、空间、根路径、settings 起点和 release-specific shadow）；该授权不包含停写、不生成 AUTH、不执行 C1～C7。
+下一步可执行动作是：用户把 `luna_r0b_blocker_remediation_handoff.md` 与其中 §3 的完整授权文本交给 Luna。Luna 可连续完成修复、验证和 SH-01～SH-09，但必须停在人工 SH-10；不包含停写、AUTH 或 C0～C7。
 
 ## 7. Stop 条件
 
@@ -136,7 +139,6 @@ ready_for_real_cutover_authorization_review / real_cutover_no_go
 
 - 需要把真实 secret 作为 CLI 参数、环境输出或证据 JSON。
 - production runner 仍绕过 strict profile、历史 gate digest 或证据校验。
-- 需要把真实 secret 作为 CLI 参数、环境输出或证据 JSON。
 - C0～C7 无法由一个显式 plan identity 续跑。
 - 需要修改 Prisma schema/migration/trigger；当前 R0-A 不授权该范围。
 - 测试将触碰非临时根、真实 Keychain 或真实 provider。
@@ -155,5 +157,5 @@ Cutover runner：C0～C7/resume/evidence/metadata archive 是否有生产入口
 Scrutiny：passed
 Runtime：passed_isolated
 真实操作：默认用户 Keychain/真实凭据/真实数据=0；disposable smoke=1
-停止点：未填写真实 plan，未执行停写或真实切换，等待 R0-B 只读授权
+停止点：R0-B 只读 shadow 已复现 blocker；阻塞修复施工包已就绪，等待用户交给 Luna 执行。SH-01～09 尚未通过，当前不能交 SH-10；未停写、未生成 AUTH、未执行 C0～C7
 ```

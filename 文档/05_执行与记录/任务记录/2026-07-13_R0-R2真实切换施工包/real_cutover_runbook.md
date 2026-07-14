@@ -2,7 +2,7 @@
 doc_id: AIR-RCUT-RUNBOOK-001
 status: active
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-14
 owner: AI漫游项目
 audience: release-owner, operator, qa, ai-agent
 source: R0-A 实施契约与 G1 C0～C7 检查表
@@ -13,10 +13,10 @@ source: R0-A 实施契约与 G1 C0～C7 检查表
 ## 1. 执行状态
 
 ```text
-READY_FOR_R0_B_AUTHORIZATION
+R0_B_REMEDIATION_REQUIRED
 ```
 
-本 Runbook 是 R0-A 完成后的目标命令面。仓库已具备 `db:cutover` 代码入口，两个 fresh C0～C7 隔离链、C1～C4 失败矩阵、C7 crash/reopen、首写 file-guard、Luna Scrutiny 和 disposable Keychain smoke 均已通过。当前仅允许在 R0-B 获得明确授权后执行只读发现和 release-specific shadow；在此之前禁止复制本文件命令到真实环境。
+本 Runbook 是 R0-A 完成后的目标命令面。仓库已具备 `db:cutover` 代码入口，两个 fresh C0～C7 隔离链、C1～C4 失败矩阵、C7 crash/reopen、首写 file-guard、Luna Scrutiny 和 disposable Keychain smoke 均已通过。R0-B 只读发现与两个 fresh shadow 已复现 blocker；进一步只读验证证明需要先恢复缺失结构源并修复 legacy character importer。完整执行入口是 `luna_r0b_blocker_remediation_handoff.md`。SH-01～09 尚未全绿，当前不能提交 SH-10，更不能升级为 C0/C1 或真实切换证据。
 
 ## 2. 角色
 
@@ -52,17 +52,18 @@ READY_FOR_R0_B_AUTHORIZATION
 
 真实 plan 由 R0-B 填写。仓库文档只记录 plan digest、runId、appCommit 和脱敏结果，不记录绝对路径。
 
-## 4. R0-B 准备（当前下一步，仅只读）
+## 4. R0-B 准备（阻塞修复后才能进入 SH-10）
 
-本节是下一步唯一可申请的执行范围。授权句必须明确写出：`授权 R0-B 只读发现与 release-specific shadow，不授权停写、不生成 AUTH、不执行 C1～C7`。若用户未给出该授权，停止在本节之前。
+本节是下一步唯一可申请的执行范围。原“只读发现与 release-specific shadow”授权已经用完，不能覆盖代码修改或真实源单文件恢复。下一次必须使用 `luna_r0b_blocker_remediation_handoff.md` §3 的完整授权文本；若用户未给出，Luna 最多只能阅读资料，不能开始 remediation。
 
 ### 4.1 Release freeze
 
-- [ ] 冻结 app commit、Node/pnpm/Prisma 版本。
-- [ ] `prisma validate`、G1 manifest/schema/migration checks 全绿。
-- [ ] capability `blockedIds=[]`。
-- [ ] release identity 的 effective manifest 与目标值一致。
-- [ ] 当前工作树干净；真实运行不使用未提交代码。
+- [x] 旧只读发现基线已记录（commit `3fda7d0`，Node `v22.22.2`，pnpm `7.12.1`）。
+- [ ] Luna 完成 importer 修复后，以最终 remediation commit 创建仓库外 detached release worktree，并重新冻结 appCommit。
+- [x] `prisma validate`、G1 manifest/schema/migration checks 全绿。
+- [x] capability `blockedIds=[]`。
+- [x] release identity 的 effective manifest 与目标值一致。
+- [ ] 当前工作树干净；真实运行不使用未提交代码（当前存在用户既有文档修改，不能宣称 clean）。
 
 R0-A 已固定证据：Scrutiny=`passed`、Runtime=`passed_isolated`、服务端全量 69 spec/472 tests。R0-B 只能在仓库外私有根填写真实 plan；绝对路径、用户名、token 内容、secretRef 原值不得写入仓库。
 
@@ -89,12 +90,14 @@ pnpm --dir apps/server db:capabilities -- --check --format json
 - [ ] Keychain probe 只返回 availability，不打印 secret。
 - [ ] settingsStartState 与 credentialAction 已由人工核对；legacy 模式已确认目标 credentialId 不会覆盖 fingerprint 不同的旧项。
 
-### 4.3 Release-specific shadow
+### 4.3 Blocker remediation 与 release-specific shadow
 
-- [ ] 同一只读 source snapshot 在两个 fresh 临时目标完成 full shadow。
-- [ ] reportDigest、entity counts、pointers、Asset audit 一致。
-- [ ] blocker=0；warning 逐项处理。
-- [ ] SH-10 由 Migration reviewer 人工签署。
+- [x] 旧只读 source snapshot 已在两个 fresh 临时目标复现一致 blocker。
+- [x] 固定恢复备份中的 `structure.json` 已完成只读 digest/identity 核对。
+- [x] 临时 overlay 已证明下一代码阻塞为 Story beat 名称引用；Storyboard 名称引用、slice order 和 child projection 缺口也已静态确认。
+- [ ] Luna 按五份阻塞修复施工资料完成代码、测试、外置 release worktree 与 overlay 双 shadow。
+- [ ] 条件门全绿后原子新增真实源唯一缺失文件，再跑两个 fresh real-source shadow。
+- [ ] SH-01～SH-09 全绿后，才把报告交人工 Migration reviewer 完成 SH-10；Luna 不自签。
 
 ### 4.4 AUTH-C1 模板准备
 

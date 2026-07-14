@@ -2,7 +2,7 @@
 doc_id: AIR-RCUT-PROGRESS-001
 status: in_progress
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-14
 owner: AI漫游项目
 audience: orchestrator, worker, reviewer, human
 source: R0-R2 task_plan
@@ -155,3 +155,36 @@ Runtime：
 提交：
 停止点：
 ```
+
+## 2026-07-14 R0-B 只读发现与 release-specific shadow
+
+- 用户明确授权：`授权 R0-B 只读发现与 release-specific shadow，不授权停写、不生成 AUTH、不执行 C1～C7`。
+- 发布冻结只读门禁通过：workspace/server typecheck、server/web build、Prisma validate、G1 manifest/schema/migration、capability `blockedIds=[]`；Node=`v22.22.2`、pnpm=`7.12.1`、effective schema manifest=`sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`。
+- 只读源发现：当前仓库工作区存在 87 个文件；settings 递归扫描发现 3 个 credential 字段、sentinel=0；未读取或打印 Keychain/真实凭据；源 workspace 在当前开发布局下位于 release root 内，私有 plan 的 root disjoint 校验返回 `CUTOVER_PLAN_ROOT_OVERLAP`，该项登记为真实 plan blocker，不绕过。
+- sealed snapshot 已从同一源只读生成：source manifest=`sha256:e2d56eedcedd4ff81162fb1e5e4f3e51dc3c9a0caacc5ff1818fdcd84e283059`，snapshot manifest=`sha256:e53394f5cb9799a7fcaa98984a0a8b59d28a08836df2f7a40d385c6dd3ca3408`，transform=`sha256:2e2b97724884415e18dc869487ea84883868700e0db5cf9c3ca347cd93ff7f27`；settings 只进入 redacted artifact。
+- 两个 fresh shadow target（A/B）均使用同一 sealed snapshot 和同一 decisions digest；规范化 full-shadow reportDigest 均为 `sha256:f96232cf31f8cf93db2bad3b9d4b7f807ad3a16aaa3b5f01ce6da363e1a3359f`，45 张表计数摘要均为 `sha256:709c2a3101c3efd0bd5076c17bb03c34c1d373cd389771779d1a9320855820f2`，结果一致。
+- 影子导入在 `storyboard` slice 停止：`chapter:chapter_001:storyboard-source` unresolved blocker=1；只读核对显示源有 `storyboard.json` 但没有对应 `structure.json`，StoryVersion 导入数为 0，无法匹配其旧 `sourceStoryVersionId`。因此 SH-03 未通过，不能把该 shadow 记为可切换证据，也不能生成 AUTH 或进入 C0/C1。
+- R0-B 当时停止点：因 SH-03 未通过，不能进入 SH-10；Codex 不自签、不执行备份恢复、停写、AUTH 或 C1～C7。
+
+## 2026-07-14 R0-B 阻塞修复施工包
+
+状态：`documented_waiting_luna_authorization`
+
+- 只读核对 recovery archive 和目标成员摘要，确认候选 structure 与当前 project/chapter/story/script identity 匹配，12/12 projectCharacterId 对应当前 shared characters。
+- 在仓库外临时 overlay 仅补入候选结构文件并重跑两个 fresh shadow；两次结果一致，但从原 storyboard blocker 推进到 Story importer 的 `MIGRATION_STORY_DOCUMENT_INVALID`。
+- 复现根因为 43 个 beat character token 使用角色名；43/43 可唯一精确解析。进一步核对当前 storyboard 的 65/65 character token 同样可唯一精确解析。
+- 确认当前 Storyboard importer 仍无条件拒绝非空人物引用、没有写 `storyboard_shot_characters`，且 full order 把 `characters` 放在 `storyboard` 后。
+- 确定 root overlap 的正式解决方式：Luna 完成代码并提交后，从最终 remediation commit 创建仓库外 detached release worktree；不移动、不复制真实 source workspace 冒充生产源。
+- 新增 Luna 五份施工资料：Handoff、实施契约、测试矩阵、文件函数地图、复核清单；主 Handoff/Runbook/Task/Findings/Evidence 已把下一步纠正为“先修 blocker 和 SH-01～09，再到人工 SH-10”。
+- 本轮只写施工资料和仓库外临时验证；真实源仍未修改，未停写、未生成 AUTH、未执行 C0～C7、未触碰默认 Keychain/真实凭据。
+## 2026-07-14 R0-B remediation 执行与停止
+
+- 实现提交已固定为 `74a6d71`：新增纯函数 legacy character resolver；Story beat 支持 ID/唯一精确名称；Storyboard 支持 shared character ID/唯一精确名称、正式 Character scope 校验与 `StoryboardShotCharacter` replay；full shadow 顺序改为 `story -> characters -> storyboard`；verify contextual count 允许 `StoryboardShotCharacter`。
+- 额外修复两个由真实候选 overlay 暴露的既有约束问题：Story 不再把已达到 `storyboard_done` 的章节降级为 `structured`；`preview_front` 不写 `confirmedAt`，满足 G1 `ck_character_visuals_confirmed_time`，final reference 仍绑定 `finalizedAt`。
+- 定向 remediation 通过：4 个关键集成用例通过；resolver/完整 migration 定向合计 78 tests 通过。服务端全量回归：71 个 spec、482 个测试通过（199.95s，exit 0）。typecheck、server/web build、Prisma validate、G1 manifest/schema/migration、capability `blockedIds=[]`、`git diff --check` 全部通过。
+- 外置 detached release worktree 固定到 `74a6d71`；source overlay、A/B target workspace、A/B SQLite/data root 已隔离，未改真实 workspace。
+- clean overlay 使用同一 sealed snapshot：source manifest=`sha256:c16ff088f2aec751b3a48e4b1b63d83ff4ea27601bd3f1178406b3c9944beebb`，snapshot manifest=`sha256:effb0794414282f66460cafbc69baa7c7e13af80a47a4e6c96efcff6ce18161a`，decisions=`sha256:9efd2f56d97355d56972594a17e28a4c83318c8040a88211c20ccc2754b64fa9`。A/B aggregate reportDigest 均为 `sha256:20a85df7121a639738d0fb5f8c6231a9a21b9966e1328d91edb25cfacf96cf47`。
+- A/B 均一致通过前 8 个 slice：Story 1/9/10、Characters 12、Storyboard 1/15/15/65、Assets 67、AssetVisuals 67/24/9；第 9 个 `preflight` 一致以 `PREFLIGHT_SOURCE_UNRESOLVED` 停止，原因是当前 legacy `preflight.json` 缺少 `sourceSnapshot`。这是 R0-B 范围外既有 blocker，不能在本任务中改写 preflight 或伪造 source evidence。
+- 按 Handoff 强制停止条件停止：真实 `structure.json` 尚未恢复；未执行 real-source snapshot、SH-01～SH-09、SH-10、AUTH、停写、C0～C7、默认 Keychain 或真实凭据操作。
+
+结论：`remediation_code_committed_overlay_blocked_preflight`；R0-B 不能进入真实源单文件恢复，等待独立决定是否单独建立 preflight source 修复任务。
