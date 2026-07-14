@@ -156,6 +156,64 @@ export type CommitCandidateLockRequest =
   | ({ action: "replace"; candidateId: string } & CandidateLockCommitFields)
   | ({ action: "clear" } & CandidateLockCommitFields);
 
+export interface CandidateLockTransition {
+  kind: "create" | "no_op";
+  action: CandidateLockAction;
+  candidateId: string | null;
+}
+
+export class CandidateLockTransitionError extends Error {
+  readonly code = "CANDIDATE_LOCK_ACTION_INVALID" as const;
+
+  constructor() {
+    super("CANDIDATE_LOCK_ACTION_INVALID");
+    this.name = "CandidateLockTransitionError";
+  }
+}
+
+export function normalizeCandidateLockTargetCandidateId(
+  intent: CandidateLockIntent | CommitCandidateLockRequest,
+): string | null {
+  return intent.action === "clear" ? null : intent.candidateId;
+}
+
+export function resolveCandidateLockTransition(
+  current: CurrentCandidateDecision,
+  intent: CandidateLockIntent,
+): CandidateLockTransition {
+  const candidateId = normalizeCandidateLockTargetCandidateId(intent);
+  if (current.state === "unset") {
+    if (intent.action !== "lock") throw new CandidateLockTransitionError();
+    return { kind: "create", action: "lock", candidateId };
+  }
+  if (current.state === "finalized") {
+    if (intent.action === "clear") {
+      return { kind: "create", action: "clear", candidateId: null };
+    }
+    if (intent.action !== "replace") throw new CandidateLockTransitionError();
+    return {
+      kind: current.candidateId === candidateId ? "no_op" : "create",
+      action: "replace",
+      candidateId,
+    };
+  }
+  if (intent.action === "clear") {
+    return { kind: "no_op", action: "clear", candidateId: null };
+  }
+  if (intent.action !== "lock") throw new CandidateLockTransitionError();
+  return { kind: "create", action: "lock", candidateId };
+}
+
+export function isExactCandidateLockReplay(
+  current: CandidateLockRevisionRecord | null,
+  request: CommitCandidateLockRequest,
+): boolean {
+  return current !== null
+    && current.previousRevisionId === request.expectedCurrentRevisionId
+    && current.action === request.action
+    && current.candidateId === normalizeCandidateLockTargetCandidateId(request);
+}
+
 export type CandidateLockErrorCode =
   | "CANDIDATE_LOCK_BODY_INVALID"
   | "CANDIDATE_LOCK_BODY_UNKNOWN_FIELD"
@@ -366,6 +424,146 @@ export interface CandidateLockSetSummary {
   clearedShotIds: string[];
   unresolvedShotIds: string[];
   digest: string | null;
+}
+
+export class CandidateLockSetContractError extends Error {
+  readonly code = "CANDIDATE_LOCK_SET_INVALID" as const;
+
+  constructor() {
+    super("CANDIDATE_LOCK_SET_INVALID");
+    this.name = "CandidateLockSetContractError";
+  }
+}
+
+function lockSetFail(): never {
+  throw new CandidateLockSetContractError();
+}
+
+function exactRecord(
+  value: unknown,
+  fields: readonly string[],
+): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    lockSetFail();
+  }
+  const input = value as Record<string, unknown>;
+  const keys = Object.keys(input);
+  if (keys.length !== fields.length || keys.some((key) => !fields.includes(key))) {
+    lockSetFail();
+  }
+  return input;
+}
+
+function strictId(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+    lockSetFail();
+  }
+  return value;
+}
+
+function strictUniqueIds(value: unknown): string[] {
+  if (!Array.isArray(value)) lockSetFail();
+  const ids = value.map(strictId);
+  if (new Set(ids).size !== ids.length) lockSetFail();
+  return ids;
+}
+
+function compareUnicodeCodePoints(left: string, right: string): number {
+  const a = Array.from(left, (character) => character.codePointAt(0)!);
+  const b = Array.from(right, (character) => character.codePointAt(0)!);
+  for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
+    if (a[index] !== b[index]) return a[index]! - b[index]!;
+  }
+  return a.length - b.length;
+}
+
+function isSorted(values: readonly string[]): boolean {
+  return values.every((value, index) =>
+    index === 0 || compareUnicodeCodePoints(values[index - 1]!, value) < 0);
+}
+
+export function parseCandidateLockSetSummary(
+  value: unknown,
+): CandidateLockSetSummary {
+  const input = exactRecord(value, [
+    "schemaVersion",
+    "projectId",
+    "chapterId",
+    "storyboardVersionId",
+    "state",
+    "sourceApplicability",
+    "entries",
+    "missingShotIds",
+    "clearedShotIds",
+    "unresolvedShotIds",
+    "digest",
+  ]);
+  if (input.schemaVersion !== 1 || !CANDIDATE_LOCK_SET_STATES.includes(input.state as CandidateLockSetState)) {
+    lockSetFail();
+  }
+  if (!Array.isArray(input.entries)) lockSetFail();
+  const entries = input.entries.map((entry) => {
+    const row = exactRecord(entry, ["shotId", "candidateLockRevisionId", "candidateId"]);
+    return {
+      shotId: strictId(row.shotId),
+      candidateLockRevisionId: strictId(row.candidateLockRevisionId),
+      candidateId: strictId(row.candidateId),
+    };
+  });
+  if (new Set(entries.map((entry) => entry.shotId)).size !== entries.length) {
+    lockSetFail();
+  }
+  if (!isSorted(entries.map((entry) => entry.shotId))) lockSetFail();
+  const state = input.state as CandidateLockSetState;
+  const sourceApplicability = input.sourceApplicability;
+  const digest = input.digest;
+  if (state === "complete") {
+    if (!TASK_APPLICABILITIES.includes(sourceApplicability as TaskApplicability)) lockSetFail();
+    if (typeof digest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(digest)) lockSetFail();
+  } else if (sourceApplicability !== null || digest !== null) {
+    lockSetFail();
+  }
+  const missingShotIds = strictUniqueIds(input.missingShotIds);
+  const clearedShotIds = strictUniqueIds(input.clearedShotIds);
+  const unresolvedShotIds = strictUniqueIds(input.unresolvedShotIds);
+  if (![missingShotIds, clearedShotIds, unresolvedShotIds].every(isSorted)) {
+    lockSetFail();
+  }
+  const classifiedShotIds = [
+    ...missingShotIds,
+    ...clearedShotIds,
+    ...unresolvedShotIds,
+  ];
+  if (new Set(classifiedShotIds).size !== classifiedShotIds.length) {
+    lockSetFail();
+  }
+  if (
+    entries.some((entry) => classifiedShotIds.includes(entry.shotId))
+  ) {
+    lockSetFail();
+  }
+  if (
+    state === "complete"
+      ? missingShotIds.length + clearedShotIds.length + unresolvedShotIds.length !== 0
+      : state === "incomplete"
+        ? unresolvedShotIds.length !== 0 || missingShotIds.length + clearedShotIds.length === 0
+        : unresolvedShotIds.length === 0
+  ) {
+    lockSetFail();
+  }
+  return {
+    schemaVersion: 1,
+    projectId: strictId(input.projectId),
+    chapterId: strictId(input.chapterId),
+    storyboardVersionId: strictId(input.storyboardVersionId),
+    state,
+    sourceApplicability: state === "complete" ? sourceApplicability as TaskApplicability : null,
+    entries,
+    missingShotIds,
+    clearedShotIds,
+    unresolvedShotIds,
+    digest: state === "complete" ? digest as string : null,
+  };
 }
 
 export interface AffectedWorkingCopyElementRef {
