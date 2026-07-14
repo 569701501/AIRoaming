@@ -21,6 +21,21 @@
       </div>
     </header>
 
+    <section
+      v-if="sourceAttention"
+      class="layout-source-attention"
+      data-testid="candidate-source-status"
+      aria-label="候选来源状态"
+    >
+      <AlertTriangle :size="19" />
+      <div>
+        <strong>{{ sourceAttention.title }}</strong>
+        <p>{{ sourceAttention.message }}</p>
+        <small>旧排版和导出仍保留为历史；请回候选图确认当前定稿。实际换图与裁切将在成稿编辑阶段处理。</small>
+      </div>
+      <button type="button" :disabled="loading" @click="$emit('goCandidates')">查看候选定稿</button>
+    </section>
+
     <div v-if="!isImagesDone" class="layout-empty">
       <Lock :size="22" />
       <h2>请先完成候选图锁定</h2>
@@ -45,6 +60,10 @@
           <span>导出页数</span>
           <strong>{{ exportedCount }}</strong>
         </div>
+        <div v-if="candidateSources">
+          <span>候选来源</span>
+          <strong class="source-state-text">{{ getLockSetLabel() }}</strong>
+        </div>
         <p>MVP 按镜头顺序一镜一页导出 PNG，不依赖复杂拼版库。</p>
       </aside>
 
@@ -66,8 +85,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Download, Image as ImageIcon, Images, LayoutTemplate, Lock, Rows3 } from "lucide-vue-next";
-import type { ChapterListItem, WorkbenchSnapshot } from "@airoaming/shared";
+import { AlertTriangle, Download, Image as ImageIcon, Images, LayoutTemplate, Lock, Rows3 } from "lucide-vue-next";
+import type { CandidateLockErrorCode, ChapterListItem, WorkbenchSnapshot } from "@airoaming/shared";
 import { api } from "../../services/api";
 
 const props = defineProps<{
@@ -91,9 +110,27 @@ const isImagesDone = computed(() => {
 });
 const lockedShots = computed(() => props.snapshot.shots.filter((shot) => Boolean(shot.lockedCandidateId)));
 const pages = computed(() => props.snapshot.chapterLayout?.pages ?? []);
-const canBuild = computed(() => isImagesDone.value && lockedShots.value.length > 0);
-const canExport = computed(() => canBuild.value);
+const candidateSources = computed(() => props.snapshot.candidateSources ?? null);
+const canBuild = computed(() => isImagesDone.value
+  && lockedShots.value.length > 0
+  && (candidateSources.value?.gates.buildLayoutWorkingCopy.allowed ?? true));
+const canExport = computed(() => canBuild.value
+  && (candidateSources.value?.gates.exportLayout.allowed ?? true));
 const exportedCount = computed(() => pages.value.filter((page) => page.exportAssetId).length);
+const sourceAttention = computed(() => {
+  const sources = candidateSources.value;
+  if (!sources) return null;
+  const reasonCodes = [
+    ...sources.gates.buildLayoutWorkingCopy.reasonCodes,
+    ...sources.gates.exportLayout.reasonCodes,
+  ];
+  if (sources.gates.buildLayoutWorkingCopy.allowed && sources.gates.exportLayout.allowed) return null;
+  const primary = reasonCodes[0];
+  return {
+    title: getSourceAttentionTitle(primary),
+    message: getSourceReasonLabel(primary),
+  };
+});
 
 const previewPages = computed(() => {
   if (pages.value.length > 0) {
@@ -134,6 +171,33 @@ function getChapterLabel(chapter: ChapterListItem): string {
   if (chapter.status === "images_done") return "可排版";
   return "未就绪";
 }
+
+function getLockSetLabel(): string {
+  const lockSet = candidateSources.value?.candidateLockSet;
+  if (!lockSet) return "未读取";
+  if (lockSet.state === "complete" && lockSet.sourceApplicability === "current") return "当前可用";
+  if (lockSet.clearedShotIds.length > 0) return `已清空 ${lockSet.clearedShotIds.length} 个镜头`;
+  if (lockSet.state === "incomplete") return `缺少 ${lockSet.missingShotIds.length} 个镜头`;
+  return "需要重新确认";
+}
+
+function getSourceAttentionTitle(code?: CandidateLockErrorCode): string {
+  if (code === "CANDIDATE_LOCK_SET_INCOMPLETE") return "候选定稿尚未完整";
+  if (code === "CANDIDATE_LOCK_SET_SOURCE_NOT_CURRENT" || code === "LAYOUT_SOURCE_UNRESOLVED") return "排版来源无法解析";
+  if (code === "LAYOUT_SOURCE_DIGEST_MISMATCH") return "排版来源校验不一致";
+  return "候选定稿已变化，当前排版需要处理";
+}
+
+function getSourceReasonLabel(code?: CandidateLockErrorCode): string {
+  const labels: Partial<Record<CandidateLockErrorCode, string>> = {
+    CANDIDATE_LOCK_SET_INCOMPLETE: "本章仍有镜头没有当前定稿，暂时不能生成或导出正式排版。",
+    CANDIDATE_LOCK_SET_SOURCE_NOT_CURRENT: "当前候选定稿来自旧版上游内容或存在断链，需要重新确认。",
+    LAYOUT_SOURCE_STALE: "排版仍引用更换前的候选定稿，系统已停止继续导出。",
+    LAYOUT_SOURCE_UNRESOLVED: "排版引用的候选定稿无法解析，系统已停止继续导出。",
+    LAYOUT_SOURCE_DIGEST_MISMATCH: "排版记录与候选定稿校验值不一致，系统已停止继续导出。",
+  };
+  return code ? labels[code] ?? `当前来源门禁未通过（${code}）。` : "当前来源门禁未通过。";
+}
 </script>
 
 <style scoped>
@@ -156,6 +220,48 @@ function getChapterLabel(chapter: ChapterListItem): string {
 .layout-toolbar {
   justify-content: space-between;
   flex-wrap: wrap;
+}
+
+.layout-source-attention {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid rgba(251, 146, 60, 0.32);
+  border-radius: 12px;
+  background: rgba(251, 146, 60, 0.09);
+  padding: 13px;
+  color: #fed7aa;
+}
+
+.layout-source-attention strong,
+.layout-source-attention p,
+.layout-source-attention small {
+  display: block;
+}
+
+.layout-source-attention p {
+  margin: 4px 0;
+  color: #fdba74;
+  font-size: 13px;
+}
+
+.layout-source-attention small {
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.layout-source-attention button {
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 8px 10px;
+  color: #fed7aa;
+  font-weight: 800;
+}
+
+.source-state-text {
+  font-size: 15px !important;
 }
 
 .chapter-picker select {

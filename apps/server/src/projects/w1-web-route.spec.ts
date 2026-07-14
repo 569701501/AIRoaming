@@ -46,4 +46,19 @@ describe("W1 DB-only Web route gate", () => {
     expect(source.match(/candidates\/:candidateId\/favorite/g)).toHaveLength(2);
     expect(source.match(/candidates\/:candidateId\/rejection/g)).toHaveLength(2);
   });
+
+  it("G4-E Web calls only preview/commit and explains that conflicts never auto-submit", async () => {
+    const [apiSource, candidateSource, layoutSource] = await Promise.all([
+      readFile(new URL("../../../web/src/services/api.ts", import.meta.url), "utf8"),
+      readFile(new URL("../../../web/src/components/workbench/ImageCandidatesWorkspace.vue", import.meta.url), "utf8"),
+      readFile(new URL("../../../web/src/components/workbench/LayoutExportWorkspace.vue", import.meta.url), "utf8"),
+    ]);
+    expect(apiSource).not.toContain("lockChapterCandidate");
+    expect(apiSource).not.toContain("/candidates/${encodeURIComponent(candidateId)}/lock");
+    expect(apiSource).toContain("previewCandidateDecision");
+    expect(apiSource).toContain("commitCandidateDecision");
+    expect(candidateSource).toContain("影响清单已重新计算；请重新确认，本页面没有自动提交");
+    expect(candidateSource).toContain("这里不会自动换图、裁切或生成新排版");
+    expect(layoutSource).toContain("实际换图与裁切将在成稿编辑阶段处理");
+  });
 });

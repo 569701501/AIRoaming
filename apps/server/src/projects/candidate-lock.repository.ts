@@ -109,6 +109,54 @@ export class CandidateLockRepository {
     @Inject(ChapterProductionQueryService) private readonly productionQuery: ChapterProductionQueryService,
   ) {}
 
+  async workbench(scope: VersionScopeV1): Promise<{
+    shots: WorkbenchShotV2[];
+    candidates: WorkbenchCandidateV2[];
+  }> {
+    this.assertDatabaseMode();
+    return this.prismaService.runReadTransaction(async (tx) => {
+      const chapter = await this.requireChapter(tx, scope);
+      const [shotRows, candidateRows] = await Promise.all([
+        tx.shot.findMany({
+          where: { projectId: scope.projectId, chapterId: scope.chapterId, lifecycleStatus: "active" },
+          include: { currentCandidateLockRevision: true },
+          orderBy: { id: "asc" },
+        }),
+        this.readCandidateRows(tx, scope),
+      ]);
+      const contexts = shotRows.map((shot) => {
+        const currentRevision = shot.currentCandidateLockRevision as RevisionRow | null;
+        if (shot.currentCandidateLockRevisionId !== null && currentRevision === null) {
+          throw candidateLockError(500, "CANDIDATE_LOCK_REVISION_CONFLICT");
+        }
+        return {
+          chapter,
+          shot: {
+            id: shot.id,
+            lifecycleStatus: shot.lifecycleStatus,
+            currentCandidateLockRevisionId: shot.currentCandidateLockRevisionId,
+            currentCandidateLockRevision: currentRevision,
+          },
+          currentRevision,
+          currentDecision: this.toCurrentDecision(currentRevision),
+        } satisfies DecisionContext;
+      });
+      const decisionByShot = new Map(contexts.map((context) => [context.shot.id, context.currentDecision]));
+      return {
+        shots: await Promise.all(contexts.map((context) => this.toWorkbenchShot(
+          tx,
+          context,
+          candidateRows.filter((candidate) => candidate.shotId === context.shot.id),
+        ))),
+        candidates: candidateRows.map((candidate) => this.toWorkbenchCandidate(
+          candidate,
+          decisionByShot.get(candidate.shotId) ?? this.toCurrentDecision(null),
+          chapter,
+        )),
+      };
+    });
+  }
+
   async preview(
     scope: VersionScopeV1,
     shotId: string,

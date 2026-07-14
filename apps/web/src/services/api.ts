@@ -25,6 +25,11 @@ import type {
   GenerateSceneReferenceRequest,
   BuildChapterLayoutResponse,
   CandidateGenerationPreviewResponse,
+  CandidateLockCommitResponse,
+  CandidateLockHistoryPage,
+  CandidateLockImpactPreviewResponse,
+  CandidatePreferenceResponse,
+  CommitCandidateLockRequest,
   CompleteChapterImagesResponse,
   CreateGenerationTaskRequest,
   ExportAssetPackageResponse,
@@ -33,7 +38,7 @@ import type {
   GetChapterResponse,
   HealthResponse,
   ListChaptersResponse,
-  LockChapterCandidateResponse,
+  PreviewCandidateLockRequest,
   ProjectCharactersResponse,
   ProjectListItem,
   QueueCharacterReferenceResponse,
@@ -554,11 +559,44 @@ export const api = {
     },
     onEvent,
   ),
-  lockChapterCandidate: (projectId: string, chapterId: string, candidateId: string) => request<LockChapterCandidateResponse>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/${encodeURIComponent(candidateId)}/lock`,
-    {
-      method: "POST",
-    },
+  previewCandidateDecision: (
+    projectId: string,
+    chapterId: string,
+    shotId: string,
+    input: PreviewCandidateLockRequest,
+  ) => request<CandidateLockImpactPreviewResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-lock/preview`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  commitCandidateDecision: (
+    projectId: string,
+    chapterId: string,
+    shotId: string,
+    input: CommitCandidateLockRequest,
+  ) => request<CandidateLockCommitResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-lock`,
+    { method: "PUT", body: JSON.stringify(input) },
+  ),
+  candidateDecisionHistory: (
+    projectId: string,
+    chapterId: string,
+    shotId: string,
+    beforeRevision?: number | null,
+  ) => {
+    const query = beforeRevision === null || beforeRevision === undefined
+      ? "?limit=20"
+      : `?limit=20&beforeRevision=${encodeURIComponent(String(beforeRevision))}`;
+    return request<CandidateLockHistoryPage>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-lock/history${query}`,
+    );
+  },
+  setCandidateFavorite: (projectId: string, chapterId: string, candidateId: string, favorite: boolean) => request<CandidatePreferenceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/${encodeURIComponent(candidateId)}/favorite`,
+    { method: favorite ? "PUT" : "DELETE" },
+  ),
+  setCandidateRejected: (projectId: string, chapterId: string, candidateId: string, rejected: boolean) => request<CandidatePreferenceResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/candidates/${encodeURIComponent(candidateId)}/rejection`,
+    { method: rejected ? "PUT" : "DELETE" },
   ),
   completeChapterImages: (projectId: string, chapterId: string) => request<CompleteChapterImagesResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/images/complete`,

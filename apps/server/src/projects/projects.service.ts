@@ -933,7 +933,10 @@ export class ProjectsService implements OnModuleInit {
   }
 
   async getWorkbenchSnapshot(projectId: string, chapterId?: string): Promise<WorkbenchSnapshot> {
-    const readyProject = await this.projectStore.selectCurrentChapter(await this.projectStore.getReadyProject(projectId), chapterId);
+    const sourceProject = this.isDatabaseMode()
+      ? await this.repository.refreshProjectFromDatabase(projectId)
+      : await this.projectStore.getReadyProject(projectId);
+    const readyProject = await this.projectStore.selectCurrentChapter(sourceProject, chapterId);
     const currentChapter = this.getCurrentChapter(readyProject);
     const sourceText = stripChapterScriptName(currentChapter?.sourceText ?? readyProject.sourceText);
     const hasStory = sourceText.trim().length > 0;
@@ -941,10 +944,14 @@ export class ProjectsService implements OnModuleInit {
     const currentChapterDetail = currentChapter ? this.toChapterDetail(currentChapter) : null;
     let workflow = this.buildProjectWorkflow(readyProject, currentChapter);
     let candidateSources = null;
+    let candidateWorkbench: Awaited<ReturnType<CandidateDecisionService["workbench"]>> | null = null;
     if (this.isDatabaseMode() && currentChapter && this.chapterProductionQuery) {
       const dbWorkflow = await this.chapterProductionQuery.get({ projectId, chapterId: currentChapter.id });
       workflow = dbWorkflow.workflow;
       candidateSources = dbWorkflow.productionState.candidateSources ?? null;
+      if (this.candidateDecision && currentChapter.storyboard) {
+        candidateWorkbench = await this.candidateDecision.workbench(projectId, currentChapter.id);
+      }
     }
 
     return {
@@ -988,8 +995,22 @@ export class ProjectsService implements OnModuleInit {
           characterNames: beat.characters,
         })),
       },
-      shots: this.imageCandidate.toWorkbenchShots(currentChapter),
-      candidates: (currentChapter?.candidates ?? []).map((item) => this.imageCandidate.toWorkbenchCandidate(item)),
+      shots: candidateWorkbench
+        ? candidateWorkbench.shots.map((shot) => ({
+          ...shot,
+          lockedCandidateId: shot.currentCandidateDecision.state === "finalized"
+            ? shot.currentCandidateDecision.candidateId
+            : null,
+        }))
+        : this.imageCandidate.toWorkbenchShots(currentChapter),
+      candidates: candidateWorkbench
+        ? candidateWorkbench.candidates.map((candidate) => ({
+          ...candidate,
+          palette: "",
+          promptDigest: candidate.promptDigest ?? "",
+          generationSpecDigest: candidate.generationSpecDigest ?? "",
+        }))
+        : (currentChapter?.candidates ?? []).map((item) => this.imageCandidate.toWorkbenchCandidate(item)),
       candidateSources,
       chapterLayout: currentChapter?.layout ?? null,
       assets: readyProject.assets,

@@ -15,6 +15,13 @@ import { CandidateLockServiceError } from "./candidate-lock-error.js";
 export class CandidateDecisionService {
   constructor(@Inject(CandidateLockRepository) private readonly repository: CandidateLockRepository) {}
 
+  workbench(projectId: string, chapterId: string) {
+    return this.execute(() => this.repository.workbench({
+      projectId: exactId(projectId),
+      chapterId: exactId(chapterId),
+    }));
+  }
+
   preview(
     projectId: string,
     chapterId: string,

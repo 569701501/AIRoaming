@@ -13,6 +13,16 @@
 
       <div class="candidate-actions">
         <button
+          v-if="isDatabaseCandidateMode && selectedShot"
+          class="secondary-action"
+          type="button"
+          :disabled="decisionBusy"
+          @click="toggleHistory"
+        >
+          <History :size="15" />
+          <span>{{ historyOpen ? "收起定稿历史" : "定稿历史" }}</span>
+        </button>
+        <button
           class="secondary-action"
           type="button"
           :disabled="!isPreflightConfirmed || loading || unlockedShotCount === 0"
@@ -70,12 +80,24 @@
       </aside>
 
       <section v-if="selectedShot" class="candidate-detail" aria-label="当前镜头候选">
+        <p v-if="candidateNotice" class="candidate-operation-notice" role="status">{{ candidateNotice }}</p>
+        <p v-if="candidateError" class="candidate-operation-error" role="alert">{{ candidateError }}</p>
         <div class="candidate-hero">
           <div>
             <span>镜头 {{ selectedShot.order }}</span>
             <h2>{{ selectedShot.coreAction || selectedShot.comic.panelDescription || "未填写镜头动作" }}</h2>
           </div>
           <div class="generate-group">
+            <button
+              v-if="isDatabaseCandidateMode && hasCurrentFinal"
+              class="clear-final-btn"
+              type="button"
+              :disabled="decisionBusy || loading"
+              @click="requestClearFinal"
+            >
+              <Unlock :size="15" />
+              <span>清空当前定稿</span>
+            </button>
             <button
               class="generate-btn"
               type="button"
@@ -96,6 +118,28 @@
             </div>
           </div>
         </div>
+
+        <section v-if="historyOpen" class="candidate-history-panel" aria-label="定稿历史">
+          <div class="panel-heading">
+            <div><span>不可变定稿记录</span><strong>{{ historyItems.length }} 条</strong></div>
+          </div>
+          <p v-if="historyLoading" class="history-state">正在读取定稿历史…</p>
+          <p v-else-if="historyItems.length === 0" class="history-state">这个镜头还没有定稿记录。</p>
+          <ol v-else class="history-list">
+            <li v-for="revision in historyItems" :key="revision.id">
+              <strong>第 {{ revision.revision }} 版 · {{ getDecisionActionLabel(revision.action) }}</strong>
+              <span>{{ getHistoryCandidateLabel(revision.candidateId) }}</span>
+              <small>{{ formatDecisionTime(revision.recordedAt) }}</small>
+            </li>
+          </ol>
+          <button
+            v-if="historyNextBeforeRevision !== null"
+            class="history-more"
+            type="button"
+            :disabled="historyLoading"
+            @click="loadHistory(true)"
+          >加载更早记录</button>
+        </section>
 
         <div class="shot-context-grid">
           <article>
@@ -221,7 +265,7 @@
                 v-for="candidate in batch.candidates"
                 :key="candidate.id"
                 class="candidate-card"
-                :class="[`is-${candidate.status}`, { 'is-locked': isCurrentCandidate(candidate) }]"
+                :class="[`is-${candidate.status}`, { 'is-locked': isCurrentCandidate(candidate), 'is-favorite': Boolean(candidate.favoriteAt), 'is-historical-source': candidate.sourceApplicability === 'historical' }]"
               >
                 <button
                   v-if="getCandidatePreviewUrl(candidate.assetId)"
@@ -247,14 +291,38 @@
                   >
                     {{ candidate.generationPurpose === "shot_clean_plate" ? `干净底图 v${candidate.generationSpecVersion ?? 1}` : "旧规则候选" }}
                   </span>
+                  <span v-if="candidate.sourceApplicability === 'historical'" class="source-history-tag">来源已过期</span>
+                  <div v-if="isDatabaseCandidateMode" class="candidate-preference-actions">
+                    <button
+                      class="icon-action"
+                      type="button"
+                      :aria-label="candidate.favoriteAt ? `取消收藏 ${candidate.label}` : `收藏 ${candidate.label}`"
+                      :title="candidate.favoriteAt ? '取消收藏' : '收藏'"
+                      :disabled="decisionBusy"
+                      @click="toggleFavorite(candidate)"
+                    >
+                      <Star :size="15" :fill="candidate.favoriteAt ? 'currentColor' : 'none'" />
+                    </button>
+                    <button
+                      class="icon-action"
+                      type="button"
+                      :aria-label="candidate.status === 'rejected' ? `恢复 ${candidate.label}` : `废弃 ${candidate.label}`"
+                      :title="candidate.status === 'rejected' ? '恢复候选' : '废弃候选'"
+                      :disabled="decisionBusy || isCurrentCandidate(candidate) || candidate.status === 'superseded'"
+                      @click="toggleRejected(candidate)"
+                    >
+                      <RotateCcw v-if="candidate.status === 'rejected'" :size="15" />
+                      <Trash2 v-else :size="15" />
+                    </button>
+                  </div>
                   <button
                     class="lock-action"
                     type="button"
-                    :disabled="loading || isCurrentCandidate(candidate)"
-                    @click="$emit('lockCandidate', candidate.id)"
+                    :disabled="loading || decisionBusy || isCandidateDecisionDisabled(candidate)"
+                    @click="requestFinalize(candidate)"
                   >
                     <Lock :size="13" />
-                    <span>{{ isCurrentCandidate(candidate) ? "当前定稿" : "定稿此图" }}</span>
+                    <span>{{ getFinalizeActionLabel(candidate) }}</span>
                   </button>
                 </div>
               </article>
@@ -277,14 +345,55 @@
           <button
             class="preview-lock-btn"
             type="button"
-            :disabled="loading || isCurrentCandidate(previewCandidate)"
-            @click="$emit('lockCandidate', previewCandidate.id); previewCandidate = null"
+            :disabled="loading || decisionBusy || isCandidateDecisionDisabled(previewCandidate)"
+            @click="requestFinalize(previewCandidate); previewCandidate = null"
           >
             <Lock :size="15" />
-            <span>{{ isCurrentCandidate(previewCandidate) ? "当前定稿" : "定稿此图" }}</span>
+            <span>{{ getFinalizeActionLabel(previewCandidate) }}</span>
           </button>
         </div>
       </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div v-if="decisionPreview" class="candidate-decision-backdrop" @click.self="closeDecisionPreview">
+      <section class="candidate-decision-modal" role="dialog" aria-modal="true" aria-label="确认候选定稿影响">
+        <header>
+          <div>
+            <span>{{ getDecisionActionLabel(decisionPreview.action) }}</span>
+            <h2>确认本次定稿变更</h2>
+          </div>
+          <button type="button" aria-label="关闭定稿确认" :disabled="decisionBusy" @click="closeDecisionPreview"><X :size="20" /></button>
+        </header>
+        <p class="decision-summary">{{ getDecisionSummary(decisionPreview) }}</p>
+        <div class="impact-grid">
+          <div><span>受影响排版元素</span><strong>{{ decisionPreview.impact.affectedWorkingCopyElements.length + decisionPreview.impact.affectedLayoutBindings.length }}</strong></div>
+          <div><span>历史排版版本</span><strong>{{ decisionPreview.impact.preservedLayoutHistoryCount }}</strong></div>
+          <div><span>历史导出版本</span><strong>{{ decisionPreview.impact.preservedExportHistoryCount }}</strong></div>
+          <div><span>运行中任务</span><strong>{{ decisionPreview.impact.activeTaskIds.length }}</strong></div>
+        </div>
+        <p v-if="hasDownstreamImpact(decisionPreview)" class="impact-warning">
+          旧排版和导出会保留为历史，但会标记为来源已变化；这里不会自动换图、裁切或生成新排版。
+        </p>
+        <p v-if="decisionConflictNotice" class="decision-conflict" role="status">{{ decisionConflictNotice }}</p>
+        <p v-if="!decisionPreview.commitAllowed" class="decision-blocked" role="alert">
+          当前上游状态不允许提交，请先处理：{{ decisionPreview.commitBlockedReasonCodes.join("、") }}
+        </p>
+        <footer>
+          <button type="button" class="secondary-action" :disabled="decisionBusy" @click="closeDecisionPreview">取消</button>
+          <button
+            type="button"
+            class="primary-action"
+            :disabled="decisionBusy || !decisionPreview.commitAllowed"
+            @click="commitDecision"
+          >
+            <Loader2 v-if="decisionBusy" :size="15" class="is-spinning" />
+            <CheckCircle2 v-else :size="15" />
+            <span>{{ decisionPreview.noOp ? "确认状态" : "确认变更" }}</span>
+          </button>
+        </footer>
+      </section>
     </div>
   </Teleport>
 </template>
@@ -297,19 +406,28 @@ import {
   ChevronDown,
   Image as ImageIcon,
   Images,
+  History,
   Layers,
   ListChecks,
   Loader2,
   Lock,
   Minus,
   Plus,
+  RotateCcw,
   ShieldAlert,
+  Star,
+  Trash2,
+  Unlock,
   Wand2,
   X,
   ZoomIn,
 } from "lucide-vue-next";
 import type {
   ArtStyle,
+  CandidateLockHistoryPage,
+  CandidateLockImpactPreviewResponse,
+  CandidateLockRevisionDto,
+  CandidateLockIntent,
   CandidateStatus,
   CandidateGenerationSpec,
   ChapterListItem,
@@ -318,7 +436,7 @@ import type {
   WorkbenchCandidate,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
-import { api } from "../../services/api";
+import { ApiClientError, api } from "../../services/api";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -330,7 +448,7 @@ const emit = defineEmits<{
   selectChapter: [chapterId: string];
   generateCandidates: [payload: { shotId: string; candidateCount: number }];
   generateAllUnlocked: [];
-  lockCandidate: [candidateId: string];
+  candidateChanged: [];
   completeImages: [];
   goPreflight: [];
 }>();
@@ -342,11 +460,22 @@ const previewCandidate = ref<WorkbenchCandidate | null>(null);
 const candidateGenerationSpec = ref<CandidateGenerationSpec | null>(null);
 const promptPreviewLoading = ref(false);
 const promptPreviewError = ref<string | null>(null);
+const decisionPreview = ref<CandidateLockImpactPreviewResponse | null>(null);
+const pendingDecisionIntent = ref<CandidateLockIntent | null>(null);
+const decisionBusy = ref(false);
+const decisionConflictNotice = ref<string | null>(null);
+const candidateError = ref<string | null>(null);
+const candidateNotice = ref<string | null>(null);
+const historyOpen = ref(false);
+const historyLoading = ref(false);
+const historyItems = ref<CandidateLockRevisionDto[]>([]);
+const historyNextBeforeRevision = ref<number | null>(null);
 let promptPreviewRequestId = 0;
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
 const currentChapterId = computed(() => currentChapter.value?.id ?? null);
+const isDatabaseCandidateMode = computed(() => props.snapshot.versioningCapability.mode === "g2_db");
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
 const currentCandidateIds = computed(() => new Set(
@@ -355,6 +484,14 @@ const currentCandidateIds = computed(() => new Set(
     .filter((candidateId): candidateId is string => candidateId !== null),
 ));
 const selectedShot = computed(() => shots.value.find((shot) => shot.id === selectedShotId.value) ?? shots.value[0] ?? null);
+const selectedCurrentCandidateId = computed(() => {
+  const shot = selectedShot.value;
+  if (!shot) return null;
+  return shot.currentCandidateDecision?.state === "finalized"
+    ? shot.currentCandidateDecision.candidateId
+    : shot.lockedCandidateId;
+});
+const hasCurrentFinal = computed(() => selectedCurrentCandidateId.value !== null);
 const promptSections = computed(() => candidateGenerationSpec.value?.sections ?? []);
 const candidateReferences = computed(() => [...(candidateGenerationSpec.value?.references ?? [])]
   .sort((left, right) => right.priority - left.priority));
@@ -363,6 +500,10 @@ const fullPromptText = computed(() => candidateGenerationSpec.value
   : "",
 );
 const isPreflightConfirmed = computed(() => {
+  if (isDatabaseCandidateMode.value) {
+    return props.snapshot.candidateSources?.chapterId === currentChapterId.value
+      && props.snapshot.workflow.steps.find((step) => step.key === "image_preflight")?.status === "done";
+  }
   const preflight = props.snapshot.imagePreflight;
   const storyboard = props.snapshot.storyboard;
   return Boolean(
@@ -503,6 +644,16 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => selectedShot.value?.id ?? null,
+  () => {
+    historyOpen.value = false;
+    historyItems.value = [];
+    historyNextBeforeRevision.value = null;
+    closeDecisionPreview();
+  },
+);
+
 function selectChapter(event: Event) {
   const chapterId = (event.target as HTMLSelectElement).value;
   if (chapterId) {
@@ -532,6 +683,146 @@ function toggleBatch(taskId: string) {
 
 function openCandidatePreview(candidate: WorkbenchCandidate) {
   previewCandidate.value = candidate;
+}
+
+async function requestFinalize(candidate: WorkbenchCandidate) {
+  if (isCandidateDecisionDisabled(candidate)) return;
+  if (!isDatabaseCandidateMode.value) return;
+  const shot = shots.value.find((item) => item.id === candidate.shotId);
+  if (!shot) return;
+  const currentId = shot.currentCandidateDecision?.state === "finalized"
+    ? shot.currentCandidateDecision.candidateId
+    : shot.lockedCandidateId;
+  await previewDecision(currentId ? { action: "replace", candidateId: candidate.id } : { action: "lock", candidateId: candidate.id });
+}
+
+async function requestClearFinal() {
+  if (!isDatabaseCandidateMode.value || !hasCurrentFinal.value) return;
+  await previewDecision({ action: "clear" });
+}
+
+async function previewDecision(intent: CandidateLockIntent, conflictMessage: string | null = null) {
+  const chapterId = currentChapterId.value;
+  const shotId = selectedShot.value?.id;
+  if (!chapterId || !shotId) return;
+  decisionBusy.value = true;
+  candidateError.value = null;
+  candidateNotice.value = null;
+  try {
+    const preview = await api.previewCandidateDecision(props.snapshot.project.id, chapterId, shotId, intent);
+    pendingDecisionIntent.value = intent;
+    decisionPreview.value = preview;
+    decisionConflictNotice.value = conflictMessage;
+  } catch (error) {
+    candidateError.value = candidateOperationError(error, "无法预览定稿影响");
+    decisionPreview.value = null;
+    pendingDecisionIntent.value = null;
+  } finally {
+    decisionBusy.value = false;
+  }
+}
+
+async function commitDecision() {
+  const preview = decisionPreview.value;
+  const intent = pendingDecisionIntent.value;
+  const chapterId = currentChapterId.value;
+  const shotId = selectedShot.value?.id;
+  if (!preview || !intent || !chapterId || !shotId || !preview.commitAllowed) return;
+  decisionBusy.value = true;
+  candidateError.value = null;
+  decisionConflictNotice.value = null;
+  try {
+    await api.commitCandidateDecision(props.snapshot.project.id, chapterId, shotId, {
+      ...intent,
+      expectedCurrentRevisionId: preview.expectedCurrentRevisionId,
+      impactDigest: preview.impactDigest as `sha256:${string}`,
+      reason: null,
+    });
+    candidateNotice.value = preview.action === "clear" ? "已清空当前定稿，旧排版和导出仍作为历史保留。" : "候选定稿已更新。";
+    decisionBusy.value = false;
+    closeDecisionPreview();
+    emit("candidateChanged");
+    if (historyOpen.value) await loadHistory(false);
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 409) {
+      const originalIntent = intent;
+      decisionBusy.value = false;
+      emit("candidateChanged");
+      await previewDecision(originalIntent, "服务器状态已变化，影响清单已重新计算；请重新确认，本页面没有自动提交。 ");
+      return;
+    }
+    candidateError.value = candidateOperationError(error, "定稿变更失败");
+  } finally {
+    decisionBusy.value = false;
+  }
+}
+
+function closeDecisionPreview() {
+  if (decisionBusy.value) return;
+  decisionPreview.value = null;
+  pendingDecisionIntent.value = null;
+  decisionConflictNotice.value = null;
+}
+
+async function toggleFavorite(candidate: WorkbenchCandidate) {
+  const chapterId = currentChapterId.value;
+  if (!chapterId || !isDatabaseCandidateMode.value) return;
+  decisionBusy.value = true;
+  candidateError.value = null;
+  try {
+    const favorite = !candidate.favoriteAt;
+    await api.setCandidateFavorite(props.snapshot.project.id, chapterId, candidate.id, favorite);
+    candidateNotice.value = favorite ? `已收藏「${candidate.label}」。` : `已取消收藏「${candidate.label}」。`;
+    emit("candidateChanged");
+  } catch (error) {
+    candidateError.value = candidateOperationError(error, "收藏操作失败");
+  } finally {
+    decisionBusy.value = false;
+  }
+}
+
+async function toggleRejected(candidate: WorkbenchCandidate) {
+  const chapterId = currentChapterId.value;
+  if (!chapterId || !isDatabaseCandidateMode.value || isCurrentCandidate(candidate)) return;
+  decisionBusy.value = true;
+  candidateError.value = null;
+  try {
+    const rejected = candidate.status !== "rejected";
+    await api.setCandidateRejected(props.snapshot.project.id, chapterId, candidate.id, rejected);
+    candidateNotice.value = rejected ? `已废弃「${candidate.label}」。` : `已恢复「${candidate.label}」。`;
+    emit("candidateChanged");
+  } catch (error) {
+    candidateError.value = candidateOperationError(error, "候选状态更新失败");
+  } finally {
+    decisionBusy.value = false;
+  }
+}
+
+async function toggleHistory() {
+  historyOpen.value = !historyOpen.value;
+  if (historyOpen.value && historyItems.value.length === 0) await loadHistory(false);
+}
+
+async function loadHistory(append: boolean) {
+  const chapterId = currentChapterId.value;
+  const shotId = selectedShot.value?.id;
+  if (!chapterId || !shotId) return;
+  historyLoading.value = true;
+  candidateError.value = null;
+  try {
+    const page: CandidateLockHistoryPage = await api.candidateDecisionHistory(
+      props.snapshot.project.id,
+      chapterId,
+      shotId,
+      append ? historyNextBeforeRevision.value : null,
+    );
+    historyItems.value = append ? [...historyItems.value, ...page.items] : page.items;
+    historyNextBeforeRevision.value = page.nextBeforeRevision;
+  } catch (error) {
+    candidateError.value = candidateOperationError(error, "定稿历史读取失败");
+  } finally {
+    historyLoading.value = false;
+  }
 }
 
 function getChapterCandidatesLabel(chapter: ChapterListItem): string {
@@ -587,7 +878,73 @@ function getCandidateStatusLabel(status: CandidateStatus): string {
 }
 
 function isCurrentCandidate(candidate: WorkbenchCandidate): boolean {
-  return currentCandidateIds.value.has(candidate.id);
+  return candidate.isCurrentFinal ?? currentCandidateIds.value.has(candidate.id);
+}
+
+function isCandidateDecisionDisabled(candidate: WorkbenchCandidate): boolean {
+  return isCurrentCandidate(candidate)
+    || candidate.status === "rejected"
+    || candidate.status === "superseded"
+    || candidate.sourceApplicability === "historical";
+}
+
+function getFinalizeActionLabel(candidate: WorkbenchCandidate): string {
+  if (isCurrentCandidate(candidate)) return "当前定稿";
+  if (candidate.status === "rejected") return "已废弃";
+  if (candidate.status === "superseded") return "已替代";
+  if (candidate.sourceApplicability === "historical") return "来源已过期";
+  return selectedCurrentCandidateId.value ? "更换为此图" : "定稿此图";
+}
+
+function getDecisionActionLabel(action: CandidateLockRevisionDto["action"]): string {
+  if (action === "lock") return "首次定稿";
+  if (action === "replace") return "更换定稿";
+  return "清空定稿";
+}
+
+function getHistoryCandidateLabel(candidateId: string | null): string {
+  if (!candidateId) return "本次记录没有候选图";
+  return props.snapshot.candidates.find((candidate) => candidate.id === candidateId)?.label ?? `候选 ${candidateId.slice(0, 8)}`;
+}
+
+function formatDecisionTime(value: string | null): string {
+  if (!value) return "未记录决定时间";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未记录决定时间";
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function getDecisionSummary(preview: CandidateLockImpactPreviewResponse): string {
+  const target = preview.targetCandidateId
+    ? props.snapshot.candidates.find((candidate) => candidate.id === preview.targetCandidateId)?.label ?? "所选候选"
+    : null;
+  if (preview.action === "clear") return "清空后该镜头将暂时没有当前定稿；后续排版写入会被阻止，直到重新定稿。";
+  if (preview.noOp) return `${target ?? "所选候选"} 已经是当前定稿，不会新建版本。`;
+  return preview.action === "lock"
+    ? `将 ${target ?? "所选候选"} 设为这个镜头的首次定稿。`
+    : `将当前定稿更换为 ${target ?? "所选候选"}。`;
+}
+
+function hasDownstreamImpact(preview: CandidateLockImpactPreviewResponse): boolean {
+  const impact = preview.impact;
+  return impact.affectedWorkingCopyElements.length > 0
+    || impact.affectedLayoutBindings.length > 0
+    || impact.affectedExportRevisionIds.length > 0
+    || impact.activeTaskIds.length > 0;
+}
+
+function candidateOperationError(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiClientError)) return error instanceof Error ? error.message : fallback;
+  const labels: Record<string, string> = {
+    CANDIDATE_IS_CURRENT_FINAL: "当前定稿不能直接废弃，请先更换或清空定稿。",
+    CANDIDATE_REJECTED: "已废弃的候选不能定稿，请先恢复。",
+    CANDIDATE_SUPERSEDED: "已被替代的候选不能再次定稿。",
+    CANDIDATE_SOURCE_NOT_CURRENT: "这张候选来自旧版分镜，不能用于当前定稿。",
+    CANDIDATE_ASSET_NOT_READY: "候选图片还未准备好。",
+    UPSTREAM_WORK_NOT_CONFIRMED: "上游内容尚未确认，暂时不能变更定稿。",
+    CANDIDATE_LOCK_ACTION_INVALID: "当前定稿状态已变化，请刷新后重新选择。",
+  };
+  return labels[error.code] ?? error.message ?? fallback;
 }
 
 function getTaskChapterId(task: GenerationTaskItem): string | null {
@@ -1431,6 +1788,14 @@ button:disabled {
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.15);
 }
 
+.candidate-card.is-favorite {
+  border-color: rgba(250, 204, 21, 0.42);
+}
+
+.candidate-card.is-historical-source:not(.is-locked) {
+  border-style: dashed;
+}
+
 .candidate-card.is-selected {
   border-color: rgba(94, 234, 212, 0.4);
 }
@@ -1574,6 +1939,122 @@ button:disabled {
   color: #fbbf24;
 }
 
+.source-history-tag {
+  width: fit-content;
+  border-radius: 4px;
+  background: rgba(251, 146, 60, 0.13);
+  padding: 2px 6px;
+  color: #fdba74;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.candidate-preference-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-action {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.35);
+  color: #cbd5e1;
+}
+
+.candidate-card.is-favorite .icon-action:first-child {
+  color: #facc15;
+}
+
+.clear-final-btn {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 8px;
+  background: rgba(251, 146, 60, 0.1);
+  padding: 0 12px;
+  color: #fdba74;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.candidate-operation-notice,
+.candidate-operation-error,
+.decision-conflict,
+.decision-blocked,
+.impact-warning {
+  margin: 0 0 12px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.candidate-operation-notice,
+.decision-conflict {
+  border: 1px solid rgba(34, 199, 169, 0.3);
+  background: rgba(34, 199, 169, 0.09);
+  color: #99f6e4;
+}
+
+.candidate-operation-error,
+.decision-blocked {
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.09);
+  color: #fecaca;
+}
+
+.candidate-history-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.62);
+  padding: 14px;
+}
+
+.history-state {
+  margin: 12px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-list li {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.history-list small {
+  color: #64748b;
+}
+
+.history-more {
+  margin-top: 12px;
+  border: 0;
+  background: transparent;
+  color: #8df0dc;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .lock-action {
   display: inline-flex;
   width: 100%;
@@ -1675,10 +2156,107 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.candidate-decision-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(10px);
+  padding: 24px;
+}
+
+.candidate-decision-modal {
+  width: min(620px, 94vw);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: #111827;
+  padding: 20px;
+  color: #e5e7eb;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.candidate-decision-modal header,
+.candidate-decision-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.candidate-decision-modal header span {
+  color: #8df0dc;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.candidate-decision-modal h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+.candidate-decision-modal header > button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.decision-summary {
+  margin: 16px 0;
+  color: #cbd5e1;
+  line-height: 1.65;
+}
+
+.impact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.impact-grid div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 11px;
+}
+
+.impact-grid span {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.impact-grid strong {
+  font-size: 18px;
+}
+
+.impact-warning {
+  margin-top: 12px;
+  border: 1px solid rgba(251, 146, 60, 0.28);
+  background: rgba(251, 146, 60, 0.09);
+  color: #fed7aa;
+}
+
+.candidate-decision-modal footer {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
+}
+
+.is-spinning {
+  animation: spin 0.9s linear infinite;
 }
 
 @media (max-width: 980px) {

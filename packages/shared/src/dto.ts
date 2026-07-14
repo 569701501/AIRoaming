@@ -14,7 +14,12 @@ import type {
   ProjectType,
 } from "./domain.js";
 import type { ComicFormat } from "./comic-format.js";
-import type { CandidateChapterSourceState, CandidateStatus } from "./candidate-lock.js";
+import type {
+  CandidateChapterSourceState,
+  CandidateStatus,
+  CurrentCandidateDecision,
+  TaskApplicability,
+} from "./candidate-lock.js";
 import type { ArtifactFreshness, FreshnessReasonCode } from "./versioning/production-state.js";
 
 export interface ApiEnvelope<T> {
@@ -1076,6 +1081,8 @@ export interface WorkbenchShot {
   promptDraft: string;
   status: StoryboardShotStatus;
   lockedCandidateId: string | null;
+  /** DB-only G4 authority. Legacy mode leaves this undefined. */
+  currentCandidateDecision?: CurrentCandidateDecision;
 }
 
 export type CandidateGenerationReferenceKind = "character_identity" | "scene_environment";
@@ -1122,6 +1129,10 @@ export interface WorkbenchCandidate {
   shotId: string;
   label: string;
   status: CandidateStatus;
+  /** DB-only preference and authority projection. */
+  favoriteAt?: string | null;
+  isCurrentFinal?: boolean;
+  sourceApplicability?: TaskApplicability;
   assetId: string;
   taskId?: string | null;
   index?: number;

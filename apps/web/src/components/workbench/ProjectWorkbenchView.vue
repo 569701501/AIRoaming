@@ -127,7 +127,7 @@
         @select-chapter="$emit('selectChapter', $event)"
         @generate-candidates="$emit('generateImageCandidates', $event)"
         @generate-all-unlocked="$emit('generateAllUnlocked')"
-        @lock-candidate="$emit('lockCandidate', $event)"
+        @candidate-changed="$emit('candidateChanged')"
         @complete-images="$emit('completeImages')"
         @go-preflight="$emit('selectStep', 'image_preflight')"
       />
@@ -225,7 +225,7 @@ const emit = defineEmits<{
   confirmImagePreflight: [chapterId: string];
   generateImageCandidates: [payload: { shotId: string; candidateCount: number }];
   generateAllUnlocked: [];
-  lockCandidate: [candidateId: string];
+  candidateChanged: [];
   completeImages: [];
   buildLayout: [];
   exportLayout: [];

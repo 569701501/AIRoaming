@@ -908,6 +908,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           input: {
             chapterId,
             shotId: shot.id,
+            requestId: crypto.randomUUID(),
             candidateCount,
           },
           options: {
@@ -955,6 +956,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             input: {
               chapterId,
               shotId: shot.id,
+              requestId: crypto.randomUUID(),
               candidateCount,
             },
             options: { candidateCount, provider: "default" },
@@ -967,36 +969,6 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.error = error instanceof Error ? error.message : "批量生成候选图失败";
         return 0;
-      } finally {
-        this.loading = false;
-      }
-    },
-    async lockChapterCandidate(candidateId: string): Promise<boolean> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
-        if (!projectId || !chapterId || !this.snapshot) {
-          throw new Error("请先打开章节");
-        }
-        const result = await api.lockChapterCandidate(projectId, chapterId, candidateId);
-        this.snapshot = {
-          ...this.snapshot,
-          candidates: result.candidates,
-          shots: result.shots,
-          storyboard: result.storyboard,
-          assets: result.assets,
-          currentChapter: result.chapter,
-          chapters: result.chapters,
-        };
-        this.snapshot.workflow = patchWorkflowForChapter(this.snapshot, result.chapter);
-        this.snapshot.stages = this.snapshot.workflow.steps;
-        this.dialogueNotice = `已锁定候选「${result.candidate.label}」。`;
-        return true;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "锁定候选图失败";
-        return false;
       } finally {
         this.loading = false;
       }

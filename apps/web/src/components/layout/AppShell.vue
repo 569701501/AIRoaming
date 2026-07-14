@@ -47,7 +47,7 @@
           @confirm-image-preflight="confirmImagePreflight"
           @generate-image-candidates="generateImageCandidates"
           @generate-all-unlocked="generateAllUnlocked"
-          @lock-candidate="lockCandidate"
+          @candidate-changed="refreshCandidateState"
           @complete-images="completeImages"
           @build-layout="buildLayout"
           @export-layout="exportLayout"
@@ -308,8 +308,8 @@ async function generateAllUnlocked() {
   await workbench.generateAllUnlockedShots(1);
 }
 
-async function lockCandidate(candidateId: string) {
-  await workbench.lockChapterCandidate(candidateId);
+async function refreshCandidateState() {
+  await workbench.refreshActiveProjectRuntime();
 }
 
 async function completeImages() {

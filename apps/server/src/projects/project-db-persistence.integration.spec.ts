@@ -1626,6 +1626,16 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(locked).toMatchObject({ result: "created", currentDecision: { state: "finalized", candidateId: candidateA!.id }, revision: { action: "lock", revision: 1 } });
     expect(locked.shot.currentCandidateDecision).toEqual(locked.currentDecision);
     expect(locked.candidatesForShot.find((item) => item.id === candidateA!.id)?.isCurrentFinal).toBe(true);
+    const workbenchAfterLock = await projects.getWorkbenchSnapshot(project.id, scope.chapterId);
+    expect(workbenchAfterLock.shots.find((item) => item.id === shotId)).toMatchObject({
+      lockedCandidateId: candidateA!.id,
+      currentCandidateDecision: { state: "finalized", candidateId: candidateA!.id, revision: 1 },
+    });
+    expect(workbenchAfterLock.candidates.find((item) => item.id === candidateA!.id)).toMatchObject({
+      isCurrentFinal: true,
+      favoriteAt: null,
+      sourceApplicability: "current",
+    });
 
     const replayLock = await decisions.commit(project.id, scope.chapterId, shotId, lockRequest);
     expect(replayLock).toMatchObject({ result: "replayed", revision: { id: locked.revision.id, revision: 1 } });
@@ -1639,6 +1649,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
 
     const digestBeforePreference = noOp.candidateLockSet.digest;
     expect((await decisions.favorite(project.id, scope.chapterId, candidateB!.id, true)).candidate.favoriteAt).not.toBeNull();
+    expect((await projects.getWorkbenchSnapshot(project.id, scope.chapterId)).candidates.find((item) => item.id === candidateB!.id)?.favoriteAt).not.toBeNull();
     expect((await decisions.rejection(project.id, scope.chapterId, candidateB!.id, true)).candidate.status).toBe("rejected");
     expect((await decisions.rejection(project.id, scope.chapterId, candidateB!.id, false)).candidate.status).toBe("generated");
     expect((await decisions.favorite(project.id, scope.chapterId, candidateB!.id, false)).candidate.favoriteAt).toBeNull();
