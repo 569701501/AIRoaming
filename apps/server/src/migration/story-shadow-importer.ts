@@ -14,9 +14,11 @@ import { mapLegacyComicFormat } from "./comic-format-migration.plugin.js";
 import { PrismaMigrationLedgerRepository } from "./prisma-migration-ledger.repository.js";
 import { createComicFormatReport, type ComicFormatReport, type ComicFormatReportProject } from "./migration-report.js";
 import { PrismaService } from "../persistence/prisma.service.js";
+import { LegacyCharacterReferenceError, resolveLegacyCharacterTokens } from "./legacy-character-reference.js";
 
 const FALLBACK_DATE = "2000-01-01T00:00:00.000Z";
 const STORY_SOURCE_POLICY = "story-source-v1";
+const MILESTONE_RANK: Record<string, number> = { draft: 0, script_done: 1, structured: 2, storyboard_done: 3, images_done: 4, layout_done: 5, exported: 6 };
 
 export class StoryShadowImportError extends Error {
   constructor(readonly code: string) { super(code); }
@@ -116,6 +118,7 @@ function legacyDocument(raw: Record<string, unknown>, projectId: string, chapter
       notes: character.notes,
     };
   });
+  const characterCandidates = characters.map((character) => ({ sourceId: character.id, exactName: character.name, targetId: character.id }));
   const scenes = normalized.scenes.map((scene) => ({
     id: scene.id,
     name: scene.name,
@@ -132,7 +135,16 @@ function legacyDocument(raw: Record<string, unknown>, projectId: string, chapter
       title: beat.title,
       summary: beat.summary,
       conflict: beat.conflict,
-      characters: beat.characters,
+      characters: (() => {
+        try {
+          return resolveLegacyCharacterTokens(beat.characters, characterCandidates).map((resolution) => resolution.targetId);
+        } catch (error) {
+          if (error instanceof LegacyCharacterReferenceError) {
+            throw new StoryShadowImportError(error.kind === "ambiguous" ? "MIGRATION_STORY_CHARACTER_REFERENCE_AMBIGUOUS" : "MIGRATION_STORY_CHARACTER_REFERENCE_UNRESOLVED");
+          }
+          throw error;
+        }
+      })(),
       sceneId: beat.sceneId,
       visualFocus: beat.visualFocus,
       outcome: beat.outcome,
@@ -368,7 +380,8 @@ export class StoryShadowImporter {
     }
     const chapterAfterVersion = await tx.chapter.findUnique({ where: { id: plan.chapterId } });
     if (plan.sourceResolved && chapterAfterVersion?.currentScriptVersionId === plan.sourceScriptVersionId && chapterAfterVersion.currentStoryVersionId !== plan.targetId && (await tx.storyVersion.findUnique({ where: { id: plan.targetId } }))?.status === "confirmed") {
-      await tx.chapter.update({ where: { id: plan.chapterId }, data: { currentStoryVersionId: plan.targetId, pendingStoryVersionId: null, milestoneStatus: "structured", rowVersion: { increment: 1 } } });
+      const milestoneStatus = chapterAfterVersion && (MILESTONE_RANK[chapterAfterVersion.milestoneStatus] ?? 0) < MILESTONE_RANK.structured ? "structured" : undefined;
+      await tx.chapter.update({ where: { id: plan.chapterId }, data: { currentStoryVersionId: plan.targetId, pendingStoryVersionId: null, ...(milestoneStatus ? { milestoneStatus } : {}), rowVersion: { increment: 1 } } });
     } else if (!plan.sourceResolved || chapter.currentScriptVersionId !== plan.sourceScriptVersionId) {
       await this.ledger.recordGenericIssueInTransaction(tx, runId, { issueKey: `chapter:${plan.legacyChapterId}:story-source`, code: "STORY_SOURCE_UNRESOLVED", entityType: "StoryVersion", entityId: plan.targetId, sourceKey: plan.sourceKey, storageKey: plan.sourceStorageKey, detailJson: { schemaVersion: 1, chapterId: plan.chapterId, sourceScriptVersionId: plan.sourceScriptVersionId, reason: plan.sourceReason ?? "source_script_version_not_current" } });
     }

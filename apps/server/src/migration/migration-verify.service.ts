@@ -209,7 +209,10 @@ function assessSourceCounts(importerVersion: string, counts: Record<string, unkn
   // every non-A2 slice; A6 additionally carries Shot while its source rows
   // are recorded as StoryboardShotProjection.
   const contextKeys = new Set(["Project"]);
-  if (importerVersion === "g3-m3-a6") contextKeys.add("Shot");
+  if (importerVersion === "g3-m3-a6") {
+    contextKeys.add("Shot");
+    contextKeys.add("StoryboardShotCharacter");
+  }
   const allowedKeys = new Set([...expectedKeys, ...contextKeys]);
   const keysRegistered = Object.keys(values).every((countKey) => allowedKeys.has(countKey));
   const valuesValid = Object.values(values).every((value) => Number.isInteger(value) && (value as number) >= 0);

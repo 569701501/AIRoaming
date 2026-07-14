@@ -127,7 +127,7 @@ async function readFreshInventory(prisma: PrismaService): Promise<{ digest: `sha
   return { tables, digest: digestCanonicalJson(tables) };
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withCharacterReferences?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -149,10 +149,10 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "script.revisions", "latest.json"), `${JSON.stringify({ id: "legacy-revision-1", projectId, chapterId: `${projectId}-chapter-001`, threadId: "legacy-thread-1", messageId: "legacy-message-1", toolCallId: "legacy-tool-1", operation: "update_chapter_draft", summary: "AI 更新章节草稿", createdAt: "2026-01-03T01:00:00.000Z" })}\n`);
     }
     if (options.withStoryStructure) {
-      await writeFile(path.join(projectDir, "chapters", "chapter-001", "structure.json"), `${JSON.stringify({ id: "legacy-story-1", version: 1, status: "structured", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T00:00:00.000Z", confirmedAt: "2026-01-03T00:00:00.000Z", structureJson: { chapterTitle: "第一章", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, synopsis: "夜色中的冲突。", direction: { logline: "夜色落下", chapterGoal: "建立冲突", coreConflict: "未知来客", emotionalArc: "紧张", endingHook: "门外有声" }, scenes: [{ id: "scene_01", name: "巷口", location: "旧城", timeOfDay: "夜", atmosphere: "冷", purpose: "引入" }], beats: [{ id: "beat_01", order: 1, title: "脚步声", summary: "主角听见脚步。", conflict: "是否开门", characters: [], sceneId: "scene_01", visualFocus: "门", outcome: "停在门前" }], characters: [], notes: "" } })}\n`);
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "structure.json"), `${JSON.stringify({ id: "legacy-story-1", version: 1, status: "structured", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, createdAt: "2026-01-03T00:00:00.000Z", updatedAt: "2026-01-03T00:00:00.000Z", confirmedAt: "2026-01-03T00:00:00.000Z", structureJson: { chapterTitle: "第一章", sourceScriptVersionId: `${projectId}-chapter-001_script_v001`, synopsis: "夜色中的冲突。", direction: { logline: "夜色落下", chapterGoal: "建立冲突", coreConflict: "未知来客", emotionalArc: "紧张", endingHook: "门外有声" }, scenes: [{ id: "scene_01", name: "巷口", location: "旧城", timeOfDay: "夜", atmosphere: "冷", purpose: "引入" }], beats: [{ id: "beat_01", order: 1, title: "脚步声", summary: "主角听见脚步。", conflict: "是否开门", characters: options.withCharacterReferences ? ["主角"] : [], sceneId: "scene_01", visualFocus: "门", outcome: "停在门前" }], characters: options.withCharacterReferences ? [{ id: "story_char_001", projectCharacterId: "char_001", name: "主角", role: "lead", level: "chapter", entityType: "human", motivation: "", relationship: "", visualTraits: "", notes: "" }] : [], notes: "" } })}\n`);
     }
     if (options.withStoryboard) {
-      await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], lockedCandidateId: options.withCandidates ? "legacy-candidate-001" : null, coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "storyboard.json"), `${JSON.stringify({ id: "legacy-board-1", version: 1, status: "storyboard_done", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, createdAt: "2026-01-04T00:00:00.000Z", updatedAt: "2026-01-04T00:00:00.000Z", confirmedAt: "2026-01-04T00:00:00.000Z", storyboardJson: { chapterTitle: "第一章", sourceStoryVersionId: `${projectId}-chapter-001_story_v001`, shots: [{ id: "shot_001", order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: options.withCharacterReferences ? ["主角"] : [], lockedCandidateId: options.withCandidates ? "legacy-candidate-001" : null, coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" } })}\n`);
     }
     if (options.withPreflight === "unresolved") {
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ id: "legacy-preflight-1", version: 1, status: "ready", sourceStoryboardId: "legacy-board-1", updatedAt: "2026-01-05T00:00:00.000Z" })}\n`);
@@ -185,7 +185,7 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "exports", "export_001", "page_001.png"), png);
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "exports", "export_001", "manifest.json"), `${JSON.stringify({ schemaVersion: 1, exportId: "export_001", projectId, chapterId: `${projectId}-chapter-001`, kind: "layout_publication", files: [{ path: "page_001.png", role: "page_png", order: 1 }], createdAt: "2026-01-06T00:00:00.000Z" })}\n`);
     }
-    if (options.withCharacters) {
+    if (options.withCharacters || options.withCharacterReferences) {
       await mkdir(path.join(projectDir, "shared"), { recursive: true });
       await writeFile(path.join(projectDir, "shared", "characters.json"), `${JSON.stringify({ characters: [{ id: "char_001", name: "主角", role: "调查者", level: "lead", entityType: "human", status: "draft", appearance: "", personality: "", promptFragment: "", source: "script_outline", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" }] })}\n`);
     }
@@ -491,6 +491,18 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().migrationIssue.findFirstOrThrow()).toMatchObject({ code: "STORY_SOURCE_UNRESOLVED", entityType: "StoryVersion", resolutionStatus: "open" });
   }, 30_000);
 
+  it("R0B-STORY-01 resolves legacy beat character names to structure character ids", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withCharacterReferences: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-story-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-story-script" });
+    const result = await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-story" });
+    expect(result.run.status).toBe("succeeded");
+    const story = await prisma!.database().storyVersion.findFirstOrThrow();
+    expect(story.documentJson).toMatchObject({ characters: [{ id: "story_char_001" }], beats: [{ characters: ["story_char_001"] }] });
+  }, 30_000);
+
   it("IMP-A6-01 imports confirmed StoryboardVersion and stable Shot projection", async () => {
     const prepared = await prepare();
     const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true });
@@ -513,6 +525,29 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(replay.run.status).toBe("succeeded");
     expect((await prisma!.database().chapter.findFirstOrThrow()).rowVersion).toBe(rowVersion);
     expect(await prisma!.database().storyboardVersion.count()).toBe(1);
+  }, 30_000);
+
+  it("R0B-BOARD-03 resolves legacy storyboard names and persists child relations before confirmation", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true, withCharacterReferences: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    await new ProjectChapterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-board-base" });
+    await new ScriptOutlineShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-board-script" });
+    await new StoryShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-board-story" });
+    await new CharacterShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-board-character" });
+    const result = await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-board" });
+    expect(result.run.status).toBe("succeeded");
+    expect(result.report.summary.entityCounts).toMatchObject({ StoryboardShotCharacter: 1 });
+    const board = await prisma!.database().storyboardVersion.findFirstOrThrow();
+    const shot = await prisma!.database().storyboardShotProjection.findFirstOrThrow();
+    const relation = await prisma!.database().storyboardShotCharacter.findFirstOrThrow();
+    expect(board.documentJson).toMatchObject({ shots: [{ characterIds: [expect.stringMatching(/^character_/)] }] });
+    expect(relation).toMatchObject({ storyboardShotProjectionId: shot.id, order: 1, sourceToken: relation.characterId });
+    const rowVersion = (await prisma!.database().chapter.findFirstOrThrow()).rowVersion;
+    const replay = await new StoryboardShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-r0b-board-replay" });
+    expect(replay.run.status).toBe("succeeded");
+    expect(await prisma!.database().storyboardShotCharacter.count()).toBe(1);
+    expect((await prisma!.database().chapter.findFirstOrThrow()).rowVersion).toBe(rowVersion);
   }, 30_000);
 
   it("IMP-A7-01 imports shared characters with stable identity and replay", async () => {
@@ -1730,6 +1765,18 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().migrationRun.count()).toBe(1);
     expect(await prisma!.database().project.count()).toBe(0);
   }, 30_000);
+
+  it("R0B-FULL-01 runs the full chain with non-empty legacy character references", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true, withCharacterReferences: true });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const result = await new FullShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-r0b-full" });
+    expect(result.status).toBe("succeeded");
+    expect(result.slices.map((slice) => slice.slice)).toEqual([...FULL_SHADOW_SLICE_ORDER]);
+    expect(FULL_SHADOW_SLICE_ORDER.indexOf("characters")).toBeLessThan(FULL_SHADOW_SLICE_ORDER.indexOf("storyboard"));
+    expect(await prisma!.database().storyboardShotCharacter.count()).toBe(1);
+    expect(result.slices.find((slice) => slice.slice === "storyboard")?.report?.summary.entityCounts).toMatchObject({ StoryboardShotCharacter: 1 });
+  }, 60_000);
 
   it("IMP-M3-FULL-03 records a failed slice and stops without downstream runs", async () => {
     const prepared = await prepare();

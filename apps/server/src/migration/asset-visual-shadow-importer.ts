@@ -201,7 +201,7 @@ export class AssetVisualShadowImporter {
       if (previewAssetId && primaryAssetId && previewAssetId === primaryAssetId) throw new AssetVisualShadowImportError("MIGRATION_CHARACTER_VISUAL_CONFLICT");
       const visualVersion = Number.isInteger(row.visualVersion) && Number(row.visualVersion) > 0 ? Number(row.visualVersion) : 1;
       const refs: Array<{ assetId: string; kind: "preview_front" | "final_reference"; version: number; confirmedAt: Date | null }> = [];
-      if (previewAssetId && byLegacyAsset.has(previewAssetId)) refs.push({ assetId: previewAssetId, kind: "preview_front", version: primaryAssetId ? Math.max(1, visualVersion - 1) : visualVersion, confirmedAt: typeof row.previewConfirmedAt === "string" ? dateField(row, "previewConfirmedAt") : null });
+      if (previewAssetId && byLegacyAsset.has(previewAssetId)) refs.push({ assetId: previewAssetId, kind: "preview_front", version: primaryAssetId ? Math.max(1, visualVersion - 1) : visualVersion, confirmedAt: null });
       if (primaryAssetId && byLegacyAsset.has(primaryAssetId)) refs.push({ assetId: primaryAssetId, kind: "final_reference", version: primaryAssetId === previewAssetId ? visualVersion : Math.max(1, visualVersion), confirmedAt: typeof row.finalizedAt === "string" ? dateField(row, "finalizedAt") : null });
       for (const ref of refs) {
         const asset = byLegacyAsset.get(ref.assetId)!;
