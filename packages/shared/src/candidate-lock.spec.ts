@@ -10,6 +10,8 @@ import {
   parseCommitCandidateLockRequest,
   parsePreviewCandidateLockRequest,
   type CandidateStatus,
+  type CandidateLockHistoryPage,
+  type CandidatePreferenceResponse,
   type CurrentCandidateDecision,
   type WorkbenchCandidateV2,
   type WorkbenchShotV2,
@@ -128,6 +130,14 @@ describe("candidate lock shared contract", () => {
     });
     expect(
       parseCommitCandidateLockRequest({
+        action: "clear",
+        expectedCurrentRevisionId: "revision_a",
+        impactDigest: `sha256:${"b".repeat(64)}`,
+        reason: null,
+      }),
+    ).toMatchObject({ action: "clear", reason: null });
+    expect(
+      parseCommitCandidateLockRequest({
         action: "lock",
         candidateId: "candidate_a",
         expectedCurrentRevisionId: null,
@@ -196,6 +206,8 @@ describe("candidate lock shared contract", () => {
     expectTypeOf<WorkbenchCandidateV2>().toHaveProperty("favoriteAt");
     expectTypeOf<WorkbenchCandidateV2>().toHaveProperty("isCurrentFinal");
     expectTypeOf<WorkbenchCandidateV2>().toHaveProperty("sourceApplicability");
+    expectTypeOf<CandidateLockHistoryPage>().toHaveProperty("nextBeforeRevision");
+    expectTypeOf<CandidatePreferenceResponse>().toHaveProperty("candidate");
 
     const decisions: CurrentCandidateDecision[] = [
       {

@@ -36,6 +36,8 @@ import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
+import { CandidateLockRepository } from "./candidate-lock.repository.js";
+import { CandidateDecisionService } from "./candidate-decision.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -72,7 +74,9 @@ import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
     PersistentG2TaskCreateGuardService,
     PersistentTaskWorkerService,
     ProjectDeleteOutboxService,
+    CandidateLockRepository,
+    CandidateDecisionService,
   ],
-  exports: [ProjectsService, ProjectDeleteOutboxService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService],
+  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService],
 })
 export class ProjectsModule {}

@@ -375,7 +375,7 @@ export function parseCommitCandidateLockRequest(
     fail("IMPACT_DIGEST_INVALID");
   }
 
-  if (input.reason !== undefined && typeof input.reason !== "string") {
+  if (input.reason !== undefined && input.reason !== null && typeof input.reason !== "string") {
     fail("CANDIDATE_LOCK_BODY_INVALID");
   }
   const reason = typeof input.reason === "string" ? input.reason.trim() : "";
@@ -655,6 +655,17 @@ export interface CandidateLockCommitResponse {
   candidateLockSet: CandidateLockSetSummary;
   productionState: ChapterProductionState;
   committedImpact: CandidateLockImpactDetails;
+}
+
+export interface CandidateLockHistoryPage {
+  schemaVersion: 1;
+  items: CandidateLockRevisionDto[];
+  nextBeforeRevision: number | null;
+}
+
+export interface CandidatePreferenceResponse {
+  schemaVersion: 1;
+  candidate: WorkbenchCandidateV2;
 }
 
 export type LayoutSourceReasonCode =

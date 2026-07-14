@@ -43,7 +43,8 @@ import { TaskApplicabilityGuardService } from "./versioning/task-applicability-g
 import { PersistentTaskRepository, TaskLeaseLostError } from "../tasks/persistent-task.repository.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
-import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, PreflightDocumentCodecV2, encodeScriptTextV1, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
+import { CandidateDecisionService } from "./candidate-decision.service.js";
+import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
 
@@ -1515,7 +1516,10 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("P6-LAYOUT-EXPORT-01: creates shot prompt/image tasks, locks them, and exports layout/package through DB", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const httpApp = await NestFactory.create(ProjectsModule, { logger: false });
+    await httpApp.listen(0, "127.0.0.1");
+    app = httpApp;
+    const apiBase = await httpApp.getUrl();
     const projects = app.get(ProjectsService);
     const tasks = app.get(TasksService);
     const scripts = app.get(ScriptVersionRepository);
@@ -1523,6 +1527,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const boards = app.get(StoryboardVersionRepository);
     const preflight = app.get(PreflightRevisionService);
     const worker = app.get(PersistentTaskWorkerService);
+    const decisions = app.get(CandidateDecisionService);
+    const repository = app.get(PersistentTaskRepository);
     const prisma = app.get(PrismaService).database();
     const project = await projects.createProject({ name: "G2 Shot Tasks", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
     const scope = { projectId: project.id, chapterId: project.currentChapterId! };
@@ -1584,14 +1590,106 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.generationTask.findUniqueOrThrow({ where: { id: staleTask.id } })).applicability).toBe("historical");
     const nextPreview = await preflight.getPreview(scope, "shot tasks after replacement");
     await preflight.confirm(scope, { expectedSourceStoryboardVersionId: nextConfirmed.value.current.id, expectedSourceDigest: nextPreview.sourceDigest, expectedChapterRowVersion: nextPreview.chapterRowVersion, notes: "shot tasks after replacement" });
-    const locked = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
-    expect(locked.candidate).toMatchObject({ id: candidate.id, status: "generated" });
-    expect(locked.shots.find((item) => item.id === shotId)?.lockedCandidateId).toBe(candidate.id);
-    const lockRevision = await prisma.candidateLockRevision.findFirstOrThrow({ where: { shotId }, orderBy: { revision: "desc" } });
-    expect(lockRevision).toMatchObject({ action: "lock", candidateId: candidate.id, revision: 1, origin: "runtime" });
-    const replayLock = await projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidate.id });
-    expect(replayLock.candidate.status).toBe("generated");
+
+    worker.setHandler("image_generate", async () => ({
+      candidates: [1, 2, 3].map((index) => ({ index, buffer: png, mimeType: "image/png" })),
+    }));
+    const freshImageTask = await tasks.create({ projectId: project.id, type: "image_generate", target: { type: "shot", id: shotId, chapterId: scope.chapterId }, input: { chapterId: scope.chapterId, shotId, requestId: randomUUID(), candidateCount: 3 } });
+    expect(await worker.runOnce("shot-worker")).toMatchObject({ id: freshImageTask.id, status: "succeeded" });
+    const [candidateA, candidateB, candidateC] = await prisma.candidate.findMany({
+      where: { taskId: freshImageTask.id },
+      include: { asset: true },
+      orderBy: { index: "asc" },
+    });
+    expect([candidateA?.index, candidateB?.index, candidateC?.index]).toEqual([1, 2, 3]);
+    await expect(projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidateA!.id })).rejects.toMatchObject({
+      response: { error: { code: "LEGACY_WRITE_ROUTE_DISABLED" } },
+    });
+
+    const lockPreviewResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/shots/${shotId}/candidate-lock/preview`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "lock", candidateId: candidateA!.id }),
+    });
+    expect(lockPreviewResponse.status).toBe(201);
+    const lockPreview = (await lockPreviewResponse.json() as { data: CandidateLockImpactPreviewResponse }).data;
+    expect(lockPreview).toMatchObject({ expectedCurrentRevisionId: null, noOp: false, commitAllowed: true });
+    const lockRequest = { action: "lock", candidateId: candidateA!.id, expectedCurrentRevisionId: lockPreview.expectedCurrentRevisionId, impactDigest: lockPreview.impactDigest, reason: "G4-C integration" } as const;
+    const lockResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/shots/${shotId}/candidate-lock`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(lockRequest),
+    });
+    expect(lockResponse.status).toBe(200);
+    const locked = (await lockResponse.json() as { data: CandidateLockCommitResponse }).data;
+    expect(locked).toMatchObject({ result: "created", currentDecision: { state: "finalized", candidateId: candidateA!.id }, revision: { action: "lock", revision: 1 } });
+    expect(locked.shot.currentCandidateDecision).toEqual(locked.currentDecision);
+    expect(locked.candidatesForShot.find((item) => item.id === candidateA!.id)?.isCurrentFinal).toBe(true);
+
+    const replayLock = await decisions.commit(project.id, scope.chapterId, shotId, lockRequest);
+    expect(replayLock).toMatchObject({ result: "replayed", revision: { id: locked.revision.id, revision: 1 } });
     expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(1);
+
+    const noOpPreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateA!.id });
+    expect(noOpPreview.noOp).toBe(true);
+    const noOp = await decisions.commit(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateA!.id, expectedCurrentRevisionId: noOpPreview.expectedCurrentRevisionId, impactDigest: noOpPreview.impactDigest, reason: null });
+    expect(noOp.result).toBe("no_op");
+    expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(1);
+
+    const digestBeforePreference = noOp.candidateLockSet.digest;
+    expect((await decisions.favorite(project.id, scope.chapterId, candidateB!.id, true)).candidate.favoriteAt).not.toBeNull();
+    expect((await decisions.rejection(project.id, scope.chapterId, candidateB!.id, true)).candidate.status).toBe("rejected");
+    expect((await decisions.rejection(project.id, scope.chapterId, candidateB!.id, false)).candidate.status).toBe("generated");
+    expect((await decisions.favorite(project.id, scope.chapterId, candidateB!.id, false)).candidate.favoriteAt).toBeNull();
+    await expect(decisions.rejection(project.id, scope.chapterId, candidateA!.id, true)).rejects.toMatchObject({ status: 409, response: { error: { code: "CANDIDATE_IS_CURRENT_FINAL" } } });
+    expect((await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateA!.id })).impactDigest).toBe(noOpPreview.impactDigest);
+
+    const replaceBPreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateB!.id });
+    const staleReplaceCPreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateC!.id });
+    const replaceBRequest = { action: "replace", candidateId: candidateB!.id, expectedCurrentRevisionId: replaceBPreview.expectedCurrentRevisionId, impactDigest: replaceBPreview.impactDigest, reason: "replace B" } as const;
+    const replacedB = await decisions.commit(project.id, scope.chapterId, shotId, replaceBRequest);
+    expect(replacedB).toMatchObject({ result: "created", revision: { action: "replace", revision: 2, previousRevisionId: locked.revision.id } });
+    expect(replacedB.candidateLockSet.digest).not.toBe(digestBeforePreference);
+    await expect(decisions.commit(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateC!.id, expectedCurrentRevisionId: staleReplaceCPreview.expectedCurrentRevisionId, impactDigest: staleReplaceCPreview.impactDigest, reason: "stale writer" })).rejects.toMatchObject({ status: 409, response: { error: { code: "CANDIDATE_LOCK_REVISION_CONFLICT" } } });
+    expect((await decisions.commit(project.id, scope.chapterId, shotId, replaceBRequest)).result).toBe("replayed");
+    const historyResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/shots/${shotId}/candidate-lock/history?limit=1`);
+    expect(historyResponse.status).toBe(200);
+    expect((await historyResponse.json() as { data: { items: unknown[] } }).data.items).toMatchObject([{ revision: 2, candidateId: candidateB!.id }]);
+    expect((await decisions.history(project.id, scope.chapterId, shotId)).items.map((item) => item.revision)).toEqual([2, 1]);
+
+    const impactPreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateC!.id });
+    const impactTask = await repository.create({
+      projectId: project.id,
+      type: "layout_export",
+      target: { type: "chapter", id: scope.chapterId, chapterId: scope.chapterId },
+      input: {
+        schemaVersion: 2,
+        chapterId: scope.chapterId,
+        sourceProjection: {
+          schemaVersion: 1,
+          policyVersion: "g4-c-integration-v1",
+          projectId: project.id,
+          chapterId: scope.chapterId,
+          consumerType: "layout_export",
+          sources: [{ role: "candidate", order: 1, sourceType: "candidate_lock_revision", sourceId: replacedB.revision.id, sourceDigest: candidateB!.asset.sha256 }],
+        },
+      },
+    });
+    await expect(decisions.commit(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateC!.id, expectedCurrentRevisionId: impactPreview.expectedCurrentRevisionId, impactDigest: impactPreview.impactDigest, reason: "impact changed" })).rejects.toMatchObject({ status: 409, response: { error: { code: "CANDIDATE_LOCK_IMPACT_CHANGED" } } });
+    expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(2);
+    await tasks.cancelForApi(impactTask.item.id);
+
+    const raceCPreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateC!.id });
+    const raceAPreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateA!.id });
+    const race = await Promise.allSettled([
+      decisions.commit(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateC!.id, expectedCurrentRevisionId: raceCPreview.expectedCurrentRevisionId, impactDigest: raceCPreview.impactDigest, reason: "race C" }),
+      decisions.commit(project.id, scope.chapterId, shotId, { action: "replace", candidateId: candidateA!.id, expectedCurrentRevisionId: raceAPreview.expectedCurrentRevisionId, impactDigest: raceAPreview.impactDigest, reason: "race A" }),
+    ]);
+    expect(race.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+    expect(race.filter((item) => item.status === "rejected")).toHaveLength(1);
+    expect((race.find((item) => item.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 409, response: { error: { code: "CANDIDATE_LOCK_REVISION_CONFLICT" } } });
+    expect(await prisma.candidateLockRevision.count({ where: { shotId } })).toBe(3);
+
     const completedImages = await projects.completeChapterImages(project.id, scope.chapterId);
     expect(completedImages.chapter.status).toBe("images_done");
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("images_done");

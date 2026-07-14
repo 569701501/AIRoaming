@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Res, StreamableFile } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Res, StreamableFile } from "@nestjs/common";
 import type {
   CompleteChapterRequest,
   ConfirmCharacterPreviewRequest,
@@ -42,6 +42,7 @@ import { StoryVersionService } from "./versioning/story-version.service.js";
 import { StoryboardVersionService } from "./versioning/storyboard-version.service.js";
 import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
 import { PreflightRevisionService } from "./versioning/preflight-revision.service.js";
+import { CandidateDecisionService } from "./candidate-decision.service.js";
 
 @Controller("projects")
 export class ProjectsController {
@@ -52,6 +53,7 @@ export class ProjectsController {
     @Inject(StoryboardVersionService) private readonly storyboardVersionService: StoryboardVersionService,
     @Inject(ChapterProductionQueryService) private readonly chapterProductionQueryService: ChapterProductionQueryService,
     @Inject(PreflightRevisionService) private readonly preflightRevisionService: PreflightRevisionService,
+    @Inject(CandidateDecisionService) private readonly candidateDecisionService: CandidateDecisionService,
   ) {}
 
   @Get()
@@ -510,13 +512,71 @@ export class ProjectsController {
     return ok(await this.projectsService.updateChapterStoryboard(projectId, chapterId, body));
   }
 
-  @Post(":projectId/chapters/:chapterId/candidates/:candidateId/lock")
-  async lockChapterCandidate(
+  @Post(":projectId/chapters/:chapterId/shots/:shotId/candidate-lock/preview")
+  async previewCandidateLock(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: unknown,
+  ) {
+    return ok(await this.candidateDecisionService.preview(projectId, chapterId, shotId, body));
+  }
+
+  @Put(":projectId/chapters/:chapterId/shots/:shotId/candidate-lock")
+  async commitCandidateLock(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Body() body: unknown,
+  ) {
+    return ok(await this.candidateDecisionService.commit(projectId, chapterId, shotId, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/shots/:shotId/candidate-lock/history")
+  async candidateLockHistory(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("shotId") shotId: string,
+    @Query("limit") limit?: string,
+    @Query("beforeRevision") beforeRevision?: string,
+  ) {
+    return ok(await this.candidateDecisionService.history(projectId, chapterId, shotId, limit, beforeRevision));
+  }
+
+  @Put(":projectId/chapters/:chapterId/candidates/:candidateId/favorite")
+  async favoriteCandidate(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
     @Param("candidateId") candidateId: string,
   ) {
-    return ok(await this.projectsService.lockChapterCandidate(projectId, chapterId, { candidateId }));
+    return ok(await this.candidateDecisionService.favorite(projectId, chapterId, candidateId, true));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/candidates/:candidateId/favorite")
+  async unfavoriteCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("candidateId") candidateId: string,
+  ) {
+    return ok(await this.candidateDecisionService.favorite(projectId, chapterId, candidateId, false));
+  }
+
+  @Put(":projectId/chapters/:chapterId/candidates/:candidateId/rejection")
+  async rejectCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("candidateId") candidateId: string,
+  ) {
+    return ok(await this.candidateDecisionService.rejection(projectId, chapterId, candidateId, true));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/candidates/:candidateId/rejection")
+  async restoreCandidate(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("candidateId") candidateId: string,
+  ) {
+    return ok(await this.candidateDecisionService.rejection(projectId, chapterId, candidateId, false));
   }
 
   @Get(":projectId/chapters/:chapterId/shots/:shotId/candidate-generation-preview")

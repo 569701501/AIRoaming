@@ -135,6 +135,7 @@ import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 import { G2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
+import { CandidateDecisionService } from "./candidate-decision.service.js";
 import {
   createCandidateGenerationSpec,
   createCandidateGenerationTaskInput,
@@ -246,6 +247,7 @@ export class ProjectsService implements OnModuleInit {
     @Optional() @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
     @Optional() @Inject(ProjectDeleteOutboxService) private readonly projectDeleteOutbox?: ProjectDeleteOutboxService,
     @Optional() @Inject(ChapterProductionQueryService) private readonly chapterProductionQuery?: ChapterProductionQueryService,
+    @Optional() @Inject(CandidateDecisionService) private readonly candidateDecision?: CandidateDecisionService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -814,12 +816,20 @@ export class ProjectsService implements OnModuleInit {
     chapterId: string,
     input: LockChapterCandidateRequest,
   ): Promise<LockChapterCandidateResponse> {
-    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("lock_candidate");
+    if (this.isDatabaseMode()) {
+      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "lock_candidate", "/shots/{shotId}/candidate-lock", "旧候选定稿接口缺少 preview impactDigest 与 expectedCurrentRevisionId；请使用 G4 Candidate Lock 两阶段接口。");
+    }
+    this.repository.assertDatabaseOperationSupported("lock_candidate");
     return this.imageCandidate.lockCandidate(projectId, chapterId, input);
   }
 
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
-    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("complete_chapter_images");
+    if (this.isDatabaseMode()) {
+      if (!this.candidateDecision) throw new Error("CANDIDATE_DECISION_SERVICE_REQUIRED");
+      await this.candidateDecision.complete(projectId, chapterId);
+    } else {
+      this.repository.assertDatabaseOperationSupported("complete_chapter_images");
+    }
     return this.imageCandidate.completeChapterImages(projectId, chapterId);
   }
 

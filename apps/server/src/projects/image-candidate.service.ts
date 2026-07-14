@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
@@ -273,7 +273,11 @@ export class ImageCandidateService {
     input: LockChapterCandidateRequest,
   ): Promise<LockChapterCandidateResponse> {
     if (this.prismaService.isDatabaseMode()) {
-      return this.lockCandidateInDatabase(projectId, chapterId, input);
+      throw new ConflictException({
+        code: "LEGACY_WRITE_ROUTE_DISABLED",
+        message: "LEGACY_WRITE_ROUTE_DISABLED",
+        details: { replacement: `/api/projects/${projectId}/chapters/${chapterId}/shots/{shotId}/candidate-lock` },
+      });
     }
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
@@ -348,45 +352,6 @@ export class ImageCandidateService {
     };
   }
 
-  private async lockCandidateInDatabase(projectId: string, chapterId: string, input: LockChapterCandidateRequest): Promise<LockChapterCandidateResponse> {
-    const candidateId = input.candidateId?.trim();
-    if (!candidateId) throw new BadRequestException("CANDIDATE_ID_REQUIRED");
-    const db = this.prismaService.database();
-    await this.prismaService.runBusinessTransaction(async (tx) => {
-      const chapter = await tx.chapter.findFirst({ where: { id: chapterId, projectId }, include: { currentStoryboardVersion: true } });
-      if (!chapter?.currentStoryboardVersion) throw new BadRequestException("STORYBOARD_REQUIRED");
-      if (chapter.milestoneStatus !== "storyboard_done" && chapter.milestoneStatus !== "images_done") throw new BadRequestException("CHAPTER_NOT_READY_FOR_CANDIDATE_LOCK");
-      const candidate = await tx.candidate.findFirst({ where: { id: candidateId, projectId, chapterId }, include: { asset: true, shot: true } });
-      if (!candidate) throw new BadRequestException("CANDIDATE_NOT_FOUND");
-      if (candidate.status === "rejected") throw new BadRequestException("CANDIDATE_REJECTED");
-      if (candidate.asset.status !== "ready") throw new BadRequestException("CANDIDATE_ASSET_NOT_READY");
-      const shot = await tx.shot.findFirst({ where: { id: candidate.shotId, projectId, chapterId } });
-      if (!shot) throw new BadRequestException("SHOT_NOT_FOUND");
-      const current = shot.currentCandidateLockRevisionId
-        ? await tx.candidateLockRevision.findUnique({ where: { id: shot.currentCandidateLockRevisionId } })
-        : null;
-      if (current?.candidateId === candidate.id) return;
-      const now = new Date();
-      const revision = (current?.revision ?? 0) + 1;
-      const lock = await tx.candidateLockRevision.create({ data: { id: randomUUID(), projectId, chapterId, shotId: shot.id, revision, action: "lock", candidateId: candidate.id, previousRevisionId: current?.id ?? null, origin: "runtime", reason: "user_locked_candidate", decidedAt: now, recordedAt: now } });
-      await tx.shot.update({ where: { id: shot.id }, data: { currentCandidateLockRevisionId: lock.id, updatedAt: now } });
-    });
-    const project = await this.repository.refreshProjectFromDatabase(projectId);
-    const chapter = project.chapters.find((item) => item.id === chapterId);
-    if (!chapter?.storyboard) throw new BadRequestException("STORYBOARD_REQUIRED");
-    const candidate = chapter.candidates?.find((item) => item.id === candidateId);
-    if (!candidate) throw new BadRequestException("CANDIDATE_NOT_FOUND");
-    return {
-      candidate: this.toWorkbenchCandidate(candidate),
-      candidates: (chapter.candidates ?? []).map((item) => this.toWorkbenchCandidate(item)),
-      shots: this.toWorkbenchShots(chapter),
-      chapter: wsDomain.toChapterDetail(chapter),
-      chapters: wsDomain.sortChapters(project.chapters).map((item) => wsDomain.toChapterListItem(item)),
-      storyboard: chapter.storyboard,
-      assets: project.assets,
-    };
-  }
-
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
     if (this.prismaService.isDatabaseMode()) {
       const project = await this.repository.refreshProjectFromDatabase(projectId);
@@ -400,11 +365,7 @@ export class ImageCandidateService {
       const db = this.prismaService.database();
       const row = await db.chapter.findFirst({ where: { id: chapterId, projectId } });
       if (!row) throw new BadRequestException("CHAPTER_NOT_FOUND");
-      const now = new Date();
-      if (row.milestoneStatus !== "images_done") {
-        const updated = await this.prismaService.runBusinessTransaction(async (tx) => tx.chapter.updateMany({ where: { id: chapterId, projectId, rowVersion: row.rowVersion }, data: { milestoneStatus: "images_done", completedAt: row.completedAt ?? now, updatedAt: now, rowVersion: { increment: 1 } } }));
-        if (updated.count !== 1) throw new BadRequestException("CHAPTER_VERSION_CONFLICT");
-      }
+      if (!["images_done", "layout_done", "exported"].includes(row.milestoneStatus)) throw new ConflictException("CANDIDATE_DECISION_COMPLETE_REQUIRED");
       const nextProject = await this.repository.refreshProjectFromDatabase(projectId);
       const nextChapter = nextProject.chapters.find((item) => item.id === chapterId);
       if (!nextChapter) throw new BadRequestException("CHAPTER_NOT_FOUND");
