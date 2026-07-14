@@ -35,9 +35,15 @@ importers:
       '@nestjs/platform-express':
         specifier: ^10.4.0
         version: 10.4.22(@nestjs/common@10.4.22(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@10.4.22)
+      '@openfonts/noto-sans-sc_chinese-simplified':
+        specifier: 1.44.9
+        version: 1.44.9
       '@prisma/client':
         specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      fontkit:
+        specifier: 2.0.4
+        version: 2.0.4
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -561,6 +567,9 @@ packages:
     resolution: {integrity: sha512-um0xL3fO7Mf4fDxcqx9KryrB7zgRM5JSlvGN5AGkP6JLM5XEKyjeAiPbNxdXVXQ16isuAhYpvP88NgL2BGd6aA==}
     engines: {node: '>=8.0.0', npm: '>=5.0.0'}
     hasBin: true
+
+  '@openfonts/noto-sans-sc_chinese-simplified@1.44.9':
+    resolution: {integrity: sha512-yNmtcyVuDWU/5KQnRdD+u45QsGXZlNvpwV9+/cIR8z90iHroDscQuXZTtsNy0CfhPq2pNncJVgzhNq62XLGikQ==}
 
   '@playwright/test@1.61.1':
     resolution: {integrity: sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==}
@@ -2101,6 +2110,8 @@ snapshots:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
+
+  '@openfonts/noto-sans-sc_chinese-simplified@1.44.9': {}
 
   '@playwright/test@1.61.1':
     dependencies:

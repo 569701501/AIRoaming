@@ -96,6 +96,32 @@ export interface RichTextRangeV1 {
   end: RichTextPositionV1;
 }
 
+export function richTextPlainTextV1(document: RichTextDocumentV1): string {
+  return document.paragraphs
+    .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+    .join("\n");
+}
+
+export function richTextPositionAtFlatGraphemeOffsetV1(
+  source: RichTextDocumentV1,
+  flatOffset: number,
+): RichTextPositionV1 {
+  const document = normalizeRichTextDocumentV1(source);
+  if (!Number.isInteger(flatOffset) || flatOffset < 0) {
+    throw new LayoutTextValidationError("flat grapheme offset is invalid");
+  }
+  let remaining = flatOffset;
+  for (let paragraphIndex = 0; paragraphIndex < document.paragraphs.length; paragraphIndex += 1) {
+    const paragraph = document.paragraphs[paragraphIndex]!;
+    const length = paragraph.runs.reduce((sum, run) => sum + countLayoutGraphemes(run.text), 0);
+    if (remaining <= length) return { paragraphIndex, graphemeOffset: remaining };
+    remaining -= length;
+    if (paragraphIndex < document.paragraphs.length - 1) remaining -= 1;
+    if (remaining < 0) return { paragraphIndex, graphemeOffset: length };
+  }
+  throw new LayoutTextValidationError("flat grapheme offset exceeds document length");
+}
+
 export interface ReplaceRichTextRangeInputV1 extends RichTextRangeV1 {
   text: string;
 }

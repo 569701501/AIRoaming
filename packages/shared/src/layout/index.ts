@@ -10,3 +10,4 @@ export * from "./batch.js";
 export * from "./placement.js";
 export * from "./commands.js";
 export * from "./working-copy.js";
+export * from "./font.js";

@@ -180,12 +180,6 @@
       "ownerMilestone": "G5-M7"
     },
     {
-      "id": "G5-M0-RED-003",
-      "scope": "render",
-      "code": "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
-      "ownerMilestone": "G5-M5"
-    },
-    {
       "id": "G5-M0-RED-004",
       "scope": "migration",
       "code": "G5_LEGACY_LAYOUT_MIGRATION_NOT_IMPLEMENTED",
@@ -198,5 +192,5 @@
       "ownerMilestone": "G5-M3_TO_M8"
     }
   ],
-  "corpusDigest": "sha256:30290c4ca633a80101429a21d6784e9f7b7660fadd7fb37de10314ebd6fe6125"
+  "corpusDigest": "sha256:c0e7e80b40d7f2b3c4293ce4d32972ab22f315f4c098948dceba603fdb0abf56"
 }

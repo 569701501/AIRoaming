@@ -46,6 +46,7 @@ import { ChapterProductionQueryService } from "./versioning/chapter-production-q
 import { PreflightRevisionService } from "./versioning/preflight-revision.service.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
+import { LayoutFontService } from "./layout-font.service.js";
 
 @Controller("projects")
 export class ProjectsController {
@@ -57,6 +58,7 @@ export class ProjectsController {
     @Inject(ChapterProductionQueryService) private readonly chapterProductionQueryService: ChapterProductionQueryService,
     @Inject(PreflightRevisionService) private readonly preflightRevisionService: PreflightRevisionService,
     @Inject(CandidateDecisionService) private readonly candidateDecisionService: CandidateDecisionService,
+    @Inject(LayoutFontService) private readonly layoutFontService: LayoutFontService,
     @Inject(LayoutWorkingCopyService) private readonly layoutWorkingCopyService: LayoutWorkingCopyService,
   ) {}
 
@@ -614,6 +616,37 @@ export class ProjectsController {
     @Param("chapterId") chapterId: string,
   ) {
     return ok(await this.layoutWorkingCopyService.sourceCatalog({ projectId, chapterId }));
+  }
+
+  @Get(":projectId/chapters/:chapterId/layout/fonts")
+  async getLayoutFonts(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutFontService.list({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/fonts/provision")
+  async provisionLayoutFonts(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutFontService.provision({ projectId, chapterId }));
+  }
+
+  @Get(":projectId/chapters/:chapterId/layout/fonts/:assetId/file")
+  async getLayoutFontFile(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("assetId") assetId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const file = await this.layoutFontService.readFontFile({ projectId, chapterId }, assetId);
+    response.setHeader("Content-Type", file.mimeType);
+    response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+    response.setHeader("ETag", `\"${file.sha256}\"`);
+    response.setHeader("Content-Disposition", `inline; filename=\"${encodeURIComponent(file.fileName)}\"`);
+    return new StreamableFile(file.buffer);
   }
 
   @Post(":projectId/chapters/:chapterId/layout/working-copy/initialize")

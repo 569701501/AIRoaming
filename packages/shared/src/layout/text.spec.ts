@@ -6,6 +6,8 @@ import {
   normalizePlainLayoutText,
   normalizeRichTextDocumentV1,
   replaceRichTextRange,
+  richTextPlainTextV1,
+  richTextPositionAtFlatGraphemeOffsetV1,
   type RichTextDocumentV1,
 } from "./index.js";
 
@@ -65,5 +67,19 @@ describe("G5-M2 fixed grapheme and rich-text policy", () => {
       end: { paragraphIndex: 0, graphemeOffset: 5 },
       text: "x",
     })).toThrow(/range/i);
+  });
+
+  it("maps DOM plain-text offsets back to paragraph/grapheme positions", () => {
+    const document: RichTextDocumentV1 = {
+      ...richText("A👩‍👩‍👧‍👦"),
+      paragraphs: [
+        { align: "start", lineHeight: 1.2, runs: [run("A👩‍👩‍👧‍👦")] },
+        { align: "center", lineHeight: 1.2, runs: [run("雨")] },
+      ],
+    };
+    expect(richTextPlainTextV1(document)).toBe("A👩‍👩‍👧‍👦\n雨");
+    expect(richTextPositionAtFlatGraphemeOffsetV1(document, 2)).toEqual({ paragraphIndex: 0, graphemeOffset: 2 });
+    expect(richTextPositionAtFlatGraphemeOffsetV1(document, 3)).toEqual({ paragraphIndex: 1, graphemeOffset: 0 });
+    expect(richTextPositionAtFlatGraphemeOffsetV1(document, 4)).toEqual({ paragraphIndex: 1, graphemeOffset: 1 });
   });
 });

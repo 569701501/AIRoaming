@@ -29,6 +29,7 @@ import {
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
+import { LayoutFontService } from "./layout-font.service.js";
 import {
   LayoutWorkingCopyConflictError,
   resolveLayoutWorkingCopySave,
@@ -229,6 +230,7 @@ export class LayoutWorkingCopyService {
   constructor(
     @Inject(PrismaService) private readonly prismaService: PrismaService,
     @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
+    @Inject(LayoutFontService) private readonly layoutFonts: LayoutFontService,
   ) {}
 
   async get(scope: VersionScopeV1): Promise<LayoutWorkingCopyResponseV1> {
@@ -294,6 +296,9 @@ export class LayoutWorkingCopyService {
   async initialize(scope: VersionScopeV1, input: unknown): Promise<InitializeLayoutWorkingCopyResponseV1> {
     return this.execute(async () => {
       const request = parseInitializeLayoutWorkingCopyRequestV1(input);
+      const fontCatalog = await this.layoutFonts.ensureReady(scope);
+      const defaultFont = fontCatalog.find((item) => item.metadata.face.weight === 400 && item.metadata.face.style === "normal");
+      if (!defaultFont) serviceError("LAYOUT_FONT_REFERENCE_INVALID", 422);
       return this.prismaService.runBusinessTransaction(async (tx) => {
         const existing = await tx.layoutWorkingCopy.findUnique({ where: { chapterId: scope.chapterId } });
         if (existing) {
@@ -335,24 +340,12 @@ export class LayoutWorkingCopyService {
             reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes,
           });
         }
-        const font = await tx.asset.findFirst({
-          where: {
-            projectId: scope.projectId,
-            status: "ready",
-            type: "font",
-            role: "layout_font",
-            OR: [{ chapterId: null }, { chapterId: scope.chapterId }],
-          },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        });
-        if (!font?.sha256 || !font.bytes) serviceError("LAYOUT_FONT_REFERENCE_INVALID", 422);
-
         const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, tx);
         const document = makeInitialDocument({
           scope,
           comicFormat,
           profile: request.profile,
-          fontPolicy: { defaultFontAssetId: font.id, fallbackFontAssetIds: [] },
+          fontPolicy: { defaultFontAssetId: defaultFont.assetId, fallbackFontAssetIds: [] },
           mode: request.initializationMode,
           sources,
         });
@@ -631,24 +624,8 @@ export class LayoutWorkingCopyService {
     next: LayoutDocumentV1,
     reader: Reader,
   ): Promise<void> {
-    const previousIds = new Set(collectFontAssetIds(previous));
-    const changedIds = collectFontAssetIds(next).filter((fontId) => !previousIds.has(fontId));
-    if (changedIds.length === 0) return;
-    const ready = await reader.asset.findMany({
-      where: {
-        id: { in: changedIds },
-        projectId: scope.projectId,
-        status: "ready",
-        type: "font",
-        role: "layout_font",
-        OR: [{ chapterId: null }, { chapterId: scope.chapterId }],
-      },
-      select: { id: true, sha256: true, bytes: true },
-    });
-    const valid = new Set(ready.filter((asset) => asset.sha256 && asset.bytes).map((asset) => asset.id));
-    if (changedIds.some((fontId) => !valid.has(fontId))) {
-      serviceError("LAYOUT_FONT_REFERENCE_INVALID", 422);
-    }
+    void previous;
+    await this.layoutFonts.validateReferences(scope, collectFontAssetIds(next), reader);
   }
 
   private async toResponse(

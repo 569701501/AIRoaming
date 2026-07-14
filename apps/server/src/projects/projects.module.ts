@@ -40,6 +40,7 @@ import { CandidateLockRepository } from "./candidate-lock.repository.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
+import { LayoutFontService } from "./layout-font.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -79,8 +80,9 @@ import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
     CandidateLockRepository,
     CandidateDecisionService,
     CandidateSourceQueryService,
+    LayoutFontService,
     LayoutWorkingCopyService,
   ],
-  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutWorkingCopyService],
+  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService],
 })
 export class ProjectsModule {}

@@ -73,8 +73,8 @@
       <button class="danger-action" type="button" @click="session.keepLocalAndRetry">明确保留本地</button>
     </div>
 
-    <div v-if="session.errorMessage.value || actionError" class="error-banner" role="alert">
-      {{ actionError || session.errorMessage.value }}
+    <div v-if="session.errorMessage.value || actionError || fontLoader.loadError.value" class="error-banner" role="alert">
+      {{ actionError || session.errorMessage.value || fontLoader.loadError.value }}
     </div>
 
     <section v-if="session.saveState.value === 'loading'" class="center-state">
@@ -113,13 +113,13 @@
 
     <div v-else-if="session.document.value && session.currentCanvas.value" class="editor-shell" :class="{ 'is-readonly': session.isReadOnly.value }">
       <nav class="tool-rail" aria-label="画布工具">
-        <button class="is-active" type="button" title="选择"><MousePointer2 :size="18" /></button>
+        <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" @click="activeTool = 'select'"><MousePointer2 :size="18" /></button>
         <button type="button" title="平移"><Hand :size="18" /></button>
         <span />
         <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" @click="addPanel"><SquareDashed :size="18" /></button>
         <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="18" /></button>
-        <button type="button" disabled title="M5 接入文字"><Type :size="18" /></button>
-        <button type="button" disabled title="M5 接入气泡"><MessageCircle :size="18" /></button>
+        <button type="button" :class="{ 'is-active': activeTool === 'text' }" :disabled="session.isReadOnly.value" title="添加文字" @click="addText"><Type :size="18" /></button>
+        <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" @click="addBalloon"><MessageCircle :size="18" /></button>
       </nav>
 
       <aside class="canvas-navigation">
@@ -209,7 +209,7 @@
               v-for="element in visibleElements"
               :key="element.id"
               class="canvas-element"
-              :class="[`type-${element.type}`, { 'is-selected': isSelected(element.id), 'is-locked': element.locked }]"
+              :class="[`type-${element.type}`, { 'is-selected': isSelected(element.id), 'is-locked': element.locked, 'has-text-overflow': textIssueElementIds.has(element.id) }]"
               :style="[elementStyle(element), panelFrameStyle(element)]"
               @pointerdown.stop="startDrag($event, element)"
             >
@@ -230,8 +230,13 @@
                 :style="imagePreviewStyle(element)"
                 draggable="false"
               />
-              <span v-else-if="element.type === 'text'" class="text-preview">{{ richTextValue(element.richText) }}</span>
-              <span v-else class="balloon-preview">{{ richTextValue(element.richText) }}</span>
+              <LayoutElementTextPreview
+                v-else-if="element.type === 'text' || element.type === 'balloon'"
+                :element="element"
+                :fallback-font-asset-ids="session.document.value.fontPolicy.fallbackFontAssetIds"
+                :scale="session.zoom.value"
+                :overflow="textIssueElementIds.has(element.id)"
+              />
               <span v-if="element.locked" class="lock-mark"><Lock :size="12" /></span>
             </article>
           </div>
@@ -333,6 +338,44 @@
               >放入空画格</button>
             </section>
 
+            <LayoutRichTextEditor
+              v-if="primaryElement.type === 'text' || primaryElement.type === 'balloon'"
+              :model-value="primaryElement.richText"
+              :font-catalog="session.fontCatalog.value?.items ?? []"
+              :fallback-font-asset-ids="session.document.value.fontPolicy.fallbackFontAssetIds"
+              :disabled="cannotEditPrimary"
+              @replace-range="replaceSelectedTextRange"
+              @apply-style="applySelectedTextStyle"
+              @replace-document="replaceSelectedRichText"
+              @set-paragraph-style="setSelectedParagraphStyle"
+            />
+
+            <section v-if="primaryElement.type === 'balloon'" class="special-properties" data-testid="balloon-controls">
+              <div class="section-heading"><strong>气泡</strong><small>固定四种形状；只允许一个受控尾巴</small></div>
+              <label>类型
+                <select :value="primaryElement.balloonKind" :disabled="cannotEditPrimary" @change="setBalloonKind">
+                  <option value="speech">对白</option>
+                  <option value="thought">思考</option>
+                  <option value="shout">喊叫</option>
+                  <option value="caption">旁白框</option>
+                </select>
+              </label>
+              <label class="check-row"><input :checked="primaryElement.tail.enabled" type="checkbox" :disabled="cannotEditPrimary || primaryElement.balloonKind === 'caption'" @change="updateBalloonTailBoolean" />显示尾巴</label>
+              <div class="number-grid">
+                <label>根位置 <input :value="primaryElement.tail.rootRatio" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('rootRatio', $event)" /></label>
+                <label>根宽 <input :value="primaryElement.tail.baseWidth" type="number" min="1" max="1024" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('baseWidth', $event)" /></label>
+                <label>目标 X <input :value="primaryElement.tail.targetX" type="number" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('targetX', $event)" /></label>
+                <label>目标 Y <input :value="primaryElement.tail.targetY" type="number" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('targetY', $event)" /></label>
+              </div>
+              <p>文字模式只编辑内部文字，不会拖动气泡；切回选择工具后才移动完整对象。</p>
+            </section>
+
+            <section v-if="primaryElement.type === 'text' || primaryElement.type === 'balloon'" class="text-preflight-summary" data-testid="text-preflight-summary">
+              <strong>文字预检</strong>
+              <p v-if="!primaryTextIssues.length">当前字体、glyph 与文本框容量通过。</p>
+              <p v-for="(issue, index) in primaryTextIssues" :key="`${issue.code}-${index}`">{{ textIssueLabel(issue) }}</p>
+            </section>
+
             <section v-if="currentPanels.length" class="reading-order">
               <div class="section-heading"><strong>阅读顺序</strong><small>独立于图层顺序</small></div>
               <article v-for="(panelId, index) in session.currentCanvas.value.panelReadingOrder" :key="panelId">
@@ -408,20 +451,30 @@ import type {
   LayoutPresetIdV1,
   LayoutProfileV1,
   LayoutSourceCatalogItemV1,
+  LayoutTextIssueV1,
   LayoutTopLevelElementV1,
+  RichTextDocumentV1,
+  RichTextRangeV1,
+  RichTextRunStylePatchV1,
   PanelFrameElementV1,
   PanelImageElementV1,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import {
   evaluateCoverCropV1,
+  applyRichTextRangeStyle,
+  collectLayoutTextIssuesV1,
   generateLayoutPresetV1,
   initializeLayoutCanvasesFromSourcesV1,
   projectVisibleShotPlacementsV1,
+  replaceRichTextRange,
 } from "@airoaming/shared";
 
 import { useLayoutEditorSession } from "../../composables/layout-editor-session";
+import { useLayoutFontLoader } from "../../composables/layout-font-loader";
 import { api } from "../../services/api";
+import LayoutElementTextPreview from "./LayoutElementTextPreview.vue";
+import LayoutRichTextEditor from "./LayoutRichTextEditor.vue";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -446,6 +499,12 @@ const inspectorTab = ref<"properties" | "layers">("properties");
 const selectedSourceShotId = ref<string | null>(null);
 const selectedPresetId = ref<LayoutPresetIdV1>(isPaged.value ? "four_panel" : "single");
 const actionError = ref<string | null>(null);
+const activeTool = ref<"select" | "text">("select");
+const fontLoader = useLayoutFontLoader({
+  projectId,
+  chapterId,
+  catalog: session.fontCatalog,
+});
 
 const presetOptions: Array<{ id: LayoutPresetIdV1; label: string; count: number }> = [
   { id: "single", label: "单格", count: 1 },
@@ -507,6 +566,11 @@ const canBatchInitialize = computed(() => {
   return session.document.value.canvases.every((canvas) => canvas.elements.every((element) => element.type === "panel_frame"));
 });
 const cannotEditPrimary = computed(() => session.isReadOnly.value || Boolean(primaryElement.value?.locked));
+const textIssues = computed(() => session.document.value
+  ? collectLayoutTextIssuesV1(session.document.value, session.fontCatalog.value?.items ?? [])
+  : []);
+const textIssueElementIds = computed(() => new Set(textIssues.value.filter((issue) => issue.code === "LAYOUT_TEXT_OVERFLOW").map((issue) => issue.elementId)));
+const primaryTextIssues = computed(() => primaryElement.value ? textIssues.value.filter((issue) => issue.elementId === primaryElement.value!.id) : []);
 const canInitialize = computed(() => Boolean(chapterId.value) && profileWidth.value >= 320 && profileHeight.value >= 320);
 const sourceAttention = computed(() => {
   const sources = props.snapshot.candidateSources;
@@ -605,6 +669,31 @@ function defaultCrop(): CoverCropV1 {
   return { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false };
 }
 
+function defaultRichText(text: string): RichTextDocumentV1 {
+  const fontAssetId = session.document.value?.fontPolicy.defaultFontAssetId
+    ?? session.fontCatalog.value?.items.find((item) => item.metadata.face.weight === 400)?.assetId
+    ?? "missing_font";
+  return {
+    schemaVersion: 1,
+    writingMode: "horizontal-tb",
+    textOrientation: "mixed",
+    paragraphs: [{
+      align: "start",
+      lineHeight: 1.2,
+      runs: [{
+        text,
+        fontAssetId,
+        fontSize: 64,
+        fontWeight: 400,
+        fontStyle: "normal",
+        color: "#111827FF",
+        letterSpacing: 0,
+        stroke: null,
+      }],
+    }],
+  };
+}
+
 function imageForSource(item: LayoutSourceCatalogItemV1): PanelImageElementV1 {
   return {
     id: newId("panel_image"),
@@ -683,6 +772,180 @@ function addFreeImage(item: LayoutSourceCatalogItemV1): void {
     beforeElementId: null,
   }));
   session.selectElement(element.id);
+}
+
+function addText(): void {
+  const canvas = session.currentCanvas.value;
+  if (!canvas) return;
+  const width = Math.round(canvas.width * 0.42);
+  const height = Math.round(canvas.height * 0.18);
+  const element: LayoutTopLevelElementV1 = {
+    id: newId("text"),
+    type: "text",
+    name: "文字",
+    transform: {
+      x: Math.round((canvas.width - width) / 2),
+      y: Math.round(canvas.height * 0.12),
+      width,
+      height,
+      rotation: 0,
+      opacity: 1,
+    },
+    locked: false,
+    hidden: false,
+    semantic: "custom",
+    verticalAlign: "start",
+    richText: defaultRichText("输入文字"),
+  };
+  session.execute(command("element.add", "添加文字", { canvasId: canvas.id, element, beforeElementId: null }));
+  session.selectElement(element.id);
+  activeTool.value = "text";
+}
+
+function addBalloon(): void {
+  const canvas = session.currentCanvas.value;
+  if (!canvas) return;
+  const width = Math.round(canvas.width * 0.34);
+  const height = Math.round(canvas.height * 0.2);
+  const element: LayoutTopLevelElementV1 = {
+    id: newId("balloon"),
+    type: "balloon",
+    name: "对白气泡",
+    transform: {
+      x: Math.round((canvas.width - width) / 2),
+      y: Math.round(canvas.height * 0.18),
+      width,
+      height,
+      rotation: 0,
+      opacity: 1,
+    },
+    locked: false,
+    hidden: false,
+    balloonKind: "speech",
+    sourceShotId: null,
+    speakerCharacterId: null,
+    fillColor: "#FFFFFFFF",
+    strokeColor: "#111827FF",
+    strokeWidth: 8,
+    padding: { top: 48, right: 56, bottom: 48, left: 56 },
+    verticalAlign: "center",
+    tail: { enabled: true, rootRatio: 0.6, targetX: width * 0.68, targetY: height + 120, baseWidth: 80 },
+    richText: defaultRichText("对白"),
+  };
+  session.execute(command("element.add", "添加气泡", { canvasId: canvas.id, element, beforeElementId: null }));
+  session.selectElement(element.id);
+  activeTool.value = "text";
+}
+
+function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string }): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  if (element.type === "text") {
+    session.execute(command("text.replace_range", "编辑文字", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      ...value,
+    }));
+  } else {
+    const richText = replaceRichTextRange(element.richText, value);
+    session.execute(command("balloon.replace_text_document", "编辑气泡文字", { canvasId: canvas.id, elementId: element.id, richText }));
+  }
+}
+
+function applySelectedTextStyle(value: RichTextRangeV1 & { style: RichTextRunStylePatchV1 }): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  if (element.type === "text") {
+    session.execute(command("text.apply_range_style", "应用范围文字样式", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      ...value,
+    }));
+  } else {
+    const richText = applyRichTextRangeStyle(element.richText, value, value.style);
+    session.execute(command("balloon.replace_text_document", "应用气泡文字样式", { canvasId: canvas.id, elementId: element.id, richText }));
+  }
+}
+
+function replaceSelectedRichText(richText: RichTextDocumentV1): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  session.execute(element.type === "text"
+    ? command("text.replace_document", "调整文字排版", { canvasId: canvas.id, elementId: element.id, richText })
+    : command("balloon.replace_text_document", "调整气泡文字排版", { canvasId: canvas.id, elementId: element.id, richText }));
+}
+
+function setSelectedParagraphStyle(value: { paragraphIndexes: number[]; align: "start" | "center" | "end"; lineHeight: number }): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  if (element.type === "text") {
+    executeBatch("调整段落样式", value.paragraphIndexes.map((paragraphIndex) => command("text.set_paragraph_style", "调整段落样式", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      paragraphIndex,
+      align: value.align,
+      lineHeight: value.lineHeight,
+    })));
+  } else {
+    const richText = structuredClone(element.richText);
+    for (const paragraphIndex of value.paragraphIndexes) {
+      const paragraph = richText.paragraphs[paragraphIndex];
+      if (paragraph) {
+        paragraph.align = value.align;
+        paragraph.lineHeight = value.lineHeight;
+      }
+    }
+    replaceSelectedRichText(richText);
+  }
+}
+
+function setBalloonKind(event: Event): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (element?.type !== "balloon" || !canvas) return;
+  const balloonKind = (event.target as HTMLSelectElement).value as "speech" | "thought" | "shout" | "caption";
+  session.execute(command("balloon.set_kind", "调整气泡类型", { canvasId: canvas.id, elementId: element.id, balloonKind }));
+  if (balloonKind === "caption" && element.tail.enabled) {
+    session.execute(command("balloon.set_tail", "关闭旁白框尾巴", { canvasId: canvas.id, elementId: element.id, tail: { ...element.tail, enabled: false } }));
+  }
+}
+
+function updateBalloonTailBoolean(event: Event): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (element?.type !== "balloon" || !canvas) return;
+  session.execute(command("balloon.set_tail", "调整气泡尾巴", {
+    canvasId: canvas.id,
+    elementId: element.id,
+    tail: { ...element.tail, enabled: (event.target as HTMLInputElement).checked },
+  }));
+}
+
+function updateBalloonTailNumber(field: "rootRatio" | "targetX" | "targetY" | "baseWidth", event: Event): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (element?.type !== "balloon" || !canvas) return;
+  const value = Number((event.target as HTMLInputElement).value);
+  if (!Number.isFinite(value)) return;
+  const normalized = field === "rootRatio" ? Math.max(0, Math.min(1, value))
+    : field === "baseWidth" ? Math.max(1, Math.min(1024, value))
+      : value;
+  session.execute(command("balloon.set_tail", "调整气泡尾巴", {
+    canvasId: canvas.id,
+    elementId: element.id,
+    tail: { ...element.tail, [field]: normalized },
+  }));
+}
+
+function textIssueLabel(issue: LayoutTextIssueV1): string {
+  if (issue.code === "LAYOUT_TEXT_OVERFLOW") return `文字溢出：第 ${(issue.paragraphIndex ?? 0) + 1} 段、第 ${issue.graphemeOffset ?? 0} 个字素处超出${issue.axis === "width" ? "宽度" : "高度"}。`;
+  if (issue.code === "LAYOUT_FONT_GLYPH_MISSING") return `字体缺少字符：${(issue.missingCodePoints ?? []).map((value) => `U+${value.toString(16).toUpperCase()}`).join("、")}，不会回退到系统 emoji。`;
+  if (issue.code === "LAYOUT_FONT_EMBEDDING_FORBIDDEN") return "该字体许可证禁止嵌入，正式版本与导出将被阻止。";
+  return "字体 Asset 缺失，已阻止继续形成正式输出。";
 }
 
 function attachSourceToPanel(item: LayoutSourceCatalogItemV1): void {
@@ -1065,6 +1328,7 @@ function deletePrimaryElement(): void {
 
 function startDrag(event: PointerEvent, element: LayoutTopLevelElementV1): void {
   session.selectElement(element.id, event.metaKey || event.ctrlKey || event.shiftKey);
+  if (activeTool.value === "text" && (element.type === "text" || element.type === "balloon")) return;
   if (session.isReadOnly.value || element.locked) return;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   drag.value = {
@@ -1110,6 +1374,16 @@ function updateTransform(field: keyof LayoutTopLevelElementV1["transform"], even
   if (!element || element.locked) return;
   const value = Number((event.target as HTMLInputElement).value);
   if (!Number.isFinite(value)) return;
+  if (element.type === "balloon") {
+    const minimum = field === "width" ? element.padding.left + element.padding.right + 1
+      : field === "height" ? element.padding.top + element.padding.bottom + 1
+        : 0;
+    if (minimum > 0 && value < minimum) {
+      actionError.value = `气泡${field === "width" ? "宽度" : "高度"}必须大于内边距 ${minimum - 1}px。`;
+      return;
+    }
+  }
+  actionError.value = null;
   session.execute(session.makeTransformCommand(element.id, { ...element.transform, [field]: value }));
 }
 
@@ -1201,10 +1475,6 @@ function moveLayer(elementId: string, direction: "up" | "down"): void {
     elementId,
     beforeElementId,
   }));
-}
-
-function richTextValue(value: { paragraphs: Array<{ runs: Array<{ text: string }> }> }): string {
-  return value.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join("")).join("\n") || "文字";
 }
 
 function getSourceAttentionTitle(code?: CandidateLockErrorCode): string {
@@ -1566,14 +1836,13 @@ button:disabled {
 }
 
 .canvas-element.type-panel_frame { border-style: solid; background: #d6dbe5; }
-.canvas-element.type-balloon { border: 2px solid #111827; border-radius: 50%; background: white; color: #111827; padding: 8px; }
-.canvas-element.type-text { color: #111827; white-space: pre-wrap; padding: 4px; }
+.canvas-element.type-balloon,
+.canvas-element.type-text { overflow: visible; color: #111827; }
 .canvas-element img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .canvas-element.is-selected { outline: 3px solid #22c7a9; outline-offset: 2px; }
 .canvas-element.is-locked { cursor: not-allowed; }
 .lock-mark { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; background: rgba(8, 13, 25, 0.78); color: white; }
-.text-preview,
-.balloon-preview { max-width: 100%; max-height: 100%; overflow: hidden; }
+.canvas-element.has-text-overflow { outline: 3px solid #dc2626; outline-offset: 2px; }
 
 .inspector {
   border-right: 0;
@@ -1602,6 +1871,10 @@ button:disabled {
 .preset-picker > p,
 .special-properties > p { margin: 0; color: #8491aa; font-size: 10px; line-height: 1.5; }
 .special-properties > label { display: grid; gap: 5px; color: #8491aa; font-size: 11px; }
+.special-properties .check-row { display: flex; align-items: center; grid-template-columns: auto 1fr; }
+.special-properties .check-row input { width: auto; }
+.text-preflight-summary { display: grid; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.14); border-radius: 9px; padding: 10px; margin: 12px 0; }
+.text-preflight-summary p { margin: 0; color: #93a4bf; font-size: 10px; line-height: 1.5; }
 .reading-order article { display: flex; align-items: center; justify-content: space-between; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 7px; padding: 5px 7px; font-size: 11px; }
 .reading-order article div { display: flex; }
 .reading-order article button { width: 25px; min-height: 25px; padding: 0; border: 0; background: transparent; }

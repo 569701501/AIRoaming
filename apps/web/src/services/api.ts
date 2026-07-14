@@ -90,6 +90,8 @@ import type {
   InitializeLayoutWorkingCopyResponseV1,
   LayoutWorkingCopyResponseV1,
   LayoutSourceCatalogResponseV1,
+  LayoutFontCatalogResponseV1,
+  LayoutFontProvisionResponseV1,
   SaveLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyResponseV1,
 } from "@airoaming/shared";
@@ -619,6 +621,15 @@ export const api = {
   getLayoutSourceCatalog: (projectId: string, chapterId: string) => request<LayoutSourceCatalogResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-catalog`,
   ),
+  getLayoutFonts: (projectId: string, chapterId: string) => request<LayoutFontCatalogResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/fonts`,
+  ),
+  provisionLayoutFonts: (projectId: string, chapterId: string) => request<LayoutFontProvisionResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/fonts/provision`,
+    { method: "POST" },
+  ),
+  layoutFontFileUrl: (projectId: string, chapterId: string, assetId: string) =>
+    `${API_BASE}/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/fonts/${encodeURIComponent(assetId)}/file`,
   initializeLayoutWorkingCopy: (
     projectId: string,
     chapterId: string,

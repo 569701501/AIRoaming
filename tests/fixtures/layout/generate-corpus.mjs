@@ -502,7 +502,6 @@ const corpusManifestUnsigned = {
   redGates: [
     { id: "G5-M0-RED-001", scope: "render", code: "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED", ownerMilestone: "G5-M7" },
     { id: "G5-M0-RED-002", scope: "render", code: "G5_PRODUCTION_BROWSER_SEMANTICS_NOT_IMPLEMENTED", ownerMilestone: "G5-M7" },
-    { id: "G5-M0-RED-003", scope: "render", code: "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED", ownerMilestone: "G5-M5" },
     { id: "G5-M0-RED-004", scope: "migration", code: "G5_LEGACY_LAYOUT_MIGRATION_NOT_IMPLEMENTED", ownerMilestone: "G5-M8" },
     { id: "G5-M0-RED-005", scope: "e2e", code: "G5_EDITOR_VERTICAL_SLICES_NOT_IMPLEMENTED", ownerMilestone: "G5-M3_TO_M8" },
   ],

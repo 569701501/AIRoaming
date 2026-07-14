@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -29,34 +28,6 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
 
   const database = new DatabaseSync(runtime.databasePath);
-  const fontBytes = Buffer.from("g5-m4-e2e-font");
-  const fontAssetId = `font_${fixture.projectId}`;
-  const now = new Date().toISOString();
-  database.prepare(`
-    INSERT INTO assets (
-      id, project_id, chapter_id, type, role, mime_type, storage_key, status,
-      metadata_json, metadata_schema_version, metadata_digest, created_at, updated_at
-    ) VALUES (?, ?, NULL, 'font', 'layout_font', 'font/ttf', ?, 'staged', ?, 1, ?, ?, ?)
-  `).run(
-    fontAssetId,
-    fixture.projectId,
-    `projects/${fixture.projectId}/fonts/g5-m4-e2e.ttf`,
-    JSON.stringify({ schemaVersion: 1, kind: "layout_font", family: "G5 M4 E2E" }),
-    `sha256:${"2".repeat(64)}`,
-    now,
-    now,
-  );
-  database.prepare(`
-    UPDATE assets
-       SET status = 'ready', sha256 = ?, bytes = ?, ready_at = ?, updated_at = ?
-     WHERE id = ? AND status = 'staged'
-  `).run(
-    `sha256:${createHash("sha256").update(fontBytes).digest("hex")}`,
-    fontBytes.byteLength,
-    now,
-    now,
-    fontAssetId,
-  );
   const sourceBefore = await api.get<LayoutSourceCatalogResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/source-catalog`,
   );

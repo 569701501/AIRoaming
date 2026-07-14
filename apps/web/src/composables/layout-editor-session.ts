@@ -19,6 +19,7 @@ import {
   type LayoutCommandHistoryV1,
   type LayoutDocumentV1,
   type LayoutProfileV1,
+  type LayoutFontCatalogResponseV1,
   type LayoutSourceCatalogResponseV1,
   type LayoutWorkingCopyInitializationModeV1,
   type LayoutWorkingCopyResponseV1,
@@ -45,6 +46,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   const document = shallowRef<LayoutDocumentV1 | null>(null);
   const server = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
   const sourceCatalog = shallowRef<LayoutSourceCatalogResponseV1 | null>(null);
+  const fontCatalog = shallowRef<LayoutFontCatalogResponseV1 | null>(null);
   const conflictServer = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
   const history = shallowRef<LayoutCommandHistoryV1>(createLayoutCommandHistory());
   const saveState = ref<SaveState>("loading");
@@ -116,6 +118,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
       document.value = null;
       server.value = null;
       sourceCatalog.value = null;
+      fontCatalog.value = null;
       saveState.value = "missing";
       return;
     }
@@ -124,11 +127,13 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     saveState.value = "loading";
     errorMessage.value = null;
     try {
-      const [value, catalog] = await Promise.all([
+      const [value, catalog, fonts] = await Promise.all([
         api.getLayoutWorkingCopy(input.projectId.value, chapterId),
         api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null),
+        api.getLayoutFonts(input.projectId.value, chapterId),
       ]);
       if (generation === loadGeneration) sourceCatalog.value = catalog;
+      if (generation === loadGeneration) fontCatalog.value = fonts;
       if (generation === loadGeneration) replaceFromServer(value);
     } catch (error) {
       if (generation !== loadGeneration) return;
@@ -136,6 +141,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         document.value = null;
         server.value = null;
         sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
+        fontCatalog.value = await api.getLayoutFonts(input.projectId.value, chapterId).catch(() => null);
         saveState.value = "missing";
         return;
       }
@@ -161,6 +167,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         expectedCurrentLayoutRevisionId,
       });
       sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
+      fontCatalog.value = await api.getLayoutFonts(input.projectId.value, chapterId);
       replaceFromServer(result.value);
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "成稿草稿初始化失败";
@@ -311,11 +318,13 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   async function reloadServer(): Promise<void> {
     const chapterId = input.chapterId.value;
     if (!chapterId) return;
-    const [workingCopy, catalog] = await Promise.all([
+    const [workingCopy, catalog, fonts] = await Promise.all([
       api.getLayoutWorkingCopy(input.projectId.value, chapterId),
       api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null),
+      api.getLayoutFonts(input.projectId.value, chapterId),
     ]);
     sourceCatalog.value = catalog;
+    fontCatalog.value = fonts;
     replaceFromServer(workingCopy);
   }
 
@@ -401,6 +410,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     document,
     server,
     sourceCatalog,
+    fontCatalog,
     conflictServer,
     saveState,
     errorMessage,

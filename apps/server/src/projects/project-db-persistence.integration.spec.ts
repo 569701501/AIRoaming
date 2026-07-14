@@ -46,6 +46,7 @@ import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
+import { LayoutFontService } from "./layout-font.service.js";
 import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
@@ -1232,6 +1233,50 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await app.get(PrismaService).database().shot.count({ where: { chapterId: scope.chapterId, lifecycleStatus: "retired" } })).toBe(1);
   }, 30_000);
 
+  it("G5-M5: provisions controlled fonts through staged Asset and Outbox, then verifies bytes", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const project = await app.get(ProjectsService).createProject({
+      name: "G5 M5 受控字体",
+      type: "comic",
+      comicFormat: "paged_comic",
+      artStyle: "comic_style",
+    });
+    const scope = { projectId: project.id, chapterId: project.currentChapterId! };
+    const service = app.get(LayoutFontService);
+    const first = await service.provision(scope);
+    expect(first).toMatchObject({ result: "provisioned", projectId: project.id, chapterId: scope.chapterId });
+    expect(first.items.map((item) => [item.metadata.face.weight, item.metadata.face.style])).toEqual([
+      [400, "normal"],
+      [700, "normal"],
+    ]);
+    expect(first.items.every((item) => item.metadata.license.embeddingAllowed && item.metadata.license.spdx === "OFL-1.1")).toBe(true);
+    expect(first.items.every((item) => item.metadata.cmap.codePointCount === 7898 && item.metadata.cmap.ranges.length === 4109)).toBe(true);
+
+    const prisma = app.get(PrismaService).database();
+    const assets = await prisma.asset.findMany({ where: { projectId: project.id, type: "font", role: "layout_font" }, orderBy: { createdAt: "asc" } });
+    expect(assets).toHaveLength(2);
+    expect(assets.every((asset) => asset.status === "ready" && asset.readyAt && asset.sha256 && asset.bytes)).toBe(true);
+    expect(JSON.stringify(assets.map((asset) => asset.metadataJson))).not.toMatch(/base64|data:font/i);
+    const events = await prisma.outboxEvent.findMany({ where: { aggregateId: { in: assets.map((asset) => asset.id) }, eventType: "asset.promote" } });
+    expect(events).toHaveLength(2);
+    expect(events.every((event) => event.status === "processed" && event.processedAt)).toBe(true);
+
+    for (const item of first.items) {
+      const file = await service.readFontFile(scope, item.assetId);
+      expect(file.sha256).toBe(item.sha256);
+      expect(file.buffer.byteLength).toBe(item.bytes);
+    }
+    const second = await service.provision(scope);
+    expect(second.result).toBe("existing");
+    expect(second.items.map((item) => item.assetId)).toEqual(first.items.map((item) => item.assetId));
+
+    const damaged = assets[0]!;
+    await writeFile(path.join(workspaceRoot, damaged.storageKey), Buffer.from("damaged-font"));
+    await expect(service.list(scope)).rejects.toMatchObject({ response: { error: { code: "LAYOUT_FONT_ASSET_DIGEST_MISMATCH" } } });
+  }, 30_000);
+
   it("G5-M3: creates and restores a blank DB-only Working Copy without a formal revision", async () => {
     const { deployed, workspaceRoot } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
@@ -1255,9 +1300,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const boardConfirmed = await boards.confirmWorkingCopy(scope, { pendingVersionId: board.value.pending!.id, expectedPendingDocumentDigest: board.value.pending!.documentDigest, expectedPendingRowVersion: 0, expectedCurrentVersionId: null, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedSourceDigest: storyConfirmed.value.current.documentDigest, expectedChapterRowVersion: board.chapterRowVersion });
     expect(await prisma.storyboardShotProjection.count({ where: { storyboardVersionId: boardConfirmed.value.current.id } })).toBe(0);
 
-    const metadata = { schemaVersion: 1, kind: "layout_font", family: "G5 M3 Blank" };
-    await prisma.asset.create({ data: { id: `font_${project.id}`, projectId: project.id, chapterId: null, type: "font", role: "layout_font", mimeType: "font/ttf", storageKey: `projects/${project.id}/fonts/blank.ttf`, status: "staged", metadataJson: metadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(metadata) } });
-    await prisma.asset.update({ where: { id: `font_${project.id}` }, data: { status: "ready", sha256: `sha256:${"2".repeat(64)}`, bytes: 4, readyAt: new Date() } });
     const created = await app.get(LayoutWorkingCopyService).initialize(scope, {
       schemaVersion: 1,
       profile: { kind: "paged", presetId: "portrait_3_4", width: 1800, height: 2400, safeArea: { top: 72, right: 72, bottom: 72, left: 72 }, panelReadingDirection: "ltr_ttb" },
@@ -1266,7 +1308,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     });
     expect(created).toMatchObject({ result: "created", value: { rowVersion: 0, basedOnRevisionId: null, document: { comicFormat: "paged_comic", canvases: [{ kind: "page", elements: [] }] } } });
     expect(await prisma.layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(0);
-    await expect(access(path.join(workspaceRoot, "projects", project.id))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(path.join(workspaceRoot, "projects", project.id, "fonts"))).resolves.toBeUndefined();
 
     await app.close();
     app = null;
@@ -1770,31 +1812,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await prisma.layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(1);
     expect(await prisma.exportRevision.count({ where: { chapterId: scope.chapterId, kind: "layout_publication" } })).toBe(1);
 
-    const fontMetadata = { schemaVersion: 1, kind: "layout_font", family: "G5 M3 Test" };
-    await prisma.asset.create({
-      data: {
-        id: `layout_font_${project.id}`,
-        projectId: project.id,
-        chapterId: null,
-        type: "font",
-        role: "layout_font",
-        mimeType: "font/ttf",
-        storageKey: `projects/${project.id}/fonts/g5-m3-test.ttf`,
-        status: "staged",
-        metadataJson: fontMetadata,
-        metadataSchemaVersion: 1,
-        metadataDigest: digestCanonicalJson(fontMetadata),
-      },
-    });
-    await prisma.asset.update({
-      where: { id: `layout_font_${project.id}` },
-      data: {
-        status: "ready",
-        sha256: `sha256:${"1".repeat(64)}`,
-        bytes: 4,
-        readyAt: new Date(),
-      },
-    });
     await prisma.layoutWorkingCopy.delete({ where: { chapterId: scope.chapterId } });
     const layoutWorkingCopies = app.get(LayoutWorkingCopyService);
     const initializedV1 = await layoutWorkingCopies.initialize(scope, {
