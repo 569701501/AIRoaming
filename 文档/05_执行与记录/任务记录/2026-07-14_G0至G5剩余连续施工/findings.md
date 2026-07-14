@@ -13,12 +13,12 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前兼容 release HEAD 为 `a90f54676ed13a1ca56a362cad3598b2aa60ff19`，clean worktree 已核验。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 G4 代码兼容 HEAD 为 `179be50`；旧 cutover evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A/B 已完成，G4-C～F、G5-M0～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_C_IN_PROGRESS`。
+- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A/B/C 已完成，G4-D～F、G5-M0～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_D_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G4_C_IN_PROGRESS
-next = G4_TRANSACTION_COMMANDS_AND_API
+current = G4_D_IN_PROGRESS
+next = G4_WORKFLOW_AND_DOWNSTREAM_GATES
 ```
 
 ## 7. G4-A 稳定结论
@@ -88,3 +88,11 @@ next = G4_TRANSACTION_COMMANDS_AND_API
 - impact digest 只包含规范化 authority ID 集与 intent，不包含数量、展示字段、时间或路径；lock_set task 同时按 chapter source identity 和当前 digest 限定。
 - freshness 是 binding/current pointer/digest 的查询时派生，revision position 与 source resolution 分轴，Export completionApplicability 不被返修改写。
 - G4-B commit=`9cd599a`，Scrutiny=`passed`，Runtime=`passed_isolated`；事务、API、竞争和用户路径从 G4-C 继续。
+
+## 9. G4-C 稳定结论
+
+- preview/commit 在同一规范化 impact resolver 上运行；commit 事务顺序固定为 replay、expected revision、FSM/no-op、目标/G2 门禁、impact digest、revision insert、Shot pointer CAS。
+- 丢响应重试只有 previous/action/target 精确匹配才返回 replay；SQLite writer/唯一/CAS 冲突重新读取后仍不匹配则返回 revision conflict。
+- favorite/reject/restore 不改变 current final；current final 不可废弃；complete 只接受所有 active Shot 的完整 current lock set。
+- 旧 Server lock HTTP 路由和旧 DB 直接 revision/pointer writer 已删除；file-mode 兼容投影保留，Web 新 API 接入留给 G4-E。
+- G4-C commit=`179be50`，Scrutiny=`passed`，Runtime=`passed_isolated`；工作流 summary、下游门禁与迟到任务从 G4-D 继续。

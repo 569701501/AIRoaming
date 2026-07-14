@@ -295,15 +295,17 @@ docs(g2): close db-only web cutover gate
 
 ### G4-C 事务命令与 API
 
-状态：`in_progress`。
+状态：`completed`，commit=`179be50`，Scrutiny=`passed`，Runtime=`passed_isolated`。
 
 - preview、commit、history、favorite、reject/restore、complete。
 - SQLite writer 竞争、pointer CAS、唯一冲突重分类、丢响应 replay。
 - 删除旧 `POST .../candidates/{candidateId}/lock` 权威入口和 JSON 双写。
 
-退出：API/事务集成覆盖成功、no-op、replay、revision conflict、impact changed。
+退出：已完成。fresh SQLite + 真实 HTTP/事务覆盖成功、no-op、replay、revision conflict、impact changed、favorite/reject/history/complete 与双 writer；当前进入 G4-D。
 
 ### G4-D 工作流与下游门禁
+
+状态：`in_progress`。
 
 - Workbench/ProductionState 提供 lock set 与 layout/export source summary。
 - stale/unresolved 在 Server 阻止新正式 layout/export/package。

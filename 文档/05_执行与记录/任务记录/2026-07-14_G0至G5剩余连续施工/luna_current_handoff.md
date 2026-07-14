@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible release HEAD = 9cd599a
+current compatible release HEAD = 179be50
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G4_C_IN_PROGRESS
+currentState = G4_D_IN_PROGRESS
 ```
 
 已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A、G4-B。
 
-尚未完成：G4-C～F、G5-M0～M8、G5 用户签收。
+尚未完成：G4-D～F、G5-M0～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -129,7 +129,9 @@ G4-A Shared + Schema overlay
 
 G4-A 已由提交 `79dc806` 完成：Shared/parser、0012 线性历史 overlay、12 段 ledger、legacy importer 与旧状态权威清理通过静态和隔离运行复核。
 
-G4-B 已由提交 `9cd599a` 完成：状态机/replay、严格 lock set codec 与 known-answer、Working Copy dependency projector、Layout/Export freshness、统一 impact resolver/digest 均通过静态和隔离运行复核。当前从 G4-C 继续；不得重做 G4-A/B 或把纯规则复核冒充事务/API/总体用户签收。
+G4-B 已由提交 `9cd599a` 完成：状态机/replay、严格 lock set codec 与 known-answer、Working Copy dependency projector、Layout/Export freshness、统一 impact resolver/digest 均通过静态和隔离运行复核。
+
+G4-C 已由提交 `179be50` 完成：preview/commit/history/favorite/reject/restore/complete、事务内 impact/CAS、丢响应 replay、双 writer 与旧 Server DB 权威入口删除均通过 fresh SQLite/真实 HTTP 隔离复核。当前从 G4-D 继续；不得重做 G4-A～C，也不得把 API 复核冒充 Web/总体用户签收。
 
 G4 全部通过后写 `G4_PASSED`，立即进入 G5-M0。
 

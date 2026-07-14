@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G4_C_IN_PROGRESS
-last_completed = G4_B_PURE_RULES_AND_RESOLVERS
+current = G4_D_IN_PROGRESS
+last_completed = G4_C_TRANSACTION_COMMANDS_AND_API
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -29,7 +29,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R0B | `completed` | `9227e8d` release | SH-10=`passed_human_review` | release shadow 与 v5 gate 已完成 |
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
-| G4 | `in_progress_g4_c` | `79dc806`, `9cd599a` | G4-A/B Scrutiny=`passed`；Runtime=`passed_isolated` | G4-B 已完成，进入事务命令与 API |
+| G4 | `in_progress_g4_d` | `79dc806`, `9cd599a`, `179be50` | G4-A/B/C Scrutiny=`passed`；Runtime=`passed_isolated` | G4-C 已完成，进入工作流与下游门禁 |
 | G5 | `blocked_until_g4_passed` | — | — | G4 通过后连续执行，最终用户签收 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
@@ -115,6 +115,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`9cd599a`。
 - 风险/未运行：尚未接入 DB transaction/API，不把纯规则通过冒充 preview/commit/race/用户路径通过；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
 - next：`G4_C_IN_PROGRESS`。
+
+## 2026-07-15 01:33：G4-C 事务命令与 API
+
+- baseline：branch=`codex/g0-test-safety-net`；G4-B docs HEAD=`9e1253e`；只暂存 11 个 G4-C Shared/Server 文件，未混入既有历史文档改动。
+- 实现：新增 CandidateDecisionService/Repository、preview/commit/history/favorite/rejection API、事务内 exact replay/impact/CAS、writer 冲突重分类、完成门禁与 best-effort task cancel；删除旧公开 lock 路由和旧 DB 直接 revision/pointer writer。
+- 测试：fresh SQLite + 真实 HTTP 定向覆盖 created/no-op/replay/revision conflict/impact changed/双 writer/favorite/reject/history/complete；Shared 54/54；Server 520/525，5 个旧慢测并行 timeout 隔离 5/5；Shared/Server typecheck/build、Prisma validate、diff check 通过。
+- 证据：`g4_c_scrutiny_review.md`、`g4_c_runtime_review.md`、`../../功能完成记录/2026-07-15_G4-C候选定稿事务与API.md`。
+- Review：Scrutiny=`passed`；Runtime=`passed_isolated`；Web/总体用户路径仍待 G4-E/F。
+- commit：`179be50`。
+- 风险/未运行：Workbench/ProductionState summary、stale 下游门禁、迟到任务和 Web 新交互未完成；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
+- next：`G4_D_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 
