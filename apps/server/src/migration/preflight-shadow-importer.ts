@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { digestCanonicalJson, encodePreflightDocumentV2, type PreflightDocumentV2, type PreflightSourceSnapshotV1 } from "@airoaming/shared";
+import { buildPreflightSourceSnapshot, digestCanonicalJson, encodePreflightDocumentV2, type PreflightDocumentV2, type PreflightSourceSnapshotV1 } from "@airoaming/shared";
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { MigrationAuditError, readVerifiedSnapshot, type VerifiedSnapshot } from "./migration-audit.service.js";
@@ -121,12 +121,18 @@ export class PreflightShadowImporter {
       const targetId = stableId("PreflightRevision", sourceKey);
       const makeBlocker = (reason: string) => blockers.push({ issueKey: `chapter:${legacyChapterId}:preflight-source`, detail: { schemaVersion: 1, chapterId, reason }, storageKey: item.storageKey, sourceDigest: item.sha256, targetId, sourceKey });
       const source = object(raw.preflightJson ?? raw, "MIGRATION_PREFLIGHT_DOCUMENT_INVALID");
-      if (source.schemaVersion !== 2 || !source.sourceSnapshot) { makeBlocker("legacy_preflight_source_snapshot_missing"); continue; }
       const board = await this.prisma.database().storyboardVersion.findFirst({ where: { chapterId, status: "confirmed" }, orderBy: { version: "desc" } });
       const chapter = await this.prisma.database().chapter.findUnique({ where: { id: chapterId } });
       if (!board || !chapter || chapter.currentStoryboardVersionId !== board.id) { makeBlocker("current_storyboard_missing"); continue; }
+      let sourceWithSnapshot: Record<string, unknown> | null;
+      try { sourceWithSnapshot = await this.backfillLegacySourceSnapshot(source, targetProjectId, chapterId, board, legacyProjectId); }
+      catch (error) {
+        if (error instanceof PreflightShadowImportError || error instanceof TypeError) sourceWithSnapshot = null;
+        else throw error;
+      }
+      if (!sourceWithSnapshot) { makeBlocker("legacy_preflight_source_snapshot_missing"); continue; }
       let normalized: PreflightDocumentV2 | null;
-      try { normalized = await this.normalizeDocument(source, targetProjectId, chapterId, board, legacyProjectId); }
+      try { normalized = await this.normalizeDocument(sourceWithSnapshot, targetProjectId, chapterId, board, legacyProjectId); }
       catch (error) { if (error instanceof PreflightShadowImportError) { makeBlocker("preflight_source_invalid"); continue; } throw error; }
       if (!normalized) { makeBlocker("preflight_source_digest_or_visual_mismatch"); continue; }
       if (!normalized.ready) { makeBlocker("legacy_preflight_not_ready"); continue; }
@@ -138,6 +144,71 @@ export class PreflightShadowImporter {
       plans.push({ targetId, sourceKey, sourceStorageKey: item.storageKey, sourceDigest: item.sha256, payloadDigest, projectId: targetProjectId, chapterId, version, sourceStoryboardVersionId: board.id, sourceDigestFromStoryboard: board.documentDigest as `sha256:${string}`, document: encoded.value, documentDigest: encoded.digest, createdAt: dateField(raw, "createdAt", field(chapterMetadata, "createdAt")), confirmedAt: dateField(raw, "confirmedAt", field(raw, "updatedAt", FALLBACK_DATE)), current: true });
     }
     return { plans, blockers };
+  }
+
+  /**
+   * Legacy workspace exports stored the checks but not the source snapshot.
+   * Reconstruct only from the sealed snapshot plus the already-imported target
+   * rows; never trust an asset digest or target id supplied by the legacy file.
+   */
+  private async backfillLegacySourceSnapshot(source: Record<string, unknown>, projectId: string, chapterId: string, board: { id: string; documentDigest: string }, legacyProjectId: string): Promise<Record<string, unknown> | null> {
+    if (source.schemaVersion === 2 && source.sourceSnapshot) return source;
+    if (source.schemaVersion !== 1 || source.sourceSnapshot || !Array.isArray(source.characterChecks) || !Array.isArray(source.sceneChecks)) return null;
+    const project = await this.prisma.database().project.findUnique({ where: { id: projectId } });
+    if (!project) return null;
+    const style = { comicFormat: project.comicFormat as "vertical_scroll" | "paged_comic", artStyle: project.artStyle?.trim() || "custom" };
+    const characters: PreflightSourceSnapshotV1["characters"] = [];
+    for (const value of source.characterChecks) {
+      const row = object(value, "MIGRATION_PREFLIGHT_CHARACTER_CHECK_INVALID");
+      const rawCharacterId = field(row, "characterId");
+      if (!rawCharacterId) return null;
+      const characterId = rawCharacterId.startsWith("character_") ? rawCharacterId : stableId("Character", characterSourceKey(legacyProjectId, rawCharacterId));
+      const character = await this.prisma.database().character.findUnique({ where: { id: characterId } });
+      if (!character || typeof row.requiredReference !== "boolean") return null;
+      const rawAssetId = optional(row, "referenceAssetId");
+      let visualId: string | null = null;
+      let assetId: string | null = null;
+      let assetSha256: `sha256:${string}` | null = null;
+      if (rawAssetId) {
+        const asset = await this.resolveAsset(legacyProjectId, rawAssetId);
+        if (!asset || asset.status !== "ready" || !asset.sha256) return null;
+        const visual = await this.prisma.database().characterVisual.findFirst({ where: { characterId, assetId: asset.id } });
+        if (!visual || visual.status !== "available") return null;
+        visualId = visual.id;
+        assetId = asset.id;
+        assetSha256 = asset.sha256 as `sha256:${string}`;
+      }
+      characters.push({ characterId, required: row.requiredReference, generationInputDigest: digestCanonicalJson({ id: character.id, name: character.name, level: character.level, appearance: character.appearance, personality: character.personality, promptFragment: character.promptFragment, rowVersion: character.rowVersion }), visualId, assetId, assetSha256 });
+    }
+    const scenes: PreflightSourceSnapshotV1["scenes"] = [];
+    for (const value of source.sceneChecks) {
+      const row = object(value, "MIGRATION_PREFLIGHT_SCENE_CHECK_INVALID");
+      const rawSceneId = field(row, "sceneId");
+      if (!rawSceneId) return null;
+      const scene = await this.prisma.database().chapterScene.findFirst({ where: { chapterId, OR: [{ id: rawSceneId }, { sceneKey: rawSceneId }] } });
+      if (!scene) return null;
+      const rawAssetId = optional(row, "referenceAssetId");
+      let visualId: string | null = null;
+      let assetId: string | null = null;
+      let assetSha256: `sha256:${string}` | null = null;
+      if (rawAssetId) {
+        const asset = await this.resolveAsset(legacyProjectId, rawAssetId);
+        if (!asset || asset.status !== "ready" || !asset.sha256) return null;
+        const visual = await this.prisma.database().sceneVisual.findFirst({ where: { chapterSceneId: scene.id, assetId: asset.id } });
+        if (!visual) return null;
+        visualId = visual.id;
+        assetId = asset.id;
+        assetSha256 = asset.sha256 as `sha256:${string}`;
+      }
+      scenes.push({ chapterSceneId: scene.id, sceneKey: scene.sceneKey, visualId, assetId, assetSha256 });
+    }
+    try {
+      const sourceSnapshot = buildPreflightSourceSnapshot({ policyVersion: "preflight-source-v1", projectId, chapterId, consumerType: "preflight_revision", storyboard: { id: board.id, digest: board.documentDigest as `sha256:${string}` }, style: { ...style, styleDigest: digestCanonicalJson(style) }, characters, scenes });
+      return { ...source, schemaVersion: 2, sourceSnapshot, policyVersion: "preflight-source-v1" };
+    } catch (error) {
+      if (error instanceof TypeError) return null;
+      throw error;
+    }
   }
 
   private async normalizeDocument(source: Record<string, unknown>, projectId: string, chapterId: string, board: { id: string; documentDigest: string }, legacyProjectId: string): Promise<PreflightDocumentV2 | null> {
@@ -197,7 +268,19 @@ export class PreflightShadowImporter {
     const shotCount = Number(source.shotCount);
     if (!Number.isInteger(shotCount) || shotCount < 0) return null;
     const sourceSnapshot = { schemaVersion: 1 as const, policyVersion: "preflight-source-v1" as const, projectId, chapterId, consumerType: "preflight_revision" as const, storyboard: { id: board.id, digest: board.documentDigest as `sha256:${string}` }, style: { comicFormat: project.comicFormat as "vertical_scroll" | "paged_comic", artStyle: currentArtStyle, styleDigest: digestCanonicalJson({ comicFormat: project.comicFormat, artStyle: currentArtStyle }) }, characters, scenes };
-    return { schemaVersion: 2, chapterId, sourceSnapshot, shotCount, characterChecks: source.characterChecks as PreflightDocumentV2["characterChecks"], sceneChecks: source.sceneChecks as PreflightDocumentV2["sceneChecks"], styleCheck: source.styleCheck as PreflightDocumentV2["styleCheck"], issues: source.issues as PreflightDocumentV2["issues"], ready: source.ready === true, notes: typeof source.notes === "string" ? source.notes : "", policyVersion: "preflight-source-v1" };
+    const characterChecks = Array.isArray(source.characterChecks) ? source.characterChecks.map((value) => {
+      const row = object(value, "MIGRATION_PREFLIGHT_CHARACTER_CHECK_INVALID");
+      const rawCharacterId = field(row, "characterId");
+      return { ...row, characterId: rawCharacterId.startsWith("character_") ? rawCharacterId : stableId("Character", characterSourceKey(legacyProjectId, rawCharacterId)) };
+    }) as PreflightDocumentV2["characterChecks"] : [];
+    const sceneChecks = Array.isArray(source.sceneChecks) ? (await Promise.all(source.sceneChecks.map(async (value) => {
+      const row = object(value, "MIGRATION_PREFLIGHT_SCENE_CHECK_INVALID");
+      const rawSceneId = field(row, "sceneId");
+      const scene = await this.prisma.database().chapterScene.findFirst({ where: { chapterId, OR: [{ id: rawSceneId }, { sceneKey: rawSceneId }] } });
+      if (!scene) throw new PreflightShadowImportError("MIGRATION_PREFLIGHT_SCENE_CHECK_INVALID");
+      return { ...row, sceneId: scene.id };
+    }))) as PreflightDocumentV2["sceneChecks"] : [];
+    return { schemaVersion: 2, chapterId, sourceSnapshot, shotCount, characterChecks, sceneChecks, styleCheck: source.styleCheck as PreflightDocumentV2["styleCheck"], issues: source.issues as PreflightDocumentV2["issues"], ready: source.ready === true, notes: typeof source.notes === "string" ? source.notes : "", policyVersion: "preflight-source-v1" };
   }
 
   private async resolveAsset(legacyProjectId: string, rawAssetId: string | null) {

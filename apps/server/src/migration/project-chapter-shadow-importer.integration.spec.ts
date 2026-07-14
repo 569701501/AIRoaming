@@ -127,7 +127,7 @@ async function readFreshInventory(prisma: PrismaService): Promise<{ digest: `sha
   return { tables, digest: digestCanonicalJson(tables) };
 }
 
-async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withCharacterReferences?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
+async function createSnapshot(root: string, formats: Record<string, string>, options: { duplicateChapterOrder?: boolean; omitChapterScript?: boolean; withScriptHistory?: boolean; withPendingRevision?: boolean; withStoryStructure?: boolean; withStoryboard?: boolean; withCharacters?: boolean; withCharacterReferences?: boolean; withAssets?: boolean; withAssetVisuals?: boolean; withPreflight?: "unresolved" | "resolved" | "legacy-resolved"; withTasks?: "stub" | "complete"; withCandidates?: boolean; withLayout?: boolean; withExports?: boolean; withSettings?: boolean; withDialogueRuntime?: boolean; withPendingDialogue?: boolean } = {}) {
   const workspace = path.join(root, "workspace");
   const staging = path.join(root, "staging");
   await mkdir(staging);
@@ -164,6 +164,9 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
       const targetBoardId = PrismaMigrationLedgerRepository.stableEntityId("StoryboardVersion", `workspace-v1:${projectId}:StoryboardVersion:${projectId}-chapter-001:v001`);
       const storyboard = encodeStoryboardDocumentV2({ schemaVersion: 2, chapterId: targetChapterId, shots: [{ id: targetShotId, order: 1, beatId: "beat_01", sceneId: "scene_01", characterIds: [], coreAction: "门外停下脚步", emotion: "紧张", shotType: "medium", cameraAngle: "eye_level", comic: { panelDescription: "巷口的门", composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" }, motion: { visualDescription: "脚步停住", compositionDesign: "中景", cameraMovement: "static", frameType: "reaction", durationMs: 0, durationHint: "", voiceLines: [] }, promptDraft: "" }], notes: "" });
       await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ version: 1, schemaVersion: 2, chapterId: targetChapterId, sourceSnapshot: { schemaVersion: 1, policyVersion: "preflight-source-v1", projectId: targetProjectId, chapterId: targetChapterId, consumerType: "preflight_revision", storyboard: { id: targetBoardId, digest: storyboard.digest }, style: { comicFormat: "vertical_scroll", artStyle: "ink", styleDigest: digestCanonicalJson({ comicFormat: "vertical_scroll", artStyle: "ink" }) }, characters: [], scenes: [] }, shotCount: 1, characterChecks: [], sceneChecks: [], styleCheck: { comicFormat: "vertical_scroll", comicFormatLabel: "竖向条漫", artStyle: "ink", artStyleLabel: "墨线", status: "ok", note: "" }, issues: [], ready: true, notes: "", policyVersion: "preflight-source-v1" })}\n`);
+    }
+    if (options.withPreflight === "legacy-resolved") {
+      await writeFile(path.join(projectDir, "chapters", "chapter-001", "preflight.json"), `${JSON.stringify({ id: "legacy-preflight-v1", projectId, chapterId: `${projectId}-chapter-001`, version: 2, schemaVersion: 1, status: "confirmed", sourceStoryboardId: "legacy-board-1", shotCount: 1, characterChecks: [{ characterId: "char_001", name: "主角", level: "lead", appearanceCount: 1, requiredReference: true, referenceReady: true, referenceAssetId: "asset_001", status: "ok", note: "legacy" }], sceneChecks: [{ sceneId: "scene_01", name: "巷口", shotCount: 1, referenceAssetId: "asset_scene_001", referenceReady: true, status: "ok", note: "legacy" }], styleCheck: { comicFormat: "vertical_scroll", comicFormatLabel: "竖版条漫", artStyle: "ink", artStyleLabel: "墨线", status: "ok", note: "legacy" }, issues: [], ready: true, notes: "", createdAt: "2026-01-05T00:00:00.000Z", updatedAt: "2026-01-05T00:00:00.000Z" })}\n`);
     }
     if (options.withTasks) {
       await mkdir(path.join(projectDir, "tasks"), { recursive: true });
@@ -627,6 +630,23 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentPreflightRevisionId: null });
     expect(await prisma!.database().migrationIssue.findFirstOrThrow({ where: { runId: "shadow-a10-1" } })).toMatchObject({ code: "PREFLIGHT_SOURCE_UNRESOLVED", entityType: "PreflightRevision", resolutionStatus: "open" });
   }, 30_000);
+
+  it("R0B-PREFLIGHT-01 reconstructs a legacy v1 source snapshot from sealed target evidence", async () => {
+    const prepared = await prepare();
+    const snapshot = await createSnapshot(prepared.root!, { p1: "vertical_scroll" }, { withScriptHistory: true, withStoryStructure: true, withStoryboard: true, withCharacters: true, withAssets: true, withAssetVisuals: true, withPreflight: "legacy-resolved" });
+    const decisionsPath = await writeDecisions(snapshot, []);
+    const result = await new FullShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { workspaceRoot: path.join(prepared.root!, "workspace"), runIdPrefix: "shadow-r0b-preflight-v1" });
+    expect(result.status).toBe("succeeded");
+    const preflight = await prisma!.database().preflightRevision.findFirstOrThrow();
+    const document = preflight.documentJson as Record<string, any>;
+    expect(document).toMatchObject({ schemaVersion: 2, policyVersion: "preflight-source-v1", ready: true });
+    expect(document.sourceSnapshot).toMatchObject({ schemaVersion: 1, consumerType: "preflight_revision", characters: [{ required: true }], scenes: [{ sceneKey: "scene_01" }] });
+    expect(document.sourceSnapshot.characters[0].characterId).toMatch(/^character_/);
+    expect(document.sourceSnapshot.characters[0].visualId).toMatch(/^charactervisual_/);
+    expect(document.sourceSnapshot.characters[0].assetSha256).toMatch(/^sha256:/);
+    expect(document.characterChecks[0].characterId).toMatch(/^character_/);
+    expect(document.sceneChecks[0].sceneId).toMatch(/^chapterscene_/);
+  }, 60_000);
 
   it("IMP-A10-02 imports a ready PreflightRevision only when storyboard provenance matches", async () => {
     const prepared = await prepare();
