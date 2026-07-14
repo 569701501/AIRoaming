@@ -6,3 +6,4 @@ export * from "./script-format.js";
 export * from "./storyboard-normalize.js";
 export * from "./workspace-path.js";
 export * from "./versioning/index.js";
+export * from "./layout/index.js";

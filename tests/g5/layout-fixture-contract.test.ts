@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { digestCanonicalJson } from "../../packages/shared/src/versioning/canonical-json.ts";
+import { LayoutDocumentCodecV1 } from "../../packages/shared/src/layout/index.ts";
 import { G5_E2E_VERTICAL_SLICES } from "../e2e/g5/g5-e2e-contract.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -35,6 +36,9 @@ test("G5-M0 corpus has eight named fixtures and immutable known-answer digests",
     const fixture = await json(entry.path);
     assert.equal(fixture.fixtureId, entry.fixtureId);
     assert.equal(digestCanonicalJson(fixture.document), entry.documentDigest);
+    const encoded = LayoutDocumentCodecV1.encode(fixture.document);
+    assert.equal(encoded.digest, entry.documentDigest);
+    assert.deepEqual(encoded.value, fixture.document);
     assert.equal(digestCanonicalJson(fixture.expected.profile), entry.profileDigest);
     assert.equal(digestCanonicalJson(fixture.expected.assetManifest), entry.assetManifestDigest);
     const { renderPlanDigest, ...unsignedRenderPlan } = fixture.expected.renderPlan;
