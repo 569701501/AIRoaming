@@ -18,7 +18,7 @@ export const BUSINESS_WRITE_OWNERS: readonly BusinessWriteOwner[] = [
   { owner: "persistent-task-worker", source: "projects/persistent-task-worker.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-05"] },
   { owner: "settings", source: "settings/settings.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "SEC-10"] },
   { owner: "dialogue", source: "dialogue/dialogue.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-06"] },
-  { owner: "image-candidate", source: "projects/image-candidate.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-05"] },
+  { owner: "candidate-lock", source: "projects/candidate-lock.repository.ts", boundary: "runBusinessTransaction", evidence: ["G4-C", "M6A1-TX-05"] },
   { owner: "character-reference", source: "projects/character-reference.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-06"] },
   { owner: "layout-export", source: "projects/layout-export.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-05"] },
   { owner: "asset-package", source: "projects/asset-package.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-05"] },

@@ -11,6 +11,19 @@ function serviceWithState(activationState: string, firstBusinessWriteAt: Date | 
 }
 
 describe("PrismaService business write boundary", () => {
+  it("keeps a consistent read transaction from consuming the first-write marker", async () => {
+    const { service, state, update } = serviceWithState("db_only");
+    await expect(service.runReadTransaction(async () => "read")).resolves.toBe("read");
+    expect(update).not.toHaveBeenCalled();
+    expect(state.firstBusinessWriteAt).toBeNull();
+  });
+
+  it("rejects read transactions before DB activation", async () => {
+    const { service, update } = serviceWithState("ready_for_activation");
+    await expect(service.runReadTransaction(async () => "never")).rejects.toThrow("DB_PERSISTENCE_NOT_ACTIVE");
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("marks the first DB-only business write inside the same transaction", async () => {
     const { service, state, update } = serviceWithState("db_only");
     await service.runBusinessTransaction(async () => "ok");

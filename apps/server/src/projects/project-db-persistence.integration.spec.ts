@@ -44,6 +44,7 @@ import { PersistentTaskRepository, TaskLeaseLostError } from "../tasks/persisten
 import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
+import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
@@ -1513,8 +1514,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.storyboardVersion.findUniqueOrThrow({ where: { id: boardId } })).rowVersion).toBe(1);
   }, 30_000);
 
-  it("P6-LAYOUT-EXPORT-01: creates shot prompt/image tasks, locks them, and exports layout/package through DB", async () => {
-    const { deployed } = await prepareDatabase();
+  it("P6/G4-D: keeps formal layout/export source-gated across replacement, late task, new candidate, and restart", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
     const httpApp = await NestFactory.create(ProjectsModule, { logger: false });
     await httpApp.listen(0, "127.0.0.1");
@@ -1720,6 +1721,145 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(packageRevision).toMatchObject({ status: "ready", completionApplicability: "current" });
     expect(await prisma.exportArtifact.count({ where: { exportRevisionId: packageRevision.id } })).toBe(1);
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("exported");
+
+    const productionQuery = app.get(ChapterProductionQueryService);
+    const sourceQuery = app.get(CandidateSourceQueryService);
+    const currentSources = (await productionQuery.get(scope)).productionState.candidateSources!;
+    expect(currentSources).toMatchObject({
+      candidateLockSet: { state: "complete", sourceApplicability: "current" },
+      layoutWorkingCopy: { source: { sourceResolution: "current" } },
+      currentLayout: { id: layoutRevision.id, source: { sourceResolution: "current", artifactFreshness: "current" } },
+      currentExport: { id: packageRevision.id, source: { sourceResolution: "current", artifactFreshness: "current" } },
+      gates: {
+        buildLayoutWorkingCopy: { allowed: true, reasonCodes: [] },
+        createLayoutRevision: { allowed: true, reasonCodes: [] },
+        exportLayout: { allowed: true, reasonCodes: [] },
+        exportPackage: { allowed: true, reasonCodes: [] },
+      },
+    });
+    expect((await projects.getWorkbenchSnapshot(project.id, scope.chapterId)).candidateSources).toEqual(currentSources);
+
+    const finalShot = await prisma.shot.findUniqueOrThrow({
+      where: { id: shotId },
+      include: { currentCandidateLockRevision: { include: { candidate: { include: { asset: true } } } } },
+    });
+    const finalRevision = finalShot.currentCandidateLockRevision!;
+    const finalCandidate = finalRevision.candidate!;
+    const replacementCandidate = [candidateA!, candidateB!, candidateC!].find((item) => item.id !== finalCandidate.id)!;
+    const lateLayoutTask = await repository.create({
+      projectId: project.id,
+      type: "layout_export",
+      target: { type: "chapter", id: scope.chapterId, chapterId: scope.chapterId },
+      input: {
+        schemaVersion: 1,
+        chapterId: scope.chapterId,
+        sourceProjection: {
+          schemaVersion: 1,
+          policyVersion: "g4-d-source-fence-v1",
+          projectId: project.id,
+          chapterId: scope.chapterId,
+          consumerType: "layout_export",
+          sources: [
+            { role: "candidate", order: 1, sourceType: "candidate_lock_revision", sourceId: finalRevision.id, sourceDigest: finalCandidate.asset.sha256! },
+            { role: "lock_set", order: 2, sourceType: "lock_set", sourceId: scope.chapterId, sourceDigest: currentSources.candidateLockSet.digest! },
+            { role: "layout", order: 3, sourceType: "layout_revision", sourceId: layoutRevision.id, sourceDigest: layoutRevision.documentDigest },
+          ],
+        },
+      },
+    });
+    expect(await sourceQuery.taskApplicability(scope, lateLayoutTask.item.id)).toBe("current");
+    const claimedLateTask = await repository.claimNext("g4-d-late-layout-worker", new Date(), ["layout_export"]);
+    expect(claimedLateTask?.item).toMatchObject({ id: lateLayoutTask.item.id, status: "running" });
+
+    const replacePreview = await decisions.preview(project.id, scope.chapterId, shotId, { action: "replace", candidateId: replacementCandidate.id });
+    expect(replacePreview.impact.activeTaskIds).toContain(lateLayoutTask.item.id);
+    expect(replacePreview.impact).toMatchObject({
+      currentLayoutRevisionAffected: true,
+      currentExportRevisionAffected: true,
+    });
+    const replacement = await decisions.commit(project.id, scope.chapterId, shotId, {
+      action: "replace",
+      candidateId: replacementCandidate.id,
+      expectedCurrentRevisionId: replacePreview.expectedCurrentRevisionId,
+      impactDigest: replacePreview.impactDigest,
+      reason: "G4-D downstream source fence",
+    });
+    expect(replacement.result).toBe("created");
+    const cancelledLateTask = await prisma.generationTask.findUniqueOrThrow({ where: { id: lateLayoutTask.item.id } });
+    expect(cancelledLateTask).toMatchObject({ status: "running" });
+    expect(cancelledLateTask.cancelRequestedAt).not.toBeNull();
+    expect(await sourceQuery.taskApplicability(scope, lateLayoutTask.item.id)).toBe("historical");
+    await repository.finish({
+      taskId: lateLayoutTask.item.id,
+      claimToken: claimedLateTask!.claimToken,
+      outcome: "cancelled",
+      output: { schemaVersion: 1, ignoredLateResult: true },
+      applicability: "historical",
+    });
+    expect(await prisma.generationTask.findUniqueOrThrow({ where: { id: lateLayoutTask.item.id } })).toMatchObject({
+      status: "cancelled",
+      applicability: "historical",
+    });
+
+    const staleProduction = await productionQuery.get(scope);
+    expect(staleProduction.workflow.currentStepKey).toBe("layout_export");
+    expect(staleProduction.workflow.steps.find((step) => step.key === "image_candidates")).toMatchObject({ status: "done" });
+    expect(staleProduction.workflow.steps.find((step) => step.key === "layout_export")).toMatchObject({ status: "needs_update", canStartTask: false, attention: "source_updated" });
+    expect(staleProduction.productionState.candidateSources).toMatchObject({
+      candidateLockSet: { state: "complete", sourceApplicability: "current" },
+      layoutWorkingCopy: { source: { sourceResolution: "stale", artifactFreshness: null } },
+      currentLayout: { id: layoutRevision.id, source: { sourceResolution: "stale", artifactFreshness: "stale" } },
+      currentExport: { id: packageRevision.id, source: { sourceResolution: "stale", artifactFreshness: "stale", completionApplicability: "current" } },
+      gates: {
+        buildLayoutWorkingCopy: { allowed: false },
+        createLayoutRevision: { allowed: false },
+        exportLayout: { allowed: false },
+        exportPackage: { allowed: false },
+      },
+    });
+
+    const replacementRevisionId = (await prisma.shot.findUniqueOrThrow({ where: { id: shotId } })).currentCandidateLockRevisionId;
+    const staleDigest = staleProduction.productionState.candidateSources!.candidateLockSet.digest;
+    const candidateCountBeforeLateImage = await prisma.candidate.count({ where: { shotId } });
+    worker.setHandler("image_generate", async () => ({
+      candidates: [{ index: 1, buffer: png, mimeType: "image/png" }],
+    }));
+    const lateImageTask = await tasks.create({
+      projectId: project.id,
+      type: "image_generate",
+      target: { type: "shot", id: shotId, chapterId: scope.chapterId },
+      input: { chapterId: scope.chapterId, shotId, requestId: randomUUID(), candidateCount: 1 },
+    });
+    expect(await worker.runOnce("g4-d-new-candidate-worker")).toMatchObject({ id: lateImageTask.id, status: "succeeded" });
+    expect(await prisma.candidate.count({ where: { shotId } })).toBe(candidateCountBeforeLateImage + 1);
+    expect((await prisma.shot.findUniqueOrThrow({ where: { id: shotId } })).currentCandidateLockRevisionId).toBe(replacementRevisionId);
+    expect((await sourceQuery.get(scope)).candidateLockSet.digest).toBe(staleDigest);
+
+    const downstreamBeforeRejectedWrites = {
+      layoutRevisionIds: (await prisma.layoutRevision.findMany({ where: { chapterId: scope.chapterId }, orderBy: { revision: "asc" }, select: { id: true } })).map((item) => item.id),
+      exportRevisionIds: (await prisma.exportRevision.findMany({ where: { chapterId: scope.chapterId }, orderBy: [{ kind: "asc" }, { revision: "asc" }], select: { id: true } })).map((item) => item.id),
+      exportArtifactCount: await prisma.exportArtifact.count({ where: { exportRevision: { chapterId: scope.chapterId } } }),
+      chapter: await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId }, select: { currentLayoutRevisionId: true, currentExportRevisionId: true, milestoneStatus: true } }),
+      packageManifest: await readFile(path.join(workspaceRoot, packageResult.packagePath, "manifest.json"), "utf8"),
+    };
+    await expect(projects.buildChapterLayout(project.id, scope.chapterId)).rejects.toMatchObject({ status: 409, response: { code: "LAYOUT_SOURCE_STALE" } });
+    await expect(projects.exportChapterLayout(project.id, scope.chapterId)).rejects.toMatchObject({ status: 409, response: { code: "LAYOUT_SOURCE_STALE" } });
+    await expect(projects.exportAssetPackage(project.id, scope.chapterId)).rejects.toMatchObject({ status: 409, response: { code: "LAYOUT_SOURCE_STALE" } });
+    expect({
+      layoutRevisionIds: (await prisma.layoutRevision.findMany({ where: { chapterId: scope.chapterId }, orderBy: { revision: "asc" }, select: { id: true } })).map((item) => item.id),
+      exportRevisionIds: (await prisma.exportRevision.findMany({ where: { chapterId: scope.chapterId }, orderBy: [{ kind: "asc" }, { revision: "asc" }], select: { id: true } })).map((item) => item.id),
+      exportArtifactCount: await prisma.exportArtifact.count({ where: { exportRevision: { chapterId: scope.chapterId } } }),
+      chapter: await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId }, select: { currentLayoutRevisionId: true, currentExportRevisionId: true, milestoneStatus: true } }),
+      packageManifest: await readFile(path.join(workspaceRoot, packageResult.packagePath, "manifest.json"), "utf8"),
+    }).toEqual(downstreamBeforeRejectedWrites);
+
+    await app.close();
+    app = null;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const reopenedProduction = await app.get(ChapterProductionQueryService).get(scope);
+    expect(reopenedProduction.productionState.candidateSources).toEqual(staleProduction.productionState.candidateSources);
+    expect(reopenedProduction.workflow.currentStepKey).toBe("layout_export");
+    expect((await app.get(ProjectsService).getWorkbenchSnapshot(project.id, scope.chapterId)).candidateSources).toEqual(staleProduction.productionState.candidateSources);
   }, 30_000);
 
   it("P7-DIALOGUE-DB-01: persists dialogue thread/messages/session and settles running messages after restart", async () => {

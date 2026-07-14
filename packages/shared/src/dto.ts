@@ -14,7 +14,7 @@ import type {
   ProjectType,
 } from "./domain.js";
 import type { ComicFormat } from "./comic-format.js";
-import type { CandidateStatus } from "./candidate-lock.js";
+import type { CandidateChapterSourceState, CandidateStatus } from "./candidate-lock.js";
 import type { ArtifactFreshness, FreshnessReasonCode } from "./versioning/production-state.js";
 
 export interface ApiEnvelope<T> {
@@ -1302,6 +1302,7 @@ export interface WorkbenchSnapshot {
   story: WorkbenchStory;
   shots: WorkbenchShot[];
   candidates: WorkbenchCandidate[];
+  candidateSources?: CandidateChapterSourceState | null;
   assets: WorkbenchAsset[];
   aiNotes: Array<{
     role: "orchestrator" | "worker" | "reviewer";

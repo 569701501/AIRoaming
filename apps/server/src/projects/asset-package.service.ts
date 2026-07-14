@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { copyFile, mkdir, open, rename, writeFile } from "node:fs/promises";
@@ -18,6 +18,7 @@ import * as wsDomain from "./project-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
 import { PrismaService } from "../persistence/prisma.service.js";
+import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 
 @Injectable()
 export class AssetPackageService {
@@ -26,6 +27,7 @@ export class AssetPackageService {
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(PrismaService) private readonly prismaService: PrismaService,
+    @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
   ) {}
 
   async exportAssetPackage(projectId: string, chapterId?: string): Promise<ExportAssetPackageResponse> {
@@ -242,6 +244,11 @@ export class AssetPackageService {
       ? await db.chapter.findUnique({ where: { id: chapterId } })
       : await db.chapter.findUnique({ where: { id: project.currentChapterId ?? "" } });
     if (!chapter || chapter.projectId !== projectId) throw new BadRequestException("CHAPTER_REQUIRED");
+    const sourceState = await this.candidateSources.get({ projectId, chapterId: chapter.id });
+    if (!sourceState.gates.exportPackage.allowed) {
+      const code = sourceState.gates.exportPackage.reasonCodes[0] ?? "LAYOUT_SOURCE_UNRESOLVED";
+      throw new ConflictException({ code, message: code, details: { reasonCodes: sourceState.gates.exportPackage.reasonCodes } });
+    }
     if (!["layout_done", "exported"].includes(chapter.milestoneStatus) || !chapter.currentLayoutRevisionId) throw new BadRequestException("CHAPTER_LAYOUT_NOT_DONE");
     const layoutRevision = await db.layoutRevision.findUnique({ where: { id: chapter.currentLayoutRevisionId } });
     if (!layoutRevision?.bindingSetSealedAt) throw new BadRequestException("LAYOUT_REVISION_NOT_SEALED");
@@ -275,6 +282,11 @@ export class AssetPackageService {
     const packageAssetId = `package_asset_${packageId}`;
     const exportRevisionId = `package_export_${packageId}`;
     await this.prismaService.runBusinessTransaction(async (tx) => {
+      const sourceBeforeCommit = await this.candidateSources.get({ projectId, chapterId: chapter.id }, tx);
+      if (!sourceBeforeCommit.gates.exportPackage.allowed) {
+        const code = sourceBeforeCommit.gates.exportPackage.reasonCodes[0] ?? "LAYOUT_SOURCE_UNRESOLVED";
+        throw new ConflictException({ code, message: code, details: { reasonCodes: sourceBeforeCommit.gates.exportPackage.reasonCodes } });
+      }
       const latest = await tx.exportRevision.findFirst({ where: { projectId, scopeKey: `chapter:${chapter.id}`, kind: "asset_package" }, orderBy: { revision: "desc" } });
       const profile = { schemaVersion: 1, packageId };
       await tx.asset.create({ data: { id: packageAssetId, projectId, chapterId: chapter.id, type: "archive", role: "asset_package", mimeType: "application/json", storageKey: packageRelativeDir, status: "staged", sha256: manifestDigest, bytes: Buffer.byteLength(JSON.stringify(manifest), "utf8"), width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: { kind: "asset_package", packageId, legacyPath: packageRelativeDir }, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson({ kind: "asset_package", packageId, legacyPath: packageRelativeDir }), createdAt: now, updatedAt: now, readyAt: null, failedAt: null, deletingAt: null } });

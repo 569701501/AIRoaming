@@ -11,6 +11,7 @@ import {
   parsePreviewCandidateLockRequest,
   type CandidateStatus,
   type CandidateLockHistoryPage,
+  type CandidateChapterSourceState,
   type CandidatePreferenceResponse,
   type CurrentCandidateDecision,
   type WorkbenchCandidateV2,
@@ -208,6 +209,7 @@ describe("candidate lock shared contract", () => {
     expectTypeOf<WorkbenchCandidateV2>().toHaveProperty("sourceApplicability");
     expectTypeOf<CandidateLockHistoryPage>().toHaveProperty("nextBeforeRevision");
     expectTypeOf<CandidatePreferenceResponse>().toHaveProperty("candidate");
+    expectTypeOf<CandidateChapterSourceState>().toHaveProperty("gates");
 
     const decisions: CurrentCandidateDecision[] = [
       {

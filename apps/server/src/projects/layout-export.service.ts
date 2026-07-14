@@ -1,5 +1,5 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
 import { copyFile, mkdir, open, rename, writeFile } from "node:fs/promises";
 import * as path from "node:path";
@@ -22,6 +22,7 @@ import { ProjectStore } from "./project-store.service.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
+import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 
 @Injectable()
 export class LayoutExportService {
@@ -30,6 +31,7 @@ export class LayoutExportService {
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(PrismaService) private readonly prismaService: PrismaService,
+    @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
   ) {}
 
   async buildChapterLayout(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
@@ -186,36 +188,37 @@ export class LayoutExportService {
   }
 
   private async buildChapterLayoutInDatabase(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
-    const db = this.prismaService.database();
-    const input = await this.readDatabaseLayoutInput(projectId, chapterId);
-    const now = new Date();
-    const layout = this.makeLayout(input, now.toISOString());
-    const sourceBindings = input.pairs.map((pair, index) => ({
-      elementId: layout.pages[index]!.id,
-      role: "panel",
-      order: index + 1,
-      shotId: pair.shot.id,
-      candidateId: pair.candidate.id,
-      candidateLockRevisionId: pair.lock.id,
-      assetId: pair.asset.id,
-      sourceDigest: pair.asset.sha256!,
-    }));
-    const sourceLockSetDigest = digestCanonicalJson(sourceBindings.map((binding) => ({ shotId: binding.shotId, candidateLockRevisionId: binding.candidateLockRevisionId, assetId: binding.assetId, sourceDigest: binding.sourceDigest })));
-    const existing = await db.layoutWorkingCopy.findUnique({ where: { chapterId } });
-    const existingDocument = existing?.documentJson && typeof existing.documentJson === "object" && !Array.isArray(existing.documentJson) ? existing.documentJson as { legacyDocument?: unknown } : null;
-    const stableLayout = existing?.sourceLockSetDigest === sourceLockSetDigest && existingDocument?.legacyDocument && typeof existingDocument.legacyDocument === "object" ? existingDocument.legacyDocument as ChapterLayout : layout;
-    const documentJson = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentJson as Prisma.InputJsonValue : ({ schemaVersion: 1, kind: "legacy_chapter_layout_v1", sourceResolution: "complete", legacyDocument: stableLayout, sourceBindings } as unknown as Prisma.InputJsonValue);
-    const documentDigest = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentDigest : digestCanonicalJson(documentJson);
-    if (!existing || existing.documentDigest !== documentDigest || existing.sourceLockSetDigest !== sourceLockSetDigest) {
-      await this.prismaService.runBusinessTransaction(async (tx) => {
+    await this.prismaService.runBusinessTransaction(async (tx) => {
+      const sourceState = await this.candidateSources.get({ projectId, chapterId }, tx);
+      this.assertSourceGate(sourceState.gates.buildLayoutWorkingCopy);
+      const input = await this.readDatabaseLayoutInput(projectId, chapterId, tx);
+      const now = new Date();
+      const layout = this.makeLayout(input, now.toISOString());
+      const sourceBindings = input.pairs.map((pair, index) => ({
+        elementId: layout.pages[index]!.id,
+        role: "panel",
+        order: index + 1,
+        shotId: pair.shot.id,
+        candidateId: pair.candidate.id,
+        candidateLockRevisionId: pair.lock.id,
+        assetId: pair.asset.id,
+        sourceDigest: pair.asset.sha256!,
+      }));
+      const sourceLockSetDigest = sourceState.candidateLockSet.digest!;
+      const existing = await tx.layoutWorkingCopy.findUnique({ where: { chapterId } });
+      const existingDocument = existing?.documentJson && typeof existing.documentJson === "object" && !Array.isArray(existing.documentJson) ? existing.documentJson as { legacyDocument?: unknown } : null;
+      const stableLayout = existing?.sourceLockSetDigest === sourceLockSetDigest && existingDocument?.legacyDocument && typeof existingDocument.legacyDocument === "object" ? existingDocument.legacyDocument as ChapterLayout : layout;
+      const documentJson = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentJson as Prisma.InputJsonValue : ({ schemaVersion: 1, kind: "legacy_chapter_layout_v1", sourceResolution: "complete", legacyDocument: stableLayout, sourceBindings } as unknown as Prisma.InputJsonValue);
+      const documentDigest = existing?.sourceLockSetDigest === sourceLockSetDigest ? existing.documentDigest : digestCanonicalJson(documentJson);
+      if (!existing || existing.documentDigest !== documentDigest || existing.sourceLockSetDigest !== sourceLockSetDigest) {
         if (!existing) {
           await tx.layoutWorkingCopy.create({ data: { id: `layout_wc_${chapterId}`, projectId, chapterId, documentKind: "legacy_chapter_layout_v1", documentJson, schemaVersion: 1, documentDigest, sourceLockSetDigest, basedOnRevisionId: input.chapter.currentLayoutRevisionId, rowVersion: 0, createdAt: now, updatedAt: now } });
           return;
         }
         const result = await tx.layoutWorkingCopy.updateMany({ where: { id: existing.id, projectId, chapterId, rowVersion: existing.rowVersion }, data: { documentJson, documentKind: "legacy_chapter_layout_v1", schemaVersion: 1, documentDigest, sourceLockSetDigest, basedOnRevisionId: input.chapter.currentLayoutRevisionId, rowVersion: { increment: 1 }, updatedAt: now } });
         if (result.count !== 1) throw new BadRequestException("LAYOUT_WORKING_COPY_CONFLICT");
-      });
-    }
+      }
+    });
     const project = await this.repository.refreshProjectFromDatabase(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
     return { layout: chapter.layout!, chapter: wsDomain.toChapterDetail(chapter), chapters: wsDomain.sortChapters(project.chapters).map((item) => wsDomain.toChapterListItem(item)), assets: project.assets };
@@ -224,12 +227,18 @@ export class LayoutExportService {
   private async exportChapterLayoutInDatabase(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
     const built = await this.buildChapterLayoutInDatabase(projectId, chapterId);
     const db = this.prismaService.database();
-    const input = await this.readDatabaseLayoutInput(projectId, chapterId);
-    const workingCopy = await db.layoutWorkingCopy.findUniqueOrThrow({ where: { chapterId } });
-    const existingRevision = input.chapter.currentLayoutRevisionId ? await db.layoutRevision.findUnique({ where: { id: input.chapter.currentLayoutRevisionId } }) : null;
-    const revision = existingRevision && existingRevision.documentDigest === workingCopy.documentDigest && existingRevision.sourceLockSetDigest === workingCopy.sourceLockSetDigest
-      ? existingRevision
-      : await this.prismaService.runBusinessTransaction(async (tx) => {
+    const prepared = await this.prismaService.runBusinessTransaction(async (tx) => {
+      const input = await this.readDatabaseLayoutInput(projectId, chapterId, tx);
+      const workingCopy = await tx.layoutWorkingCopy.findUniqueOrThrow({ where: { chapterId } });
+      const sourceBeforeRevision = await this.candidateSources.get({ projectId, chapterId }, tx);
+      this.assertSourceGate(sourceBeforeRevision.gates.createLayoutRevision);
+      const existingRevision = input.chapter.currentLayoutRevisionId ? await tx.layoutRevision.findUnique({ where: { id: input.chapter.currentLayoutRevisionId } }) : null;
+      let revision = existingRevision;
+      if (
+        !revision
+        || revision.documentDigest !== workingCopy.documentDigest
+        || revision.sourceLockSetDigest !== workingCopy.sourceLockSetDigest
+      ) {
         const latest = await tx.layoutRevision.findFirst({ where: { projectId, chapterId }, orderBy: { revision: "desc" } });
         const created = await tx.layoutRevision.create({ data: { id: `layout_rev_${randomUUID()}`, projectId, chapterId, revision: (latest?.revision ?? 0) + 1, previousRevisionId: latest?.id ?? null, contentBasedOnRevisionId: workingCopy.basedOnRevisionId, documentJson: workingCopy.documentJson as Prisma.InputJsonValue, schemaVersion: 1, documentDigest: workingCopy.documentDigest, sourceLockSetDigest: workingCopy.sourceLockSetDigest, origin: "runtime", saveReason: "export_checkpoint", bindingSetSealedAt: null, createdAt: new Date() } });
         const bindings = Array.isArray((workingCopy.documentJson as { sourceBindings?: unknown }).sourceBindings) ? (workingCopy.documentJson as { sourceBindings: Array<Record<string, unknown>> }).sourceBindings : [];
@@ -238,8 +247,13 @@ export class LayoutExportService {
         }
         const sealed = await tx.layoutRevision.update({ where: { id: created.id }, data: { bindingSetSealedAt: new Date() } });
         await tx.chapter.update({ where: { id: chapterId }, data: { currentLayoutRevisionId: sealed.id, milestoneStatus: input.chapter.milestoneStatus === "exported" ? "exported" : "layout_done", rowVersion: { increment: 1 } } });
-        return sealed;
-      });
+        revision = sealed;
+      }
+      const sourceBeforeExport = await this.candidateSources.get({ projectId, chapterId }, tx);
+      this.assertSourceGate(sourceBeforeExport.gates.exportLayout);
+      return { input, revision };
+    });
+    const { input, revision } = prepared;
     const now = new Date();
     const exportPath = `projects/${projectId}/chapters/${input.chapter.slug}/exports/layout/${revision.id}/layout.json`;
     const exportAbs = this.workspacePathService.resolveVirtualPath(`/workspace/${exportPath}`);
@@ -254,6 +268,8 @@ export class LayoutExportService {
     const current = await db.exportRevision.findFirst({ where: { projectId, chapterId, kind: "layout_publication", layoutRevisionId: revision.id, status: "ready" }, orderBy: { revision: "desc" } });
     if (!current) {
       await this.prismaService.runBusinessTransaction(async (tx) => {
+        const sourceBeforeCommit = await this.candidateSources.get({ projectId, chapterId }, tx);
+        this.assertSourceGate(sourceBeforeCommit.gates.exportLayout);
         const latest = await tx.exportRevision.findFirst({ where: { projectId, scopeKey: `chapter:${chapterId}`, kind: "layout_publication" }, orderBy: { revision: "desc" } });
         const exportRevisionId = `export_${revision.id}`;
         const assetId = `export_asset_${revision.id}`;
@@ -272,8 +288,11 @@ export class LayoutExportService {
     return { layout: chapterAfter.layout!, exportAssets, chapter: wsDomain.toChapterDetail(chapterAfter), chapters: wsDomain.sortChapters(projectAfter.chapters).map((item) => wsDomain.toChapterListItem(item)), assets: projectAfter.assets, workflow };
   }
 
-  private async readDatabaseLayoutInput(projectId: string, chapterId: string) {
-    const db = this.prismaService.database();
+  private async readDatabaseLayoutInput(
+    projectId: string,
+    chapterId: string,
+    db: Prisma.TransactionClient | PrismaClient = this.prismaService.database(),
+  ) {
     const [project, chapter] = await Promise.all([
       db.project.findUnique({ where: { id: projectId } }),
       db.chapter.findUnique({ where: { id: chapterId } }),
@@ -322,6 +341,13 @@ export class LayoutExportService {
     const unlocked = chapter.storyboard.storyboardJson.shots.filter((shot) => !shot.lockedCandidateId);
     if (unlocked.length > 0) {
       throw new BadRequestException("CHAPTER_CANDIDATES_NOT_FULLY_LOCKED");
+    }
+  }
+
+  private assertSourceGate(gate: { allowed: boolean; reasonCodes: readonly string[] }): void {
+    if (!gate.allowed) {
+      const code = gate.reasonCodes[0] ?? "LAYOUT_SOURCE_UNRESOLVED";
+      throw new ConflictException({ code, message: code, details: { reasonCodes: gate.reasonCodes } });
     }
   }
 

@@ -38,6 +38,7 @@ import { ProjectScriptCommandRepository } from "./project-script-command.reposit
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { CandidateLockRepository } from "./candidate-lock.repository.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
+import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -76,6 +77,7 @@ import { CandidateDecisionService } from "./candidate-decision.service.js";
     ProjectDeleteOutboxService,
     CandidateLockRepository,
     CandidateDecisionService,
+    CandidateSourceQueryService,
   ],
   exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService],
 })

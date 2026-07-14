@@ -15,6 +15,7 @@ import { createG2DatabaseError } from "./g2-database-error.mapper.js";
 import { ChapterVersionQueryRepository, type ChapterVersionQueryRow } from "./chapter-version-query.repository.js";
 import { ScriptVersionRepository } from "./script-version.repository.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
+import { CandidateSourceQueryService } from "../candidate-source-query.service.js";
 
 type VersionNode = ChapterProductionState["script"] | ChapterProductionState["story"] | ChapterProductionState["storyboard"] | ChapterProductionState["preflight"];
 
@@ -38,13 +39,17 @@ export class ChapterProductionQueryService {
     @Inject(PrismaService) private readonly prismaService: PrismaService,
     @Inject(ChapterVersionQueryRepository) private readonly chapterQuery: ChapterVersionQueryRepository,
     @Inject(ScriptVersionRepository) private readonly scriptRepository: ScriptVersionRepository,
+    @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
   ) {}
 
   async get(scope: VersionScopeV1): Promise<GetChapterProductionStateResponse> {
     this.assertDatabaseMode();
     const row = await this.chapterQuery.findByScope(scope);
     if (!row) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
-    const productionState = this.scriptRepository.toProductionState(row);
+    const baseProductionState = this.scriptRepository.toProductionState(row);
+    const productionState = row.currentStoryboardVersionId
+      ? { ...baseProductionState, candidateSources: await this.candidateSources.get(scope) }
+      : baseProductionState;
     return { productionState, workflow: this.buildWorkflow(row, productionState), chapterRowVersion: row.rowVersion };
   }
 
@@ -76,10 +81,18 @@ export class ChapterProductionQueryService {
   private resolveCurrentStep(state: ChapterProductionState): ProjectWorkflowStepKey {
     if (state.preflight.freshness === "current" && state.storyboard.freshness === "current") {
       const milestone = MILESTONE_ORDER.get(state.milestoneStatus) ?? 0;
-      if (milestone >= 6) return "asset_package";
-      if (milestone >= 5) return "asset_package";
-      if (milestone >= 4) return "layout_export";
-      return "image_candidates";
+      if (milestone < 4) return "image_candidates";
+      const sources = state.candidateSources;
+      if (!sources) return milestone >= 5 ? "asset_package" : "layout_export";
+      if (
+        sources.candidateLockSet.state !== "complete"
+        || sources.candidateLockSet.sourceApplicability !== "current"
+      ) return "image_candidates";
+      if (
+        !sources.currentLayout
+        || sources.currentLayout.source.sourceResolution !== "current"
+      ) return "layout_export";
+      return "asset_package";
     }
     return state.earliestAttentionStep;
   }
@@ -95,8 +108,9 @@ export class ChapterProductionQueryService {
     const nodeKey = NODE_BY_STEP[definition.key];
     const node = nodeKey ? state[nodeKey] as VersionNode : null;
     const milestoneReached = this.milestoneReached(definition.key, state.milestoneStatus);
-    const status = this.resolveStatus(definition.key, stepIndex, currentStepKey, currentIndex, node, milestoneReached);
+    const status = this.resolveStatus(definition.key, stepIndex, currentStepKey, currentIndex, node, milestoneReached, state);
     const reasonCodes = node?.reasonCodes ?? [];
+    const sourceProjection = this.sourceProjection(definition.key, state);
     return {
       key: definition.key,
       label: definition.label,
@@ -106,8 +120,8 @@ export class ChapterProductionQueryService {
       evidence: `db://projects/${row.projectId}/chapters/${row.id}/${definition.key}`,
       completionCriteria: [...definition.completionCriteria],
       milestoneReached,
-      currentArtifactId: node?.currentVersionId ?? null,
-      freshness: node?.freshness ?? (milestoneReached ? "current" : null),
+      currentArtifactId: node?.currentVersionId ?? sourceProjection.currentArtifactId,
+      freshness: node?.freshness ?? sourceProjection.freshness ?? (milestoneReached ? "current" : null),
       attention: this.attention(status, reasonCodes),
       canStartTask: this.canStartTask(definition.key, state),
       historyAvailable: (node?.historyCount ?? 0) > 0,
@@ -122,7 +136,10 @@ export class ChapterProductionQueryService {
     currentIndex: number,
     node: VersionNode | null,
     milestoneReached: boolean,
+    state: ChapterProductionState,
   ): ProjectWorkflowStep["status"] {
+    const sourceStatus = this.sourceStatus(key, state);
+    if (sourceStatus) return sourceStatus;
     if (node?.pendingVersionId !== null && node?.pendingVersionId !== undefined) return "needs_confirmation";
     if (node && node.freshness === "stale") return "needs_update";
     if (node && node.freshness === null && index === currentIndex) return key === "project_story" ? "needs_confirmation" : "active";
@@ -143,7 +160,74 @@ export class ChapterProductionQueryService {
     if (key === "storyboard") return state.story.freshness === "current" && state.story.pendingVersionId === null;
     if (key === "image_preflight") return state.storyboard.freshness === "current" && state.storyboard.pendingVersionId === null;
     if (key === "image_candidates") return state.preflight.freshness === "current";
+    if (key === "layout_export") {
+      const gates = state.candidateSources?.gates;
+      return Boolean(
+        gates?.buildLayoutWorkingCopy.allowed
+        || gates?.createLayoutRevision.allowed
+        || gates?.exportLayout.allowed,
+      );
+    }
+    if (key === "asset_package") return state.candidateSources?.gates.exportPackage.allowed ?? false;
     return false;
+  }
+
+  private sourceStatus(
+    key: ProjectWorkflowStepKey,
+    state: ChapterProductionState,
+  ): ProjectWorkflowStep["status"] | null {
+    const sources = state.candidateSources;
+    if (!sources) return null;
+    const milestone = MILESTONE_ORDER.get(state.milestoneStatus) ?? 0;
+    if (key === "image_candidates" && milestone >= 4) {
+      return sources.candidateLockSet.state === "complete"
+        && sources.candidateLockSet.sourceApplicability === "current"
+        ? "done"
+        : "needs_update";
+    }
+    if (key === "layout_export" && milestone >= 4) {
+      if (!sources.currentLayout) return milestone >= 5 ? "blocked" : null;
+      if (sources.currentLayout.source.sourceResolution === "stale") return "needs_update";
+      if (sources.currentLayout.source.sourceResolution === "unresolved") return "blocked";
+      if (milestone >= 5) return "done";
+    }
+    if (key === "asset_package" && milestone >= 5) {
+      if (!sources.currentExport) return milestone >= 6 ? "blocked" : null;
+      if (sources.currentExport.source.sourceResolution === "stale") return "needs_update";
+      if (sources.currentExport.source.sourceResolution === "unresolved") return "blocked";
+      if (milestone >= 6) return "done";
+    }
+    return null;
+  }
+
+  private sourceProjection(
+    key: ProjectWorkflowStepKey,
+    state: ChapterProductionState,
+  ): { currentArtifactId: string | null; freshness: ArtifactFreshness | null } {
+    const sources = state.candidateSources;
+    if (!sources) return { currentArtifactId: null, freshness: null };
+    if (key === "image_candidates") {
+      return {
+        currentArtifactId: null,
+        freshness: sources.candidateLockSet.state === "complete"
+          && sources.candidateLockSet.sourceApplicability === "current"
+          ? "current"
+          : "stale",
+      };
+    }
+    if (key === "layout_export") {
+      return {
+        currentArtifactId: sources.currentLayout?.id ?? null,
+        freshness: sources.currentLayout?.source.artifactFreshness ?? null,
+      };
+    }
+    if (key === "asset_package") {
+      return {
+        currentArtifactId: sources.currentExport?.id ?? null,
+        freshness: sources.currentExport?.source.artifactFreshness ?? null,
+      };
+    }
+    return { currentArtifactId: null, freshness: null };
   }
 
   private attention(status: ProjectWorkflowStep["status"], reasons: readonly FreshnessReasonCode[]): ProjectWorkflowStep["attention"] {

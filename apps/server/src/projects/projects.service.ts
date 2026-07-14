@@ -940,9 +940,11 @@ export class ProjectsService implements OnModuleInit {
     const chapters = this.sortChapters(readyProject.chapters).map((chapter) => this.toChapterListItem(chapter));
     const currentChapterDetail = currentChapter ? this.toChapterDetail(currentChapter) : null;
     let workflow = this.buildProjectWorkflow(readyProject, currentChapter);
+    let candidateSources = null;
     if (this.isDatabaseMode() && currentChapter && this.chapterProductionQuery) {
       const dbWorkflow = await this.chapterProductionQuery.get({ projectId, chapterId: currentChapter.id });
       workflow = dbWorkflow.workflow;
+      candidateSources = dbWorkflow.productionState.candidateSources ?? null;
     }
 
     return {
@@ -988,6 +990,7 @@ export class ProjectsService implements OnModuleInit {
       },
       shots: this.imageCandidate.toWorkbenchShots(currentChapter),
       candidates: (currentChapter?.candidates ?? []).map((item) => this.imageCandidate.toWorkbenchCandidate(item)),
+      candidateSources,
       chapterLayout: currentChapter?.layout ?? null,
       assets: readyProject.assets,
       aiNotes: [

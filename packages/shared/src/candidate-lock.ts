@@ -711,3 +711,33 @@ export interface ExportRevisionSourceEvaluation {
   currentLockSetDigest: string | null;
   reasonCodes: string[];
 }
+
+export interface CandidateSourceGateState {
+  allowed: boolean;
+  reasonCodes: CandidateLockErrorCode[];
+}
+
+export interface CandidateChapterSourceState {
+  schemaVersion: 1;
+  projectId: string;
+  chapterId: string;
+  candidateLockSet: CandidateLockSetSummary;
+  layoutWorkingCopy: {
+    id: string;
+    source: LayoutSourceEvaluation;
+  } | null;
+  currentLayout: {
+    id: string;
+    source: LayoutSourceEvaluation;
+  } | null;
+  currentExport: {
+    id: string;
+    source: ExportRevisionSourceEvaluation;
+  } | null;
+  gates: {
+    buildLayoutWorkingCopy: CandidateSourceGateState;
+    createLayoutRevision: CandidateSourceGateState;
+    exportLayout: CandidateSourceGateState;
+    exportPackage: CandidateSourceGateState;
+  };
+}

@@ -115,7 +115,7 @@ export class CandidateLockRepository {
     request: PreviewCandidateLockRequest,
   ): Promise<CandidateLockImpactPreviewResponse> {
     this.assertDatabaseMode();
-    return this.prismaService.database().$transaction(async (tx) => {
+    return this.prismaService.runReadTransaction(async (tx) => {
       const context = await this.readDecisionContext(tx, scope, shotId);
       const transition = this.resolveTransition(context.currentDecision, request);
       await this.requireTargetCandidate(tx, context, request);

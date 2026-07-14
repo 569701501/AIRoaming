@@ -1,5 +1,6 @@
 import { digestCanonicalJson } from "./canonical-json.js";
 import type { Digest, PreflightSourceSnapshotV1 } from "./document-contract.js";
+import type { CandidateChapterSourceState } from "../candidate-lock.js";
 import { sourceSnapshotDigest } from "./source-snapshot.js";
 
 export type ArtifactFreshness = "current" | "stale" | "historical" | "pending";
@@ -91,6 +92,7 @@ export interface ChapterProductionState {
   preflight: VersionNodeState;
   earliestAttentionStep: "project_story" | "story_structure" | "storyboard" | "image_preflight";
   generatedAt: string;
+  candidateSources?: CandidateChapterSourceState;
 }
 
 function uniqueReasons(values: readonly FreshnessReasonCode[]): FreshnessReasonCode[] {

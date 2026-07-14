@@ -43,6 +43,23 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Consistent multi-query read boundary. Unlike a business mutation it must
+   * never consume the first-business-write marker.
+   */
+  async runReadTransaction<T>(
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (this.client === null) throw new Error("DB_PERSISTENCE_NOT_ENABLED");
+    return this.client.$transaction(async (tx) => {
+      const state = await tx.persistenceState.findUnique({ where: { id: "primary" } });
+      if (state?.activationState === "ready_for_activation" || state?.activationState === "recovery_required") {
+        throw new Error("DB_PERSISTENCE_NOT_ACTIVE");
+      }
+      return operation(tx);
+    });
+  }
+
+  /**
    * The single business-write boundary used by DB-mode repositories.
    * PersistenceState is read and (when appropriate) marked in the same
    * SQLite transaction as the business mutation, so a rollback cannot leave
