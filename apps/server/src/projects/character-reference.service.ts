@@ -208,15 +208,27 @@ export class CharacterReferenceService {
   }
 
   private async readProjectAssetFile(project: Pick<LocalProject, "id">, asset: WorkbenchAsset): Promise<ProjectAssetFile> {
-    const safePath = asset.path.replace(/^\/+/, "");
-    if (!safePath.startsWith(`projects/${project.id}/`)) {
+    let safePath = asset.path.replace(/^\/+/, "");
+    let mimeType = this.inferMimeType(asset.path);
+    if (this.isDatabaseMode()) {
+      const row = await this.prismaService.database().asset.findFirst({
+        where: { id: asset.id, projectId: project.id },
+        select: { storageKey: true, mimeType: true },
+      });
+      if (!row) throw new NotFoundException("PROJECT_ASSET_NOT_FOUND");
+      safePath = row.storageKey;
+      mimeType = row.mimeType;
+      if (!safePath.startsWith(`projects/${project.id}/`) && !safePath.startsWith(`legacy-import/${project.id}/`)) {
+        throw new BadRequestException("PROJECT_ASSET_PATH_INVALID");
+      }
+    } else if (!safePath.startsWith(`projects/${project.id}/`)) {
       throw new BadRequestException("PROJECT_ASSET_PATH_INVALID");
     }
     const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${safePath}`);
     try {
       return {
         buffer: await readFile(absolutePath),
-        mimeType: this.inferMimeType(asset.path),
+        mimeType,
         fileName: path.basename(asset.path),
       };
     } catch (error) {

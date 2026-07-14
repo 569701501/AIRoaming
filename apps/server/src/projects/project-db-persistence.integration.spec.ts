@@ -630,6 +630,59 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(readFile(workspace.resolveVirtualPath(`/workspace/${asset.storageKey}`))).resolves.toEqual(png);
   }, 20_000);
 
+  it("OBS-08-ASSET-01: reads an imported ready Asset from its DB storageKey instead of the legacy display path", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const prisma = app.get(PrismaService).database();
+    const workspace = app.get(WorkspacePathService);
+    const project = await projects.createProject({ name: "OBS-08 导入素材读取", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const assetId = randomUUID();
+    const storageKey = `legacy-import/${project.id}/${assetId}`;
+    const bytes = Buffer.from("imported-ready-asset");
+    await mkdir(path.dirname(workspace.resolveVirtualPath(`/workspace/${storageKey}`)), { recursive: true });
+    await writeFile(workspace.resolveVirtualPath(`/workspace/${storageKey}`), bytes);
+    const metadata = {
+      legacyName: "导入素材",
+      legacyPath: "projects/legacy-source/chapters/chapter-001/assets/imported.webp",
+    };
+    await prisma.asset.create({
+      data: {
+        id: assetId,
+        projectId: project.id,
+        chapterId: project.currentChapterId,
+        type: "image",
+        role: "legacy_image",
+        mimeType: "image/png",
+        storageKey,
+        status: "staged",
+        metadataJson: metadata,
+        metadataSchemaVersion: 1,
+        metadataDigest: digestCanonicalJson(metadata),
+      },
+    });
+    await prisma.asset.update({
+      where: { id: assetId },
+      data: {
+        status: "ready",
+        sha256: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+        bytes: bytes.byteLength,
+        width: 1,
+        height: 1,
+        readyAt: new Date("2026-07-14T00:00:00.000Z"),
+      },
+    });
+
+    await app.close();
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    await expect(app.get(ProjectsService).getProjectAssetFile(project.id, assetId)).resolves.toEqual({
+      buffer: bytes,
+      mimeType: "image/png",
+      fileName: "imported.webp",
+    });
+  }, 20_000);
+
   it("P4-CHAR-05: keeps a late character visual historical when identity source changed after queue", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code).toBe(0);
