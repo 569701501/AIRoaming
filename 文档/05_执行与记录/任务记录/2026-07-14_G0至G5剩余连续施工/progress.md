@@ -24,7 +24,7 @@ next_human_gate = AUTH-R0B
 | --- | --- | --- | --- | --- |
 | 施工包 | `completed` | 不适用 | Scrutiny=`passed`；Runtime=`not_applicable` | 仅规划，无功能实现 |
 | S0 | `completed` | `f07f516` | Scrutiny=`passed`；Runtime=`passed_isolated` | R0-A、默认入口超时修复、三次根回归已通过 |
-| W1 | `completed` | `3898182` + corrective commit（待提交） | Scrutiny=`passed`；Runtime=`passed_isolated` | DB-only Web/API、唯一 Preflight 路由、里程碑单调性纠偏、fresh SQLite E2E 已通过 |
+| W1 | `completed` | `3898182`, `4fe1dfa` | Scrutiny=`passed`；Runtime=`passed_isolated` | DB-only Web/API、唯一 Preflight 路由、里程碑单调性纠偏、fresh SQLite E2E 已通过 |
 | R0B | `waiting_human_authorization` | — | — | 等固定授权句 |
 | R1 | `not_authorized` | — | — | 三次 AUTH |
 | R2 | `pending` | — | — | C7 后 OBS-01～10 |
@@ -67,7 +67,7 @@ next_human_gate = AUTH-R0B
 - 实现：Story confirm 在已有下游时保留更高里程碑；ProjectsService 的 DB Workbench workflow 改读 `ChapterProductionQueryService`，让 stale 派生进入页面。
 - 测试：typecheck、e2e typecheck、build、root shared 8 spec/39 tests + server 70 spec/474 tests；DB W1 spec 6/6（repeat-each=3）；file E2E 3/3；均 exit 0。
 - Review：Scrutiny=`passed`；Runtime=`passed_isolated`；真实数据、默认 Keychain、真实凭据、AUTH、R0B/C0～C7/R2 仍为 0。
-- commit：待创建独立 corrective commit；完成后唯一下一状态 `WAIT_R0B_AUTH`。
+- commit：`4fe1dfa fix(web): close g2 stale milestone gate`；完成后唯一下一状态 `WAIT_R0B_AUTH`。
 
 ## Luna 每次推进必须追加的格式
 

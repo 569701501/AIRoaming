@@ -40,6 +40,6 @@ source: W1 DB-only Web/API implementation
 
 ## 后续
 
-独立提交：W1 原提交 `3898182 feat(web): close g2 db-only workbench gate`；纠偏补丁另行提交。
+独立提交：W1 原提交 `3898182 feat(web): close g2 db-only workbench gate`；纠偏补丁 `4fe1dfa fix(web): close g2 stale milestone gate`。
 
 现在停止在 `WAIT_R0B_AUTH`，等待用户明确授权 R0B；不得自行读取真实源或执行 C0～C7。
