@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m2` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m3` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -359,13 +359,17 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M2 Shared Layout Domain Kernel
 
-状态：`in_progress`。
+状态：`completed`；提交=`e93d70f`；Scrutiny=`passed`；Runtime=`passed_isolated`。
 
 - 严格 LayoutDocument codec/normalization/digest/limits。
 - 命令 reducer/inverse/batch atomicity、geometry/crop/reading order、rich text grapheme policy。
 - adapter 私有状态、DOM、viewport/dpr 不得落盘。
 
+退出：strict Document/Profile/Element/RichText/Publication codecs、JCS/source projection、受控 source/crop 复核、Unicode 17 grapheme、四类气泡路径、七类 preset、39 类命令 reducer/inverse/batch 与 history limits 均已实现；M2 定向 29/29、Shared 83/83、Server 536/536 通过。
+
 ### G5-M3 Schema overlay、Working Copy、编辑器外壳
+
+状态：`in_progress`。
 
 - Schema/migration、Working Copy CAS/autosave/recovery、路由和编辑器壳。
 - 只保存 DB V1，不双写 legacy layout.json；历史正式 Revision 尚不由 autosave 自动创建。

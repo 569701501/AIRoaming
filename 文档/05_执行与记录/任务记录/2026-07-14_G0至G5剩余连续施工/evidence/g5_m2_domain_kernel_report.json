@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "kind": "g5_m2_domain_kernel_report_v1",
+  "recordedAt": "2026-07-15T04:27:00+08:00",
+  "codeCommit": "e93d70f",
+  "status": "passed",
+  "policies": {
+    "number": "layout_number_v1",
+    "geometry": "layout_geometry_v1",
+    "text": "layout_text_v1",
+    "grapheme": "unicode_17_0_uax29_rev47",
+    "balloon": "balloon_shape_v1"
+  },
+  "coverage": {
+    "strictCodecs": [
+      "LayoutDocumentV1",
+      "PageProfileV1",
+      "StripProfileV1",
+      "LayoutTopLevelElementV1",
+      "RichTextDocumentV1",
+      "LayoutPublicationProfileV1",
+      "EditorCommandV1",
+      "EditorCommandBatchV1"
+    ],
+    "commandTypes": 39,
+    "presetIds": 7,
+    "fixtureDocuments": 8,
+    "longFixtureCanvases": 20,
+    "longFixtureElements": 200,
+    "roundTripCycles": 100,
+    "commandUndoCycles": 100,
+    "historyMaxBatches": 200,
+    "historyMaxBytes": 52428800,
+    "documentMaxBytes": 8388608
+  },
+  "dependency": {
+    "name": "unicode-segmenter",
+    "version": "0.17.0",
+    "license": "MIT",
+    "unicodeVersion": "17.0",
+    "uax29Revision": 47,
+    "runtimeDependencies": 0,
+    "installedDirectoryKiB": 264
+  },
+  "fixtures": {
+    "corpusDigest": "sha256:30290c4ca633a80101429a21d6784e9f7b7660fadd7fb37de10314ebd6fe6125",
+    "pagedFourPanelDocumentDigest": "sha256:51fb1518c4b223508db024de70e258f11bcd6a7acbfad62f8e35e5e54abb65a7",
+    "verticalLongDocumentDigest": "sha256:db3ca102ba791319eece253032fe4b6e1f2fb2316a049ee2d4a9c655667b14dd",
+    "cropRotateFlipDocumentDigest": "sha256:7e10b59350a528209a9ead9f69ad4be8e9f164571a86af3184c100acd20e67e1"
+  },
+  "verification": {
+    "m2Unit": { "testFiles": 4, "tests": 29, "status": "passed" },
+    "sharedFull": { "testFiles": 14, "tests": 83, "status": "passed" },
+    "g5FixtureContract": { "tests": 3, "status": "passed" },
+    "serverFull": { "testFiles": 80, "tests": 536, "status": "passed" },
+    "typecheck": "passed",
+    "e2eTypecheck": "passed",
+    "build": "passed",
+    "renderStageGate": {
+      "status": "expected_red",
+      "ownerMilestones": ["G5-M5", "G5-M7"],
+      "codes": [
+        "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED",
+        "G5_PRODUCTION_BROWSER_SEMANTICS_NOT_IMPLEMENTED",
+        "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED"
+      ]
+    }
+  },
+  "boundaries": {
+    "domImports": 0,
+    "databaseImports": 0,
+    "filesystemImports": 0,
+    "hostIntlSegmenterCalls": 0,
+    "adapterPrivateStatePersisted": false,
+    "databaseChanged": false,
+    "userWorkspaceChanged": false
+  }
+}

@@ -12,7 +12,7 @@ source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、�
 
 ## 1. 任务目标
 
-R2 DB-only 观察、G4-A～F 与 G5-M0/M1 已通过，从 G5-M2 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
+R2 DB-only 观察、G4-A～F 与 G5-M0～M2 已通过，从 G5-M3 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
 
 ```text
 AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收
@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible implementation commit = 68b00cb
+current compatible implementation commit = e93d70f
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G5_M2_IN_PROGRESS
+currentState = G5_M3_IN_PROGRESS
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F 与 G5-M0/M1；G4 状态=`G4_PASSED`，G5 M1 状态=`G5_M1_PASSED`，ADR-0016 已采纳。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F 与 G5-M0～M2；G4 状态=`G4_PASSED`，G5 M2 状态=`G5_M2_PASSED`，ADR-0016 已采纳。
 
-尚未完成：G5-M2～M8、G5 用户签收。
+尚未完成：G5-M3～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -157,14 +157,14 @@ M0 fixture 与红灯
 
 M0 已由提交 `53b65e4` 完成：8 份固定 fixture、3 张本地 PNG、固定 Inter WOFF2、20 canvas/200 element、五类 known-answer digest 和旧 copy-export 红灯见证均已通过。`test:render`、`test:migration:g5`、`test:e2e:g5` 当前按设计输出各后续里程碑负责的结构化红灯；不得把 M0 红灯误判为需要用户授权，也不得重做 M0。
 
-M1 已完成：A 全硬门通过并由 ADR-0016 采纳；B 的 8192 高 resvg native abort 已留证。当前直接执行 M2：严格 LayoutDocument codec/normalization/digest/limits、命令 reducer/inverse/batch atomicity、geometry/crop/reading order 与固定 grapheme policy。
+M1 已完成：A 全硬门通过并由 ADR-0016 采纳；B 的 8192 高 resvg native abort 已留证。M2 已由 `e93d70f` 完成：strict Layout codecs、39 类命令、Unicode 17 grapheme、source/crop geometry、7 preset 与双 Review 均通过。当前直接执行 M3：Schema overlay、Working Copy CAS/autosave/recovery、路由与编辑器外壳。
 
 E0 只有两种合法结果：
 
 - 至少一条候选通过全部硬门且许可证可接受：记录 ADR，立即进入 M2。
 - 没有候选通过，或结果需要新的付费/系统权限/产品决策：停止并提交对比证据，状态为 `BLOCKED_G5_E0_DECISION`。
 
-M2～M8 连续执行，不做 G6 ZIP/视频。完成后交付真实页面路径、PNG/PDF/条漫样例、三次确定性 sha、性能/字体/许可证证据和完整 Review，停止在 `WAIT_G5_USER_ACCEPTANCE`。
+M3～M8 连续执行，不做 G6 ZIP/视频。完成后交付真实页面路径、PNG/PDF/条漫样例、三次确定性 sha、性能/字体/许可证证据和完整 Review，停止在 `WAIT_G5_USER_ACCEPTANCE`。
 
 ## 10. 唯一合法停止点
 

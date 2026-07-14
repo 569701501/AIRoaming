@@ -13,7 +13,7 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M2_IN_PROGRESS
+current = G5_M3_IN_PROGRESS
 last_completed = G5_M1_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m2` | `53b65e4`, `68b00cb` | M1 Scrutiny=`passed`；Runtime=`passed_isolated` | A 全硬门通过、ADR-0016 已采纳；进入 Shared Layout Domain Kernel |
+| G5 | `in_progress_m3` | `53b65e4`, `68b00cb`, `e93d70f` | M2 Scrutiny=`passed`；Runtime=`passed_isolated` | Shared Layout Domain Kernel 已关闭；进入 Schema/Working Copy/编辑器外壳 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -184,6 +184,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`68b00cb`。
 - 风险/未运行：正式 production renderer/task/publication 仍归 M7；Chromium 发行 notices 待 M7 按实际打包方式复核；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频。
 - next：`G5_M2_IN_PROGRESS`。
+
+## 2026-07-15 04:27：G5-M2 Shared Layout Domain Kernel
+
+- baseline：M1 code=`68b00cb`，docs=`110adfd`；Shared 原先没有 Layout 生产 codec。
+- 实现：新增 Document/Profile/Element/RichText/Publication strict codec、规范化/JCS/source projection、受控 Asset sha/尺寸 source/crop 复核、Unicode 17 grapheme、cover geometry、气泡路径、七类 preset、39 类命令 payload/reducer/inverse/batch/history。
+- 测试：先见证 4 个缺模块红灯；最终 M2 4 files/29 tests、Shared 14 files/83 tests、fixture 3/3、Server 80 files/536 tests，全仓 typecheck/E2E typecheck/build 通过；100 次文档 round-trip 和 100 命令逆序 Undo digest 不变。
+- 证据：`evidence/g5_m2_domain_kernel_report.json`、`g5_m2_scrutiny_review.md`、`g5_m2_runtime_review.md`、`../../功能完成记录/2026-07-15_G5-M2共享排版领域内核.md`。
+- Review：Scrutiny=`passed`；Runtime=`passed_isolated`；无 DOM/DB/文件/宿主 Intl 依赖。
+- commit：`e93d70f`。
+- 风险/未运行：M3/M4 必须在 Server 保存时注入真实 Asset sha/尺寸；字体/renderer 红灯仍归 M5/M7；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频。
+- next：`G5_M3_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

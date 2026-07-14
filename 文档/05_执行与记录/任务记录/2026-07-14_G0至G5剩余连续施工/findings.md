@@ -13,12 +13,12 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `68b00cb`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `e93d70f`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0/M1 已通过；G5-M2～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M2_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M2 已通过；G5-M3～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M3_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M2_IN_PROGRESS
-next = G5_SHARED_LAYOUT_DOMAIN_KERNEL
+current = G5_M3_IN_PROGRESS
+next = G5_SCHEMA_WORKING_COPY_EDITOR_SHELL
 ```
 
 ## 7. G4-A 稳定结论
@@ -135,3 +135,11 @@ next = G5_SHARED_LAYOUT_DOMAIN_KERNEL
 - Noto Sans CJK SC/Inter 固定字节经 fontkit cmap 审计；实际文字存在，emoji 缺 glyph 会预检失败；渲染期间外网请求 0。
 - B 的 resvg 2.6.2 在首个 1080×8192 切片 native abort，子进程隔离只保证报告不中断，不能让 B 通过。
 - 原型为归档证据；M2 必须用版本化 Shared 实现锁定 Unicode grapheme policy，不能沿用原型的宿主 `Intl.Segmenter` 作为生产契约。
+
+## 15. G5-M2 稳定结论
+
+- `packages/shared/src/layout/` 已形成无 DOM、数据库、文件系统和 Konva 依赖的 Layout V1 生产内核，覆盖严格 document/profile/element/rich-text/publication codec、JCS/digest、来源投影、几何/crop、气泡路径、七类 preset 和 39 类命令。
+- grapheme policy 固定为 `unicode_17_0_uax29_rev47`，使用 `unicode-segmenter@0.17.0`；不依赖客户端宿主 `Intl.Segmenter`。
+- command reducer 对未知 payload、locked 写入、非原子 batch、无效 occupied-panel 模板应用和历史上限均 fail-closed；inverse、changed IDs 与 preflight scopes 可重复计算。
+- 固定 8 份 fixture 已改由生产 LayoutDocument codec 验证；M2 定向 29/29、fixture 3/3、Shared 83/83、Server 536/536，全仓 typecheck、E2E typecheck、build 通过。
+- M2 commit=`e93d70f`，Scrutiny=`passed`，Runtime=`passed_isolated`；Server 保存时注入真实 Asset sha/尺寸属于 M3/M4，字体 provision 属于 M5，正式 renderer 属于 M7。
