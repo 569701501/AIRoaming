@@ -13,12 +13,12 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 G4 代码兼容 HEAD 为 `179be50`；旧 cutover evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 G4 代码兼容 HEAD 为 `894d1e8`；旧 cutover evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A/B/C 已完成，G4-D～F、G5-M0～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_D_IN_PROGRESS`。
+- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A～D 已完成，G4-E/F、G5-M0～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_E_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G4_D_IN_PROGRESS
-next = G4_WORKFLOW_AND_DOWNSTREAM_GATES
+current = G4_E_IN_PROGRESS
+next = G4_WEB_CANDIDATE_INTERACTIONS
 ```
 
 ## 7. G4-A 稳定结论
@@ -96,3 +96,11 @@ next = G4_WORKFLOW_AND_DOWNSTREAM_GATES
 - favorite/reject/restore 不改变 current final；current final 不可废弃；complete 只接受所有 active Shot 的完整 current lock set。
 - 旧 Server lock HTTP 路由和旧 DB 直接 revision/pointer writer 已删除；file-mode 兼容投影保留，Web 新 API 接入留给 G4-E。
 - G4-C commit=`179be50`，Scrutiny=`passed`，Runtime=`passed_isolated`；工作流 summary、下游门禁与迟到任务从 G4-D 继续。
+
+## 10. G4-D 稳定结论
+
+- `candidateSources` 是 Workbench/ProductionState 共用的 lock set、Working Copy、current Layout/Export 与 gate 总览；所有 freshness 每次从 DB authority 重算。
+- stale/unresolved/digest mismatch 在 Server 事务内阻断新 Working Copy/formal Layout/export/package；更换定稿不删除、不清空、不改写旧产物或 current pointer。
+- 运行中旧下游任务进入 impact/cancel，completion-time fence 只能返回 historical；新 Candidate 不自动改变 Shot current revision、lock set digest 或下游 freshness。
+- DB preview 使用只读事务，不消费首次业务写标记；Candidate DB 写 owner 已从旧 ImageCandidateService 更新为 CandidateLockRepository。
+- G4-D commit=`894d1e8`，Scrutiny=`passed`，Runtime=`passed_isolated`；Web 交互从 G4-E 继续，总体 migration/E2E/backup restore 从 G4-F 继续。

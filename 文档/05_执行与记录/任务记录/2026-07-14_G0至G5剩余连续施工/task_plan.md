@@ -305,16 +305,18 @@ docs(g2): close db-only web cutover gate
 
 ### G4-D 工作流与下游门禁
 
-状态：`in_progress`。
+状态：`completed`，commit=`894d1e8`，Scrutiny=`passed`，Runtime=`passed_isolated`。
 
 - Workbench/ProductionState 提供 lock set 与 layout/export source summary。
 - stale/unresolved 在 Server 阻止新正式 layout/export/package。
 - 旧任务完成只能 historical，不更新 current。
 - 新 Candidate 不自动改变定稿或下游 freshness。
 
-退出：任务/工作流/迟到完成/重启通过。
+退出：已完成。Workbench/ProductionState source summary、stale/unresolved/digest Server gate、运行中旧任务 historical fence、新 Candidate 不改定稿/下游 freshness 与 restart 均通过；当前进入 G4-E。
 
 ### G4-E Web 交互
+
+状态：`in_progress`。
 
 - 收藏、定稿、更换、clear、废弃/恢复、历史。
 - preview 影响弹窗，409 自动重新 preview 但不自动 commit。

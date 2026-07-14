@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G4_D_IN_PROGRESS
-last_completed = G4_C_TRANSACTION_COMMANDS_AND_API
+current = G4_E_IN_PROGRESS
+last_completed = G4_D_WORKFLOW_AND_DOWNSTREAM_SOURCE_GATES
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -29,7 +29,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R0B | `completed` | `9227e8d` release | SH-10=`passed_human_review` | release shadow 与 v5 gate 已完成 |
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
-| G4 | `in_progress_g4_d` | `79dc806`, `9cd599a`, `179be50` | G4-A/B/C Scrutiny=`passed`；Runtime=`passed_isolated` | G4-C 已完成，进入工作流与下游门禁 |
+| G4 | `in_progress_g4_e` | `79dc806`, `9cd599a`, `179be50`, `894d1e8` | G4-A～D Scrutiny=`passed`；Runtime=`passed_isolated` | G4-D 已完成，进入 Web 返修交互 |
 | G5 | `blocked_until_g4_passed` | — | — | G4 通过后连续执行，最终用户签收 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
@@ -124,8 +124,20 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - 证据：`g4_c_scrutiny_review.md`、`g4_c_runtime_review.md`、`../../功能完成记录/2026-07-15_G4-C候选定稿事务与API.md`。
 - Review：Scrutiny=`passed`；Runtime=`passed_isolated`；Web/总体用户路径仍待 G4-E/F。
 - commit：`179be50`。
+
+## 2026-07-15 02:04：G4-D 工作流与下游来源门禁
+
+- baseline：G4-C docs HEAD=`a45fde6`；仅提交 G4-D Shared/Server/测试文件，未混入工作树中的既有历史文档改动。
+- 实现：Workbench/ProductionState 加入 lock set、Working Copy、current Layout/Export source summary 与四个 gate；工作流可派生 done/needs_update/blocked；迟到任务按 sealed sources 重算 current/historical。
+- 门禁：build Working Copy、建正式 LayoutRevision、layout publication 与 asset package 均在写事务内复核 current source；stale/unresolved/digest mismatch 返回稳定 409，旧产物/current pointer/里程碑不改。
+- 运行：fresh SQLite 真实完成候选→排版→导出→素材包；replace 后旧任务 historical、新 Candidate 不改定稿、三类下游写被拒绝，重启后 Workbench/ProductionState 完全一致。
+- 回归：G4-D 定向 16/16、G4-B 纯规则 22/22、Shared 54/54；Server 全量检查点 510/525 中 14 个旧慢测并行 timeout 隔离 56/56，1 个旧写 owner 登记遗漏修复后隔离 3/3。
+- 工程门：Shared/Server build、Server/Web typecheck、Prisma validate、G1 schema check、diff check 通过。
+- 证据：`g4_d_scrutiny_review.md`、`g4_d_runtime_review.md`、`../../功能完成记录/2026-07-15_G4-D工作流与下游来源门禁.md`。
+- Review：Scrutiny=`passed`；Runtime=`passed_isolated`；浏览器交互与总体 G4 用户路径仍待 G4-E/F。
+- commit：`894d1e8`。
 - 风险/未运行：Workbench/ProductionState summary、stale 下游门禁、迟到任务和 Web 新交互未完成；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
-- next：`G4_D_IN_PROGRESS`。
+- next：`G4_E_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 
