@@ -20,7 +20,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 2. **事实源单一。** DB 模式只认 DB version/revision/current pointer；不得继续双写 workspace JSON。
 3. **历史不可变。** 上游返修新增 revision/current pointer，不改写旧 Layout/Export/Asset。
 4. **真实与隔离分开。** 临时根测试通过不等于真实切换通过；两种证据使用不同状态。
-5. **最少人工打断。** 自动区间内连续执行，只在固定授权门停止。
+5. **无排期、最少人工打断。** 不设置工期、预计天数或等待日期；前置满足即执行，自动区间内连续推进，只在固定授权门和真实 blocker 停止。
 6. **先红灯后实现。** 新缺口先有失败用例或可复现证据，再修改代码。
 7. **提交即阶段边界。** 每个提交都必须可构建、可测试、可回退，不夹带未知工作树变更。
 
@@ -28,15 +28,17 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 
 | 阶段 | 目的 | 当前状态 | 自动执行 | 退出状态 |
 | --- | --- | --- | --- | --- |
-| S0 | R0-A/默认门禁/未提交工作树收口 | `ready` | 是 | `S0_PASSED` |
-| W1 | G2 第 2～4 步 DB-only Web + E2E | `blocked_by_S0` | 是 | `W1_PASSED` |
-| R0B | 真实源只读发现和 release shadow | `not_authorized` | 否 | `R0B_PREPARED` |
-| R1 | C0～C7 真实切换 | `not_authorized` | 分段 | `DB_ONLY_ACTIVATED` |
-| R2 | OBS-01～10 观察期 | `not_started` | 授权后按 runbook | `DB_ONLY_OBSERVATION_PASSED` |
-| G4 | CandidateLock 正式返修闭环 | `not_started` | R2 后是 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `not_started` | G4 后是 | `WAIT_G5_USER_ACCEPTANCE` |
+| S0 | R0-A/默认门禁/未提交工作树收口 | `completed` | 已完成 | `S0_PASSED` |
+| W1 | G2 第 2～4 步 DB-only Web + E2E | `completed` | 已完成 | `W1_PASSED` |
+| R0B | 真实源只读发现和 release shadow | `completed` | 已完成 | `R0B_PREPARED` |
+| R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
+| R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
+| G4 | CandidateLock 正式返修闭环 | `in_progress_g4_a` | 连续执行 | `G4_PASSED` |
+| G5 | 高自由编辑器与确定性出版 | `blocked_until_g4_passed` | G4 后连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
-## 4. S0：R0-A 与默认工程门禁收口
+当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
+
+## 4. S0：R0-A 与默认工程门禁收口（已完成基线）
 
 ### S0-1 工作树归属审计
 
@@ -86,7 +88,7 @@ docs(cutover): record stable R0-A handoff
 
 退出：clean/已知 dirty 工作树、提交 SHA、Scrutiny=`passed`、Runtime=`passed_isolated`。
 
-## 5. W1：G2 DB-only Web 与浏览器门禁
+## 5. W1：G2 DB-only Web 与浏览器门禁（已完成基线）
 
 ### W1-A 先锁 API/错误契约
 
@@ -193,7 +195,7 @@ docs(g2): close db-only web cutover gate
 
 退出：W1 全绿、Review 通过、工作树归属清楚，进入 `WAIT_R0B_AUTH`。
 
-## 6. R0B：真实切换准备
+## 6. R0B：真实切换准备（已完成基线）
 
 ### 前置条件
 
@@ -223,38 +225,42 @@ docs(g2): close db-only web cutover gate
 
 退出：`R0B_PREPARED`，release plan sealed，可执行无授权只读 C0。
 
-## 7. R1：真实 C0～C7
+## 7. R1：真实 C0～C7（C7 activation 已完成）
 
 本阶段命令和证据格式完全遵循 `R0-R2真实切换施工包/real_cutover_runbook.md`，本计划只定义编排。
 
 ### R1-1 C0
 
+- 当前状态：v5 `passed_read_only`，不得重跑。
 - 无 AUTH 执行只读 C0；验证 plan/root/release/capability/shadow/SH-10。
 - 失败不生成 AUTH，修复后同一 identity 重跑。
 - 通过后停止在 `WAIT_AUTH_C1`。
 
 ### R1-2 C1～C4
 
+- 当前状态：v5 `passed`，最终 evidence=`sha256:69d08d7b8a28343907fa939d4f6040d7807247eb46f9a2c39512c806f6328642`，不得重跑。
 - AUTH-C1 有效后依次 maintenance drain/close/bundle、final snapshot、fresh DB/credential prestage、final/ready/backup/materialize。
 - 每一步单独 seal evidence，支持同 identity resume。
 - 任何失败按 runbook rollback/cleanup；旧进程保持 closed 或由 rollback owner 授权 reopen。
-- C4 通过后停止在 `WAIT_AUTH_C5`。
+- C4 通过后历史上曾停止在 `WAIT_AUTH_C5`；AUTH-C5 已消费，当前不再停留此处。
 
-### R1-3 C5～C6
+### R1-3 C5～C6（已完成）
 
-- AUTH-C5 后关闭旧 file 进程，启动 closed DB server，执行 DB smoke 和 metadata archive。
-- 验证 file guard、C6_READY、backup/restore、firstBusinessWriteAt 仍为空。
-- 停止在 `WAIT_AUTH_C7`。
+- 当前状态：`passed_real`；AUTH-C5 已消费，C5/C6 均已通过。
+- C5 已完成 closed DB server、DB smoke 和 ephemeral business write rollback；C6 已完成 metadata archive。
+- file guard、C6_READY、backup/restore、firstBusinessWriteAt 首写边界断言已记录。
+- C5/C6 完成后历史上停止在 `WAIT_AUTH_C7`；AUTH-C7 已消费，当前首写边界尚未完成。
 
-### R1-4 C7
+### R1-4 C7（已完成 activation）
 
+- 当前状态：C7 activation/COMPLETED、首笔业务写和 file guard 复核均已通过。
 - AUTH-C7 后执行 activation；不接受口头替代文件、不接受旧 evidence digest。
 - reopen/resume 必须幂等；首笔业务写入后 file mode 永久拒绝。
-- C7 只代表激活完成，不能直接进入 R2 或 G4；固定停在 `WAIT_R2_AUTH`。
+- C7 activation、首笔受控 DB-only 业务写与 file guard 复核均已完成；R2 也已通过，不得重复授权或观察。
 
 ## 8. R2：DB-only 观察期
 
-前置：用户已给出 `authorization_gates.md` 的 R2 固定授权句。AUTH-C7 只授权 activation，不自动授权观察期。
+当前状态：`DB_ONLY_OBSERVATION_PASSED`。OBS-01～10、Scrutiny 与 Runtime/User Review 均通过；AUTH-C7 与 R2 授权边界已按原规则分别消费，不设置日历排期。
 
 逐项执行 G1 验收清单 `OBS-01～10`：
 
@@ -264,7 +270,7 @@ docs(g2): close db-only web cutover gate
 - 延迟任务、Outbox、失败恢复、旧 file guard、首写边界。
 - 观察窗口内不删 metadata archive/backup，不做 down migration。
 
-退出：Migration reviewer、release owner、rollback owner 完成观察结论，状态为 `DB_ONLY_OBSERVATION_PASSED`。未通过时只修复/恢复，不进入 G4。
+退出：已完成。四项真实缺口分别由 `62da892`、`0be5621`、`7ddeb21`、`a90f546` 关闭，状态为 `DB_ONLY_OBSERVATION_PASSED`；当前进入 G4-A。
 
 ## 9. G4：候选定稿修订与返修
 

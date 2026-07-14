@@ -147,17 +147,19 @@ R0-A 定向测试以当前 `R0-R2真实切换施工包/evidence_and_test_matrix.
 
 本节不替代 R0-R2 原矩阵，只定义总计划的必须摘要。
 
-| ID | 阶段 | 必须证据 | 初始状态 |
+| ID | 阶段 | 必须证据 | 当前状态 |
 | --- | --- | --- | --- |
-| RC-01 | R0B release freeze | appCommit/effective manifest/tool versions/clean tree | `not_authorized` |
-| RC-02 | shadow A/B | 两个 fresh target，16 slices、counts、digests 一致 | `not_authorized` |
-| RC-03 | backup/restore rehearsal | sealed、verify、materialize/API/Asset hash | `not_authorized` |
-| RC-04 | SH-10 | 人类 Migration reviewer 签署 | `not_authorized` |
-| RC-05 | C0 | 无 AUTH、只读、plan/root/capability/shadow passed | `not_authorized` |
-| RC-06 | C1～C4 | maintenance/snapshot/fresh DB/final/ready/backup/restore | `not_authorized` |
-| RC-07 | C5～C6 | closed DB smoke、metadata archive、first write 空 | `not_authorized` |
-| RC-08 | C7 | AUTH 绑定、activate、resume、file guard、首写 | `not_authorized` |
-| RC-09 | OBS-01～10 | DB-only 观察、重启、任务、备份、安全、rollback | `not_authorized` |
+| RC-01 | R0B release freeze | appCommit/effective manifest/tool versions/clean tree | v5 `passed` |
+| RC-02 | shadow A/B | 两个 fresh target，16 slices、counts、digests 一致 | v5 `passed_release_shadow` |
+| RC-03 | backup/restore rehearsal | sealed、verify、materialize/API/Asset hash | v5 `passed` |
+| RC-04 | SH-10 | 人类 Migration reviewer 签署 | v5 `passed_human_review` |
+| RC-05 | C0 | 无 AUTH、只读、plan/root/capability/shadow passed | v5 `passed_read_only` |
+| RC-06 | C1～C4 | maintenance/snapshot/fresh DB/final/ready/backup/restore | v5 `passed`；evidence=`69d08d7b...6328642` |
+| RC-07 | C5～C6 | closed DB smoke、metadata archive、first write 空 | `passed_real`；C6_READY=`da5227c0...f48f19b` |
+| RC-08 | C7 | AUTH 绑定、activate、resume、file guard、首写 | `passed_real`；evidence=`987d9a94...6a1452` |
+| RC-09 | OBS-01～10 | DB-only 观察、重启、任务、备份、安全、rollback | `passed_real`；双 Review=`passed` |
+
+RC-09 现场：OBS-01～10 全部通过。OBS-06 由 0011 协调 purge 修复关闭；OBS-07 sealed backup/fresh restore 通过；OBS-08 两章和 67/67 Asset 可读；OBS-09 原 archive/运行态不变；OBS-10 为 0 secret hit。
 
 真实证据留在仓库外私有 run root；仓库只登记 digest、状态、计数和脱敏结论。
 

@@ -48,6 +48,9 @@ source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
 | --- | --- | --- | --- |
 | RCUT-RUN-01 | strict closed runtime bundle | top-level 与每 participant active/queued=0、blockedReason=null | `passed_isolated` |
 | RCUT-RUN-02 | 缺 participant/status、queued>0、digest 篡改 | strict cutover profile 拒绝缺 participant/status 与 queued/blocked；activate 同 profile 复用 | `passed_isolated` |
+| RCUT-C1-IDENTITY | maintenance endpoint 属于错误 mode/workspace/release/commit | 在 drain 前 fail-closed，不写 runtime bundle 或 C1 passed | `passed_isolated` |
+| RCUT-C1-WINDOW | C1 早于 startsAt 或达到/晚于 endsAt | 在首次 maintenance 请求前拒绝；窗口采用 `[startsAt, endsAt)` | `passed_isolated` |
+| RCUT-C1-INSTANCE | drain 前、close 后或 sealed bundle 来自不同启动实例 | `runtimeInstanceId` 不一致即拒绝，不持久化错误 bundle | `passed_isolated` |
 | RCUT-EVD-01 | fresh evidence C0→C6 | manifest/step/schema/kind/identity/digest/C6_READY 全精确 | `passed_isolated` |
 | RCUT-EVD-02 | 新实例 resume | 从下一步继续；同 input replay 不重跑 action | `passed_isolated` |
 | RCUT-EVD-03 | 不同 plan/appCommit/run/source/effective | `CUTOVER_RESUME_CONFLICT`；旧证据字节不变 | `passed_isolated` |
@@ -120,23 +123,23 @@ source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
 | SH-07 | old metadata mutation isolation | `passed_release_shadow`（源清单 digest=`sha256:c16ff088...4beebb` 保持不变；shadow 生成物隔离到 target workspace） |
 | SH-08 | global secret sentinel=0 | `passed_release_shadow`（A/B artifact + SQLite dump sentinel=0） |
 | SH-09 | release-specific backup/restore rehearsal | `passed_release_shadow`（coordinated backup/verify-only/materialize 全通过；bundle=`sha256:ef17078c...6ae2dd2`，assets=67） |
-| SH-10 | 人工审阅 MigrationReport 并签署 | `awaiting_human_migration_reviewer` |
-| AUTH-C1 | C0 passed 后，用户授权真实停写及 plan 指定的 C3 Keychain verify/prestage | `not_run` |
-| AUTH-C5 | 用户授权关闭旧 file 进程并进入 DB smoke/archive | `not_run` |
-| AUTH-C7 | 用户理解不可逆边界并授权 activate execute | `not_run` |
+| SH-10 | 人工审阅 MigrationReport 并签署 | v5 `passed_human_review`（plan=`2ba999ff...fc096`；review packet=`15b751e3...54f4de`；evidence=`e5c36b49...ccced9`；gate=`6e66e807...786670`） |
+| AUTH-C1 | C0 passed 后，用户授权真实停写及 plan 指定的 C3 Keychain verify/prestage | `passed`：`sha256:e2f3b337...93008e`，绑定 C0=`385ab981...546d2` |
+| AUTH-C5 | 用户授权关闭旧 file 进程并进入 DB smoke/archive | v5 `passed_consumed`；authorization=`404fa132...f5e25`；C5/C6 已通过 |
+| AUTH-C7 | 用户理解不可逆边界并授权 activate execute | `passed_consumed`；绑定 C6 evidence |
 
 ## 8. R1 真实 C0～C7
 
 | ID | 必须证据 | 状态 |
 | --- | --- | --- |
-| C0 | release/capability/plan/root/space/SH；只读落证，不要求 AUTH | `not_run` |
-| C1 | 同 PID closed runtime bundle；active/queued=0 | `not_run` |
-| C2 | final sealed snapshot；source pre/post 相同 | `not_run` |
-| C3 | fresh DB、migration exact、credential evidence | `not_run` |
-| C4 | final/verify/ready/settings redaction/pre-cutover backup/materialize | `not_run` |
-| C5 | closed DB API/read/rollback smoke；first write null | `not_run` |
-| C6 | metadata-only archive + C6_READY | `not_run` |
-| C7 | AUTH-C7、dry-run、execute、COMPLETED、first write、file guard | `not_run` |
+| C0 | release/capability/plan/root/space/SH；只读落证，不要求 AUTH | v5 `passed_read_only`（evidence=`sha256:385ab981...546d2`）；v3/v4 仅历史 |
+| C1 | plan-bound 旧 file 进程在维护窗口内 closed；identity/runtimeInstanceId/active/queued 全精确 | v5 `passed`，step=`fad9d8a8...e83b94a` |
+| C2 | final sealed snapshot；source pre/post 相同 | v5 `passed`，source=`c16ff088...4beebb`、snapshot=`af33a4aa...79804e` |
+| C3 | fresh DB、migration exact、credential evidence | v5 `passed`，`already_sanitized/verify_existing`，只读 Keychain |
+| C4 | final/verify/ready/settings redaction/pre-cutover backup/materialize | v5 `passed`，report=`96497455...d61e72b`、backup=`960ae2bd...2e89f1` |
+| C5 | closed DB API/read/rollback smoke；first write null | `passed_real` |
+| C6 | metadata-only archive + C6_READY | `passed_real`；evidence=`da5227c0...8f19b` |
+| C7 | AUTH-C7、dry-run、execute、COMPLETED、first write、file guard | `passed_real`；首写/file guard 已通过 |
 
 ## 9. R1 回滚
 
@@ -145,24 +148,26 @@ source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
 | RB-01 | final import 失败，旧源未改变 | `not_run` |
 | RB-02 | C5 smoke 失败，恢复 bridge/pre-cutover 且无首写 | `not_run` |
 | RB-03 | settings 已脱敏回 file，继续从 Keychain 读取 | `not_run` |
-| RB-04 | 首写后 file-only 明确拒绝 | `not_run` |
-| RB-05 | coordinated backup 恢复兼容应用 | `not_run` |
-| RB-06 | 无自动 down migration 路径 | `not_run` |
+| RB-04 | 首写后 file-only 明确拒绝 | `passed_real` |
+| RB-05 | coordinated backup 恢复兼容应用 | `passed_real` |
+| RB-06 | 无自动 down migration 路径 | `passed`（确认未执行 down） |
 
 ## 10. R2 DB-only 观察期
 
 | ID | 用户/运行路径 | 状态 |
 | --- | --- | --- |
-| OBS-01 | 连续三次正常重启 | `not_run` |
-| OBS-02 | 临时项目保存/完成章节，无旧文件写 | `not_run` |
-| OBS-03 | fake 图片任务运行中杀进程 | `not_run` |
-| OBS-04 | 取消 + provider 迟到 | `not_run` |
-| OBS-05 | Asset 故障点恢复 | `not_run` |
-| OBS-06 | 删除临时项目 + Outbox/文件/DB 一致 | `not_run` |
-| OBS-07 | coordinated backup -> 新根 restore | `not_run` |
-| OBS-08 | 真实项目逐阶段只读查看 | `not_run` |
-| OBS-09 | 修改 metadata archive 副本，运行态不变 | `not_run` |
-| OBS-10 | 全局 secret scan=0 | `not_run` |
+| OBS-01 | 连续三次正常重启 | `passed_real` |
+| OBS-02 | 临时项目保存/完成章节，无旧文件写 | `passed_real` |
+| OBS-03 | fake 图片任务运行中杀进程 | `passed_real` |
+| OBS-04 | 取消 + provider 迟到 | `passed_real` |
+| OBS-05 | Asset 故障点恢复 | `passed_real` |
+| OBS-06 | 删除临时项目 + Outbox/文件/DB 一致 | `passed_real` |
+| OBS-07 | coordinated backup -> 新根 restore | `passed_real` |
+| OBS-08 | 真实项目逐阶段只读查看 | `passed_real` |
+| OBS-09 | 修改 metadata archive 副本，运行态不变 | `passed_real` |
+| OBS-10 | 全局 secret scan=0 | `passed_real` |
+
+R2 关闭证据：OBS-06 由 0011 三事实守卫协调 purge 关闭；OBS-07 bundle=`sha256:84b7e17776fce050f49727129298dbc66b57105c381344e6aa08e41d5ead0606`，目标/备份/恢复 DB digest=`sha256:cab0b96d88dc24a7e87925aea6bc04441d0f8db0e76fac5537ce4ab64c49d739`；OBS-08 两章和 67/67 Asset 可读；OBS-09 原 archive/运行态不变；OBS-10 扫描 427 文件、4 SQLite，0 hit。
 
 ## 11. 建议 R0-A 命令
 

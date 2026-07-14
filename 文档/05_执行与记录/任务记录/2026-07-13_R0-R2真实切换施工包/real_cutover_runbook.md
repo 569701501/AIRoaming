@@ -13,10 +13,12 @@ source: R0-A 实施契约与 G1 C0～C7 检查表
 ## 1. 执行状态
 
 ```text
-R0_B_REMEDIATION_REQUIRED
+DB_ONLY_OBSERVATION_PASSED
 ```
 
-本 Runbook 是 R0-A 完成后的目标命令面。仓库已具备 `db:cutover` 代码入口，两个 fresh C0～C7 隔离链、C1～C4 失败矩阵、C7 crash/reopen、首写 file-guard、Luna Scrutiny 和 disposable Keychain smoke 均已通过。R0-B 阻塞修复、真实源单文件恢复、两个 real-source fresh shadow 和 SH-01～SH-09 已完成；当前只等待人工 SH-10，不能把它升级为 C0/C1 或真实切换证据。完整执行/复核入口是 `luna_r0b_blocker_remediation_handoff.md` 与 `r0b_remediation_execution_record.md`。
+本 Runbook 是给 Luna/Operator 直接执行真实 C0～C7 与 R2 观察的命令面，不是让 Luna 重新写文档。v5 已从 C0 连续执行到 C7 activation、首笔业务写和 OBS-01～10，当前 evidence=`sha256:987d9a94...6a145`；R2 双 Review 已通过。
+
+当前编排以 `../2026-07-14_G0至G5剩余连续施工/luna_current_handoff.md` 为准。C5/C6/C7 activation/首写和 R2 已完成，不得重跑；从 G4-A 继续，不设置工期、执行日期或等待日期。v5 maintenanceWindow 只属于已完成 C1 的历史安全证据。
 
 ## 2. 角色
 
@@ -29,6 +31,13 @@ R0_B_REMEDIATION_REQUIRED
 | User/owner | 分别授予 AUTH-C1、AUTH-C5、AUTH-C7 |
 
 同一人可兼任多个真实责任角色，但 Luna/Codex 不能代替人类完成 SH-10 或真实授权。
+
+### 2.1 任务下发与授权边界
+
+- 施工文档的编写、检查和交付不需要用户逐步确认。
+- 文档本身不自签授权；release owner 把精确的 v5 handoff 路径交给 Luna，并明确“按本文执行”，这条任务消息就是 AUTH-C1 的人工授权来源。Luna 应将原始任务消息与 v5 C0 evidence 一起留痕，再生成机器可校验的 AUTH-C1 文件。
+- AUTH-C1 已一次覆盖并完成 C1～C4。该历史区间不重跑；剩余步骤只在 fail-closed、证据漂移或需要扩大授权范围时停止，不按日期暂停。
+- AUTH-C5、AUTH-C7 仍是新的不可逆边界，不能由本任务下发推导；C4 完成后必须先复核并停止。
 
 ## 3. 运行文件
 
@@ -151,9 +160,29 @@ shadowGatePath 已绑定 plan identity，SH-01～10 与 SH-10 人工摘要有效
 
 任一失败：停止，不生成 AUTH-C1，不进入维护。
 
-C0 passed 后，用户按 §4.4 对应起点确认，生成不可覆盖的 `AUTH-C1`，绑定 C0 后的 evidence digest。C1～C4 都校验这份授权绑定的 C0 历史 gate digest；不得要求其伪装成后续最新 evidence digest。
+C0 passed 后，Luna 使用 release owner 的任务下发消息作为授权来源，生成不可覆盖的 `AUTH-C1`，绑定 C0 后的 evidence digest。C1～C4 都校验这份授权绑定的 C0 历史 gate digest；不得要求其伪装成后续最新 evidence digest，也不得在四个 step 之间重复索要确认。
 
 ## 7. C1 维护与 runtime bundle
+
+C1 只能在 plan 的 `maintenanceWindow` 内开始并完成。执行前，必须用冻结 release 启动正在服务 `sourceWorkspaceRoot` 的旧 file 进程，并显式设置：
+
+`maintenanceWindow` 是每次 cutover 的人工输入，不是固定为 22:00～23:00。任何文档或聊天中的“例如”时间均不得落入 plan；用户要求立即执行时，必须新建 identity，将当前可执行区间解析为明确绝对时间并在 digest-bound 确认中回显。已签 plan 的窗口不得原地修改。
+
+```text
+AIROAMING_PERSISTENCE_MODE=file
+AIROAMING_WORKSPACE_ROOT=<plan.sourceWorkspaceRoot>
+AIROAMING_RELEASE_ROOT=<plan.releaseRoot>
+AIROAMING_APP_COMMIT=<plan.appCommit，40 位完整值>
+AIROAMING_MAINTENANCE_TOKEN_FILE=<plan.maintenanceTokenFile>
+```
+
+`maintenanceBaseUrl` 应直接指向服务端 `/api` 根，例如 `http://127.0.0.1:<port>/api`；不得再用额外代理把另一个进程伪装成旧服务。runner 在任何 drain 副作用前调用：
+
+```text
+GET <maintenanceBaseUrl>/_local/maintenance/identity
+```
+
+必须得到 `persistenceMode=file`，并且 `workspaceRoot/releaseRoot/appCommit` 精确匹配 plan。runner 在 close 后再次读取 identity；前后 `runtimeInstanceId` 以及 sealed runtime bundle 的 `runtimeInstanceId` 必须三者相同。
 
 runner 内部必须等价执行并验证：
 
@@ -184,7 +213,7 @@ pnpm --dir apps/server db:cutover -- \
   --authorization-file "${AUTH_C1}" --format json
 ```
 
-断言：同一旧进程仍存活、closed、active mutation/stream/participant/queued 全 0；runtime bundle 严格验证且 secret scan=0。
+断言：执行时间仍在维护窗口；同一旧 file 进程仍存活、closed、active mutation/stream/participant/queued 全 0；identity 三方一致；runtime bundle 严格验证且 secret scan=0。
 
 失败：保持旧进程，修复后同 identity resume；若需退出维护，必须由 rollback owner 授权 reopen。
 
@@ -376,11 +405,10 @@ PersistenceState ready -> db_only + activatedAt
 -> 写 C7 step
 -> 写 COMPLETED seal
 -> 验证 evidence
--> reopen DB writes
--> 执行一笔风险最低、可后续清理但本次事务必须提交的公开业务写
--> firstBusinessWriteAt 非空且只写一次
--> 验证 file bridge 拒绝
+-> C7 runner 返回；此时 firstBusinessWriteAt 仍为空
 ```
+
+C7 runner 不代替真实业务路径伪造首笔写入。C7 activation 完成后，必须由已授权的 DB-only 运行路径执行一笔风险最低、可后续清理但本次事务必须提交的公开业务写，验证 `firstBusinessWriteAt` 只写一次，并再验证 file bridge 拒绝；完成这组边界证据后才申请 R2。
 
 正式 step：
 

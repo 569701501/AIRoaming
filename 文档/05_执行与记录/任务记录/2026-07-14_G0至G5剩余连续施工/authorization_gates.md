@@ -12,12 +12,13 @@ source: R0-R2 真实切换 Runbook 与 G5 退出签字
 
 ## 1. 原则
 
-- 用户把总 Handoff 交给 Luna 执行，只授权本地隔离的 S0/W1 和满足前置条件后的 G4/G5 开发，不自动授权真实迁移。
+- 当前 S0/W1/R0B/SH-10/C0～C7 activation/首写边界和 R2 OBS-01～10 已完成；AUTH-C5/AUTH-C7/R2 已使用并通过，当前进入 G4-A。
 - R0B、SH-10、AUTH-C1、AUTH-C5、AUTH-C7、R2 观察授权、G5 最终签收分别独立；后一个授权不能提前合并到前一个。
 - Luna 只能准备脱敏摘要和不可覆盖的授权文件模板，不能替用户签署或根据聊天上下文自行生成 AUTH。
 - 授权必须绑定当时的 plan/run/release/appCommit/evidence digest；相关 identity 变化后旧授权失效。
+- 授权满足后立即执行对应连续区间，不设置工期、开始/结束日期或等待日期；文档与 evidence 日期只用于追溯。
 
-## 2. GATE-1：R0B
+## 2. GATE-1：R0B（v5 已完成；历史规则）
 
 ### Luna 申请前必须提供
 
@@ -48,7 +49,7 @@ S0/W1 commit SHA
 - 读取/打印 Keychain secret。
 - 创建 AUTH-C1/C5/C7 或执行 C1～C7。
 
-## 3. GATE-2：SH-10
+## 3. GATE-2：SH-10（v5 已完成；历史规则）
 
 Luna 必须给人类 Migration reviewer：
 
@@ -68,7 +69,7 @@ reviewerRole = migration_reviewer
 
 不得把 reviewer 真实姓名、私有路径、secret 或完整报告复制进仓库。SH-10 未通过时返回 R0B 修复，不执行 C0。
 
-## 4. GATE-3：AUTH-C1
+## 4. GATE-3：AUTH-C1（v5 已完成；历史规则）
 
 前置：C0 无授权只读执行通过，settingsStartState 已由人类核对。
 
@@ -88,35 +89,35 @@ reviewerRole = migration_reviewer
 
 AUTH-C1 只授权 C1～C4；不授权关闭旧 file 进程进入 DB smoke，不授权 activation。
 
-## 5. GATE-4：AUTH-C5
+## 5. GATE-4：AUTH-C5（已完成）
 
-前置：C4 final/ready/pre-cutover backup/materialize restore 全绿，Migration reviewer 与 rollback owner 已审阅。
+v5 AUTH-C5 已绑定 C4 evidence=`sha256:69d08d7b8a28343907fa939d4f6040d7807247eb46f9a2c39512c806f6328642`；C5/C6 已通过，当前 evidence=`sha256:da5227c0c460fd07eed85d5148595a3ea7b2ee11d2c882ac64ded1783f48f19b`。
 
 ```text
 我确认 final/ready/pre-cutover backup 与 materialize 恢复均通过，授权关闭旧 file 进程并进入 C5/C6；未授权 C7 激活。
 ```
 
-AUTH-C5 只授权 C5/C6；`firstBusinessWriteAt` 必须仍为空。
+AUTH-C5 只授权 C5/C6；该授权已消费，不得复用。C5=`CUTOVER_C5_OK`，C6=`CUTOVER_C6_OK`，C6_READY 已生成；`firstBusinessWriteAt` 仍为空。
 
-## 6. GATE-5：AUTH-C7
+## 6. GATE-5：AUTH-C7（已完成）
 
-前置：C5 closed DB smoke 和 C6 metadata archive 通过，C6_READY/evidence seal 有效，`firstBusinessWriteAt` 为空。
+当前状态：`DB_ONLY_OBSERVATION_PASSED`。C5/C6/C7、首写/file guard、R2 OBS-01～10 与双 Review 均已通过。最新 C7 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`，`firstBusinessWriteAt=2026-07-14T13:40:39.000Z`。
 
 ```text
 我确认 C5 关闭态 DB smoke 与 C6 archive 通过，理解首次 DB 写后禁止 file-only 回退，授权执行 C7 激活。
 ```
 
-C7 后不能回到旧 file-only 应用；只能继续 R2 观察、部署可读新 Schema 的修复版本或按协调 backup 恢复。
+C7 已切换到 `db_only` 并生成 `COMPLETED`；首笔受控 DB-only 业务写已提交，file bridge 已返回 `FILE_MODE_FORBIDDEN_AFTER_FIRST_WRITE`。R2 已授权并通过 OBS-01～10；按总 Handoff 继续 G4/G5。
 
 ## 7. GATE-6：R2 DB-only 观察期
 
-前置：C7 activation、reopen/resume、file guard 和首笔业务写边界证据已固定。AUTH-C7 不能替代本授权。
+前置：C7 activation、COMPLETED、reopen/resume、file guard 和首笔业务写边界证据已固定。AUTH-C7 不能替代本授权；本授权已经由用户明确给出并完成消费。
 
 ```text
 我确认 C7 激活、恢复与 file guard 证据，授权进入 R2 DB-only 观察期并执行 OBS-01～10；观察通过后可按总 Handoff 继续 G4/G5，不授权删除 backup/archive、执行 down migration 或进入 G6/视频链路。
 ```
 
-R2 期间允许执行既定观察、非破坏性用户路径和 backup/restore rehearsal；不允许删除切换证据或放宽 rollback 门。
+R2 期间允许执行既定观察、非破坏性用户路径和 backup/restore rehearsal；不允许删除切换证据或放宽 rollback 门。OBS-01～10 和 Review 通过后，Luna 立即连续进入 G4/G5，不按日期暂停。
 
 ## 8. GATE-7：G5 最终用户签收
 

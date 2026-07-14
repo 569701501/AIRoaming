@@ -13,9 +13,10 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = WAIT_R0B_AUTH
-last_completed = W1_DB_WEB_GATE_CORRECTIVE
-next_human_gate = AUTH-R0B
+current = G4_A_IN_PROGRESS
+last_completed = R2_DB_ONLY_OBSERVATION
+next_human_gate = WAIT_G5_USER_ACCEPTANCE
+schedule_policy = NO_CALENDAR_SCHEDULE
 ```
 
 ## 阶段看板
@@ -25,11 +26,13 @@ next_human_gate = AUTH-R0B
 | 施工包 | `completed` | 不适用 | Scrutiny=`passed`；Runtime=`not_applicable` | 仅规划，无功能实现 |
 | S0 | `completed` | `f07f516` | Scrutiny=`passed`；Runtime=`passed_isolated` | R0-A、默认入口超时修复、三次根回归已通过 |
 | W1 | `completed` | `3898182`, `4fe1dfa` | Scrutiny=`passed`；Runtime=`passed_isolated` | DB-only Web/API、唯一 Preflight 路由、里程碑单调性纠偏、fresh SQLite E2E 已通过 |
-| R0B | `waiting_human_authorization` | — | — | 等固定授权句 |
-| R1 | `not_authorized` | — | — | 三次 AUTH |
-| R2 | `pending` | — | — | C7 后 OBS-01～10 |
-| G4 | `pending` | — | — | R2 后自动执行 |
-| G5 | `pending` | — | — | G4 后自动执行，最终用户签收 |
+| R0B | `completed` | `9227e8d` release | SH-10=`passed_human_review` | release shadow 与 v5 gate 已完成 |
+| R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
+| R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
+| G4 | `in_progress_g4_a` | — | — | 从 Shared + Schema overlay 连续执行，不设日期 |
+| G5 | `blocked_until_g4_passed` | — | — | G4 通过后连续执行，最终用户签收 |
+
+当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
 ## 2026-07-14：施工包建立
 
@@ -68,6 +71,28 @@ next_human_gate = AUTH-R0B
 - 测试：typecheck、e2e typecheck、build、root shared 8 spec/39 tests + server 70 spec/474 tests；DB W1 spec 6/6（repeat-each=3）；file E2E 3/3；均 exit 0。
 - Review：Scrutiny=`passed`；Runtime=`passed_isolated`；真实数据、默认 Keychain、真实凭据、AUTH、R0B/C0～C7/R2 仍为 0。
 - commit：`4fe1dfa fix(web): close g2 stale milestone gate`；完成后唯一下一状态 `WAIT_R0B_AUTH`。
+
+## 2026-07-14：R0B、v5 C0～C7 activation 已完成并切换为无排期执行
+
+- frozen release：`9227e8dfefde59a25f81b53a41074f3971c24d05`，工作树 clean。
+- production status 只读复核：`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
+- R0B/SH-10/C0/C1/C2/C3/C4/C5/C6/C7 激活、首笔业务写和 R2 OBS-01～10 已完成；G4、G5 尚未完成。
+- 新增 `luna_current_handoff.md` 作为唯一当前执行入口；旧 v5 window 文档只作 C1 历史证据。
+- 执行策略改为无排期：不写工期、预计天数或等待日期；AUTH-C5/AUTH-C7 已消费，C5→C6→C7 activation 已完成，后续按授权和依赖连续推进。
+- R2 已获授权并通过 OBS-01～10。OBS-06 由 0011 协调 purge 关闭；OBS-07 DB-only sealed backup/fresh restore 通过；OBS-08 两章与 67/67 Asset 可读；OBS-09/10 隔离和秘密扫描通过。
+- backup/archive 未删除，未执行 down migration，未进入 G6/视频链路。
+- next：从 G4-A 继续。
+
+## 2026-07-14：R2_DB_ONLY_OBSERVATION_PASSED
+
+- baseline：cutover evidence 继续绑定 `9227e8d`；兼容 release HEAD=`a90f54676ed13a1ca56a362cad3598b2aa60ff19`，clean release worktree 已核验。
+- 实现：新增 0011 协调 purge；新增 `db-only-coordinated` backup/restore；DB Asset 按 storageKey 读取；DB Workbench 章节选择改为纯读取。
+- 测试：server 全量 493/493；最终 DB 持久化回归 36/36；全仓 typecheck 与 server build 退出 0。
+- 真实证据：目标/备份/恢复 DB digest=`sha256:cab0b96d88dc24a7e87925aea6bc04441d0f8db0e76fac5537ce4ab64c49d739`；1 项目、2 章节、67/67 ready Asset；secret scan 427 文件/4 SQLite/0 hit。
+- Review：Scrutiny=`passed`；Runtime/User=`passed_real`。
+- commit：`62da892`、`0be5621`、`7ddeb21`、`a90f546`。
+- 风险/未运行：未删除 archive/backup，未执行 down migration，未进入 G6/视频链路。
+- next：`G4_A_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

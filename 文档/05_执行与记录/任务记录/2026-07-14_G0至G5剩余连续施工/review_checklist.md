@@ -10,6 +10,8 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界和 R2 OBS-01～10 已完成，当前进入 `G4_A_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+
 ## 1. 角色分离
 
 | 角色 | 允许 | 禁止 |
@@ -73,16 +75,17 @@ source: deep-think 复核流程与各阶段验收清单
 
 ## 5. R0B/R1/R2 Review
 
-- [ ] appCommit 固定、工作树干净、所有真实 path 只在私有 plan。
-- [ ] 两轮 fresh shadow 同源、同 release，digest/count/Asset 一致。
-- [ ] SH-10 是人类签署。
-- [ ] C0 无 AUTH/只读；AUTH-C1/C5/C7 绑定正确前序 digest。
-- [ ] 每 step evidence 不可覆盖，失败保持安全状态并可 resume。
-- [ ] SecretStore/Keychain 证据不含 secret，legacy prestage 不覆盖旧 fingerprint。
-- [ ] C4 backup/restore、C6 archive、C7 activation 和 file guard 有真实证据。
-- [ ] R2 有独立用户授权，未把 AUTH-C7 扩大解释为观察期授权。
-- [ ] OBS-01～10 全部执行；未完成项保持 `not_run`。
-- [ ] R2 前没有删除 archive/backup 或进入 G4。
+- [x] appCommit 固定、工作树干净、所有真实 path 只在私有 plan。
+- [x] 两轮 fresh shadow 同源、同 release，digest/count/Asset 一致。
+- [x] SH-10 是人类签署。
+- [x] C0 无 AUTH/只读；AUTH-C1、AUTH-C5、AUTH-C7 均已绑定对应前序 digest。
+- [x] C0～C4 每 step evidence 不可覆盖，失败保持安全状态并可 resume。
+- [x] C1～C4 SecretStore/Keychain 证据不含 secret，verify_existing 未覆盖 fingerprint。
+- [x] C4 backup/restore、C5 closed DB smoke、C6 archive/C6_READY、C7 activation/COMPLETED、首笔业务写/file guard 已有真实证据。
+- [x] R2 有独立用户授权，未把 AUTH-C7 扩大解释为观察期授权。
+- [x] OBS-01～10 已执行并有真实证据；OBS-06/07/08 的实现缺口均以回归测试关闭。
+- [x] R2 期间没有删除 archive/backup，没有执行 down migration 或进入 G6。
+- [x] R2 Scrutiny 与 Runtime/User Review 均为 `passed`。
 
 ## 6. G4 Review
 
