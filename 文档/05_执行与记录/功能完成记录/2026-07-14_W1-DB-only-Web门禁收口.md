@@ -27,13 +27,19 @@ source: W1 DB-only Web/API implementation
 - 定向 server：2 files/36 tests，通过。
 - DB E2E 与 file E2E：各 `repeat-each=3`，均 3/3 通过。
 
+## 纠偏补丁
+
+- 新 Story 在已有 Storyboard/Preflight 时保留 `storyboard_done` 里程碑，避免 G1 单调性触发器拒绝事务；旧 Board/Preflight 继续保留并由 ProductionState 派生 stale。
+- DB Workbench 的 workflow 改为读取 `ChapterProductionQueryService`，页面实际显示 `来源已变化`，不再使用 legacy 文件 workflow 覆盖 DB freshness。
+- 新增 dirty gate、并发 CAS 冲突、stale 页面和历史复制的 DB-only E2E；整份 spec `repeat-each=3` 为 6/6 通过。
+
 ## 已知风险
 
-- 双标签完整浏览器冲突路径仍需后续增强；CAS 和 409 恢复已实现并有集成证据。
+- 并发 CAS 以隔离 browser-owned API client 验证协议级一成功一 409；页面 409 恢复逻辑已有 store/定向测试，未宣称真实双窗口录像。
 - 当前只证明隔离 DB-only，不代表真实切换已执行。
 
 ## 后续
 
-独立提交：`6b56b59 feat(web): close g2 db-only workbench gate`。
+独立提交：W1 原提交 `3898182 feat(web): close g2 db-only workbench gate`；纠偏补丁另行提交。
 
 现在停止在 `WAIT_R0B_AUTH`，等待用户明确授权 R0B；不得自行读取真实源或执行 C0～C7。

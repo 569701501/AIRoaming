@@ -44,7 +44,7 @@ source: 2026-07-14 代码、Git、文档与测试事实复核
 ### E2E 覆盖
 
 - 当前 `tests/e2e` 主要有项目库/阶段 rail 与 API smoke，约 4 条主路径，显式为 file mode。
-- 已新增 DB-only fresh SQLite 浏览器/API 门禁；当前证据覆盖顺序点击、重启启动、旧 legacy 写路径拒绝、file-mode 回归和三次重复。双标签冲突的真实浏览器交互仍是 W1 后续增强项，不得在清单中冒充已覆盖。
+- 已新增 DB-only fresh SQLite 浏览器/API 门禁；当前证据覆盖顺序点击、并发 CAS 冲突、stale 页面状态、历史复制、旧 legacy 写路径拒绝、file-mode 回归和三次重复。并发冲突证据是 browser-owned API client 协议级验证，页面 409 恢复分支由 store/定向测试覆盖；不把它描述成真实双窗口录像。
 
 ## 3. 阶段排序决定
 
@@ -85,9 +85,9 @@ S0 -> W1 -> R0B -> R1 -> R2 -> G4 -> G5
 ```text
 plan_ready
 S0_CLOSEOUT = completed
-W1_DB_WEB_GATE = implemented_pending_independent_commit
+W1_DB_WEB_GATE = completed_pending_corrective_commit
 next_execution_state = WAIT_R0B_AUTH
 real_cutover = no_go_until_explicit_R0B_authorization
 ```
 
-本目录是 Luna 的连续施工入口；W1 仍需实现和复核，R0B/R1/R2 及真实数据操作仍为 `not_run`。
+本目录是 Luna 的连续施工入口；W1 已完成实现、纠偏、复核和隔离运行，待 corrective commit 后停在 `WAIT_R0B_AUTH`；R0B/R1/R2 及真实数据操作仍为 `not_run`。

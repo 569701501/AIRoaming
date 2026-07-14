@@ -22,7 +22,7 @@ source: W1 DB-only Web/API implementation and test evidence
 - DB E2E 使用 fresh SQLite 和正式 migration；file-mode E2E 仍保留。
 - W1 文件集合与用户已有 M6/其他历史文档改动分离，提交时禁止 `git add -A`。
 
-## 已知未覆盖项
+## 边界说明
 
-- 双标签冲突的完整浏览器交互仍需后续增强；当前 server CAS、409 UI 提示和 DB integration 已有证据，不能把它描述成完整双标签 Runtime 通过。
+- 双客户端 CAS 通过 fresh SQLite 并发请求验证：一方成功、一方 `CHAPTER_VERSION_CONFLICT`，随后读取仍为胜者内容；页面侧已有 409 刷新/保留草稿分支。当前证据证明协议和 UI 恢复逻辑，不把它扩写成真实用户双窗口录像。
 - 本 Review 不代表 R0B/R1/R2 或真实数据切换获授权。

@@ -311,7 +311,9 @@ export class StoryVersionRepository {
         currentStoryVersionId: pending.id,
         pendingStoryVersionId: null,
         pendingStoryboardVersionId: null,
-        milestoneStatus: "structured",
+        // A later Story confirmation invalidates downstream freshness but must
+        // never move the chapter milestone backwards from storyboard_done.
+        milestoneStatus: chapter.currentStoryboardVersionId === null ? "structured" : chapter.milestoneStatus,
         rowVersion: { increment: 1 },
       });
       const updated = await this.readChapter(scope, tx);

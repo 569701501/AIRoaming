@@ -132,10 +132,10 @@ R0-A 定向测试以当前 `R0-R2真实切换施工包/evidence_and_test_matrix.
 
 | ID | 用户路径 | 关键断言 | 状态 |
 | --- | --- | --- | --- |
-| W1-E2E-01 | Story dirty 未确认 | 旧 current 不变；新 Board 被 gate | `partial` |
-| W1-E2E-02 | Story publish 后 stale | Board/Preflight 历史保留且 stale reason 准确 | `partial` |
-| W1-E2E-03 | 双页签冲突 | 一成功一 409；失败页内容不丢 | `not_run` |
-| W1-E2E-04 | 历史复制 | 旧 version 不改；新 WC/confirm 产生新 version | `partial` |
+| W1-E2E-01 | Story dirty 未确认 | 旧 current 不变；新 Board 被 gate | `passed_isolated` |
+| W1-E2E-02 | Story publish 后 stale | Board/Preflight 历史保留且 stale reason 准确 | `passed_isolated` |
+| W1-E2E-03 | 双页签冲突 | 并发 browser-owned API client 一成功一 409；服务端保留胜者内容，409 客户端不得覆盖 | `passed_isolated` |
+| W1-E2E-04 | 历史复制 | 旧 version 不改；新 WC/confirm 产生新 version | `passed_isolated` |
 | W1-E2E-05 | Story→Board→Preflight | 第 2～4 步全部通过 G2 DB API | `passed_isolated` |
 | W1-E2E-06 | server restart | 同一 DB 读回 current/WC/history/freshness | `passed_isolated` |
 | W1-E2E-07 | file-mode regression | 原 4 条 E2E 仍通过，无 DB 双写 | `passed_isolated` |

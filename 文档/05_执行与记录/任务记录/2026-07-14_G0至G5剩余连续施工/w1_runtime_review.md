@@ -16,14 +16,14 @@ source: fresh SQLite DB-only Playwright/API and file-mode regression
 
 ## 证据
 
-- DB-only：`AIROAMING_E2E_PERSISTENCE_MODE=db corepack pnpm exec playwright test tests/e2e/api/g2-db-web-gate.spec.ts --workers=1 --repeat-each=3`，3/3 通过。
+- DB-only：`AIROAMING_E2E_PERSISTENCE_MODE=db corepack pnpm exec playwright test tests/e2e/api/g2-db-web-gate.spec.ts --workers=1 --repeat-each=3`，6/6 通过（两条用例各重复 3 次）；覆盖 dirty gate、并发 CAS、stale 页面、历史复制和 Story→Storyboard→Preflight。
 - file-mode：`corepack pnpm exec playwright test tests/e2e/web/project-library-and-stage-rail.spec.ts --workers=1 --repeat-each=3`，3/3 通过。
 - Server 定向：`w1-web-route.spec.ts` + `project-db-persistence.integration.spec.ts`，2 files/36 tests 通过。
 - 根回归：shared 8 spec/39 tests、server 70 spec/474 tests 通过；typecheck、e2e typecheck、build 通过。
 
 ## 路径核对
 
-- Story → Storyboard → Preflight 顺序点击在 DB mode 成功。
+- Story → Storyboard → Preflight 顺序点击在 DB mode 成功；新 Story 在已有下游时不回退 `storyboard_done` 里程碑，页面读取 DB workflow 后显示 stale。
 - DB 页面显示 `story-db-versioning-status`、`storyboard-db-versioning-status`、`preflight-db-versioning-status`。
 - legacy Story PATCH 在 DB mode 被拒绝，没有写入 file。
 - server 启动前对 fresh DB 执行正式 migration；没有复用开发数据库。

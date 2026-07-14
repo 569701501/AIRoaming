@@ -96,8 +96,8 @@ export class E2EApiClient {
     return this.send<T>("PATCH", path, data);
   }
 
-  delete<T>(path: string): Promise<ApiEnvelope<T>> {
-    return this.send<T>("DELETE", path);
+  delete<T>(path: string, data?: unknown): Promise<ApiEnvelope<T>> {
+    return this.send<T>("DELETE", path, data);
   }
 
   async createRainSmokeProject(scenario: string): Promise<ProjectListItem> {

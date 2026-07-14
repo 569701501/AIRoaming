@@ -134,6 +134,7 @@ import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 import { G2DatabaseError } from "./versioning/g2-database-error.mapper.js";
+import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
 import {
   createCandidateGenerationSpec,
   createCandidateGenerationTaskInput,
@@ -244,6 +245,7 @@ export class ProjectsService implements OnModuleInit {
     @Optional() @Inject(PersistentG2TaskCreateGuardService) private readonly g2TaskCreateGuard?: PersistentG2TaskCreateGuardService,
     @Optional() @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
     @Optional() @Inject(ProjectDeleteOutboxService) private readonly projectDeleteOutbox?: ProjectDeleteOutboxService,
+    @Optional() @Inject(ChapterProductionQueryService) private readonly chapterProductionQuery?: ChapterProductionQueryService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -927,7 +929,11 @@ export class ProjectsService implements OnModuleInit {
     const hasStory = sourceText.trim().length > 0;
     const chapters = this.sortChapters(readyProject.chapters).map((chapter) => this.toChapterListItem(chapter));
     const currentChapterDetail = currentChapter ? this.toChapterDetail(currentChapter) : null;
-    const workflow = this.buildProjectWorkflow(readyProject, currentChapter);
+    let workflow = this.buildProjectWorkflow(readyProject, currentChapter);
+    if (this.isDatabaseMode() && currentChapter && this.chapterProductionQuery) {
+      const dbWorkflow = await this.chapterProductionQuery.get({ projectId, chapterId: currentChapter.id });
+      workflow = dbWorkflow.workflow;
+    }
 
     return {
       versioningCapability: this.isDatabaseMode()

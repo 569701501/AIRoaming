@@ -14,7 +14,7 @@ source: 本任务执行时间线
 
 ```text
 current = WAIT_R0B_AUTH
-last_completed = W1_DB_WEB_GATE
+last_completed = W1_DB_WEB_GATE_CORRECTIVE
 next_human_gate = AUTH-R0B
 ```
 
@@ -24,7 +24,7 @@ next_human_gate = AUTH-R0B
 | --- | --- | --- | --- | --- |
 | 施工包 | `completed` | 不适用 | Scrutiny=`passed`；Runtime=`not_applicable` | 仅规划，无功能实现 |
 | S0 | `completed` | `f07f516` | Scrutiny=`passed`；Runtime=`passed_isolated` | R0-A、默认入口超时修复、三次根回归已通过 |
-| W1 | `completed` | `6b56b59` | Scrutiny=`passed`；Runtime=`passed_isolated` | DB-only Web/API、唯一 Preflight 路由、fresh SQLite E2E 已通过 |
+| W1 | `completed` | `3898182` + corrective commit（待提交） | Scrutiny=`passed`；Runtime=`passed_isolated` | DB-only Web/API、唯一 Preflight 路由、里程碑单调性纠偏、fresh SQLite E2E 已通过 |
 | R0B | `waiting_human_authorization` | — | — | 等固定授权句 |
 | R1 | `not_authorized` | — | — | 三次 AUTH |
 | R2 | `pending` | — | — | C7 后 OBS-01～10 |
@@ -58,8 +58,16 @@ next_human_gate = AUTH-R0B
 - 测试：`corepack pnpm typecheck`、`typecheck:e2e`、`build` 全部 exit 0；root `corepack pnpm test` 为 shared 8 spec/39 tests、server 70 spec/474 tests，exit 0；定向 server 2 files/36 tests 通过；DB E2E `g2-db-web-gate.spec.ts --repeat-each=3` 3/3 通过；file E2E `project-library-and-stage-rail.spec.ts --repeat-each=3` 3/3 通过。
 - 证据：`w1_scrutiny_review.md`、`w1_runtime_review.md`、`luna_execution_plan.md`、`../../功能完成记录/2026-07-14_W1-DB-only-Web门禁收口.md`。
 - Review：Scrutiny=`passed`；隔离 Runtime=`passed_isolated`；真实数据、默认 Keychain、真实凭据、AUTH、R0B/C0～C7/R2 均为 0。
-- commit：`6b56b59 feat(web): close g2 db-only workbench gate`；只暂存 W1 文件，未混入用户已有 M6/其他文档改动。
+- commit：`3898182 feat(web): close g2 db-only workbench gate`；只暂存 W1 文件，未混入用户已有 M6/其他文档改动。
 - next：完成 W1 独立提交后停在 `WAIT_R0B_AUTH`，等待用户发送 `authorization_gates.md` 中固定 `AUTH-R0B` 授权句。
+
+## 2026-07-14：W1 corrective slice
+
+- 触发问题：已有 Storyboard/Preflight 后确认新 Story，`milestone_status=structured` 触发 G1 单调里程碑约束，事务返回 `G2_DATABASE_CONTRACT_VIOLATION`。
+- 实现：Story confirm 在已有下游时保留更高里程碑；ProjectsService 的 DB Workbench workflow 改读 `ChapterProductionQueryService`，让 stale 派生进入页面。
+- 测试：typecheck、e2e typecheck、build、root shared 8 spec/39 tests + server 70 spec/474 tests；DB W1 spec 6/6（repeat-each=3）；file E2E 3/3；均 exit 0。
+- Review：Scrutiny=`passed`；Runtime=`passed_isolated`；真实数据、默认 Keychain、真实凭据、AUTH、R0B/C0～C7/R2 仍为 0。
+- commit：待创建独立 corrective commit；完成后唯一下一状态 `WAIT_R0B_AUTH`。
 
 ## Luna 每次推进必须追加的格式
 
