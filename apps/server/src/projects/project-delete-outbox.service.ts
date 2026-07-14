@@ -540,6 +540,32 @@ export class ProjectDeleteOutboxService {
       const activeTasks = await tx.generationTask.count({ where: { projectId, recordKind: "runtime", status: { in: ["queued", "running", "retrying"] } } });
       if (activeTasks > 0) throw new BadRequestException("PROJECT_DELETE_ACTIVE_TASKS");
       const q = async (sql: string): Promise<void> => { await tx.$executeRawUnsafe(sql, projectId); };
+      // Detach every Chapter reverse pointer before deleting immutable child
+      // rows. This avoids relying on SQLite ON DELETE SET NULL side effects,
+      // while the coordinated-purge triggers still require deleting + a
+      // processed project.delete_files event + no active runtime task.
+      await q(`UPDATE "chapters"
+        SET "current_script_version_id" = NULL,
+            "current_story_version_id" = NULL,
+            "pending_story_version_id" = NULL,
+            "current_storyboard_version_id" = NULL,
+            "pending_storyboard_version_id" = NULL,
+            "current_preflight_revision_id" = NULL,
+            "current_layout_revision_id" = NULL,
+            "current_export_revision_id" = NULL,
+            "last_script_revision_id" = NULL,
+            "script_working_state" = CASE WHEN length("script_working_text") = 0 THEN 'empty' ELSE 'dirty' END,
+            "row_version" = "row_version" + 1
+        WHERE "project_id" = ?
+          AND ("current_script_version_id" IS NOT NULL
+            OR "current_story_version_id" IS NOT NULL
+            OR "pending_story_version_id" IS NOT NULL
+            OR "current_storyboard_version_id" IS NOT NULL
+            OR "pending_storyboard_version_id" IS NOT NULL
+            OR "current_preflight_revision_id" IS NOT NULL
+            OR "current_layout_revision_id" IS NOT NULL
+            OR "current_export_revision_id" IS NOT NULL
+            OR "last_script_revision_id" IS NOT NULL)`);
       await q('DELETE FROM "pending_dialogue_artifacts" WHERE "project_id" = ?');
       await q('DELETE FROM "chapter_script_pending" WHERE "chapter_id" IN (SELECT "id" FROM "chapters" WHERE "project_id" = ?)');
       await q('DELETE FROM "chapter_script_revisions" WHERE "chapter_id" IN (SELECT "id" FROM "chapters" WHERE "project_id" = ?)');

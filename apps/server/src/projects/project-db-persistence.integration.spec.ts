@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { G1_RUNTIME_MIGRATION_NAMES } from "../persistence/g1-runtime-migration-ledger.js";
-import { G3_RUNTIME_MIGRATION_NAMES } from "../persistence/g3-runtime-migration-ledger.js";
+import { PROJECT_PURGE_RUNTIME_MIGRATION_NAMES } from "../persistence/project-purge-runtime-migration-ledger.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
@@ -106,7 +106,7 @@ async function runPrismaDeploy(
 
 async function copyFormalMigration(
   prismaRoot: string,
-  migrationName: (typeof G3_RUNTIME_MIGRATION_NAMES)[number],
+  migrationName: (typeof PROJECT_PURGE_RUNTIME_MIGRATION_NAMES)[number],
 ): Promise<void> {
   const targetDirectory = path.join(prismaRoot, "migrations", migrationName);
   await mkdir(targetDirectory, { recursive: false });
@@ -120,7 +120,7 @@ async function copyFormalMigration(
 
 async function materializePartialPrismaRoot(
   testRoot: string,
-  migrationNames: readonly (typeof G3_RUNTIME_MIGRATION_NAMES)[number][],
+  migrationNames: readonly (typeof PROJECT_PURGE_RUNTIME_MIGRATION_NAMES)[number][],
 ): Promise<string> {
   const prismaRoot = path.join(testRoot, "partial-prisma");
   await mkdir(path.join(prismaRoot, "migrations"), { recursive: true });
@@ -170,8 +170,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   );
 
   async function prepareDatabase(
-    migrationNames: readonly (typeof G3_RUNTIME_MIGRATION_NAMES)[number][] =
-      G3_RUNTIME_MIGRATION_NAMES,
+    migrationNames: readonly (typeof PROJECT_PURGE_RUNTIME_MIGRATION_NAMES)[number][] =
+      PROJECT_PURGE_RUNTIME_MIGRATION_NAMES,
   ): Promise<{
     readonly workspaceRoot: string;
     readonly dataRoot: string;
@@ -196,9 +196,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await handle.close();
     const databaseUrl = `file:${databasePath}`;
     const isFormalTree =
-      migrationNames.length === G3_RUNTIME_MIGRATION_NAMES.length &&
+      migrationNames.length === PROJECT_PURGE_RUNTIME_MIGRATION_NAMES.length &&
         migrationNames.every(
-        (migrationName, index) => migrationName === G3_RUNTIME_MIGRATION_NAMES[index],
+        (migrationName, index) => migrationName === PROJECT_PURGE_RUNTIME_MIGRATION_NAMES[index],
       );
     const prismaRoot = isFormalTree
       ? null
@@ -263,7 +263,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_G3_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_PROJECT_PURGE_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -308,7 +308,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_G3_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_PROJECT_PURGE_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -320,7 +320,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("10 migrations found");
+    expect(deployed.stdout).toContain("11 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -1613,12 +1613,45 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const prisma = app.get(PrismaService).database();
     const workspace = app.get(WorkspacePathService);
     const project = await projects.createProject({ name: "P8 删除意图", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapterId = project.currentChapterId!;
+    const scripts = app.get(ScriptVersionService);
+    const initialWorking = await scripts.getWorkingCopy({ projectId: project.id, chapterId });
+    const scriptText = "OBS-06 必须能删除已经发布正式剧本的临时项目。";
+    const updatedWorking = await scripts.updateWorkingCopy(
+      { projectId: project.id, chapterId },
+      {
+        sourceText: scriptText,
+        expectedChapterRowVersion: initialWorking.chapterRowVersion,
+      },
+    );
+    const published = await scripts.publish(
+      { projectId: project.id, chapterId },
+      {
+        expectedCurrentScriptVersionId: null,
+        expectedWorkingDigest: updatedWorking.value.digest,
+        expectedChapterRowVersion: updatedWorking.value.chapterRowVersion,
+        createNextChapter: false,
+      },
+    );
+    expect(published.scriptVersion.status).toBe("current");
     await mkdir(path.join(workspaceRoot, "projects", project.id), { recursive: true });
     await writeFile(path.join(workspaceRoot, "projects", project.id, "project.json"), "legacy metadata", "utf8");
     const first = await projects.deleteProject(project.id);
     expect(first).toMatchObject({ deletedProjectId: project.id, status: "pending", cleanupEventId: expect.any(String) });
     expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({ lifecycleStatus: "deleting", deletingAt: expect.any(Date) });
     expect(await prisma.outboxEvent.count({ where: { eventType: "project.delete_files", aggregateId: project.id } })).toBe(1);
+    await expect(
+      prisma.$executeRawUnsafe(
+        `UPDATE "chapters"
+          SET "current_script_version_id" = NULL,
+              "script_working_state" = 'dirty',
+              "row_version" = "row_version" + 1
+          WHERE "project_id" = ?`,
+        project.id,
+      ),
+    ).rejects.toMatchObject({
+      meta: { message: "AIR_G1:trg_chapters_pointer_scope_update" },
+    });
     const replay = await projects.deleteProject(project.id);
     expect(replay.cleanupEventId).toBe(first.cleanupEventId);
     expect(await prisma.outboxEvent.count({ where: { eventType: "project.delete_files", aggregateId: project.id } })).toBe(1);
@@ -1633,6 +1666,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(app.get(ProjectsService).updateProjectDraft(project.id, { name: "late write" })).rejects.toThrow();
     await expect(app.get(ProjectsService).purgeDeletedProject(project.id)).resolves.toMatchObject({ projectId: project.id, purged: true });
     expect(await reopenedPrisma.project.findUnique({ where: { id: project.id } })).toBeNull();
+    expect(await reopenedPrisma.chapter.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await reopenedPrisma.chapterScriptVersion.count({ where: { chapterId } })).toBe(0);
+    expect(await reopenedPrisma.outboxEvent.findUniqueOrThrow({ where: { id: first.cleanupEventId! } })).toMatchObject({ status: "processed" });
     expect(workspace.resolveVirtualPath(`/workspace/projects/${project.id}`)).toContain(path.join(workspaceRoot, "projects", project.id));
   }, 30_000);
 

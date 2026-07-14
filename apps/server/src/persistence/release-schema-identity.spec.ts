@@ -13,7 +13,7 @@ const REPO_ROOT = path.resolve(
 );
 
 describe("release Schema identity", () => {
-  it("identifies the current SQLite release from Prisma Schema and migrations 0001 through 0010", async () => {
+  it("identifies the current SQLite release from Prisma Schema and migrations 0001 through 0011", async () => {
     const identity = await loadReleaseSchemaIdentityV1(REPO_ROOT);
 
     expect(identity).toMatchObject({
@@ -25,10 +25,10 @@ describe("release Schema identity", () => {
         checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
       },
     });
-    expect(identity.migrations).toHaveLength(10);
+    expect(identity.migrations).toHaveLength(11);
     expect(identity.migrations[0]?.name).toBe("0001_persistence_and_migration");
     expect(identity.migrations.at(-1)?.name).toBe(
-      "0010_g3_comic_format_immutable",
+      "0011_g2_project_purge_pointer_teardown",
     );
     expect(identity.migrations.every((entry) => /^sha256:[0-9a-f]{64}$/.test(entry.checksum))).toBe(true);
     expect(identity.effectiveSchemaManifestDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
