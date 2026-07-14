@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>G5 E0 throwaway renderer comparison</title>
+    <style>
+      @font-face { font-family: "Inter"; src: url("/font/inter.woff2") format("woff2"); font-style: normal; font-weight: 400; }
+      @font-face { font-family: "Noto Sans CJK SC"; src: url("/font/cjk.otf") format("opentype"); font-style: normal; font-weight: 100 900; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: #111827; color: #e5e7eb; }
+      body { font-family: "Noto Sans CJK SC"; }
+      #status { display: none; }
+      #interaction { width: 450px; height: 600px; margin: 48px 0 24px; background: #fff; }
+      #performance { position: absolute; left: -20000px; top: 0; width: 1200px; }
+      #semantic-working { position: absolute; left: -10000px; top: 0; }
+      #formal-scene { position: relative; overflow: hidden; background: #fff; color: #111827; }
+      .layout-canvas { position: relative; overflow: hidden; background: #fff; color: #111827; }
+      .layout-element { position: absolute; transform-origin: center center; }
+      .panel-frame { overflow: hidden; }
+      .panel-frame > img, .free-image > img { width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: center center; }
+      .panel-border { position: absolute; inset: 0; pointer-events: none; }
+      .rich-text { width: 100%; height: 100%; white-space: pre-wrap; overflow: hidden; font-family: "Noto Sans CJK SC"; }
+      .balloon { border-radius: 50%; display: grid; align-items: center; justify-items: center; }
+      .balloon.caption { border-radius: 24px; }
+      .balloon.shout { border-radius: 0; clip-path: polygon(50% 0%, 59% 13%, 72% 4%, 77% 20%, 94% 16%, 91% 34%, 100% 44%, 87% 53%, 96% 69%, 78% 73%, 74% 92%, 58% 82%, 48% 100%, 39% 83%, 22% 94%, 20% 75%, 2% 70%, 13% 54%, 0% 43%, 15% 34%, 7% 18%, 25% 20%, 29% 3%, 43% 14%); }
+      .balloon.thought::after { content: ""; position: absolute; left: 18%; bottom: -34px; width: 22px; height: 22px; border: 5px solid #111827; border-radius: 50%; background: #fff; box-shadow: -22px 23px 0 -5px #fff, -22px 23px 0 0 #111827; }
+      .balloon.thought .balloon-tail { display: none; }
+      .balloon-tail { position: absolute; width: 0; height: 0; border-left: 24px solid transparent; border-right: 24px solid transparent; border-top: 86px solid #fff; bottom: -72px; left: 42%; }
+      svg { display: block; background: #fff; }
+      .pdf-page { width: 1800px; height: 2400px; overflow: hidden; break-after: page; page-break-after: always; }
+      .pdf-page:last-child { break-after: auto; page-break-after: auto; }
+      [contenteditable] { outline: none; }
+      @media print {
+        @page { size: 1800px 2400px; margin: 0; }
+        html, body { width: 1800px; height: 2400px; background: #fff; }
+        #status, #interaction, #semantic-working, #performance { display: none !important; }
+        #formal-scene { position: absolute; inset: 0; }
+        body[data-mode="pdf40"] { height: auto; }
+        body[data-mode="pdf40"] #formal-scene { position: static; width: 1800px; height: auto; overflow: visible; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status">initializing</div>
+    <div id="interaction"></div>
+    <div id="semantic-working"></div>
+    <div id="formal-scene"></div>
+    <div id="performance"></div>
+    <script src="/vendor/konva.min.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -230,7 +230,15 @@
           "assetId": "asset_font_cjk_pending_e0",
           "role": "font",
           "status": "red",
-          "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+          "reasonCode": "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
+          "selectedFamilyName": "Noto Sans CJK SC",
+          "selectedPostScriptName": "NotoSansCJKsc-Regular",
+          "e0Sha256": "sha256:2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+          "license": {
+            "spdxId": "OFL-1.1",
+            "source": "https://github.com/notofonts/noto-cjk",
+            "embeddingAllowed": true
+          },
           "requiredCoverage": [
             "simplified_chinese",
             "japanese",
@@ -239,7 +247,7 @@
         }
       ]
     },
-    "assetManifestDigest": "sha256:8203ea2855721d5fb41b5d78befd1bb9e66a5ad3726081acfc3f4ca8c18a3f83",
+    "assetManifestDigest": "sha256:d06b4eb9cbd16d1b9e641132b9446cd08f07c3f67cab908552aa37e7f3af9052",
     "renderPlan": {
       "schemaVersion": 1,
       "documentDigest": "sha256:f6a25d775a39ec1dca613ff4965e8a24a090bc5cb6cfa5bc9344ad9968eb3ed5",
@@ -308,7 +316,15 @@
             "assetId": "asset_font_cjk_pending_e0",
             "role": "font",
             "status": "red",
-            "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+            "reasonCode": "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
+            "selectedFamilyName": "Noto Sans CJK SC",
+            "selectedPostScriptName": "NotoSansCJKsc-Regular",
+            "e0Sha256": "sha256:2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+            "license": {
+              "spdxId": "OFL-1.1",
+              "source": "https://github.com/notofonts/noto-cjk",
+              "embeddingAllowed": true
+            },
             "requiredCoverage": [
               "simplified_chinese",
               "japanese",
@@ -339,12 +355,12 @@
           "targetId": "panel_preflight_image"
         }
       ],
-      "renderPlanDigest": "sha256:a7691097fcc69efbb1673c3e8c5c0f76c26a76df8812eb0742d873ca6898ba5f"
+      "renderPlanDigest": "sha256:9a58238397b4f8c465c14c8178702e3bfdffad50259999b627475fb70f3992c4"
     },
-    "renderPlanDigest": "sha256:a7691097fcc69efbb1673c3e8c5c0f76c26a76df8812eb0742d873ca6898ba5f",
+    "renderPlanDigest": "sha256:9a58238397b4f8c465c14c8178702e3bfdffad50259999b627475fb70f3992c4",
     "browserSemanticSnapshot": {
       "status": "red",
-      "reasonCode": "G5_BROWSER_SEMANTICS_NOT_CAPTURED",
+      "reasonCode": "G5_PRODUCTION_BROWSER_SEMANTICS_NOT_IMPLEMENTED",
       "expectedCoverage": [
         "text_overflow",
         "object_outside_canvas",
@@ -354,7 +370,7 @@
     },
     "outputs": {
       "status": "red",
-      "reasonCode": "G5_RENDERER_NOT_SELECTED",
+      "reasonCode": "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED",
       "artifacts": []
     },
     "preflightIssues": [

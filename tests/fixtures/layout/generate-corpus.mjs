@@ -306,12 +306,12 @@ function buildFixture(fixtureId, document, options = {}) {
       renderPlanDigest: renderPlan.renderPlanDigest,
       browserSemanticSnapshot: {
         status: "red",
-        reasonCode: "G5_BROWSER_SEMANTICS_NOT_CAPTURED",
+        reasonCode: "G5_PRODUCTION_BROWSER_SEMANTICS_NOT_IMPLEMENTED",
         expectedCoverage: options.semanticCoverage ?? [],
       },
       outputs: {
         status: "red",
-        reasonCode: "G5_RENDERER_NOT_SELECTED",
+        reasonCode: "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED",
         artifacts: [],
       },
       preflightIssues: options.expectedPreflightIssues ?? [],
@@ -372,7 +372,11 @@ const pendingCjkFont = {
   assetId: FALLBACK_FONT_ID,
   role: "font",
   status: "red",
-  reasonCode: "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+  reasonCode: "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
+  selectedFamilyName: "Noto Sans CJK SC",
+  selectedPostScriptName: "NotoSansCJKsc-Regular",
+  e0Sha256: "sha256:2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+  license: { spdxId: "OFL-1.1", source: "https://github.com/notofonts/noto-cjk", embeddingAllowed: true },
   requiredCoverage: ["simplified_chinese", "japanese", "emoji_missing_glyph_case"],
 };
 
@@ -496,9 +500,9 @@ const corpusManifestUnsigned = {
     fonts: [fontAsset, pendingCjkFont],
   },
   redGates: [
-    { id: "G5-M0-RED-001", scope: "render", code: "G5_RENDERER_NOT_SELECTED", ownerMilestone: "G5-M1" },
-    { id: "G5-M0-RED-002", scope: "render", code: "G5_BROWSER_SEMANTICS_NOT_CAPTURED", ownerMilestone: "G5-M1" },
-    { id: "G5-M0-RED-003", scope: "render", code: "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT", ownerMilestone: "G5-M1" },
+    { id: "G5-M0-RED-001", scope: "render", code: "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED", ownerMilestone: "G5-M7" },
+    { id: "G5-M0-RED-002", scope: "render", code: "G5_PRODUCTION_BROWSER_SEMANTICS_NOT_IMPLEMENTED", ownerMilestone: "G5-M7" },
+    { id: "G5-M0-RED-003", scope: "render", code: "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED", ownerMilestone: "G5-M5" },
     { id: "G5-M0-RED-004", scope: "migration", code: "G5_LEGACY_LAYOUT_MIGRATION_NOT_IMPLEMENTED", ownerMilestone: "G5-M8" },
     { id: "G5-M0-RED-005", scope: "e2e", code: "G5_EDITOR_VERTICAL_SLICES_NOT_IMPLEMENTED", ownerMilestone: "G5-M3_TO_M8" },
   ],

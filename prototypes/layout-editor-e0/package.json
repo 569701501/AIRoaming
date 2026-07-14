@@ -1,0 +1,16 @@
+{
+  "name": "@airoaming/layout-editor-e0-prototype",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compare": "node prepare-font.mjs && node --max-old-space-size=2048 run-comparison.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "1.61.1",
+    "@resvg/resvg-js": "2.6.2",
+    "fontkit": "2.0.4",
+    "konva": "10.3.0",
+    "pngjs": "7.0.0"
+  }
+}

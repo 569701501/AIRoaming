@@ -42,7 +42,7 @@ test("G5-M0 corpus has eight named fixtures and immutable known-answer digests",
     assert.equal(renderPlanDigest, entry.renderPlanDigest);
     assert.deepEqual(fixture.expected.outputs, {
       status: "red",
-      reasonCode: "G5_RENDERER_NOT_SELECTED",
+      reasonCode: "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED",
       artifacts: [],
     });
   }

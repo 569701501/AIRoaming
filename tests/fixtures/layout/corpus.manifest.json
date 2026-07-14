@@ -9,8 +9,8 @@
       "documentDigest": "sha256:51fb1518c4b223508db024de70e258f11bcd6a7acbfad62f8e35e5e54abb65a7",
       "sourceLockSetDigest": "sha256:53318e17904afae72b0c8ff41533e23df4b7e4060a2341078b3260d7e98fc122",
       "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
-      "renderPlanDigest": "sha256:7eb3deaff0afe440925e17238f415f931956da3244520c50bf6ca0d6976f4fa8",
-      "assetManifestDigest": "sha256:f7d59129ed1f62042bf315d196aec3f192d7eef33167845ef362702e09aedd6d",
+      "renderPlanDigest": "sha256:54575f3c37a31e0c24f13f9935582a8bd860e066d73b5025b7bfd1345989dc73",
+      "assetManifestDigest": "sha256:50c931eafd4cbc5bc606a04305e1277c909b0abbd29288919593dfb0704dec5a",
       "outputStatus": "red"
     },
     {
@@ -19,8 +19,8 @@
       "documentDigest": "sha256:fb64b60a89262f25aed19c07f40ef099cbb0f27055eb12a1022191ff9d92ce76",
       "sourceLockSetDigest": "sha256:53318e17904afae72b0c8ff41533e23df4b7e4060a2341078b3260d7e98fc122",
       "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
-      "renderPlanDigest": "sha256:75d33e1481b8a47fff6676c4ace62fd1bd6f06d09d75275b53ee80dd17d4ba30",
-      "assetManifestDigest": "sha256:f7d59129ed1f62042bf315d196aec3f192d7eef33167845ef362702e09aedd6d",
+      "renderPlanDigest": "sha256:bff4f9fa932544d432be690c619773ab8fefacb502a1381870a687341bd03493",
+      "assetManifestDigest": "sha256:50c931eafd4cbc5bc606a04305e1277c909b0abbd29288919593dfb0704dec5a",
       "outputStatus": "red"
     },
     {
@@ -29,8 +29,8 @@
       "documentDigest": "sha256:db3ca102ba791319eece253032fe4b6e1f2fb2316a049ee2d4a9c655667b14dd",
       "sourceLockSetDigest": "sha256:6fd06cfdad694fb719c885fd3b422c348f5b7c4d1a806ec8b4132375db6eab79",
       "profileDigest": "sha256:49a9c40ae75fd502ebf19d23e67927e050fe9b427cf5df812f8af3249708fb61",
-      "renderPlanDigest": "sha256:0c333245558d15b3a672830507e8d31ba6b7e54a4c8a544bc23bb266bd7c7abb",
-      "assetManifestDigest": "sha256:f7d59129ed1f62042bf315d196aec3f192d7eef33167845ef362702e09aedd6d",
+      "renderPlanDigest": "sha256:d22292ca30bed849fdf3d1677f0814e743a04f445da891f967676fecdfad55f1",
+      "assetManifestDigest": "sha256:50c931eafd4cbc5bc606a04305e1277c909b0abbd29288919593dfb0704dec5a",
       "outputStatus": "red"
     },
     {
@@ -39,8 +39,8 @@
       "documentDigest": "sha256:9f80de21525e3f1c9bb70650ba087aa8061a3fbde0603bb9933db6e99e8b1f3c",
       "sourceLockSetDigest": "sha256:ed4562ed48881b402e6b18f5b47602bd21966dd014ce572401f809d57a27afae",
       "profileDigest": "sha256:49a9c40ae75fd502ebf19d23e67927e050fe9b427cf5df812f8af3249708fb61",
-      "renderPlanDigest": "sha256:437de28e3e2e1064550dc89872bfd8de0da80fba000e9f2346c45144f462416d",
-      "assetManifestDigest": "sha256:096774fb886e7e0b226532500ab541967dab35751dea0d47e02fccb7af1388fc",
+      "renderPlanDigest": "sha256:52c4114e9468f75fa63853ff219ab92a794b26585787270aa6c22c6f38ab1b34",
+      "assetManifestDigest": "sha256:55b91c9d0612d10c56564602d4c95fa652995cb7ae3b1918f8100c30246c0e75",
       "outputStatus": "red"
     },
     {
@@ -49,8 +49,8 @@
       "documentDigest": "sha256:5114ee70e69b989f14004140da454bbe6ec653cf1338a5ac59e01aca797db08c",
       "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
       "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
-      "renderPlanDigest": "sha256:dc500c7b3690edec836adee3cf2c397fa5eb7bd367bcea8af950bf1ccdaa216b",
-      "assetManifestDigest": "sha256:8203ea2855721d5fb41b5d78befd1bb9e66a5ad3726081acfc3f4ca8c18a3f83",
+      "renderPlanDigest": "sha256:a77db1e1463748491fb16181b02153cb21c46bb27bb3b339222b978cccca6b15",
+      "assetManifestDigest": "sha256:d06b4eb9cbd16d1b9e641132b9446cd08f07c3f67cab908552aa37e7f3af9052",
       "outputStatus": "red"
     },
     {
@@ -59,8 +59,8 @@
       "documentDigest": "sha256:7e10b59350a528209a9ead9f69ad4be8e9f164571a86af3184c100acd20e67e1",
       "sourceLockSetDigest": "sha256:497f33d6fce2e03bb825ce81b6fef40edb9fdf73560904299a7370d99e2c6234",
       "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
-      "renderPlanDigest": "sha256:b16820afbb4edc20a6a842d3cef6ea409f221df88a81d61968f5ff5d3ad925d6",
-      "assetManifestDigest": "sha256:d97a2813515b53d3dd538365cf12d7a1b52fb7884999cf608557936b591a6174",
+      "renderPlanDigest": "sha256:8d3c42b87704775fdbd01aa7040431b431a1cef6c8792e9946cddd6886936fb3",
+      "assetManifestDigest": "sha256:5d4137db0aa8f8e2e6021ba4d1793c7d9c72ce29e1b8b7ebb6070e3d41b8c462",
       "outputStatus": "red"
     },
     {
@@ -69,8 +69,8 @@
       "documentDigest": "sha256:731a3a48d6fe33d4a52574aef999da4413f1822ecc2a3d42ea3ac015a05b7a21",
       "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
       "profileDigest": "sha256:49a9c40ae75fd502ebf19d23e67927e050fe9b427cf5df812f8af3249708fb61",
-      "renderPlanDigest": "sha256:621ac480f6f8bc9158455b5289abb6365eed376e471ab57970253a93b992fa9d",
-      "assetManifestDigest": "sha256:8203ea2855721d5fb41b5d78befd1bb9e66a5ad3726081acfc3f4ca8c18a3f83",
+      "renderPlanDigest": "sha256:121aa9fe15434fbf4955bd3e3c6f6acaa93502202733a1e3cf6286fa995ce1ae",
+      "assetManifestDigest": "sha256:d06b4eb9cbd16d1b9e641132b9446cd08f07c3f67cab908552aa37e7f3af9052",
       "outputStatus": "red"
     },
     {
@@ -79,8 +79,8 @@
       "documentDigest": "sha256:f6a25d775a39ec1dca613ff4965e8a24a090bc5cb6cfa5bc9344ad9968eb3ed5",
       "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
       "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
-      "renderPlanDigest": "sha256:a7691097fcc69efbb1673c3e8c5c0f76c26a76df8812eb0742d873ca6898ba5f",
-      "assetManifestDigest": "sha256:8203ea2855721d5fb41b5d78befd1bb9e66a5ad3726081acfc3f4ca8c18a3f83",
+      "renderPlanDigest": "sha256:9a58238397b4f8c465c14c8178702e3bfdffad50259999b627475fb70f3992c4",
+      "assetManifestDigest": "sha256:d06b4eb9cbd16d1b9e641132b9446cd08f07c3f67cab908552aa37e7f3af9052",
       "outputStatus": "red"
     }
   ],
@@ -149,7 +149,15 @@
         "assetId": "asset_font_cjk_pending_e0",
         "role": "font",
         "status": "red",
-        "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+        "reasonCode": "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
+        "selectedFamilyName": "Noto Sans CJK SC",
+        "selectedPostScriptName": "NotoSansCJKsc-Regular",
+        "e0Sha256": "sha256:2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+        "license": {
+          "spdxId": "OFL-1.1",
+          "source": "https://github.com/notofonts/noto-cjk",
+          "embeddingAllowed": true
+        },
         "requiredCoverage": [
           "simplified_chinese",
           "japanese",
@@ -162,20 +170,20 @@
     {
       "id": "G5-M0-RED-001",
       "scope": "render",
-      "code": "G5_RENDERER_NOT_SELECTED",
-      "ownerMilestone": "G5-M1"
+      "code": "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED",
+      "ownerMilestone": "G5-M7"
     },
     {
       "id": "G5-M0-RED-002",
       "scope": "render",
-      "code": "G5_BROWSER_SEMANTICS_NOT_CAPTURED",
-      "ownerMilestone": "G5-M1"
+      "code": "G5_PRODUCTION_BROWSER_SEMANTICS_NOT_IMPLEMENTED",
+      "ownerMilestone": "G5-M7"
     },
     {
       "id": "G5-M0-RED-003",
       "scope": "render",
-      "code": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
-      "ownerMilestone": "G5-M1"
+      "code": "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
+      "ownerMilestone": "G5-M5"
     },
     {
       "id": "G5-M0-RED-004",
@@ -190,5 +198,5 @@
       "ownerMilestone": "G5-M3_TO_M8"
     }
   ],
-  "corpusDigest": "sha256:9acf40013492dd82003fc24af944897db834203e11d02cacee1c457ebe115527"
+  "corpusDigest": "sha256:30290c4ca633a80101429a21d6784e9f7b7660fadd7fb37de10314ebd6fe6125"
 }
