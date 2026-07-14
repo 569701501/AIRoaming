@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M4_IN_PROGRESS
-last_completed = G5_M3_PASSED
+current = G5_M5_IN_PROGRESS
+last_completed = G5_M4_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m4` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594` | M3 Scrutiny=`passed`；Runtime/User=`passed` | DB Working Copy 与编辑器外壳已关闭；进入画格/图片/模板/裁切 |
+| G5 | `in_progress_m5` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2` | M4 Scrutiny=`passed`；Runtime/User=`passed` | 画格/图片/模板/裁切已关闭；进入字体/富文本/气泡 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -206,6 +206,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`ec71594`。
 - 风险/未运行：M4～M8 仍需关闭画格/图片、字体/文字、正式 Revision、renderer/出版和 legacy/AI 总体路径；结构化阶段红灯保持非零。未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
 - next：`G5_M4_IN_PROGRESS`。
+
+## 2026-07-15：G5-M4 画格、图片、模板与裁切
+
+- baseline：M3 code=`ec71594`，docs=`19fa0ef`；只暂存 M4 代码、测试和本轮证据，未混入工作树既有历史文档与 G4 截图改动。
+- 实现：新增 current CandidateLockRevision-only source catalog；PanelFrame/contentImage、FreeImage、Shot tray 可见放置、七类模板、cover crop/zoom/offset/rotate/flip、reading order、页漫/条漫批量初始化和 canvas reorder；全部通过 Shared command 与 M3 DB-only autosave。
+- 测试：Shared 17 files/91 tests、Server 85 files/546 tests、E2E 环境 33/33、file Playwright 4/4、DB Playwright 4/4、M4 定向 1/1、fixture 3/3；全仓 typecheck/E2E typecheck/build、Prisma、G1 manifest/schema/migration 与 diff check 通过。
+- 证据：`evidence/g5_m4_panel_image_template_report.json`、`evidence/g5_m4_layout_editor.png`、`g5_m4_scrutiny_review.md`、`g5_m4_runtime_review.md`、`../../功能完成记录/2026-07-15_G5-M4画格图片模板与裁切.md`。
+- Review：Scrutiny=`passed`；Runtime/User=`passed`；真实 DB-only 页面覆盖当前定稿、批量排版、双格模板、裁切翻转、detach/attach、自由图、阅读顺序、条漫段落重排和保存；源 Asset sha 不变，pageerror=0。
+- commit：`93a58b2`。
+- 风险/未运行：CJK FontAsset、富文本/气泡、正式 Revision/source remediation、renderer/publication、legacy/AI 总体路径仍归 M5～M8；结构化阶段红灯保持非零。未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
+- next：`G5_M5_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

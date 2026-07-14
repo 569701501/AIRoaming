@@ -291,6 +291,10 @@ packages/shared/src/layout/geometry.ts
 packages/shared/src/layout/text.ts
 packages/shared/src/layout/preflight.ts
 packages/shared/src/layout/publication.ts
+packages/shared/src/layout/working-copy.ts
+packages/shared/src/layout/presets.ts
+packages/shared/src/layout/batch.ts
+packages/shared/src/layout/placement.ts
 packages/shared/src/layout/index.ts
 ```
 
@@ -298,7 +302,7 @@ packages/shared/src/layout/index.ts
 
 ```text
 apps/server/prisma/schema.prisma
-apps/server/prisma/migrations/0012_layout_document_v1_overlay/migration.sql （建议名）
+apps/server/prisma/migrations/0013_g5_layout_working_copy_overlay/migration.sql
 apps/server/src/migration/layout-shadow-importer.ts
 apps/server/src/migration/export-shadow-importer.ts
 ```
@@ -316,6 +320,8 @@ apps/server/src/projects/layout/layout-source-replacement.service.ts
 apps/server/src/projects/layout/layout-preflight.service.ts
 apps/server/src/projects/layout/layout-publication.service.ts
 apps/server/src/projects/layout/layout.controller.ts
+apps/server/src/projects/layout-working-copy.service.ts        （M3/M4 当前实现）
+apps/server/src/projects/projects.controller.ts                （当前公开路由）
 ```
 
 ### Renderer/Task
@@ -340,6 +346,8 @@ apps/web/src/features/layout-editor/components/*
 apps/web/src/features/layout-editor/text/*
 apps/web/src/features/layout-editor/source-repair/*
 apps/web/src/components/workbench/LayoutExportWorkspace.vue
+apps/web/src/composables/layout-editor-session.ts
+apps/web/src/services/api.ts
 apps/web/src/router.ts
 ```
 
@@ -354,6 +362,7 @@ tests/e2e/web/g5-page-editor.spec.ts
 tests/e2e/web/g5-strip-editor.spec.ts
 tests/e2e/web/g5-repair-and-recovery.spec.ts
 tests/e2e/web/g5-mobile-and-ai.spec.ts
+tests/e2e/web/layout-editor-m4.spec.ts                          （M4 当前真实路径）
 ```
 
 E0 原型必须放在可整体删除的专用目录，正式 M2 开始前只迁移经 ADR 选定的 adapter seam，不复制实验垃圾。

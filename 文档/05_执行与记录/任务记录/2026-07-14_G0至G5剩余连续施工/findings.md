@@ -13,12 +13,12 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `ec71594`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `93a58b2`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M3 已通过；G5-M4～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M4_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M4 已通过；G5-M5～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M5_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M4_IN_PROGRESS
-next = G5_PANEL_IMAGE_TEMPLATE_CROP
+current = G5_M5_IN_PROGRESS
+next = G5_FONT_RICH_TEXT_BALLOON
 ```
 
 ## 7. G4-A 稳定结论
@@ -152,3 +152,12 @@ next = G5_PANEL_IMAGE_TEMPLATE_CROP
 - 桌面编辑器外壳具备页面导航、选择、拖拽、属性、图层、锁定/隐藏、对齐/分布与内存 Undo/Redo；窄于 1024px 只读且 0 写入。
 - 默认 E2E 已按 file/DB 两种服务模式分离并穷尽登记全部 spec；M3 替换页面时暴露的 G4 来源警告回归已修复，原始默认 E2E 7/7 通过。
 - M3 commit=`ec71594`；Shared 86/86、Server 544/544、E2E env 33/33、file 4/4、DB 3/3；Scrutiny=`passed`，Runtime/User=`passed`。当前进入 M4。
+
+## 17. G5-M4 稳定结论
+
+- `GET .../layout/source-catalog` 是只读投影，只消费 Shot current CandidateLockRevision 与 ready Asset；旧 lock ID 不会被前端恢复使用。
+- PanelFrame/contentImage 是一个顶层复合对象，FreeImage 独立占顶层；detach/attach 是可撤销 batch，模板保留所有非 panel 对象和已占用图片。
+- 可见 Shot 放置排除 hidden、opacity=0、完全画布外和隐藏的 nested contentImage；Shot tray 不把仅存在但不可见的图片算成已放置。
+- cover crop 的 preview/Shared/Server 使用同一 source dimensions + base scale 语义；空洞裁切拒绝，zoom/offset/rotation/flip 不改源 Asset。
+- Shared 批量规则按页漫每 4 镜头生成 page、条漫每 1 镜头生成 strip_section；canvas 与 panel reading order 均通过正式命令保存和重排。
+- M4 commit=`93a58b2`；Shared 91/91、Server 546/546、E2E env 33/33、file 4/4、DB 4/4、M4 定向 1/1；Scrutiny/Runtime=`passed`。当前进入 M5。

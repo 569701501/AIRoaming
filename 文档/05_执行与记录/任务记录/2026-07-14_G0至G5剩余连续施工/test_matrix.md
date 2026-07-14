@@ -223,8 +223,8 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-GATE-03 | WC autosave/conflict | reload 可恢复；双标签不静默覆盖 | `passed` |
 | G5-GATE-04 | LayoutRevision | 显式保存、线性 immutable、replay 准确 | `not_run` |
 | G5-GATE-05 | source replacement | preview/digest/commit，crop 选择明确 | `not_run` |
-| G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `not_run` |
-| G5-GATE-07 | strip editor | 20 段、虚拟化、重排/改高/竖排 | `not_run` |
+| G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `partial_m4_passed`：frame/image/crop/template/read order 已通过；text/balloon/font 待 M5 |
+| G5-GATE-07 | strip editor | 20 段、虚拟化、重排/改高/竖排 | `partial_m4_passed`：分段生成/新增/重排已通过；20 段虚拟化/改高/竖排待 M5/M7 |
 | G5-GATE-08 | deterministic PNG | 同输入三次 sha 相同，可解码/尺寸正确 | `not_run` |
 | G5-GATE-09 | PDF | 页数/MediaBox/字体/embedding 正确 | `not_run` |
 | G5-GATE-10 | slices/long image | 顺序、尺寸、sha；像素无缝拼回 | `not_run` |
@@ -233,6 +233,19 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-GATE-13 | AI pending | 未 apply 不改画布；stale source 拒绝 apply | `not_run` |
 | G5-GATE-14 | legacy cutover | 可解析转换；unresolved 明确重建；旧写后门删除 | `not_run` |
 | G5-GATE-15 | security/resource | 外网/file scheme/secret=0；大小/时间/内存上限 | `not_run` |
+
+### 8.3.1 M4 画格/图片/模板/裁切证据
+
+| ID | 场景 | 结果 | 状态 |
+| --- | --- | --- | --- |
+| G5-M4-01 | current source catalog | Shot current lock、ready Asset sha/尺寸与 source digest 精确一致；旧 lock 无回退 | `passed_db` |
+| G5-M4-02 | PanelFrame/FreeImage | nested contentImage、detach/attach batch、顶层自由图可恢复 | `passed_shared_browser` |
+| G5-M4-03 | Shot tray 可见放置 | hidden/opacity0/画布外不计数；panel/free 可计数 | `passed_shared_browser` |
+| G5-M4-04 | 7 类模板 | occupied 和非 panel 对象不丢失；少画格 fail-closed | `passed_shared_browser` |
+| G5-M4-05 | cover crop | zoom/offset/rotate/flip 非破坏；空洞拒绝；源 sha 不变 | `passed_shared_server_browser` |
+| G5-M4-06 | 页漫/条漫批量 | 5 镜头页漫=4+1 两页；3 镜头条漫=3 段 | `passed_shared` |
+| G5-M4-07 | 顺序与保存 | panel reading order/canvas reorder 写入 DB Working Copy | `passed_browser_db` |
+| G5-M4-08 | 完整门禁 | Shared 91、Server 546、env 33、file 4、DB 4、M4 1 | `passed` |
 
 ### 8.4 必跑命令
 

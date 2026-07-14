@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "phase": "G5-M4",
+  "status": "passed",
+  "codeCommit": "93a58b2",
+  "sourceAuthority": {
+    "catalog": "target_database_current_candidate_lock_revision_only",
+    "legacyLockFallback": false,
+    "sourceAssetMutationCount": 0,
+    "sourceDigestRevalidatedOnSave": true
+  },
+  "editorCapabilities": {
+    "panelFrameWithNestedContentImage": true,
+    "freeImage": true,
+    "shotTrayVisiblePlacementProjection": true,
+    "coverCropZoomOffsetRotateFlip": true,
+    "presetCount": 7,
+    "explicitPanelReadingOrder": true,
+    "pagedBatchGroupSize": 4,
+    "stripBatchGroupSize": 1,
+    "canvasReorder": true
+  },
+  "automatedEvidence": [
+    { "gate": "shared", "result": "17 files / 91 tests passed" },
+    { "gate": "server", "result": "85 files / 546 tests passed" },
+    { "gate": "e2e_environment", "result": "33/33 passed" },
+    { "gate": "playwright_file", "result": "4/4 passed" },
+    { "gate": "playwright_db", "result": "4/4 passed" },
+    { "gate": "playwright_m4_targeted", "result": "1/1 passed" },
+    { "gate": "fixture", "result": "3/3 passed" },
+    { "gate": "typecheck_build_prisma_g1", "result": "passed" }
+  ],
+  "runtimeEvidence": {
+    "screenshot": "evidence/g5_m4_layout_editor.png",
+    "workingCopyPersistence": "database_only_row_version_advanced",
+    "candidateAssetShaBeforeAfter": "unchanged",
+    "pageErrorCount": 0,
+    "browserPaths": [
+      "current source catalog",
+      "batch strip initialization",
+      "two-panel preset",
+      "flip with cover validation",
+      "detach and attach",
+      "free image visible placement",
+      "panel reading order",
+      "strip section reorder"
+    ]
+  },
+  "expectedOpenGates": [
+    "G5-M5 controlled CJK font, rich text and balloon",
+    "G5-M6 source remediation, formal revision, history and preflight",
+    "G5-M7 production renderer and publication",
+    "G5-M8 legacy migration, AI pending and final vertical slices"
+  ],
+  "expectedStructuredRedGates": [
+    "G5_PRODUCTION_CJK_FONT_ASSET_NOT_PROVISIONED",
+    "G5_PRODUCTION_RENDERER_NOT_IMPLEMENTED",
+    "G5_LEGACY_LAYOUT_MIGRATION_NOT_IMPLEMENTED",
+    "G5_EDITOR_VERTICAL_SLICES_NOT_IMPLEMENTED"
+  ],
+  "prohibitedActions": {
+    "backupOrArchiveDeleted": false,
+    "downMigrationExecuted": false,
+    "fileOnlyFallback": false,
+    "g6OrVideoEntered": false,
+    "pushExecuted": false
+  }
+}

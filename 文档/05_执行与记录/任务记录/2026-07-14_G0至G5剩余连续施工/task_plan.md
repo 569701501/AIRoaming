@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m4` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m5` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -379,12 +379,16 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M4 画格、图片、模板与裁切
 
-状态：`in_progress`。
+状态：`completed`，code=`93a58b2`，Scrutiny=`passed`，Runtime/User=`passed`。
 
 - PanelFrame+contentImage、FreeImage、Shot tray、crop/cover/rotate/flip、模板/阅读顺序。
 - 全部来源消费 G4 current CandidateLockRevision；源 Asset 不改写。
 
+退出：只读 source catalog 精确消费 Shot current CandidateLockRevision；画格/自由图/可见放置、七类模板、非破坏裁切、阅读顺序、页漫 4 镜头分页、条漫 1 镜头分段和 canvas reorder 均已接入同一 LayoutDocument/command/autosave。Shared 91/91、Server 546/546、E2E 环境 33/33、file 4/4、DB 4/4 与 M4 定向 1/1 通过；源 Asset sha 不变。当前进入 G5-M5。
+
 ### G5-M5 富文本、气泡与字体
+
+状态：`in_progress`。
 
 - FontAsset 受控 provision/sha/license/embedding。
 - 横竖排范围富文本、IME composition、paste clean、overflow、四类气泡。

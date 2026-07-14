@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M3 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M4_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M4 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M5_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -29,7 +29,7 @@ source: deep-think 复核流程与各阶段验收清单
 - [ ] 已确认未知用户改动并保留。
 - [ ] 失败用例/复现证据先于修复存在。
 - [ ] 修改没有越过本切片非目标。
-- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M3）。
+- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M4）。
 - [ ] 定向测试、受影响 package typecheck/build 退出 0。
 - [ ] `git diff --check` 通过。
 - [ ] 只暂存本阶段文件；没有 `git add -A`。
@@ -128,6 +128,14 @@ source: deep-think 复核流程与各阶段验收清单
 - [ ] mobile 无写接口；AI pending 无自动 apply/save/export。
 - [ ] legacy 写/复制源图导出后门已删除。
 - [ ] resource limits、日志脱敏、SEC-10 和可访问性有证据。
+
+M4 切片复核：
+
+- [x] source catalog 只消费 Shot current CandidateLockRevision，不回退旧 lock。
+- [x] PanelFrame/contentImage、FreeImage、Shot tray 可见放置和 crop coverage 共用正式 Layout 语义。
+- [x] 七类模板不丢 occupied image、Text/Balloon/FreeImage；较少画格时 fail-closed。
+- [x] 页漫/条漫批量初始化、panel reading order 和 canvas reorder 有 Shared/DB/browser 证据。
+- [x] 源 Asset sha 不变；autosave 只写 Working Copy，不创建 Revision/Publication。
 
 ### Runtime/User
 

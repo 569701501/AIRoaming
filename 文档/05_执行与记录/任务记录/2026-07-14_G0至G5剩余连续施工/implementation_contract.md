@@ -220,6 +220,9 @@ commit(expectedRevision, impactDigest, idempotency identity)
 - IME composition 中间态不写入命令历史；一次 Undo 恢复输入前状态。
 - autosave 只更新 Working Copy；显式保存才创建 immutable LayoutRevision。
 - 导出永远读取 LayoutRevision，不读取未保存 Working Copy。
+- M4 source catalog 只读投影 Shot current CandidateLockRevision 与 ready Asset 尺寸/sha；前端不得传入或恢复旧 lock ID。
+- PanelFrame/contentImage 是一个顶层复合对象；FreeImage 才独立占顶层。模板必须保留非 panel 对象和 occupied image，较少画格时拒绝。
+- cover crop 的 preview、Shared 与 Server 共用同一 source dimensions/base-scale 语义；空洞拒绝，任何 crop 操作不得改源 Asset bytes。
 
 ### 7.3 来源返修
 
