@@ -33,8 +33,8 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R0B | 真实源只读发现和 release shadow | `completed` | 已完成 | `R0B_PREPARED` |
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
-| G4 | CandidateLock 正式返修闭环 | `in_progress_g4_b` | 连续执行 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `blocked_until_g4_passed` | G4 后连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m0` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -326,17 +326,19 @@ docs(g2): close db-only web cutover gate
 
 ### G4-F 迁移与端到端
 
-状态：`in_progress`。
+状态：`completed`，commit=`81c922a`，Scrutiny=`passed`，Runtime/User=`passed`。
 
 - 迁移 direct evidence/conflict/unresolved；不猜测 current。
 - A→B→clear→A、布局/导出后更换、运行中任务、双窗口、restart/backup restore。
 - Scrutiny 和 Runtime/User Review 按 G4 清单通过。
 
-退出：`G4_PASSED`，自动进入 G5-M0。
+退出：已完成。legacy direct evidence/conflict/unresolved、A→B→clear→A、已导出后新 Candidate、双窗口、运行中任务、restart 和 backup restore 全部通过；状态=`G4_PASSED`，当前进入 G5-M0。
 
 ## 10. G5：成稿编辑器与确定性出版
 
 ### G5-M0 Fixture 与红灯
+
+状态：`in_progress`。
 
 - 固定页漫、条漫、返修、故障、手机/AI fixture。
 - 固定 LayoutDocument/font/assets/golden corpus 和性能规模。

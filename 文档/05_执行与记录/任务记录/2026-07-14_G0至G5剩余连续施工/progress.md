@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G4_F_IN_PROGRESS
-last_completed = G4_E_CANDIDATE_DECISION_WORKBENCH
+current = G5_M0_IN_PROGRESS
+last_completed = G4_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -29,8 +29,8 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R0B | `completed` | `9227e8d` release | SH-10=`passed_human_review` | release shadow 与 v5 gate 已完成 |
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
-| G4 | `in_progress_g4_f` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611` | G4-A～E Scrutiny=`passed`；Runtime A～D=`passed_isolated`、E=`passed` | G4-E 已完成，进入 migration/E2E/总体复核 |
-| G5 | `blocked_until_g4_passed` | — | — | G4 通过后连续执行，最终用户签收 |
+| G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
+| G5 | `in_progress_m0` | — | — | 正在建立固定 fixture、golden corpus 与红灯 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -149,6 +149,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`3826611`。
 - 风险/未运行：migration 冲突/unresolved、完整 A→B→clear→A、任务竞争、backup restore 与总体 G4 Review 留给 G4-F；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
 - next：`G4_F_IN_PROGRESS`。
+
+## 2026-07-15 03:02：G4-F 迁移、恢复与总体关闭
+
+- baseline：G4-E docs HEAD=`91a6d56`；仅暂存 G4-F 代码、测试和三张截图，未混入既有历史文档改动。
+- 实现：legacy lock importer 为 Candidate 缺失、Asset 未 ready、scope 错误和 runtime current 冲突输出精确 blocker；OBS-07 增加 G4 revision/current/digest/Asset 恢复核对；浏览器覆盖 A→B→clear→A、已导出后新 Candidate、双窗口冲突和排版 stale；图片密钥重复保存幂等，非法轮换在覆盖持久化与运行内存前拒绝。
+- 测试：Server 完整 80 files/535 tests 连续两次通过；Shared 54/54；migration 78/78；G4 规则 36/36；DB-only Playwright repeat 3/3；E2E 环境 31/31；P6/G4-D、OBS-07、typecheck、Prisma validate、全仓 build、diff check 全部通过。
+- 证据：`g4_f_scrutiny_review.md`、`g4_f_runtime_review.md`、`evidence/g4_f_conflict_repreview.png`、`evidence/g4_f_candidate_history.png`、`evidence/g4_f_layout_stale.png`、`../../功能完成记录/2026-07-15_G4候选定稿返修完整闭环.md`。
+- Review：Scrutiny=`passed`；Runtime/User=`passed`；总体=`G4_PASSED`。
+- commit：`81c922a`。
+- 风险/未运行：NFR-01/02 的 100 Shot 性能画像和 `EXPLAIN QUERY PLAN` 未单独执行，不是本轮正确性退出硬门；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频链路。
+- next：`G5_M0_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

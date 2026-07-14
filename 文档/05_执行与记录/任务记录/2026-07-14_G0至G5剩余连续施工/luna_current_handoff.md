@@ -12,7 +12,7 @@ source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、�
 
 ## 1. 任务目标
 
-R2 DB-only 观察与 G4-A～E 已通过，从 G4-F 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
+R2 DB-only 观察与 G4-A～F 已通过，从 G5-M0 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
 
 ```text
 AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收
@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible implementation commit = 3826611
+current compatible implementation commit = 81c922a
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G4_F_IN_PROGRESS
+currentState = G5_M0_IN_PROGRESS
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～E。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F，状态=`G4_PASSED`。
 
-尚未完成：G4-F、G5-M0～M8、G5 用户签收。
+尚未完成：G5-M0～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -135,9 +135,9 @@ G4-C 已由提交 `179be50` 完成：preview/commit/history/favorite/reject/rest
 
 G4-D 已由提交 `894d1e8` 完成：Workbench/ProductionState source summary、工作流 needs_update、stale/unresolved/digest Server 事务门禁、运行中旧任务 historical fence、新 Candidate 隔离和 restart 均通过。
 
-G4-E 已由提交 `3826611` 完成：DB Workbench 权威刷新、Web 收藏/废弃/恢复、两阶段 lock/replace/clear、409 重新 preview 不自动 commit、历史与排版 stale 摘要均通过；完整 Server 533/533、Shared 54/54、DB-only Playwright 1/1。当前从 G4-F 继续；不得重做 G4-A～E，也不得把阶段 Runtime 冒充 G4 总体通过。
+G4-E 已由提交 `3826611` 完成：DB Workbench 权威刷新、Web 收藏/废弃/恢复、两阶段 lock/replace/clear、409 重新 preview 不自动 commit、历史与排版 stale 摘要均通过；完整 Server 533/533、Shared 54/54、DB-only Playwright 1/1。
 
-G4 全部通过后写 `G4_PASSED`，立即进入 G5-M0。
+G4-F 已由提交 `81c922a` 完成：legacy direct evidence/conflict/unresolved、A→B→clear→A、已导出后新 Candidate、双窗口、运行中任务、restart/backup restore 和总体双 Review 均通过；Server 535/535 两轮、Shared 54/54、migration 78/78、DB-only Playwright repeat 3/3。G4 总体=`G4_PASSED`，当前进入 G5-M0；不得重做 G4-A～F。
 
 ## 9. G5 连续区间
 

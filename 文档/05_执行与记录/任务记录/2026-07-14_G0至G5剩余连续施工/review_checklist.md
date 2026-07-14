@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10 和 G4-A～E 已完成，当前进入 `G4_F_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10 和 G4-A～F 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M0_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -94,7 +94,7 @@ source: deep-think 复核流程与各阶段验收清单
 - [x] Candidate `selected/locked` 和旧 Server/Web lock API 不再是 DB runtime 权威；Web 已接两阶段 preview/commit。
 - [x] G4 overlay 没重复 G1 base 列/trigger。
 - [x] preview/commit 共用一个规范化影响 resolver。
-- [ ] A→B→clear→A、replay、race、impact changed 全部有 DB 证据。（replay/race/impact changed 已通过；完整链待 G4-F）
+- [x] A→B→clear→A、replay、race、impact changed 全部有 DB 证据。
 - [x] favorite/reject 与 final lock 职责分离。
 - [x] replace/clear 不改旧 Layout/Export/Asset。
 - [x] Server 门禁拒绝 stale/unresolved 的新正式输出。
@@ -104,9 +104,9 @@ source: deep-think 复核流程与各阶段验收清单
 
 ### Runtime
 
-- [ ] G4 清单 8 条真实用户路径通过。（G4-E 核心浏览器路径已通过；G4-F 汇总总体结论）
+- [x] G4 清单 8 条真实用户路径通过。
 - [x] 影响弹窗、409 重新确认、排版 stale 摘要与历史已有真实浏览器自动化证据。
-- [ ] restart/backup restore 后 revision/current/freshness 一致。
+- [x] restart/backup restore 后 revision/current/freshness 一致。
 
 ## 7. G5 Review
 

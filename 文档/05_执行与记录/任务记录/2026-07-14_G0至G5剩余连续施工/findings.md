@@ -13,19 +13,19 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 G4 compatible implementation commit 为 `3826611`；后续文档留痕提交不构成身份漂移，旧 cutover evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `81c922a`；后续文档留痕提交不构成身份漂移，旧 cutover evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A～E 已完成，G4-F、G5-M0～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_F_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10 与 G4-A～F 已通过；G5-M0～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M0_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
 - W1 已补齐 Story/Storyboard/Preflight 的 DB-only Web/API 与 fresh SQLite E2E。
 - R0B release shadow、SH-10 和 v5 C0～C4 已形成真实 evidence。
 - C5/C6/C7 与 R2 均已关闭；OBS-06/07/08 中暴露的真实缺口已分别修复并复核，允许进入 G4。
-- G4-A～E 的正式功能已实现；G4-F 总体关闭与 G5 仍待执行。
+- G4-A～F 已总体关闭为 `G4_PASSED`；G5 仍待执行。
 
 ## 3. 固定阶段顺序
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G4_F_IN_PROGRESS
-next = G4_MIGRATION_E2E_AND_OVERALL_REVIEW
+current = G5_M0_IN_PROGRESS
+next = G5_FIXTURE_AND_RED_GATES
 ```
 
 ## 7. G4-A 稳定结论
@@ -112,3 +112,10 @@ next = G4_MIGRATION_E2E_AND_OVERALL_REVIEW
 - favorite/reject/restore 与 current final 保持正交；排版/导出页消费 Server 来源摘要，Server 事务门禁仍是安全权威。
 - G4-E 不修改旧 Layout/Export/Asset，不实现画布换图或 crop；成功浏览器路径使用临时 DB、公开 HTTP、持久化 Worker 和 fake provider。
 - G4-E commit=`3826611`，Server 533/533、Shared 54/54、Playwright 1/1；Scrutiny=`passed`，Runtime=`passed`。migration、backup restore 和总体 G4 Review 从 G4-F 继续。
+
+## 12. G4-F 与总体 G4 稳定结论
+
+- legacy current 只从可验证直接证据恢复；Candidate 缺失、Asset 未 ready、scope 错误与既有 runtime current 冲突分别留下稳定 blocker，不猜最新候选。
+- A→B→clear→A、已导出后新 Candidate、双窗口 409 重预览、运行中任务 historical fence、restart 与 DB-only backup restore 均有运行证据。
+- 相同图片密钥重复保存保持同一 secretRef/fingerprint；缺少受控清理事件时，新密钥轮换在覆盖 SecretStore 和运行内存前 fail-closed。
+- G4-F commit=`81c922a`；Server 535/535 两轮、Shared 54/54、migration 78/78、Playwright repeat 3/3；Scrutiny=`passed`，Runtime/User=`passed`，总体=`G4_PASSED`。
