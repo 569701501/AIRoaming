@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m1` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m2` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -348,14 +348,18 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M1 E0 可丢弃技术原型
 
-状态：`in_progress`。
+状态：`completed`；提交=`68b00cb`；ADR=`ADR-0016`；Scrutiny=`passed`；Runtime=`passed_isolated`。
 
 - 至少比较两条完整薄切片，不只比较拖拽手感。
 - 验证四格/自由图/旋转/crop/层级/气泡 round-trip、横竖排、IME/Undo、三次 sha、PDF/切片、受控字体、性能和许可证。
 - 若一条方案明确通过全部硬门、许可证可接受且不需要新系统权限，Luna 可写技术 ADR 并继续。
 - 若无方案通过、结论接近阈值或引入付费/限制性许可，停止并提交对比证据，不猜选。
 
+退出：A（Konva adapter + DOM 输入 + 独立 HTML RenderScene + pinned Chromium）15 个硬门全部通过；B 在首个 1080×8192 resvg 切片 native abort，已由子进程隔离并作为失败证据。PNG/PDF/40 页/切片/字体 cmap/IME/100 命令/性能/许可证与视觉复核齐全，ADR-0016 已采纳。
+
 ### G5-M2 Shared Layout Domain Kernel
+
+状态：`in_progress`。
 
 - 严格 LayoutDocument codec/normalization/digest/limits。
 - 命令 reducer/inverse/batch atomicity、geometry/crop/reading order、rich text grapheme policy。

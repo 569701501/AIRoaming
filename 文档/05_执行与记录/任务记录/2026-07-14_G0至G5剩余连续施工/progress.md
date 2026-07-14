@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M1_IN_PROGRESS
-last_completed = G5_M0_PASSED
+current = G5_M2_IN_PROGRESS
+last_completed = G5_M1_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m1` | `53b65e4` | M0 Scrutiny=`passed`；Runtime=`passed_isolated` | M0 固定 corpus 与红灯已完成；正在执行 E0 两条技术薄切片 |
+| G5 | `in_progress_m2` | `53b65e4`, `68b00cb` | M1 Scrutiny=`passed`；Runtime=`passed_isolated` | A 全硬门通过、ADR-0016 已采纳；进入 Shared Layout Domain Kernel |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -172,6 +172,18 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`53b65e4`。
 - 风险/未运行：M0 不选择技术库、不生成 PNG/PDF/slice golden、不声称中日文字体可用；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频链路。
 - next：`G5_M1_IN_PROGRESS`。
+
+## 2026-07-15 04:05：G5-M1 E0 技术路线定版
+
+- baseline：M0 code=`53b65e4`，docs=`081a0c3`；原型只写 marker 保护的 `.runtime/`，未连接 DB/provider/用户 workspace。
+- 实现：完成 A/B 两条完整薄切片；A 使用 Konva+DOM+独立 HTML RenderScene+pinned Chromium，B 使用 SVG-native+显式 glyph+resvg；resvg native 调用增加子进程故障隔离。
+- 测试：最终 `corepack pnpm prototype:g5-e0` exit 0；A 的 roundtrip/rich text/IME/100 commands/stale crop/semantic/geometry/PNG golden/PDF/40 pages/slices/fonts/performance/page errors 共 15 门全部通过；B 在首个 1080×8192 slice 稳定 native abort。`corepack pnpm test:g5:fixtures` 3/3；全仓 typecheck、E2E typecheck、build、Shared 54/54、Server 536/536 通过；`test:render` 仅保留 M5/M7 负责的三个生产红灯。
+- 产物：PNG sha=`sha256:26c7029eda5af46cea0c1a4b66310ee2472a136f64e28e1a0788a8a2fde3aec4`；PDF sha=`sha256:abcbacde62c69bddac427a8b788051d4f28a369d343bd49d54e9d395a2eb9e57`；40 页 PDF 通过；条漫拼接/source pixel digest=`sha256:bb1ef1dfa192ab6c5d24214d748a54559158ca0df5041b71f148f9981cb9211d`。
+- 证据：`evidence/g5_m1_e0_report.json`、`g5_m1_scrutiny_review.md`、`g5_m1_runtime_review.md`、`../../功能完成记录/2026-07-15_G5-M1渲染技术路线定版.md`、ADR-0016。
+- Review：Scrutiny=`passed`；Runtime/Visual=`passed_isolated`；原型已标记为归档证据，不能复制进生产。
+- commit：`68b00cb`。
+- 风险/未运行：正式 production renderer/task/publication 仍归 M7；Chromium 发行 notices 待 M7 按实际打包方式复核；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频。
+- next：`G5_M2_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

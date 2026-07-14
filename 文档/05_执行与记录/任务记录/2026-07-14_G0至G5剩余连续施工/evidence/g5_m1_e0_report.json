@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "kind": "g5_e0_decision_evidence_v1",
+  "sourceReportDigest": "sha256:03e680eba9dc3d2397135977344ed9cc50467ace4fa623c86610ceb1b595e787",
+  "command": "corepack pnpm prototype:g5-e0",
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "darwin-arm64",
+    "playwrightChromium": "149.0.7827.55",
+    "externalNetworkRequestsDuringRender": 0,
+    "systemFontsAllowed": false
+  },
+  "fonts": {
+    "interSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+    "notoSansCjkScSha256": "sha256:2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+    "cmapParser": "fontkit@2.0.4",
+    "missingEmojiRejected": true
+  },
+  "candidateA": {
+    "status": "passed",
+    "architecture": "Konva interaction adapter + DOM rich text + dedicated HTML RenderScene + pinned Chromium PNG/PDF",
+    "gates": {
+      "roundtrip": true,
+      "richTextRangeStyles": true,
+      "imeUndo": true,
+      "commandHistory100": true,
+      "staleReplacementTwoCropStrategies": true,
+      "browserSemantic": true,
+      "geometryWithinHalfUnit": true,
+      "deterministicPng": true,
+      "goldenPixelDiffZero": true,
+      "deterministicPdf": true,
+      "rendererCapabilities": true,
+      "stripSlices": true,
+      "controlledFonts": true,
+      "performance": true,
+      "noPageErrors": true
+    },
+    "geometryMaxDelta": 0.001,
+    "performance": {
+      "canvasCount": 20,
+      "elementCount": 200,
+      "frameP95Ms": 19.9,
+      "pointerupCommandMs": 0.2,
+      "nodeRssBytesAfterOutputs": 287227904
+    },
+    "pagePng": {
+      "storageKey": "prototypes/layout-editor-e0/.runtime/results/a/page-1.png",
+      "width": 1800,
+      "height": 2400,
+      "bytes": 481647,
+      "sha256": "sha256:26c7029eda5af46cea0c1a4b66310ee2472a136f64e28e1a0788a8a2fde3aec4",
+      "pixelDigest": "sha256:e8160f0a73b01262aac2615ba445a83d5d9a56f9c700a34ded0b6d4295eebc93"
+    },
+    "pagePdf": {
+      "storageKey": "prototypes/layout-editor-e0/.runtime/results/a/page-1.pdf",
+      "pageCount": 1,
+      "widthPt": 1350,
+      "heightPt": 1800,
+      "bytes": 48545,
+      "sha256": "sha256:abcbacde62c69bddac427a8b788051d4f28a369d343bd49d54e9d395a2eb9e57",
+      "allFontsEmbedded": true
+    },
+    "capabilityPdf": {
+      "storageKey": "prototypes/layout-editor-e0/.runtime/results/a/capability-40-pages.pdf",
+      "pageCount": 40,
+      "widthPt": 1350,
+      "heightPt": 1800,
+      "bytes": 653045,
+      "sha256": "sha256:386f4e2dbeff5ca0c11ecfa2755312838181e25063d1e7ddeffb233dcde06485",
+      "allFontsEmbedded": true
+    },
+    "strip": {
+      "sliceHeights": [8192, 8192, 8192, 8192, 5632],
+      "stitchedWidth": 1080,
+      "stitchedHeight": 38400,
+      "overlapPx": 0,
+      "gapPx": 0,
+      "stitchedPixelDigest": "sha256:bb1ef1dfa192ab6c5d24214d748a54559158ca0df5041b71f148f9981cb9211d",
+      "sourceCanvasPixelDigest": "sha256:bb1ef1dfa192ab6c5d24214d748a54559158ca0df5041b71f148f9981cb9211d"
+    }
+  },
+  "candidateB": {
+    "status": "failed",
+    "reasonCode": "E0_RESVG_NATIVE_ABORT_AT_1080X8192_SLICE",
+    "failedOutput": "strip-slice-1",
+    "nativeFailureContainedBySubprocess": true
+  },
+  "verdict": {
+    "status": "candidate_available",
+    "recommendedRoute": "A",
+    "adr": "ADR-0016"
+  }
+}
