@@ -16,6 +16,7 @@ import { PrismaService } from "../persistence/prisma.service.js";
 import { assertFileModeBridgeAllowed } from "../persistence/file-mode-guard.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
 import { CUTOVER_SHADOW_CHECKS } from "./cutover-shadow-gate.js";
+import { AppBackupService } from "../backup/app-backup.service.js";
 import type { CutoverPlanV1 } from "./cutover-plan.types.js";
 import type { RuntimeBundleEnvelope } from "./snapshot.types.js";
 
@@ -379,8 +380,13 @@ describe("createCutoverAction", () => {
       await maintenance.drain();
       await maintenance.close();
       const bundle = await maintenance.createRuntimeBundle() as RuntimeBundleEnvelope;
+      let backupWorkspaceRoot: string | undefined;
       const dependencies = {
         ...productionCutoverRunnerDependencies(),
+        createBackup: (prisma: PrismaService) => {
+          const backup = new AppBackupService(prisma);
+          return { backup: async (input: Parameters<AppBackupService["backup"]>[0]) => { backupWorkspaceRoot = input.workspaceRoot; return backup.backup(input); } } as never;
+        },
         secretStore: fakeSecretStore(),
         secretStoreAdapter: "fake" as const,
         fetch: (async (input: string | URL) => ({ ok: true, json: async () => ({ success: true, data: String(input).endsWith("/bundle") ? bundle : undefined }) })) as unknown as typeof fetch,
@@ -408,6 +414,7 @@ describe("createCutoverAction", () => {
       if (!sourceManifestDigest) throw new Error("runner chain source digest missing");
       await writeFile(plan.decisionsPath, `${JSON.stringify(createMigrationDecisionArtifact(sourceManifestDigest, []))}\n`, { mode: 0o600 });
       for (const step of ["C3", "C4"] as const) await service.runStep(planPath, plan.evidenceRoot, step, action(step), authC1);
+      expect(backupWorkspaceRoot).toBe(plan.targetWorkspaceRoot);
       const c4 = await service.status(planPath, plan.evidenceRoot);
       const authC5 = await authorization("AUTH-C5", c4.evidenceDigest!);
       for (const step of ["C5", "C6"] as const) await service.runStep(planPath, plan.evidenceRoot, step, action(step), authC5);

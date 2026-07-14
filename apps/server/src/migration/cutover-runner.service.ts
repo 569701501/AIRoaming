@@ -254,7 +254,10 @@ export function createCutoverAction(step: CutoverEvidenceStep, authorizationFile
         await writePrivateJsonAtomic(plan.finalReportPath, finalResult.report);
         await deps.createReady(prisma).markReady({ runId: plan.runId, releaseRoot: plan.releaseRoot, workspaceRoot: plan.targetWorkspaceRoot, maintenanceBundle: plan.runtimeBundlePath, credentialEvidencePath, requiredSecretStoreAdapter: deps.secretStoreAdapter, strictRuntimeProfile: true });
         await mkdir(plan.backupRoot, { recursive: true, mode: 0o700 });
-        const backup = await deps.createBackup(prisma).backup({ databaseUrl: plan.targetDatabaseUrl, workspaceRoot: plan.sourceWorkspaceRoot, dataRoot: plan.targetDataRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, maintenanceBundle: plan.runtimeBundlePath, decisions: plan.decisionsPath, output: plan.backupRoot, kind: "pre-cutover", runId: plan.runId, runtimeProfile: "cutover" });
+        // The final-imported Asset rows point at files materialized under the
+        // target workspace. Back up that sealed target projection, not the
+        // legacy source workspace (which intentionally remains unchanged).
+        const backup = await deps.createBackup(prisma).backup({ databaseUrl: plan.targetDatabaseUrl, workspaceRoot: plan.targetWorkspaceRoot, dataRoot: plan.targetDataRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, maintenanceBundle: plan.runtimeBundlePath, decisions: plan.decisionsPath, output: plan.backupRoot, kind: "pre-cutover", runId: plan.runId, runtimeProfile: "cutover" });
         await writePrivateJsonAtomic(`${plan.evidenceRoot}/backup-pointer.json`, { bundlePath: backup.bundlePath, bundleDigest: backup.bundleDigest });
         await deps.createRestore().restore({ backup: backup.bundlePath, releaseRoot: plan.releaseRoot, targetDataRoot: plan.restoreDataRoot, targetWorkspaceRoot: plan.restoreWorkspaceRoot, mode: "verify-only" });
         const settings = deps.createSettings(deps.secretStore);
