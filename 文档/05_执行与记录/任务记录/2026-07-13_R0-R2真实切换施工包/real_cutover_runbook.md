@@ -16,7 +16,7 @@ source: R0-A 实施契约与 G1 C0～C7 检查表
 R0_B_REMEDIATION_REQUIRED
 ```
 
-本 Runbook 是 R0-A 完成后的目标命令面。仓库已具备 `db:cutover` 代码入口，两个 fresh C0～C7 隔离链、C1～C4 失败矩阵、C7 crash/reopen、首写 file-guard、Luna Scrutiny 和 disposable Keychain smoke 均已通过。R0-B 只读发现与两个 fresh shadow 已复现 blocker；进一步只读验证证明需要先恢复缺失结构源并修复 legacy character importer。完整执行入口是 `luna_r0b_blocker_remediation_handoff.md`。SH-01～09 尚未全绿，当前不能提交 SH-10，更不能升级为 C0/C1 或真实切换证据。
+本 Runbook 是 R0-A 完成后的目标命令面。仓库已具备 `db:cutover` 代码入口，两个 fresh C0～C7 隔离链、C1～C4 失败矩阵、C7 crash/reopen、首写 file-guard、Luna Scrutiny 和 disposable Keychain smoke 均已通过。R0-B 阻塞修复、真实源单文件恢复、两个 real-source fresh shadow 和 SH-01～SH-09 已完成；当前只等待人工 SH-10，不能把它升级为 C0/C1 或真实切换证据。完整执行/复核入口是 `luna_r0b_blocker_remediation_handoff.md` 与 `r0b_remediation_execution_record.md`。
 
 ## 2. 角色
 

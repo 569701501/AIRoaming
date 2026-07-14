@@ -107,3 +107,24 @@ real_cutover_no_go
 - 真实 source target 仍不存在，recovery archive/member digest 未改变。
 - source overlay 未被 target workspace 回写；A/B target 均为独立根。
 - 未生成 AUTH、未停写、未执行 C0～C7、未访问默认 Keychain/真实凭据。
+
+## R0-B remediation 最终证据
+
+| ID | 证据 | 结论 |
+| --- | --- | --- |
+| F-39 | `29f40bb` 从目标 DB 已导入行重建 legacy preflight sourceSnapshot；未知/歧义/不完整输入仍 fail-closed；全量 71 spec/483 tests 通过 | preflight blocker 已在代码层以兼容 adapter 收口，未修改 schema/migration/trigger |
+| F-40 | recovery archive/member digest 与候选 identity 再核对后，真实 source 仅新增 `structure.json`；pre/post source manifest 除该新增项外 `removed=[]/changed=[]` | P5 原子恢复边界满足；未覆盖、删除或改写其他真实源 |
+| F-41 | real-source sealed snapshot source=`sha256:c16ff088...4beebb`；A/B fresh target 16/16 succeeded；aggregate reportDigest=`sha256:daca7e92...663e781`、table-count=`sha256:25f14b5a...117fc0a` | SH-01/02/03 通过 |
+| F-42 | A/B 每个 slice `db:verify` 通过，integrity=`ok`、FK=0；API/restart/legacy isolation witness 通过 | SH-04/05/06/07 通过 |
+| F-43 | 初次 real shadow 生成的 67 个 `legacy-import` 文件已清理；重新 sealed snapshot source digest 恢复为 `sha256:c16ff088...4beebb`，最终 shadow 使用隔离 target workspace | 真实 source 未留下 shadow 生成物；SH-07 边界满足 |
+| F-44 | A/B artifact 与 SQLite dump sentinel=0；coordinated backup + verify-only/materialize restore 全通过，bundle=`sha256:ef17078c...6ae2dd` | SH-08/09 通过；未访问真实 Keychain/真实凭据 |
+
+## 当前结论
+
+```text
+R0-B = remediation_executed_waiting_human_SH10
+SH-01..SH-09 = passed_release_shadow
+SH-10 = awaiting_human_migration_reviewer
+AUTH-C1/C5/C7 = not_generated
+C0..C7/final importer = not_run
+```

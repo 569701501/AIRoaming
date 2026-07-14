@@ -170,6 +170,19 @@ C0..C7 = not_run
 
 ## 7. Luna 交付格式
 
+## 7.1 本轮执行结果（交给 Luna 时的当前基线）
+
+本施工包已经按上述 P0～P7 由 Codex 执行到 SH-09，Luna 不需要重新猜测“做到哪一步”。如果 Luna 负责复核或重放，直接以以下固定基线开始：
+
+1. remediation appCommit=`29f40bb`；前一代码修复提交为 `74a6d71`。
+2. legacy preflight v1→V2 sourceSnapshot 兼容已实现，定向 74 tests、服务端 71 spec/483 tests 通过。
+3. 真实源只新增授权 `structure.json`；除该新增文件外 source manifest 无差异。
+4. real-source A/B fresh full shadow 为 16/16 succeeded，aggregate reportDigest=`sha256:daca7e92...663e781`，table-count digest=`sha256:25f14b5a...117fc0a`，open blocker=0。
+5. SH-04～SH-09 已完成；SH-09 coordinated backup/verify-only/materialize restore 全通过，67 assets。
+6. 首次 shadow 产生的 67 个 `legacy-import` 文件已清理；最终 shadow 使用隔离 target workspace，真实 source digest 保持 `sha256:c16ff088...4beebb`。
+
+因此当前不是“等待 Luna 开发代码”，而是：Luna 若接手，只需复核 `r0b_remediation_execution_record.md` 与外置证据，准备人工 SH-10 审阅包；不得重复恢复真实源、不得生成 AUTH、不得进入 C0～C7。
+
 ```text
 结论：remediation_executed_waiting_human_SH10 / blocked_<reason>
 remediation commit：<sha>

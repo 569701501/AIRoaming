@@ -188,3 +188,14 @@ Runtime：
 - 按 Handoff 强制停止条件停止：真实 `structure.json` 尚未恢复；未执行 real-source snapshot、SH-01～SH-09、SH-10、AUTH、停写、C0～C7、默认 Keychain 或真实凭据操作。
 
 结论：`remediation_code_committed_overlay_blocked_preflight`；R0-B 不能进入真实源单文件恢复，等待独立决定是否单独建立 preflight source 修复任务。
+
+## 2026-07-14 R0-B preflight 兼容补齐与真实 shadow 收口
+
+- 新增提交 `29f40bb`：legacy preflight `schemaVersion=1` 且缺少 `sourceSnapshot` 时，只从已导入的目标 DB 证据重建 V2 source snapshot；无法唯一解析、校验失败或字段不完整时仍 fail-closed 为 `PREFLIGHT_SOURCE_UNRESOLVED`。新增兼容测试；完整 integration file 74 tests、服务端全量 71 spec/483 tests 通过。
+- release freeze 绑定 `29f40bb`，effective schema digest 仍为 `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`；typecheck、build、Prisma、G1、capability、diff check 全绿。
+- 条件式真实源恢复仅新增 recovery archive 中授权的 `chapter-001/structure.json`；archive digest=`sha256:336c9f...4b6f23`，成员 digest=`sha256:4eac7b...b076a0dd3`，22819 bytes。除该新增文件外，pre/post source manifest 无 removed/changed。
+- 重新生成的 real-source sealed snapshot：source=`sha256:c16ff088...4beebb`，snapshot=`sha256:effb0794...618161a`，transform=`sha256:de410ec3...90f913d`。两个隔离 fresh target A/B 均 16/16 succeeded，aggregate reportDigest=`sha256:daca7e92...663e781`，table-count digest=`sha256:25f14b5a...117fc0a`，open blocker=0。
+- 初次 real shadow 暴露 AssetVisual importer 会把 67 个待提升资产写入 source `legacy-import/`；该副作用已立即删除并重新核对 source digest 未变。最终重放使用独立 target workspace，真实 source 未再写入。
+- SH-04 `db:verify` A/B 各 16 slices 全通过，integrity=`ok`、FK=0；SH-05/06 使用 `IMP-M4-API-01` 与 `D2-WIT-01/02/03/04/05` 证据；SH-08 A/B artifact/SQLite dump sentinel=0。
+- SH-09 在 fresh shadow target A 上完成 coordinated backup、verify-only restore、materialize restore；bundle=`sha256:ef17078c...6ae2dd2`，manifest=`sha256:c0524a51...c59f7e1`，67 assets，恢复 DB integrity=`ok`、FK=0。
+- 当前停止点：`R0-B=remediation_executed_waiting_human_SH10`；未生成 AUTH，未停写，未执行 C0～C7、final importer、默认 Keychain 或真实凭据操作。

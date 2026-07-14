@@ -111,16 +111,16 @@ source: R0-A 实施契约、G1 SH/C/RB/OBS 验收项
 
 | ID | 条件 | 状态 |
 | --- | --- | --- |
-| SH-01 | 同一只读 overlay snapshot 两次 fresh import | `observed_preliminary`（clean overlay A/B 一致；非 real-source） |
-| SH-02 | 规范化 reportDigest 相同 | `observed_preliminary`（A/B=`sha256:20a85df7121a639738d0fb5f8c6231a9a21b9966e1328d91edb25cfacf96cf47`；非 real-source） |
-| SH-03 | blocker=0 | `blocked_preflight_source`（两边在 preflight slice 同报 `PREFLIGHT_SOURCE_UNRESOLVED`） |
-| SH-04 | integrity/FK/schema contract 全绿 | `not_run`（被 SH-03 阻断） |
-| SH-05 | API DTO 对照通过 | `not_run` |
-| SH-06 | DB-mode restart 通过 | `not_run` |
-| SH-07 | old metadata mutation isolation | `not_run` |
-| SH-08 | global secret sentinel=0 | `not_run` |
-| SH-09 | release-specific backup/restore rehearsal | `not_run` |
-| SH-10 | 人工审阅 MigrationReport 并签署 | `not_ready` |
+| SH-01 | 同一 real-source sealed snapshot 两次 fresh import | `passed_release_shadow`（A/B clean real-source snapshot；16/16） |
+| SH-02 | 规范化 reportDigest 相同 | `passed_release_shadow`（A/B=`sha256:daca7e9201c86589326a5847ad75591828b1ab28e591ab03ce9af810d663e781`；table-count=`sha256:25f14b5a387d598bd7ddb7e22d72e4866203ac4bcdd357c07a06292ec117fc0a`） |
+| SH-03 | blocker=0 | `passed_release_shadow`（A/B 16/16 succeeded，open blocker=0） |
+| SH-04 | integrity/FK/schema contract 全绿 | `passed_release_shadow`（A/B `db:verify` 全部通过；integrity=`ok`、FK=0） |
+| SH-05 | API DTO 对照通过 | `passed_release_shadow`（`IMP-M4-API-01` 通过） |
+| SH-06 | DB-mode restart 通过 | `passed_release_shadow`（`D2-WIT-01/02/03/04/05` restart witness 通过） |
+| SH-07 | old metadata mutation isolation | `passed_release_shadow`（源清单 digest=`sha256:c16ff088...4beebb` 保持不变；shadow 生成物隔离到 target workspace） |
+| SH-08 | global secret sentinel=0 | `passed_release_shadow`（A/B artifact + SQLite dump sentinel=0） |
+| SH-09 | release-specific backup/restore rehearsal | `passed_release_shadow`（coordinated backup/verify-only/materialize 全通过；bundle=`sha256:ef17078c...6ae2dd2`，assets=67） |
+| SH-10 | 人工审阅 MigrationReport 并签署 | `awaiting_human_migration_reviewer` |
 | AUTH-C1 | C0 passed 后，用户授权真实停写及 plan 指定的 C3 Keychain verify/prestage | `not_run` |
 | AUTH-C5 | 用户授权关闭旧 file 进程并进入 DB smoke/archive | `not_run` |
 | AUTH-C7 | 用户理解不可逆边界并授权 activate execute | `not_run` |

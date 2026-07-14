@@ -18,7 +18,7 @@ source: R0-R2 真实切换 Handoff
 
 ```text
 R0-A passed_isolated
-R0-B blocker_remediation_documented_waiting_luna_authorization
+R0-B remediation_executed_waiting_human_SH10
 real_cutover_no_go
 ```
 
@@ -31,7 +31,7 @@ real_cutover_no_go
 | R0-A2 | strict runtime/evidence/activate | completed | RCUT-RUN/EVD/ACT 全绿；补 artifact/authorization reconcile |
 | R0-A3 | production `db:cutover` runner | completed | C1～C7 domain action 全部接线，RCUT-CLI/CHAIN/RB 全绿 |
 | R0-A4 | 全量门禁与双 Review | completed | 独立 Scrutiny=`passed`、Runtime=`passed_isolated`，已独立收口 |
-| R0-B | 阻塞修复、真实 plan、release-specific shadow、SH-10 | blocked_preflight_source | 代码已提交 `74a6d71`，A/B clean overlay 已一致通过前 8 slice；第 9 个 preflight 因 legacy source 缺少 `sourceSnapshot` 停止。真实 source 尚未恢复，不能进入 SH-01～09/SH-10 |
+| R0-B | 阻塞修复、真实 plan、release-specific shadow、SH-10 | remediation_executed_waiting_human_SH10 | 代码提交 `29f40bb`；legacy v1 preflight 已补齐 sourceSnapshot 兼容；real-source sealed snapshot 在两个隔离 fresh target 上 16/16 succeeded，SH-01～SH-09 已落证；停在人工 SH-10 |
 | R1-C0 | 发布/根/空间/SH 只读落证 | blocked | AUTH-C1 可申请 |
 | R1-C1～C4 | 停写、snapshot、target、final/backup | blocked | AUTH-C5 可申请 |
 | R1-C5～C6 | closed DB smoke、archive | blocked | AUTH-C7 可申请 |
@@ -42,7 +42,7 @@ real_cutover_no_go
 ## 角色
 
 - Orchestrator：读取事实源、维护阶段状态，不运行真实命令。
-- Worker/Luna：下一任务只按 `luna_r0b_blocker_remediation_handoff.md` 执行 R0-B 阻塞修复；先 overlay，满足条件后才单文件恢复真实源，并停在 SH-10。
+- Worker/Luna：若重放本轮工作，只按 `luna_r0b_blocker_remediation_handoff.md` 的逐项命令执行；当前已完成到 SH-09，下一步只能由人工 Migration reviewer 做 SH-10。
 - Scrutiny Review：R0-A 完成后只读复核。
 - Runtime Review：R0-A 只做隔离链；R0-B/R1/R2 由用户另行授权。
 - Human release/migration/rollback owner：填写真实 plan、SH-10 和授权。
@@ -76,7 +76,7 @@ R0-DOC：
 总体任务：
 
 - R0-A 自动化与双 Review 通过。
-- R0-B SH-01～10 完成并停止等待 C0 授权。
+- R0-B SH-01～SH-09 完成并停止等待人工 SH-10；SH-10 后仍需另行授权才可进入 C0。
 - R1 C0 通过后单独生成 AUTH-C1，再完成 C1～C7 与真实回滚证据。
 - R2 OBS-01～10 完成。
 - 未泄密、未自动 down、未删除旧证据。

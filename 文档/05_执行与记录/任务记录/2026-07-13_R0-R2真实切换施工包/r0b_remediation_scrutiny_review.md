@@ -1,18 +1,18 @@
 ---
 doc_id: AIR-RCUT-R0B-SCRUTINY-001
-status: blocked_preflight_source
+status: passed_release_shadow_waiting_human_SH10
 created: 2026-07-14
 updated: 2026-07-14
 owner: AI漫游项目
 audience: reviewer, migration-reviewer, ai-agent
-source: R0-B remediation commit 74a6d71 与 clean overlay 证据
+source: R0-B remediation commits 74a6d71/29f40bb、real-source shadow 与 SH-01～SH-09 证据
 ---
 
 # R0-B remediation Scrutiny Review
 
 ## 结论
 
-代码复核通过；release-specific overlay 复核在既有 preflight source blocker 处停止。不得把本记录解释为 SH-01～SH-09 通过，也不得进入真实源恢复。
+代码与 release-specific 证据复核通过。SH-01～SH-09 已满足本施工包要求；本记录不替代人工 SH-10，也不授予 AUTH 或 C0～C7 权限。
 
 ## 代码检查
 
@@ -26,18 +26,19 @@ source: R0-B remediation commit 74a6d71 与 clean overlay 证据
 
 ## 证据
 
-- remediation commit：`74a6d71`。
-- 定向 78 tests、服务端全量 71 spec/482 tests、typecheck、server/web build、Prisma、G1、capability、diff check 均通过。
-- clean overlay A/B 在前 8 slice 完全一致；Storyboard counts=`1/15/15/65`，AssetVisuals=`67/24/9`。
-- preflight 两边同报 `PREFLIGHT_SOURCE_UNRESOLVED`，原因是 legacy `preflight.json` 缺少 `sourceSnapshot`。该文件不属于 R0-B 允许改动范围。
+- remediation commits：`74a6d71`、`29f40bb`。
+- 定向/全量：integration 74 tests；服务端全量 71 spec/483 tests；typecheck、server/web build、Prisma、G1、capability、diff check 均通过。
+- legacy preflight v1→V2 adapter 只使用已导入目标 DB 证据重建 sourceSnapshot，异常仍 fail-closed；未修改 schema/migration/trigger。
+- real-source A/B：16/16 succeeded，aggregate reportDigest=`sha256:daca7e92...663e781`，table-count digest=`sha256:25f14b5a...117fc0a`，open blocker=0。
+- source pre/post 对照仅新增授权 `structure.json`；shadow 生成的 67 个隔离 asset 文件已清理，最终 source digest=`sha256:c16ff088...4beebb`。
 
 ## 未通过/未执行
 
-- SH-03 blocker=0：未通过。
-- SH-04～SH-10：未运行/未就绪。
-- 真实 source 单文件原子恢复：未运行。
+- SH-01～SH-09：`passed_release_shadow`。
+- SH-10：`awaiting_human_migration_reviewer`，未由 Codex/Luna 自签。
+- coordinated backup/verify-only/materialize restore：通过，67 assets，integrity/FK 全绿。
 - 默认 Keychain、真实凭据、停写、AUTH、C0～C7：操作次数均为 0。
 
 ## 建议
 
-另建独立 preflight source remediation 任务，先明确如何取得合法 sourceSnapshot；在该任务完成并重新通过 clean overlay full shadow 前，不得恢复真实 `structure.json`。
+下一步只交人工 Migration reviewer 审阅 SH-10；在人工签署和另行授权前，不得生成 AUTH、停写或进入 C0～C7。

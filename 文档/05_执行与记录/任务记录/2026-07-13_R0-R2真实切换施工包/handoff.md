@@ -157,5 +157,5 @@ Cutover runner：C0～C7/resume/evidence/metadata archive 是否有生产入口
 Scrutiny：passed
 Runtime：passed_isolated
 真实操作：默认用户 Keychain/真实凭据/真实数据=0；disposable smoke=1
-停止点：R0-B 只读 shadow 已复现 blocker；阻塞修复施工包已就绪，等待用户交给 Luna 执行。SH-01～09 尚未通过，当前不能交 SH-10；未停写、未生成 AUTH、未执行 C0～C7
+此前停止点已解除：preflight 兼容修复、真实源单文件恢复和 SH-01～SH-09 已完成。当前停止点为人工 SH-10；未停写、未生成 AUTH、未执行 C0～C7。详见 `r0b_remediation_execution_record.md`。
 ```
