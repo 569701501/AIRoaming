@@ -12,7 +12,7 @@ source: R0-R2 真实切换 Runbook 与 G5 退出签字
 
 ## 1. 原则
 
-- 当前 S0/W1/R0B/SH-10/C0～C7 activation/首写边界、R2 OBS-01～10 和 G4-A 已完成；AUTH-C5/AUTH-C7/R2 已使用并通过，当前进入 G4-B。
+- 当前 S0/W1/R0B/SH-10/C0～C7 activation/首写边界、R2 OBS-01～10 和 G4-A/B 已完成；AUTH-C5/AUTH-C7/R2 已使用并通过，当前进入 G4-C。
 - R0B、SH-10、AUTH-C1、AUTH-C5、AUTH-C7、R2 观察授权、G5 最终签收分别独立；后一个授权不能提前合并到前一个。
 - Luna 只能准备脱敏摘要和不可覆盖的授权文件模板，不能替用户签署或根据聊天上下文自行生成 AUTH。
 - 授权必须绑定当时的 plan/run/release/appCommit/evidence digest；相关 identity 变化后旧授权失效。

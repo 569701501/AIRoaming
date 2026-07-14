@@ -249,7 +249,7 @@ docs(g2): close db-only web cutover gate
 - 当前状态：`passed_real`；AUTH-C5 已消费，C5/C6 均已通过。
 - C5 已完成 closed DB server、DB smoke 和 ephemeral business write rollback；C6 已完成 metadata archive。
 - file guard、C6_READY、backup/restore、firstBusinessWriteAt 首写边界断言已记录。
-- C5/C6 完成后历史上停止在 `WAIT_AUTH_C7`；AUTH-C7 已消费，当前首写边界尚未完成。
+- C5/C6 完成后历史上停止在 `WAIT_AUTH_C7`；AUTH-C7 已消费，首写边界与 R2 均已完成。
 
 ### R1-4 C7（已完成 activation）
 
@@ -286,14 +286,16 @@ docs(g2): close db-only web cutover gate
 
 ### G4-B 纯规则与 Resolver
 
-状态：`in_progress`。
+状态：`completed`，commit=`9cd599a`，Scrutiny=`passed`，Runtime=`passed_isolated`。
 
 - A→B→clear→A 状态机、current lock set digest、replay、freshness 真值表。
 - 统一 preview/commit 影响分析；递归查询 layout/export/task 影响并规范化 digest。
 
-退出：表驱动/property/known-answer 测试全绿，无 IO 的规则可单独验证。
+退出：已完成。表驱动、排列不变量、known-answer、严格 codec 与无 IO freshness/impact 规则全绿；当前进入 G4-C。
 
 ### G4-C 事务命令与 API
+
+状态：`in_progress`。
 
 - preview、commit、history、favorite、reject/restore、complete。
 - SQLite writer 竞争、pointer CAS、唯一冲突重分类、丢响应 replay。

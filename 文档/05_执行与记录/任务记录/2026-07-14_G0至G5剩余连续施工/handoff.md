@@ -25,15 +25,15 @@ Luna 必须先读并以此为当前执行入口：
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible release HEAD = 79dc8065e9cf410006be50d6b7074e6c9569e188
+current compatible release HEAD = 9cd599a
 S0 = completed
 W1 = completed
 R0B / SH-10 = completed
 R1 v5 C0～C7 activation = passed
 completedThrough = C7
 evidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-current = G4_B_IN_PROGRESS
-C5/C6/C7_activation/first_write = completed; R2_OBS-01~10 = passed_real; R2_reviews = passed; G4-A = completed; G4-B~F/G5 = not completed
+current = G4_C_IN_PROGRESS
+C5/C6/C7_activation/first_write = completed; R2_OBS-01~10 = passed_real; R2_reviews = passed; G4-A/B = completed; G4-C~F/G5 = not completed
 ```
 
 Luna 不得重复 R0B、SH-10、C0～C7 或 R2，也不得从旧 `WAIT_R0B_AUTH`/`BLOCKED_R2_*` 恢复。

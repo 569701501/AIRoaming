@@ -192,4 +192,4 @@
 - S0 默认测试门禁提交 `f07f516`；W1 提交 `3898182`/`4fe1dfa`，已接入 Story/Storyboard/Preflight DB-only Web/API、唯一 Preflight confirm 路由、409 刷新提示和 fresh SQLite E2E。
 - v5 是最终有效 cutover identity：plan=`2ba999ff...fc096`，C0～C7、C6_READY/COMPLETED 和首写/file guard 已通过，C7 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。旧 v1～v4 plan/AUTH/evidence 只作历史，不得复用。长期门禁仍要求真实 plan 绑定明确窗口、source/release/runtimeInstanceId；“例如/示例”的时间不得直接写入计划。
 - 2026-07-14 R2 OBS-01～10 与双 Review 已通过，状态为 `DB_ONLY_OBSERVATION_PASSED`。修复提交：`62da892`（协调 purge/0011）、`0be5621`（db-only-coordinated backup/restore）、`7ddeb21`（迁移 Asset 按 storageKey 读取）、`a90f546`（Workbench 章节纯读取）。目标/备份/恢复 DB digest=`sha256:cab0b96d88dc24a7e87925aea6bc04441d0f8db0e76fac5537ce4ab64c49d739`；1 项目、2 章节、67/67 Asset 可读；secret scan 427 文件/4 SQLite/0 hit。
-- R2 后仍禁止自动删除 backup/archive、执行 down migration、回退 file-only 或进入 G6/视频链路。当前工作从 G4-B 继续，G4/G5 完成后停在 G5 用户签收。
+- R2 后仍禁止自动删除 backup/archive、执行 down migration、回退 file-only 或进入 G6/视频链路。G4-A/B 已由 `79dc806`/`9cd599a` 完成：定稿权威收口为 Shot current CandidateLockRevision，lock set digest 只包含规范排序的 Shot/revision ID，freshness 和 impact 均为无 IO 派生规则。当前从 G4-C 继续，G4/G5 完成后停在 G5 用户签收。

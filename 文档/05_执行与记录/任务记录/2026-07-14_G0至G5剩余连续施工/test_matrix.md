@@ -167,6 +167,8 @@ RC-09 现场：OBS-01～10 全部通过。OBS-06 由 0011 协调 purge 修复关
 
 完整唯一 ID 以 `G4候选定稿返修验收清单.md` 为准。本计划的阶段门如下：
 
+G4-B 纯规则已由 `9cd599a` 完成：Shared 8/8、Server 22/22 定向通过，lock set known-answer 与排列不变量通过，Shared/Server typecheck/build 通过。该结论只覆盖无 IO 规则，不替代 G4-C 的 transaction/API/race 验收。
+
 | ID | 场景 | 必须结果 | 状态 |
 | --- | --- | --- | --- |
 | G4-GATE-01 | fresh/replay migration | checksum/integrity/FK/trigger 全绿 | `passed_isolated`（G4-A） |

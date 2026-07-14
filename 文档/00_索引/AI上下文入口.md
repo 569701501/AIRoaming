@@ -82,15 +82,15 @@ source: AI漫游文档体系
 文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/handoff.md
 ```
 
-当前数据库切换事实：D2 capability 已收口为 `blockedIds=[]`；R0-A production cutover entry 已完成 Luna 独立 Scrutiny=`passed`、Runtime=`passed_isolated` 和 disposable Keychain 平台 smoke，并已形成独立提交 `fbfcbeb`。S0 默认测试门禁已完成局部 timeout 修复并连续三次根回归通过；当前进入 W1。Web 的 Story/Storyboard/Preflight 仍未完整接入 G2 DB API，且 preflight confirm 存在重复 Controller route，因此真实 R0-B 前必须完成 W1 本地收口。R0-B、SH-10、AUTH-C1/C5/C7、真实 C0～C7 和 OBS-01～10 仍需要独立人类授权/签署。
+当前数据库切换事实：D2 capability=`blockedIds=[]`；S0、W1、R0B、SH-10、v5 C0～C7、首写边界和 R2 OBS-01～10 已通过，production status=`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。G4-A/B 已由 `79dc806`/`9cd599a` 完成，当前进入 `G4_C_IN_PROGRESS`；G4-C～F、G5 尚未完成。旧授权门、窗口与 `BLOCKED_R2_*` 只作历史，不能覆盖当前状态。
 
 当前 G0～G5 剩余连续施工的唯一总入口：
 
 ```text
-文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/handoff.md
+文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/luna_current_handoff.md
 ```
 
-该入口允许 Luna 连续执行 S0/W1，并在 R2 真实观察通过后连续执行 G4/G5；R0B/SH-10/AUTH-C1/C5/C7、R2 观察授权与 G5 最终用户签收必须暂停等待人类，G6/视频不在范围内。
+该入口采用无排期、依赖驱动执行：不设置工期、开始/结束日期或等待日期。已消费的 AUTH-C5/AUTH-C7/R2 不再重复申请；G4-C～F、G5 按依赖连续执行，只在真实 blocker、G5 E0 决策和最终用户签收处暂停。G6/视频不在范围内。
 
 涉及对话框真实 AI、模型添加、模型切换、provider 配置或 OpenCode 接入时，必须额外读取：
 
@@ -170,8 +170,8 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - G2 开发级方案已于 2026-07-11 获用户确认：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值。`G2-A0`～`G2-F1` 已实现；`G2-F2` 已实现持久任务 create/seal/idempotency、slot、claim/lease、heartbeat、retry/cancel/recovery；`G2-F3` 已实现 `story_parse`/`shot_generate` worker；`G2-F4` 已实现 `shot_prompt_generate`/`image_generate` worker、统一 DB 创建门禁、Asset/Candidate completion 与 historical 隔离。真实 provider smoke test、独立 Outbox consumer、legacy importer 和 capability switch 仍后置；这一阶段性闭环不等于生产 DB-only 切换。2026-07-12 已补齐五份施工资料，并按资料完成 F4 切片。
 - G2-B1 已完成 Script DB repository、CAS/幂等、publish/clear/revert、pending/history API；G2-C1 已完成 Story pending create/update/discard/confirm、projection、source gate、CAS/replay 和 fresh SQLite 重启证据；G2-D1 已完成 Storyboard pending CRUD、stable Shot、projection、confirm/retire；G2-E1 已完成 ProductionState/Workflow 查询、reasonCodes 和四类 NewWorkGate；G2-E2 已完成 Preflight preview/confirm、SourceSnapshot 和 stale 派生；G2-F1～F4 已完成 applicability、持久 runtime、四类 worker、completion transaction、task history 和统一创建门禁；legacy importer、Outbox consumer 与 capability switch 仍未实现。
 - G2-E1/E2/F1 交付边界仍有效：production-state API 返回服务端权威 production/workflow/chapterRowVersion；NewWorkGate 对四类任务统一返回稳定 reasonCodes；Preflight API 只允许服务端重建 SourceSnapshot；TaskApplicabilityGuard 在完成前把来源/目标不再 current 的任务标为 historical。其后的 F2～F4 已补齐持久 worker/claim/lease/history 和四类任务闭环；capability switch、独立 Outbox consumer 与真实 provider smoke 仍未实现。
-- G3-core、G3-M0～M4 foundation、M5-A0～A4、D2-A0～A8 与 M6-A1 隔离验收均已完成并有阶段证据；capability 当前为 8/36、`blockedIds=[]`。这不等于真实切换可执行：生产 SecretStore/evidence/runner 入口尚未闭合，当前唯一开发目标是 `2026-07-13_R0-R2真实切换施工包` 的 R0-A。R0-A 通过双 Review 并独立提交后才能编制 R0-B 真实环境计划；AUTH-C1、AUTH-C5、AUTH-C7 必须逐门由用户显式授权，禁止一次授权覆盖全程。
-- G4 开发级方案已于 2026-07-11 获用户确认、尚未实现：Candidate 只保留 `generated/rejected/superseded`，收藏不驱动下游；首次定稿、更换、clear 和 clear 后重新定稿使用线性不可变 `CandidateLockRevision`。replace/clear 先 preview，提交带 expected revision + JCS impact digest；丢响应通过 previous/action/target 精确识别重放，真冲突返回 409。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；结构 lock set 与来源 applicability 分轴表达。已导出章节在上游 current 时仍可生新候选，未正式更换前不影响下游。G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
+- G3-core、G3-M0～M4 foundation、M5-A0～A4、D2-A0～A8 与 M6-A1 隔离验收均已完成并有阶段证据；capability 当前为 8/36、`blockedIds=[]`。生产 SecretStore/evidence/runner、R0B/SH-10、v5 C0～C7、首写与 R2 已闭合；AUTH-C5、AUTH-C7、R2 均已按独立边界消费，不得复用或再次要求用户授权。
+- G4 开发级方案已于 2026-07-11 获用户确认。G4-A/B 已实现 CandidateLock 闭集、线性 Schema overlay、legacy direct-evidence import、状态机/replay、严格 lock set codec/known-answer、Working Copy 投影、freshness 和规范化 impact resolver；当前 G4-C 接入事务/API。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
 - G5 开发级方案已于 2026-07-11 获用户确认、尚未实现：条漫/页漫共用严格 `LayoutDocumentV1`，画格与所属图片为受控复合对象，自由图片独立分层；Working Copy 自动保存与显式不可变 LayoutRevision 分离，离开编辑器不自动造版本。正式输出收口为一个 `layout_publication`：页漫必含 PNG 页面并可附 PDF，条漫必含 PNG 切片并可在能力允许时附长图；它是当前 G0–G5 波次的独立终点，也是未来 G6 的唯一 current 输入。E0 首选验证“交互 adapter + 专用 HTML/SVG RenderScene + 固定 Chromium”，同时以 SVG/resvg 对照，原型通过前不锁库。G6 已后置，不是 G0–G5 开工或签收前置。详见 `文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md`、`文档/04_方案与决策/2026-07-11_G5LayoutDocument与编辑命令契约字典.md`、`文档/04_方案与决策/2026-07-11_G5确定性渲染与出版导出契约.md` 和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
 - 先把漫画主链路做扎实，轻漫剧只做基础合成。
 - 先固化角色、分镜、候选、素材、任务、版本模型，再优化生成效果。
