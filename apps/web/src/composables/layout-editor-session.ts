@@ -19,6 +19,7 @@ import {
   type LayoutCommandHistoryV1,
   type LayoutDocumentV1,
   type LayoutProfileV1,
+  type LayoutSourceCatalogResponseV1,
   type LayoutWorkingCopyInitializationModeV1,
   type LayoutWorkingCopyResponseV1,
 } from "@airoaming/shared";
@@ -43,6 +44,7 @@ function commandId(prefix: string): string {
 export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   const document = shallowRef<LayoutDocumentV1 | null>(null);
   const server = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
+  const sourceCatalog = shallowRef<LayoutSourceCatalogResponseV1 | null>(null);
   const conflictServer = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
   const history = shallowRef<LayoutCommandHistoryV1>(createLayoutCommandHistory());
   const saveState = ref<SaveState>("loading");
@@ -113,6 +115,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     if (!chapterId) {
       document.value = null;
       server.value = null;
+      sourceCatalog.value = null;
       saveState.value = "missing";
       return;
     }
@@ -121,13 +124,18 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     saveState.value = "loading";
     errorMessage.value = null;
     try {
-      const value = await api.getLayoutWorkingCopy(input.projectId.value, chapterId);
+      const [value, catalog] = await Promise.all([
+        api.getLayoutWorkingCopy(input.projectId.value, chapterId),
+        api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null),
+      ]);
+      if (generation === loadGeneration) sourceCatalog.value = catalog;
       if (generation === loadGeneration) replaceFromServer(value);
     } catch (error) {
       if (generation !== loadGeneration) return;
       if (error instanceof ApiClientError && error.status === 404) {
         document.value = null;
         server.value = null;
+        sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
         saveState.value = "missing";
         return;
       }
@@ -152,6 +160,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         initializationMode: mode,
         expectedCurrentLayoutRevisionId,
       });
+      sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
       replaceFromServer(result.value);
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "成稿草稿初始化失败";
@@ -302,7 +311,12 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   async function reloadServer(): Promise<void> {
     const chapterId = input.chapterId.value;
     if (!chapterId) return;
-    replaceFromServer(await api.getLayoutWorkingCopy(input.projectId.value, chapterId));
+    const [workingCopy, catalog] = await Promise.all([
+      api.getLayoutWorkingCopy(input.projectId.value, chapterId),
+      api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null),
+    ]);
+    sourceCatalog.value = catalog;
+    replaceFromServer(workingCopy);
   }
 
   async function keepLocalAndRetry(): Promise<void> {
@@ -386,6 +400,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   return {
     document,
     server,
+    sourceCatalog,
     conflictServer,
     saveState,
     errorMessage,

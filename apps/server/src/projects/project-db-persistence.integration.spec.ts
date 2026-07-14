@@ -1817,6 +1817,44 @@ describe("Project/Chapter/Script DB-only persistence", () => {
         sourceEvaluation: { sourceResolution: "current" },
       },
     });
+    const sourceCatalog = await layoutWorkingCopies.sourceCatalog(scope);
+    expect(sourceCatalog).toMatchObject({
+      schemaVersion: 1,
+      projectId: project.id,
+      chapterId: scope.chapterId,
+      items: [{
+        order: 1,
+        width: expect.any(Number),
+        height: expect.any(Number),
+        source: {
+          shotId,
+          candidateId: expect.any(String),
+          candidateLockRevisionId: expect.any(String),
+          assetId: expect.any(String),
+          sourceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+        },
+      }],
+    });
+    expect(sourceCatalog.items[0]?.source.candidateLockRevisionId).toBe(
+      (await prisma.shot.findUniqueOrThrow({ where: { id: shotId } })).currentCandidateLockRevisionId,
+    );
+    const catalogResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/layout/source-catalog`);
+    expect(catalogResponse.status).toBe(200);
+    expect((await catalogResponse.json() as { data: { sourceLockSetDigest: string } }).data.sourceLockSetDigest)
+      .toBe(sourceCatalog.sourceLockSetDigest);
+    const uncoveredDocument = structuredClone(initializedV1.value.document);
+    const uncoveredPanel = uncoveredDocument.canvases[0]!.elements[0];
+    if (uncoveredPanel?.type !== "panel_frame" || !uncoveredPanel.contentImage) throw new Error("G5_M4_PANEL_IMAGE_MISSING");
+    uncoveredPanel.contentImage.crop.offsetX = 3_000;
+    const uncoveredEncoded = LayoutDocumentCodecV1.encode(uncoveredDocument);
+    await expect(layoutWorkingCopies.save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: initializedV1.value.rowVersion,
+      baseDocumentDigest: initializedV1.value.documentDigest,
+      documentDigest: uncoveredEncoded.digest,
+      document: uncoveredEncoded.value,
+    })).rejects.toMatchObject({ status: 400, response: { error: { code: "LAYOUT_BODY_INVALID" } } });
+    expect((await layoutWorkingCopies.get(scope)).rowVersion).toBe(0);
     const workingCopyResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/layout/working-copy`);
     expect(workingCopyResponse.status).toBe(200);
     expect((await workingCopyResponse.json() as { data: { id: string; rowVersion: number } }).data).toEqual(expect.objectContaining({ id: initializedV1.value.id, rowVersion: 0 }));

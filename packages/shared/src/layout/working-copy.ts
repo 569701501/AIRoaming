@@ -10,6 +10,7 @@ import {
   type LayoutDocumentValidationContextV1,
 } from "./codec.js";
 import type {
+  CandidateImageSourceV1,
   EncodedLayoutValue,
   LayoutDigest,
   LayoutDocumentV1,
@@ -48,6 +49,21 @@ export interface LayoutWorkingCopyResponseV1 {
   saveState: "saved";
   sourceEvaluation: LayoutSourceEvaluation;
   updatedAt: string;
+}
+
+export interface LayoutSourceCatalogItemV1 {
+  order: number;
+  source: CandidateImageSourceV1;
+  width: number;
+  height: number;
+}
+
+export interface LayoutSourceCatalogResponseV1 {
+  schemaVersion: 1;
+  projectId: string;
+  chapterId: string;
+  sourceLockSetDigest: LayoutDigest;
+  items: LayoutSourceCatalogItemV1[];
 }
 
 export interface InitializeLayoutWorkingCopyResponseV1 {

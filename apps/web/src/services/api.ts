@@ -89,6 +89,7 @@ import type {
   InitializeLayoutWorkingCopyRequestV1,
   InitializeLayoutWorkingCopyResponseV1,
   LayoutWorkingCopyResponseV1,
+  LayoutSourceCatalogResponseV1,
   SaveLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyResponseV1,
 } from "@airoaming/shared";
@@ -614,6 +615,9 @@ export const api = {
   ),
   getLayoutWorkingCopy: (projectId: string, chapterId: string) => request<LayoutWorkingCopyResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
+  ),
+  getLayoutSourceCatalog: (projectId: string, chapterId: string) => request<LayoutSourceCatalogResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-catalog`,
   ),
   initializeLayoutWorkingCopy: (
     projectId: string,

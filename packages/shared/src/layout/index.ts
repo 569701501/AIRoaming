@@ -6,5 +6,7 @@ export * from "./codec.js";
 export * from "./digest.js";
 export * from "./publication.js";
 export * from "./presets.js";
+export * from "./batch.js";
+export * from "./placement.js";
 export * from "./commands.js";
 export * from "./working-copy.js";

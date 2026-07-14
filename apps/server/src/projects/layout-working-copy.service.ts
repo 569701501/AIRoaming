@@ -20,6 +20,7 @@ import {
   type LayoutFontPolicyV1,
   type LayoutImageValidationContextV1,
   type LayoutProfileV1,
+  type LayoutSourceCatalogResponseV1,
   type LayoutSourceEvaluation,
   type LayoutTopLevelElementV1,
   type LayoutWorkingCopyResponseV1,
@@ -37,6 +38,7 @@ import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
 type Reader = Prisma.TransactionClient | PrismaClient;
 
 interface ReadyLayoutSource {
+  order: number;
   shotId: string;
   candidateId: string;
   candidateLockRevisionId: string;
@@ -239,6 +241,53 @@ export class LayoutWorkingCopyService {
         serviceError("LAYOUT_WORKING_COPY_EXISTS", 409, { documentKind: row.documentKind });
       }
       return this.toResponse(scope, row, tx);
+    }));
+  }
+
+  async sourceCatalog(scope: VersionScopeV1): Promise<LayoutSourceCatalogResponseV1> {
+    return this.execute(() => this.prismaService.runReadTransaction(async (tx) => {
+      const chapter = await tx.chapter.findFirst({
+        where: { id: scope.chapterId, projectId: scope.projectId },
+        select: { currentStoryboardVersionId: true },
+      });
+      if (!chapter) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
+      const sourceState = await this.candidateSources.get(scope, tx);
+      if (
+        sourceState.candidateLockSet.state !== "complete"
+        || sourceState.candidateLockSet.sourceApplicability !== "current"
+        || !sourceState.candidateLockSet.digest
+      ) {
+        serviceError("LAYOUT_LOCK_SET_INCOMPLETE", 409, {
+          reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes,
+        });
+      }
+      const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, tx);
+      return {
+        schemaVersion: 1,
+        projectId: scope.projectId,
+        chapterId: scope.chapterId,
+        sourceLockSetDigest: asDigest(
+          sourceState.candidateLockSet.digest,
+          "LAYOUT_SOURCE_DIGEST_MISMATCH",
+        ),
+        items: sources.map((source) => {
+          const unsigned = {
+            shotId: source.shotId,
+            candidateId: source.candidateId,
+            candidateLockRevisionId: source.candidateLockRevisionId,
+            assetId: source.assetId,
+          };
+          return {
+            order: source.order,
+            source: {
+              ...unsigned,
+              sourceDigest: digestCandidateImageSourceV1(unsigned, source.assetSha256),
+            },
+            width: source.width,
+            height: source.height,
+          };
+        }),
+      };
     }));
   }
 
@@ -494,6 +543,7 @@ export class LayoutWorkingCopyService {
         serviceError("LAYOUT_SOURCE_UNRESOLVED", 409, { shotId: projection.shotId });
       }
       sources.push({
+        order: projection.order,
         shotId: projection.shotId,
         candidateId: candidate.id,
         candidateLockRevisionId: revision.id,

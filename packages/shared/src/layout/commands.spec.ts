@@ -190,6 +190,66 @@ describe("G5-M2 command reducer", () => {
     }))).toThrow(/preserve every occupied/);
   });
 
+  it("G5-PRESET-005/006 preserves occupied images and every non-panel object", async () => {
+    const before = await document();
+    const canvas = before.canvases[0]!;
+    const sourcePanel = canvas.elements.find((item) => item.type === "panel_frame" && item.contentImage);
+    if (sourcePanel?.type !== "panel_frame" || !sourcePanel.contentImage) throw new Error("panel image missing");
+    const freeImage = {
+      id: "free_preserved",
+      type: "free_image" as const,
+      name: "Preserved free image",
+      transform: { x: 100, y: 100, width: 300, height: 200, rotation: 0, opacity: 1 },
+      locked: false,
+      hidden: false,
+      source: sourcePanel.contentImage.source,
+      display: { mode: "contain" as const },
+    };
+    canvas.elements.push(freeImage);
+    const nonPanelsBefore = canvas.elements.filter((item) => item.type !== "panel_frame");
+    const panels = generateLayoutPresetV1({
+      presetId: "four_panel",
+      presetVersion: 1,
+      width: canvas.width,
+      height: canvas.height,
+      inset: { top: 72, right: 72, bottom: 72, left: 72 },
+      gap: 36,
+      panelIds: ["next_1", "next_2", "next_3", "next_4"],
+    }).map((panel, index) => ({
+      ...panel,
+      contentImage: canvas.elements
+        .filter((item) => item.type === "panel_frame")
+        .map((item) => item.type === "panel_frame" ? item.contentImage : null)
+        .filter((item) => item !== null)[index] ?? null,
+    }));
+    const result = applyLayoutCommand(before, command("layout.apply_preset", {
+      canvasId: canvas.id,
+      panels,
+      panelReadingOrder: panels.map((panel) => panel.id),
+    })).document;
+    expect(result.canvases[0]!.elements.filter((item) => item.type !== "panel_frame")).toEqual(nonPanelsBefore);
+    expect(result.canvases[0]!.elements.filter((item) => item.type === "panel_frame").flatMap((item) => item.contentImage ? [item.contentImage.id] : []))
+      .toEqual(canvas.elements.filter((item) => item.type === "panel_frame").flatMap((item) => item.contentImage ? [item.contentImage.id] : []));
+  });
+
+  it("G5-IMG-006 source replacement preserves the panel identity and frame", async () => {
+    const before = await document();
+    const panel = before.canvases[0]!.elements.find((item) => item.type === "panel_frame" && item.contentImage);
+    if (panel?.type !== "panel_frame" || !panel.contentImage) throw new Error("panel image missing");
+    const originalFrame = structuredClone(panel.transform);
+    const originalShape = structuredClone(panel.shape);
+    const originalBorder = structuredClone(panel.border);
+    const result = applyLayoutCommand(before, command("image.replace_source", {
+      canvasId: before.canvases[0]!.id,
+      elementId: panel.id,
+      source: { ...panel.contentImage.source, candidateId: "candidate_replacement" },
+      crop: { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false },
+    })).document;
+    const replaced = result.canvases[0]!.elements.find((item) => item.id === panel.id);
+    expect(replaced).toMatchObject({ id: panel.id, transform: originalFrame, shape: originalShape, border: originalBorder });
+    expect(replaced?.type === "panel_frame" && replaced.contentImage?.source.candidateId).toBe("candidate_replacement");
+  });
+
   it("G5-CMD-011 evicts history predictably at 200 entries or 50 MiB", async () => {
     const before = await document();
     let history = createLayoutCommandHistory();

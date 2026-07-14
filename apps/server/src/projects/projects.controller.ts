@@ -608,6 +608,14 @@ export class ProjectsController {
     return ok(await this.layoutWorkingCopyService.get({ projectId, chapterId }));
   }
 
+  @Get(":projectId/chapters/:chapterId/layout/source-catalog")
+  async getLayoutSourceCatalog(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutWorkingCopyService.sourceCatalog({ projectId, chapterId }));
+  }
+
   @Post(":projectId/chapters/:chapterId/layout/working-copy/initialize")
   async initializeLayoutWorkingCopy(
     @Param("projectId") projectId: string,
