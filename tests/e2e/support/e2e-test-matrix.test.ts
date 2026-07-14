@@ -27,6 +27,7 @@ test("binds DB-only specs to a DB child environment and file specs to file mode"
     "tests/e2e/web/candidate-decision-workbench.spec.ts",
     "tests/e2e/web/layout-editor-m4.spec.ts",
     "tests/e2e/web/layout-editor-m5.spec.ts",
+    "tests/e2e/web/layout-editor-m6.spec.ts",
   ]);
   assert.equal(createE2EModeEnvironment(db, {}).AIROAMING_E2E_PERSISTENCE_MODE, "db");
   assert.equal(createE2EModeEnvironment(file, {}).AIROAMING_E2E_PERSISTENCE_MODE, "file");

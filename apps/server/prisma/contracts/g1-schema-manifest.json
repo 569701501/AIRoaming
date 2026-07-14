@@ -102,7 +102,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-migration-plan.ts",
-      "digest": "sha256:ff33bd6d85d4d714239022a1d266363a4e8ecb4e517bccf6730e1f790393a354",
+      "digest": "sha256:e2160787710d86cabca939d6b44362aba365f6567877333dfb2590c0380fd07f",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -28946,5 +28946,5 @@
     "issueCount": 0,
     "issues": []
   },
-  "manifestDigest": "sha256:408fe9150182b2f1f8b199ad934002ae87725a672d28c8e05224ef91704b914e"
+  "manifestDigest": "sha256:4e07c6bae54e4424b17d16bbe485d4fbe5075650f1be3e806c1fbe5f7d322a79"
 }

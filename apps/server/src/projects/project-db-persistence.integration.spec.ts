@@ -47,6 +47,7 @@ import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
+import { LayoutVersioningService } from "./layout-versioning.service.js";
 import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
@@ -324,7 +325,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("13 migrations found");
+    expect(deployed.stdout).toContain("14 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -2076,6 +2077,113 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(reopenedProduction.productionState.candidateSources).toEqual(staleProduction.productionState.candidateSources);
     expect(reopenedProduction.workflow.currentStepKey).toBe("layout_export");
     expect((await app.get(ProjectsService).getWorkbenchSnapshot(project.id, scope.chapterId)).candidateSources).toEqual(staleProduction.productionState.candidateSources);
+
+    const versioning = app.get(LayoutVersioningService);
+    const versioningPrisma = app.get(PrismaService).database();
+    const staleWorkingCopy = await app.get(LayoutWorkingCopyService).get(scope);
+    const stalePreflight = await versioning.preflight(scope, {
+      schemaVersion: 1,
+      target: {
+        kind: "working_copy",
+        expectedRowVersion: staleWorkingCopy.rowVersion,
+        expectedDocumentDigest: staleWorkingCopy.documentDigest,
+      },
+      profile: null,
+    });
+    expect(stalePreflight).toMatchObject({ status: "blocked", issues: expect.arrayContaining([expect.objectContaining({ code: "SOURCE_STALE" })]) });
+    const stalePanel = staleWorkingCopy.document.canvases[0]?.elements[0];
+    if (stalePanel?.type !== "panel_frame" || !stalePanel.contentImage) throw new Error("G5_M6_STALE_PANEL_MISSING");
+    const replacementRequest = {
+      schemaVersion: 1 as const,
+      expectedWorkingCopyRowVersion: staleWorkingCopy.rowVersion,
+      expectedDocumentDigest: staleWorkingCopy.documentDigest,
+      replacements: [{ imageElementId: stalePanel.contentImage.id, cropMode: "preserve_normalized_crop" as const }],
+    };
+    const replacementPreview = await versioning.previewSourceReplacements(scope, replacementRequest);
+    expect(replacementPreview.items).toMatchObject([{
+      imageElementId: stalePanel.contentImage.id,
+      from: { candidateLockRevisionId: stalePanel.contentImage.source.candidateLockRevisionId },
+      to: { candidateLockRevisionId: replacement.revision.id },
+    }]);
+    const committedReplacement = await versioning.commitSourceReplacements(scope, {
+      ...replacementRequest,
+      replacementDigest: replacementPreview.replacementDigest,
+      resultDocumentDigest: replacementPreview.resultDocumentDigest,
+    });
+    expect(committedReplacement).toMatchObject({ result: "updated", workingCopy: { rowVersion: staleWorkingCopy.rowVersion + 1, sourceEvaluation: { sourceResolution: "current" } } });
+    expect((await versioning.commitSourceReplacements(scope, {
+      ...replacementRequest,
+      replacementDigest: replacementPreview.replacementDigest,
+      resultDocumentDigest: replacementPreview.resultDocumentDigest,
+    })).result).toBe("replayed");
+    const readyPreflight = await versioning.preflight(scope, {
+      schemaVersion: 1,
+      target: {
+        kind: "working_copy",
+        expectedRowVersion: committedReplacement.workingCopy.rowVersion,
+        expectedDocumentDigest: committedReplacement.workingCopy.documentDigest,
+      },
+      profile: null,
+    });
+    expect(readyPreflight.issues.filter((issue) => issue.blockingScopes.includes("revision"))).toEqual([]);
+    const revisionRequest = {
+      schemaVersion: 1 as const,
+      expectedWorkingCopyRowVersion: committedReplacement.workingCopy.rowVersion,
+      expectedDocumentDigest: committedReplacement.workingCopy.documentDigest,
+      expectedCurrentRevisionId: layoutRevision.id,
+      saveReason: "user_checkpoint" as const,
+      acknowledgedIssueKeys: readyPreflight.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    };
+    await expect(versioning.createRevision(scope, {
+      ...revisionRequest,
+      acknowledgedIssueKeys: ["not_in_current_preflight"],
+    })).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: "LAYOUT_PREFLIGHT_ACKNOWLEDGEMENT_INVALID" } },
+    });
+    const createdRevision = await versioning.createRevision(scope, revisionRequest);
+    expect(createdRevision).toMatchObject({
+      result: "created",
+      revision: {
+        revision: layoutRevision.revision + 1,
+        previousRevisionId: layoutRevision.id,
+        sourceResolution: "current",
+        bindingSetSealedAt: expect.any(String),
+      },
+      workingCopy: { basedOnRevisionId: expect.any(String) },
+    });
+    expect((await versioning.createRevision(scope, revisionRequest)).result).toBe("replayed");
+    expect(await versioningPrisma.layoutSourceBinding.findFirstOrThrow({ where: { layoutRevisionId: createdRevision.revision.id } })).toMatchObject({
+      sourceDigest: replacementPreview.items[0]?.to.sourceDigest,
+    });
+    expect(await versioning.listRevisions(scope)).toMatchObject({
+      currentLayoutRevisionId: createdRevision.revision.id,
+      items: [
+        { id: createdRevision.revision.id, sourceResolution: "current" },
+        { id: layoutRevision.id, sourceResolution: "stale" },
+      ],
+    });
+    expect((await versioning.getRevision(scope, createdRevision.revision.id)).documentDigest).toBe(createdRevision.revision.documentDigest);
+
+    const changedAfterRevision = structuredClone(createdRevision.workingCopy.document);
+    changedAfterRevision.canvases[0]!.name = "M6 restore target";
+    const changedAfterRevisionEncoded = LayoutDocumentCodecV1.encode(changedAfterRevision);
+    const changedWorkingCopy = await app.get(LayoutWorkingCopyService).save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: createdRevision.workingCopy.rowVersion,
+      baseDocumentDigest: createdRevision.workingCopy.documentDigest,
+      documentDigest: changedAfterRevisionEncoded.digest,
+      document: changedAfterRevisionEncoded.value,
+    });
+    const restoreRequest = {
+      schemaVersion: 1 as const,
+      expectedWorkingCopyRowVersion: changedWorkingCopy.value.rowVersion,
+      expectedWorkingCopyDigest: changedWorkingCopy.value.documentDigest,
+    };
+    const restored = await versioning.restoreRevision(scope, createdRevision.revision.id, restoreRequest);
+    expect(restored).toMatchObject({ result: "restored", restoredFromRevisionId: createdRevision.revision.id, workingCopy: { documentDigest: createdRevision.revision.documentDigest } });
+    expect((await versioning.restoreRevision(scope, createdRevision.revision.id, restoreRequest)).result).toBe("replayed");
+    expect((await versioningPrisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentLayoutRevisionId).toBe(createdRevision.revision.id);
   }, 30_000);
 
   it("P7-DIALOGUE-DB-01: persists dialogue thread/messages/session and settles running messages after restart", async () => {

@@ -269,6 +269,14 @@ export class LayoutFontService {
     return (await this.provision(scope)).items;
   }
 
+  async listForReader(
+    scope: VersionScopeV1,
+    reader: Reader,
+    verifyBytes = true,
+  ): Promise<LayoutFontCatalogItemV1[]> {
+    return this.catalogItems(scope, reader, verifyBytes);
+  }
+
   async validateReferences(scope: VersionScopeV1, assetIds: readonly string[], reader: Reader): Promise<void> {
     const items = await this.catalogItems(scope, reader, true);
     const available = new Set(items.map((item) => item.assetId));

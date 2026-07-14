@@ -21,8 +21,13 @@ import {
   type LayoutProfileV1,
   type LayoutFontCatalogResponseV1,
   type LayoutSourceCatalogResponseV1,
+  type LayoutSourceReplacementCommandV1,
   type LayoutWorkingCopyInitializationModeV1,
   type LayoutWorkingCopyResponseV1,
+  type LayoutPreflightReportV1,
+  type LayoutRevisionHistoryResponseV1,
+  type LayoutSourceReplacementCropModeV1,
+  type LayoutSourceReplacementPreviewV1,
 } from "@airoaming/shared";
 
 import { api, ApiClientError } from "../services/api";
@@ -42,12 +47,46 @@ function commandId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function replacementCommands(
+  value: LayoutDocumentV1,
+  imageElementIds: readonly string[],
+): LayoutSourceReplacementCommandV1[] {
+  const remaining = new Set(imageElementIds);
+  const replacements: LayoutSourceReplacementCommandV1[] = [];
+  for (const canvas of value.canvases) {
+    for (const element of canvas.elements) {
+      if (element.type === "panel_frame" && element.contentImage && remaining.has(element.contentImage.id)) {
+        replacements.push({
+          canvasId: canvas.id,
+          elementId: element.id,
+          source: structuredClone(element.contentImage.source),
+          crop: structuredClone(element.contentImage.crop),
+        });
+        remaining.delete(element.contentImage.id);
+      } else if (element.type === "free_image" && remaining.has(element.id)) {
+        replacements.push({
+          canvasId: canvas.id,
+          elementId: element.id,
+          source: structuredClone(element.source),
+          crop: element.display.mode === "cover" ? structuredClone(element.display.crop) : null,
+        });
+        remaining.delete(element.id);
+      }
+    }
+  }
+  if (remaining.size > 0) throw new Error("LAYOUT_SOURCE_REPLACEMENT_RESULT_INCOMPLETE");
+  return replacements;
+}
+
 export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   const document = shallowRef<LayoutDocumentV1 | null>(null);
   const server = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
   const sourceCatalog = shallowRef<LayoutSourceCatalogResponseV1 | null>(null);
   const fontCatalog = shallowRef<LayoutFontCatalogResponseV1 | null>(null);
   const conflictServer = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
+  const revisionHistory = shallowRef<LayoutRevisionHistoryResponseV1 | null>(null);
+  const preflight = shallowRef<LayoutPreflightReportV1 | null>(null);
+  const sourceReplacementPreview = shallowRef<LayoutSourceReplacementPreviewV1 | null>(null);
   const history = shallowRef<LayoutCommandHistoryV1>(createLayoutCommandHistory());
   const saveState = ref<SaveState>("loading");
   const errorMessage = ref<string | null>(null);
@@ -105,6 +144,8 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     selectedElementIds.value = [];
     history.value = createLayoutCommandHistory();
     conflictServer.value = null;
+    preflight.value = null;
+    sourceReplacementPreview.value = null;
     errorMessage.value = null;
     isDirty.value = false;
     firstDirtyAt = null;
@@ -134,7 +175,10 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
       ]);
       if (generation === loadGeneration) sourceCatalog.value = catalog;
       if (generation === loadGeneration) fontCatalog.value = fonts;
-      if (generation === loadGeneration) replaceFromServer(value);
+      if (generation === loadGeneration) {
+        replaceFromServer(value);
+        revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
+      }
     } catch (error) {
       if (generation !== loadGeneration) return;
       if (error instanceof ApiClientError && error.status === 404) {
@@ -142,6 +186,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         server.value = null;
         sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
         fontCatalog.value = await api.getLayoutFonts(input.projectId.value, chapterId).catch(() => null);
+        revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId).catch(() => null);
         saveState.value = "missing";
         return;
       }
@@ -169,6 +214,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
       sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
       fontCatalog.value = await api.getLayoutFonts(input.projectId.value, chapterId);
       replaceFromServer(result.value);
+      revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "成稿草稿初始化失败";
       saveState.value = "error";
@@ -326,6 +372,117 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     sourceCatalog.value = catalog;
     fontCatalog.value = fonts;
     replaceFromServer(workingCopy);
+    revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
+  }
+
+  async function runPreflight(): Promise<LayoutPreflightReportV1 | null> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || !server.value) return null;
+    await flush();
+    if (!server.value || isDirty.value) return null;
+    const report = await api.runLayoutPreflight(input.projectId.value, chapterId, {
+      schemaVersion: 1,
+      target: {
+        kind: "working_copy",
+        expectedRowVersion: server.value.rowVersion,
+        expectedDocumentDigest: server.value.documentDigest,
+      },
+      profile: null,
+    });
+    preflight.value = report;
+    return report;
+  }
+
+  async function previewSourceReplacement(
+    imageElementIds: readonly string[],
+    cropMode: LayoutSourceReplacementCropModeV1,
+  ): Promise<LayoutSourceReplacementPreviewV1 | null> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || !server.value || imageElementIds.length === 0 || isReadOnly.value) return null;
+    await flush();
+    if (!server.value || isDirty.value) return null;
+    const preview = await api.previewLayoutSourceReplacements(input.projectId.value, chapterId, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: server.value.rowVersion,
+      expectedDocumentDigest: server.value.documentDigest,
+      replacements: imageElementIds.map((imageElementId) => ({ imageElementId, cropMode })),
+    });
+    sourceReplacementPreview.value = preview;
+    return preview;
+  }
+
+  async function commitSourceReplacement(): Promise<LayoutWorkingCopyResponseV1 | null> {
+    const chapterId = input.chapterId.value;
+    const preview = sourceReplacementPreview.value;
+    const before = document.value;
+    if (!chapterId || !preview || !before || isReadOnly.value) return null;
+    const result = await api.commitLayoutSourceReplacements(input.projectId.value, chapterId, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: preview.expectedWorkingCopyRowVersion,
+      expectedDocumentDigest: preview.expectedDocumentDigest,
+      replacements: preview.items.map((item) => ({ imageElementId: item.imageElementId, cropMode: item.cropMode })),
+      replacementDigest: preview.replacementDigest,
+      resultDocumentDigest: preview.resultDocumentDigest,
+    });
+    replaceFromServer(result.workingCopy);
+    const entryId = commandId("source_replacement");
+    history.value = pushLayoutCommandHistory(history.value, {
+      batchId: entryId,
+      label: "替换当前定稿来源",
+      inverse: {
+        schemaVersion: 1,
+        commandId: `inverse:${entryId}`,
+        type: "layout.restore_snapshot",
+        label: "Undo 替换当前定稿来源",
+        payload: { document: structuredClone(before) },
+      },
+      forward: {
+        schemaVersion: 1,
+        commandId: entryId,
+        type: "layout.replace_sources",
+        label: "Redo 替换当前定稿来源",
+        payload: {
+          replacements: replacementCommands(
+            result.workingCopy.document,
+            preview.items.map((item) => item.imageElementId),
+          ),
+        },
+      },
+    });
+    sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
+    return result.workingCopy;
+  }
+
+  async function createRevision(acknowledgedIssueKeys: readonly string[]): Promise<void> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || !server.value || isReadOnly.value) return;
+    await flush();
+    if (!server.value || isDirty.value) return;
+    const result = await api.createLayoutRevision(input.projectId.value, chapterId, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: server.value.rowVersion,
+      expectedDocumentDigest: server.value.documentDigest,
+      expectedCurrentRevisionId: revisionHistory.value?.currentLayoutRevisionId ?? null,
+      saveReason: "user_checkpoint",
+      acknowledgedIssueKeys: [...acknowledgedIssueKeys],
+    });
+    replaceFromServer(result.workingCopy);
+    preflight.value = result.preflight;
+    revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
+  }
+
+  async function restoreRevision(revisionId: string): Promise<void> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || !server.value || isReadOnly.value) return;
+    await flush();
+    if (!server.value || isDirty.value) return;
+    const result = await api.restoreLayoutRevision(input.projectId.value, chapterId, revisionId, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: server.value.rowVersion,
+      expectedWorkingCopyDigest: server.value.documentDigest,
+    });
+    replaceFromServer(result.workingCopy);
+    revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
   }
 
   async function keepLocalAndRetry(): Promise<void> {
@@ -412,6 +569,9 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     sourceCatalog,
     fontCatalog,
     conflictServer,
+    revisionHistory,
+    preflight,
+    sourceReplacementPreview,
     saveState,
     errorMessage,
     currentCanvas,
@@ -432,6 +592,11 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     redo,
     flush,
     reloadServer,
+    runPreflight,
+    previewSourceReplacement,
+    commitSourceReplacement,
+    createRevision,
+    restoreRevision,
     keepLocalAndRetry,
     downloadRecovery,
     makeTransformCommand,

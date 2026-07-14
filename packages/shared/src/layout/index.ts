@@ -11,3 +11,6 @@ export * from "./placement.js";
 export * from "./commands.js";
 export * from "./working-copy.js";
 export * from "./font.js";
+export * from "./source-replacement.js";
+export * from "./preflight.js";
+export * from "./revision.js";

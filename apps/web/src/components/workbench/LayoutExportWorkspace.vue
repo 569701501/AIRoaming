@@ -34,7 +34,7 @@
           title="按当前 G4 定稿批量建立页面或条漫段落"
           @click="batchInitializeFromSources"
         >生成排版</button>
-        <button type="button" disabled title="M6 接入正式版本保存">保存版本</button>
+        <button type="button" :disabled="session.isReadOnly.value || !session.server.value || m6Busy" @click="prepareRevision">保存版本</button>
         <button type="button" disabled title="M7 接入正式出版">导出 PNG 序列</button>
       </div>
     </header>
@@ -49,9 +49,15 @@
       <div>
         <strong>{{ sourceAttention.title }}</strong>
         <p>{{ sourceAttention.message }}</p>
-        <small>旧排版和导出仍保留为历史；请回候选图确认当前定稿。实际换图与裁切将在成稿编辑阶段处理。</small>
+        <small>旧排版、旧版本和旧导出保持不变；可在下方先预览换图及裁切，再显式提交到 Working Copy。</small>
       </div>
       <button type="button" :disabled="loading" @click="$emit('goCandidates')">查看候选定稿</button>
+      <button
+        v-if="replaceableImageElementIds.length"
+        type="button"
+        :disabled="session.isReadOnly.value || m6Busy"
+        @click="previewStaleReplacement(false)"
+      >预览全部替换</button>
     </section>
 
     <div v-if="session.isReadOnly.value" class="mobile-readonly">
@@ -76,6 +82,80 @@
     <div v-if="session.errorMessage.value || actionError || fontLoader.loadError.value" class="error-banner" role="alert">
       {{ actionError || session.errorMessage.value || fontLoader.loadError.value }}
     </div>
+
+    <section v-if="session.server.value" class="m6-control-center" data-testid="layout-m6-control-center" aria-label="来源返修与版本管理">
+      <article class="m6-card source-repair-card">
+        <header>
+          <div><strong>来源返修</strong><small>{{ replaceableImageElementIds.length ? `${replaceableImageElementIds.length} 个图片待处理` : '来源已是当前定稿' }}</small></div>
+          <span :class="`tone-${sourceResolutionTone}`">{{ sourceStateLabel }}</span>
+        </header>
+        <label>
+          裁切处理
+          <select v-model="replacementCropMode" :disabled="m6Busy || session.isReadOnly.value">
+            <option value="preserve_normalized_crop">保留现有裁切并自动补足覆盖</option>
+            <option value="reset_cover">重置为居中覆盖</option>
+          </select>
+        </label>
+        <div class="m6-actions">
+          <button type="button" :disabled="!selectedStaleImageId || m6Busy || session.isReadOnly.value" @click="previewStaleReplacement(true)">预览所选</button>
+          <button type="button" :disabled="!replaceableImageElementIds.length || m6Busy || session.isReadOnly.value" @click="previewStaleReplacement(false)">预览全部</button>
+        </div>
+        <div v-if="session.sourceReplacementPreview.value" class="replacement-preview" data-testid="source-replacement-preview">
+          <strong>不会改写旧版本：确认后只更新当前草稿</strong>
+          <p>共 {{ session.sourceReplacementPreview.value.items.length }} 项，结果摘要 {{ shortDigest(session.sourceReplacementPreview.value.resultDocumentDigest) }}</p>
+          <ul>
+            <li v-for="item in session.sourceReplacementPreview.value.items" :key="item.imageElementId">
+              {{ item.imageElementId }} · {{ item.cropMode === 'reset_cover' ? '重置裁切' : '保留裁切' }}
+              <span v-if="item.warningCodes.length">· {{ item.warningCodes.map(replacementWarningLabel).join('、') }}</span>
+            </li>
+          </ul>
+          <button class="primary-action" type="button" :disabled="m6Busy || session.isReadOnly.value" @click="commitStaleReplacement">确认提交替换</button>
+        </div>
+      </article>
+
+      <article class="m6-card preflight-card">
+        <header>
+          <div><strong>正式版本预检</strong><small>error 阻止保存；warning 必须逐项确认</small></div>
+          <span v-if="session.preflight.value" :class="`tone-${session.preflight.value.status}`">{{ preflightStatusLabel }}</span>
+        </header>
+        <button type="button" :disabled="m6Busy || session.isReadOnly.value" @click="prepareRevision">重新预检</button>
+        <div v-if="session.preflight.value" class="preflight-result" data-testid="layout-preflight-result">
+          <p v-if="!session.preflight.value.issues.length">未发现阻断项或警告，可以保存正式版本。</p>
+          <label v-for="issue in session.preflight.value.issues" :key="issue.issueKey" class="issue-row" :class="`severity-${issue.severity}`">
+            <input
+              v-if="issue.requiresAcknowledgement"
+              v-model="acknowledgedIssueKeys"
+              type="checkbox"
+              :value="issue.issueKey"
+              :disabled="m6Busy || session.isReadOnly.value"
+            />
+            <span v-else class="issue-marker">{{ issue.severity === 'error' ? '×' : '·' }}</span>
+            <span><strong>{{ preflightIssueLabel(issue.code) }}</strong><small>{{ issue.elementId || issue.shotId || issue.canvasId || '文档级检查' }}</small></span>
+          </label>
+          <button class="primary-action" type="button" :disabled="!canCreateRevision || m6Busy || session.isReadOnly.value" @click="saveRevision">
+            {{ missingAcknowledgementCount ? `还需确认 ${missingAcknowledgementCount} 项警告` : '保存不可变版本' }}
+          </button>
+        </div>
+      </article>
+
+      <article class="m6-card history-card">
+        <header>
+          <div><strong>版本历史</strong><small>恢复只覆盖 Working Copy，不切换正式版本</small></div>
+          <span>{{ session.revisionHistory.value?.items.length ?? 0 }}</span>
+        </header>
+        <p v-if="!session.revisionHistory.value?.items.length" class="muted-copy">尚无正式版本。</p>
+        <div v-else class="revision-list" data-testid="layout-revision-history">
+          <section v-for="revision in session.revisionHistory.value.items" :key="revision.id">
+            <div>
+              <strong>版本 {{ revision.revision }}</strong>
+              <small>{{ revision.sourceResolution === 'current' ? '来源当前' : revision.sourceResolution === 'stale' ? '来源已更新' : '来源不可解析' }} · {{ revision.saveReason === 'legacy_import' ? '旧版导入' : '用户保存' }}</small>
+            </div>
+            <span v-if="revision.id === session.revisionHistory.value.currentLayoutRevisionId">当前正式</span>
+            <button type="button" :disabled="m6Busy || session.isReadOnly.value" @click="restoreRevision(revision.id, revision.revision)">恢复到草稿</button>
+          </section>
+        </div>
+      </article>
+    </section>
 
     <section v-if="session.saveState.value === 'loading'" class="center-state">
       <LoaderCircle class="spin" :size="28" />
@@ -450,7 +530,9 @@ import type {
   LayoutCanvasV1,
   LayoutPresetIdV1,
   LayoutProfileV1,
+  LayoutPreflightCodeV1,
   LayoutSourceCatalogItemV1,
+  LayoutSourceReplacementCropModeV1,
   LayoutTextIssueV1,
   LayoutTopLevelElementV1,
   RichTextDocumentV1,
@@ -499,6 +581,9 @@ const inspectorTab = ref<"properties" | "layers">("properties");
 const selectedSourceShotId = ref<string | null>(null);
 const selectedPresetId = ref<LayoutPresetIdV1>(isPaged.value ? "four_panel" : "single");
 const actionError = ref<string | null>(null);
+const m6Busy = ref(false);
+const replacementCropMode = ref<LayoutSourceReplacementCropModeV1>("preserve_normalized_crop");
+const acknowledgedIssueKeys = ref<string[]>([]);
 const activeTool = ref<"select" | "text">("select");
 const fontLoader = useLayoutFontLoader({
   projectId,
@@ -573,6 +658,7 @@ const textIssueElementIds = computed(() => new Set(textIssues.value.filter((issu
 const primaryTextIssues = computed(() => primaryElement.value ? textIssues.value.filter((issue) => issue.elementId === primaryElement.value!.id) : []);
 const canInitialize = computed(() => Boolean(chapterId.value) && profileWidth.value >= 320 && profileHeight.value >= 320);
 const sourceAttention = computed(() => {
+  if (session.server.value?.sourceEvaluation.sourceResolution === "current") return null;
   const sources = props.snapshot.candidateSources;
   if (!sources) return null;
   if (sources.gates.buildLayoutWorkingCopy.allowed) return null;
@@ -583,6 +669,18 @@ const sourceAttention = computed(() => {
   };
 });
 const sourceNeedsAttention = computed(() => session.server.value?.sourceEvaluation.sourceResolution !== "current");
+const replaceableImageElementIds = computed(() => [...new Set([
+  ...(session.server.value?.sourceEvaluation.staleElementIds ?? []),
+  ...(session.server.value?.sourceEvaluation.unresolvedElementIds ?? []),
+])]);
+const selectedStaleImageId = computed(() => {
+  const imageId = primaryImage.value?.id ?? null;
+  return imageId && replaceableImageElementIds.value.includes(imageId) ? imageId : null;
+});
+const sourceResolutionTone = computed(() => {
+  const resolution = session.server.value?.sourceEvaluation.sourceResolution;
+  return resolution === "current" ? "ready" : resolution === "stale" ? "warning" : "blocked";
+});
 const sourceStateLabel = computed(() => {
   const source = session.server.value?.sourceEvaluation;
   if (!source) return "尚未建立草稿";
@@ -599,6 +697,20 @@ const saveStateLabel = computed(() => ({
   conflict: "保存冲突",
   error: "读取失败",
 }[session.saveState.value]));
+const preflightStatusLabel = computed(() => ({
+  ready: "可保存",
+  warning: "需要确认",
+  blocked: "存在阻断",
+}[session.preflight.value?.status ?? "blocked"]));
+const revisionBlockingIssueCount = computed(() => session.preflight.value?.issues.filter((issue) =>
+  issue.blockingScopes.includes("revision")).length ?? 0);
+const missingAcknowledgementCount = computed(() => session.preflight.value?.issues.filter((issue) =>
+  issue.requiresAcknowledgement && !acknowledgedIssueKeys.value.includes(issue.issueKey)).length ?? 0);
+const canCreateRevision = computed(() => Boolean(session.preflight.value)
+  && revisionBlockingIssueCount.value === 0
+  && missingAcknowledgementCount.value === 0
+  && !session.isDirty.value
+  && session.saveState.value === "saved");
 const canvasStyle = computed(() => ({
   width: `${session.currentCanvas.value!.width * session.zoom.value}px`,
   height: `${session.currentCanvas.value!.height * session.zoom.value}px`,
@@ -645,6 +757,115 @@ function initializeDraft(): void {
       };
   const currentLayoutId = props.snapshot.candidateSources?.currentLayout?.id ?? null;
   void session.initialize(profile, initializationMode.value, currentLayoutId);
+}
+
+async function prepareRevision(): Promise<void> {
+  m6Busy.value = true;
+  actionError.value = null;
+  try {
+    const report = await session.runPreflight();
+    if (!report) throw new Error("请先完成当前草稿保存，再运行正式版本预检。");
+    acknowledgedIssueKeys.value = acknowledgedIssueKeys.value.filter((issueKey) =>
+      report.issues.some((issue) => issue.issueKey === issueKey && issue.requiresAcknowledgement));
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "正式版本预检失败";
+  } finally {
+    m6Busy.value = false;
+  }
+}
+
+async function previewStaleReplacement(selectedOnly: boolean): Promise<void> {
+  const ids = selectedOnly && selectedStaleImageId.value
+    ? [selectedStaleImageId.value]
+    : replaceableImageElementIds.value;
+  if (!ids.length) return;
+  m6Busy.value = true;
+  actionError.value = null;
+  try {
+    const preview = await session.previewSourceReplacement(ids, replacementCropMode.value);
+    if (!preview) throw new Error("请先完成当前草稿保存，再预览来源替换。");
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "来源替换预览失败";
+  } finally {
+    m6Busy.value = false;
+  }
+}
+
+async function commitStaleReplacement(): Promise<void> {
+  m6Busy.value = true;
+  actionError.value = null;
+  try {
+    const result = await session.commitSourceReplacement();
+    if (!result) throw new Error("来源替换预览已失效，请重新预览。");
+    acknowledgedIssueKeys.value = [];
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "来源替换提交失败";
+  } finally {
+    m6Busy.value = false;
+  }
+}
+
+async function saveRevision(): Promise<void> {
+  if (!canCreateRevision.value) return;
+  m6Busy.value = true;
+  actionError.value = null;
+  try {
+    await session.createRevision(acknowledgedIssueKeys.value);
+    acknowledgedIssueKeys.value = [];
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "正式版本保存失败";
+  } finally {
+    m6Busy.value = false;
+  }
+}
+
+async function restoreRevision(revisionId: string, revision: number): Promise<void> {
+  if (!window.confirm(`将版本 ${revision} 的内容恢复到当前草稿。当前正式版本不会改变，是否继续？`)) return;
+  m6Busy.value = true;
+  actionError.value = null;
+  try {
+    await session.restoreRevision(revisionId);
+    acknowledgedIssueKeys.value = [];
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "版本恢复失败";
+  } finally {
+    m6Busy.value = false;
+  }
+}
+
+function shortDigest(digest: string): string {
+  return `${digest.slice(0, 14)}…${digest.slice(-8)}`;
+}
+
+function replacementWarningLabel(code: string): string {
+  if (code === "CROP_ZOOM_ADJUSTED") return "已自动补足覆盖";
+  if (code === "CROP_REVIEW_RECOMMENDED") return "建议复核裁切";
+  return code;
+}
+
+function preflightIssueLabel(code: LayoutPreflightCodeV1): string {
+  const labels: Partial<Record<LayoutPreflightCodeV1, string>> = {
+    ACTIVE_SHOT_UNPLACED: "当前镜头尚未放入画布",
+    ACTIVE_SHOT_NOT_VISIBLE: "当前镜头不可见",
+    SOURCE_LOCK_SET_INCOMPLETE: "来源集合不完整",
+    SOURCE_STALE: "图片仍引用旧定稿",
+    SOURCE_UNRESOLVED: "图片来源不可解析",
+    SOURCE_DIGEST_MISMATCH: "图片来源摘要不一致",
+    IMAGE_ASSET_MISSING_OR_NOT_READY: "图片素材未就绪",
+    IMAGE_SHA_MISMATCH: "图片素材摘要不一致",
+    FONT_ASSET_MISSING_OR_NOT_READY: "字体素材未就绪",
+    FONT_EMBEDDING_FORBIDDEN: "字体不允许嵌入",
+    FONT_GLYPH_MISSING: "字体缺少字符",
+    TEXT_OVERFLOW: "文字发生溢出",
+    IMAGE_EFFECTIVE_RESOLUTION_CRITICAL: "图片有效分辨率不足",
+    IMAGE_EFFECTIVE_RESOLUTION_LOW: "图片有效分辨率偏低",
+    ELEMENT_FULLY_OUTSIDE_CANVAS: "对象完全位于画布外",
+    ELEMENT_PARTLY_OUTSIDE_SAFE_AREA: "对象超出安全区",
+    CANVAS_EMPTY: "存在空画布",
+    HIDDEN_ELEMENT_PRESENT: "存在隐藏对象",
+    WORKING_COPY_AHEAD_OF_REVISION: "草稿领先于该版本",
+  };
+  return labels[code] ?? code;
 }
 
 function command<T extends EditorCommandTypeV1>(
@@ -1582,7 +1803,7 @@ button:disabled {
 
 .layout-source-attention {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) repeat(2, auto);
   gap: 12px;
   align-items: start;
   border: 1px solid rgba(251, 146, 60, 0.32);
@@ -1617,6 +1838,82 @@ button:disabled {
   color: #fed7aa;
   font-weight: 800;
 }
+
+.m6-control-center {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 286px;
+  overflow: auto;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 10px 12px;
+  background: #0a1120;
+}
+
+.m6-card {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.76);
+  padding: 11px;
+}
+
+.m6-card > header,
+.revision-list section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.m6-card > header > div,
+.revision-list section > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.m6-card small,
+.muted-copy,
+.replacement-preview p,
+.preflight-result > p {
+  margin: 0;
+  color: #8d9ab3;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.m6-card > header > span,
+.revision-list section > span {
+  flex: none;
+  border-radius: 999px;
+  background: rgba(116, 95, 255, 0.14);
+  color: #c8c1ff;
+  padding: 4px 7px;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.m6-card .tone-ready { background: rgba(34, 197, 94, 0.14); color: #86efac; }
+.m6-card .tone-warning { background: rgba(245, 158, 11, 0.14); color: #fcd34d; }
+.m6-card .tone-blocked { background: rgba(244, 63, 94, 0.14); color: #fda4af; }
+.m6-card > label { display: grid; gap: 5px; color: #9eabc3; font-size: 10px; font-weight: 800; }
+.m6-card select { min-height: 31px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 7px; background: #0b1323; color: #dce5f5; padding: 0 7px; }
+.m6-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.replacement-preview,
+.preflight-result { display: grid; gap: 7px; border-top: 1px solid rgba(148, 163, 184, 0.12); padding-top: 8px; }
+.replacement-preview ul { max-height: 66px; overflow: auto; margin: 0; padding-left: 17px; color: #aeb9cc; font-size: 9px; line-height: 1.55; }
+.issue-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 6px; border-radius: 7px; padding: 5px 6px; background: rgba(148, 163, 184, 0.06); }
+.issue-row input { width: auto; margin: 2px 0 0; }
+.issue-row > span:last-child { display: grid; gap: 2px; font-size: 10px; }
+.issue-row.severity-error { color: #fda4af; background: rgba(190, 18, 60, 0.1); }
+.issue-marker { text-align: center; font-weight: 900; }
+.revision-list { display: grid; gap: 6px; max-height: 175px; overflow: auto; }
+.revision-list section { border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 8px; padding: 7px; }
+.revision-list section button { min-height: 27px; padding: 0 6px; font-size: 9px; }
 
 .chapter-picker select,
 .create-card select,
@@ -1890,6 +2187,8 @@ button:disabled {
 @media (max-width: 1260px) {
   .editor-shell { grid-template-columns: 44px 210px minmax(0, 1fr) 280px; }
   .top-actions button:nth-last-child(-n + 2) { display: none; }
+  .m6-control-center { grid-template-columns: 1fr 1fr; }
+  .history-card { grid-column: 1 / -1; }
 }
 
 @media (max-width: 1023px) {
@@ -1900,5 +2199,8 @@ button:disabled {
   .canvas-navigation,
   .inspector { display: none; }
   .canvas-workspace { min-height: 560px; }
+  .m6-control-center { grid-template-columns: 1fr; max-height: none; }
+  .history-card { grid-column: auto; }
+  .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
 }
 </style>

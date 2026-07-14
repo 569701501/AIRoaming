@@ -193,7 +193,9 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   const balloonEditor = page.getByRole("textbox", { name: "画布富文本内容" });
   await pastePlainText(balloonEditor, "这是一个会明确溢出的很长很长的受控气泡文本");
   await expect(page.getByTestId("text-preflight-summary")).toContainText("文字溢出");
-  await expect(page.getByRole("button", { name: "保存版本" })).toBeDisabled();
+  await page.getByRole("button", { name: "保存版本" }).click();
+  await expect(page.getByTestId("layout-preflight-result")).toContainText("文字发生溢出");
+  await expect(page.getByRole("button", { name: "还需确认 1 项警告" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "导出 PNG 序列" })).toBeDisabled();
   await saveNow(page);
 

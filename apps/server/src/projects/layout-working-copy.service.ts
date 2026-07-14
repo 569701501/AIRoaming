@@ -247,50 +247,64 @@ export class LayoutWorkingCopyService {
   }
 
   async sourceCatalog(scope: VersionScopeV1): Promise<LayoutSourceCatalogResponseV1> {
-    return this.execute(() => this.prismaService.runReadTransaction(async (tx) => {
-      const chapter = await tx.chapter.findFirst({
-        where: { id: scope.chapterId, projectId: scope.projectId },
-        select: { currentStoryboardVersionId: true },
+    return this.execute(() => this.prismaService.runReadTransaction((tx) =>
+      this.sourceCatalogForReader(scope, tx)));
+  }
+
+  async sourceCatalogForReader(
+    scope: VersionScopeV1,
+    reader: Reader,
+  ): Promise<LayoutSourceCatalogResponseV1> {
+    const chapter = await reader.chapter.findFirst({
+      where: { id: scope.chapterId, projectId: scope.projectId },
+      select: { currentStoryboardVersionId: true },
+    });
+    if (!chapter) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
+    const sourceState = await this.candidateSources.get(scope, reader);
+    if (
+      sourceState.candidateLockSet.state !== "complete"
+      || sourceState.candidateLockSet.sourceApplicability !== "current"
+      || !sourceState.candidateLockSet.digest
+    ) {
+      serviceError("LAYOUT_LOCK_SET_INCOMPLETE", 409, {
+        reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes,
       });
-      if (!chapter) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
-      const sourceState = await this.candidateSources.get(scope, tx);
-      if (
-        sourceState.candidateLockSet.state !== "complete"
-        || sourceState.candidateLockSet.sourceApplicability !== "current"
-        || !sourceState.candidateLockSet.digest
-      ) {
-        serviceError("LAYOUT_LOCK_SET_INCOMPLETE", 409, {
-          reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes,
-        });
-      }
-      const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, tx);
-      return {
-        schemaVersion: 1,
-        projectId: scope.projectId,
-        chapterId: scope.chapterId,
-        sourceLockSetDigest: asDigest(
-          sourceState.candidateLockSet.digest,
-          "LAYOUT_SOURCE_DIGEST_MISMATCH",
-        ),
-        items: sources.map((source) => {
-          const unsigned = {
-            shotId: source.shotId,
-            candidateId: source.candidateId,
-            candidateLockRevisionId: source.candidateLockRevisionId,
-            assetId: source.assetId,
-          };
-          return {
-            order: source.order,
-            source: {
-              ...unsigned,
-              sourceDigest: digestCandidateImageSourceV1(unsigned, source.assetSha256),
-            },
-            width: source.width,
-            height: source.height,
-          };
-        }),
-      };
-    }));
+    }
+    const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, reader);
+    return {
+      schemaVersion: 1,
+      projectId: scope.projectId,
+      chapterId: scope.chapterId,
+      sourceLockSetDigest: asDigest(
+        sourceState.candidateLockSet.digest,
+        "LAYOUT_SOURCE_DIGEST_MISMATCH",
+      ),
+      items: sources.map((source) => {
+        const unsigned = {
+          shotId: source.shotId,
+          candidateId: source.candidateId,
+          candidateLockRevisionId: source.candidateLockRevisionId,
+          assetId: source.assetId,
+        };
+        return {
+          order: source.order,
+          source: {
+            ...unsigned,
+            sourceDigest: digestCandidateImageSourceV1(unsigned, source.assetSha256),
+          },
+          width: source.width,
+          height: source.height,
+        };
+      }),
+    };
+  }
+
+  async responseForReader(
+    scope: VersionScopeV1,
+    row: Parameters<LayoutWorkingCopyService["toResponse"]>[1],
+    reader: Reader,
+  ): Promise<LayoutWorkingCopyResponseV1> {
+    return this.toResponse(scope, row, reader);
   }
 
   async initialize(scope: VersionScopeV1, input: unknown): Promise<InitializeLayoutWorkingCopyResponseV1> {

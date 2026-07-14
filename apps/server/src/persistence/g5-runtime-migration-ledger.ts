@@ -9,10 +9,12 @@ import {
 } from "./g4-runtime-migration-ledger.js";
 import type { G1RuntimeMigrationLedgerRowV1 } from "./g1-runtime-migration-ledger.js";
 import { G5_LAYOUT_OVERLAY_MIGRATION_NAME } from "./g5-layout-overlay-contract.js";
+import { G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME } from "./g5-layout-binding-digest-contract.js";
 
 export const G5_RUNTIME_MIGRATION_NAMES = [
   ...G4_RUNTIME_MIGRATION_NAMES,
   G5_LAYOUT_OVERLAY_MIGRATION_NAME,
+  G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME,
 ] as const;
 
 export interface G5RuntimeMigrationExpectationV1 {
@@ -34,16 +36,19 @@ function fail(code: string, detail?: string, cause?: unknown): never {
   );
 }
 
-async function readOverlayChecksum(root: string): Promise<string> {
-  const filePath = path.join(root, G5_LAYOUT_OVERLAY_MIGRATION_NAME, "migration.sql");
+async function readOverlayChecksum(
+  root: string,
+  migrationName: G5RuntimeMigrationExpectationV1["migrationName"],
+): Promise<string> {
+  const filePath = path.join(root, migrationName, "migration.sql");
   let stat;
   try {
     stat = await lstat(filePath);
   } catch (cause) {
-    fail("ARTIFACT_UNAVAILABLE", G5_LAYOUT_OVERLAY_MIGRATION_NAME, cause);
+    fail("ARTIFACT_UNAVAILABLE", migrationName, cause);
   }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
-    fail("ARTIFACT_INVALID", G5_LAYOUT_OVERLAY_MIGRATION_NAME);
+    fail("ARTIFACT_INVALID", migrationName);
   }
   return createHash("sha256").update(await readFile(filePath)).digest("hex");
 }
@@ -55,7 +60,11 @@ export async function loadG5RuntimeMigrationExpectationsV1(
     ...await loadG4RuntimeMigrationExpectationsV1(root),
     {
       migrationName: G5_LAYOUT_OVERLAY_MIGRATION_NAME,
-      checksum: await readOverlayChecksum(root),
+      checksum: await readOverlayChecksum(root, G5_LAYOUT_OVERLAY_MIGRATION_NAME),
+    },
+    {
+      migrationName: G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME,
+      checksum: await readOverlayChecksum(root, G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME),
     },
   ];
 }

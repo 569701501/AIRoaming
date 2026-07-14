@@ -36,6 +36,11 @@ import type {
   VersionHistoryCopyRequest,
   InitializeLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyRequestV1,
+  CommitLayoutSourceReplacementRequestV1,
+  CreateLayoutRevisionRequestV1,
+  PreviewLayoutSourceReplacementRequestV1,
+  RestoreLayoutRevisionRequestV1,
+  RunLayoutPreflightRequestV1,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
@@ -47,6 +52,7 @@ import { PreflightRevisionService } from "./versioning/preflight-revision.servic
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
+import { LayoutVersioningService } from "./layout-versioning.service.js";
 
 @Controller("projects")
 export class ProjectsController {
@@ -60,6 +66,7 @@ export class ProjectsController {
     @Inject(CandidateDecisionService) private readonly candidateDecisionService: CandidateDecisionService,
     @Inject(LayoutFontService) private readonly layoutFontService: LayoutFontService,
     @Inject(LayoutWorkingCopyService) private readonly layoutWorkingCopyService: LayoutWorkingCopyService,
+    @Inject(LayoutVersioningService) private readonly layoutVersioningService: LayoutVersioningService,
   ) {}
 
   @Get()
@@ -665,6 +672,69 @@ export class ProjectsController {
     @Body() body: SaveLayoutWorkingCopyRequestV1,
   ) {
     return ok(await this.layoutWorkingCopyService.save({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/source-replacements/preview")
+  async previewLayoutSourceReplacements(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: PreviewLayoutSourceReplacementRequestV1,
+  ) {
+    return ok(await this.layoutVersioningService.previewSourceReplacements({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/source-replacements/commit")
+  async commitLayoutSourceReplacements(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CommitLayoutSourceReplacementRequestV1,
+  ) {
+    return ok(await this.layoutVersioningService.commitSourceReplacements({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/preflight")
+  async runLayoutPreflight(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: RunLayoutPreflightRequestV1,
+  ) {
+    return ok(await this.layoutVersioningService.preflight({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/revisions")
+  async createLayoutRevision(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreateLayoutRevisionRequestV1,
+  ) {
+    return ok(await this.layoutVersioningService.createRevision({ projectId, chapterId }, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/layout/revisions")
+  async listLayoutRevisions(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutVersioningService.listRevisions({ projectId, chapterId }));
+  }
+
+  @Get(":projectId/chapters/:chapterId/layout/revisions/:revisionId")
+  async getLayoutRevision(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("revisionId") revisionId: string,
+  ) {
+    return ok(await this.layoutVersioningService.getRevision({ projectId, chapterId }, revisionId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/revisions/:revisionId/restore-to-working-copy")
+  async restoreLayoutRevision(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("revisionId") revisionId: string,
+    @Body() body: RestoreLayoutRevisionRequestV1,
+  ) {
+    return ok(await this.layoutVersioningService.restoreRevision({ projectId, chapterId }, revisionId, body));
   }
 
   @Post(":projectId/chapters/:chapterId/layout/build")

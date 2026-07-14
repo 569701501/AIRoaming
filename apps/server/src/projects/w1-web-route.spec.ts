@@ -21,6 +21,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     await expect(controller.confirmChapterPreflight("p", "c", {} as never)).resolves.toEqual({ success: true, data: { mode: "db" } });
     expect(dbConfirm).toHaveBeenCalledOnce();
@@ -33,6 +34,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       {} as never,
       { confirm: dbConfirm } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -65,5 +67,24 @@ describe("W1 DB-only Web route gate", () => {
     expect(candidateSource).toContain("这里不会自动换图、裁切或生成新排版");
     expect(layoutSource).toContain("查看候选定稿");
     expect(layoutSource).toContain("来源待处理");
+  });
+
+  it("G5-M6 exposes only preview/commit source repair and immutable revision history routes", async () => {
+    const [controller, service, webApi, workspace] = await Promise.all([
+      readFile(new URL("./projects.controller.ts", import.meta.url), "utf8"),
+      readFile(new URL("./layout-versioning.service.ts", import.meta.url), "utf8"),
+      readFile(new URL("../../../web/src/services/api.ts", import.meta.url), "utf8"),
+      readFile(new URL("../../../web/src/components/workbench/LayoutExportWorkspace.vue", import.meta.url), "utf8"),
+    ]);
+    expect(controller).toContain('layout/source-replacements/preview');
+    expect(controller).toContain('layout/source-replacements/commit');
+    expect(controller).toContain('layout/revisions/:revisionId/restore-to-working-copy');
+    expect(controller).not.toContain('layout/revisions/:revisionId/activate');
+    expect(service).toContain('bindingSetSealedAt: now');
+    expect(service).toContain('LAYOUT_PREFLIGHT_ACKNOWLEDGEMENT_REQUIRED');
+    expect(webApi).toContain('previewLayoutSourceReplacements');
+    expect(webApi).toContain('commitLayoutSourceReplacements');
+    expect(workspace).toContain('不会改写旧版本');
+    expect(workspace).toContain('恢复只覆盖 Working Copy，不切换正式版本');
   });
 });

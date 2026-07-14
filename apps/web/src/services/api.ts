@@ -94,6 +94,18 @@ import type {
   LayoutFontProvisionResponseV1,
   SaveLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyResponseV1,
+  CommitLayoutSourceReplacementRequestV1,
+  CommitLayoutSourceReplacementResponseV1,
+  CreateLayoutRevisionRequestV1,
+  CreateLayoutRevisionResponseV1,
+  LayoutPreflightReportV1,
+  LayoutRevisionDetailV1,
+  LayoutRevisionHistoryResponseV1,
+  LayoutSourceReplacementPreviewV1,
+  PreviewLayoutSourceReplacementRequestV1,
+  RestoreLayoutRevisionRequestV1,
+  RestoreLayoutRevisionResponseV1,
+  RunLayoutPreflightRequestV1,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -645,6 +657,53 @@ export const api = {
   ) => request<SaveLayoutWorkingCopyResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
     { method: "PUT", body: JSON.stringify(input) },
+  ),
+  previewLayoutSourceReplacements: (
+    projectId: string,
+    chapterId: string,
+    input: PreviewLayoutSourceReplacementRequestV1,
+  ) => request<LayoutSourceReplacementPreviewV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-replacements/preview`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  commitLayoutSourceReplacements: (
+    projectId: string,
+    chapterId: string,
+    input: CommitLayoutSourceReplacementRequestV1,
+  ) => request<CommitLayoutSourceReplacementResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-replacements/commit`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  runLayoutPreflight: (
+    projectId: string,
+    chapterId: string,
+    input: RunLayoutPreflightRequestV1,
+  ) => request<LayoutPreflightReportV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/preflight`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  createLayoutRevision: (
+    projectId: string,
+    chapterId: string,
+    input: CreateLayoutRevisionRequestV1,
+  ) => request<CreateLayoutRevisionResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  listLayoutRevisions: (projectId: string, chapterId: string) => request<LayoutRevisionHistoryResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions`,
+  ),
+  getLayoutRevision: (projectId: string, chapterId: string, revisionId: string) => request<LayoutRevisionDetailV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions/${encodeURIComponent(revisionId)}`,
+  ),
+  restoreLayoutRevision: (
+    projectId: string,
+    chapterId: string,
+    revisionId: string,
+    input: RestoreLayoutRevisionRequestV1,
+  ) => request<RestoreLayoutRevisionResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions/${encodeURIComponent(revisionId)}/restore-to-working-copy`,
+    { method: "POST", body: JSON.stringify(input) },
   ),
   buildChapterLayout: (projectId: string, chapterId: string) => request<BuildChapterLayoutResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/build`,

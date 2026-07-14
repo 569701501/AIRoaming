@@ -132,7 +132,7 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
     await page.goto(`/projects/${fixture.projectId}/layout`);
     const sourceStatus = page.getByTestId("candidate-source-status");
     await expect(sourceStatus).toContainText("候选定稿已变化");
-    await expect(sourceStatus).toContainText("实际换图与裁切将在成稿编辑阶段处理");
+    await expect(sourceStatus).toContainText("可在下方先预览换图及裁切，再显式提交到 Working Copy");
     await expect(page.getByRole("button", { name: "导出 PNG 序列" })).toBeDisabled();
     await page.screenshot({
       path: path.join(evidenceRoot, "g4_f_layout_stale.png"),

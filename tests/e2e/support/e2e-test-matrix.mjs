@@ -17,6 +17,7 @@ export const E2E_TEST_MATRIX = Object.freeze([
       "tests/e2e/web/candidate-decision-workbench.spec.ts",
       "tests/e2e/web/layout-editor-m4.spec.ts",
       "tests/e2e/web/layout-editor-m5.spec.ts",
+      "tests/e2e/web/layout-editor-m6.spec.ts",
     ]),
   }),
 ]);
