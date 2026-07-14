@@ -439,6 +439,36 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   }, 20_000);
 
+  it("OBS-08-CHAPTER-01: reads a non-current chapter without mutating the DB current-chapter pointer", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({
+      name: "OBS-08 章节只读切换",
+      type: "comic",
+      comicFormat: "vertical_scroll",
+      artStyle: "comic_style",
+    });
+    const firstChapterId = project.currentChapterId!;
+    const secondChapter = await projects.ensureChapterExists(project.id, 2, "第二章");
+    const before = await prisma.project.findUniqueOrThrow({
+      where: { id: project.id },
+      select: { currentChapterId: true, rowVersion: true, updatedAt: true },
+    });
+    expect(before.currentChapterId).toBe(secondChapter.id);
+
+    const selected = await projects.getWorkbenchSnapshot(project.id, firstChapterId);
+    expect(selected.currentChapter?.id).toBe(firstChapterId);
+    const after = await prisma.project.findUniqueOrThrow({
+      where: { id: project.id },
+      select: { currentChapterId: true, rowVersion: true, updatedAt: true },
+    });
+    expect(after).toEqual(before);
+    expect((await projects.getWorkbenchSnapshot(project.id)).currentChapter?.id).toBe(secondChapter.id);
+  }, 20_000);
+
   it("D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

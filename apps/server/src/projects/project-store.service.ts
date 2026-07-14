@@ -83,6 +83,17 @@ export class ProjectStore {
 
     this.findChapter(project, chapterId);
     const currentChapter = project.chapters.find((chapter) => chapter.id === chapterId);
+    if (this.repository.isDatabaseMode()) {
+      // Workbench chapter selection is a read concern in DB-only mode. Keep the
+      // persisted currentChapterId unchanged and project the requested chapter
+      // only into this response; explicit chapter commands carry their own
+      // chapterId and remain the sole write path.
+      return {
+        ...project,
+        currentChapterId: chapterId,
+        sourceText: currentChapter?.sourceText ?? project.sourceText,
+      };
+    }
     const nextProject: LocalProject = {
       ...project,
       currentChapterId: chapterId,
