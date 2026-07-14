@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "phase": "G5-M6",
+  "status": "passed",
+  "codeCommit": "429ec69",
+  "sourceReplacement": {
+    "authority": "target_database_current_candidate_lock_revision_and_ready_asset",
+    "previewDigestRecomputedOnCommit": true,
+    "cropModes": ["preserve_normalized_crop", "reset_cover"],
+    "workingCopyOnly": true,
+    "singleUndoRedoVerified": true,
+    "oldRevisionExportAssetMutationCount": 0
+  },
+  "revision": {
+    "linearImmutable": true,
+    "transactionOrder": [
+      "insert_unsealed_layout_revision",
+      "insert_source_bindings",
+      "seal_binding_set",
+      "advance_chapter_current_pointer",
+      "advance_working_copy_based_on"
+    ],
+    "exactReplay": true,
+    "historyRestoreMovesFormalPointer": false
+  },
+  "preflight": {
+    "stableIssueKeysAndDigest": true,
+    "revisionAndExportScopesSeparated": true,
+    "warningAcknowledgementRequired": true,
+    "duplicateOrUnknownAcknowledgementRejected": true
+  },
+  "migration": {
+    "name": "0014_g5_layout_binding_source_digest",
+    "forwardOnly": true,
+    "tableMutation": false,
+    "repairsCompositeDigestComparison": true,
+    "scopeReadyShaAndSealGuardsRetained": true
+  },
+  "automatedEvidence": [
+    { "gate": "shared", "result": "21 files / 104 tests passed" },
+    { "gate": "server", "result": "87 files / 551 tests passed" },
+    { "gate": "e2e_environment", "result": "33/33 passed" },
+    { "gate": "playwright_file", "result": "4/4 passed" },
+    { "gate": "playwright_db", "result": "6/6 passed" },
+    { "gate": "playwright_m6_undo_redo_targeted", "result": "1/1 passed" },
+    { "gate": "typecheck_e2e_prisma_diff", "result": "passed" }
+  ],
+  "runtimeEvidence": {
+    "screenshots": [
+      "evidence/g5_m6_source_replacement_preview.png",
+      "evidence/g5_m6_repair_revision_history.png"
+    ],
+    "pageErrorCount": 0,
+    "browserPaths": [
+      "candidate A working copy",
+      "replace candidate B",
+      "preview current source replacement",
+      "commit then undo to stale and redo to current",
+      "run formal preflight",
+      "acknowledge warnings",
+      "save immutable revision",
+      "restore revision to working copy without moving formal pointer"
+    ]
+  },
+  "expectedOpenGates": [
+    "G5-M7 production renderer, persistent publication task and multi-artifact output",
+    "G5-M8 mobile read-only, AI pending, legacy cutover and final vertical slices"
+  ],
+  "prohibitedActions": {
+    "backupOrArchiveDeleted": false,
+    "downMigrationExecuted": false,
+    "fileOnlyFallback": false,
+    "g6OrVideoEntered": false,
+    "pushExecuted": false
+  }
+}

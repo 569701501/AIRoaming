@@ -12,7 +12,7 @@ source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、�
 
 ## 1. 任务目标
 
-R2 DB-only 观察、G4-A～F 与 G5-M0～M5 已通过，从 G5-M6 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
+R2 DB-only 观察、G4-A～F 与 G5-M0～M6 已通过，从 G5-M7 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
 
 ```text
 AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收
@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible implementation commit = cd35053
+current compatible implementation commit = 429ec69
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G5_M6_IN_PROGRESS
+currentState = G5_M7_IN_PROGRESS
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F 与 G5-M0～M5；G4 状态=`G4_PASSED`，G5 M5 状态=`G5_M5_PASSED`，ADR-0016 已采纳。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F 与 G5-M0～M6；G4 状态=`G4_PASSED`，G5 M6 状态=`G5_M6_PASSED`，ADR-0016 已采纳。
 
-尚未完成：G5-M6～M8、G5 用户签收。
+尚未完成：G5-M7～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -157,7 +157,7 @@ M0 fixture 与红灯
 
 M0 已由提交 `53b65e4` 完成：8 份固定 fixture、3 张本地 PNG、固定 Inter WOFF2、20 canvas/200 element、五类 known-answer digest 和旧 copy-export 红灯见证均已通过。`test:render`、`test:migration:g5`、`test:e2e:g5` 当前按设计输出各后续里程碑负责的结构化红灯；不得把 M0 红灯误判为需要用户授权，也不得重做 M0。
 
-M1 已完成：A 全硬门通过并由 ADR-0016 采纳；B 的 8192 高 resvg native abort 已留证。M2 已由 `e93d70f` 完成：strict Layout codecs、39 类命令、Unicode 17 grapheme、source/crop geometry、7 preset 与双 Review 均通过。M3 已由 `ec71594` 完成：0013 overlay、13 段 ledger、DB-only Working Copy CAS/autosave/recovery、公开 API、桌面/窄屏编辑器外壳与 file/db E2E 矩阵均通过。M4 已由 `93a58b2` 完成：current source catalog、PanelFrame/FreeImage/Shot tray、七类模板、裁切/旋转/翻转、阅读顺序、页漫/条漫批量排版与真实 DB-only 页面均通过。M5 已由 `cd35053` 完成：项目 FontAsset staged→Outbox→ready、sha/cmap/license/embedding、Asset-ID FontFace、横竖排富文本、IME/paste/overflow、四类气泡与真实 DB-only 页面均通过。当前直接执行 M6：来源返修、不可变 Revision、历史恢复与预检。
+M1 已完成：A 全硬门通过并由 ADR-0016 采纳；B 的 8192 高 resvg native abort 已留证。M2 已由 `e93d70f` 完成：strict Layout codecs、39 类命令、Unicode 17 grapheme、source/crop geometry、7 preset 与双 Review 均通过。M3 已由 `ec71594` 完成：0013 overlay、13 段 ledger、DB-only Working Copy CAS/autosave/recovery、公开 API、桌面/窄屏编辑器外壳与 file/db E2E 矩阵均通过。M4 已由 `93a58b2` 完成：current source catalog、PanelFrame/FreeImage/Shot tray、七类模板、裁切/旋转/翻转、阅读顺序、页漫/条漫批量排版与真实 DB-only 页面均通过。M5 已由 `cd35053` 完成：项目 FontAsset staged→Outbox→ready、sha/cmap/license/embedding、Asset-ID FontFace、横竖排富文本、IME/paste/overflow、四类气泡与真实 DB-only 页面均通过。M6 已由 `429ec69` 完成：来源替换 preview/digest/commit/Undo/Redo、0014 forward-only trigger 修复、不可变 Revision/SourceBinding、稳定预检、warning 确认和历史恢复均通过。当前直接执行 M7：固定 renderer、持久出版任务、PNG/PDF/条漫切片与 publication manifest。
 
 E0 只有两种合法结果：
 

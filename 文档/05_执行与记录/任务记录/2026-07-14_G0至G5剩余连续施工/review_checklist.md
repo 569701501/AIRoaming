@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M5 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M6_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M6 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M7_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -29,7 +29,7 @@ source: deep-think 复核流程与各阶段验收清单
 - [ ] 已确认未知用户改动并保留。
 - [ ] 失败用例/复现证据先于修复存在。
 - [ ] 修改没有越过本切片非目标。
-- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M5）。
+- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M6）。
 - [ ] 定向测试、受影响 package typecheck/build 退出 0。
 - [ ] `git diff --check` 通过。
 - [ ] 只暂存本阶段文件；没有 `git add -A`。
@@ -145,6 +145,15 @@ M5 切片复核：
 - [x] 横竖排、IME 单命令、纯文本 paste、grapheme 范围样式和 overflow 有 Shared/Server/browser 证据。
 - [x] speech/thought/shout/caption、单尾巴和文字/对象模式隔离有真实页面证据。
 - [x] M5 不创建 Revision/Publication；PDF 字体嵌入明确保留给 M7。
+
+M6 切片复核：
+
+- [x] source replacement 只绑定 G4 current CandidateLockRevision/ready Asset，preview 与 commit 使用同一 digest/crop 规则。
+- [x] commit 只更新 Working Copy；旧 LayoutRevision/ExportRevision/Asset 不改写，丢响应只精确 replay。
+- [x] LayoutRevision 按 unsealed→bindings→seal→current pointer→WC basedOn 单事务线性创建，历史恢复只替换 Working Copy。
+- [x] 预检 issueKey/digest 稳定；revision/export blocker 分离；warning 显式确认，重复或未知确认 key 拒绝。
+- [x] 0014 仅 forward-only 替换矛盾 trigger，保留 scope/current/ready/sha/seal 约束，不改表、不执行 down migration。
+- [x] M6 Shared/Server/浏览器/迁移与双 Review 证据完整；renderer/publication 明确保留给 M7。
 
 ### Runtime/User
 

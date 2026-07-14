@@ -864,6 +864,7 @@ saveReason = user_checkpoint | export_checkpoint | history_restore | legacy_impo
 - runtime 首版 revision 的 previous 可为 null；之后必须等于保存事务开始时 current。
 - 创建事务固定为“unsealed Revision → LayoutSourceBinding[] → 单向写 bindingSetSealedAt → 切 current”，禁止 INSERT 时预填 seal；空 canvas/纯文字文档允许 0 条 Binding，含 source-backed 元素时必须与 codec 投影精确一致。seal 后文档、来源与 Binding 集合不可变，杜绝以后晚插入。
 - 对 runtime previous 设置唯一约束，禁止 detached branch。该唯一/线性/current 状态机是 G5 overlay；字段和 seal 基础门禁属 G1 base，不重复 ADD COLUMN。
+- G5-M6 的 0014 只替换 G1 `LayoutSourceBinding` insert trigger 中“`sourceDigest == Asset.sha256`”这一矛盾条件：`sourceDigest` 实际是 Shot/Candidate/LockRevision/Asset ID 与 Asset sha 的复合摘要。scope、unsealed、Candidate/LockRevision、ready Asset、sha 非空和 seal 后不可变门禁全部保留。
 
 ### 22.2 创建正式版本
 
@@ -878,6 +879,7 @@ interface CreateLayoutRevisionRequestV1 {
   expectedDocumentDigest: string;
   expectedCurrentRevisionId: string | null;
   saveReason: "user_checkpoint" | "export_checkpoint" | "history_restore";
+  acknowledgedIssueKeys: string[];
 }
 ```
 
@@ -892,7 +894,9 @@ interface CreateLayoutRevisionRequestV1 {
 7. 更新 Chapter.currentLayoutRevisionId；current 只能指向已 sealed revision。
 8. 更新 WorkingCopy.basedOnRevisionId 为新修订并递增 rowVersion。
 
-精确 replay：当前 LayoutRevision 的 previous 等于 request expected、documentDigest 等于 request digest、sourceLockSetDigest 等于当前 Working Copy source digest；返回现有修订，不再插入。
+精确 replay：当前 LayoutRevision 的 previous 等于 request expected、documentDigest/saveReason 等于请求，Working Copy 恰为 expected rowVersion+1、documentDigest 相同且 basedOn 指向该 revision；返回现有修订，不再插入。
+
+`acknowledgedIssueKeys` 只能包含本次重新计算的 preflight report 中 `requiresAcknowledgement=true` 的 issueKey。缺少必需确认、重复 key 或提交不属于当前 report 的 key 都拒绝；客户端不能拿旧 preflight 的确认跳过新问题。
 
 正式版本门禁：
 
@@ -967,6 +971,8 @@ POST /api/projects/{projectId}/chapters/{chapterId}/layout/source-replacements/c
 ```
 
 Request 在 preview body 基础上增加 `replacementDigest`。Server 在写事务中重算目标来源、crop 结果和 digest；一致才更新 Working Copy，递增 rowVersion。它不创建 LayoutRevision、不改旧 Layout/Export、不移动当前 Export 指针。
+
+Web 将一次成功替换记录成一个受限 Editor Command history batch：inverse 是提交前 Working Copy snapshot，forward 是明确的 `layout.replace_sources`；一次 Undo 会保存回 stale Working Copy，一次 Redo 会恢复 current。Undo/Redo 都不改旧 Revision/Export/Asset。
 
 丢响应重试：当前 rowVersion 恰为 expected+1 且 documentDigest 等于 preview.resultDocumentDigest 时返回 `replayed`；之后的任何编辑都会打断 replay。
 
@@ -1073,9 +1079,11 @@ unplaced | placed_current | placed_multiple | placed_stale | unresolved | lock_m
 | 409 | `LAYOUT_SOURCE_UNRESOLVED` | 来源无法解析 |
 | 409 | `LAYOUT_SOURCE_DIGEST_MISMATCH` | source/lock set 摘要不一致 |
 | 409 | `LAYOUT_SOURCE_CHANGED` | 替换 preview 后来源变化 |
-| 409 | `LAYOUT_REPLACEMENT_DIGEST_MISMATCH` | 替换影响已变化 |
+| 409 | `LAYOUT_SOURCE_REPLACEMENT_PREVIEW_MISMATCH` | 替换来源、crop 或摘要已变化 |
 | 409 | `LAYOUT_EXPECTED_CURRENT_REVISION_MISMATCH` | current LayoutRevision 已变化 |
-| 409 | `LAYOUT_REVISION_GATE_BLOCKED` | 不满足正式保存完整性门禁 |
+| 409 | `LAYOUT_REVISION_PREFLIGHT_BLOCKED` | 不满足正式保存完整性门禁 |
+| 409 | `LAYOUT_PREFLIGHT_ACKNOWLEDGEMENT_REQUIRED` | 必需 warning 未逐项确认 |
+| 409 | `LAYOUT_PREFLIGHT_ACKNOWLEDGEMENT_INVALID` | 确认 key 不属于当前 preflight report |
 | 409 | `LAYOUT_PENDING_COMMAND_EXPIRED` | AI 建议 base/source 已变化 |
 | 422 | `LAYOUT_ASSET_NOT_READY` | 候选图 Asset 不可用于正式文档 |
 | 422 | `LAYOUT_FONT_NOT_READY` | 字体缺失/未 ready/不可嵌入 |

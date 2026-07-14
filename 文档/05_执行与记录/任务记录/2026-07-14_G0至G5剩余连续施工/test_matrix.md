@@ -221,8 +221,8 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-GATE-01 | strict codec/digest | unknown/limits reject，known-answer/round-trip | `passed` |
 | G5-GATE-02 | command/Undo/IME | batch 原子，一次 Undo，composition 无脏命令 | `passed_m2_m5` |
 | G5-GATE-03 | WC autosave/conflict | reload 可恢复；双标签不静默覆盖 | `passed` |
-| G5-GATE-04 | LayoutRevision | 显式保存、线性 immutable、replay 准确 | `not_run` |
-| G5-GATE-05 | source replacement | preview/digest/commit，crop 选择明确 | `not_run` |
+| G5-GATE-04 | LayoutRevision | 显式保存、线性 immutable、replay 准确 | `passed_m6` |
+| G5-GATE-05 | source replacement | preview/digest/commit，crop 选择明确 | `passed_m6` |
 | G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `passed_m5`：frame/image/crop/template/read order/text/balloon/font 均已通过 |
 | G5-GATE-07 | strip editor | 20 段、虚拟化、重排/改高/竖排 | `partial_m5_passed`：分段生成/新增/重排/竖排已通过；20 段虚拟化与改高继续由 M7/M8 总体路径关闭 |
 | G5-GATE-08 | deterministic PNG | 同输入三次 sha 相同，可解码/尺寸正确 | `not_run` |
@@ -259,6 +259,19 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-M5-06 | 气泡与模式隔离 | 四类固定路径、单尾巴可调；文字模式不移对象，选择模式移动复合对象 | `passed_shared_browser` |
 | G5-M5-07 | 预检 | 缺字体、sha mismatch、unsupported、缺 glyph、embedding 禁止、overflow 均明确失败；正式按钮禁用 | `passed_shared_server_browser` |
 | G5-M5-08 | 完整门禁 | Shared 96、Server 549、env 33、file 4、DB 5、M5 repeat 3 | `passed` |
+
+### 8.3.3 M6 来源返修、Revision、历史与预检证据
+
+| ID | 场景 | 结果 | 状态 |
+| --- | --- | --- | --- |
+| G5-M6-01 | stale 来源 preview | 单张/批量返回 from/to、逐图 cropMode、result crop、replacement/document digest | `passed_shared_server_browser` |
+| G5-M6-02 | commit 与 replay | 写事务内重算当前来源与 digest，只更新 WC；成功响应丢失后 expected+1 精确 replay | `passed_db` |
+| G5-M6-03 | 线性不可变 Revision | unsealed→bindings→seal→current→WC basedOn 原子完成；previous/revision/current 同作用域 | `passed_migration_db` |
+| G5-M6-04 | 历史与恢复 | current/stale/unresolved 查询稳定；恢复只覆盖 WC，不移动 current、不改历史 | `passed_server_browser_db` |
+| G5-M6-05 | 正式预检 | source/font/image/glyph 阻止 revision；overflow 等 warning 需确认；issueKey/preflightDigest 稳定 | `passed_shared_server_browser` |
+| G5-M6-06 | acknowledgement | 缺确认阻止保存；重复或不属于当前 report 的 key fail-closed | `passed_contract_db` |
+| G5-M6-07 | 0014 forward migration | 只修复复合 sourceDigest 与 Asset.sha256 的错误等同；scope/ready/sha/seal 门禁保留 | `passed_schema_runtime` |
+| G5-M6-08 | 完整门禁 | Shared 104、Server 551、env 33、file 4、DB 6、typecheck/Prisma/diff | `passed` |
 
 ### 8.4 必跑命令
 

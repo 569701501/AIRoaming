@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m5` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m7` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -398,13 +398,17 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M6 来源返修、Revision、历史、预检
 
-状态：`in_progress`。
+状态：`completed`；提交=`429ec69`；Scrutiny=`passed`；Runtime/User=`passed`。
 
 - stale 单张/批量 preview+digest+commit 与 crop 选择。
 - LayoutRevision 线性不可变、精确 replay、SourceBinding、历史恢复成 Working Copy。
 - preflight 与 warning acknowledgement；A→布局→B→解决→新 Revision。
 
+退出：单张/批量来源返修使用严格 preview digest、逐图 cropMode 与事务内重算，commit 只递增 DB Working Copy 且可一次 Undo/Redo；LayoutRevision 按 unsealed→SourceBinding→seal→Chapter current→Working Copy basedOn 单事务创建，支持精确 replay，历史恢复只覆盖 Working Copy。稳定预检区分 revision/export blocker，warning 必须确认且未知确认 key 拒绝。0014 forward-only migration 修复 G1 把复合 sourceDigest 误当 Asset sha 的矛盾触发器，同时保留 scope/ready/sha 与 seal 完整性门禁。Shared 21 files/104 tests、Server 87 files/551 tests、E2E 环境 33/33、file 4/4、DB 6/6、全仓 typecheck/E2E typecheck/Prisma/diff check 通过；当前进入 G5-M7。
+
 ### G5-M7 Renderer 与出版
+
+状态：`in_progress`。
 
 - RenderPlan/RenderScene/AssetResolver/固定 renderer adapter。
 - 持久 `layout_export` task、claim fencing、Outbox/recovery/current applicability。

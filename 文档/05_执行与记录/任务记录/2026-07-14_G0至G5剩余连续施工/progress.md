@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M6_IN_PROGRESS
-last_completed = G5_M5_PASSED
+current = G5_M7_IN_PROGRESS
+last_completed = G5_M6_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m6` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053` | M5 Scrutiny=`passed`；Runtime/User=`passed` | 字体/富文本/气泡已关闭；进入来源返修、Revision、历史与预检 |
+| G5 | `in_progress_m7` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69` | M6 Scrutiny=`passed`；Runtime/User=`passed` | 来源返修、Revision、历史与预检已关闭；进入 renderer 与出版 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -228,6 +228,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`cd35053`。
 - 风险/未运行：M6 来源返修/Revision/预检、M7 renderer/publication、M8 legacy/AI/总体路径尚未完成；未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
 - next：`G5_M6_IN_PROGRESS`。
+
+## 2026-07-15：G5-M6 来源返修、不可变版本与预检
+
+- baseline：M5 code=`cd35053`，docs=`d49bdb1`；仅暂存 M6 代码、测试、0014 migration 与新证据，未混入工作树既有 R0/M6 文档和旧回归截图。
+- 实现：Shared 增加来源替换、预检和 Revision 严格契约；Server 增加 preview/commit、正式预检、线性不可变 Revision/SourceBinding、历史详情与恢复到 Working Copy；Web 增加来源返修、逐项警告确认、保存版本与历史恢复。0014 只替换矛盾的 source binding insert trigger，不改表、不做 down migration。
+- 测试：Shared 21 files/104 tests、Server 87 files/551 tests；全仓 typecheck、E2E typecheck、Prisma validate、diff check 通过；E2E 环境 33/33、file 4/4、DB 6/6，Undo/Redo 补强后 M6 定向 1/1。未知 warning acknowledgement 定向集成、Revision request strict codec 与 P6/G4-D/M6 事务路径均通过。
+- 证据：`evidence/g5_m6_source_replacement_preview.png`、`evidence/g5_m6_repair_revision_history.png`、`evidence/g5_m6_source_revision_preflight_report.json`、`g5_m6_scrutiny_review.md`、`g5_m6_runtime_review.md`、`../../功能完成记录/2026-07-15_G5-M6来源返修版本与预检.md`。
+- Review：Scrutiny=`passed`；Runtime/User=`passed`；正式 renderer、PNG/PDF/slices/publication task 仍由 M7 验收，没有提前签收。
+- commit：`429ec69`。
+- 风险/未运行：M7 renderer/publication 与 M8 mobile/AI/legacy/总体路径尚未完成；`test:render` 与 `test:migration:g5` 仍保留各自 owner 的结构化红灯。未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
+- next：`G5_M7_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 
