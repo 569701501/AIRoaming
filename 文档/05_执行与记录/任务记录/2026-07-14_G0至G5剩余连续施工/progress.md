@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M3_IN_PROGRESS
-last_completed = G5_M1_PASSED
+current = G5_M4_IN_PROGRESS
+last_completed = G5_M3_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m3` | `53b65e4`, `68b00cb`, `e93d70f` | M2 Scrutiny=`passed`；Runtime=`passed_isolated` | Shared Layout Domain Kernel 已关闭；进入 Schema/Working Copy/编辑器外壳 |
+| G5 | `in_progress_m4` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594` | M3 Scrutiny=`passed`；Runtime/User=`passed` | DB Working Copy 与编辑器外壳已关闭；进入画格/图片/模板/裁切 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -195,6 +195,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`e93d70f`。
 - 风险/未运行：M3/M4 必须在 Server 保存时注入真实 Asset sha/尺寸；字体/renderer 红灯仍归 M5/M7；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频。
 - next：`G5_M3_IN_PROGRESS`。
+
+## 2026-07-15：G5-M3 Schema overlay、Working Copy、编辑器外壳
+
+- baseline：M2 code=`e93d70f`，docs=`4d181c3`；只暂存 M3 代码与门禁文件，未混入工作树既有历史文档改动。
+- 实现：新增 0013 forward-only overlay 与 13 段 ledger；Shared Working Copy strict codec；Server DB-only 初始化/保存/CAS/recovery API；Web 800ms autosave、内存 Undo/Redo、三栏编辑器与窄屏只读；默认 E2E 改为 file/DB 精确矩阵。
+- 测试：Shared 86/86、Server 84 files/544 tests、E2E 环境 33/33、file Playwright 4/4、DB Playwright 3/3；全仓 typecheck/build、E2E typecheck、Prisma validate、G1 manifest/migration、fixture 与 diff check 通过。
+- 证据：`evidence/g5_m3_working_copy_editor_report.json`、`g5_m3_scrutiny_review.md`、`g5_m3_runtime_review.md`、`../../功能完成记录/2026-07-15_G5-M3数据库草稿与编辑器外壳.md`。
+- Review：Scrutiny=`passed`；Runtime/User=`passed`；真实浏览器覆盖桌面锁定/Undo/autosave rowVersion 1→2→3、800px 只读 0 写入和 G4 来源门禁。
+- commit：`ec71594`。
+- 风险/未运行：M4～M8 仍需关闭画格/图片、字体/文字、正式 Revision、renderer/出版和 legacy/AI 总体路径；结构化阶段红灯保持非零。未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
+- next：`G5_M4_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

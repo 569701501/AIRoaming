@@ -26,7 +26,7 @@ source: 当前代码、v5 C0～C7 production evidence、R2 通过结论、G4/G5 
 S0 / W1 / R0B / SH-10 / C0～C7激活 = completed
 completedThrough = C7
 evidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-current = G5_M3_IN_PROGRESS
+current = G5_M4_IN_PROGRESS
 ```
 
 已完成顺序：
@@ -38,7 +38,7 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7激活
 剩余顺序：
 
 ```text
-首笔受控 DB-only 业务写（已完成） -> R2 OBS-01～10（已通过） -> G4-A～F（已通过） -> G5-M0～M2（已通过） -> G5-M3～M8 -> 用户签收
+首笔受控 DB-only 业务写（已完成） -> R2 OBS-01～10（已通过） -> G4-A～F（已通过） -> G5-M0～M3（已通过） -> G5-M4～M8 -> 用户签收
 ```
 
 ## 3. 执行节奏

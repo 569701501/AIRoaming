@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M2 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M3_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M3 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M4_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -29,7 +29,7 @@ source: deep-think 复核流程与各阶段验收清单
 - [ ] 已确认未知用户改动并保留。
 - [ ] 失败用例/复现证据先于修复存在。
 - [ ] 修改没有越过本切片非目标。
-- [ ] 新协议/Schema/状态枚举同步 Shared 与正式文档。
+- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M3）。
 - [ ] 定向测试、受影响 package typecheck/build 退出 0。
 - [ ] `git diff --check` 通过。
 - [ ] 只暂存本阶段文件；没有 `git add -A`。

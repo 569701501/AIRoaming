@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "phase": "G5-M3",
+  "status": "passed",
+  "codeCommit": "ec71594",
+  "migration": {
+    "name": "0013_g5_layout_working_copy_overlay",
+    "runtimeLedgerCount": 13,
+    "direction": "forward_only",
+    "downMigrationExecuted": false
+  },
+  "workingCopy": {
+    "storageAuthority": "target_database_only",
+    "schemaVersion": 1,
+    "autosaveDebounceMs": 800,
+    "maxBatchBytes": 5242880,
+    "conflictPolicy": "strict_cas_with_recovery",
+    "legacyLayoutWriteCount": 0,
+    "autosaveFormalRevisionCount": 0
+  },
+  "automatedEvidence": [
+    { "gate": "shared", "result": "86/86 passed" },
+    { "gate": "server", "result": "84 files / 544 tests passed" },
+    { "gate": "e2e_environment", "result": "33/33 passed" },
+    { "gate": "playwright_file", "result": "4/4 passed" },
+    { "gate": "playwright_db", "result": "3/3 passed" },
+    { "gate": "typecheck_build_prisma_g1", "result": "passed" }
+  ],
+  "browserEvidence": {
+    "desktop": "three-panel editor shell rendered; selection, lock and undo exercised",
+    "databaseRowVersionTrace": [1, 2, 3],
+    "narrowViewportWidth": 800,
+    "narrowViewportMode": "read_only",
+    "narrowViewportWriteCount": 0,
+    "consoleWarningOrErrorCount": 0
+  },
+  "expectedOpenGates": [
+    "G5-M4 panel/image/template/crop",
+    "G5-M5 controlled CJK font and rich text",
+    "G5-M6 formal revision/history/preflight",
+    "G5-M7 production renderer/publication",
+    "G5-M8 legacy migration/final vertical slices"
+  ],
+  "prohibitedActions": {
+    "backupOrArchiveDeleted": false,
+    "fileOnlyFallback": false,
+    "g6OrVideoEntered": false,
+    "pushExecuted": false
+  }
+}

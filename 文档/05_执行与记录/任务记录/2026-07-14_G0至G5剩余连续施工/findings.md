@@ -13,12 +13,12 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `e93d70f`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `ec71594`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M2 已通过；G5-M3～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M3_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M3 已通过；G5-M4～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M4_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M3_IN_PROGRESS
-next = G5_SCHEMA_WORKING_COPY_EDITOR_SHELL
+current = G5_M4_IN_PROGRESS
+next = G5_PANEL_IMAGE_TEMPLATE_CROP
 ```
 
 ## 7. G4-A 稳定结论
@@ -143,3 +143,12 @@ next = G5_SCHEMA_WORKING_COPY_EDITOR_SHELL
 - command reducer 对未知 payload、locked 写入、非原子 batch、无效 occupied-panel 模板应用和历史上限均 fail-closed；inverse、changed IDs 与 preflight scopes 可重复计算。
 - 固定 8 份 fixture 已改由生产 LayoutDocument codec 验证；M2 定向 29/29、fixture 3/3、Shared 83/83、Server 536/536，全仓 typecheck、E2E typecheck、build 通过。
 - M2 commit=`e93d70f`，Scrutiny=`passed`，Runtime=`passed_isolated`；Server 保存时注入真实 Asset sha/尺寸属于 M3/M4，字体 provision 属于 M5，正式 renderer 属于 M7。
+
+## 16. G5-M3 稳定结论
+
+- 0013 是 forward-only G5 Working Copy overlay；应用启动要求精确成功的 13 段 ledger，G1 0001～0008 迁移字节未改写。
+- Working Copy 只保存 DB V1，使用 800ms autosave、5 MiB batch 上限和 expected rowVersion CAS；no-op/replay 明确，多标签冲突保留 recovery，不 last-write-wins。
+- Server 初始化/保存会重算 G4 current lock/source identity，并按 DB ready Asset 的 sha/尺寸复核新增或变更 source/crop/font；autosave 不创建正式 Revision、不写 legacy `layout.json`。
+- 桌面编辑器外壳具备页面导航、选择、拖拽、属性、图层、锁定/隐藏、对齐/分布与内存 Undo/Redo；窄于 1024px 只读且 0 写入。
+- 默认 E2E 已按 file/DB 两种服务模式分离并穷尽登记全部 spec；M3 替换页面时暴露的 G4 来源警告回归已修复，原始默认 E2E 7/7 通过。
+- M3 commit=`ec71594`；Shared 86/86、Server 544/544、E2E env 33/33、file 4/4、DB 3/3；Scrutiny=`passed`，Runtime/User=`passed`。当前进入 M4。

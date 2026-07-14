@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m3` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m4` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -369,13 +369,17 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M3 Schema overlay、Working Copy、编辑器外壳
 
-状态：`in_progress`。
+状态：`completed`；提交=`ec71594`；Scrutiny=`passed`；Runtime/User=`passed`。
 
 - Schema/migration、Working Copy CAS/autosave/recovery、路由和编辑器壳。
 - 只保存 DB V1，不双写 legacy layout.json；历史正式 Revision 尚不由 autosave 自动创建。
 - 多标签冲突有 recovery，不 last-write-wins。
 
+退出：0013 forward-only overlay、13 段精确 ledger、DB-only Working Copy 初始化/800ms autosave/CAS/no-op/replay/recovery、三条公开 API 与桌面/窄屏编辑器外壳均已完成；现有 G4 来源警告和导出门禁保持有效。Shared 86/86、Server 544/544、E2E 环境 33/33、file 浏览器 4/4、DB 浏览器 3/3、全仓 typecheck/build/Prisma/G1 检查通过；当前进入 G5-M4。
+
 ### G5-M4 画格、图片、模板与裁切
+
+状态：`in_progress`。
 
 - PanelFrame+contentImage、FreeImage、Shot tray、crop/cover/rotate/flip、模板/阅读顺序。
 - 全部来源消费 G4 current CandidateLockRevision；源 Asset 不改写。

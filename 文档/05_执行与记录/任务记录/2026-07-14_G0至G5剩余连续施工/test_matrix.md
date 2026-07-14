@@ -218,9 +218,9 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 
 | ID | 场景 | 必须结果 | 状态 |
 | --- | --- | --- | --- |
-| G5-GATE-01 | strict codec/digest | unknown/limits reject，known-answer/round-trip | `not_run` |
-| G5-GATE-02 | command/Undo/IME | batch 原子，一次 Undo，composition 无脏命令 | `not_run` |
-| G5-GATE-03 | WC autosave/conflict | reload 可恢复；双标签不静默覆盖 | `not_run` |
+| G5-GATE-01 | strict codec/digest | unknown/limits reject，known-answer/round-trip | `passed` |
+| G5-GATE-02 | command/Undo/IME | batch 原子，一次 Undo，composition 无脏命令 | `passed` |
+| G5-GATE-03 | WC autosave/conflict | reload 可恢复；双标签不静默覆盖 | `passed` |
 | G5-GATE-04 | LayoutRevision | 显式保存、线性 immutable、replay 准确 | `not_run` |
 | G5-GATE-05 | source replacement | preview/digest/commit，crop 选择明确 | `not_run` |
 | G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `not_run` |
