@@ -93,6 +93,37 @@ describe("G3-M0 maintenance gate", () => {
     expect((await controller.status(request("127.0.0.1", "secret-token"))).success).toBe(true);
   });
 
+  it("MNT-07 exposes only an explicitly bound file runtime identity", async () => {
+    const tokenRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-maintenance-identity-"));
+    const tokenPath = path.join(tokenRoot, "token");
+    await writeFile(tokenPath, "secret-token\n", { mode: 0o600 });
+    const previous = {
+      token: process.env[envTokenPath],
+      workspace: process.env.AIROAMING_WORKSPACE_ROOT,
+      release: process.env.AIROAMING_RELEASE_ROOT,
+      commit: process.env.AIROAMING_APP_COMMIT,
+      mode: process.env.AIROAMING_PERSISTENCE_MODE,
+    };
+    process.env[envTokenPath] = tokenPath;
+    process.env.AIROAMING_WORKSPACE_ROOT = path.join(tokenRoot, "workspace");
+    process.env.AIROAMING_RELEASE_ROOT = path.join(tokenRoot, "release");
+    process.env.AIROAMING_APP_COMMIT = "a".repeat(40);
+    process.env.AIROAMING_PERSISTENCE_MODE = "file";
+    try {
+      const controller = new MaintenanceAdminController(new MaintenanceCoordinator());
+      await expect(controller.identity(request("127.0.0.1", "secret-token"))).resolves.toMatchObject({ success: true, data: { persistenceMode: "file", appCommit: "a".repeat(40) } });
+      delete process.env.AIROAMING_PERSISTENCE_MODE;
+      await expect(controller.identity(request("127.0.0.1", "secret-token"))).rejects.toMatchObject({ code: "MAINTENANCE_RUNTIME_IDENTITY_UNAVAILABLE" });
+      process.env.AIROAMING_PERSISTENCE_MODE = "db";
+      await expect(controller.identity(request("127.0.0.1", "secret-token"))).rejects.toMatchObject({ code: "MAINTENANCE_RUNTIME_IDENTITY_UNAVAILABLE" });
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        const envName = key === "token" ? envTokenPath : key === "workspace" ? "AIROAMING_WORKSPACE_ROOT" : key === "release" ? "AIROAMING_RELEASE_ROOT" : key === "commit" ? "AIROAMING_APP_COMMIT" : "AIROAMING_PERSISTENCE_MODE";
+        if (value === undefined) delete process.env[envName]; else process.env[envName] = value;
+      }
+    }
+  });
+
   it("MNT-06 emits a closed bundle skeleton without secrets", async () => {
     const coordinator = new MaintenanceCoordinator();
     await coordinator.drain();

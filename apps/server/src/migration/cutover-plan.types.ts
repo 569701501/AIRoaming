@@ -15,6 +15,11 @@ export interface CutoverPlanV1 {
   decisionsPath: string;
   finalReportPath: string;
   maintenanceBaseUrl: string;
+  maintenanceWindow: {
+    startsAt: string;
+    endsAt: string;
+    timeZone: "Asia/Shanghai";
+  };
   maintenanceTokenFile: string;
   runtimeBundlePath: string;
   backupRoot: string;

@@ -16,8 +16,8 @@ export class CutoverEvidenceError extends Error { constructor(readonly code: str
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const ACK: Record<CutoverAuthorizationV1["scope"], string> = {
   "AUTH-C1": "我确认 C0 证据、plan、release、备份与回滚责任人，授权进入 C1 并按 plan 执行 C3 凭据验证；未授权 C5/C7。",
-  "AUTH-C5": "我确认 C4 证据、备份与回滚责任人，授权进入 C5 并执行 DB smoke/archive；未授权 C7。",
-  "AUTH-C7": "我理解 DB activate 不可逆边界，确认 C6 证据、备份与回滚责任人，授权执行 C7。",
+  "AUTH-C5": "我确认 final/ready/pre-cutover backup 与 materialize 恢复均通过，授权关闭旧 file 进程并进入 C5/C6；未授权 C7 激活。",
+  "AUTH-C7": "我确认 C5 关闭态 DB smoke 与 C6 archive 通过，理解首次 DB 写后禁止 file-only 回退，授权执行 C7 激活。",
 };
 
 function abs(value: string): string { if (!path.isAbsolute(value) || value.includes("\0")) throw new CutoverEvidenceError("CUTOVER_EVIDENCE_ROOT_INVALID"); return path.resolve(value); }

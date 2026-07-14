@@ -55,6 +55,7 @@ export class RuntimeBundleFileService {
       throw new RuntimeBundleFileError("RUNTIME_BUNDLE_SECRET_DETECTED");
     }
     if (options.profile === "cutover") {
+      if (typeof bundle.runtimeInstanceId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bundle.runtimeInstanceId)) throw new RuntimeBundleFileError("RUNTIME_BUNDLE_IDENTITY_INVALID");
       const participants = bundle.participants;
       if (!participants || typeof participants !== "object" || Array.isArray(participants) || Object.keys(participants).length === 0) {
         throw new RuntimeBundleFileError("RUNTIME_BUNDLE_PARTICIPANTS_INVALID");

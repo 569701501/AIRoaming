@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Req } from "@nestjs/common";
 import { readFile, stat } from "node:fs/promises";
 import { timingSafeEqual } from "node:crypto";
+import * as path from "node:path";
 import { ok } from "../http.js";
 import { MaintenanceCoordinator, MaintenanceException } from "./maintenance-coordinator.service.js";
 
@@ -18,6 +19,25 @@ export class MaintenanceAdminController {
   async status(@Req() request: MaintenanceRequest) {
     await this.authorize(request);
     return ok(await this.coordinator.status());
+  }
+
+  @Get("identity")
+  async identity(@Req() request: MaintenanceRequest) {
+    await this.authorize(request);
+    const workspaceRoot = process.env.AIROAMING_WORKSPACE_ROOT?.trim();
+    const releaseRoot = process.env.AIROAMING_RELEASE_ROOT?.trim();
+    const appCommit = process.env.AIROAMING_APP_COMMIT?.trim();
+    const persistenceMode = process.env.AIROAMING_PERSISTENCE_MODE?.trim();
+    if (!workspaceRoot || !releaseRoot || !path.isAbsolute(workspaceRoot) || !path.isAbsolute(releaseRoot) || workspaceRoot.includes("\0") || releaseRoot.includes("\0") || !/^[0-9a-f]{40}$/.test(appCommit ?? "") || persistenceMode !== "file") {
+      throw new MaintenanceException("MAINTENANCE_RUNTIME_IDENTITY_UNAVAILABLE", 503);
+    }
+    return ok({
+      persistenceMode: "file" as const,
+      workspaceRoot: path.resolve(workspaceRoot),
+      releaseRoot: path.resolve(releaseRoot),
+      appCommit,
+      runtimeInstanceId: this.coordinator.getRuntimeInstanceId(),
+    });
   }
 
   @Post("drain")

@@ -1,4 +1,5 @@
 import { HttpException, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { MaintenanceParticipant, MaintenanceParticipantStatus, MaintenanceState, MaintenanceStatus, RuntimeBundleV1 } from "./maintenance.types.js";
 import { digestMaintenanceJson } from "./canonical-json.js";
 
@@ -58,6 +59,7 @@ type RuntimeStateProvider = () => Promise<{ conversationState?: unknown; pending
 
 @Injectable()
 export class MaintenanceCoordinator {
+  private readonly runtimeInstanceId = randomUUID();
   private state: MaintenanceState = this.initialState();
   private activeMutations = 0;
   private activeStreams = 0;
@@ -77,6 +79,10 @@ export class MaintenanceCoordinator {
 
   getState(): MaintenanceState {
     return this.state;
+  }
+
+  getRuntimeInstanceId(): string {
+    return this.runtimeInstanceId;
   }
 
   registerParticipant(participant: MaintenanceParticipant): void {
@@ -201,6 +207,7 @@ export class MaintenanceCoordinator {
     const payload = {
       schemaVersion: 1 as const,
       kind: "airoaming_runtime_bundle_v1" as const,
+      runtimeInstanceId: this.runtimeInstanceId,
       createdAt: new Date().toISOString(),
       maintenanceState: "closed" as const,
       activeMutations: 0 as const,

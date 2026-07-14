@@ -24,6 +24,7 @@ export interface MaintenanceStatus {
 export interface RuntimeBundleV1 {
   schemaVersion: 1;
   kind: "airoaming_runtime_bundle_v1";
+  runtimeInstanceId: string;
   createdAt: string;
   maintenanceState: "closed";
   activeMutations: 0;

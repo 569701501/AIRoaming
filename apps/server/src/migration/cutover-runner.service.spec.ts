@@ -25,7 +25,7 @@ function makePlan(root: string, overrides: Partial<CutoverPlanV1> = {}): Cutover
     schemaVersion: 1 as const,
     kind: "airoaming_cutover_plan_v1" as const,
     cutoverId: "runner-test",
-    appCommit: "abc1234",
+    appCommit: "a".repeat(40),
     runId: "runner-run",
     releaseRoot: root,
     sourceWorkspaceRoot: path.join(root, "source"),
@@ -36,6 +36,7 @@ function makePlan(root: string, overrides: Partial<CutoverPlanV1> = {}): Cutover
     decisionsPath: path.join(root, "decisions.json"),
     finalReportPath: path.join(root, "final-report.json"),
     maintenanceBaseUrl: "http://127.0.0.1:3010",
+    maintenanceWindow: { startsAt: "2026-07-14T22:00:00+08:00", endsAt: "2026-07-14T23:00:00+08:00", timeZone: "Asia/Shanghai" as const },
     maintenanceTokenFile: path.join(root, "maintenance-token"),
     runtimeBundlePath: path.join(root, "runtime-bundle.json"),
     backupRoot: path.join(root, "backup"),
@@ -98,14 +99,14 @@ describe("createCutoverAction", () => {
     await coordinator.close();
     const bundle = await coordinator.createRuntimeBundle() as RuntimeBundleEnvelope;
     const calls: string[] = [];
-    const dependencies = { ...productionCutoverRunnerDependencies(), fetch: (async (input: string | URL) => {
+    const dependencies = { ...productionCutoverRunnerDependencies(), now: () => new Date("2026-07-14T22:30:00+08:00"), fetch: (async (input: string | URL) => {
       const action = String(input).split("/").pop()!;
       calls.push(action);
-      return { ok: true, json: async () => ({ success: true, data: action === "bundle" ? bundle : undefined }) };
+      return { ok: true, json: async () => ({ success: true, data: action === "identity" ? { persistenceMode: "file", workspaceRoot: plan.sourceWorkspaceRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, runtimeInstanceId: coordinator.getRuntimeInstanceId() } : action === "bundle" ? bundle : undefined }) };
     }) as unknown as typeof fetch };
     const result = await createCutoverAction("C1", undefined, dependencies)({ plan, step: "C1" });
     expect(result.summaryCode).toBe("CUTOVER_C1_OK");
-    expect(calls).toEqual(["drain", "close", "bundle"]);
+    expect(calls).toEqual(["identity", "drain", "close", "identity", "bundle"]);
     expect((await stat(plan.runtimeBundlePath)).mode & 0o077).toBe(0);
   });
 
@@ -114,13 +115,77 @@ describe("createCutoverAction", () => {
     const plan = makePlan(root);
     await writeFile(plan.maintenanceTokenFile, "fake-maintenance-token\n", { mode: 0o600 });
     let calls = 0;
-    const dependencies = { ...productionCutoverRunnerDependencies(), fetch: (async () => {
+    const dependencies = { ...productionCutoverRunnerDependencies(), now: () => new Date("2026-07-14T22:30:00+08:00"), fetch: (async () => {
       calls += 1;
       return calls === 1
-        ? { ok: true, json: async () => ({ success: true }) }
-        : { ok: false, json: async () => ({ success: false, error: { code: "MAINTENANCE_CLOSE_FAILED" } }) };
+        ? { ok: true, json: async () => ({ success: true, data: { persistenceMode: "file", workspaceRoot: plan.sourceWorkspaceRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, runtimeInstanceId: "00000000-0000-4000-8000-000000000001" } }) }
+        : calls === 2
+          ? { ok: true, json: async () => ({ success: true }) }
+          : { ok: false, json: async () => ({ success: false, error: { code: "MAINTENANCE_CLOSE_FAILED" } }) };
     }) as unknown as typeof fetch };
     await expect(createCutoverAction("C1", undefined, dependencies)({ plan, step: "C1" })).rejects.toMatchObject({ code: "MAINTENANCE_CLOSE_FAILED" });
+    await expect(stat(plan.runtimeBundlePath)).rejects.toThrow();
+  });
+
+  it("RCUT-C1-IDENTITY rejects a maintenance process that is not the bound file runtime", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-runner-c1-identity-"));
+    const plan = makePlan(root);
+    await writeFile(plan.maintenanceTokenFile, "fake-maintenance-token\n", { mode: 0o600 });
+    let calls = 0;
+    const dependencies = { ...productionCutoverRunnerDependencies(), now: () => new Date("2026-07-14T22:30:00+08:00"), fetch: (async () => {
+      calls += 1;
+      return { ok: true, json: async () => ({ success: true, data: { persistenceMode: "db", workspaceRoot: plan.sourceWorkspaceRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, runtimeInstanceId: "00000000-0000-4000-8000-000000000001" } }) };
+    }) as unknown as typeof fetch };
+    await expect(createCutoverAction("C1", undefined, dependencies)({ plan, step: "C1" })).rejects.toMatchObject({ code: "CUTOVER_SOURCE_RUNTIME_IDENTITY_MISMATCH" });
+    expect(calls).toBe(1);
+    await expect(stat(plan.runtimeBundlePath)).rejects.toThrow();
+  });
+
+  it("RCUT-C1-WINDOW rejects C1 before contacting maintenance outside the bound window", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-runner-c1-window-"));
+    const plan = makePlan(root);
+    await writeFile(plan.maintenanceTokenFile, "fake-maintenance-token\n", { mode: 0o600 });
+    let calls = 0;
+    const dependencies = { ...productionCutoverRunnerDependencies(), now: () => new Date("2026-07-14T21:59:59+08:00"), fetch: (async () => { calls += 1; throw new Error("unexpected fetch"); }) as unknown as typeof fetch };
+    await expect(createCutoverAction("C1", undefined, dependencies)({ plan, step: "C1" })).rejects.toMatchObject({ code: "CUTOVER_MAINTENANCE_WINDOW_CLOSED" });
+    expect(calls).toBe(0);
+  });
+
+  it("RCUT-C1-INSTANCE rejects a process change between identity and sealed bundle", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-runner-c1-instance-"));
+    const plan = makePlan(root);
+    await writeFile(plan.maintenanceTokenFile, "fake-maintenance-token\n", { mode: 0o600 });
+    const coordinator = new MaintenanceCoordinator();
+    await coordinator.drain();
+    await coordinator.close();
+    const bundle = await coordinator.createRuntimeBundle() as RuntimeBundleEnvelope;
+    let identityCalls = 0;
+    const dependencies = { ...productionCutoverRunnerDependencies(), now: () => new Date("2026-07-14T22:30:00+08:00"), fetch: (async (input: string | URL) => {
+      const action = String(input).split("/").pop()!;
+      if (action === "identity") {
+        identityCalls += 1;
+        return { ok: true, json: async () => ({ success: true, data: { persistenceMode: "file", workspaceRoot: plan.sourceWorkspaceRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, runtimeInstanceId: identityCalls === 1 ? "00000000-0000-4000-8000-000000000001" : "00000000-0000-4000-8000-000000000002" } }) };
+      }
+      return { ok: true, json: async () => ({ success: true, data: action === "bundle" ? bundle : undefined }) };
+    }) as unknown as typeof fetch };
+    await expect(createCutoverAction("C1", undefined, dependencies)({ plan, step: "C1" })).rejects.toMatchObject({ code: "CUTOVER_SOURCE_RUNTIME_INSTANCE_CHANGED" });
+    await expect(stat(plan.runtimeBundlePath)).rejects.toThrow();
+  });
+
+  it("RCUT-C1-BUNDLE-INSTANCE rejects a bundle from another process without persisting it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-runner-c1-bundle-instance-"));
+    const plan = makePlan(root);
+    await writeFile(plan.maintenanceTokenFile, "fake-maintenance-token\n", { mode: 0o600 });
+    const coordinator = new MaintenanceCoordinator();
+    await coordinator.drain();
+    await coordinator.close();
+    const bundle = await coordinator.createRuntimeBundle() as RuntimeBundleEnvelope;
+    const expectedInstanceId = "00000000-0000-4000-8000-000000000001";
+    const dependencies = { ...productionCutoverRunnerDependencies(), now: () => new Date("2026-07-14T22:30:00+08:00"), fetch: (async (input: string | URL) => {
+      const action = String(input).split("/").pop()!;
+      return { ok: true, json: async () => ({ success: true, data: action === "identity" ? { persistenceMode: "file", workspaceRoot: plan.sourceWorkspaceRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, runtimeInstanceId: expectedInstanceId } : action === "bundle" ? bundle : undefined }) };
+    }) as unknown as typeof fetch };
+    await expect(createCutoverAction("C1", undefined, dependencies)({ plan, step: "C1" })).rejects.toMatchObject({ code: "CUTOVER_SOURCE_RUNTIME_INSTANCE_CHANGED" });
     await expect(stat(plan.runtimeBundlePath)).rejects.toThrow();
   });
 
@@ -383,13 +448,14 @@ describe("createCutoverAction", () => {
       let backupWorkspaceRoot: string | undefined;
       const dependencies = {
         ...productionCutoverRunnerDependencies(),
+        now: () => new Date("2026-07-14T22:30:00+08:00"),
         createBackup: (prisma: PrismaService) => {
           const backup = new AppBackupService(prisma);
           return { backup: async (input: Parameters<AppBackupService["backup"]>[0]) => { backupWorkspaceRoot = input.workspaceRoot; return backup.backup(input); } } as never;
         },
         secretStore: fakeSecretStore(),
         secretStoreAdapter: "fake" as const,
-        fetch: (async (input: string | URL) => ({ ok: true, json: async () => ({ success: true, data: String(input).endsWith("/bundle") ? bundle : undefined }) })) as unknown as typeof fetch,
+        fetch: (async (input: string | URL) => ({ ok: true, json: async () => ({ success: true, data: String(input).endsWith("/identity") ? { persistenceMode: "file", workspaceRoot: plan.sourceWorkspaceRoot, releaseRoot: plan.releaseRoot, appCommit: plan.appCommit, runtimeInstanceId: maintenance.getRuntimeInstanceId() } : String(input).endsWith("/bundle") ? bundle : undefined }) })) as unknown as typeof fetch,
       };
       const service = new DbCutoverService();
       const planPath = path.join(root, "plan.json");
@@ -399,8 +465,8 @@ describe("createCutoverAction", () => {
       const authorization = async (scope: "AUTH-C1" | "AUTH-C5" | "AUTH-C7", evidenceDigest: string) => {
         const acknowledgements = {
           "AUTH-C1": "我确认 C0 证据、plan、release、备份与回滚责任人，授权进入 C1 并按 plan 执行 C3 凭据验证；未授权 C5/C7。",
-          "AUTH-C5": "我确认 C4 证据、备份与回滚责任人，授权进入 C5 并执行 DB smoke/archive；未授权 C7。",
-          "AUTH-C7": "我理解 DB activate 不可逆边界，确认 C6 证据、备份与回滚责任人，授权执行 C7。",
+          "AUTH-C5": "我确认 final/ready/pre-cutover backup 与 materialize 恢复均通过，授权关闭旧 file 进程并进入 C5/C6；未授权 C7 激活。",
+          "AUTH-C7": "我确认 C5 关闭态 DB smoke 与 C6 archive 通过，理解首次 DB 写后禁止 file-only 回退，授权执行 C7 激活。",
         } as const;
         const unsigned = { schemaVersion: 1 as const, kind: "airoaming_cutover_authorization_v1" as const, scope, cutoverId: plan.cutoverId, appCommit: plan.appCommit, planDigest: plan.planDigest, runId: plan.runId, effectiveSchemaManifestDigest: plan.effectiveSchemaManifestDigest, evidenceDigest, authorizedAt: "2026-07-13T00:00:00.000Z", authorizedBy: "isolated-runner-test", acknowledgement: acknowledgements[scope] };
         const file = path.join(root, `${scope}.json`);

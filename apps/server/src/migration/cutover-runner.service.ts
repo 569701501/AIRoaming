@@ -37,6 +37,7 @@ export interface CutoverRunnerDependencies {
   readonly createRestore: () => AppRestoreService;
   readonly createArchive: () => MetadataArchiveService;
   readonly createActivate: (prisma: PrismaService) => DbActivateService;
+  readonly now: () => Date;
 }
 
 export function productionCutoverRunnerDependencies(): CutoverRunnerDependencies {
@@ -57,6 +58,7 @@ export function productionCutoverRunnerDependencies(): CutoverRunnerDependencies
     createRestore: () => new AppRestoreService(),
     createArchive: () => new MetadataArchiveService(),
     createActivate: (prisma) => new DbActivateService(prisma),
+    now: () => new Date(),
   };
 }
 
@@ -160,21 +162,45 @@ export function createCutoverAction(step: CutoverEvidenceStep, authorizationFile
       }
     }
     if (step === "C1") {
+      const window = plan.maintenanceWindow;
+      if (!window) throw new DbCutoverError("CUTOVER_MAINTENANCE_WINDOW_REQUIRED");
+      const startsAt = Date.parse(window.startsAt);
+      const endsAt = Date.parse(window.endsAt);
+      const assertMaintenanceWindow = () => {
+        const now = deps.now().getTime();
+        if (!Number.isFinite(now) || now < startsAt || now >= endsAt) throw new DbCutoverError("CUTOVER_MAINTENANCE_WINDOW_CLOSED");
+      };
+      assertMaintenanceWindow();
       const tokenPath = plan.maintenanceTokenFile;
       await requireRegularFile(tokenPath, "CUTOVER_TOKEN_INVALID");
       if ((await stat(tokenPath)).mode & 0o077) throw new DbCutoverError("CUTOVER_TOKEN_PERMISSIONS");
       const token = (await readFile(tokenPath, "utf8")).trim();
       if (!token) throw new DbCutoverError("CUTOVER_TOKEN_INVALID");
+      const headers = { "X-AIRoaming-Maintenance-Token": token, "content-type": "application/json" };
+      const readIdentity = async () => {
+        const response = await deps.fetch(`${plan.maintenanceBaseUrl}/_local/maintenance/identity`, { method: "GET", headers });
+        const payload = await response.json() as { success?: boolean; data?: { persistenceMode?: unknown; workspaceRoot?: unknown; releaseRoot?: unknown; appCommit?: unknown; runtimeInstanceId?: unknown }; error?: { code?: string } };
+        const value = payload.data;
+        if (!response.ok || payload.success === false) throw new DbCutoverError(payload.error?.code ?? "CUTOVER_SOURCE_RUNTIME_IDENTITY_FAILED");
+        if (!value || value.persistenceMode !== "file" || path.resolve(String(value.workspaceRoot)) !== path.resolve(plan.sourceWorkspaceRoot) || path.resolve(String(value.releaseRoot)) !== path.resolve(plan.releaseRoot) || value.appCommit !== plan.appCommit || typeof value.runtimeInstanceId !== "string") throw new DbCutoverError("CUTOVER_SOURCE_RUNTIME_IDENTITY_MISMATCH");
+        return value as { persistenceMode: "file"; workspaceRoot: string; releaseRoot: string; appCommit: string; runtimeInstanceId: string };
+      };
+      const identity = await readIdentity();
       const call = async (name: "drain" | "close" | "bundle") => {
-        const response = await deps.fetch(`${plan.maintenanceBaseUrl}/_local/maintenance/${name}`, { method: "POST", headers: { "X-AIRoaming-Maintenance-Token": token, "content-type": "application/json" }, body: name === "drain" ? JSON.stringify({ timeoutMs: 120_000 }) : undefined });
+        const response = await deps.fetch(`${plan.maintenanceBaseUrl}/_local/maintenance/${name}`, { method: "POST", headers, body: name === "drain" ? JSON.stringify({ timeoutMs: 120_000 }) : undefined });
         const payload = await response.json() as { success?: boolean; data?: unknown; error?: { code?: string } };
         if (!response.ok || payload.success === false) throw new DbCutoverError(payload.error?.code ?? "CUTOVER_MAINTENANCE_FAILED");
         return payload.data;
       };
       await call("drain"); await call("close");
+      const closedIdentity = await readIdentity();
+      if (closedIdentity.runtimeInstanceId !== identity.runtimeInstanceId) throw new DbCutoverError("CUTOVER_SOURCE_RUNTIME_INSTANCE_CHANGED");
       const bundle = await call("bundle");
+      if (!bundle || typeof bundle !== "object" || (bundle as { runtimeInstanceId?: unknown }).runtimeInstanceId !== identity.runtimeInstanceId) throw new DbCutoverError("CUTOVER_SOURCE_RUNTIME_INSTANCE_CHANGED");
       await new RuntimeBundleFileService().writeAtomic(plan.runtimeBundlePath, bundle as never);
       const verified = await new RuntimeBundleFileService().readAndVerify(plan.runtimeBundlePath, { profile: "cutover" });
+      if (verified.bundle.runtimeInstanceId !== identity.runtimeInstanceId) throw new DbCutoverError("CUTOVER_SOURCE_RUNTIME_INSTANCE_CHANGED");
+      assertMaintenanceWindow();
       return { summaryCode: "CUTOVER_C1_OK", artifactDigests: artifacts({ runtimeBundleDigest: verified.digest }) };
     }
     if (step === "C2") {

@@ -26,11 +26,23 @@ export class CutoverPlanService {
     try { raw = JSON.parse(await readFile(planPath, "utf8")); } catch { throw new CutoverPlanError("CUTOVER_PLAN_INVALID"); }
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
     const plan = raw as Partial<CutoverPlanV1>;
-    if (plan.schemaVersion !== 1 || plan.kind !== "airoaming_cutover_plan_v1" || !plan.cutoverId?.trim() || !plan.appCommit?.trim() || !plan.runId?.trim()) throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
+    if (plan.schemaVersion !== 1 || plan.kind !== "airoaming_cutover_plan_v1" || !plan.cutoverId?.trim() || !/^[0-9a-f]{40}$/.test(plan.appCommit ?? "") || !plan.runId?.trim()) throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
     if (!DIGEST.test(String(plan.effectiveSchemaManifestDigest)) || !DIGEST.test(String(plan.planDigest))) throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
     if (!String(plan.targetDatabaseUrl).startsWith("file:") || !path.isAbsolute(String(plan.targetDatabaseUrl).slice(5))) throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
     for (const key of PATH_KEYS) if (plan[key] !== undefined) absolute(plan[key]);
-    if (!/^https?:\/\/127\.0\.0\.1(?::\d+)?$/.test(String(plan.maintenanceBaseUrl))) throw new CutoverPlanError("CUTOVER_PLAN_MAINTENANCE_URL_INVALID");
+    if (!/^https?:\/\/127\.0\.0\.1(?::\d+)?(?:\/api)?$/.test(String(plan.maintenanceBaseUrl))) throw new CutoverPlanError("CUTOVER_PLAN_MAINTENANCE_URL_INVALID");
+    const window = plan.maintenanceWindow;
+    const startsAt = Date.parse(String(window?.startsAt));
+    const endsAt = Date.parse(String(window?.endsAt));
+    if (
+      !window
+      || window.timeZone !== "Asia/Shanghai"
+      || !String(window.startsAt).endsWith("+08:00")
+      || !String(window.endsAt).endsWith("+08:00")
+      || !Number.isFinite(startsAt)
+      || !Number.isFinite(endsAt)
+      || startsAt >= endsAt
+    ) throw new CutoverPlanError("CUTOVER_PLAN_MAINTENANCE_WINDOW_INVALID");
     if (plan.settingsStartState !== "already_sanitized" && plan.settingsStartState !== "legacy_plaintext_requires_two_phase") throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
     if (plan.credentialAction !== "verify_existing" && plan.credentialAction !== "prestage_legacy") throw new CutoverPlanError("CUTOVER_PLAN_INVALID");
     const { planDigest: supplied, ...unsigned } = plan as CutoverPlanV1;
