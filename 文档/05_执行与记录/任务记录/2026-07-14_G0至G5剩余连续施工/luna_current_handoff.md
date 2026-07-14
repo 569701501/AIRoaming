@@ -12,7 +12,7 @@ source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、�
 
 ## 1. 任务目标
 
-R2 DB-only 观察与 G4-A～F 已通过，从 G5-M0 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
+R2 DB-only 观察、G4-A～F 与 G5-M0 已通过，从 G5-M1 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
 
 ```text
 AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收
@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible implementation commit = 81c922a
+current compatible implementation commit = 53b65e4
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G5_M0_IN_PROGRESS
+currentState = G5_M1_IN_PROGRESS
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F，状态=`G4_PASSED`。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F 与 G5-M0；G4 状态=`G4_PASSED`，G5 M0 状态=`G5_M0_PASSED`。
 
-尚未完成：G5-M0～M8、G5 用户签收。
+尚未完成：G5-M1～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -137,7 +137,7 @@ G4-D 已由提交 `894d1e8` 完成：Workbench/ProductionState source summary、
 
 G4-E 已由提交 `3826611` 完成：DB Workbench 权威刷新、Web 收藏/废弃/恢复、两阶段 lock/replace/clear、409 重新 preview 不自动 commit、历史与排版 stale 摘要均通过；完整 Server 533/533、Shared 54/54、DB-only Playwright 1/1。
 
-G4-F 已由提交 `81c922a` 完成：legacy direct evidence/conflict/unresolved、A→B→clear→A、已导出后新 Candidate、双窗口、运行中任务、restart/backup restore 和总体双 Review 均通过；Server 535/535 两轮、Shared 54/54、migration 78/78、DB-only Playwright repeat 3/3。G4 总体=`G4_PASSED`，当前进入 G5-M0；不得重做 G4-A～F。
+G4-F 已由提交 `81c922a` 完成：legacy direct evidence/conflict/unresolved、A→B→clear→A、已导出后新 Candidate、双窗口、运行中任务、restart/backup restore 和总体双 Review 均通过；Server 535/535 两轮、Shared 54/54、migration 78/78、DB-only Playwright repeat 3/3。G4 总体=`G4_PASSED`；不得重做 G4-A～F。
 
 ## 9. G5 连续区间
 
@@ -154,6 +154,10 @@ M0 fixture 与红灯
 -> M7 固定 renderer、PNG/PDF/条漫、manifest
 -> M8 手机预览、AI 权限、legacy cutover、完整 Review
 ```
+
+M0 已由提交 `53b65e4` 完成：8 份固定 fixture、3 张本地 PNG、固定 Inter WOFF2、20 canvas/200 element、五类 known-answer digest 和旧 copy-export 红灯见证均已通过。`test:render`、`test:migration:g5`、`test:e2e:g5` 当前按设计输出各后续里程碑负责的结构化红灯；不得把 M0 红灯误判为需要用户授权，也不得重做 M0。
+
+当前直接执行 M1：至少比较两条完整薄切片，补齐受控中日文字体与许可证审计、真实 PNG/PDF/slice、浏览器语义、IME/Undo、重复 sha 和性能证据；M0 没有替 M1 选择实现路线。
 
 E0 只有两种合法结果：
 

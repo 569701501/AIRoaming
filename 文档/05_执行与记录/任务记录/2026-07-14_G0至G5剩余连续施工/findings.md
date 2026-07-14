@@ -13,12 +13,12 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `81c922a`；后续文档留痕提交不构成身份漂移，旧 cutover evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `53b65e4`；后续文档留痕提交不构成身份漂移，旧 cutover evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10 与 G4-A～F 已通过；G5-M0～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M0_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0 已通过；G5-M1～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M1_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M0_IN_PROGRESS
-next = G5_FIXTURE_AND_RED_GATES
+current = G5_M1_IN_PROGRESS
+next = G5_E0_TWO_COMPLETE_PROTOTYPES
 ```
 
 ## 7. G4-A 稳定结论
@@ -119,3 +119,11 @@ next = G5_FIXTURE_AND_RED_GATES
 - A→B→clear→A、已导出后新 Candidate、双窗口 409 重预览、运行中任务 historical fence、restart 与 DB-only backup restore 均有运行证据。
 - 相同图片密钥重复保存保持同一 secretRef/fingerprint；缺少受控清理事件时，新密钥轮换在覆盖 SecretStore 和运行内存前 fail-closed。
 - G4-F commit=`81c922a`；Server 535/535 两轮、Shared 54/54、migration 78/78、Playwright repeat 3/3；Scrutiny=`passed`，Runtime/User=`passed`，总体=`G4_PASSED`。
+
+## 13. G5-M0 稳定结论
+
+- 固定 corpus 位于 `tests/fixtures/layout/`：8 份 LayoutDocument fixture、3 张本地 PNG、固定 Inter WOFF2、20 canvas/200 element 性能规模；corpus digest=`sha256:9acf40013492dd82003fc24af944897db834203e11d02cacee1c457ebe115527`。
+- 每份 fixture 保存 document/source lock set/publication profile/asset manifest/RenderPlan known-answer digest；Shared JCS/SHA-256 与独立字节 sha 校验连续三次通过。
+- 文件模式旧出口已由真实临时 workspace 证明为候选原图逐字节复制，不能冒充 1080×1920 PNG 合成；DB 旧出口仍只发布 legacy `layout.json`。
+- `test:render`、`test:migration:g5`、`test:e2e:g5` 已存在并返回 machine-readable 红灯；M0 不使用 skip/todo，也不伪造 PNG/PDF/slice 或浏览器语义结果。
+- Inter 拉丁字体字节与 OFL 标识已固定；受控 CJK 字体、实际 cmap/许可证审计和正式输出由 M1 E0 关闭。M0 commit=`53b65e4`，Scrutiny=`passed`，Runtime=`passed_isolated`。

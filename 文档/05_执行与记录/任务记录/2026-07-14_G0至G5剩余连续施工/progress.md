@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M0_IN_PROGRESS
-last_completed = G4_PASSED
+current = G5_M1_IN_PROGRESS
+last_completed = G5_M0_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m0` | — | — | 正在建立固定 fixture、golden corpus 与红灯 |
+| G5 | `in_progress_m1` | `53b65e4` | M0 Scrutiny=`passed`；Runtime=`passed_isolated` | M0 固定 corpus 与红灯已完成；正在执行 E0 两条技术薄切片 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -160,6 +160,18 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`81c922a`。
 - 风险/未运行：NFR-01/02 的 100 Shot 性能画像和 `EXPLAIN QUERY PLAN` 未单独执行，不是本轮正确性退出硬门；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频链路。
 - next：`G5_M0_IN_PROGRESS`。
+
+## 2026-07-15 03:20：G5-M0 Fixture 与红灯
+
+- baseline：branch=`codex/g0-test-safety-net`；G4 docs HEAD=`a0ea50c`；仅暂存 M0 代码、测试与 fixture，未混入工作树中的既有历史文档改动。
+- 实现：建立 8 份正式命名的 LayoutDocument corpus、3 张本地生成 PNG、固定 sha 的 Inter WOFF2、20 canvas/200 element 性能样本；固定 document/source/profile/asset manifest/RenderPlan known-answer digest；增加四条 E2E vertical-slice 合同、`test:render`/`test:migration:g5`/`test:e2e:g5` 结构化红灯入口。
+- 红灯：文件模式“PNG 页面”与 1×1 候选源文件逐字节相同；renderer、浏览器语义快照、受控 CJK 字体、G5 migration 和真实编辑器 E2E 尚未实现，均有稳定 code 与 owner milestone，不使用 skip/todo 或虚构输出 sha。
+- 测试：fixture contract 连续三次 3/3；旧 copy export 临时 workspace 见证 1/1；Server 完整 80 files/536 tests；全仓 typecheck、E2E typecheck、build 与 diff check 通过。三个阶段红灯命令按设计 exit 1，并输出 machine-readable JSON。
+- 证据：`g5_m0_scrutiny_review.md`、`g5_m0_runtime_review.md`、`evidence/g5_m0_commands.md`、`../../功能完成记录/2026-07-15_G5-M0固定语料与红灯基线.md`；corpus digest=`sha256:9acf40013492dd82003fc24af944897db834203e11d02cacee1c457ebe115527`。
+- Review：Scrutiny=`passed`；Runtime=`passed_isolated`；正式 renderer/output/user path 仍为 M1～M8 红灯。
+- commit：`53b65e4`。
+- 风险/未运行：M0 不选择技术库、不生成 PNG/PDF/slice golden、不声称中日文字体可用；未删除 backup/archive，未执行 down migration、file-only 回退、G6 或视频链路。
+- next：`G5_M1_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

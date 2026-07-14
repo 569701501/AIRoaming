@@ -197,11 +197,24 @@ corepack pnpm test:e2e:repeat
 
 ## 8. G5 矩阵摘要
 
-### 8.1 E0 硬门
+### 8.1 M0 fixture 与红灯
+
+| ID | 场景 | 必须结果 | 状态 |
+| --- | --- | --- | --- |
+| G5-M0-01 | 8 份正式 fixture | 文件名、文档根、用途与契约一致 | `passed` |
+| G5-M0-02 | known-answer | document/source/profile/asset manifest/RenderPlan digest 可重算 | `passed` |
+| G5-M0-03 | 固定 bytes | 3 PNG 可解码且尺寸/sha 正确；Inter WOFF2 sha/许可标识固定 | `passed_isolated` |
+| G5-M0-04 | 性能规模 | 20 canvas/200 element | `passed` |
+| G5-M0-05 | legacy copy 红灯 | 旧“PNG 页面”与候选源 bytes 相同，不能冒充合成 | `passed_red_witness` |
+| G5-M0-06 | renderer 红灯 | 缺 renderer/semantic/CJK font 时结构化非零，不伪绿 | `passed_red_witness` |
+| G5-M0-07 | migration/E2E 红灯 | 有明确 code、owner milestone，无 skip/todo | `passed_red_witness` |
+| G5-M0-08 | 回归 | fixture 3×、Server 536/536、type/build/E2E type | `passed` |
+
+### 8.2 E0 硬门
 
 G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-trip、横竖排、IME/Undo、三次 PNG sha、PDF/slices、受控字体、性能、依赖/许可证、ADR。任一硬门失败，M2～M8 不得开始。
 
-### 8.2 Domain/DB/Web/Renderer
+### 8.3 Domain/DB/Web/Renderer
 
 | ID | 场景 | 必须结果 | 状态 |
 | --- | --- | --- | --- |
@@ -221,7 +234,7 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-GATE-14 | legacy cutover | 可解析转换；unresolved 明确重建；旧写后门删除 | `not_run` |
 | G5-GATE-15 | security/resource | 外网/file scheme/secret=0；大小/时间/内存上限 | `not_run` |
 
-### 8.3 必跑命令
+### 8.4 必跑命令
 
 实施中必须在根 scripts 提供并实际运行：
 
@@ -239,7 +252,7 @@ corepack pnpm test:migration:g5
 
 `test:render` 必须固定 browser/font/renderer version 并输出 machine-readable diff；`test:migration:g5` 覆盖 fresh、G1～G4、legacy parsed/unresolved 和 rollback boundary。
 
-### 8.4 Runtime/User 路径
+### 8.5 Runtime/User 路径
 
 | 路径 | 内容 | 必须产物 |
 | --- | --- | --- |
