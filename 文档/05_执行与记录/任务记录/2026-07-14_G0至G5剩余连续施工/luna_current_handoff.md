@@ -2,7 +2,7 @@
 doc_id: AIR-G05-LUNA-CURRENT-HANDOFF-001
 status: active
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: luna, human, release-owner, migration-reviewer, qa
 source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、用户无排期要求
@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible release HEAD = a90f54676ed13a1ca56a362cad3598b2aa60ff19
+current compatible release HEAD = 79dc8065e9cf410006be50d6b7074e6c9569e188
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G4_A_IN_PROGRESS
+currentState = G4_B_IN_PROGRESS
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A。
 
-尚未完成：G4-A～F、G5-M0～M8、G5 用户签收。
+尚未完成：G4-B～F、G5-M0～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -126,6 +126,8 @@ G4-A Shared + Schema overlay
 ```
 
 每个切片都要形成契约、失败测试、实现、定向测试、全量回归、证据、Scrutiny、Runtime/User Review 和可回退提交。一个切片通过后立即开始下一切片；遇到普通实现失败先按文档修复和复测，不把正常返工当成人工授权门。
+
+G4-A 已由提交 `79dc806` 完成：Shared/parser、0012 线性历史 overlay、12 段 ledger、legacy importer 与旧状态权威清理通过静态和隔离运行复核。当前从 G4-B 继续；不得重做 G4-A 或把 G4-A 的隔离复核冒充 G4 总体用户签收。
 
 G4 全部通过后写 `G4_PASSED`，立即进入 G5-M0。
 

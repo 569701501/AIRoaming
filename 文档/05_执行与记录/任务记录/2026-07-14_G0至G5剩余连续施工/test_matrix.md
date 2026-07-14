@@ -2,7 +2,7 @@
 doc_id: AIR-G05-REMAIN-TEST-001
 status: active
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: luna, qa, reviewer
 source: G0 E2E harness、G1/G2/G4/G5 验收清单
@@ -169,8 +169,8 @@ RC-09 现场：OBS-01～10 全部通过。OBS-06 由 0011 协调 purge 修复关
 
 | ID | 场景 | 必须结果 | 状态 |
 | --- | --- | --- | --- |
-| G4-GATE-01 | fresh/replay migration | checksum/integrity/FK/trigger 全绿 | `not_run` |
-| G4-GATE-02 | A→B→clear→A | 4 条线性 immutable revision/current 正确 | `not_run` |
+| G4-GATE-01 | fresh/replay migration | checksum/integrity/FK/trigger 全绿 | `passed_isolated`（G4-A） |
+| G4-GATE-02 | A→B→clear→A | 4 条线性 immutable revision/current 正确 | `passed_db_overlay`（G4-A；事务/API 重放仍待 G4-C） |
 | G4-GATE-03 | lost response | replay，不重复 revision | `not_run` |
 | G4-GATE-04 | writer race | 一成功一 conflict，无双 current | `not_run` |
 | G4-GATE-05 | impact changed | 409，重新 preview，不自动 commit | `not_run` |

@@ -2,7 +2,7 @@
 doc_id: AIR-G05-REMAIN-REVIEW-001
 status: active
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: luna, scrutiny-reviewer, runtime-reviewer, human
 source: deep-think 复核流程与各阶段验收清单
@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界和 R2 OBS-01～10 已完成，当前进入 `G4_A_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10 和 G4-A 已完成，当前进入 `G4_B_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -92,14 +92,14 @@ source: deep-think 复核流程与各阶段验收清单
 ### Scrutiny
 
 - [ ] Candidate `selected/locked` 和旧 lock API 不再是 runtime 权威。
-- [ ] G4 overlay 没重复 G1 base 列/trigger。
+- [x] G4 overlay 没重复 G1 base 列/trigger。
 - [ ] preview/commit 共用一个规范化影响 resolver。
 - [ ] A→B→clear→A、replay、race、impact changed 全部有 DB 证据。
 - [ ] favorite/reject 与 final lock 职责分离。
 - [ ] replace/clear 不改旧 Layout/Export/Asset。
 - [ ] Server 门禁拒绝 stale/unresolved 的新正式输出。
 - [ ] 迟到任务只 historical。
-- [ ] legacy migration 不猜 current；可幂等重跑。
+- [x] legacy migration 不猜 current；可幂等重跑。
 - [ ] 没有提前实现 G5 crop/画布替换。
 
 ### Runtime

@@ -2,7 +2,7 @@
 doc_id: AIR-G05-REMAIN-PROGRESS-001
 status: active
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: human, luna, reviewer
 source: 本任务执行时间线
@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G4_A_IN_PROGRESS
-last_completed = R2_DB_ONLY_OBSERVATION
+current = G4_B_IN_PROGRESS
+last_completed = G4_A_SHARED_SCHEMA_OVERLAY
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -29,7 +29,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R0B | `completed` | `9227e8d` release | SH-10=`passed_human_review` | release shadow 与 v5 gate 已完成 |
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
-| G4 | `in_progress_g4_a` | — | — | 从 Shared + Schema overlay 连续执行，不设日期 |
+| G4 | `in_progress_g4_b` | `79dc806` | G4-A Scrutiny=`passed`；Runtime=`passed_isolated` | G4-A 已完成，进入纯规则与 Resolver |
 | G5 | `blocked_until_g4_passed` | — | — | G4 通过后连续执行，最终用户签收 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
@@ -93,6 +93,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`62da892`、`0be5621`、`7ddeb21`、`a90f546`。
 - 风险/未运行：未删除 archive/backup，未执行 down migration，未进入 G6/视频链路。
 - next：`G4_A_IN_PROGRESS`。
+
+## 2026-07-15 00:32：G4-A Shared + Schema overlay
+
+- baseline：branch=`codex/g0-test-safety-net`；R2 compatible HEAD=`a90f546`；只暂存 G4-A 代码，未混入工作树中的既有历史文档改动。
+- 实现：新增 Shared CandidateLock 闭集、V2 DTO、严格 preview/commit parser；新增 0012 线性历史/CAS/current-final overlay 与 12 段 runtime ledger；legacy selected 只转 favorite、locked 不推断 current、direct ready evidence 才建 v1；现有服务端和 Web 不再以 Candidate `selected/locked` 表达当前定稿。
+- 测试：Shared 46/46；G4 overlay/runtime/DB persistence 46/46；legacy/full/final importer 76/76；类型、E2E 类型、Server/Web build、Prisma validate、G1 三项检查通过。全量 502 项中 3 项在并行重负载下触发局部 5 秒 timeout，空闲环境定向复跑 3/3 通过。
+- 证据：`g4_a_scrutiny_review.md`、`g4_a_runtime_review.md`；0012 checksum=`sha256:19b28fcccac149e5994ed16b43d7d329b8db25e6696bfcba8cff0a2846672f5f`。
+- Review：Scrutiny=`passed`；Runtime=`passed_isolated`；G4 总体用户路径仍为 `not_run`。
+- commit：`79dc8065e9cf410006be50d6b7074e6c9569e188`。
+- 风险/未运行：真实目标 DB 未部署 0012；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
+- next：`G4_B_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

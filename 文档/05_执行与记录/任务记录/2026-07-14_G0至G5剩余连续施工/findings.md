@@ -2,7 +2,7 @@
 doc_id: AIR-G05-REMAIN-FINDINGS-001
 status: active
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: human, luna, reviewer
 source: 代码、Git、v5 production evidence 与正式验收文档复核
@@ -17,8 +17,8 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A～F、G5-M0～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_A_IN_PROGRESS`。
+- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A 已完成，G4-B～F、G5-M0～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_B_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -67,6 +67,14 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G4_A_IN_PROGRESS
-next = G4_SHARED_AND_SCHEMA_OVERLAY
+current = G4_B_IN_PROGRESS
+next = G4_PURE_RULES_AND_RESOLVERS
 ```
+
+## 7. G4-A 稳定结论
+
+- Candidate runtime 状态闭集固定为 `generated/rejected/superseded`；favorite 与 current final 分离。
+- 当前定稿只由 CandidateLockRevision 与 Shot current pointer 表达；线性链不允许分叉、跳号、从非 current 接续或普通清空 pointer。
+- 0012 是 forward-only overlay，不重复 G1 列、check 或 immutable trigger；应用启动要求精确成功的 12 段 ledger。
+- legacy 只有 Shot 直接 `lockedCandidateId` 且 Candidate/Asset/scope 均可验证时才建 v1；selected 只转 favorite，locked status 不推断 current。
+- G4-A commit=`79dc806`，Scrutiny=`passed`，Runtime=`passed_isolated`；G4 总体 Runtime/User Review 仍待 G4-F。
