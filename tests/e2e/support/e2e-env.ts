@@ -461,6 +461,7 @@ export function createE2EProcessEnvironments(
   inherited: NodeJS.ProcessEnv = process.env,
 ): E2EProcessEnvironments {
   const common = createCommonE2EEnvironment(runtime, inherited);
+  const persistenceMode = inherited.AIROAMING_E2E_PERSISTENCE_MODE === "db" ? "db" : "file";
 
   return Object.freeze({
     server: {
@@ -471,7 +472,7 @@ export function createE2EProcessEnvironments(
       AIROAMING_SECRET_STORE_ADAPTER: "fake",
       AIROAMING_FAKE_SECRET_STORE_ROOT: runtime.fakeSecretStoreRoot,
       DATABASE_URL: runtime.databaseUrl,
-      AIROAMING_PERSISTENCE_MODE: "file",
+      AIROAMING_PERSISTENCE_MODE: persistenceMode,
       AIROAMING_TOOL_CALLBACK_BASE_URL: runtime.apiBaseUrl,
       AIROAMING_TOOL_CALLBACK_TOKEN: "",
       TSX_TSCONFIG_PATH: path.join(runtime.repoRoot, "tests", "e2e", "tsconfig.server.json"),
@@ -515,7 +516,7 @@ export function createE2EParentProcessEnvironment(
     AIROAMING_SECRET_STORE_ADAPTER: "fake",
     AIROAMING_FAKE_SECRET_STORE_ROOT: runtime.fakeSecretStoreRoot,
     DATABASE_URL: runtime.databaseUrl,
-    AIROAMING_PERSISTENCE_MODE: "file",
+    AIROAMING_PERSISTENCE_MODE: inherited.AIROAMING_E2E_PERSISTENCE_MODE === "db" ? "db" : "file",
     OPENCODE_AUTO_START: "false",
     OPENCODE_BASE_URL: runtime.opencodeBaseUrl,
     OPENAI_IMAGE_BASE_URL: runtime.imageBaseUrl,

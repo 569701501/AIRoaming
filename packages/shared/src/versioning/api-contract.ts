@@ -246,6 +246,11 @@ export interface ScriptHistoryCopyRequest {
   expectedChapterRowVersion: number;
 }
 
+export interface VersionHistoryCopyRequest {
+  expectedCurrentVersionId: string | null;
+  expectedChapterRowVersion: number;
+}
+
 export interface ScriptMutationResult<T> {
   value: T;
   productionState: ChapterProductionState;

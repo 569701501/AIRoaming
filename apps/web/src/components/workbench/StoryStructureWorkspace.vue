@@ -17,6 +17,14 @@
       </button>
     </header>
 
+    <div v-if="versioningStatus" class="db-versioning-status" data-testid="story-db-versioning-status">
+      <strong>DB Working Copy</strong>
+      <span>{{ versioningStatus.label }}</span>
+      <span v-if="versioningStatus.freshness">来源：{{ versioningStatus.freshness }}</span>
+      <span v-if="versioningStatus.history">历史：可查看</span>
+      <span v-if="versioningStatus.attention">门禁：{{ versioningStatus.attention }}</span>
+    </div>
+
     <div v-if="currentChapter?.status === 'draft'" class="structure-empty">
       <Lock :size="22" />
       <h2>请先完成本章剧本</h2>
@@ -324,6 +332,16 @@ const structureJson = computed(() => activeStructure.value?.structureJson ?? cre
 const hasStructure = computed(() => Boolean(pendingStructure.value || formalStructure.value));
 const canGenerate = computed(() => Boolean(currentChapter.value && currentChapter.value.status !== "draft"));
 const canEdit = computed(() => activeStructure.value?.status === "structured");
+const versioningStatus = computed(() => {
+  if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
+  const step = props.snapshot.workflow.steps.find((item) => item.key === "story_structure");
+  return {
+    label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "Working Copy",
+    freshness: step?.freshness ?? null,
+    history: Boolean(step?.historyAvailable),
+    attention: step?.attention ?? null,
+  };
+});
 const projectCharacterByName = computed(() => new Map(props.snapshot.characters.map((character) => [normalizeCharacterKey(character.name), character])));
 /** 主角色/常驻角色:无条件展示(项目角色库已有),自动带入 */
 const mainCharacters = computed(() =>

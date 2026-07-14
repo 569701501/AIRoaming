@@ -13,9 +13,9 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = W1_DB_WEB_GATE
-last_completed = S0_CLOSEOUT
-next_human_gate = WAIT_R0B_AUTH（W1 完成之后）
+current = WAIT_R0B_AUTH
+last_completed = W1_DB_WEB_GATE
+next_human_gate = AUTH-R0B
 ```
 
 ## 阶段看板
@@ -23,9 +23,9 @@ next_human_gate = WAIT_R0B_AUTH（W1 完成之后）
 | 阶段 | 状态 | commit | Review | 备注 |
 | --- | --- | --- | --- | --- |
 | 施工包 | `completed` | 不适用 | Scrutiny=`passed`；Runtime=`not_applicable` | 仅规划，无功能实现 |
-| S0 | `completed` | 待提交 | Scrutiny=`passed`；Runtime=`passed_isolated` | R0-A、默认入口超时修复、三次根回归已通过 |
-| W1 | `pending` | — | — | DB-only Web 与 E2E |
-| R0B | `not_authorized` | — | — | 等固定授权句 |
+| S0 | `completed` | `f07f516` | Scrutiny=`passed`；Runtime=`passed_isolated` | R0-A、默认入口超时修复、三次根回归已通过 |
+| W1 | `completed` | `6b56b59` | Scrutiny=`passed`；Runtime=`passed_isolated` | DB-only Web/API、唯一 Preflight 路由、fresh SQLite E2E 已通过 |
+| R0B | `waiting_human_authorization` | — | — | 等固定授权句 |
 | R1 | `not_authorized` | — | — | 三次 AUTH |
 | R2 | `pending` | — | — | C7 后 OBS-01～10 |
 | G4 | `pending` | — | — | R2 后自动执行 |
@@ -50,6 +50,16 @@ next_human_gate = WAIT_R0B_AUTH（W1 完成之后）
 - Review：当前 S0 静态复核=`passed`；隔离运行复核=`passed_isolated`；旧历史 Review 的 `changes_requested` 保留为历史记录，不覆盖最新独立结论。
 - 真实操作计数：真实数据=0；默认用户 Keychain=0；真实凭据/provider=0；AUTH=0；真实 C0～C7/SH-10/R2=0。
 - next：进入 `W1_DB_WEB_GATE`，只使用 fresh SQLite、临时目录与 fake boundary；W1 完成并独立复核后停在 `WAIT_R0B_AUTH`。
+
+## 2026-07-14：W1_DB_WEB_GATE
+
+- baseline：branch=`codex/g0-test-safety-net`；HEAD=`f07f516`；未混入用户历史文档改动。
+- 实现：Web API 与 `workbench-store` 接入 Story/Storyboard Working Copy、Preflight V2；409 刷新服务端状态并提示重新确认；三处工作区增加 DB current/history/dirty/stale/attention 状态；Server 合并重复 Preflight confirm 路由并增加历史复制到 Working Copy；E2E harness 支持 DB 模式 fresh migration 与 PATCH。
+- 测试：`corepack pnpm typecheck`、`typecheck:e2e`、`build` 全部 exit 0；root `corepack pnpm test` 为 shared 8 spec/39 tests、server 70 spec/474 tests，exit 0；定向 server 2 files/36 tests 通过；DB E2E `g2-db-web-gate.spec.ts --repeat-each=3` 3/3 通过；file E2E `project-library-and-stage-rail.spec.ts --repeat-each=3` 3/3 通过。
+- 证据：`w1_scrutiny_review.md`、`w1_runtime_review.md`、`luna_execution_plan.md`、`../../功能完成记录/2026-07-14_W1-DB-only-Web门禁收口.md`。
+- Review：Scrutiny=`passed`；隔离 Runtime=`passed_isolated`；真实数据、默认 Keychain、真实凭据、AUTH、R0B/C0～C7/R2 均为 0。
+- commit：`6b56b59 feat(web): close g2 db-only workbench gate`；只暂存 W1 文件，未混入用户已有 M6/其他文档改动。
+- next：完成 W1 独立提交后停在 `WAIT_R0B_AUTH`，等待用户发送 `authorization_gates.md` 中固定 `AUTH-R0B` 授权句。
 
 ## Luna 每次推进必须追加的格式
 

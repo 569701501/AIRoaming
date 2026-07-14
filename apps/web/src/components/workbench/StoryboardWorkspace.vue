@@ -17,6 +17,14 @@
       </button>
     </header>
 
+    <div v-if="versioningStatus" class="db-versioning-status" data-testid="storyboard-db-versioning-status">
+      <strong>DB Working Copy</strong>
+      <span>{{ versioningStatus.label }}</span>
+      <span v-if="versioningStatus.freshness">来源：{{ versioningStatus.freshness }}</span>
+      <span v-if="versioningStatus.history">历史：可查看</span>
+      <span v-if="versioningStatus.attention">门禁：{{ versioningStatus.attention }}</span>
+    </div>
+
     <div v-if="!snapshot.storyStructure" class="storyboard-empty">
       <Lock :size="22" />
       <h2>请先确认本章剧情结构</h2>
@@ -263,6 +271,16 @@ const pendingStoryboard = computed(() => {
 const activeStoryboard = computed(() => pendingStoryboard.value ?? formalStoryboard.value);
 const hasStoryboard = computed(() => Boolean(pendingStoryboard.value || formalStoryboard.value));
 const canGenerate = computed(() => Boolean(currentChapter.value && props.snapshot.storyStructure && currentChapter.value.status !== "draft" && currentChapter.value.status !== "script_done"));
+const versioningStatus = computed(() => {
+  if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
+  const step = props.snapshot.workflow.steps.find((item) => item.key === "storyboard");
+  return {
+    label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "Working Copy",
+    freshness: step?.freshness ?? null,
+    history: Boolean(step?.historyAvailable),
+    attention: step?.attention ?? null,
+  };
+});
 
 watch(
   activeStoryboard,

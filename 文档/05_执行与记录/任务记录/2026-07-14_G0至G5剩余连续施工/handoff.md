@@ -31,13 +31,13 @@ STOP G6 素材包和视频链路不在本任务
 
 ```text
 branch = codex/g0-test-safety-net
-HEAD = e195cb3
-R0-A isolated implementation = implemented, independently reviewed, uncommitted
+HEAD = f07f516
+R0-A isolated implementation = committed in fbfcbeb, independently reviewed
 Scrutiny = passed
 Runtime = passed_isolated
-server regression = 69 spec / 472 tests（最近一次记录）
+server regression = 70 spec / 474 tests（W1 收口后最近一次记录）
+W1 DB-only Web step 2~4 = implemented, independently reviewed, committed in 6b56b59
 real R0-B / C0-C7 / OBS-01~10 = not authorized, not run
-DB-only Web step 2~4 = incomplete
 G4 implementation = not formally started
 G5 implementation = not formally started
 ```

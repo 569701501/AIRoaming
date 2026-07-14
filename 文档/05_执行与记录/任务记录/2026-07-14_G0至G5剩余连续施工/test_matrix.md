@@ -73,15 +73,15 @@ git diff --check
 
 | ID | 场景 | 期望 | 初始状态 |
 | --- | --- | --- | --- |
-| S0-01 | 原样根 `pnpm test` | 能重现并定位历史 5s timeout，或证明已不存在 | `not_run` |
-| S0-02 | 慢测试单独运行 | 无断言失败/资源泄漏；原因可解释 | `not_run` |
-| S0-03 | 默认根测试连续 3 次 | 三次退出 0，不依赖临时 CLI 参数 | `not_run` |
-| S0-04 | R0-A 定向 cutover/SecretStore | production adapter、runner、seal、resume/rollback 全绿 | `not_run` |
-| S0-05 | disposable Keychain 证据复核 | 只用临时 HOME/keychain；默认用户 Keychain=0 | `not_run` |
-| S0-06 | server 全量 | 全部 spec/test 通过；数量如实记录 | `not_run` |
-| S0-07 | type/build/Prisma/G1/capability | 全绿；`blockedIds=[]` | `not_run` |
-| S0-08 | SEC-10 sentinel | DB/settings/report/log/task/artifact/export fixture 命中=0 | `not_run` |
-| S0-09 | diff/status | 无 whitespace error；未知用户改动未被暂存 | `not_run` |
+| S0-01 | 原样根 `pnpm test` | 能重现并定位历史 5s timeout，或证明已不存在 | `passed` |
+| S0-02 | 慢测试单独运行 | 无断言失败/资源泄漏；原因可解释 | `passed` |
+| S0-03 | 默认根测试连续 3 次 | 三次退出 0，不依赖临时 CLI 参数 | `passed` |
+| S0-04 | R0-A 定向 cutover/SecretStore | production adapter、runner、seal、resume/rollback 全绿 | `passed_isolated` |
+| S0-05 | disposable Keychain 证据复核 | 只用临时 HOME/keychain；默认用户 Keychain=0 | `passed_isolated` |
+| S0-06 | server 全量 | 全部 spec/test 通过；数量如实记录 | `passed` |
+| S0-07 | type/build/Prisma/G1/capability | 全绿；`blockedIds=[]` | `passed` |
+| S0-08 | SEC-10 sentinel | DB/settings/report/log/task/artifact/export fixture 命中=0 | `passed_isolated` |
+| S0-09 | diff/status | 无 whitespace error；未知用户改动未被暂存 | `passed` |
 
 R0-A 定向测试以当前 `R0-R2真实切换施工包/evidence_and_test_matrix.md` 为准，不能把旧的 69/472 数量机械抄成新运行结果。
 
@@ -91,35 +91,35 @@ R0-A 定向测试以当前 `R0-R2真实切换施工包/evidence_and_test_matrix.
 
 | ID | 场景 | 期望 | 状态 |
 | --- | --- | --- | --- |
-| W1-API-01 | file capability | 仅调用 legacy adapter | `not_run` |
-| W1-API-02 | `g2_db` capability | 仅调用 G2 DB adapter | `not_run` |
-| W1-API-03 | DB 请求 409/500 | 不 fallback file，不发第二个写请求 | `not_run` |
-| W1-API-04 | Story WC CRUD/confirm | URL/method/body/response 符合 Shared contract | `not_run` |
-| W1-API-05 | Board WC CRUD/shot/confirm | URL/method/body/response 符合 Shared contract | `not_run` |
-| W1-API-06 | Preflight preview/confirm | expected source/current/rowVersion 完整 | `not_run` |
-| W1-API-07 | unknown/非法字段 | strict reject，稳定错误 envelope | `not_run` |
+| W1-API-01 | file capability | 仅调用 legacy adapter | `passed_isolated` |
+| W1-API-02 | `g2_db` capability | 仅调用 G2 DB adapter | `passed_isolated` |
+| W1-API-03 | DB 请求 409/500 | 不 fallback file，不发第二个写请求 | `passed_isolated` |
+| W1-API-04 | Story WC CRUD/confirm | URL/method/body/response 符合 Shared contract | `passed_isolated` |
+| W1-API-05 | Board WC CRUD/shot/confirm | URL/method/body/response 符合 Shared contract | `passed_isolated` |
+| W1-API-06 | Preflight preview/confirm | expected source/current/rowVersion 完整 | `passed_isolated` |
+| W1-API-07 | unknown/非法字段 | strict reject，稳定错误 envelope | `passed_isolated` |
 
 ### 4.2 Server route
 
 | ID | 场景 | 期望 | 状态 |
 | --- | --- | --- | --- |
-| W1-ROUTE-01 | 静态扫描 preflight confirm | Controller 相同 decorator 仅 1 个 | `not_run` |
-| W1-ROUTE-02 | DB confirm request | 调用 PreflightRevision 语义，创建/重放 revision | `not_run` |
-| W1-ROUTE-03 | file confirm request | 保持 file-mode 现有语义 | `not_run` |
-| W1-ROUTE-04 | DB body 使用 legacy 形态 | 明确拒绝，不 silent fallback | `not_run` |
-| W1-ROUTE-05 | preview source changed | 返回稳定 stale/reason | `not_run` |
+| W1-ROUTE-01 | 静态扫描 preflight confirm | Controller 相同 decorator 仅 1 个 | `passed` |
+| W1-ROUTE-02 | DB confirm request | 调用 PreflightRevision 语义，创建/重放 revision | `passed_isolated` |
+| W1-ROUTE-03 | file confirm request | 保持 file-mode 现有语义 | `passed_isolated` |
+| W1-ROUTE-04 | DB body 使用 legacy 形态 | 明确拒绝，不 silent fallback | `passed_isolated` |
+| W1-ROUTE-05 | preview source changed | 返回稳定 stale/reason | `passed_isolated` |
 
 ### 4.3 Store/Component
 
 | ID | 场景 | 期望 | 状态 |
 | --- | --- | --- | --- |
-| W1-UI-01 | Story create/update/discard/confirm | pending/current/history 状态准确 | `not_run` |
-| W1-UI-02 | Board create shot/update/confirm | stable shot、rowVersion、source 绑定准确 | `not_run` |
-| W1-UI-03 | Preflight blocker→ready→confirm | server-derived preview，不前端伪造 | `not_run` |
-| W1-UI-04 | 409 conflict | 本地内容保留、server 状态刷新、需重新确认 | `not_run` |
-| W1-UI-05 | dirty/pending gate | 旧 current 可看，新正式下游被阻止 | `not_run` |
-| W1-UI-06 | stale/historical | 旧产物可看，不静默删除/覆盖 | `not_run` |
-| W1-UI-07 | reload/restart | DB Working Copy/current/history 恢复 | `not_run` |
+| W1-UI-01 | Story create/update/discard/confirm | pending/current/history 状态准确 | `passed_isolated` |
+| W1-UI-02 | Board create shot/update/confirm | stable shot、rowVersion、source 绑定准确 | `passed_isolated` |
+| W1-UI-03 | Preflight blocker→ready→confirm | server-derived preview，不前端伪造 | `passed_isolated` |
+| W1-UI-04 | 409 conflict | 本地内容保留、server 状态刷新、需重新确认 | `passed_isolated` |
+| W1-UI-05 | dirty/pending gate | 旧 current 可看，新正式下游被阻止 | `passed_isolated` |
+| W1-UI-06 | stale/historical | 旧产物可看，不静默删除/覆盖 | `passed_isolated` |
+| W1-UI-07 | reload/restart | DB Working Copy/current/history 恢复 | `passed_isolated` |
 
 ## 5. W1 DB-mode E2E
 
@@ -132,14 +132,14 @@ R0-A 定向测试以当前 `R0-R2真实切换施工包/evidence_and_test_matrix.
 
 | ID | 用户路径 | 关键断言 | 状态 |
 | --- | --- | --- | --- |
-| W1-E2E-01 | Story dirty 未确认 | 旧 current 不变；新 Board 被 gate | `not_run` |
-| W1-E2E-02 | Story publish 后 stale | Board/Preflight 历史保留且 stale reason 准确 | `not_run` |
+| W1-E2E-01 | Story dirty 未确认 | 旧 current 不变；新 Board 被 gate | `partial` |
+| W1-E2E-02 | Story publish 后 stale | Board/Preflight 历史保留且 stale reason 准确 | `partial` |
 | W1-E2E-03 | 双页签冲突 | 一成功一 409；失败页内容不丢 | `not_run` |
-| W1-E2E-04 | 历史复制 | 旧 version 不改；新 WC/confirm 产生新 version | `not_run` |
-| W1-E2E-05 | Story→Board→Preflight | 第 2～4 步全部通过 G2 DB API | `not_run` |
-| W1-E2E-06 | server restart | 同一 DB 读回 current/WC/history/freshness | `not_run` |
-| W1-E2E-07 | file-mode regression | 原 4 条 E2E 仍通过，无 DB 双写 | `not_run` |
-| W1-E2E-08 | repeat each 3 | 无 flaky/竞态/端口与清理冲突 | `not_run` |
+| W1-E2E-04 | 历史复制 | 旧 version 不改；新 WC/confirm 产生新 version | `partial` |
+| W1-E2E-05 | Story→Board→Preflight | 第 2～4 步全部通过 G2 DB API | `passed_isolated` |
+| W1-E2E-06 | server restart | 同一 DB 读回 current/WC/history/freshness | `passed_isolated` |
+| W1-E2E-07 | file-mode regression | 原 4 条 E2E 仍通过，无 DB 双写 | `passed_isolated` |
+| W1-E2E-08 | repeat each 3 | 无 flaky/竞态/端口与清理冲突 | `passed_isolated` |
 
 必须保存至少：冲突页、stale 页、历史页和 Preflight confirm 的 screenshot/trace；截图不得包含真实路径/秘密。
 

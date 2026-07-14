@@ -7,6 +7,7 @@ import type {
   StoryWorkingCopyMutationValue,
   UpdateStoryWorkingCopyRequest,
   VersionMutationResult,
+  VersionHistoryCopyRequest,
 } from "@airoaming/shared";
 import { createG2DatabaseError, G2DatabaseError } from "./g2-database-error.mapper.js";
 import { StoryVersionRepository } from "./story-version.repository.js";
@@ -34,6 +35,10 @@ export class StoryVersionService {
 
   confirmWorkingCopy(scope: VersionScopeV1, request: ConfirmStoryWorkingCopyRequest): Promise<VersionMutationResult<StoryWorkingCopyMutationValue>> {
     return this.execute(() => { validateConfirmRequest(request); return this.repository.confirmWorkingCopy(scope, request); });
+  }
+
+  copyHistoryToWorkingCopy(scope: VersionScopeV1, versionId: string, request: VersionHistoryCopyRequest): Promise<VersionMutationResult<StoryWorkingCopyDto>> {
+    return this.execute(() => this.repository.copyHistoryToWorkingCopy(scope, versionId, request));
   }
 
   private async execute<T>(operation: () => Promise<T>): Promise<T> {

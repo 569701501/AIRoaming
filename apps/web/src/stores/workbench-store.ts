@@ -31,6 +31,7 @@ import {
   type ScriptWorkingCopyDto,
   type ScriptPendingSuggestionDto,
   type WorkspaceInfo,
+  digestCanonicalJson,
 } from "@airoaming/shared";
 import { ApiClientError, api } from "../services/api";
 import {
@@ -49,6 +50,7 @@ import {
 import {
   patchWorkflowForChapter,
 } from "../utils/workbench-workflow";
+import { toStoryDocumentV2, toStoryboardDocumentV2 } from "../utils/versioning-adapter";
 
 interface WorkbenchState {
   health: HealthResponse | null;
@@ -170,6 +172,10 @@ export const useWorkbenchStore = defineStore("workbench", {
     },
     clearCreateProjectError() {
       this.createProjectErrorCode = null;
+    },
+    async refreshAfterVersionConflict() {
+      await this.refreshActiveProjectRuntime();
+      this.dialogueNotice = "服务器版本已变化，已刷新状态；请保留当前编辑内容并重新确认。";
     },
     async createProject(input: CreateProjectRequest): Promise<ProjectListItem | null> {
       this.creatingProject = true;
@@ -400,6 +406,12 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.tasks = tasks.items;
         this.snapshot = workbench.snapshot;
         this.activeChapterId = workbench.snapshot.currentChapter?.id ?? this.activeChapterId;
+        if (workbench.snapshot.versioningCapability.mode === "g2_db" && this.activeChapterId) {
+          [this.scriptWorkingCopy, this.scriptPendingSuggestion] = await Promise.all([
+            api.getScriptWorkingCopy(projectId, this.activeChapterId),
+            api.getScriptPendingSuggestion(projectId, this.activeChapterId),
+          ]);
+        }
       } catch {
         // Runtime polling must not replace the user's visible error with a transient refresh failure.
       }
@@ -590,12 +602,49 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.scriptWorkingCopy?.currentVersion) throw new Error("剧本尚未发布，不能确认剧情结构");
+          const document = toStoryDocumentV2(structureJson, this.snapshot);
+          let working = await api.getStoryWorkingCopy(projectId, chapterId);
+          let chapterRowVersion = this.scriptWorkingCopy.chapterRowVersion;
+          if (!working.pending) {
+            const created = await api.createStoryWorkingCopy(projectId, chapterId, {
+              mode: working.current ? "clone_current" : "empty",
+              expectedCurrentVersionId: working.current?.id ?? null,
+              expectedSourceScriptVersionId: this.scriptWorkingCopy.currentVersion.id,
+              expectedChapterRowVersion: this.scriptWorkingCopy.chapterRowVersion,
+            });
+            working = created.value;
+            chapterRowVersion = created.chapterRowVersion;
+          }
+          const updated = await api.updateStoryWorkingCopy(projectId, chapterId, {
+            pendingVersionId: working.pending?.id ?? "",
+            document,
+            expectedPendingRowVersion: working.pending?.rowVersion ?? 0,
+            expectedChapterRowVersion: chapterRowVersion,
+          });
+          await api.confirmStoryWorkingCopy(projectId, chapterId, {
+            pendingVersionId: updated.value.pending?.id ?? working.pending?.id ?? "",
+            expectedPendingDocumentDigest: digestCanonicalJson(document),
+            expectedPendingRowVersion: updated.value.pending?.rowVersion ?? 0,
+            expectedCurrentVersionId: working.current?.id ?? null,
+            expectedSourceScriptVersionId: this.scriptWorkingCopy.currentVersion.id,
+            expectedSourceDigest: this.scriptWorkingCopy.currentVersion.sourceDigest,
+            expectedChapterRowVersion: updated.chapterRowVersion,
+          });
+          await this.refreshActiveProjectRuntime();
+          this.dialogueNotice = "已确认剧情结构（DB Working Copy）。";
+          return this.snapshot?.storyStructure ?? null;
+        }
         const result = await api.confirmChapterStoryStructure(projectId, chapterId, { structureJson });
         this.applyStoryStructureUpdate(result.storyStructure, result.chapter, result.chapters);
         await this.refreshActiveProjectRuntime();
         this.dialogueNotice = `已确认「${result.chapter.title}」的剧情结构。`;
         return result.storyStructure;
       } catch (error) {
+        if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
+          await this.refreshAfterVersionConflict();
+        }
         this.error = error instanceof Error ? error.message : "确认剧情结构失败";
         return null;
       } finally {
@@ -610,10 +659,37 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.scriptWorkingCopy?.currentVersion) throw new Error("剧本尚未发布，不能编辑剧情结构");
+          const document = toStoryDocumentV2(structureJson, this.snapshot);
+          let working = await api.getStoryWorkingCopy(projectId, chapterId);
+          let chapterRowVersion = this.scriptWorkingCopy.chapterRowVersion;
+          if (!working.pending) {
+            const created = await api.createStoryWorkingCopy(projectId, chapterId, {
+              mode: working.current ? "clone_current" : "empty",
+              expectedCurrentVersionId: working.current?.id ?? null,
+              expectedSourceScriptVersionId: this.scriptWorkingCopy.currentVersion.id,
+              expectedChapterRowVersion: this.scriptWorkingCopy.chapterRowVersion,
+            });
+            working = created.value;
+            chapterRowVersion = created.chapterRowVersion;
+          }
+          await api.updateStoryWorkingCopy(projectId, chapterId, {
+            pendingVersionId: working.pending?.id ?? "",
+            document,
+            expectedPendingRowVersion: working.pending?.rowVersion ?? 0,
+            expectedChapterRowVersion: chapterRowVersion,
+          });
+          await this.refreshActiveProjectRuntime();
+          return this.snapshot?.storyStructure ?? null;
+        }
         const result = await api.updateChapterStoryStructure(projectId, chapterId, { structureJson });
         this.applyStoryStructureUpdate(result.storyStructure, result.chapter, result.chapters);
         return result.storyStructure;
       } catch (error) {
+        if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
+          await this.refreshAfterVersionConflict();
+        }
         this.error = error instanceof Error ? error.message : "更新剧情结构失败";
         return null;
       } finally {
@@ -628,11 +704,49 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          const story = this.snapshot.storyStructure;
+          if (!story?.id) throw new Error("剧情结构尚未确认，不能确认分镜");
+          const document = toStoryboardDocumentV2(storyboardJson);
+          let working = await api.getStoryboardWorkingCopy(projectId, chapterId);
+          let chapterRowVersion = this.scriptWorkingCopy?.chapterRowVersion ?? 0;
+          if (!working.pending) {
+            const created = await api.createStoryboardWorkingCopy(projectId, chapterId, {
+              mode: working.current ? "clone_current" : "empty",
+              expectedCurrentVersionId: working.current?.id ?? null,
+              expectedSourceStoryVersionId: story.id,
+              expectedChapterRowVersion: this.scriptWorkingCopy?.chapterRowVersion ?? 0,
+            });
+            working = created.value;
+            chapterRowVersion = created.chapterRowVersion;
+          }
+          const updated = await api.updateStoryboardWorkingCopy(projectId, chapterId, {
+            pendingVersionId: working.pending?.id ?? "",
+            document,
+            expectedPendingRowVersion: working.pending?.rowVersion ?? 0,
+            expectedChapterRowVersion: chapterRowVersion,
+          });
+          await api.confirmStoryboardWorkingCopy(projectId, chapterId, {
+            pendingVersionId: updated.value.pending?.id ?? working.pending?.id ?? "",
+            expectedPendingDocumentDigest: digestCanonicalJson(document),
+            expectedPendingRowVersion: updated.value.pending?.rowVersion ?? 0,
+            expectedCurrentVersionId: working.current?.id ?? null,
+            expectedSourceStoryVersionId: story.id,
+            expectedSourceDigest: digestCanonicalJson(toStoryDocumentV2(story.structureJson, this.snapshot)),
+            expectedChapterRowVersion: updated.chapterRowVersion,
+          });
+          await this.refreshActiveProjectRuntime();
+          this.dialogueNotice = "已确认分镜（DB Working Copy）。";
+          return this.snapshot?.storyboard ?? null;
+        }
         const result = await api.confirmChapterStoryboard(projectId, chapterId, { storyboardJson });
         this.applyStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
         this.dialogueNotice = `已确认「${result.chapter.title}」的分镜。`;
         return result.storyboard;
       } catch (error) {
+        if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
+          await this.refreshAfterVersionConflict();
+        }
         this.error = error instanceof Error ? error.message : "确认分镜失败";
         return null;
       } finally {
@@ -646,10 +760,37 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.snapshot.storyStructure?.id) throw new Error("剧情结构尚未确认，不能编辑分镜");
+          const document = toStoryboardDocumentV2(storyboardJson);
+          let working = await api.getStoryboardWorkingCopy(projectId, chapterId);
+          let chapterRowVersion = this.scriptWorkingCopy?.chapterRowVersion ?? 0;
+          if (!working.pending) {
+            const created = await api.createStoryboardWorkingCopy(projectId, chapterId, {
+              mode: working.current ? "clone_current" : "empty",
+              expectedCurrentVersionId: working.current?.id ?? null,
+              expectedSourceStoryVersionId: this.snapshot.storyStructure.id,
+              expectedChapterRowVersion: this.scriptWorkingCopy?.chapterRowVersion ?? 0,
+            });
+            working = created.value;
+            chapterRowVersion = created.chapterRowVersion;
+          }
+          await api.updateStoryboardWorkingCopy(projectId, chapterId, {
+            pendingVersionId: working.pending?.id ?? "",
+            document,
+            expectedPendingRowVersion: working.pending?.rowVersion ?? 0,
+            expectedChapterRowVersion: chapterRowVersion,
+          });
+          await this.refreshActiveProjectRuntime();
+          return this.snapshot?.pendingStoryboard ?? null;
+        }
         const result = await api.savePendingChapterStoryboard(projectId, chapterId, { storyboardJson });
         this.applyPendingStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
         return result.storyboard;
       } catch (error) {
+        if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
+          await this.refreshAfterVersionConflict();
+        }
         this.error = error instanceof Error ? error.message : "保存待确认分镜失败";
         return null;
       }
@@ -662,10 +803,27 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (!projectId) {
           throw new Error("请先进入项目");
         }
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          if (!this.snapshot.storyStructure?.id) throw new Error("剧情结构尚未确认，不能编辑分镜");
+          const document = toStoryboardDocumentV2(storyboardJson);
+          const working = await api.getStoryboardWorkingCopy(projectId, chapterId);
+          if (!working.pending) throw new Error("没有可更新的 DB 分镜 Working Copy");
+          await api.updateStoryboardWorkingCopy(projectId, chapterId, {
+            pendingVersionId: working.pending.id,
+            document,
+            expectedPendingRowVersion: working.pending.rowVersion ?? 0,
+            expectedChapterRowVersion: this.scriptWorkingCopy?.chapterRowVersion ?? 0,
+          });
+          await this.refreshActiveProjectRuntime();
+          return this.snapshot?.pendingStoryboard ?? null;
+        }
         const result = await api.updateChapterStoryboard(projectId, chapterId, { storyboardJson });
         this.applyStoryboardUpdate(result.storyboard, result.chapter, result.chapters);
         return result.storyboard;
       } catch (error) {
+        if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
+          await this.refreshAfterVersionConflict();
+        }
         this.error = error instanceof Error ? error.message : "更新分镜失败";
         return null;
       } finally {
@@ -679,6 +837,20 @@ export const useWorkbenchStore = defineStore("workbench", {
         const projectId = this.activeProjectId;
         if (!projectId) {
           throw new Error("请先进入项目");
+        }
+        if (this.snapshot?.versioningCapability.mode === "g2_db") {
+          const board = this.snapshot.storyboard;
+          if (!board) throw new Error("分镜尚未确认，不能进行出图准备");
+          const preview = await api.getChapterPreflightPreviewV2(projectId, chapterId);
+          const confirmed = await api.confirmChapterPreflightV2(projectId, chapterId, {
+            expectedSourceStoryboardVersionId: board.id,
+            expectedSourceDigest: preview.sourceDigest,
+            expectedChapterRowVersion: preview.chapterRowVersion,
+            notes: preview.preview.notes,
+          });
+          await this.refreshActiveProjectRuntime();
+          this.dialogueNotice = "已确认出图准备（DB Revision）。";
+          return this.snapshot?.imagePreflight ?? null;
         }
         const result = await api.confirmChapterImagePreflight(projectId, chapterId, {});
         this.applyChapterUpdate(result.chapter, result.chapters);
@@ -695,6 +867,9 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.dialogueNotice = `已确认「${result.chapter.title}」的出图准备。`;
         return result.imagePreflight;
       } catch (error) {
+        if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
+          await this.refreshAfterVersionConflict();
+        }
         this.error = error instanceof Error ? error.message : "确认出图准备失败";
         return null;
       } finally {

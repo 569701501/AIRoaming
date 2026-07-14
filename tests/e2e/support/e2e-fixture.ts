@@ -92,6 +92,10 @@ export class E2EApiClient {
     return this.send<T>("POST", path, data);
   }
 
+  patch<T>(path: string, data?: unknown): Promise<ApiEnvelope<T>> {
+    return this.send<T>("PATCH", path, data);
+  }
+
   delete<T>(path: string): Promise<ApiEnvelope<T>> {
     return this.send<T>("DELETE", path);
   }
@@ -117,7 +121,7 @@ export class E2EApiClient {
     return true;
   }
 
-  private async send<T>(method: "GET" | "POST" | "DELETE", path: string, data?: unknown): Promise<ApiEnvelope<T>> {
+  private async send<T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, data?: unknown): Promise<ApiEnvelope<T>> {
     const url = resolveApiUrl(this.runtime, path);
     const response = await this.request.fetch(url, {
       method,

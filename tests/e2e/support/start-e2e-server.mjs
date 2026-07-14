@@ -1,4 +1,6 @@
 import { createRequire } from "node:module";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -10,6 +12,7 @@ import {
 } from "./e2e-env.ts";
 
 const LOOPBACK_HOST = "127.0.0.1";
+const execFileAsync = promisify(execFile);
 
 /**
  * @param {string[]} args
@@ -76,6 +79,15 @@ export async function startE2EService(role, runtime) {
 
 async function startNestServer(runtime) {
   const requireFromServer = createRequire(path.join(runtime.repoRoot, "apps", "server", "package.json"));
+  if (process.env.AIROAMING_PERSISTENCE_MODE === "db") {
+    await execFileAsync(process.execPath, [
+      path.join(runtime.repoRoot, "apps", "server", "node_modules", "prisma", "build", "index.js"),
+      "migrate",
+      "deploy",
+      "--schema",
+      path.join(runtime.repoRoot, "apps", "server", "prisma", "schema.prisma"),
+    ], { cwd: runtime.repoRoot, env: process.env });
+  }
   const nestCoreUrl = pathToFileURL(requireFromServer.resolve("@nestjs/core")).href;
   const appModuleUrl = pathToFileURL(path.join(runtime.repoRoot, "apps", "server", "src", "app.module.ts")).href;
   const [{ NestFactory }, { AppModule }] = await Promise.all([

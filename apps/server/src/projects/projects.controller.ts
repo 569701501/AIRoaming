@@ -33,6 +33,7 @@ import type {
   DiscardStoryboardWorkingCopyRequest,
   UpdateStoryboardWorkingCopyRequest,
   ConfirmChapterPreflightRequest,
+  VersionHistoryCopyRequest,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
@@ -292,8 +293,11 @@ export class ProjectsController {
   }
 
   @Post(":projectId/chapters/:chapterId/image-preflight/confirm")
-  async confirmChapterPreflight(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string, @Body() body: ConfirmChapterPreflightRequest) {
-    return ok(await this.preflightRevisionService.confirm({ projectId, chapterId }, body));
+  async confirmChapterPreflight(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string, @Body() body: ConfirmChapterPreflightRequest | ConfirmChapterImagePreflightRequest) {
+    if (this.projectsService.usesDatabasePersistence()) {
+      return ok(await this.preflightRevisionService.confirm({ projectId, chapterId }, body as ConfirmChapterPreflightRequest));
+    }
+    return ok(await this.projectsService.confirmChapterImagePreflight(projectId, chapterId, body as ConfirmChapterImagePreflightRequest));
   }
 
   @Post(":projectId/chapters/:chapterId/story-structure/working-copy")
@@ -330,6 +334,11 @@ export class ProjectsController {
     @Body() body: ConfirmStoryWorkingCopyRequest,
   ) {
     return ok(await this.storyVersionService.confirmWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/story-structure/versions/:versionId/copy-to-working-copy")
+  async copyStoryVersionToWorkingCopy(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string, @Param("versionId") versionId: string, @Body() body: VersionHistoryCopyRequest) {
+    return ok(await this.storyVersionService.copyHistoryToWorkingCopy({ projectId, chapterId }, versionId, body));
   }
 
   @Get(":projectId/chapters/:chapterId/storyboard/working-copy")
@@ -371,6 +380,11 @@ export class ProjectsController {
     @Body() body: ConfirmStoryboardWorkingCopyRequest,
   ) {
     return ok(await this.storyboardVersionService.confirmWorkingCopy({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/storyboard/versions/:versionId/copy-to-working-copy")
+  async copyStoryboardVersionToWorkingCopy(@Param("projectId") projectId: string, @Param("chapterId") chapterId: string, @Param("versionId") versionId: string, @Body() body: VersionHistoryCopyRequest) {
+    return ok(await this.storyboardVersionService.copyHistoryToWorkingCopy({ projectId, chapterId }, versionId, body));
   }
 
   @Post(":projectId/chapters/:chapterId/storyboard/working-copy/shots")
@@ -459,14 +473,6 @@ export class ProjectsController {
     return ok(await this.projectsService.getChapterImagePreflight(projectId, chapterId));
   }
 
-  @Post(":projectId/chapters/:chapterId/image-preflight/confirm")
-  async confirmChapterImagePreflight(
-    @Param("projectId") projectId: string,
-    @Param("chapterId") chapterId: string,
-    @Body() body: ConfirmChapterImagePreflightRequest,
-  ) {
-    return ok(await this.projectsService.confirmChapterImagePreflight(projectId, chapterId, body));
-  }
 
   @Post(":projectId/chapters/:chapterId/image-preflight/characters/resolve")
   async resolveImagePreflightCharacter(

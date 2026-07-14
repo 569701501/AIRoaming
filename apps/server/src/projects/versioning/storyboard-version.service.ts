@@ -8,6 +8,7 @@ import type {
   StoryboardWorkingCopyMutationValue,
   UpdateStoryboardWorkingCopyRequest,
   VersionMutationResult,
+  VersionHistoryCopyRequest,
   CreatePendingShotResponse,
 } from "@airoaming/shared";
 import { createG2DatabaseError, G2DatabaseError } from "./g2-database-error.mapper.js";
@@ -23,6 +24,7 @@ export class StoryboardVersionService {
   discardWorkingCopy(scope: VersionScopeV1, request: DiscardStoryboardWorkingCopyRequest): Promise<VersionMutationResult<StoryboardWorkingCopyDto>> { return this.execute(() => { validateDiscard(request); return this.repository.discardWorkingCopy(scope, request); }); }
   confirmWorkingCopy(scope: VersionScopeV1, request: ConfirmStoryboardWorkingCopyRequest): Promise<VersionMutationResult<StoryboardWorkingCopyMutationValue>> { return this.execute(() => { validateConfirm(request); return this.repository.confirmWorkingCopy(scope, request); }); }
   createPendingShot(scope: VersionScopeV1, request: CreatePendingShotRequest): Promise<CreatePendingShotResponse> { return this.execute(() => { validateShot(request); return this.repository.createPendingShot(scope, request); }); }
+  copyHistoryToWorkingCopy(scope: VersionScopeV1, versionId: string, request: VersionHistoryCopyRequest): Promise<VersionMutationResult<StoryboardWorkingCopyDto>> { return this.execute(() => this.repository.copyHistoryToWorkingCopy(scope, versionId, request)); }
   private async execute<T>(operation: () => Promise<T>): Promise<T> { try { return await operation(); } catch (error) { if (error instanceof G2DatabaseError) throw new HttpException({ success: false, error: { code: error.code, message: error.message, details: error.details } }, error.status); throw error; } }
 }
 

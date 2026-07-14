@@ -65,6 +65,22 @@ import type {
   ScriptPendingAdoptRequest,
   ScriptPendingDiscardRequest,
   ScriptMutationResult,
+  StoryWorkingCopyDto,
+  StoryWorkingCopyMutationValue,
+  CreateStoryWorkingCopyRequest,
+  UpdateStoryWorkingCopyRequest,
+  DiscardStoryWorkingCopyRequest,
+  ConfirmStoryWorkingCopyRequest,
+  StoryboardWorkingCopyDto,
+  StoryboardWorkingCopyMutationValue,
+  CreateStoryboardWorkingCopyRequest,
+  UpdateStoryboardWorkingCopyRequest,
+  DiscardStoryboardWorkingCopyRequest,
+  ConfirmStoryboardWorkingCopyRequest,
+  GetChapterPreflightPreviewResponse,
+  ConfirmChapterPreflightRequest,
+  ConfirmChapterPreflightResponse,
+  VersionHistoryCopyRequest,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -380,6 +396,48 @@ export const api = {
   ),
   discardScriptPendingSuggestion: (projectId: string, chapterId: string, input: ScriptPendingDiscardRequest) => request<ScriptMutationResult<null>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/pending-suggestion`, { method: "DELETE", body: JSON.stringify(input) },
+  ),
+  getStoryWorkingCopy: (projectId: string, chapterId: string) => request<StoryWorkingCopyDto>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`,
+  ),
+  createStoryWorkingCopy: (projectId: string, chapterId: string, input: CreateStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  updateStoryWorkingCopy: (projectId: string, chapterId: string, input: UpdateStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`, { method: "PATCH", body: JSON.stringify(input) },
+  ),
+  discardStoryWorkingCopy: (projectId: string, chapterId: string, input: DiscardStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`, { method: "DELETE", body: JSON.stringify(input) },
+  ),
+  confirmStoryWorkingCopy: (projectId: string, chapterId: string, input: ConfirmStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyMutationValue>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy/confirm`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  copyStoryVersionToWorkingCopy: (projectId: string, chapterId: string, versionId: string, input: VersionHistoryCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/versions/${encodeURIComponent(versionId)}/copy-to-working-copy`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  getStoryboardWorkingCopy: (projectId: string, chapterId: string) => request<StoryboardWorkingCopyDto>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`,
+  ),
+  createStoryboardWorkingCopy: (projectId: string, chapterId: string, input: CreateStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  updateStoryboardWorkingCopy: (projectId: string, chapterId: string, input: UpdateStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "PATCH", body: JSON.stringify(input) },
+  ),
+  discardStoryboardWorkingCopy: (projectId: string, chapterId: string, input: DiscardStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "DELETE", body: JSON.stringify(input) },
+  ),
+  confirmStoryboardWorkingCopy: (projectId: string, chapterId: string, input: ConfirmStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyMutationValue>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy/confirm`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  copyStoryboardVersionToWorkingCopy: (projectId: string, chapterId: string, versionId: string, input: VersionHistoryCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/versions/${encodeURIComponent(versionId)}/copy-to-working-copy`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  getChapterPreflightPreviewV2: (projectId: string, chapterId: string) => request<GetChapterPreflightPreviewResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/image-preflight/preview`,
+  ),
+  confirmChapterPreflightV2: (projectId: string, chapterId: string, input: ConfirmChapterPreflightRequest) => request<ConfirmChapterPreflightResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/image-preflight/confirm`, { method: "POST", body: JSON.stringify(input) },
   ),
   confirmChapterStoryStructure: (
     projectId: string,

@@ -23,6 +23,14 @@
       </div>
     </header>
 
+    <div v-if="versioningStatus" class="db-versioning-status" data-testid="preflight-db-versioning-status">
+      <strong>DB Revision</strong>
+      <span>{{ versioningStatus.label }}</span>
+      <span v-if="versioningStatus.freshness">来源：{{ versioningStatus.freshness }}</span>
+      <span v-if="versioningStatus.history">历史：可查看</span>
+      <span v-if="versioningStatus.attention">门禁：{{ versioningStatus.attention }}</span>
+    </div>
+
     <div v-if="!hasFormalStoryboard" class="preflight-empty">
       <Lock :size="22" />
       <h2>请先确认本章分镜</h2>
@@ -93,6 +101,16 @@ const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
 const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const currentChapterTitle = computed(() => currentChapter.value?.title ?? "当前章节");
+const versioningStatus = computed(() => {
+  if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
+  const step = props.snapshot.workflow.steps.find((item) => item.key === "image_preflight");
+  return {
+    label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "预览/Revision",
+    freshness: step?.freshness ?? null,
+    history: Boolean(step?.historyAvailable),
+    attention: step?.attention ?? null,
+  };
+});
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
 const characterById = computed(() => new Map(props.snapshot.characters.map((character) => [character.id, character])));

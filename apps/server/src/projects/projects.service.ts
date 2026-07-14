@@ -221,6 +221,11 @@ export class ProjectsService implements OnModuleInit {
     return (this.repository as unknown as { isDatabaseMode?: () => boolean }).isDatabaseMode?.() === true;
   }
 
+  /** Controller facade selector; keeps file and DB semantics behind one public route. */
+  usesDatabasePersistence(): boolean {
+    return this.isDatabaseMode();
+  }
+
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(TasksService) private readonly tasksService: TasksService,

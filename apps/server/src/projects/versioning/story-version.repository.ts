@@ -17,6 +17,7 @@ import {
   type UpdateStoryWorkingCopyRequest,
   type VersionMutationResult,
   type VersionSummary,
+  type VersionHistoryCopyRequest,
 } from "@airoaming/shared";
 import { PrismaService } from "../../persistence/prisma.service.js";
 import { createG2DatabaseError, G2DatabaseError, mapG2DatabaseError } from "./g2-database-error.mapper.js";
@@ -241,6 +242,32 @@ export class StoryVersionRepository {
         pendingStoryVersionId: null,
         rowVersion: { increment: 1 },
       });
+      const updated = await this.readChapter(scope, tx);
+      return this.mutation(updated, this.toWorkingCopy(updated), false);
+    });
+  }
+
+  async copyHistoryToWorkingCopy(scope: VersionScopeV1, versionId: string, request: VersionHistoryCopyRequest): Promise<VersionMutationResult<StoryWorkingCopyDto>> {
+    this.assertDatabaseMode();
+    return this.run(async (tx) => {
+      const chapter = await this.readChapter(scope, tx);
+      const source = chapter.storyVersionsByChapter.find((item) => item.id === versionId);
+      if (!source) throw createG2DatabaseError(404, "VERSION_NOT_FOUND");
+      if (chapter.rowVersion !== request.expectedChapterRowVersion) throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT");
+      if (chapter.currentStoryVersionId !== request.expectedCurrentVersionId) throw createG2DatabaseError(409, "CURRENT_VERSION_CHANGED");
+      if (chapter.pendingStoryVersionId !== null) throw createG2DatabaseError(409, "ACTIVE_PENDING_EXISTS");
+      const document = parseStoryDocument(source);
+      const previous = chapter.storyVersionsByChapter.reduce((max, item) => Math.max(max, item.version), 0);
+      const now = new Date();
+      const created = await tx.storyVersion.create({ data: {
+        id: randomUUID(), projectId: chapter.projectId, chapterId: chapter.id, version: previous + 1,
+        status: "pending_confirmation", sourceScriptVersionId: source.sourceScriptVersionId,
+        sourcePolicyVersion: source.sourcePolicyVersion, sourceDigest: source.sourceDigest,
+        documentJson: document as unknown as Prisma.InputJsonValue, schemaVersion: 2,
+        documentDigest: source.documentDigest, origin: "user_edit", rowVersion: 0, createdAt: now,
+      } });
+      await this.rebuildProjections(tx, created.id, document, scope);
+      await this.updateChapterCas(tx, scope, request.expectedChapterRowVersion, { pendingStoryVersionId: created.id, pendingStoryboardVersionId: null, rowVersion: { increment: 1 } });
       const updated = await this.readChapter(scope, tx);
       return this.mutation(updated, this.toWorkingCopy(updated), false);
     });

@@ -12,10 +12,10 @@ source: 2026-07-14 代码、Git、文档与测试事实复核
 
 ## 1. 已确认事实
 
-- 当前分支为 `codex/g0-test-safety-net`，HEAD 为 `e195cb3`。
+- 当前分支为 `codex/g0-test-safety-net`，S0 已提交于 `f07f516`，R0-A 已提交于 `fbfcbeb`；W1 当前仍在待提交工作树。
 - R0-A production cutover entry 已完成 Luna 独立 Scrutiny=`passed`、Runtime=`passed_isolated` 和 disposable Keychain smoke。
-- 最近记录的服务端全量为 69 spec/472 tests；typecheck、server/web build、Prisma/G1/capability `blockedIds=[]`、diff 均通过。执行者必须重跑后记录当次真实数量。
-- R0-A 的 runner、SecretStore、cutover evidence/plan、文档当前仍在未提交工作树；因此它还不是稳定 release commit。
+- W1 后最近一次服务端全量为 70 spec/474 tests，shared 为 39 tests；typecheck、e2e typecheck、server/web build 均通过。
+- R0-A 的 runner、SecretStore、cutover evidence/plan 已在 `fbfcbeb` 提交；W1 代码、测试与证据需独立提交，其他用户历史文档不得混入。
 - R0-B/R1/R2 未获授权：真实 C0、SH-10、AUTH-C1/C5/C7、C1～C7、OBS-01～10 都未运行。
 - G4/G5 的产品、契约和验收文档较完整，但正式功能实现未开始；现有 CandidateLock/Layout/Export 主要是 G1/D2 数据和基础闭环骨架。
 
@@ -26,7 +26,7 @@ source: 2026-07-14 代码、Git、文档与测试事实复核
 - `apps/web/src/stores/workbench-store.ts` 的 Script 已有 `g2_db` 分支。
 - Story Structure、Storyboard、Image Preflight 的 `apps/web/src/services/api.ts` 与 store 仍调用 legacy `/story-structure/confirm`、`/storyboard/confirm`、`/storyboard/pending`、`/image-preflight/confirm` 等路径。
 - server DB 模式对多条 legacy 写方法返回 `LEGACY_WRITE_ROUTE_DISABLED`。
-- 所以若按当前代码直接执行真实 C7，工作台第 2～4 步存在确定性失败风险。
+- W1 已补齐 DB-only Story/Storyboard/Preflight 工作台路径；未通过 R0B/R1/R2 授权前，不能据此推断真实切换已完成。
 
 ### 重复路由
 
@@ -44,7 +44,7 @@ source: 2026-07-14 代码、Git、文档与测试事实复核
 ### E2E 覆盖
 
 - 当前 `tests/e2e` 主要有项目库/阶段 rail 与 API smoke，约 4 条主路径，显式为 file mode。
-- 没有 DB-only Story/Storyboard/Preflight 的真实浏览器路径、双标签冲突、历史复制或 restart 证据。
+- 已新增 DB-only fresh SQLite 浏览器/API 门禁；当前证据覆盖顺序点击、重启启动、旧 legacy 写路径拒绝、file-mode 回归和三次重复。双标签冲突的真实浏览器交互仍是 W1 后续增强项，不得在清单中冒充已覆盖。
 
 ## 3. 阶段排序决定
 
@@ -84,8 +84,9 @@ S0 -> W1 -> R0B -> R1 -> R2 -> G4 -> G5
 
 ```text
 plan_ready
-S0_CLOSEOUT = completed_pending_commit
-next_execution_state = W1_DB_WEB_GATE
+S0_CLOSEOUT = completed
+W1_DB_WEB_GATE = implemented_pending_independent_commit
+next_execution_state = WAIT_R0B_AUTH
 real_cutover = no_go_until_explicit_R0B_authorization
 ```
 
