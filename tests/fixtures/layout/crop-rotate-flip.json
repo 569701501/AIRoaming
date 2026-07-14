@@ -1,0 +1,315 @@
+{
+  "fixtureSchemaVersion": 1,
+  "fixtureId": "crop-rotate-flip",
+  "sourceDate": "2026-07-15T00:00:00.000Z",
+  "document": {
+    "schemaVersion": 1,
+    "kind": "layout_document_v1",
+    "projectId": "project_crop_rotate_flip",
+    "chapterId": "chapter_crop_rotate_flip",
+    "comicFormat": "paged_comic",
+    "profile": {
+      "kind": "paged",
+      "presetId": "portrait_3_4",
+      "width": 1800,
+      "height": 2400,
+      "safeArea": {
+        "top": 72,
+        "right": 72,
+        "bottom": 72,
+        "left": 72
+      },
+      "panelReadingDirection": "ltr_ttb"
+    },
+    "fontPolicy": {
+      "defaultFontAssetId": "asset_font_inter_latin_400",
+      "fallbackFontAssetIds": [
+        "asset_font_cjk_pending_e0"
+      ]
+    },
+    "canvases": [
+      {
+        "id": "canvas_crop",
+        "kind": "page",
+        "name": "Crop and transform",
+        "width": 1800,
+        "height": 2400,
+        "backgroundColor": "#FFFFFFFF",
+        "panelReadingOrder": [
+          "panel_crop"
+        ],
+        "elements": [
+          {
+            "id": "panel_crop",
+            "type": "panel_frame",
+            "name": "Panel 1",
+            "transform": {
+              "x": 120,
+              "y": 160,
+              "width": 1100,
+              "height": 1500,
+              "rotation": -7,
+              "opacity": 1
+            },
+            "locked": false,
+            "hidden": false,
+            "shape": {
+              "kind": "rounded_rect",
+              "cornerRadius": 48
+            },
+            "border": {
+              "visible": true,
+              "color": "#111827FF",
+              "width": 8
+            },
+            "contentImage": {
+              "id": "panel_crop_image",
+              "type": "image",
+              "placement": "panel_content",
+              "name": "panel_crop source",
+              "locked": false,
+              "hidden": false,
+              "source": {
+                "shotId": "shot_001",
+                "candidateId": "candidate_001_e",
+                "candidateLockRevisionId": "lockrev_001_e",
+                "assetId": "asset_fixture_candidate_wide",
+                "sourceDigest": "sha256:9c589efd59323cac795c588fb323d501a5b165f51becd1769bb5cbd0d2312d23"
+              },
+              "crop": {
+                "zoom": 1.35,
+                "offsetX": 42,
+                "offsetY": -18,
+                "rotation": 12,
+                "flipX": true,
+                "flipY": false
+              }
+            }
+          },
+          {
+            "id": "free_image_crop",
+            "type": "free_image",
+            "name": "Floating source",
+            "transform": {
+              "x": 980,
+              "y": 1240,
+              "width": 650,
+              "height": 820,
+              "rotation": 18,
+              "opacity": 0.85
+            },
+            "locked": false,
+            "hidden": false,
+            "source": {
+              "shotId": "shot_002",
+              "candidateId": "candidate_002_b",
+              "candidateLockRevisionId": "lockrev_002_b",
+              "assetId": "asset_fixture_candidate_b",
+              "sourceDigest": "sha256:62fb506b090e638d3fda6c669c3d64f2dc7aaaeb2b3d3d6a5673c6b6d66b5adf"
+            },
+            "display": {
+              "mode": "cover",
+              "crop": {
+                "zoom": 1.2,
+                "offsetX": -24,
+                "offsetY": 16,
+                "rotation": -9,
+                "flipX": false,
+                "flipY": true
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "documentDigest": "sha256:7e10b59350a528209a9ead9f69ad4be8e9f164571a86af3184c100acd20e67e1",
+    "sourceLockSetDigest": "sha256:497f33d6fce2e03bb825ce81b6fef40edb9fdf73560904299a7370d99e2c6234",
+    "profile": {
+      "schemaVersion": 1,
+      "kind": "paged_publication",
+      "outputScale": 1,
+      "includePdf": true,
+      "pdfPixelDpi": 96
+    },
+    "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+    "assetManifest": {
+      "schemaVersion": 1,
+      "images": [
+        {
+          "assetId": "asset_fixture_candidate_b",
+          "role": "candidate_image",
+          "relativePath": "assets/candidate-b.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:6bf45bad0d34ea7fd2059692d3086b0770793e4562cd75dd55bd5da6040051e1",
+          "bytes": 422,
+          "width": 96,
+          "height": 96
+        },
+        {
+          "assetId": "asset_fixture_candidate_wide",
+          "role": "candidate_image",
+          "relativePath": "assets/candidate-wide.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:1f9d9813e970d727af5129b6903b2290bea7e651ed5d8dd22c0f27e0798cb126",
+          "bytes": 355,
+          "width": 144,
+          "height": 96
+        }
+      ],
+      "fonts": [
+        {
+          "assetId": "asset_font_inter_latin_400",
+          "role": "font",
+          "relativePath": "assets/inter-latin-400.woff2",
+          "mimeType": "font/woff2",
+          "sha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+          "bytes": 17156,
+          "metadata": {
+            "schemaVersion": 1,
+            "kind": "layout_font_asset_v1",
+            "familyName": "Inter",
+            "postScriptName": "Inter-Regular",
+            "faceName": "Regular",
+            "format": "woff2",
+            "weightMin": 400,
+            "weightMax": 400,
+            "style": "normal",
+            "cmapDigest": "sha256:a4e93510a3e6a231237a65df9d89608d43a1c43b0157c17de58bf82fe47ccc4c",
+            "license": {
+              "spdxId": "OFL-1.1",
+              "source": "https://github.com/rsms/inter/blob/master/LICENSE.txt",
+              "embeddingAllowed": true
+            },
+            "fixtureSource": {
+              "package": "prisma",
+              "version": "6.19.3",
+              "expectedSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf"
+            }
+          }
+        },
+        {
+          "assetId": "asset_font_cjk_pending_e0",
+          "role": "font",
+          "status": "red",
+          "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+          "requiredCoverage": [
+            "simplified_chinese",
+            "japanese",
+            "emoji_missing_glyph_case"
+          ]
+        }
+      ]
+    },
+    "assetManifestDigest": "sha256:d97a2813515b53d3dd538365cf12d7a1b52fb7884999cf608557936b591a6174",
+    "renderPlan": {
+      "schemaVersion": 1,
+      "documentDigest": "sha256:7e10b59350a528209a9ead9f69ad4be8e9f164571a86af3184c100acd20e67e1",
+      "sourceLockSetDigest": "sha256:497f33d6fce2e03bb825ce81b6fef40edb9fdf73560904299a7370d99e2c6234",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "rendererPolicyVersion": "layout_render_policy_v1",
+      "canvases": [
+        {
+          "canvasId": "canvas_crop",
+          "order": 1,
+          "width": 1800,
+          "height": 2400,
+          "elementIds": [
+            "panel_crop",
+            "free_image_crop"
+          ]
+        }
+      ],
+      "assets": {
+        "schemaVersion": 1,
+        "images": [
+          {
+            "assetId": "asset_fixture_candidate_b",
+            "role": "candidate_image",
+            "relativePath": "assets/candidate-b.png",
+            "mimeType": "image/png",
+            "sha256": "sha256:6bf45bad0d34ea7fd2059692d3086b0770793e4562cd75dd55bd5da6040051e1",
+            "bytes": 422,
+            "width": 96,
+            "height": 96
+          },
+          {
+            "assetId": "asset_fixture_candidate_wide",
+            "role": "candidate_image",
+            "relativePath": "assets/candidate-wide.png",
+            "mimeType": "image/png",
+            "sha256": "sha256:1f9d9813e970d727af5129b6903b2290bea7e651ed5d8dd22c0f27e0798cb126",
+            "bytes": 355,
+            "width": 144,
+            "height": 96
+          }
+        ],
+        "fonts": [
+          {
+            "assetId": "asset_font_inter_latin_400",
+            "role": "font",
+            "relativePath": "assets/inter-latin-400.woff2",
+            "mimeType": "font/woff2",
+            "sha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+            "bytes": 17156,
+            "metadata": {
+              "schemaVersion": 1,
+              "kind": "layout_font_asset_v1",
+              "familyName": "Inter",
+              "postScriptName": "Inter-Regular",
+              "faceName": "Regular",
+              "format": "woff2",
+              "weightMin": 400,
+              "weightMax": 400,
+              "style": "normal",
+              "cmapDigest": "sha256:a4e93510a3e6a231237a65df9d89608d43a1c43b0157c17de58bf82fe47ccc4c",
+              "license": {
+                "spdxId": "OFL-1.1",
+                "source": "https://github.com/rsms/inter/blob/master/LICENSE.txt",
+                "embeddingAllowed": true
+              },
+              "fixtureSource": {
+                "package": "prisma",
+                "version": "6.19.3",
+                "expectedSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf"
+              }
+            }
+          },
+          {
+            "assetId": "asset_font_cjk_pending_e0",
+            "role": "font",
+            "status": "red",
+            "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+            "requiredCoverage": [
+              "simplified_chinese",
+              "japanese",
+              "emoji_missing_glyph_case"
+            ]
+          }
+        ]
+      },
+      "diagnostics": [],
+      "renderPlanDigest": "sha256:b16820afbb4edc20a6a842d3cef6ea409f221df88a81d61968f5ff5d3ad925d6"
+    },
+    "renderPlanDigest": "sha256:b16820afbb4edc20a6a842d3cef6ea409f221df88a81d61968f5ff5d3ad925d6",
+    "browserSemanticSnapshot": {
+      "status": "red",
+      "reasonCode": "G5_BROWSER_SEMANTICS_NOT_CAPTURED",
+      "expectedCoverage": [
+        "panel_crop",
+        "free_image",
+        "rotation",
+        "flip_x",
+        "flip_y",
+        "layer_overlap"
+      ]
+    },
+    "outputs": {
+      "status": "red",
+      "reasonCode": "G5_RENDERER_NOT_SELECTED",
+      "artifacts": []
+    },
+    "preflightIssues": []
+  }
+}

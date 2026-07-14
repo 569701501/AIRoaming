@@ -1,0 +1,383 @@
+{
+  "fixtureSchemaVersion": 1,
+  "fixtureId": "preflight-errors",
+  "sourceDate": "2026-07-15T00:00:00.000Z",
+  "document": {
+    "schemaVersion": 1,
+    "kind": "layout_document_v1",
+    "projectId": "project_preflight_errors",
+    "chapterId": "chapter_preflight_errors",
+    "comicFormat": "paged_comic",
+    "profile": {
+      "kind": "paged",
+      "presetId": "portrait_3_4",
+      "width": 1800,
+      "height": 2400,
+      "safeArea": {
+        "top": 72,
+        "right": 72,
+        "bottom": 72,
+        "left": 72
+      },
+      "panelReadingDirection": "ltr_ttb"
+    },
+    "fontPolicy": {
+      "defaultFontAssetId": "asset_font_inter_latin_400",
+      "fallbackFontAssetIds": [
+        "asset_font_cjk_pending_e0"
+      ]
+    },
+    "canvases": [
+      {
+        "id": "canvas_preflight",
+        "kind": "page",
+        "name": "Preflight errors",
+        "width": 1800,
+        "height": 2400,
+        "backgroundColor": "#FFFFFFFF",
+        "panelReadingOrder": [
+          "panel_preflight"
+        ],
+        "elements": [
+          {
+            "id": "panel_preflight",
+            "type": "panel_frame",
+            "name": "Panel 1",
+            "transform": {
+              "x": -220,
+              "y": 80,
+              "width": 900,
+              "height": 1600,
+              "rotation": 0,
+              "opacity": 1
+            },
+            "locked": false,
+            "hidden": false,
+            "shape": {
+              "kind": "rect",
+              "cornerRadius": 0
+            },
+            "border": {
+              "visible": true,
+              "color": "#111827FF",
+              "width": 8
+            },
+            "contentImage": {
+              "id": "panel_preflight_image",
+              "type": "image",
+              "placement": "panel_content",
+              "name": "panel_preflight source",
+              "locked": false,
+              "hidden": false,
+              "source": {
+                "shotId": "shot_001",
+                "candidateId": "candidate_001_a",
+                "candidateLockRevisionId": "lockrev_001_a",
+                "assetId": "asset_fixture_candidate_a",
+                "sourceDigest": "sha256:393a3a37d5d425e6fe99970caf33f214d0ef5ece71b0e9d6425394683977f9bf"
+              },
+              "crop": {
+                "zoom": 1,
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false,
+                "flipY": false
+              }
+            }
+          },
+          {
+            "id": "text_overflow",
+            "type": "text",
+            "name": "text_overflow",
+            "transform": {
+              "x": 1500,
+              "y": 2200,
+              "width": 120,
+              "height": 80,
+              "rotation": 0,
+              "opacity": 1
+            },
+            "locked": false,
+            "hidden": false,
+            "semantic": "custom",
+            "verticalAlign": "center",
+            "richText": {
+              "schemaVersion": 1,
+              "writingMode": "horizontal-tb",
+              "textOrientation": "mixed",
+              "paragraphs": [
+                {
+                  "align": "center",
+                  "lineHeight": 1.35,
+                  "runs": [
+                    {
+                      "text": "This deliberately long line must overflow the small box.",
+                      "fontAssetId": "asset_font_inter_latin_400",
+                      "fontSize": 72,
+                      "fontWeight": 400,
+                      "fontStyle": "normal",
+                      "color": "#111827FF",
+                      "letterSpacing": 0,
+                      "stroke": null
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "text_missing_cjk_font",
+            "type": "text",
+            "name": "text_missing_cjk_font",
+            "transform": {
+              "x": 200,
+              "y": 1900,
+              "width": 600,
+              "height": 300,
+              "rotation": 0,
+              "opacity": 1
+            },
+            "locked": false,
+            "hidden": false,
+            "semantic": "custom",
+            "verticalAlign": "center",
+            "richText": {
+              "schemaVersion": 1,
+              "writingMode": "horizontal-tb",
+              "textOrientation": "mixed",
+              "paragraphs": [
+                {
+                  "align": "center",
+                  "lineHeight": 1.35,
+                  "runs": [
+                    {
+                      "text": "字体缺失",
+                      "fontAssetId": "asset_font_cjk_pending_e0",
+                      "fontSize": 64,
+                      "fontWeight": 400,
+                      "fontStyle": "normal",
+                      "color": "#111827FF",
+                      "letterSpacing": 0,
+                      "stroke": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "documentDigest": "sha256:f6a25d775a39ec1dca613ff4965e8a24a090bc5cb6cfa5bc9344ad9968eb3ed5",
+    "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
+    "profile": {
+      "schemaVersion": 1,
+      "kind": "paged_publication",
+      "outputScale": 1,
+      "includePdf": true,
+      "pdfPixelDpi": 96
+    },
+    "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+    "assetManifest": {
+      "schemaVersion": 1,
+      "images": [
+        {
+          "assetId": "asset_fixture_candidate_a",
+          "role": "candidate_image",
+          "relativePath": "assets/candidate-a.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:c04e57a22035b7080a3b467568afaa016ff147776d7635f5bcabdb9e98a5287f",
+          "bytes": 331,
+          "width": 96,
+          "height": 96
+        }
+      ],
+      "fonts": [
+        {
+          "assetId": "asset_font_inter_latin_400",
+          "role": "font",
+          "relativePath": "assets/inter-latin-400.woff2",
+          "mimeType": "font/woff2",
+          "sha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+          "bytes": 17156,
+          "metadata": {
+            "schemaVersion": 1,
+            "kind": "layout_font_asset_v1",
+            "familyName": "Inter",
+            "postScriptName": "Inter-Regular",
+            "faceName": "Regular",
+            "format": "woff2",
+            "weightMin": 400,
+            "weightMax": 400,
+            "style": "normal",
+            "cmapDigest": "sha256:a4e93510a3e6a231237a65df9d89608d43a1c43b0157c17de58bf82fe47ccc4c",
+            "license": {
+              "spdxId": "OFL-1.1",
+              "source": "https://github.com/rsms/inter/blob/master/LICENSE.txt",
+              "embeddingAllowed": true
+            },
+            "fixtureSource": {
+              "package": "prisma",
+              "version": "6.19.3",
+              "expectedSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf"
+            }
+          }
+        },
+        {
+          "assetId": "asset_font_cjk_pending_e0",
+          "role": "font",
+          "status": "red",
+          "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+          "requiredCoverage": [
+            "simplified_chinese",
+            "japanese",
+            "emoji_missing_glyph_case"
+          ]
+        }
+      ]
+    },
+    "assetManifestDigest": "sha256:8203ea2855721d5fb41b5d78befd1bb9e66a5ad3726081acfc3f4ca8c18a3f83",
+    "renderPlan": {
+      "schemaVersion": 1,
+      "documentDigest": "sha256:f6a25d775a39ec1dca613ff4965e8a24a090bc5cb6cfa5bc9344ad9968eb3ed5",
+      "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "rendererPolicyVersion": "layout_render_policy_v1",
+      "canvases": [
+        {
+          "canvasId": "canvas_preflight",
+          "order": 1,
+          "width": 1800,
+          "height": 2400,
+          "elementIds": [
+            "panel_preflight",
+            "text_overflow",
+            "text_missing_cjk_font"
+          ]
+        }
+      ],
+      "assets": {
+        "schemaVersion": 1,
+        "images": [
+          {
+            "assetId": "asset_fixture_candidate_a",
+            "role": "candidate_image",
+            "relativePath": "assets/candidate-a.png",
+            "mimeType": "image/png",
+            "sha256": "sha256:c04e57a22035b7080a3b467568afaa016ff147776d7635f5bcabdb9e98a5287f",
+            "bytes": 331,
+            "width": 96,
+            "height": 96
+          }
+        ],
+        "fonts": [
+          {
+            "assetId": "asset_font_inter_latin_400",
+            "role": "font",
+            "relativePath": "assets/inter-latin-400.woff2",
+            "mimeType": "font/woff2",
+            "sha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+            "bytes": 17156,
+            "metadata": {
+              "schemaVersion": 1,
+              "kind": "layout_font_asset_v1",
+              "familyName": "Inter",
+              "postScriptName": "Inter-Regular",
+              "faceName": "Regular",
+              "format": "woff2",
+              "weightMin": 400,
+              "weightMax": 400,
+              "style": "normal",
+              "cmapDigest": "sha256:a4e93510a3e6a231237a65df9d89608d43a1c43b0157c17de58bf82fe47ccc4c",
+              "license": {
+                "spdxId": "OFL-1.1",
+                "source": "https://github.com/rsms/inter/blob/master/LICENSE.txt",
+                "embeddingAllowed": true
+              },
+              "fixtureSource": {
+                "package": "prisma",
+                "version": "6.19.3",
+                "expectedSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf"
+              }
+            }
+          },
+          {
+            "assetId": "asset_font_cjk_pending_e0",
+            "role": "font",
+            "status": "red",
+            "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+            "requiredCoverage": [
+              "simplified_chinese",
+              "japanese",
+              "emoji_missing_glyph_case"
+            ]
+          }
+        ]
+      },
+      "diagnostics": [
+        {
+          "code": "TEXT_OVERFLOW",
+          "severity": "warning",
+          "targetId": "text_overflow"
+        },
+        {
+          "code": "ELEMENT_OUTSIDE_CANVAS",
+          "severity": "warning",
+          "targetId": "panel_preflight"
+        },
+        {
+          "code": "FONT_ASSET_PENDING",
+          "severity": "error",
+          "targetId": "asset_font_cjk_pending_e0"
+        },
+        {
+          "code": "IMAGE_EFFECTIVE_RESOLUTION_LOW",
+          "severity": "warning",
+          "targetId": "panel_preflight_image"
+        }
+      ],
+      "renderPlanDigest": "sha256:a7691097fcc69efbb1673c3e8c5c0f76c26a76df8812eb0742d873ca6898ba5f"
+    },
+    "renderPlanDigest": "sha256:a7691097fcc69efbb1673c3e8c5c0f76c26a76df8812eb0742d873ca6898ba5f",
+    "browserSemanticSnapshot": {
+      "status": "red",
+      "reasonCode": "G5_BROWSER_SEMANTICS_NOT_CAPTURED",
+      "expectedCoverage": [
+        "text_overflow",
+        "object_outside_canvas",
+        "font_missing",
+        "low_resolution"
+      ]
+    },
+    "outputs": {
+      "status": "red",
+      "reasonCode": "G5_RENDERER_NOT_SELECTED",
+      "artifacts": []
+    },
+    "preflightIssues": [
+      {
+        "code": "TEXT_OVERFLOW",
+        "severity": "warning",
+        "targetId": "text_overflow"
+      },
+      {
+        "code": "ELEMENT_OUTSIDE_CANVAS",
+        "severity": "warning",
+        "targetId": "panel_preflight"
+      },
+      {
+        "code": "FONT_ASSET_PENDING",
+        "severity": "error",
+        "targetId": "asset_font_cjk_pending_e0"
+      },
+      {
+        "code": "IMAGE_EFFECTIVE_RESOLUTION_LOW",
+        "severity": "warning",
+        "targetId": "panel_preflight_image"
+      }
+    ]
+  }
+}

@@ -1,0 +1,268 @@
+{
+  "fixtureSchemaVersion": 1,
+  "fixtureId": "stale-source-a-to-b",
+  "sourceDate": "2026-07-15T00:00:00.000Z",
+  "document": {
+    "schemaVersion": 1,
+    "kind": "layout_document_v1",
+    "projectId": "project_stale_source_a_to_b",
+    "chapterId": "chapter_stale_source_a_to_b",
+    "comicFormat": "vertical_scroll",
+    "profile": {
+      "kind": "vertical_strip",
+      "presetId": "webtoon_1080",
+      "width": 1080,
+      "defaultSectionHeight": 1920,
+      "safeInsetX": 54
+    },
+    "fontPolicy": {
+      "defaultFontAssetId": "asset_font_inter_latin_400",
+      "fallbackFontAssetIds": [
+        "asset_font_cjk_pending_e0"
+      ]
+    },
+    "canvases": [
+      {
+        "id": "canvas_stale",
+        "kind": "strip_section",
+        "name": "Stale replacement",
+        "width": 1080,
+        "height": 1920,
+        "backgroundColor": "#FFFFFFFF",
+        "panelReadingOrder": [
+          "panel_stale"
+        ],
+        "elements": [
+          {
+            "id": "panel_stale",
+            "type": "panel_frame",
+            "name": "Panel 1",
+            "transform": {
+              "x": 54,
+              "y": 54,
+              "width": 972,
+              "height": 1812,
+              "rotation": 0,
+              "opacity": 1
+            },
+            "locked": false,
+            "hidden": false,
+            "shape": {
+              "kind": "rect",
+              "cornerRadius": 0
+            },
+            "border": {
+              "visible": true,
+              "color": "#111827FF",
+              "width": 8
+            },
+            "contentImage": {
+              "id": "panel_stale_image",
+              "type": "image",
+              "placement": "panel_content",
+              "name": "panel_stale source",
+              "locked": false,
+              "hidden": false,
+              "source": {
+                "shotId": "shot_001",
+                "candidateId": "candidate_001_a",
+                "candidateLockRevisionId": "lockrev_001_a",
+                "assetId": "asset_fixture_candidate_a",
+                "sourceDigest": "sha256:393a3a37d5d425e6fe99970caf33f214d0ef5ece71b0e9d6425394683977f9bf"
+              },
+              "crop": {
+                "zoom": 1.1,
+                "offsetX": 10,
+                "offsetY": 0,
+                "rotation": 0,
+                "flipX": false,
+                "flipY": false
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "documentDigest": "sha256:731a3a48d6fe33d4a52574aef999da4413f1822ecc2a3d42ea3ac015a05b7a21",
+    "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
+    "profile": {
+      "schemaVersion": 1,
+      "kind": "vertical_publication",
+      "outputScale": 1,
+      "maxSliceHeightPx": 8192,
+      "cutPolicy": "prefer_section_boundary_then_exact",
+      "includeLongPng": false
+    },
+    "profileDigest": "sha256:49a9c40ae75fd502ebf19d23e67927e050fe9b427cf5df812f8af3249708fb61",
+    "assetManifest": {
+      "schemaVersion": 1,
+      "images": [
+        {
+          "assetId": "asset_fixture_candidate_a",
+          "role": "candidate_image",
+          "relativePath": "assets/candidate-a.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:c04e57a22035b7080a3b467568afaa016ff147776d7635f5bcabdb9e98a5287f",
+          "bytes": 331,
+          "width": 96,
+          "height": 96
+        }
+      ],
+      "fonts": [
+        {
+          "assetId": "asset_font_inter_latin_400",
+          "role": "font",
+          "relativePath": "assets/inter-latin-400.woff2",
+          "mimeType": "font/woff2",
+          "sha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+          "bytes": 17156,
+          "metadata": {
+            "schemaVersion": 1,
+            "kind": "layout_font_asset_v1",
+            "familyName": "Inter",
+            "postScriptName": "Inter-Regular",
+            "faceName": "Regular",
+            "format": "woff2",
+            "weightMin": 400,
+            "weightMax": 400,
+            "style": "normal",
+            "cmapDigest": "sha256:a4e93510a3e6a231237a65df9d89608d43a1c43b0157c17de58bf82fe47ccc4c",
+            "license": {
+              "spdxId": "OFL-1.1",
+              "source": "https://github.com/rsms/inter/blob/master/LICENSE.txt",
+              "embeddingAllowed": true
+            },
+            "fixtureSource": {
+              "package": "prisma",
+              "version": "6.19.3",
+              "expectedSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf"
+            }
+          }
+        },
+        {
+          "assetId": "asset_font_cjk_pending_e0",
+          "role": "font",
+          "status": "red",
+          "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+          "requiredCoverage": [
+            "simplified_chinese",
+            "japanese",
+            "emoji_missing_glyph_case"
+          ]
+        }
+      ]
+    },
+    "assetManifestDigest": "sha256:8203ea2855721d5fb41b5d78befd1bb9e66a5ad3726081acfc3f4ca8c18a3f83",
+    "renderPlan": {
+      "schemaVersion": 1,
+      "documentDigest": "sha256:731a3a48d6fe33d4a52574aef999da4413f1822ecc2a3d42ea3ac015a05b7a21",
+      "sourceLockSetDigest": "sha256:1e5be65e10bf92e4acd8f98a8324e5604ddadf88d56462eaa371b95c219fbf81",
+      "profileDigest": "sha256:49a9c40ae75fd502ebf19d23e67927e050fe9b427cf5df812f8af3249708fb61",
+      "rendererPolicyVersion": "layout_render_policy_v1",
+      "canvases": [
+        {
+          "canvasId": "canvas_stale",
+          "order": 1,
+          "width": 1080,
+          "height": 1920,
+          "elementIds": [
+            "panel_stale"
+          ]
+        }
+      ],
+      "assets": {
+        "schemaVersion": 1,
+        "images": [
+          {
+            "assetId": "asset_fixture_candidate_a",
+            "role": "candidate_image",
+            "relativePath": "assets/candidate-a.png",
+            "mimeType": "image/png",
+            "sha256": "sha256:c04e57a22035b7080a3b467568afaa016ff147776d7635f5bcabdb9e98a5287f",
+            "bytes": 331,
+            "width": 96,
+            "height": 96
+          }
+        ],
+        "fonts": [
+          {
+            "assetId": "asset_font_inter_latin_400",
+            "role": "font",
+            "relativePath": "assets/inter-latin-400.woff2",
+            "mimeType": "font/woff2",
+            "sha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf",
+            "bytes": 17156,
+            "metadata": {
+              "schemaVersion": 1,
+              "kind": "layout_font_asset_v1",
+              "familyName": "Inter",
+              "postScriptName": "Inter-Regular",
+              "faceName": "Regular",
+              "format": "woff2",
+              "weightMin": 400,
+              "weightMax": 400,
+              "style": "normal",
+              "cmapDigest": "sha256:a4e93510a3e6a231237a65df9d89608d43a1c43b0157c17de58bf82fe47ccc4c",
+              "license": {
+                "spdxId": "OFL-1.1",
+                "source": "https://github.com/rsms/inter/blob/master/LICENSE.txt",
+                "embeddingAllowed": true
+              },
+              "fixtureSource": {
+                "package": "prisma",
+                "version": "6.19.3",
+                "expectedSha256": "sha256:27ae72daf88c7431896929273087c99910d019ae82dc0af7d86505c0f5ef5dbf"
+              }
+            }
+          },
+          {
+            "assetId": "asset_font_cjk_pending_e0",
+            "role": "font",
+            "status": "red",
+            "reasonCode": "G5_CONTROLLED_CJK_FONT_PENDING_E0_LICENSE_AUDIT",
+            "requiredCoverage": [
+              "simplified_chinese",
+              "japanese",
+              "emoji_missing_glyph_case"
+            ]
+          }
+        ]
+      },
+      "diagnostics": [
+        {
+          "code": "LAYOUT_SOURCE_STALE",
+          "severity": "error",
+          "targetId": "panel_stale_image",
+          "replacementAssetId": "asset_fixture_candidate_b"
+        }
+      ],
+      "renderPlanDigest": "sha256:621ac480f6f8bc9158455b5289abb6365eed376e471ab57970253a93b992fa9d"
+    },
+    "renderPlanDigest": "sha256:621ac480f6f8bc9158455b5289abb6365eed376e471ab57970253a93b992fa9d",
+    "browserSemanticSnapshot": {
+      "status": "red",
+      "reasonCode": "G5_BROWSER_SEMANTICS_NOT_CAPTURED",
+      "expectedCoverage": [
+        "source_a_current",
+        "source_b_replacement",
+        "preserve_normalized_crop",
+        "reset_cover"
+      ]
+    },
+    "outputs": {
+      "status": "red",
+      "reasonCode": "G5_RENDERER_NOT_SELECTED",
+      "artifacts": []
+    },
+    "preflightIssues": [
+      {
+        "code": "LAYOUT_SOURCE_STALE",
+        "severity": "error",
+        "targetId": "panel_stale_image",
+        "replacementAssetId": "asset_fixture_candidate_b"
+      }
+    ]
+  }
+}

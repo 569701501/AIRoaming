@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import * as path from "node:path";
 import {
   buildStoryStructure,
   SevenStageFixture,
@@ -281,6 +283,36 @@ describe("七阶段 Service 行为刻画", () => {
     expect(after.chapterLayout).toBeNull();
     expect(after.assets).toEqual(before.assets);
     expect(after.workflow.currentStepKey).toBe("image_candidates");
+  });
+
+  it("G5-M0 红灯见证：旧文件模式把候选原图逐字节复制成所谓 PNG 页面", async () => {
+    const ref = await fixture.createProject("G5 旧复制导出红灯项目");
+    await fixture.completeScript(ref);
+    await fixture.confirmStructure(ref);
+    await fixture.confirmStoryboard(ref);
+    await fixture.projects.confirmChapterImagePreflight(ref.projectId, ref.chapterId);
+    await fixture.generateCandidate(ref, "shot_001");
+
+    const generated = await fixture.snapshot(ref);
+    const candidate = generated.candidates.find((item) => item.shotId === "shot_001");
+    const sourceAsset = generated.assets.find((item) => item.id === candidate?.assetId);
+    expect(candidate).toBeDefined();
+    expect(sourceAsset?.path).toBeTruthy();
+    await fixture.projects.lockChapterCandidate(ref.projectId, ref.chapterId, { candidateId: candidate!.id });
+    await fixture.projects.completeChapterImages(ref.projectId, ref.chapterId);
+
+    const exported = await fixture.projects.exportChapterLayout(ref.projectId, ref.chapterId);
+    expect(exported.layout.pages).toHaveLength(1);
+    expect(exported.layout.pages[0]).toMatchObject({ width: 1080, height: 1920 });
+    expect(exported.exportAssets).toHaveLength(1);
+
+    const pageAsset = exported.exportAssets[0]!;
+    const [sourceBytes, pageBytes] = await Promise.all([
+      readFile(path.join(fixture.workspaceRoot, sourceAsset!.path)),
+      readFile(path.join(fixture.workspaceRoot, pageAsset.path)),
+    ]);
+    expect(pageBytes.equals(sourceBytes)).toBe(true);
+    expect(pageAsset.meta).toContain('"kind":"layout_page_export"');
   });
 
   it("确认 preflight 后修改正式分镜会让图片任务重新受门禁保护", async () => {
