@@ -1,10 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { inspect } from "node:util";
-import { promisify } from "node:util";
 
 const REDACTED = "[REDACTED]" as const;
 const SECRET_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -83,24 +82,31 @@ export interface SecretCommandResult {
 }
 
 export interface SecretCommandExecutor {
-  run(file: string, args: readonly string[]): Promise<SecretCommandResult>;
+  run(file: string, args: readonly string[], options?: { secretInput?: SecretString }): Promise<SecretCommandResult>;
 }
 
-const execFileAsync = promisify(execFile);
-
 class ProcessSecretCommandExecutor implements SecretCommandExecutor {
-  async run(file: string, args: readonly string[]): Promise<SecretCommandResult> {
-    try {
-      const result = await execFileAsync(file, [...args], { encoding: "utf8" });
-      return { code: 0, stdout: result.stdout, stderr: result.stderr };
-    } catch (error) {
-      const failure = error as { code?: number | string; stdout?: string; stderr?: string };
-      return {
-        code: typeof failure.code === "number" ? failure.code : 1,
-        stdout: failure.stdout ?? "",
-        stderr: failure.stderr ?? "",
-      };
-    }
+  run(file: string, args: readonly string[], options: { secretInput?: SecretString } = {}): Promise<SecretCommandResult> {
+    return new Promise((resolve) => {
+      const child = spawn(file, [...args], { stdio: ["pipe", "pipe", "pipe"] });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+      child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+      child.once("error", () => resolve({ code: 1, stdout: "", stderr: "" }));
+      child.once("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+      if (options.secretInput) {
+        // In a non-TTY child, macOS security(1) asks for the new generic
+        // password twice (password + confirmation). Both lines are written
+        // through stdin; the secret never enters argv/stdout/stderr.
+        const secret = options.secretInput.reveal();
+        child.stdin.end(`${secret}\n${secret}\n`, "utf8");
+      } else {
+        child.stdin.end();
+      }
+    });
   }
 }
 
@@ -124,10 +130,12 @@ export class MacOSKeychainSecretStore implements SecretStore {
       input.credentialId,
       "-s",
       this.service,
-      "-w",
-      input.secret.reveal(),
       "-U",
-    ]);
+      // macOS security(1) documents that -w must be the final option to
+      // prompt for the password on stdin. Keep the secret out of argv and
+      // keep all non-secret flags before the prompt option.
+      "-w",
+    ], { secretInput: input.secret });
     if (result.code !== 0) throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");
     return {
       credentialId: input.credentialId,
@@ -186,10 +194,11 @@ export class MacOSKeychainSecretStore implements SecretStore {
     if (!SECRET_ID_PATTERN.test(credentialId)) throw new SecretStoreError("SECRET_STORE_ROOT_UNSAFE");
   }
 
-  private async runSecurity(args: readonly string[]): Promise<SecretCommandResult> {
+  private async runSecurity(args: readonly string[], options?: { secretInput?: SecretString }): Promise<SecretCommandResult> {
     try {
-      return await this.executor.run("security", args);
-    } catch {
+      return await this.executor.run("security", args, options);
+    } catch (error) {
+      if (error instanceof SecretStoreError) throw error;
       throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");
     }
   }

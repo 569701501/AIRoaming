@@ -6,6 +6,7 @@ import { containsSecretSentinel } from "./credential-redactor.js";
 import { getBlockedDbCapabilities } from "./db-capability-registry.js";
 import { FINAL_IMPORTER_VERSION, normalizeFinalImportReport } from "./final-import-report.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
+import { digestCanonicalJson } from "@airoaming/shared";
 
 export class ReadyCoordinatorError extends Error {
   constructor(readonly code: string) { super(code); }
@@ -15,8 +16,11 @@ export interface ReadyCoordinatorInput {
   runId: string;
   releaseRoot: string;
   workspaceRoot: string;
-  secretStoreRoot: string;
+  secretStoreRoot?: string;
   maintenanceBundle: string;
+  credentialEvidencePath?: string;
+  requiredSecretStoreAdapter?: "keychain" | "fake";
+  strictRuntimeProfile?: boolean;
 }
 
 export interface ReadyCoordinatorResult {
@@ -33,13 +37,29 @@ function absolute(value: string, code: string): string {
   return path.resolve(value);
 }
 
+async function assertNoSymlinkAncestors(targetPath: string, code: string): Promise<void> {
+  let current = path.resolve(targetPath);
+  while (true) {
+    const metadata = await lstat(current).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+      throw error;
+    });
+    if (metadata?.isSymbolicLink() && current !== "/var" && current !== "/tmp") throw new ReadyCoordinatorError(code);
+    const parent = path.dirname(current);
+    if (parent === current) return;
+    current = parent;
+  }
+}
+
 async function scanDirectory(root: string): Promise<number> {
+  await assertNoSymlinkAncestors(root, "MIGRATION_READY_ROOT_INVALID");
   const stat = await lstat(root).catch(() => null);
   if (!stat || !stat.isDirectory() || stat.isSymbolicLink()) throw new ReadyCoordinatorError("MIGRATION_READY_ROOT_INVALID");
   let count = 0;
   const walk = async (directory: string): Promise<void> => {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const child = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new ReadyCoordinatorError("MIGRATION_READY_ROOT_INVALID");
       if (entry.isDirectory()) await walk(child);
       else if (entry.isFile() && containsSecretSentinel(await readFile(child))) count += 1;
     }
@@ -65,14 +85,21 @@ export class ReadyCoordinator {
     if (!input.runId.trim()) throw new ReadyCoordinatorError("MIGRATION_READY_PRECONDITION_FAILED");
     const releaseRoot = absolute(input.releaseRoot, "MIGRATION_RELEASE_ROOT_INVALID");
     const workspaceRoot = absolute(input.workspaceRoot, "MIGRATION_WORKSPACE_ROOT_INVALID");
-    const secretStoreRoot = absolute(input.secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID");
+    const secretStoreRoot = input.secretStoreRoot ? absolute(input.secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID") : null;
     const maintenanceBundle = absolute(input.maintenanceBundle, "MIGRATION_MAINTENANCE_BUNDLE_INVALID");
     try {
-      await new RuntimeBundleFileService().readAndVerify(maintenanceBundle);
+      await new RuntimeBundleFileService().readAndVerify(maintenanceBundle, { profile: input.strictRuntimeProfile ? "cutover" : "snapshot" });
     } catch {
       throw new ReadyCoordinatorError("MIGRATION_MAINTENANCE_BUNDLE_INVALID");
     }
-    if (process.env.AIROAMING_SECRET_STORE_ADAPTER !== "fake" || path.resolve(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT ?? "") !== secretStoreRoot) throw new ReadyCoordinatorError("MIGRATION_SECRET_STORE_BINDING_INVALID");
+    if (input.credentialEvidencePath) {
+      const evidencePath = absolute(input.credentialEvidencePath, "MIGRATION_CREDENTIAL_EVIDENCE_INVALID");
+      await assertNoSymlinkAncestors(evidencePath, "MIGRATION_CREDENTIAL_EVIDENCE_INVALID");
+      let evidence: Record<string, unknown>;
+      try { evidence = JSON.parse(await readFile(evidencePath, "utf8")) as Record<string, unknown>; } catch { throw new ReadyCoordinatorError("MIGRATION_CREDENTIAL_EVIDENCE_INVALID"); }
+      const { evidenceDigest, ...unsigned } = evidence;
+      if (evidence.schemaVersion !== 1 || evidence.kind !== "airoaming_credential_evidence_v1" || evidence.runId !== input.runId || evidence.storeAvailable !== true || (input.requiredSecretStoreAdapter && evidence.adapter !== input.requiredSecretStoreAdapter) || !Array.isArray(evidence.entries) || evidence.entries.length === 0 || evidence.entries.some((entry) => !entry || typeof entry !== "object" || (entry as Record<string, unknown>).matched !== true) || evidenceDigest !== digestCanonicalJson(unsigned)) throw new ReadyCoordinatorError("MIGRATION_CREDENTIAL_EVIDENCE_INVALID");
+    } else if (!secretStoreRoot || process.env.AIROAMING_SECRET_STORE_ADAPTER !== "fake" || path.resolve(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT ?? "") !== secretStoreRoot) throw new ReadyCoordinatorError("MIGRATION_SECRET_STORE_BINDING_INVALID");
     const release = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => { throw new ReadyCoordinatorError("MIGRATION_RELEASE_IDENTITY_INVALID"); });
     const run = await this.prisma.database().migrationRun.findUnique({ where: { id: input.runId } });
     if (!run || run.kind !== "final" || run.status !== "succeeded" || run.importerVersion !== FINAL_IMPORTER_VERSION) throw new ReadyCoordinatorError("MIGRATION_FINAL_RUN_NOT_READY");
@@ -88,7 +115,7 @@ export class ReadyCoordinator {
     if (slices.length !== 16 || slices.some((slice, index) => !slice || typeof slice !== "object" || (slice as Record<string, unknown>).slice !== finalReport.slices[index]?.slice || (slice as Record<string, unknown>).runId !== finalReport.slices[index]?.runId || (slice as Record<string, unknown>).status !== "succeeded" || (slice as Record<string, unknown>).passed !== true)) throw new ReadyCoordinatorError("MIGRATION_FINAL_SLICES_NOT_READY");
     const blockedCapabilityIds = getBlockedDbCapabilities().map((entry) => entry.id);
     if (blockedCapabilityIds.length > 0) throw new ReadyCoordinatorError("MIGRATION_CAPABILITY_BLOCKED");
-    const secretScanCount = await scanDatabase(this.prisma) + await scanDirectory(workspaceRoot) + await scanDirectory(secretStoreRoot);
+    const secretScanCount = await scanDatabase(this.prisma) + await scanDirectory(workspaceRoot) + (secretStoreRoot ? await scanDirectory(secretStoreRoot) : 0);
     if (secretScanCount !== 0) throw new ReadyCoordinatorError("MIGRATION_SECRET_SENTINEL_DETECTED");
     const state = await this.prisma.database().persistenceState.findUnique({ where: { id: "primary" } });
     if (!state || !["shadow", "recovery_required"].includes(state.activationState) || state.activatedAt !== null || state.firstBusinessWriteAt !== null) throw new ReadyCoordinatorError("MIGRATION_PERSISTENCE_STATE_NOT_READY");

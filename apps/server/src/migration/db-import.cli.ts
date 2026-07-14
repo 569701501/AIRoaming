@@ -1,5 +1,6 @@
-import { chmod, mkdir, open, rename, unlink } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import * as path from "node:path";
+import * as os from "node:os";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { ShadowImportError, ProjectChapterShadowImporter } from "./project-chapter-shadow-importer.js";
 import { ScriptOutlineShadowImporter, ScriptOutlineShadowImportError } from "./script-outline-shadow-importer.js";
@@ -20,6 +21,8 @@ import { DialogueShadowImporter, DialogueShadowImportError } from "./dialogue-sh
 import { FullShadowImporter } from "./full-shadow-importer.js";
 import { FinalImportError, FinalImportOrchestrator } from "./final-importer.js";
 import { readJsonFormat } from "../cli-format.js";
+import { SecretStoreService } from "../settings/secret-store.js";
+import { CutoverCredentialVerifier } from "./cutover-credential-verifier.js";
 
 function required(name: string): string {
   const index = process.argv.indexOf(name);
@@ -28,10 +31,10 @@ function required(name: string): string {
   return value;
 }
 
-const FINAL_FLAGS = ["--kind", "--snapshot", "--decisions", "--database-url", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root", "--run-id", "--format"] as const;
+const FINAL_FLAGS = ["--kind", "--snapshot", "--decisions", "--database-url", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root", "--credential-evidence", "--credential-expectations", "--secret-store-adapter", "--test-only-fake-secret-store", "--run-id", "--format"] as const;
 type FinalArgs = Record<(typeof FINAL_FLAGS)[number], string>;
 
-function parseFinalArgs(args: readonly string[]): FinalArgs {
+export function parseFinalArgs(args: readonly string[]): FinalArgs {
   const values = {} as Partial<FinalArgs>;
   const allowed = new Set<string>(FINAL_FLAGS);
   for (let index = 0; index < args.length; index += 1) {
@@ -43,31 +46,52 @@ function parseFinalArgs(args: readonly string[]): FinalArgs {
     values[flag as keyof FinalArgs] = value;
     index += 1;
   }
-  for (const flag of FINAL_FLAGS) if (values[flag] === undefined) throw new FinalImportError(flag === "--format" ? "MIGRATION_IMPORT_ARGS_INVALID" : "MIGRATION_FINAL_IMPORT_NOT_READY");
+  for (const flag of ["--kind", "--snapshot", "--decisions", "--database-url", "--report", "--workspace-root", "--data-root", "--release-root", "--run-id", "--format"] as const) if (values[flag] === undefined) throw new FinalImportError(flag === "--format" ? "MIGRATION_IMPORT_ARGS_INVALID" : "MIGRATION_FINAL_IMPORT_NOT_READY");
   if (values["--kind"] !== "final" || values["--format"] !== "json") throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
-  const pathFlags = ["--snapshot", "--decisions", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root"] as const;
+  const pathFlags = ["--snapshot", "--decisions", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root", "--credential-evidence", "--credential-expectations"] as const;
   for (const flag of pathFlags) {
     const value = values[flag]!;
+    if (value === undefined) continue;
     if (!path.isAbsolute(value) || value.includes("\0")) throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
   }
   if (!values["--database-url"]!.startsWith("file:") || !path.isAbsolute(values["--database-url"]!.slice("file:".length))) throw new FinalImportError("MIGRATION_DATABASE_URL_INVALID");
   if (!values["--run-id"]!.trim()) throw new FinalImportError("MIGRATION_RUN_ID_INVALID");
+  if (values["--secret-store-root"] === undefined && (values["--credential-evidence"] === undefined || values["--credential-expectations"] === undefined)) throw new FinalImportError("MIGRATION_CREDENTIAL_EVIDENCE_REQUIRED");
+  if (values["--secret-store-root"] !== undefined && (values["--test-only-fake-secret-store"] !== "true" || process.env.NODE_ENV !== "test" || !path.resolve(values["--secret-store-root"]).startsWith(`${os.tmpdir()}${path.sep}`))) throw new FinalImportError("MIGRATION_SECRET_STORE_TEST_ONLY_REQUIRED");
   return values as FinalArgs;
 }
 
 async function writePrivateJson(filePath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
+  let current = path.resolve(filePath);
+  while (true) {
+    const metadata = await lstat(current).catch((error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT" ? null : Promise.reject(error));
+    if (metadata?.isSymbolicLink() && current !== "/var" && current !== "/tmp") throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
+    const parent = path.dirname(current); if (parent === current) break; current = parent;
+  }
+  const parent = path.dirname(filePath);
+  const existingParent = await lstat(parent).catch(() => null);
+  if (existingParent?.isSymbolicLink() || (existingParent && !existingParent.isDirectory())) throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const verifiedParent = await lstat(parent).catch(() => null);
+  if (!verifiedParent || verifiedParent.isSymbolicLink() || !verifiedParent.isDirectory()) throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
+  const existing = await lstat(filePath).catch(() => null);
+  if (existing?.isSymbolicLink() || (existing && !existing.isFile())) throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
   const temporary = `${filePath}.tmp-${process.pid}-${Date.now()}`;
   const handle = await open(temporary, "wx", 0o600);
   try {
-    await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, "utf8");
-    await handle.sync();
-  } finally {
+    try { await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, "utf8"); await handle.sync(); }
+    catch (error) { await handle.close().catch(() => undefined); await rm(temporary, { force: true }).catch(() => undefined); throw error; }
     await handle.close();
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
   }
-  await chmod(temporary, 0o600);
-  await rename(temporary, filePath);
-  try { await unlink(temporary); } catch { /* rename completed */ }
+  try {
+    await chmod(temporary, 0o600);
+    await rename(temporary, filePath);
+    const parentHandle = await open(parent, "r");
+    try { await parentHandle.sync(); } finally { await parentHandle.close(); }
+  } catch (error) { await rm(temporary, { force: true }).catch(() => undefined); throw error; }
 }
 
 async function main(): Promise<number> {
@@ -83,7 +107,6 @@ async function main(): Promise<number> {
     const releaseIndex = process.argv.indexOf("--release-root");
     const secretIndex = process.argv.indexOf("--secret-store-root");
     const runIndex = process.argv.indexOf("--run-id");
-    if ([snapshotIndex, decisionsIndex, databaseIndex, reportIndex, workspaceIndex, dataIndex, releaseIndex, secretIndex, runIndex].some((index) => index < 0)) throw new FinalImportError("MIGRATION_FINAL_IMPORT_NOT_READY");
     const parsed = parseFinalArgs(args);
     const snapshot = parsed["--snapshot"];
     const decisions = parsed["--decisions"];
@@ -99,7 +122,10 @@ async function main(): Promise<number> {
     const prisma = new PrismaService();
     try {
       await prisma.onModuleInit();
-      const result = await new FinalImportOrchestrator(prisma).import({ snapshotPath: snapshot, decisionsPath: decisions, databaseUrl, workspaceRoot, dataRoot, releaseRoot, secretStoreRoot, runId });
+      const credentialEvidencePath = parsed["--credential-evidence"];
+      const credentialVerifier = credentialEvidencePath ? new CutoverCredentialVerifier(new SecretStoreService()) : undefined;
+      const credentialExpectations = parsed["--credential-expectations"] ? JSON.parse(await readFile(parsed["--credential-expectations"], "utf8")) as never : undefined;
+      const result = await new FinalImportOrchestrator(prisma).import({ snapshotPath: snapshot, decisionsPath: decisions, databaseUrl, workspaceRoot, dataRoot, releaseRoot, secretStoreRoot, runId, credentialVerifier, credentialEvidencePath, credentialExpectations, requiredSecretStoreAdapter: parsed["--secret-store-adapter"] as "keychain" | "fake" | undefined });
       await writePrivateJson(reportPath, result.report);
       process.stdout.write(`${JSON.stringify({ code: result.run.status === "succeeded" ? "MIGRATION_FINAL_IMPORT_OK" : "MIGRATION_FINAL_IMPORT_BLOCKED", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
       return result.run.status === "succeeded" ? 0 : 2;

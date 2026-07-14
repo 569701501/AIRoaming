@@ -30,10 +30,12 @@ class LeaseParticipant implements MaintenanceParticipant {
   }
 
   async sealRuntimeState(): Promise<unknown> {
+    const status = await this.status();
     return {
       captured: false,
       reason: "G3_M0_PARTICIPANT_CAPTURE_DEFERRED",
-      active: this.active,
+      status,
+      active: status.active,
       draining: this.draining,
     };
   }

@@ -1391,9 +1391,10 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
         "--data-root", dataRoot,
         "--release-root", repoRoot,
         "--secret-store-root", secretStoreRoot,
+        "--test-only-fake-secret-store", "true",
         "--run-id", runId,
         "--format", "json",
-      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: databaseUrl, AIROAMING_SECRET_STORE_ADAPTER: "fake", AIROAMING_FAKE_SECRET_STORE_ROOT: secretStoreRoot } });
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env, NODE_ENV: "test", AIROAMING_PERSISTENCE_MODE: "db", DATABASE_URL: databaseUrl, AIROAMING_SECRET_STORE_ADAPTER: "fake", AIROAMING_FAKE_SECRET_STORE_ROOT: secretStoreRoot } });
       result = { code: 0, stdout };
     } catch (error) {
       const failure = error as { code?: number; stdout?: string; stderr?: string };

@@ -9,6 +9,7 @@ interface BackupInputBase {
   maintenanceBundle: string;
   decisions: string;
   output: string;
+  runtimeProfile?: "snapshot" | "cutover";
 }
 
 export interface CoordinatedBackupInput extends BackupInputBase {

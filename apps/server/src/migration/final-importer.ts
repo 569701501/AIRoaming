@@ -1,5 +1,5 @@
 import { digestCanonicalJson } from "@airoaming/shared";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Prisma } from "@prisma/client";
@@ -12,6 +12,7 @@ import { PrismaMigrationLedgerRepository } from "./prisma-migration-ledger.repos
 import { FullShadowImporter, FULL_SHADOW_SLICE_ORDER } from "./full-shadow-importer.js";
 import { MigrationVerifyService } from "./migration-verify.service.js";
 import { createFinalImportReport, FINAL_IMPORTER_VERSION, normalizeFinalImportReport, type FinalImportReport, type FinalImportSlice } from "./final-import-report.js";
+import type { CutoverCredentialVerifier, CredentialExpectation } from "./cutover-credential-verifier.js";
 
 export class FinalImportError extends Error {
   constructor(readonly code: string) { super(code); }
@@ -24,7 +25,11 @@ export interface FinalImportOptions {
   workspaceRoot: string;
   dataRoot: string;
   releaseRoot: string;
-  secretStoreRoot: string;
+  secretStoreRoot?: string;
+  credentialVerifier?: CutoverCredentialVerifier;
+  credentialExpectations?: readonly CredentialExpectation[];
+  credentialEvidencePath?: string;
+  requiredSecretStoreAdapter?: "keychain" | "fake";
   runId: string;
 }
 
@@ -43,6 +48,7 @@ function assertAbsolute(value: string, code: string): string {
 }
 
 async function assertDirectory(root: string, code: string, create = false): Promise<void> {
+  await assertNoSymlinkAncestors(root, code);
   if (create) await mkdir(root, { recursive: true });
   const stat = await lstat(root).catch(() => null);
   if (!stat || !stat.isDirectory() || stat.isSymbolicLink()) throw new FinalImportError(code);
@@ -53,8 +59,43 @@ async function assertEmptyDirectory(root: string, code: string): Promise<void> {
   if ((await readdir(root)).length > 0) throw new FinalImportError(code);
 }
 
+async function assertNoSymlinkAncestors(targetPath: string, code: string): Promise<void> {
+  let current = path.resolve(targetPath);
+  while (true) {
+    const metadata = await lstat(current).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+      throw error;
+    });
+    if (metadata?.isSymbolicLink() && current !== "/var" && current !== "/tmp") throw new FinalImportError(code);
+    const parent = path.dirname(current);
+    if (parent === current) return;
+    current = parent;
+  }
+}
+
 async function writeJson(filePath: string, value: unknown): Promise<void> {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await assertNoSymlinkAncestors(filePath, "MIGRATION_OUTPUT_PATH_UNSAFE");
+  const parent = path.dirname(filePath);
+  const existingParent = await lstat(parent).catch(() => null);
+  if (existingParent?.isSymbolicLink() || (existingParent && !existingParent.isDirectory())) throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const verifiedParent = await lstat(parent).catch(() => null);
+  if (!verifiedParent || verifiedParent.isSymbolicLink() || !verifiedParent.isDirectory()) throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
+  const existingFile = await lstat(filePath).catch(() => null);
+  if (existingFile && (existingFile.isSymbolicLink() || !existingFile.isFile())) throw new FinalImportError("MIGRATION_OUTPUT_PATH_UNSAFE");
+  const temporary = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  const handle = await open(temporary, "wx", 0o600);
+  try {
+    try { await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, "utf8"); await handle.sync(); }
+    catch (error) { await handle.close().catch(() => undefined); await rm(temporary, { force: true }).catch(() => undefined); throw error; }
+    await handle.close();
+  } catch (error) { await rm(temporary, { force: true }).catch(() => undefined); throw error; }
+  try {
+    await chmod(temporary, 0o600);
+    await rename(temporary, filePath);
+    const parentHandle = await open(parent, "r");
+    try { await parentHandle.sync(); } finally { await parentHandle.close(); }
+  } catch (error) { await rm(temporary, { force: true }).catch(() => undefined); throw error; }
 }
 
 /**
@@ -75,12 +116,17 @@ export class FinalImportOrchestrator {
     const workspaceRoot = assertAbsolute(options.workspaceRoot, "MIGRATION_WORKSPACE_ROOT_INVALID");
     const dataRoot = assertAbsolute(options.dataRoot, "MIGRATION_DATA_ROOT_INVALID");
     const releaseRoot = assertAbsolute(options.releaseRoot, "MIGRATION_RELEASE_ROOT_INVALID");
-    const secretStoreRoot = assertAbsolute(options.secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID");
+    const secretStoreRoot = options.secretStoreRoot ? assertAbsolute(options.secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID") : null;
     if (!options.databaseUrl.startsWith("file:")) throw new FinalImportError("MIGRATION_DATABASE_URL_INVALID");
     if (process.env.DATABASE_URL !== options.databaseUrl) throw new FinalImportError("MIGRATION_DATABASE_URL_MISMATCH");
     if (!options.runId.trim()) throw new FinalImportError("MIGRATION_RUN_ID_INVALID");
-    if (process.env.AIROAMING_SECRET_STORE_ADAPTER !== "fake" || path.resolve(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT ?? "") !== secretStoreRoot) {
-      throw new FinalImportError("MIGRATION_SECRET_STORE_BINDING_INVALID");
+    if (options.credentialVerifier) {
+      if (!options.credentialEvidencePath || !path.isAbsolute(options.credentialEvidencePath) || !options.credentialExpectations?.length) throw new FinalImportError("MIGRATION_CREDENTIAL_EVIDENCE_REQUIRED");
+      await assertNoSymlinkAncestors(options.credentialEvidencePath, "MIGRATION_CREDENTIAL_EVIDENCE_INVALID");
+      const verified = await options.credentialVerifier.verify({ runId: options.runId, entries: options.credentialExpectations, requiredAdapter: options.requiredSecretStoreAdapter });
+      await writeJson(options.credentialEvidencePath, verified.evidence);
+    } else {
+      if (!secretStoreRoot || process.env.AIROAMING_SECRET_STORE_ADAPTER !== "fake" || path.resolve(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT ?? "") !== secretStoreRoot) throw new FinalImportError("MIGRATION_SECRET_STORE_BINDING_INVALID");
     }
     const release = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => { throw new FinalImportError("MIGRATION_RELEASE_IDENTITY_INVALID"); });
     await assertDirectory(dataRoot, "MIGRATION_DATA_ROOT_INVALID", true);
@@ -99,7 +145,7 @@ export class FinalImportOrchestrator {
       return { run: await this.ledger.getRun(options.runId), report };
     }
     await assertEmptyDirectory(workspaceRoot, "MIGRATION_TARGET_WORKSPACE_NOT_EMPTY");
-    await assertDirectory(secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID", true);
+    if (secretStoreRoot) await assertDirectory(secretStoreRoot, "MIGRATION_SECRET_STORE_ROOT_INVALID", true);
     await this.assertFreshTarget();
     const run = await this.ledger.beginRun({ kind: "final", importerVersion: FINAL_IMPORTER_VERSION, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest, decisionsDigest: decisions.decisionsDigest, id: options.runId });
     let temporaryRoot: string | null = null;
@@ -212,6 +258,7 @@ export class FinalImportOrchestrator {
     const walk = async (directory: string): Promise<void> => {
       for (const entry of await readdir(directory, { withFileTypes: true })) {
         const child = path.join(directory, entry.name);
+        if (entry.isSymbolicLink()) throw new FinalImportError("MIGRATION_SYMLINK_UNSAFE");
         if (entry.isDirectory()) await walk(child);
         else if (entry.isFile() && containsSecretSentinel(await readFile(child))) count += 1;
       }

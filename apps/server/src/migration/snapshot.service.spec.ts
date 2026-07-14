@@ -112,4 +112,26 @@ describe("runtime bundle file", () => {
     await chmod(fixture.bundlePath, 0o600);
     await expect(service.readAndVerify(fixture.bundlePath)).rejects.toBeInstanceOf(RuntimeBundleFileError);
   });
+
+  it("RCUT-RUN-01 validates participant status in the cutover profile", async () => {
+    const fixture = await makeFixture();
+    const service = new RuntimeBundleFileService();
+    const raw = JSON.parse(await readFile(fixture.bundlePath, "utf8")) as RuntimeBundleEnvelope;
+    const participants = { projects: { status: { active: 0, queued: 0, blockedReason: null } } };
+    const { payloadDigest: _oldDigest, ...rawPayload } = raw;
+    const strict = { ...rawPayload, participants, payloadDigest: digestMaintenanceJson({ ...rawPayload, participants }) };
+    await writeFile(fixture.bundlePath, `${JSON.stringify(strict)}\n`);
+    await expect(service.readAndVerify(fixture.bundlePath, { profile: "cutover" })).resolves.toBeTruthy();
+    const missing = { ...rawPayload, participants: {}, payloadDigest: digestMaintenanceJson({ ...rawPayload, participants: {} }) };
+    await writeFile(fixture.bundlePath, `${JSON.stringify(missing)}\n`);
+    await expect(service.readAndVerify(fixture.bundlePath, { profile: "cutover" })).rejects.toMatchObject({ code: "RUNTIME_BUNDLE_PARTICIPANTS_INVALID" });
+    const busyParticipants = { projects: { status: { active: 0, queued: 1, blockedReason: null } } };
+    const busy = { ...rawPayload, participants: busyParticipants, payloadDigest: digestMaintenanceJson({ ...rawPayload, participants: busyParticipants }) };
+    await writeFile(fixture.bundlePath, `${JSON.stringify(busy)}\n`);
+    await expect(service.readAndVerify(fixture.bundlePath, { profile: "cutover" })).rejects.toMatchObject({ code: "RUNTIME_BUNDLE_PARTICIPANT_BUSY" });
+    const blockedParticipants = { projects: { status: { active: 0, queued: 0, blockedReason: "manual" } } };
+    const blocked = { ...rawPayload, participants: blockedParticipants, payloadDigest: digestMaintenanceJson({ ...rawPayload, participants: blockedParticipants }) };
+    await writeFile(fixture.bundlePath, `${JSON.stringify(blocked)}\n`);
+    await expect(service.readAndVerify(fixture.bundlePath, { profile: "cutover" })).rejects.toMatchObject({ code: "RUNTIME_BUNDLE_PARTICIPANT_BUSY" });
+  });
 });

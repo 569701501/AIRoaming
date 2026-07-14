@@ -9,11 +9,14 @@ import { getBlockedDbCapabilities } from "./db-capability-registry.js";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
 import { RuntimeBundleFileService } from "./runtime-bundle-file.service.js";
-import { CUTOVER_STEPS } from "./cutover-coordinator.service.js";
+import { CutoverEvidenceStore } from "./cutover-evidence.service.js";
 
 export type DbActivateMode = "dry-run" | "execute";
 
 export interface DbActivateInput {
+  cutoverId?: string;
+  appCommit?: string;
+  planDigest?: `sha256:${string}`;
   runId: string;
   sourceManifestDigest: string;
   effectiveManifestDigest: string;
@@ -21,6 +24,9 @@ export interface DbActivateInput {
   backup: string;
   maintenanceBundle?: string;
   cutoverEvidenceRoot?: string;
+  authorizationFile?: string;
+  /** Only legacy unit fixtures may omit production evidence; all CLI paths set this. */
+  strictEvidence?: boolean;
   gate: "ACT-08";
   mode: DbActivateMode;
 }
@@ -76,13 +82,31 @@ export class DbActivateService {
   ) {}
 
   private async verifyCutoverEvidence(input: DbActivateInput): Promise<void> {
-    if (!input.maintenanceBundle && !input.cutoverEvidenceRoot) return;
-    if (!input.maintenanceBundle || !input.cutoverEvidenceRoot) throw new DbActivateError("ACTIVATE_NOT_READY");
+    const legacyFixture = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+    if (!input.strictEvidence && !legacyFixture) throw new DbActivateError("ACTIVATE_NOT_READY");
+    if (!input.strictEvidence && (!input.cutoverId || !input.appCommit || !input.planDigest || !input.authorizationFile)) {
+      if (!input.maintenanceBundle && !input.cutoverEvidenceRoot) return;
+      if (!input.maintenanceBundle || !input.cutoverEvidenceRoot) throw new DbActivateError("ACTIVATE_NOT_READY");
+      try {
+        await new RuntimeBundleFileService().readAndVerify(absolute(input.maintenanceBundle, "ACTIVATE_NOT_READY"));
+        const legacy = JSON.parse(await readFile(path.join(absolute(input.cutoverEvidenceRoot, "ACTIVATE_NOT_READY"), "cutover-evidence.json"), "utf8")) as { steps?: Array<{ step?: string; status?: string; stepDigest?: string }>; identity?: { runId?: string } };
+        if (legacy.identity?.runId !== input.runId || !Array.isArray(legacy.steps) || legacy.steps.length < 7 || !(await existsFile(path.join(absolute(input.cutoverEvidenceRoot, "ACTIVATE_NOT_READY"), "C6_READY")))) throw new Error("legacy evidence");
+      } catch { throw new DbActivateError("ACTIVATE_NOT_READY"); }
+      return;
+    }
+    if (!input.cutoverId || !input.appCommit || !input.planDigest || !input.maintenanceBundle || !input.cutoverEvidenceRoot || !input.authorizationFile) throw new DbActivateError("ACTIVATE_NOT_READY");
     try {
-      await new RuntimeBundleFileService().readAndVerify(absolute(input.maintenanceBundle, "ACTIVATE_NOT_READY"));
+      await new RuntimeBundleFileService().readAndVerify(absolute(input.maintenanceBundle, "ACTIVATE_NOT_READY"), { profile: "cutover" });
       const root = absolute(input.cutoverEvidenceRoot, "ACTIVATE_NOT_READY");
-      const evidence = JSON.parse(await readFile(path.join(root, "cutover-evidence.json"), "utf8")) as { steps?: Array<{ step?: string; status?: string; stepDigest?: string }>; identity?: { runId?: string } };
-      if (evidence.identity?.runId !== input.runId || !Array.isArray(evidence.steps) || evidence.steps.length < 7 || !CUTOVER_STEPS.slice(0, 7).every((step, index) => evidence.steps?.[index]?.step === step && evidence.steps?.[index]?.status === "passed" && typeof evidence.steps?.[index]?.stepDigest === "string") || !(await existsFile(path.join(root, "C6_READY")))) throw new Error("invalid evidence");
+      const evidenceStore = new CutoverEvidenceStore(root, { cutoverId: input.cutoverId, appCommit: input.appCommit, planDigest: input.planDigest, runId: input.runId, effectiveSchemaManifestDigest: input.effectiveManifestDigest as `sha256:${string}` });
+      const verified = await evidenceStore.readVerified();
+      if (verified.manifest.completedThrough !== "C6" || verified.steps.length !== 7 || !(await existsFile(path.join(root, "C6_READY")))) throw new Error("invalid evidence");
+      const run = await this.prisma.database().migrationRun.findUnique({ where: { id: input.runId } });
+      if (!run || verified.manifest.sourceManifestDigest !== run.sourceManifestDigest || verified.manifest.snapshotManifestDigest !== run.snapshotManifestDigest || verified.manifest.decisionsDigest !== run.decisionsDigest) throw new Error("invalid evidence identity");
+      const c6 = verified.steps[6];
+      const seal = JSON.parse(await readFile(path.join(root, "C6_READY"), "utf8")) as Record<string, unknown>;
+      if (seal.kind !== "airoaming_cutover_c6_ready_v1" || seal.step !== "C6" || seal.evidenceDigest !== verified.manifest.evidenceDigest || seal.cutoverId !== input.cutoverId || seal.planDigest !== input.planDigest || seal.runId !== input.runId || seal.effectiveSchemaManifestDigest !== input.effectiveManifestDigest || seal.appCommit !== input.appCommit || !c6) throw new Error("invalid seal");
+      await evidenceStore.verifyAuthorization(input.authorizationFile, "AUTH-C7", verified.manifest.evidenceDigest);
     } catch {
       throw new DbActivateError("ACTIVATE_NOT_READY");
     }

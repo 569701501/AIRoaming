@@ -27,6 +27,7 @@
     "db:verify": "tsx src/migration/db-verify.cli.ts",
     "db:ready": "tsx src/migration/db-ready.cli.ts",
     "db:activate": "tsx src/migration/db-activate.cli.ts",
+    "db:cutover": "tsx src/migration/db-cutover.cli.ts",
     "db:capabilities": "tsx src/migration/db-capabilities.cli.ts",
     "app:backup": "tsx src/backup/app-backup.cli.ts",
     "app:restore": "tsx src/backup/app-restore.cli.ts"

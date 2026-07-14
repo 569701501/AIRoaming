@@ -88,9 +88,10 @@ export interface AtomicSettingsFileOps {
   open(path: string, flags: "wx", mode: number): Promise<Pick<FileHandle, "writeFile" | "sync" | "close">>;
   rename(source: string, destination: string): Promise<void>;
   rm(path: string, options: { force: true }): Promise<void>;
+  openDirectory?(path: string): Promise<Pick<FileHandle, "sync" | "close">>;
 }
 
-const DEFAULT_ATOMIC_SETTINGS_FILE_OPS: AtomicSettingsFileOps = { mkdir, open, rename, rm };
+const DEFAULT_ATOMIC_SETTINGS_FILE_OPS: AtomicSettingsFileOps = { mkdir, open, rename, rm, openDirectory: (directory) => open(directory, "r") };
 
 export async function writeSettingsFileAtomically(
   filePath: string,
@@ -108,6 +109,10 @@ export async function writeSettingsFileAtomically(
     await handle.close();
     handle = undefined;
     await operations.rename(temporaryPath, filePath);
+    if (operations.openDirectory) {
+      const directoryHandle = await operations.openDirectory(directory);
+      try { await directoryHandle.sync(); } finally { await directoryHandle.close(); }
+    }
   } catch (error) {
     await handle?.close().catch(() => undefined);
     await operations.rm(temporaryPath, { force: true }).catch(() => undefined);

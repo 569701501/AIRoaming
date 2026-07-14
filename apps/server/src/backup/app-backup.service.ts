@@ -243,7 +243,7 @@ export class AppBackupService {
     const decisionsPath = await existingRegularFile(input.decisions, "BACKUP_ARGS_INVALID");
     assertDisjointRoots([workspaceRoot, dataRoot, releaseRoot, outputRoot]);
     const releaseIdentity = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => fail("BACKUP_RELEASE_IDENTITY_INVALID"));
-    const maintenance = await new RuntimeBundleFileService().readAndVerify(maintenanceBundle).catch(() => fail("BACKUP_ARGS_INVALID"));
+    const maintenance = await new RuntimeBundleFileService().readAndVerify(maintenanceBundle, { profile: input.runtimeProfile ?? "snapshot" }).catch(() => fail("BACKUP_ARGS_INVALID"));
     const fullShadow = fullImportReportPath ? normalizeFullShadowArtifact(await readJson(fullImportReportPath, "BACKUP_RUN_INVALID")) : null;
 
     const staging = path.join(outputRoot, ".backup-staging-" + process.pid + "-" + Date.now());
