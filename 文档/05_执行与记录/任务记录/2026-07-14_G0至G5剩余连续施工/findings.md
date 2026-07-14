@@ -13,19 +13,19 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `93a58b2`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `cd35053`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M4 已通过；G5-M5～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M5_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M5 已通过；G5-M6～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M6_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
 - W1 已补齐 Story/Storyboard/Preflight 的 DB-only Web/API 与 fresh SQLite E2E。
 - R0B release shadow、SH-10 和 v5 C0～C4 已形成真实 evidence。
 - C5/C6/C7 与 R2 均已关闭；OBS-06/07/08 中暴露的真实缺口已分别修复并复核，允许进入 G4。
-- G4-A～F 已总体关闭为 `G4_PASSED`；G5 仍待执行。
+- G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M5 已完成，M6～M8 仍待执行。
 
 ## 3. 固定阶段顺序
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M5_IN_PROGRESS
-next = G5_FONT_RICH_TEXT_BALLOON
+current = G5_M6_IN_PROGRESS
+next = G5_SOURCE_REVISION_PREFLIGHT
 ```
 
 ## 7. G4-A 稳定结论
@@ -161,3 +161,10 @@ next = G5_FONT_RICH_TEXT_BALLOON
 - cover crop 的 preview/Shared/Server 使用同一 source dimensions + base scale 语义；空洞裁切拒绝，zoom/offset/rotation/flip 不改源 Asset。
 - Shared 批量规则按页漫每 4 镜头生成 page、条漫每 1 镜头生成 strip_section；canvas 与 panel reading order 均通过正式命令保存和重排。
 - M4 commit=`93a58b2`；Shared 91/91、Server 546/546、E2E env 33/33、file 4/4、DB 4/4、M4 定向 1/1；Scrutiny/Runtime=`passed`。当前进入 M5。
+
+## 16. G5-M5 稳定结论
+
+- 生产字体固定为 `@openfonts/noto-sans-sc_chinese-simplified@1.44.9` 的 400/700 WOFF2；Server 逐字节复核 sha/size、fontkit cmap、实际 weight/style、OFL-1.1 与 embeddingAllowed，再通过 Asset staged→`asset.promote` Outbox→ready 提升。
+- 浏览器只从 verified Asset file API 加载 FontFace，字体 family 从 Asset ID 的完整字符编码生成；不读取本机字体列表，不声明 local/system fallback，缺字体、sha mismatch、unsupported format、缺 glyph 或 embedding 禁止均 fail-closed。
+- 横/竖排富文本、IME composition、纯文本 paste、Unicode grapheme 选区与范围样式、overflow、四类气泡和单尾巴都保存为同一 LayoutDocument command；文字模式不移动气泡，选择模式移动复合对象。
+- M5 commit=`cd35053`；Shared 96/96、Server 549/549、file 4/4、DB 5/5、M5 repeat 3/3；Scrutiny/Runtime=`passed`。PDF 字体嵌入仍归 M7，当前进入 M6。

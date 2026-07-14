@@ -219,12 +219,12 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | ID | 场景 | 必须结果 | 状态 |
 | --- | --- | --- | --- |
 | G5-GATE-01 | strict codec/digest | unknown/limits reject，known-answer/round-trip | `passed` |
-| G5-GATE-02 | command/Undo/IME | batch 原子，一次 Undo，composition 无脏命令 | `passed` |
+| G5-GATE-02 | command/Undo/IME | batch 原子，一次 Undo，composition 无脏命令 | `passed_m2_m5` |
 | G5-GATE-03 | WC autosave/conflict | reload 可恢复；双标签不静默覆盖 | `passed` |
 | G5-GATE-04 | LayoutRevision | 显式保存、线性 immutable、replay 准确 | `not_run` |
 | G5-GATE-05 | source replacement | preview/digest/commit，crop 选择明确 | `not_run` |
-| G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `partial_m4_passed`：frame/image/crop/template/read order 已通过；text/balloon/font 待 M5 |
-| G5-GATE-07 | strip editor | 20 段、虚拟化、重排/改高/竖排 | `partial_m4_passed`：分段生成/新增/重排已通过；20 段虚拟化/改高/竖排待 M5/M7 |
+| G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `passed_m5`：frame/image/crop/template/read order/text/balloon/font 均已通过 |
+| G5-GATE-07 | strip editor | 20 段、虚拟化、重排/改高/竖排 | `partial_m5_passed`：分段生成/新增/重排/竖排已通过；20 段虚拟化与改高继续由 M7/M8 总体路径关闭 |
 | G5-GATE-08 | deterministic PNG | 同输入三次 sha 相同，可解码/尺寸正确 | `not_run` |
 | G5-GATE-09 | PDF | 页数/MediaBox/字体/embedding 正确 | `not_run` |
 | G5-GATE-10 | slices/long image | 顺序、尺寸、sha；像素无缝拼回 | `not_run` |
@@ -246,6 +246,19 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-M4-06 | 页漫/条漫批量 | 5 镜头页漫=4+1 两页；3 镜头条漫=3 段 | `passed_shared` |
 | G5-M4-07 | 顺序与保存 | panel reading order/canvas reorder 写入 DB Working Copy | `passed_browser_db` |
 | G5-M4-08 | 完整门禁 | Shared 91、Server 546、env 33、file 4、DB 4、M4 1 | `passed` |
+
+### 8.3.2 M5 富文本、气泡与受控字体证据
+
+| ID | 场景 | 结果 | 状态 |
+| --- | --- | --- | --- |
+| G5-M5-01 | 字体字节与许可 | 400/700 WOFF2 的 sha/bytes、7,898 code points、4,109 ranges、weight/style、OFL-1.1 固定 | `passed_static_runtime` |
+| G5-M5-02 | Asset 生命周期 | project provision 走 staged→Outbox→ready，重复 provision 幂等，DB/JSON 无 base64 | `passed_db` |
+| G5-M5-03 | 同源字体与系统隔离 | catalog/file/save 使用同一 ready Asset；FontFace family 由完整 Asset ID 编码，无 local/system fallback | `passed_server_browser` |
+| G5-M5-04 | IME/paste/grapheme | composition 一次 Undo；HTML paste 只留纯文本；Unicode grapheme 选区不切半 | `passed_shared_browser` |
+| G5-M5-05 | 范围样式与横竖排 | 字体/字号/粗斜体/颜色/描边/字距一次 Undo；horizontal/vertical mixed/upright 可恢复 | `passed_shared_browser_db` |
+| G5-M5-06 | 气泡与模式隔离 | 四类固定路径、单尾巴可调；文字模式不移对象，选择模式移动复合对象 | `passed_shared_browser` |
+| G5-M5-07 | 预检 | 缺字体、sha mismatch、unsupported、缺 glyph、embedding 禁止、overflow 均明确失败；正式按钮禁用 | `passed_shared_server_browser` |
+| G5-M5-08 | 完整门禁 | Shared 96、Server 549、env 33、file 4、DB 5、M5 repeat 3 | `passed` |
 
 ### 8.4 必跑命令
 

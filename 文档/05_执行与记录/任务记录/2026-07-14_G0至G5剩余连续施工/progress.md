@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M5_IN_PROGRESS
-last_completed = G5_M4_PASSED
+current = G5_M6_IN_PROGRESS
+last_completed = G5_M5_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m5` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2` | M4 Scrutiny=`passed`；Runtime/User=`passed` | 画格/图片/模板/裁切已关闭；进入字体/富文本/气泡 |
+| G5 | `in_progress_m6` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053` | M5 Scrutiny=`passed`；Runtime/User=`passed` | 字体/富文本/气泡已关闭；进入来源返修、Revision、历史与预检 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -217,6 +217,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`93a58b2`。
 - 风险/未运行：CJK FontAsset、富文本/气泡、正式 Revision/source remediation、renderer/publication、legacy/AI 总体路径仍归 M5～M8；结构化阶段红灯保持非零。未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
 - next：`G5_M5_IN_PROGRESS`。
+
+## 2026-07-15：G5-M5 富文本、气泡与受控字体
+
+- baseline：M4 code=`93a58b2`，docs=`dcbd712`；仅暂存 M5 代码、测试和新文件，未混入工作树既有 R0/M6 文档与回归覆盖的旧截图。
+- 实现：新增严格 FontAsset metadata/cmap/embedding/overflow 规则；Server 从固定字体包校验并按 staged→Outbox→ready provision 400/700 WOFF2，提供 catalog/provision/verified file API；Web 用 Asset-ID 隔离 FontFace，完成横竖排富文本、IME composition、纯文本 paste、grapheme 范围样式、overflow、四类气泡与单尾巴。
+- 测试：Shared 18 files/96 tests、Server 86 files/549 tests；全仓 typecheck/build、Prisma validate、E2E typecheck 通过；E2E 环境 33/33、file 4/4、DB 5/5，M5 DB-only 连续复跑 3/3。fixture 3/3；`test:render` 只剩 M7 的 renderer/browser semantics 两个结构化红灯。
+- 证据：`g5_m5_font_evidence.md`、`g5_m5_scrutiny_review.md`、`g5_m5_runtime_review.md`、`evidence/g5_m5_text_balloon_fonts.png`、`../../功能完成记录/2026-07-15_G5-M5受控字体富文本与气泡.md`。
+- Review：Scrutiny=`passed`；Runtime/User=`passed`；正式 PDF 字体嵌入/子集化仍由 M7 验收，没有提前签收。
+- commit：`cd35053`。
+- 风险/未运行：M6 来源返修/Revision/预检、M7 renderer/publication、M8 legacy/AI/总体路径尚未完成；未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
+- next：`G5_M6_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

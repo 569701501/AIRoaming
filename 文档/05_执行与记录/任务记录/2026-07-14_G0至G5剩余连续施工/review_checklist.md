@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M4 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M5_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M5 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M6_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -29,7 +29,7 @@ source: deep-think 复核流程与各阶段验收清单
 - [ ] 已确认未知用户改动并保留。
 - [ ] 失败用例/复现证据先于修复存在。
 - [ ] 修改没有越过本切片非目标。
-- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M4）。
+- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M5）。
 - [ ] 定向测试、受影响 package typecheck/build 退出 0。
 - [ ] `git diff --check` 通过。
 - [ ] 只暂存本阶段文件；没有 `git add -A`。
@@ -112,17 +112,17 @@ source: deep-think 复核流程与各阶段验收清单
 
 ### E0
 
-- [ ] 至少两条完整薄切片；不是只做拖拽 demo。
-- [ ] E0-001～010 全部有机器/人工证据。
-- [ ] 选定方案的依赖、binary、bundle/内存、许可证和失败项已写 ADR。
-- [ ] 未选原型可整体删除，没有实验数据结构进入正式 Schema。
+- [x] 至少两条完整薄切片；不是只做拖拽 demo。
+- [x] E0-001～010 全部有机器/人工证据。
+- [x] 选定方案的依赖、binary、bundle/内存、许可证和失败项已写 ADR。
+- [x] 未选原型可整体删除，没有实验数据结构进入正式 Schema。
 
 ### Scrutiny
 
 - [ ] LayoutDocument/command/renderer 共用语义，画布私有 JSON/DOM 不落盘。
 - [ ] autosave 只写 Working Copy；导出只读 LayoutRevision。
 - [ ] source replacement 绑定 G4 revision 和 digest，不使用 `lockedCandidateId`。
-- [ ] 受控 FontAsset/许可证/embedding 有硬门。
+- [x] 受控 FontAsset/许可证/embedding 有硬门。
 - [ ] renderer 无外网/file scheme，不截图编辑器控件。
 - [ ] publication 多 Artifact 共用一个 LayoutRevision/current 判定。
 - [ ] mobile 无写接口；AI pending 无自动 apply/save/export。
@@ -136,6 +136,15 @@ M4 切片复核：
 - [x] 七类模板不丢 occupied image、Text/Balloon/FreeImage；较少画格时 fail-closed。
 - [x] 页漫/条漫批量初始化、panel reading order 和 canvas reorder 有 Shared/DB/browser 证据。
 - [x] 源 Asset sha 不变；autosave 只写 Working Copy，不创建 Revision/Publication。
+
+M5 切片复核：
+
+- [x] 400/700 WOFF2 的 sha/cmap/weight/style/OFL/embedding 元数据固定，运行时不下载字体。
+- [x] FontAsset 走 staged→Outbox→ready，catalog/file/save 使用同一 ready Asset bytes，不写 base64。
+- [x] Web FontFace family 由完整 Asset ID 隔离，正式文字不声明本机系统字体 fallback。
+- [x] 横竖排、IME 单命令、纯文本 paste、grapheme 范围样式和 overflow 有 Shared/Server/browser 证据。
+- [x] speech/thought/shout/caption、单尾巴和文字/对象模式隔离有真实页面证据。
+- [x] M5 不创建 Revision/Publication；PDF 字体嵌入明确保留给 M7。
 
 ### Runtime/User
 

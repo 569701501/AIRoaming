@@ -388,13 +388,17 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M5 富文本、气泡与字体
 
-状态：`in_progress`。
+状态：`completed`；提交=`cd35053`；Scrutiny=`passed`；Runtime/User=`passed`。
 
 - FontAsset 受控 provision/sha/license/embedding。
 - 横竖排范围富文本、IME composition、paste clean、overflow、四类气泡。
 - 系统字体移除后结果不变；缺字体明确失败。
 
+退出：生产字体固定为项目内 Asset，400/700 两个 WOFF2 均经 sha、fontkit cmap、weight/style、OFL-1.1 和 embedding 元数据复核，再由 staged→Outbox→ready 提升；Web 只用 Asset-ID 隔离的 FontFace，不回退系统字体。横/竖排富文本、IME 单命令、纯文本 paste、grapheme 范围样式、overflow、四类气泡与单尾巴均进入同一 LayoutDocument/command/autosave。Shared 96/96、Server 549/549、file E2E 4/4、DB E2E 5/5、M5 连续复跑 3/3 通过；正式 PDF 字体嵌入仍由 M7 验收。当前进入 G5-M6。
+
 ### G5-M6 来源返修、Revision、历史、预检
+
+状态：`in_progress`。
 
 - stale 单张/批量 preview+digest+commit 与 crop 选择。
 - LayoutRevision 线性不可变、精确 replay、SourceBinding、历史恢复成 Working Copy。
