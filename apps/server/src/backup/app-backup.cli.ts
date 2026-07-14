@@ -42,7 +42,7 @@ function assertExactArguments(args: readonly string[], valueNames: readonly stri
 
 function parseArgs(args: readonly string[]): BackupInput {
   const kind = readSingle(args, "--kind");
-  if (kind !== "coordinated" && kind !== "pre-cutover") throw new BackupCliError("BACKUP_ARGS_INVALID");
+  if (kind !== "coordinated" && kind !== "pre-cutover" && kind !== "db-only-coordinated") throw new BackupCliError("BACKUP_ARGS_INVALID");
   const names = kind === "coordinated" ? [...COMMON, "--full-import-report"] as const : [...COMMON, "--run-id"] as const;
   assertExactArguments(args, names);
   if (readJsonFormat(args, () => new BackupCliError("BACKUP_ARGS_INVALID")) !== "json") throw new BackupCliError("BACKUP_ARGS_INVALID");

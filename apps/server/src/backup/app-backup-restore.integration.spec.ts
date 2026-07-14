@@ -213,6 +213,106 @@ describe("M5-A1 coordinated backup", () => {
       await fixture.prisma.onModuleDestroy();
     }
   });
+
+  it("OBS-07 backs up and restores an activated DB-only database without rewriting cutover identity", async () => {
+    const fixture = await createFixture();
+    const restoreRoot = await mkdtemp(path.join(fixture.root, "db-only-restore-"));
+    const dbOnlyOutput = path.join(fixture.root, "db-only-output");
+    await mkdir(dbOnlyOutput);
+    try {
+      const { finalRunId } = await prepareFinalReadyFixture(fixture);
+      await expect(new AppBackupService(fixture.prisma).backup({
+        databaseUrl: fixture.databaseUrl,
+        workspaceRoot: fixture.workspaceRoot,
+        dataRoot: fixture.dataRoot,
+        releaseRoot: repoRoot,
+        appCommit: "abcdef1234567",
+        maintenanceBundle: fixture.maintenanceBundle,
+        decisions: fixture.decisionsPath,
+        output: dbOnlyOutput,
+        kind: "db-only-coordinated",
+        runId: finalRunId,
+      })).rejects.toMatchObject({ code: "BACKUP_RUN_INVALID" });
+      expect(await readdir(dbOnlyOutput)).toEqual([]);
+      const preCutover = await new AppBackupService(fixture.prisma).backup({
+        databaseUrl: fixture.databaseUrl,
+        workspaceRoot: fixture.workspaceRoot,
+        dataRoot: fixture.dataRoot,
+        releaseRoot: repoRoot,
+        appCommit: "abcdef1234567",
+        maintenanceBundle: fixture.maintenanceBundle,
+        decisions: fixture.decisionsPath,
+        output: fixture.outputRoot,
+        kind: "pre-cutover",
+        runId: finalRunId,
+      });
+      const release = await loadReleaseSchemaIdentityV1(repoRoot);
+      await new DbActivateService(fixture.prisma).activate({
+        runId: finalRunId,
+        sourceManifestDigest: SOURCE_DIGEST,
+        effectiveManifestDigest: release.effectiveSchemaManifestDigest,
+        releaseRoot: repoRoot,
+        backup: preCutover.bundlePath,
+        gate: "ACT-08",
+        mode: "execute",
+      });
+      const firstBusinessWriteAt = new Date("2026-07-14T13:40:39.000Z");
+      await fixture.prisma.database().persistenceState.update({
+        where: { id: "primary" },
+        data: { firstBusinessWriteAt },
+      });
+
+      const result = await new AppBackupService(fixture.prisma).backup({
+        databaseUrl: fixture.databaseUrl,
+        workspaceRoot: fixture.workspaceRoot,
+        dataRoot: fixture.dataRoot,
+        releaseRoot: repoRoot,
+        appCommit: "abcdef1234567",
+        maintenanceBundle: fixture.maintenanceBundle,
+        decisions: fixture.decisionsPath,
+        output: dbOnlyOutput,
+        kind: "db-only-coordinated",
+        runId: finalRunId,
+      });
+      const manifest = JSON.parse(
+        await readFile(path.join(result.bundlePath, "backup-manifest.json"), "utf8"),
+      ) as {
+        backupKind: string;
+        persistenceState: {
+          activationState: string;
+          cutoverRunId: string | null;
+          activatedAt: string | null;
+          firstBusinessWriteAt: string | null;
+          sourceManifestDigest: string;
+          effectiveSchemaManifestDigest: string;
+        };
+      };
+      expect(manifest).toMatchObject({
+        backupKind: "db-only-coordinated",
+        persistenceState: {
+          activationState: "db_only",
+          cutoverRunId: finalRunId,
+          activatedAt: expect.any(String),
+          firstBusinessWriteAt: firstBusinessWriteAt.toISOString(),
+          sourceManifestDigest: SOURCE_DIGEST,
+          effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest,
+        },
+      });
+      await expect(
+        new AppRestoreService().restore({
+          backup: result.bundlePath,
+          releaseRoot: repoRoot,
+          targetDataRoot: path.join(restoreRoot, "data"),
+          targetWorkspaceRoot: path.join(restoreRoot, "workspace"),
+          mode: "materialize",
+        }),
+      ).resolves.toMatchObject({ mode: "materialize", bundleDigest: result.bundleDigest });
+    } finally {
+      await fixture.prisma.onModuleDestroy();
+      if (fixture.previous.DATABASE_URL === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = fixture.previous.DATABASE_URL;
+      if (fixture.previous.AIROAMING_PERSISTENCE_MODE === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE; else process.env.AIROAMING_PERSISTENCE_MODE = fixture.previous.AIROAMING_PERSISTENCE_MODE;
+    }
+  });
   it("A4-CLI-01 rejects extra positional arguments before Prisma initialization", async () => {
     const backup = await runCli(
       backupCli,
@@ -246,7 +346,7 @@ describe("M5-A1 coordinated backup", () => {
     expect(restore.stderr.trim()).toContain("RESTORE_ARGS_INVALID");
   });
 
-  it("M6A1-BK-04 enforces the coordinated/pre-cutover kind argument matrix before Prisma", async () => {
+  it("M6A1-BK-04 enforces the coordinated/pre-cutover/DB-only kind argument matrix before Prisma", async () => {
     const common = [
       "--database-url", "file:/tmp/airoaming-a4-kind.sqlite",
       "--workspace-root", "/tmp/airoaming-workspace",
@@ -266,6 +366,10 @@ describe("M5-A1 coordinated backup", () => {
     expect(preCutoverMissingRun.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
     const preCutoverWithReport = await runCli(backupCli, ...common, "--kind", "pre-cutover", "--run-id", "final-run", "--full-import-report", "/tmp/full-import.json");
     expect(preCutoverWithReport.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+    const dbOnlyMissingRun = await runCli(backupCli, ...common, "--kind", "db-only-coordinated");
+    expect(dbOnlyMissingRun.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
+    const dbOnlyWithReport = await runCli(backupCli, ...common, "--kind", "db-only-coordinated", "--run-id", "final-run", "--full-import-report", "/tmp/full-import.json");
+    expect(dbOnlyWithReport.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
   });
 
   it("M6A1-BK-03 rejects missing or non-closed maintenance evidence before sealing", async () => {

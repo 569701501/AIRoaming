@@ -55,6 +55,19 @@ function fail(code: string): never { throw new RestoreError(code); }
 
 function isDigest(value: unknown): value is `sha256:${string}` { return typeof value === "string" && DIGEST_RE.test(value); }
 
+function isIsoDate(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function databaseDate(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const parsed = value instanceof Date ? value : new Date(value as string | number);
+  if (Number.isNaN(parsed.getTime())) fail("RESTORE_VERIFICATION_FAILED");
+  return parsed.toISOString();
+}
+
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail("RESTORE_VERIFICATION_FAILED");
   return value as Record<string, unknown>;
@@ -188,7 +201,7 @@ function verifyDatabase(databasePath: string, manifest: BackupManifest, runSumma
       if ((issueRow?.count ?? -1) !== 0) fail("RESTORE_VERIFICATION_FAILED");
     };
     for (const expected of runSummary.slices) verifyShadowRun(expected);
-    if (manifest.backupKind === "pre-cutover") {
+    if (manifest.backupKind !== "coordinated") {
       const finalRow = runStatement.get(manifest.migration.finalRunId) as Record<string, unknown> | undefined;
       if (!finalRow || finalRow.id !== manifest.migration.finalRunId || finalRow.kind !== "final" || finalRow.status !== "succeeded" || finalRow.source_manifest_digest !== manifest.migration.sourceManifestDigest || finalRow.snapshot_manifest_digest !== manifest.migration.snapshotManifestDigest || finalRow.decisions_digest !== manifest.migration.decisionsDigest || finalRow.report_digest !== manifest.migration.fullImportReportDigest || finalRow.counts_schema_version !== 1 || finalRow.verification_schema_version !== 1) fail("RESTORE_VERIFICATION_FAILED");
       const finalCounts = record(parseSqliteJson(finalRow.counts_json));
@@ -200,13 +213,16 @@ function verifyDatabase(databasePath: string, manifest: BackupManifest, runSumma
         fail("RESTORE_VERIFICATION_FAILED");
       }
       const finalVerification = record(parseSqliteJson(finalRow.verification_json));
-      if (finalVerification.schemaVersion !== 1 || finalVerification.effectiveSchemaManifestDigest !== manifest.migration.effectiveSchemaManifestDigest || finalVerification.sourceManifestDigest !== manifest.migration.sourceManifestDigest || finalVerification.snapshotManifestDigest !== manifest.migration.snapshotManifestDigest || finalVerification.decisionsDigest !== manifest.migration.decisionsDigest || finalVerification.integrityCheck !== "ok" || finalVerification.foreignKeyViolationCount !== 0 || finalVerification.failedLedgerCount !== 0 || finalVerification.migrationChecksumStatus !== "verified" || finalVerification.openBlockerCount !== 0 || finalVerification.secretScanCount !== 0) fail("RESTORE_VERIFICATION_FAILED");
+      const lineageSchemaManifestDigest = manifest.backupKind === "db-only-coordinated"
+        ? manifest.persistenceState.effectiveSchemaManifestDigest
+        : manifest.migration.effectiveSchemaManifestDigest;
+      if (finalVerification.schemaVersion !== 1 || finalVerification.effectiveSchemaManifestDigest !== lineageSchemaManifestDigest || finalVerification.sourceManifestDigest !== manifest.migration.sourceManifestDigest || finalVerification.snapshotManifestDigest !== manifest.migration.snapshotManifestDigest || finalVerification.decisionsDigest !== manifest.migration.decisionsDigest || finalVerification.integrityCheck !== "ok" || finalVerification.foreignKeyViolationCount !== 0 || finalVerification.failedLedgerCount !== 0 || finalVerification.migrationChecksumStatus !== "verified" || finalVerification.openBlockerCount !== 0 || finalVerification.secretScanCount !== 0) fail("RESTORE_VERIFICATION_FAILED");
       if ((issueStatement.get(manifest.migration.finalRunId) as { count?: number } | undefined)?.count !== 0) fail("RESTORE_VERIFICATION_FAILED");
     }
     const persistenceRows = database.prepare("SELECT id, activation_state, cutover_run_id, source_manifest_digest, effective_schema_manifest_digest, activated_at, first_business_write_at FROM persistence_states WHERE id = 'primary'").all() as Array<Record<string, unknown>>;
     if (persistenceRows.length !== 1) fail("RESTORE_VERIFICATION_FAILED");
     const persistence = persistenceRows[0];
-    if (persistence.activation_state !== manifest.persistenceState.activationState || persistence.cutover_run_id !== manifest.persistenceState.cutoverRunId || persistence.activated_at !== manifest.persistenceState.activatedAt || persistence.first_business_write_at !== manifest.persistenceState.firstBusinessWriteAt || (manifest.backupKind === "coordinated" && persistence.activation_state !== "shadow") || (manifest.backupKind === "pre-cutover" && (persistence.activation_state !== "ready_for_activation" || persistence.source_manifest_digest !== manifest.migration.sourceManifestDigest || persistence.effective_schema_manifest_digest !== manifest.migration.effectiveSchemaManifestDigest))) fail("RESTORE_VERIFICATION_FAILED");
+    if (persistence.activation_state !== manifest.persistenceState.activationState || persistence.cutover_run_id !== manifest.persistenceState.cutoverRunId || databaseDate(persistence.activated_at) !== manifest.persistenceState.activatedAt || databaseDate(persistence.first_business_write_at) !== manifest.persistenceState.firstBusinessWriteAt || (manifest.backupKind === "coordinated" && persistence.activation_state !== "shadow") || (manifest.backupKind === "pre-cutover" && (persistence.activation_state !== "ready_for_activation" || persistence.source_manifest_digest !== manifest.migration.sourceManifestDigest || persistence.effective_schema_manifest_digest !== manifest.migration.effectiveSchemaManifestDigest)) || (manifest.backupKind === "db-only-coordinated" && (persistence.activation_state !== "db_only" || persistence.source_manifest_digest !== manifest.persistenceState.sourceManifestDigest || persistence.effective_schema_manifest_digest !== manifest.persistenceState.effectiveSchemaManifestDigest))) fail("RESTORE_VERIFICATION_FAILED");
   } catch (error) {
     if (error instanceof RestoreError) throw error;
     fail("RESTORE_VERIFICATION_FAILED");
@@ -237,7 +253,7 @@ function verifyRunSummary(value: unknown, expected: BackupManifest["migration"])
 function verifyManifest(value: unknown): { manifest: BackupManifest; manifestDigest: `sha256:${string}` } {
   const raw = record(value);
   exactKeys(raw, MANIFEST_KEYS);
-  if (raw.schemaVersion !== 1 || raw.kind !== "airoaming_backup_bundle_v1" || (raw.backupKind !== "coordinated" && raw.backupKind !== "pre-cutover") || typeof raw.appCommit !== "string" || !raw.appCommit || typeof raw.createdAt !== "string" || !isDigest(raw.maintenanceBundleDigest) || !isDigest(raw.bundleDigest)) fail("RESTORE_VERIFICATION_FAILED");
+  if (raw.schemaVersion !== 1 || raw.kind !== "airoaming_backup_bundle_v1" || (raw.backupKind !== "coordinated" && raw.backupKind !== "pre-cutover" && raw.backupKind !== "db-only-coordinated") || typeof raw.appCommit !== "string" || !raw.appCommit || typeof raw.createdAt !== "string" || !isDigest(raw.maintenanceBundleDigest) || !isDigest(raw.bundleDigest)) fail("RESTORE_VERIFICATION_FAILED");
   const migration = record(raw.migration);
   exactKeys(migration, raw.backupKind === "coordinated" ? COORDINATED_MIGRATION_KEYS : PRE_CUTOVER_MIGRATION_KEYS);
   if (!isDigest(migration.sourceManifestDigest) || !isDigest(migration.snapshotManifestDigest) || !isDigest(migration.decisionsDigest) || !isDigest(migration.fullImportReportDigest) || !isDigest(migration.runSummaryDigest) || !isDigest(migration.effectiveSchemaManifestDigest) || migration.sliceCount !== 16 || !Array.isArray(migration.runIds)) fail("RESTORE_VERIFICATION_FAILED");
@@ -249,9 +265,14 @@ function verifyManifest(value: unknown): { manifest: BackupManifest; manifestDig
   const secretHandling = record(raw.secretHandling);
   if (!Array.isArray(raw.assets) || !Array.isArray(raw.missingAssets) || !record(raw.persistenceState) || secretHandling.included !== false || secretHandling.sentinelScan !== "passed") fail("RESTORE_VERIFICATION_FAILED");
   const persistence = raw.persistenceState as Record<string, unknown>;
-  exactKeys(persistence, ["activationState", "activatedAt", "cutoverRunId", "firstBusinessWriteAt"]);
-  if (raw.backupKind === "coordinated" && (persistence.activationState !== "shadow" || persistence.cutoverRunId !== null || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null)) fail("RESTORE_VERIFICATION_FAILED");
-  if (raw.backupKind === "pre-cutover" && (persistence.activationState !== "ready_for_activation" || persistence.cutoverRunId !== migration.finalRunId || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null)) fail("RESTORE_VERIFICATION_FAILED");
+  if (raw.backupKind === "db-only-coordinated") {
+    exactKeys(persistence, ["activationState", "activatedAt", "cutoverRunId", "effectiveSchemaManifestDigest", "firstBusinessWriteAt", "sourceManifestDigest"]);
+    if (persistence.activationState !== "db_only" || persistence.cutoverRunId !== migration.finalRunId || !isDigest(persistence.sourceManifestDigest) || persistence.sourceManifestDigest !== migration.sourceManifestDigest || !isDigest(persistence.effectiveSchemaManifestDigest) || !isIsoDate(persistence.activatedAt) || (persistence.firstBusinessWriteAt !== null && !isIsoDate(persistence.firstBusinessWriteAt))) fail("RESTORE_VERIFICATION_FAILED");
+  } else {
+    exactKeys(persistence, ["activationState", "activatedAt", "cutoverRunId", "firstBusinessWriteAt"]);
+    if (raw.backupKind === "coordinated" && (persistence.activationState !== "shadow" || persistence.cutoverRunId !== null || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null)) fail("RESTORE_VERIFICATION_FAILED");
+    if (raw.backupKind === "pre-cutover" && (persistence.activationState !== "ready_for_activation" || persistence.cutoverRunId !== migration.finalRunId || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null)) fail("RESTORE_VERIFICATION_FAILED");
+  }
   const { bundleDigest, ...unsigned } = raw;
   if (digestCanonicalJson(unsigned) !== bundleDigest) fail("RESTORE_VERIFICATION_FAILED");
   return { manifest: raw as unknown as BackupManifest, manifestDigest: digestCanonicalJson(raw) };

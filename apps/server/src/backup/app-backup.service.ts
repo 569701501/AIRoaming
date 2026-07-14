@@ -257,9 +257,15 @@ export class AppBackupService {
         let fullImportReportDigest: SnapshotDigest;
         let migrationRunIds: string[];
         let runSummarySlices: BackupRunSummarySlice[];
-        let persistenceState: { activationState: "shadow" | "ready_for_activation"; cutoverRunId: string | null; activatedAt: null; firstBusinessWriteAt: string | null };
+        let persistenceState: BackupManifest["persistenceState"];
         let finalRunId: string | null = null;
         let sourceEvidence: unknown;
+        const persistence = await db.persistenceState.findUnique({ where: { id: "primary" } });
+        if (!persistence) fail("BACKUP_RUN_INVALID");
+        const lineageSchemaManifestDigest = input.kind === "db-only-coordinated"
+          ? persistence.effectiveSchemaManifestDigest
+          : releaseIdentity.effectiveSchemaManifestDigest;
+        if (!isDigest(lineageSchemaManifestDigest)) fail("BACKUP_RUN_INVALID");
 
         if (input.kind === "coordinated") {
           const shadow = fullShadow!;
@@ -289,11 +295,11 @@ export class AppBackupService {
           const finalRun = await db.migrationRun.findUnique({ where: { id: input.runId } });
           if (!finalRun || finalRun.kind !== "final" || finalRun.status !== "succeeded" || finalRun.importerVersion !== "d2-a7-final-v1" || !finalRun.reportDigest || !finalRun.snapshotManifestDigest || !finalRun.decisionsDigest || !finalRun.verificationJson || !isDigest(finalRun.sourceManifestDigest) || !isDigest(finalRun.snapshotManifestDigest) || !isDigest(finalRun.decisionsDigest)) fail("BACKUP_RUN_INVALID");
           const verification = record(finalRun.verificationJson, "BACKUP_RUN_INVALID");
-          if (verification.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest || verification.sourceManifestDigest !== finalRun.sourceManifestDigest || verification.snapshotManifestDigest !== finalRun.snapshotManifestDigest || verification.decisionsDigest !== finalRun.decisionsDigest || verification.integrityCheck !== "ok" || verification.foreignKeyViolationCount !== 0 || verification.failedLedgerCount !== 0 || verification.migrationChecksumStatus !== "verified" || verification.openBlockerCount !== 0 || verification.secretScanCount !== 0) fail("BACKUP_RUN_INVALID");
+          if (verification.effectiveSchemaManifestDigest !== lineageSchemaManifestDigest || verification.sourceManifestDigest !== finalRun.sourceManifestDigest || verification.snapshotManifestDigest !== finalRun.snapshotManifestDigest || verification.decisionsDigest !== finalRun.decisionsDigest || verification.integrityCheck !== "ok" || verification.foreignKeyViolationCount !== 0 || verification.failedLedgerCount !== 0 || verification.migrationChecksumStatus !== "verified" || verification.openBlockerCount !== 0 || verification.secretScanCount !== 0) fail("BACKUP_RUN_INVALID");
           const counts = record(finalRun.countsJson, "BACKUP_RUN_INVALID");
           let finalReport;
           try { finalReport = normalizeFinalImportReport(counts.aggregateReport); } catch { fail("BACKUP_RUN_INVALID"); }
-          if (finalReport.reportDigest !== finalRun.reportDigest || finalReport.sourceManifestDigest !== finalRun.sourceManifestDigest || finalReport.snapshotManifestDigest !== finalRun.snapshotManifestDigest || finalReport.decisionsDigest !== finalRun.decisionsDigest || finalReport.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest || finalReport.slices.length !== FULL_SHADOW_SLICE_ORDER.length || finalReport.slices.some((slice, index) => slice.slice !== FULL_SHADOW_SLICE_ORDER[index] || slice.status !== "succeeded" || !slice.reportDigest || slice.evidence.passed !== true)) fail("BACKUP_RUN_INVALID");
+          if (finalReport.reportDigest !== finalRun.reportDigest || finalReport.sourceManifestDigest !== finalRun.sourceManifestDigest || finalReport.snapshotManifestDigest !== finalRun.snapshotManifestDigest || finalReport.decisionsDigest !== finalRun.decisionsDigest || finalReport.effectiveSchemaManifestDigest !== lineageSchemaManifestDigest || finalReport.slices.length !== FULL_SHADOW_SLICE_ORDER.length || finalReport.slices.some((slice, index) => slice.slice !== FULL_SHADOW_SLICE_ORDER[index] || slice.status !== "succeeded" || !slice.reportDigest || slice.evidence.passed !== true)) fail("BACKUP_RUN_INVALID");
           const decisions = normalizeMigrationDecisionArtifact(await readJson(decisionsPath, "BACKUP_RUN_INVALID"), finalRun.sourceManifestDigest);
           if (decisions.decisionsDigest !== finalRun.decisionsDigest) fail("BACKUP_RUN_INVALID");
           const childRuns = await Promise.all(finalReport.slices.map((slice) => db.migrationRun.findUnique({ where: { id: slice.runId } })));
@@ -313,10 +319,21 @@ export class AppBackupService {
             return { slice: slice.slice, runId: slice.runId, importerVersion: child.importerVersion, status: "succeeded", reportDigest: slice.reportDigest as SnapshotDigest, counts: slice.counts };
           });
           for (const child of childRuns) if (await db.migrationIssue.count({ where: { runId: child!.id, resolutionStatus: "open" } }) !== 0) fail("BACKUP_RUN_INVALID");
-          persistenceState = { activationState: "ready_for_activation", cutoverRunId: finalRun.id, activatedAt: null, firstBusinessWriteAt: null };
+          if (input.kind === "pre-cutover") {
+            persistenceState = { activationState: "ready_for_activation", cutoverRunId: finalRun.id, activatedAt: null, firstBusinessWriteAt: null };
+          } else {
+            if (persistence.activationState !== "db_only" || persistence.cutoverRunId !== finalRun.id || persistence.sourceManifestDigest !== sourceManifestDigest || persistence.effectiveSchemaManifestDigest !== lineageSchemaManifestDigest || persistence.activatedAt === null) fail("BACKUP_RUN_INVALID");
+            persistenceState = {
+              activationState: "db_only",
+              cutoverRunId: finalRun.id,
+              sourceManifestDigest,
+              effectiveSchemaManifestDigest: lineageSchemaManifestDigest,
+              activatedAt: persistence.activatedAt.toISOString(),
+              firstBusinessWriteAt: safeDate(persistence.firstBusinessWriteAt),
+            };
+          }
         }
-        const persistence = await db.persistenceState.findUnique({ where: { id: "primary" } });
-        if (!persistence || persistence.activationState !== persistenceState.activationState || persistence.cutoverRunId !== persistenceState.cutoverRunId || persistence.activatedAt !== null || persistence.firstBusinessWriteAt !== null || (persistenceState.activationState === "ready_for_activation" && (persistence.sourceManifestDigest !== sourceManifestDigest || persistence.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest))) fail("BACKUP_RUN_INVALID");
+        if (persistence.activationState !== persistenceState.activationState || persistence.cutoverRunId !== persistenceState.cutoverRunId || safeDate(persistence.activatedAt) !== persistenceState.activatedAt || safeDate(persistence.firstBusinessWriteAt) !== persistenceState.firstBusinessWriteAt || (persistenceState.activationState === "ready_for_activation" && (persistence.sourceManifestDigest !== sourceManifestDigest || persistence.effectiveSchemaManifestDigest !== releaseIdentity.effectiveSchemaManifestDigest))) fail("BACKUP_RUN_INVALID");
         const assets = await db.asset.findMany({ orderBy: { storageKey: "asc" }, select: { id: true, storageKey: true, mimeType: true, status: true, sha256: true, bytes: true } });
         const readyAssets = assets.filter((asset) => asset.status === "ready");
         const missingAssets = assets.filter((asset) => asset.status !== "ready").map((asset) => ({ assetId: asset.id, storageKey: asset.storageKey, status: asset.status }));

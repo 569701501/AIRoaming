@@ -22,7 +22,15 @@ export interface PreCutoverBackupInput extends BackupInputBase {
   runId: string;
 }
 
-export type BackupInput = CoordinatedBackupInput | PreCutoverBackupInput;
+export interface DbOnlyCoordinatedBackupInput extends BackupInputBase {
+  kind: "db-only-coordinated";
+  runId: string;
+}
+
+export type BackupInput =
+  | CoordinatedBackupInput
+  | PreCutoverBackupInput
+  | DbOnlyCoordinatedBackupInput;
 
 export interface BackupAssetEntry {
   assetId: string;
@@ -112,7 +120,38 @@ export interface PreCutoverBackupManifest {
   bundleDigest: SnapshotDigest;
 }
 
-export type BackupManifest = CoordinatedBackupManifest | PreCutoverBackupManifest;
+export interface DbOnlyCoordinatedBackupManifest {
+  schemaVersion: 1;
+  kind: "airoaming_backup_bundle_v1";
+  backupKind: "db-only-coordinated";
+  appCommit: string;
+  createdAt: string;
+  maintenanceBundleDigest: SnapshotDigest;
+  migration: BackupMigrationBase & {
+    runIds: [string];
+    finalRunId: string;
+    runKind: "final";
+    sliceCount: 16;
+  };
+  persistenceState: {
+    activationState: "db_only";
+    cutoverRunId: string;
+    sourceManifestDigest: SnapshotDigest;
+    effectiveSchemaManifestDigest: SnapshotDigest;
+    activatedAt: string;
+    firstBusinessWriteAt: string | null;
+  };
+  database: { storageKey: "database/app.db"; bytes: number; sha256: SnapshotDigest };
+  assets: BackupAssetEntry[];
+  missingAssets: Array<{ assetId: string; storageKey: string; status: string }>;
+  secretHandling: { included: false; sentinelScan: "passed" };
+  bundleDigest: SnapshotDigest;
+}
+
+export type BackupManifest =
+  | CoordinatedBackupManifest
+  | PreCutoverBackupManifest
+  | DbOnlyCoordinatedBackupManifest;
 
 export interface BackupResult {
   bundlePath: string;
