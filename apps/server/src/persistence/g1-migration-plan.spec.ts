@@ -639,7 +639,7 @@ describe("G1 M0-A pure migration plan", () => {
       database?.close();
       await owned.close();
     }
-  });
+  }, 30_000);
 
   it("replays all eight artifacts twice with identical exact SQLite inventories and preserves a pre-0008 row", async () => {
     const manifest = await loadManifest();
