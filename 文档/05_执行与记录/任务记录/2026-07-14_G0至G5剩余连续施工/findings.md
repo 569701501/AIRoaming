@@ -13,19 +13,19 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 G4 代码兼容 HEAD 为 `894d1e8`；旧 cutover evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 G4 compatible implementation commit 为 `3826611`；后续文档留痕提交不构成身份漂移，旧 cutover evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A～D 已完成，G4-E/F、G5-M0～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_E_IN_PROGRESS`。
+- 首笔业务写和 R2 OBS-01～10 已真实通过；G4-A～E 已完成，G4-F、G5-M0～M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G4_F_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
 - W1 已补齐 Story/Storyboard/Preflight 的 DB-only Web/API 与 fresh SQLite E2E。
 - R0B release shadow、SH-10 和 v5 C0～C4 已形成真实 evidence。
 - C5/C6/C7 与 R2 均已关闭；OBS-06/07/08 中暴露的真实缺口已分别修复并复核，允许进入 G4。
-- G4/G5 的产品、契约和验收文档完整，但正式功能仍待实现。
+- G4-A～E 的正式功能已实现；G4-F 总体关闭与 G5 仍待执行。
 
 ## 3. 固定阶段顺序
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G4_E_IN_PROGRESS
-next = G4_WEB_CANDIDATE_INTERACTIONS
+current = G4_F_IN_PROGRESS
+next = G4_MIGRATION_E2E_AND_OVERALL_REVIEW
 ```
 
 ## 7. G4-A 稳定结论
@@ -103,4 +103,12 @@ next = G4_WEB_CANDIDATE_INTERACTIONS
 - stale/unresolved/digest mismatch 在 Server 事务内阻断新 Working Copy/formal Layout/export/package；更换定稿不删除、不清空、不改写旧产物或 current pointer。
 - 运行中旧下游任务进入 impact/cancel，completion-time fence 只能返回 historical；新 Candidate 不自动改变 Shot current revision、lock set digest 或下游 freshness。
 - DB preview 使用只读事务，不消费首次业务写标记；Candidate DB 写 owner 已从旧 ImageCandidateService 更新为 CandidateLockRepository。
-- G4-D commit=`894d1e8`，Scrutiny=`passed`，Runtime=`passed_isolated`；Web 交互从 G4-E 继续，总体 migration/E2E/backup restore 从 G4-F 继续。
+- G4-D commit=`894d1e8`，Scrutiny=`passed`，Runtime=`passed_isolated`；其 Web 交互后续已由 G4-E 完成，总体 migration/E2E/backup restore 从 G4-F 继续。
+
+## 11. G4-E 稳定结论
+
+- DB Workbench 每次按数据库 authority 刷新候选收藏、废弃、current final 与来源适用性，不再由进程内旧项目快照遮蔽最新决策。
+- Web lock/replace/clear 只使用 preview→显式确认→commit；旧一键 lock 调用已删除，409 只重新 preview，绝不自动提交。
+- favorite/reject/restore 与 current final 保持正交；排版/导出页消费 Server 来源摘要，Server 事务门禁仍是安全权威。
+- G4-E 不修改旧 Layout/Export/Asset，不实现画布换图或 crop；成功浏览器路径使用临时 DB、公开 HTTP、持久化 Worker 和 fake provider。
+- G4-E commit=`3826611`，Server 533/533、Shared 54/54、Playwright 1/1；Scrutiny=`passed`，Runtime=`passed`。migration、backup restore 和总体 G4 Review 从 G4-F 继续。

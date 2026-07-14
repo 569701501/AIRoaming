@@ -167,7 +167,7 @@ RC-09 现场：OBS-01～10 全部通过。OBS-06 由 0011 协调 purge 修复关
 
 完整唯一 ID 以 `G4候选定稿返修验收清单.md` 为准。本计划的阶段门如下：
 
-G4-B 纯规则已由 `9cd599a` 完成：Shared 8/8、Server 22/22 定向通过。G4-C 已由 `179be50` 完成事务/API/race/replay。G4-D 已由 `894d1e8` 完成 Workbench/ProductionState source summary、Server 下游门禁、迟到任务 fence、新 Candidate 隔离和 restart；定向 16/16、Shared 54/54。G4-E/F 仍需关闭 Web 与总体 migration/E2E。
+G4-B 纯规则已由 `9cd599a` 完成：Shared 8/8、Server 22/22 定向通过。G4-C 已由 `179be50` 完成事务/API/race/replay。G4-D 已由 `894d1e8` 完成 Workbench/ProductionState source summary、Server 下游门禁、迟到任务 fence、新 Candidate 隔离和 restart。G4-E 已由 `3826611` 完成 Web 两阶段决策、409 重新确认、历史与 stale 摘要；Server 533/533、Shared 54/54、DB-only Playwright 1/1。G4-F 继续总体 migration/E2E/backup restore。
 
 | ID | 场景 | 必须结果 | 状态 |
 | --- | --- | --- | --- |
@@ -175,14 +175,14 @@ G4-B 纯规则已由 `9cd599a` 完成：Shared 8/8、Server 22/22 定向通过�
 | G4-GATE-02 | A→B→clear→A | 4 条线性 immutable revision/current 正确 | `passed_db_overlay_and_lock_replace_api`（完整 clear→A API 链待 G4-F） |
 | G4-GATE-03 | lost response | replay，不重复 revision | `passed_db_api`（G4-C） |
 | G4-GATE-04 | writer race | 一成功一 conflict，无双 current | `passed_db_api`（G4-C） |
-| G4-GATE-05 | impact changed | 409，重新 preview，不自动 commit | `passed_db_api`（G4-C） |
+| G4-GATE-05 | impact changed | 409，重新 preview，不自动 commit | `passed_db_api_and_browser`（G4-C/E） |
 | G4-GATE-06 | favorite/reject | 不改变 lock set/layout/export freshness | `passed_db_api_and_summary`（G4-C/D） |
 | G4-GATE-07 | replace after layout/export | 旧产物不变；新工作 stale | `passed_db_gate`（G4-D） |
 | G4-GATE-08 | running task replace | 迟到结果只 historical | `passed_completion_fence`（G4-D；忽略取消的完整 task/output 竞争待 G4-F） |
 | G4-GATE-09 | legacy migration | direct evidence 才建 v1；冲突 unresolved | `not_run` |
-| G4-GATE-10 | Web Runtime | 8 条 G4 Runtime 路径与截图/trace | `not_run` |
+| G4-GATE-10 | Web Runtime | 8 条 G4 Runtime 路径与截图/trace | `passed_g4_e_core_browser_path`（总体 G4 路径待 G4-F 汇总） |
 | G4-GATE-11 | restart/backup restore | revision/current/freshness 一致 | `restart_passed`（G4-D）；backup restore 待 G4-F |
-| G4-GATE-12 | legacy authority scan | runtime 无 selected/locked/旧 lock API 权威路径 | `passed_server_pending_web`（G4-C；Web 旧调用待 G4-E） |
+| G4-GATE-12 | legacy authority scan | runtime 无 selected/locked/旧 lock API 权威路径 | `passed_server_and_web`（G4-C/E） |
 
 最低全量命令：
 

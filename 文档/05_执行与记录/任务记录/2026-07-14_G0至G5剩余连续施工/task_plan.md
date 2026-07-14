@@ -316,15 +316,17 @@ docs(g2): close db-only web cutover gate
 
 ### G4-E Web 交互
 
-状态：`in_progress`。
+状态：`completed`，commit=`3826611`，Scrutiny=`passed`，Runtime=`passed`。
 
 - 收藏、定稿、更换、clear、废弃/恢复、历史。
 - preview 影响弹窗，409 自动重新 preview 但不自动 commit。
 - 排版页显示 stale 摘要与导出门禁，不提前实现 G5 换图/crop。
 
-退出：组件/Playwright 和用户语言通过。
+退出：已完成。DB Workbench 权威刷新、收藏/废弃/恢复、两阶段 lock/replace/clear、409 重新 preview 不自动 commit、历史和排版 stale 摘要均由真实浏览器 DB-only 路径通过；当前进入 G4-F。
 
 ### G4-F 迁移与端到端
+
+状态：`in_progress`。
 
 - 迁移 direct evidence/conflict/unresolved；不猜测 current。
 - A→B→clear→A、布局/导出后更换、运行中任务、双窗口、restart/backup restore。

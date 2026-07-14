@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G4_E_IN_PROGRESS
-last_completed = G4_D_WORKFLOW_AND_DOWNSTREAM_SOURCE_GATES
+current = G4_F_IN_PROGRESS
+last_completed = G4_E_CANDIDATE_DECISION_WORKBENCH
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -29,7 +29,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R0B | `completed` | `9227e8d` release | SH-10=`passed_human_review` | release shadow 与 v5 gate 已完成 |
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
-| G4 | `in_progress_g4_e` | `79dc806`, `9cd599a`, `179be50`, `894d1e8` | G4-A～D Scrutiny=`passed`；Runtime=`passed_isolated` | G4-D 已完成，进入 Web 返修交互 |
+| G4 | `in_progress_g4_f` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611` | G4-A～E Scrutiny=`passed`；Runtime A～D=`passed_isolated`、E=`passed` | G4-E 已完成，进入 migration/E2E/总体复核 |
 | G5 | `blocked_until_g4_passed` | — | — | G4 通过后连续执行，最终用户签收 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
@@ -136,8 +136,19 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - 证据：`g4_d_scrutiny_review.md`、`g4_d_runtime_review.md`、`../../功能完成记录/2026-07-15_G4-D工作流与下游来源门禁.md`。
 - Review：Scrutiny=`passed`；Runtime=`passed_isolated`；浏览器交互与总体 G4 用户路径仍待 G4-E/F。
 - commit：`894d1e8`。
-- 风险/未运行：Workbench/ProductionState summary、stale 下游门禁、迟到任务和 Web 新交互未完成；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
+- 风险/未运行：当时 Web 新交互尚未完成，后续已由 G4-E 关闭；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
 - next：`G4_E_IN_PROGRESS`。
+
+## 2026-07-15 02:34：G4-E 候选决策工作台
+
+- baseline：G4-D docs HEAD=`a553a7e`；仅提交 G4-E Shared/Server/Web/E2E 文件，未混入工作树中的既有历史文档改动。
+- 实现：DB Workbench 刷新权威候选状态；Web 接入 favorite、reject/restore、preview/commit lock/replace/clear、历史和来源摘要；409 自动重新 preview 但不自动 commit；DB image task 补齐 requestId；E2E 启动持久化 Worker。
+- 测试：Server 完整 80 files/533 tests、Shared 完整 10 files/54 tests；Web build、Server/Web/E2E typecheck；E2E 环境支持 31/31；DB-only Playwright 候选工作台 1/1；均通过。
+- 证据：`g4_e_scrutiny_review.md`、`g4_e_runtime_review.md`、`../../功能完成记录/2026-07-15_G4-E候选决策工作台.md`。
+- Review：Scrutiny=`passed`；Runtime=`passed`；双窗口冲突重新确认、历史和排版 stale 用户路径已覆盖。
+- commit：`3826611`。
+- 风险/未运行：migration 冲突/unresolved、完整 A→B→clear→A、任务竞争、backup restore 与总体 G4 Review 留给 G4-F；未删除 backup/archive，未执行 down migration、file-only 回退或 G6/视频链路。
+- next：`G4_F_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

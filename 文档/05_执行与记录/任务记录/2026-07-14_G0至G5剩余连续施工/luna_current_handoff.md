@@ -12,7 +12,7 @@ source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、�
 
 ## 1. 任务目标
 
-R2 DB-only 观察与 G4-A～D 已通过，从 G4-E 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
+R2 DB-only 观察与 G4-A～E 已通过，从 G4-F 开始把剩余主线按依赖顺序尽快连续推进到 G5 用户签收点：
 
 ```text
 AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收
@@ -34,17 +34,17 @@ AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户�
 ```text
 branch = codex/g0-test-safety-net
 cutover evidence appCommit = 9227e8dfefde59a25f81b53a41074f3971c24d05
-current compatible release HEAD = 894d1e8
+current compatible implementation commit = 3826611
 cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = G4_E_IN_PROGRESS
+currentState = G4_F_IN_PROGRESS
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～D。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～E。
 
-尚未完成：G4-E/F、G5-M0～M8、G5 用户签收。
+尚未完成：G4-F、G5-M0～M8、G5 用户签收。
 
 ## 4. Luna 开始前只读核验
 
@@ -59,7 +59,7 @@ currentState = G4_E_IN_PROGRESS
 
 执行只读断言：
 
-- clean release HEAD 精确等于上述 current compatible release HEAD；cutover evidence 继续绑定历史 appCommit，不能用新提交重签旧 evidence。开发工作树中的用户改动不得覆盖、清理或混入提交。
+- 当前分支历史必须包含上述 compatible implementation commit；cutover evidence 继续绑定历史 appCommit，不能用新提交重签旧 evidence。后续只含文档的留痕提交不构成身份漂移。开发工作树中的用户改动不得覆盖、清理或混入提交。
 - production status 精确为 `completedThrough=C7`，evidence 精确等于上述 currentEvidence。
 - C4 final/ready/backup/restore、C5 closed DB smoke、C6 archive/C6_READY 证据可重算；首笔业务写已记录。
 - AUTH-C5、C5、C6、C6_READY、AUTH-C7、C7、COMPLETED 已存在并绑定；`firstBusinessWriteAt=2026-07-14T13:40:39.000Z`。R2 已获授权并通过 OBS-01～10 与双 Review。
@@ -133,7 +133,9 @@ G4-B 已由提交 `9cd599a` 完成：状态机/replay、严格 lock set codec �
 
 G4-C 已由提交 `179be50` 完成：preview/commit/history/favorite/reject/restore/complete、事务内 impact/CAS、丢响应 replay、双 writer 与旧 Server DB 权威入口删除均通过 fresh SQLite/真实 HTTP 隔离复核。
 
-G4-D 已由提交 `894d1e8` 完成：Workbench/ProductionState source summary、工作流 needs_update、stale/unresolved/digest Server 事务门禁、运行中旧任务 historical fence、新 Candidate 隔离和 restart 均通过。当前从 G4-E 继续；不得重做 G4-A～D，也不得把 DB 运行复核冒充 Web/总体用户签收。
+G4-D 已由提交 `894d1e8` 完成：Workbench/ProductionState source summary、工作流 needs_update、stale/unresolved/digest Server 事务门禁、运行中旧任务 historical fence、新 Candidate 隔离和 restart 均通过。
+
+G4-E 已由提交 `3826611` 完成：DB Workbench 权威刷新、Web 收藏/废弃/恢复、两阶段 lock/replace/clear、409 重新 preview 不自动 commit、历史与排版 stale 摘要均通过；完整 Server 533/533、Shared 54/54、DB-only Playwright 1/1。当前从 G4-F 继续；不得重做 G4-A～E，也不得把阶段 Runtime 冒充 G4 总体通过。
 
 G4 全部通过后写 `G4_PASSED`，立即进入 G5-M0。
 
