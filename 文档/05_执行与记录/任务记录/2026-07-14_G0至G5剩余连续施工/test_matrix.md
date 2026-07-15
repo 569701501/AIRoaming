@@ -225,14 +225,14 @@ G5-E0-001～010 必须逐项有数值和产物证据：两条薄切片、round-t
 | G5-GATE-05 | source replacement | preview/digest/commit，crop 选择明确 | `passed_m6` |
 | G5-GATE-06 | page editor | frame/image/crop/layer/text/balloon/font 可恢复 | `passed_m5`：frame/image/crop/template/read order/text/balloon/font 均已通过 |
 | G5-GATE-07 | strip editor | 20 段、虚拟化、重排/改高/竖排 | `partial_m5_passed`：分段生成/新增/重排/竖排已通过；20 段虚拟化与改高继续由 M7/M8 总体路径关闭 |
-| G5-GATE-08 | deterministic PNG | 同输入三次 sha 相同，可解码/尺寸正确 | `not_run` |
-| G5-GATE-09 | PDF | 页数/MediaBox/字体/embedding 正确 | `not_run` |
-| G5-GATE-10 | slices/long image | 顺序、尺寸、sha；像素无缝拼回 | `not_run` |
-| G5-GATE-11 | persistent task | restart/retry/claim lost/迟到不切 current | `not_run` |
+| G5-GATE-08 | deterministic PNG | 同输入三次 sha 相同，可解码/尺寸正确 | `passed_m7` |
+| G5-GATE-09 | PDF | 页数/MediaBox/字体/embedding 正确 | `passed_m7` |
+| G5-GATE-10 | slices/long image | 顺序、尺寸、sha；像素无缝拼回 | `partial_m7_passed`：20 段连续切点、尺寸/sha/解码通过；总体像素拼回路径归 M8 |
+| G5-GATE-11 | persistent task | restart/retry/claim lost/迟到不切 current | `passed_m7` |
 | G5-GATE-12 | mobile | 只读且网络层 0 写请求 | `not_run` |
 | G5-GATE-13 | AI pending | 未 apply 不改画布；stale source 拒绝 apply | `not_run` |
 | G5-GATE-14 | legacy cutover | 可解析转换；unresolved 明确重建；旧写后门删除 | `not_run` |
-| G5-GATE-15 | security/resource | 外网/file scheme/secret=0；大小/时间/内存上限 | `not_run` |
+| G5-GATE-15 | security/resource | 外网/file scheme/secret=0；大小/时间/内存上限 | `partial_m7_passed`：renderer 网络/path/output limit 已通过；总体资源/故障矩阵归 M8 |
 
 ### 8.3.1 M4 画格/图片/模板/裁切证据
 

@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m7` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `in_progress_m8` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -408,14 +408,18 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M7 Renderer 与出版
 
-状态：`in_progress`。
+状态：`completed`；commit=`d8ed6cc`；Scrutiny/Runtime/User=`passed`。
 
 - RenderPlan/RenderScene/AssetResolver/固定 renderer adapter。
 - 持久 `layout_export` task、claim fencing、Outbox/recovery/current applicability。
 - 页漫 PNG/PDF、条漫 slices/条件长图、`layout_publication` manifest、多 Artifact。
 - 三次固定输入 sha 相同；真实文件可解码；迟到任务不覆盖 current。
 
+退出：固定 Chromium RenderScene 只消费 sealed LayoutRevision 与 DB Asset manifest；页漫 PNG/PDF、条漫 slices/条件长图、canonical manifest、多 Artifact staged→Outbox→ready、重试恢复、取消与 late historical 全部通过。`test:render=green`，Shared 108/108、Server 555/555、M7 DB-only Playwright 1/1；当前进入 G5-M8。
+
 ### G5-M8 手机、AI、legacy cutover 与收尾
+
+状态：`in_progress`。
 
 - 手机只读 route，网络断言无写请求。
 - AI 只产 PendingEditorCommandSet；preview/apply/discard/expire，未经用户确认不改画布。

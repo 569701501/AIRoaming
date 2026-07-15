@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M7_IN_PROGRESS
-last_completed = G5_M6_PASSED
+current = G5_M8_IN_PROGRESS
+last_completed = G5_M7_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m7` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69` | M6 Scrutiny=`passed`；Runtime/User=`passed` | 来源返修、Revision、历史与预检已关闭；进入 renderer 与出版 |
+| G5 | `in_progress_m8` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69`, `d8ed6cc` | M7 Scrutiny=`passed`；Runtime/User=`passed` | 固定 renderer 与持久出版已关闭；进入 mobile/AI/legacy 与总体收口 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -239,6 +239,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`429ec69`。
 - 风险/未运行：M7 renderer/publication 与 M8 mobile/AI/legacy/总体路径尚未完成；`test:render` 与 `test:migration:g5` 仍保留各自 owner 的结构化红灯。未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
 - next：`G5_M7_IN_PROGRESS`。
+
+## 2026-07-15：G5-M7 固定 renderer 与持久出版
+
+- baseline：M6 code=`429ec69`，docs=`bee7937`；仅暂存 M7 代码/测试/0015 与新证据，未混入工作树既有 R0/M6 文档和旧截图。
+- 实现：Shared 增加 publication/RenderPlan/slice/manifest 契约；Server 增加固定 Chromium renderer、DB-only publication API、`layout_export` worker、精确 Asset promotion、staged recovery 与 0015 trigger overlay；Web 增加正式出版预检、任务、历史、取消和 Artifact 链接。
+- 测试：`test:render` 绿色；Shared 108/108、Server 555/555；M7 DB-only Playwright 1/1；全仓 typecheck/E2E typecheck/build、Prisma validate、G1 manifest check 与 diff check 通过。M8 legacy migration gate 仍按 owner 保持红色。
+- 证据：`evidence/g5_m7_publication_ready.png`、`g5_m7_scrutiny_review.md`、`g5_m7_runtime_review.md`、`../../功能完成记录/2026-07-15_G5-M7确定性出版.md`。
+- Review：Scrutiny=`passed`；Runtime/User=`passed`；mobile/AI/legacy/总体五条路径明确保留给 M8。
+- commit：`d8ed6cc`。
+- 风险/未运行：未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
+- next：`G5_M8_IN_PROGRESS`。
 
 ## Luna 每次推进必须追加的格式
 

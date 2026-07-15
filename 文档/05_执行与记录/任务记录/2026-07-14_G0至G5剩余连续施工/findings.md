@@ -13,19 +13,19 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `429ec69`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `d8ed6cc`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M6 已通过；G5-M7～M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M7_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M7 已通过；G5-M8 尚未完成。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M8_IN_PROGRESS`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
 - W1 已补齐 Story/Storyboard/Preflight 的 DB-only Web/API 与 fresh SQLite E2E。
 - R0B release shadow、SH-10 和 v5 C0～C4 已形成真实 evidence。
 - C5/C6/C7 与 R2 均已关闭；OBS-06/07/08 中暴露的真实缺口已分别修复并复核，允许进入 G4。
-- G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M6 已完成，M7～M8 仍待执行。
+- G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M7 已完成，M8 仍待执行。
 
 ## 3. 固定阶段顺序
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M7_IN_PROGRESS
-next = G5_DETERMINISTIC_RENDERER_PUBLICATION
+current = G5_M8_IN_PROGRESS
+next = G5_MOBILE_AI_LEGACY_CLOSEOUT
 ```
 
 ## 7. G4-A 稳定结论
@@ -176,3 +176,12 @@ next = G5_DETERMINISTIC_RENDERER_PUBLICATION
 - 预检 issueKey/preflightDigest 不含文案或时间，source/font/image/glyph 阻止 Revision，overflow 等 warning 需要显式确认；重复或不属于当前 report 的 acknowledgement 均 fail-closed。
 - 0014 forward-only migration 只替换旧 source binding insert trigger：LayoutDocument `sourceDigest` 是来源 ID 与 Asset sha 的复合摘要，不能直接等同 `Asset.sha256`；scope、revision unsealed、Candidate/LockRevision、ready Asset 与 sha 非空门禁继续保留，seal trigger 负责文档/绑定逐项一致。
 - M6 commit=`429ec69`；Shared 104/104、Server 551/551、E2E env 33/33、file 4/4、DB 6/6，Undo/Redo 补强后 M6 定向 1/1；Scrutiny/Runtime=`passed`。Renderer/publication 仍归 M7，mobile/AI/legacy/总体路径仍归 M8，当前进入 M7。
+
+## 20. G5-M7 稳定结论
+
+- 正式 renderer 只消费 sealed LayoutRevision、固定 profile/digest 和 DB ready Asset/Font bytes；独立 RenderScene 不读取 Working Copy 或编辑器 DOM，不执行用户 HTML/JS。
+- page PNG/PDF 三次 sha 分别固定为 `e0eba324...b10b4f8` 与 `5afe9ca2...5359364`；20 段条漫生成五个连续 1080×7680 slice；真实 CJK PDF 包含嵌入 subset/ToUnicode 且无本地路径。
+- publication 创建事务封存 TaskSource；worker 使用 `layout-render/1`、maxAttempts=2、claimToken/heartbeat，staged Asset 经精确 Outbox promotion 后再原子 finalize。
+- staged recovery 不重新渲染或重复建 Artifact；取消不复活，迟到任务只记 historical；Artifact file API 复核 project/chapter/publication scope 与 ready sha。
+- 0015 forward-only triggers 固定现代 publication/task/artifact/ready/attempt 映射；G1 manifest/release identity 已同步到 15 migrations。
+- M7 commit=`d8ed6cc`；Shared 108/108、Server 555/555、`test:render=green`、M7 DB-only Playwright 1/1；Scrutiny/Runtime=`passed`。当前进入 M8。

@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M6 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M7_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M7 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M8_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
 
 ## 1. 角色分离
 
@@ -154,6 +154,16 @@ M6 切片复核：
 - [x] 预检 issueKey/digest 稳定；revision/export blocker 分离；warning 显式确认，重复或未知确认 key 拒绝。
 - [x] 0014 仅 forward-only 替换矛盾 trigger，保留 scope/current/ready/sha/seal 约束，不改表、不执行 down migration。
 - [x] M6 Shared/Server/浏览器/迁移与双 Review 证据完整；renderer/publication 明确保留给 M7。
+
+M7 切片复核：
+
+- [x] renderer 只读取 sealed LayoutRevision、固定 profile/source/preflight digest 与 DB ready Asset/Font bytes。
+- [x] 独立 RenderScene 无编辑控制层；用户文本使用 text node；外网、file scheme 与未登记 asset 请求 fail-closed。
+- [x] 页漫 PNG/PDF 三次 sha 稳定、可解码、尺寸/页数正确；CJK 字体真实嵌入且不泄露本地路径。
+- [x] 20 段条漫按 section boundary 生成 5 个连续切片；条件长图与输出上限明确。
+- [x] `layout_export` 使用全局并发 1、claim/heartbeat、staged Asset、精确 Outbox promotion、重试恢复与 fenced finalize。
+- [x] 取消/失败不清旧 current；迟到结果 historical；manifest canonical、不列自己且无绝对路径/秘密。
+- [x] 0015 forward-only、`test:render=green`、Shared/Server/浏览器与双 Review 证据完整；mobile/AI/legacy 保留给 M8。
 
 ### Runtime/User
 
