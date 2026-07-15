@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-PROGRESS-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -14,7 +14,7 @@ source: M6-A1 task_plan
 
 ### 状态
 
-`ready_for_real_cutover_authorization`
+`isolated_complete / production_entry_changes_required`
 
 ### 已完成
 
@@ -27,7 +27,7 @@ source: M6-A1 task_plan
 
 ### A1-1 / A1-2 / A1-3 / A1-4 Worker 更新
 
-状态：`ready_for_real_cutover_authorization`（A1-1～A1-5 已完成；隔离矩阵项均有直接测试证据）
+状态：`isolated_complete`（A1-1～A1-5 隔离矩阵完成；production entry 由 R0-A 接替）
 
 基线 commit：`6a33009`
 
@@ -141,6 +141,13 @@ Runtime 结果：仅临时 SQLite、临时 workspace、fake SecretStore；未执
 - Prisma validate、G1 manifest/schema/migration：通过；manifest digest 为 `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`。
 - capability CLI：8 个聚合 capability、`blockedIds=[]`，`settings_credential_secret_store.restartCovered=true`，未误改其它 capability。
 - `test_matrix.md`：M6A1-BK/RST/RDY/ACT/EVD/TX/C0～C7/RB/SEC/PATH/REG 均为 `passed`；真实授权、真实根、OBS-01～10 仍不执行。
+
+### Production entry 后续复核
+
+- final/ready CLI 仍硬编码 fake SecretStore，且 Keychain put 仍把 secret 放进 argv；真实 Keychain 无法作为合规正式门禁输入。
+- activate 的 maintenance/evidence 参数 optional，CLI 也不能传入，存在跳过证据校验路径。
+- CutoverCoordinator/MetadataArchiveService 没有生产 C0～C7 runner。
+- 本任务仅保留为 `isolated_complete`；当前唯一入口改为 `2026-07-13_R0-R2真实切换施工包/handoff.md`。
 
 ## Worker 更新模板
 

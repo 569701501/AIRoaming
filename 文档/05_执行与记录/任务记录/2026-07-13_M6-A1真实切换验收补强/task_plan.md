@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-TASK-PLAN-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -29,7 +29,7 @@ ready_for_real_cutover_authorization
 - restore 支持 coordinated/pre-cutover；activate 只接受已验证的 pre-cutover bundle。
 - C0～C7 已使用真实临时 SQLite、真实 domain services 和持久 evidence；仅 SecretStore/provider 为 fake。
 - 生产业务 mutation 已统一经过 `PrismaService.runBusinessTransaction`，file bridge 在首写后拒绝。
-- 隔离矩阵项均为 `passed`；工程状态为 `ready_for_real_cutover_authorization`，真实切换仍未授权。
+- 隔离矩阵项均为 `passed`；后续 production entry 复核发现正式 SecretStore/evidence/runner 未闭合，因此当前总体状态为 `production_entry_changes_required`，转入 R0-A。
 
 ## 3. 非目标
 

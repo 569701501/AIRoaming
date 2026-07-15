@@ -2,7 +2,7 @@
 doc_id: AIR-RCUT-CONTRACT-001
 status: active
 created: 2026-07-13
-updated: 2026-07-13
+updated: 2026-07-14
 owner: AI漫游项目
 audience: ai-agent, developer, reviewer, qa
 source: 当前源码与 M6-A1/G1 契约差异复核
@@ -28,6 +28,7 @@ source: 当前源码与 M6-A1/G1 契约差异复核
 | RCUT-INV-08 | 测试不得调用真实 `security`、真实 provider、真实 workspace 或真实数据库 |
 | RCUT-INV-09 | 本阶段不修改 Prisma schema、migration tree 或 trigger |
 | RCUT-INV-10 | runner 不自动搜索默认根、最新 backup、最新 run 或当前用户目录 |
+| RCUT-INV-11 | C1 只能在 plan 冻结的维护窗口内操作与 plan 精确绑定的旧 file 进程；进程身份在 drain 前、close 后和 runtime bundle 中必须一致 |
 
 ## 3. 当前差异
 
@@ -140,6 +141,7 @@ legacy prestage 还必须遵守：先读取目标 credentialId；若已存在且
 
 ```text
 maintenanceState=closed
+runtimeInstanceId 为当前旧进程启动实例的 UUID
 activeMutations=0
 activeStreams=0
 每个注册 participant.active=0
@@ -180,6 +182,11 @@ interface CutoverPlanV1 {
   decisionsPath: string;
   finalReportPath: string;
   maintenanceBaseUrl: string;
+  maintenanceWindow: {
+    startsAt: string; // RFC3339，显式 +08:00
+    endsAt: string;   // RFC3339，显式 +08:00
+    timeZone: "Asia/Shanghai";
+  };
   maintenanceTokenFile: string;
   runtimeBundlePath: string;
   backupRoot: string;
@@ -198,10 +205,25 @@ interface CutoverPlanV1 {
 
 - 所有 path 必须绝对、无 NUL、非 symlink；要求为空的目标必须为空。
 - source/target/backup/restore/archive/evidence/token/release roots 两两按契约不重叠。
-- plan 不含 secret；base URL 只允许 loopback。
+- plan 不含 secret；base URL 只允许 loopback origin 或 loopback `/api` 根。
+- 真实 C1 必须存在 `maintenanceWindow`，时区固定 `Asia/Shanghai`，起止值显式使用 `+08:00`，执行时间采用左闭右开区间 `[startsAt, endsAt)`；窗口外不得调用 maintenance API。
 - plan 在 C0 前生成并冻结；`planDigest` 在整个 cutover 中不变，任何字段变化都必须新建 cutoverId，不能原地改写。
 - C2/C4 才产生的 source/snapshot/decisions 实际 digest 写入 evidence manifest，不回写 plan，避免 AUTH-C1 因 plan revision 失效。
 - plan 文件和 evidence root 不提交 git。
+
+### 6.1 C1 旧进程身份绑定
+
+旧 file 进程必须由冻结 release 启动，并显式提供以下非秘密环境变量：
+
+```text
+AIROAMING_PERSISTENCE_MODE=file
+AIROAMING_WORKSPACE_ROOT=<plan.sourceWorkspaceRoot>
+AIROAMING_RELEASE_ROOT=<plan.releaseRoot>
+AIROAMING_APP_COMMIT=<40 位冻结 commit>
+AIROAMING_MAINTENANCE_TOKEN_FILE=<0600 token file>
+```
+
+受 token 和 loopback 保护的 `GET /api/_local/maintenance/identity` 只返回 `persistenceMode/workspaceRoot/releaseRoot/appCommit/runtimeInstanceId`。C1 必须在 drain 前和 close 后各读取一次，逐字段匹配 plan；两次 `runtimeInstanceId` 必须相同，随后 sealed runtime bundle 中的 `runtimeInstanceId` 也必须相同。任一不符均 fail-closed，不写 C1 passed，不能用另一个隔离进程或代理冒充真实旧进程。
 
 ## 7. CutoverEvidenceV1
 

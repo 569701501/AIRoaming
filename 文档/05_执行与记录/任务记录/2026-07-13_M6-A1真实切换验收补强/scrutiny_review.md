@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-SCRUTINY-001
-status: passed
+status: passed_isolated
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -43,4 +43,4 @@ source: M6-A1 实施契约、测试矩阵、代码与回归证据
 
 ## 最终边界
 
-当前工程判定：`ready_for_real_cutover_authorization`；真实切换仍 `no-go`。未经用户单独授权，不得执行真实 `db:activate --execute`、真实停写或真实 C0。
+本结论只保留为 `passed_isolated`。production entry 后续复核发现 fake-only SecretStore、Keychain put 的 secret-in-argv、optional activate evidence 和缺生产 runner，总体判定为 `production_entry_changes_required / real_cutover no-go`；转入 R0-A。

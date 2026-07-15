@@ -132,3 +132,17 @@ git diff --check
 - SH-10 人工 MigrationReport 签署，只有真实责任人签署后才能 passed；Luna 不得自签。
 - OBS-01～10 全部继续 `not_run`，直到真实 DB-only 观察期。
 - 每个回填项必须写测试 ID、spec 路径和结果；不能只写 commit。
+
+## 9. Production entry 覆盖边界
+
+本矩阵的 `passed` 证明 service/隔离链，不证明当前 production CLI 可执行真实切换。后续复核确认以下项没有被本矩阵覆盖：
+
+```text
+production Keychain binding for final/ready
+db:activate required maintenance/evidence/authorization flags
+full evidence/C6_READY seal recomputation
+production db:cutover C0-C7 runner
+production metadata archive step entry
+```
+
+这些项转入 `2026-07-13_R0-R2真实切换施工包/evidence_and_test_matrix.md`，初始状态均为 `not_run`。在 R0-A 通过前，不得从本矩阵推断 `ready_for_real_cutover_authorization`。

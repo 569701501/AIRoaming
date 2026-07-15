@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-REVIEW-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -15,7 +15,7 @@ source: M6-A1 实施契约与测试矩阵
 ## 1. A1-0 状态纠偏
 
 - [ ] 旧 M6 tooling 记录保留为历史事实，但原 Scrutiny/Runtime “通过”已标记 superseded。
-- [x] execution status 当前是 `ready_for_real_cutover_authorization`；真实执行仍保持 `real_cutover_no_go`，不是已授权完成。
+- [x] 当时隔离 evidence 判定已完成；production entry 后续复核将总体状态纠正为 `production_entry_changes_required / real_cutover_no_go`。
 - [ ] M6-A1 测试先出现预期红灯，再进入实现。
 
 ## 2. Backup / Restore
@@ -115,13 +115,13 @@ secret/path scan：<结果>
 
 ## 10. 最终判定
 
-只有本清单全部适用项完成、双 Review 通过、全量门禁通过、独立提交完成后，才允许：
+以下是 M6-A1 编写时的历史目标；后续 production entry 复核已经推翻其作为真实授权前置的充分性：
 
 ```text
 ready_for_real_cutover_authorization
 ```
 
-完成后停止。不得执行真实切换，不得进入 G4/G5。
+当前不得使用该状态申请或执行真实切换。M6-A1 最终只保留 `isolated_complete`；后续必须从 `../2026-07-13_R0-R2真实切换施工包/handoff.md` 的 R0-A 开始，完成生产入口代码收口后再重新复核。不得执行真实切换，不得进入 G4/G5。
 
 ## 11. 2026-07-13 最终复核记录
 
@@ -130,6 +130,6 @@ ready_for_real_cutover_authorization
 - [x] Scrutiny Review：`passed`；Runtime Review：`passed_isolated`。
 - [x] `settings_credential_secret_store` 保持 `implemented`、`restartCovered=true`，capability `blockedIds=[]`。
 - [x] 未触碰真实 workspace、真实数据库、真实 Keychain/provider、真实用户凭据；真实操作次数为 `0`。
-- [x] 最终判定：`ready_for_real_cutover_authorization`；真实 C0～C7、观察期 OBS-01～10、G4/G5 均未执行。
+- [x] 隔离判定：`isolated_complete`；production entry 转入 R0-A，真实 C0～C7、OBS-01～10、G4/G5 均未执行。
 
 范围说明：ACT-06 为 DB-only resume 单测，未做进程级 kill；BK-02 直接覆盖 missing final run + shadow state；PATH-01 直接覆盖 symlink/overlap。不得把这些隔离范围扩大解释为真实切换证据。

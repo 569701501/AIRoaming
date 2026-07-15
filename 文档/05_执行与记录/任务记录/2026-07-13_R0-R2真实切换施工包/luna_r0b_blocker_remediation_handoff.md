@@ -115,9 +115,8 @@ C0..C7 = not_run
 
 - 在 source workspace 与当前仓库之外创建 detached worktree，固定到 P2 commit。
 - worktree 必须 clean；使用 lockfile 和本地 store 离线安装依赖，禁止升级。
-- 在该 worktree 重新跑 release freeze 门禁并计算 effective schema manifest。
-- 预期 schema 未被本任务修改；若 effective digest 不再是
-  `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`，停止并请求审阅。
+- 在该 worktree 重新跑 release freeze 门禁，并分别计算 G1 baseline machine manifest digest 与 release effective schema identity。
+- 本 release 的 G1 baseline digest 应为 `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`，release effective schema identity 应为 `sha256:2e9992459906946415f8072ef4ad210ba00c52393d6c83fc4d0af23e415b3559`；任一不符都停止并请求审阅。plan/gate/C0 只能绑定后者。
 - 后续所有 shadow/verify/backup-restore 命令必须从该固定 release worktree 执行。
 
 ### P4：临时 overlay 证明

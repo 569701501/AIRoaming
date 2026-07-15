@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-NEXT-HANDOFF-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -19,7 +19,7 @@ source: M6-A1 当前代码、测试矩阵、Scrutiny/Runtime Review
 - A1-5 及后续负例补强：`3661939`（含 `90ea779`、`37c2c02`、`61d6ade`、`79f555e`）。
 - 隔离复核文档已更新：`scrutiny_review.md`、`runtime_review.md`、功能完成记录。
 
-当前工程状态：`ready_for_real_cutover_authorization`；真实切换仍为 `real_cutover_no_go`，除非用户另行授权。
+当前隔离状态：`isolated_complete`；production entry 状态为 `changes_required / real_cutover_no_go`。后续只按 `2026-07-13_R0-R2真实切换施工包/handoff.md` 执行 R0-A。
 
 ## 本单已完成目标
 
@@ -62,7 +62,7 @@ source: M6-A1 当前代码、测试矩阵、Scrutiny/Runtime Review
 ## 交付格式
 
 ```text
-结论：`ready_for_real_cutover_authorization`（真实切换仍未授权）
+结论：`isolated_complete`；production entry 转入 R0-A
 新增提交：`3661939`（及其前置 M6-A1 收口提交）
 新增测试：M6A1-BK-02/03/04/05、RDY-01/02、ACT-03/04/05/06、EVD-01/03/04、TX-08、RB-01/02/04/06、SEC-01、PATH-01；矩阵全项 passed
 全量回归：`61 files / 425 tests` 通过；typecheck/build/Prisma/G1/capability 通过

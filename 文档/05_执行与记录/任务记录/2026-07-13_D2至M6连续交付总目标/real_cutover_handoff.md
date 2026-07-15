@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-REAL-CUTOVER-HANDOFF-001
-status: blocked
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -8,15 +8,15 @@ audience: human, ai-agent, qa, release-owner
 source: M6 工具与隔离演练完成记录、G3-M 施工包
 ---
 
-# 真实切换授权 Handoff（已撤回）
+# 真实切换授权 Handoff（已被 R0-R2 施工包替代）
 
 ## 当前结论
 
-2026-07-13 独立复核已撤回 `ready_for_real_cutover_authorization`。当前为 `real_cutover_no_go`，本文件不得作为真实切换授权入口。
+2026-07-13 M6-A1 完成隔离证据后，进一步核对生产 CLI 发现：final/ready 仍是 fake SecretStore only，Keychain put 仍把 secret 放进 `security -w <secret>` argv，activate 的 maintenance/evidence 参数仍可省略，且没有生产 `db:cutover` runner。因此当前为 `production_entry_changes_required / real_cutover_no_go`，本文件不得作为真实切换授权入口。
 
-恢复申请前必须先完成：
+唯一当前入口：
 
-`文档/05_执行与记录/任务记录/2026-07-13_M6-A1真实切换验收补强/handoff.md`
+`文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/handoff.md`
 
 ## 已完成证据
 
@@ -27,12 +27,12 @@ source: M6 工具与隔离演练完成记录、G3-M 施工包
 - capability：8/36，`blockedIds=[]`。
 - 服务端全量：59 files/403 tests 通过。
 
-## M6-A1 通过后仍需一次明确授权才能执行
+## R0-A 通过后仍需三次明确授权
 
-1. 指定真实 release、dataRoot、workspaceRoot、SecretStore 和维护窗口。
-2. 由责任人确认停写、备份盘空间、恢复联系人和回滚窗口。
-3. 按 C0→C7 顺序执行真实 pre-cutover backup、restore rehearsal、final import/ready、maintenance smoke、metadata archive、`db:activate --execute`。
-4. 首笔真实业务写后进入观察期；不得 down migration 或 file-only 回退。
+1. C0 无授权只读落证；随后 `AUTH-C1` 绑定 C0 evidence，授权停写及 plan 指定的 C3 Keychain verify/prestage。
+2. `AUTH-C5`：final/ready/backup/materialize 全绿后授权关闭旧 file 进程并进入 DB smoke/archive。
+3. `AUTH-C7`：C5/C6 全绿后授权 activate execute。
+4. 首笔真实业务写后进入 OBS-01～10；不得 down migration 或 file-only 回退。
 
 ## 禁止默认执行
 

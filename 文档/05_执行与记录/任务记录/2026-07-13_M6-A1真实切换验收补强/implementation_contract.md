@@ -455,3 +455,17 @@ fake SecretStore 根可保存测试 secret，但必须位于扫描 allowlist 外
 
 不得使用 `passed` 描述 mock、未运行或只靠代码阅读推断的项目。
 
+## 13. 2026-07-13 Production entry 复核补充
+
+后续按真实命令面核对发现，本契约第 6～8 节尚未完整落到 production CLI：
+
+- final/ready 仍只接受 fake SecretStore root，不能验证 macOS Keychain。
+- 现有 Keychain put 仍把 secret 放进 `security -w <secret>` argv，不能满足生产进程边界。
+- `DbActivateInput.maintenanceBundle/cutoverEvidenceRoot` 仍 optional，二者同时缺失时会跳过校验。
+- `db:activate` CLI 没有传入 maintenance/evidence 的参数。
+- activate 未重算完整 evidence/step/C6_READY digest 和 source/effective/appCommit identity。
+- CutoverCoordinator 与 MetadataArchiveService 没有生产 C0～C7 runner。
+
+因此本契约的“全部完成”条件实际未满足。M6-A1 只保留 `isolated_complete`；production entry 转入：
+
+`文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/implementation_contract.md`

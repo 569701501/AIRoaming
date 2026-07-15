@@ -29,7 +29,8 @@ final importer = not_run
 | --- | --- |
 | remediation commits | `74a6d71`、`29f40bb` |
 | release worktree appCommit | `29f40bb` |
-| effective schema manifest | `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea` |
+| G1 baseline machine manifest digest | `sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea` |
+| release effective schema identity | `sha256:2e9992459906946415f8072ef4ad210ba00c52393d6c83fc4d0af23e415b3559` |
 | integration targeted | 74 tests passed |
 | server full regression | 71 spec / 483 tests passed |
 | typecheck/build/Prisma/G1/capability/diff check | all passed; `blockedIds=[]` |
@@ -50,7 +51,7 @@ final importer = not_run
 | sealed source/snapshot | `sha256:c16ff088...4beebb` / `sha256:effb0794...618161a` |
 | full shadow | 16/16 slices succeeded；open blocker=0 |
 | aggregate reportDigest | `sha256:daca7e92...663e781`（A/B 相同） |
-| table-count digest | `sha256:25f14b5a...117fc0a`（A/B 相同） |
+| canonical pre-SH09 table-count | fresh C/D 45 表完全一致；digest=`sha256:beb518e2...cfabc5c`；checkpoint=`sha256:86863a95...eabd6f2d9` |
 | integrity/FK/schema | `db:verify` 全通过；integrity=`ok`、FK=0 |
 | source isolation | 最终 target asset materialization 只写隔离 target workspace |
 | credential sentinel | A/B artifact 与 SQLite dump 均为 0 |
@@ -70,6 +71,14 @@ final importer = not_run
 | SH-09 | passed_release_shadow | coordinated backup、verify-only restore、materialize restore；67 assets；恢复 DB integrity/FK 全绿 |
 
 SH-09 bundle digest=`sha256:ef17078c...6ae2dd`，manifest digest=`sha256:c0524a51...c59f7e1`。
+
+## SH-10 技术证据整改
+
+- fresh C/D 再次使用同一 release、snapshot、decisions 完成 16/16 shadow；aggregate reportDigest 与 A/B 一致。
+- C/D 在任何 SH-09 控制状态写入前封存 45 表计数，`persistence_states=0`，32/32 `db:verify` 通过。
+- 外置证据根已统一收紧为目录 0700、文件 0600；secret scan=0；canonical index 和 seal 可重复重算。
+- canonical index=`sha256:7ec5e52f...f480636b`，review bundle seal=`sha256:d014fc85...b192008`。
+- 剩余仅为真实 plan/责任人字段、warning disposition 与人工 SH-10 签名；未生成 gate/AUTH，未执行 C0～C7。
 
 ## 停止点与下一步
 

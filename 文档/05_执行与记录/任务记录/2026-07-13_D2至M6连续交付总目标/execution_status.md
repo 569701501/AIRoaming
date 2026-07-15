@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-D2-M6-EXECUTION-STATUS-001
-status: reopened
+status: active
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -36,9 +36,11 @@ source: 连续执行总 Handoff
 | P10 D2-A8 | passed | `07ffa3e` | D2-WIT-01～05 + FIN 回归 | 54 files/392 tests | PASS | PASS | 双 fresh/replay/restart/legacy isolation 通过 |
 | P11 M6 tooling/rehearsal | changes_required | `c07ec8c` | tooling 5 files/12 tests；后续复跑 6 files/12 tests | 历史 59 files/403 tests | SUPERSEDED | SUPERSEDED | tooling 骨架保留；pre-cutover、activate backup identity、持久 evidence、全业务写边界和真实隔离链路未闭合 |
 | P12 final closure | reopened | `f9276f1` | 独立复核发现完成声明高于证据 | - | CHANGES_REQUESTED | CHANGES_REQUESTED | 转入 M6-A1；真实切换继续 no-go |
+| P13 M6-A1 isolated closure | passed_isolated | `e195cb3` | 61 files/425 tests；pre-cutover/real SQLite/evidence/business boundary | PASS | PASS | PASS_ISOLATED | 隔离工程证据完成；不等于 production CLI ready |
+| P14 R0-A production entry | changes_required | - | non-argv Keychain boundary、production SecretStore、strict evidence、required activate args、db:cutover runner | not_run | not_run | not_run | 当前唯一代码阶段；禁止真实根 |
 
 ## 3. 目标终态
 
-当前终态为 `real_cutover_no_go`。
+当前终态为 `production_entry_changes_required / real_cutover_no_go`。
 
-唯一下一阶段：`文档/05_执行与记录/任务记录/2026-07-13_M6-A1真实切换验收补强/handoff.md`。M6-A1 全部通过后才可重新申请 `ready_for_real_cutover_authorization`；真实 R1 仍不属于当前授权。
+唯一下一阶段：`文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/handoff.md` 的 R0-A。R0-A 通过并双 Review 后只能申请真实授权复核；R0-B/R1/R2 仍不属于当前授权。

@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-M6-A1-HANDOFF-001
-status: completed
+status: superseded
 created: 2026-07-13
 updated: 2026-07-13
 owner: AI漫游项目
@@ -8,7 +8,7 @@ audience: human, ai-agent, developer, qa
 source: M6 独立复核、M6-A1 task_plan 与实施契约
 ---
 
-# Handoff：5.6 Luna 的 M6-A1 真实切换验收补强（已完成）
+# Handoff：M6-A1 隔离验收补强（已由 R0-R2 施工包接替）
 
 ## 1. 唯一目标
 
@@ -38,7 +38,7 @@ ready_for_real_cutover_authorization
 8. `文档/06_测试与验收/G1数据库迁移执行与验收清单.md` 第 12～18 节。
 9. 当前 backup/restore/final/ready/activate/cutover/persistence 源码与测试。
 
-若旧文档仍写“P11 M6 passed”或“awaiting authorization”，以本施工包最终状态 `ready_for_real_cutover_authorization` 为工程事实；真实切换本身仍未授权、未执行。
+本施工包证明隔离 service 链路，但后续 production entry 复核发现 fake-only SecretStore、Keychain put 的 secret-in-argv、optional activate evidence 和缺生产 runner。当前工程事实改为 `M6-A1 isolated_complete / production_entry_changes_required`；唯一入口为 `文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/handoff.md`。
 
 ## 3. 连续执行阶段
 
@@ -163,7 +163,7 @@ AIROAMING_TASK_WORKER_ENABLED=false，除非当前用例专门验证 worker
 ## 9. 最终交付格式
 
 ```text
-结论：`ready_for_real_cutover_authorization`（真实切换仍未授权）
+结论：`isolated_complete`（production entry 由 R0-A 接替，真实切换仍 no-go）
 阶段提交：A1-0=<sha> ... A1-5=<sha>
 定向证据：<测试 ID、文件数、测试数>
 全量证据：<命令与结果>
