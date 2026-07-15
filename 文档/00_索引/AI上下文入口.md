@@ -2,7 +2,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -82,7 +82,7 @@ source: AI漫游文档体系
 文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/handoff.md
 ```
 
-当前数据库切换事实：D2 capability=`blockedIds=[]`；S0、W1、R0B、SH-10、v5 C0～C7、首写边界和 R2 OBS-01～10 已通过，production status=`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M6 已完成，当前进入 `G5_M7_IN_PROGRESS`。旧授权门、窗口与 `BLOCKED_R2_*` 只作历史，不能覆盖当前状态。
+当前数据库切换事实：D2 capability=`blockedIds=[]`；S0、W1、R0B、SH-10、v5 C0～C7、首写边界和 R2 OBS-01～10 已通过，production status=`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M8 技术验收已通过，当前=`WAIT_G5_USER_ACCEPTANCE`。旧授权门、窗口与 `BLOCKED_R2_*` 只作历史，不能覆盖当前状态。
 
 当前 G0～G5 剩余连续施工的唯一总入口：
 
@@ -90,7 +90,7 @@ source: AI漫游文档体系
 文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/luna_current_handoff.md
 ```
 
-该入口采用无排期、依赖驱动执行：不设置工期、开始/结束日期或等待日期。已消费的 AUTH-C5/AUTH-C7/R2 不再重复申请；G5-M7～M8 按依赖连续执行，只在真实 blocker 或最终用户签收处暂停。G6/视频不在范围内。
+该入口采用无排期、依赖驱动执行：不设置工期、开始/结束日期或等待日期。已消费的 AUTH-C5/AUTH-C7/R2 不再重复申请；M8 已完成，不需要新的开发授权，当前只等待最终用户签收。G6/视频不在范围内。
 
 涉及对话框真实 AI、模型添加、模型切换、provider 配置或 OpenCode 接入时，必须额外读取：
 
@@ -172,7 +172,7 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - G2-E1/E2/F1 交付边界仍有效：production-state API 返回服务端权威 production/workflow/chapterRowVersion；NewWorkGate 对四类任务统一返回稳定 reasonCodes；Preflight API 只允许服务端重建 SourceSnapshot；TaskApplicabilityGuard 在完成前把来源/目标不再 current 的任务标为 historical。其后的 F2～F4 已补齐持久 worker/claim/lease/history 和四类任务闭环；capability switch、独立 Outbox consumer 与真实 provider smoke 仍未实现。
 - G3-core、G3-M0～M4 foundation、M5-A0～A4、D2-A0～A8 与 M6-A1 隔离验收均已完成并有阶段证据；capability 当前为 8/36、`blockedIds=[]`。生产 SecretStore/evidence/runner、R0B/SH-10、v5 C0～C7、首写与 R2 已闭合；AUTH-C5、AUTH-C7、R2 均已按独立边界消费，不得复用或再次要求用户授权。
 - G4 开发级方案已完成：CandidateLock 闭集、线性 Schema overlay、legacy direct-evidence import、preview/commit/API、工作流门禁、Web 工作台、restart/backup restore 与总体 Review 均通过。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
-- G5 开发级方案已推进到 M6：M0 固定语料、M1/ADR-0016 技术路线、M2 strict `LayoutDocumentV1`/命令内核、M3 DB-only Working Copy/编辑器外壳、M4 画格/图片/模板/裁切、M5 项目 FontAsset/富文本/气泡，以及 M6 来源返修、不可变 LayoutRevision/SourceBinding、历史恢复与稳定预检均已完成。Working Copy 自动保存与显式不可变 LayoutRevision 分离，离开编辑器不自动造版本；正式 `layout_publication`、页漫 PNG/PDF、条漫切片/长图当前由 M7 关闭，手机/AI/legacy 总体路径由 M8 关闭。G6 已后置，不是 G0–G5 开工或签收前置。详见 `文档/04_方案与决策/2026-07-11_G5高自由成稿编辑器开发方案.md`、`文档/04_方案与决策/2026-07-11_G5LayoutDocument与编辑命令契约字典.md`、`文档/04_方案与决策/2026-07-11_G5确定性渲染与出版导出契约.md` 和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
+- G5 M0～M8 技术验收已完成：strict `LayoutDocumentV1`/命令、DB-only Working Copy、画格/图片/模板/裁切、FontAsset/富文本/气泡、来源返修、不可变 Revision/SourceBinding、固定 renderer、`layout_publication`、PNG/PDF/条漫切片、手机只读、AI pending 与 legacy cutover 均已通过。Working Copy 自动保存与显式不可变 LayoutRevision 分离；正式出版只读 sealed Revision。当前等待最终用户签收，G6 已后置且不会自动开始。详见三份 G5 方案和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
 - 先把漫画主链路做扎实，轻漫剧只做基础合成。
 - 先固化角色、分镜、候选、素材、任务、版本模型，再优化生成效果。
 - 所有 AI 输出都应允许人工编辑、选择、锁定、重生成。
@@ -182,8 +182,8 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - 2026-05-23 项目库首版已落地：包含左侧导航、项目列表、创建项目弹窗、当时的 6 步流程预览和任务队列轻量入口；项目工作区仍是下一阶段。2026-05-25 起项目库顶部搜索框已移除。当前顶部主流程已更新为 7 步：`剧本 -> 剧情结构 -> 分镜工作台 -> 出图准备 -> 候选图工作台 -> 排版导出 -> 素材包`，项目角色库不进入顶部主流程。
 - 2026-05-25 创建项目语义已收口：创建动作只建立项目记录，前端创建弹窗用户可见标题为“创建项目”，只保留“项目名称”一个字段，不展示内部语义或“下一步”提示文案，不再要求故事标题、题材标签、漫画格式、画风方向和故事原文。
 - 2026-07-10 D1 新决策已采纳并覆盖上述“只保留项目名称”口径：创建动作仍只建立项目记录，但现有创建项目按钮和弹窗必须在“项目名称”下补默认空的“漫画版式”下拉框，选择 `竖向条漫/分页漫画` 后才能创建；版式创建后不可直接修改。`四格漫画` 属于后续画布布局模板，不再是项目版式。2026-07-11 用户再次澄清不需要新入口、页面或向导；当前代码仍是旧实现，待开发时按 `ADR-0009` 和 G3 开发级方案迁移。
-- 2026-07-10 D3 候选返修决策已采纳：收藏/草选不驱动下游；正式图片使用不可变 `CandidateLockRevision`，更换定稿前显示影响，既有画布格子派生为 stale，旧布局和旧导出永久保留，长任务绑定来源修订和 lock set digest。当前代码仍只改 `lockedCandidateId`，待开发时按 `ADR-0010` 迁移。
-- 2026-07-10 D4/D5 首版边界已采纳：在条漫/页漫的有限正式成稿容器内，提供画格、图片、文字和气泡的高自由对象编排；不把成稿步骤扩张为无限白板、绘画软件或专业矢量编辑器。D45-1 至 D45-6 最终为 A/C/A/A/A/A。M2～M6 已实现 strict 文档/命令、临时多选不保存 Group、桌面/窄屏边界、画格/图片/模板/裁切、受控字体、横竖排文字、四类气泡、来源返修和不可变版本历史；AI pending 仍由 M8 完成。详见 `文档/04_方案与决策/2026-07-10_D4D5高自由成稿编辑器调研与首版边界.md` 与 `文档/04_方案与决策/ADR-0011_高自由成稿编辑器首版边界.md`。
+- 2026-07-10 D3 候选返修决策已采纳并由 G4/G5 实现：收藏/草选不驱动下游；正式图片使用不可变 `CandidateLockRevision`，更换定稿前显示影响，既有画布格子派生 stale，旧布局和旧导出永久保留，长任务绑定来源修订和 lock set digest；旧 `lockedCandidateId` 不再是 DB runtime 权威路径。
+- 2026-07-10 D4/D5 首版边界已采纳并由 G5 M2～M8 实现：在条漫/页漫的有限正式成稿容器内提供画格、图片、文字和气泡编排，不扩张为无限白板或专业矢量编辑器；临时多选不保存 Group，桌面编辑/手机只读、受控字体、横竖排文字、气泡、来源返修、不可变版本、正式出版与 AI pending 均已关闭。
 - 2026-07-10 D7 全量数据库化已由 ADR-0012 采纳并分阶段实施：44 模型 Schema、正式 migration tree 与 Project/Chapter/Script 最小 DB 切片已落地；全量事实源置换仍未完成。D71=A：影子导入、短暂停写、一次 DB-only 切换。D72=A：首版本地 SQLite 单引擎。D73=A：关系核心 + 版本化 Json + 可重建投影。D74=修正版 A：文本 key 归 OpenCode 本地 auth；图片 key 归 NestJS 后端 SecretStore。D75/D76 的持久 worker、旧任务完整导入仍待后续切片。真实数据、生产停写与 DB-only 激活继续需要动作级授权。
 - 2026-07-11 G1 进一步冻结：Importer 不直接读活动 workspace，只读 maintenance/停机生成且 pre/post manifest 一致的 snapshot；切换当刻的对话、pending 和旧任务终态通过无秘密 runtime bundle 捕获。Asset 使用 temp -> staged+Outbox -> rename -> ready；任务使用 claimToken fencing 和 `TaskConcurrencySlot`；图片 key 迁移不创建新明文备份。当前 Prisma 6.19.3 不随 G1 升级 major，关键 enum/跨字段状态由定制 migration SQL 的 CHECK/trigger 保护。
 - 2026-05-25 项目工作区交互方向更新：进入项目后隐藏全局左侧导航；项目内左侧固定为公共“对话框”，右侧为当前步骤文档或工作区；顶部搜索移除，保留返回项目列表和流程栏。对话框按当前步骤注入不同提示词，AI 可给建议、总结、改写或触发受控业务工具；2026-05-31 产品口径为 7 步。

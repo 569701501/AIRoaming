@@ -2,7 +2,7 @@
 doc_id: AIR-G05-REMAIN-FILEMAP-001
 status: active
 created: 2026-07-14
-updated: 2026-07-14
+updated: 2026-07-15
 owner: AI漫游项目
 audience: luna, developer, reviewer
 source: 2026-07-14 当前代码树与正式开发方案
@@ -276,7 +276,7 @@ apps/web/src/stores/workbench-store.ts
 
 候选卡和大图必须共用一个 action permission/state resolver，避免两套状态机。
 
-## 8. G5 推荐模块图
+## 8. G5 实际模块图（M8 技术收口）
 
 ### Shared Layout Domain Kernel
 
@@ -292,6 +292,8 @@ packages/shared/src/layout/text.ts
 packages/shared/src/layout/preflight.ts
 packages/shared/src/layout/publication.ts
 packages/shared/src/layout/working-copy.ts
+packages/shared/src/layout/pending.ts
+packages/shared/src/layout/resize.ts
 packages/shared/src/layout/presets.ts
 packages/shared/src/layout/batch.ts
 packages/shared/src/layout/placement.ts
@@ -303,8 +305,10 @@ packages/shared/src/layout/index.ts
 ```text
 apps/server/prisma/schema.prisma
 apps/server/prisma/migrations/0013_g5_layout_working_copy_overlay/migration.sql
-apps/server/src/migration/layout-shadow-importer.ts
-apps/server/src/migration/export-shadow-importer.ts
+apps/server/prisma/migrations/0014_g5_layout_binding_source_digest/migration.sql
+apps/server/prisma/migrations/0015_g5_layout_publication_overlay/migration.sql
+apps/server/prisma/migrations/0016_g5_legacy_layout_cutover/migration.sql
+apps/server/src/migration/project-chapter-shadow-importer.integration.spec.ts
 ```
 
 迁移序号必须以执行时真实 migration tree 为准，不能覆盖已有目录。
@@ -312,57 +316,49 @@ apps/server/src/migration/export-shadow-importer.ts
 ### Server Layout application
 
 ```text
-apps/server/src/projects/layout/layout-working-copy.repository.ts
-apps/server/src/projects/layout/layout-working-copy.service.ts
-apps/server/src/projects/layout/layout-revision.repository.ts
-apps/server/src/projects/layout/layout-revision.service.ts
-apps/server/src/projects/layout/layout-source-replacement.service.ts
-apps/server/src/projects/layout/layout-preflight.service.ts
-apps/server/src/projects/layout/layout-publication.service.ts
-apps/server/src/projects/layout/layout.controller.ts
-apps/server/src/projects/layout-working-copy.service.ts        （M3/M4 当前实现）
-apps/server/src/projects/projects.controller.ts                （当前公开路由）
+apps/server/src/projects/layout-working-copy.service.ts
+apps/server/src/projects/layout-versioning.service.ts
+apps/server/src/projects/layout-pending-command.service.ts
+apps/server/src/projects/layout-legacy-converter.ts
+apps/server/src/projects/layout-image-normalization.util.ts
+apps/server/src/projects/layout-renderer.service.ts
+apps/server/src/projects/layout-publication-worker.service.ts
+apps/server/src/projects/projects.controller.ts
+apps/server/src/projects/projects.module.ts
 ```
 
 ### Renderer/Task
 
 ```text
-apps/server/src/rendering/layout/render-plan.ts
-apps/server/src/rendering/layout/render-scene.ts
-apps/server/src/rendering/layout/asset-resolver.ts
-apps/server/src/rendering/layout/renderer-adapter.ts
-apps/server/src/rendering/layout/output-verifier.ts
-apps/server/src/tasks/handlers/layout-publication.handler.ts
-apps/server/src/projects/layout-export.service.ts             （逐步拆分旧逻辑）
+apps/server/src/projects/layout-renderer.service.ts
+apps/server/src/projects/layout-publication-worker.service.ts
+apps/server/src/projects/persistent-task-worker.service.ts
 ```
+
+旧 `apps/server/src/projects/layout-export.service.ts` 已删除，不再是 runtime 路径。
 
 ### Web editor
 
 ```text
-apps/web/src/features/layout-editor/domain-adapter.ts
-apps/web/src/features/layout-editor/editor-store.ts
-apps/web/src/features/layout-editor/canvas-adapter.ts
-apps/web/src/features/layout-editor/components/*
-apps/web/src/features/layout-editor/text/*
-apps/web/src/features/layout-editor/source-repair/*
 apps/web/src/components/workbench/LayoutExportWorkspace.vue
 apps/web/src/composables/layout-editor-session.ts
 apps/web/src/services/api.ts
-apps/web/src/router.ts
+apps/web/src/router/index.ts
+apps/web/src/views/LayoutReadOnlyPreviewView.vue
 ```
 
 ### G5 tests/fixtures
 
 ```text
 packages/shared/src/layout/*.spec.ts
-apps/server/src/projects/layout/*.spec.ts
-apps/server/src/rendering/layout/*.spec.ts
+apps/server/src/projects/layout-*.spec.ts
+apps/server/src/projects/g5-*.spec.ts
 tests/fixtures/layout/*
-tests/e2e/web/g5-page-editor.spec.ts
-tests/e2e/web/g5-strip-editor.spec.ts
-tests/e2e/web/g5-repair-and-recovery.spec.ts
-tests/e2e/web/g5-mobile-and-ai.spec.ts
-tests/e2e/web/layout-editor-m4.spec.ts                          （M4 当前真实路径）
+tests/e2e/web/layout-editor-m4.spec.ts
+tests/e2e/web/layout-editor-m5.spec.ts
+tests/e2e/web/layout-editor-m6.spec.ts
+tests/e2e/web/layout-publication-m7.spec.ts
+tests/e2e/web/layout-mobile-ai-m8.spec.ts
 ```
 
 E0 原型必须放在可整体删除的专用目录，正式 M2 开始前只迁移经 ADR 选定的 adapter seam，不复制实验垃圾。

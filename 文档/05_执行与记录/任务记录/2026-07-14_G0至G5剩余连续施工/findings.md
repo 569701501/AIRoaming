@@ -13,19 +13,19 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 ## 1. 当前不可覆盖事实
 
 - 当前分支为 `codex/g0-test-safety-net`。
-- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `d8ed6cc`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
+- cutover evidence appCommit 为 `9227e8dfefde59a25f81b53a41074f3971c24d05`；当前 compatible implementation commit 为 `fc9ea47`；后续 G5 提交不构成 cutover 身份漂移，旧 evidence 继续绑定历史 appCommit，不重签。
 - S0、W1、R0B、SH-10 已完成。
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
-- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M7 已通过；G5-M8 尚未完成。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `G5_M8_IN_PROGRESS`。
+- 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M8 技术验收已通过；只剩最终用户签收。
+- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `WAIT_G5_USER_ACCEPTANCE`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
 - W1 已补齐 Story/Storyboard/Preflight 的 DB-only Web/API 与 fresh SQLite E2E。
 - R0B release shadow、SH-10 和 v5 C0～C4 已形成真实 evidence。
 - C5/C6/C7 与 R2 均已关闭；OBS-06/07/08 中暴露的真实缺口已分别修复并复核，允许进入 G4。
-- G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M7 已完成，M8 仍待执行。
+- G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M8 技术门禁已完成，G5 总体仍等待用户签收。
 
 ## 3. 固定阶段顺序
 
@@ -67,8 +67,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = G5_M8_IN_PROGRESS
-next = G5_MOBILE_AI_LEGACY_CLOSEOUT
+current = WAIT_G5_USER_ACCEPTANCE
+next = USER_ACCEPT_OR_REPORT_CONCRETE_ISSUE
 ```
 
 ## 7. G4-A 稳定结论
@@ -185,3 +185,12 @@ next = G5_MOBILE_AI_LEGACY_CLOSEOUT
 - staged recovery 不重新渲染或重复建 Artifact；取消不复活，迟到任务只记 historical；Artifact file API 复核 project/chapter/publication scope 与 ready sha。
 - 0015 forward-only triggers 固定现代 publication/task/artifact/ready/attempt 映射；G1 manifest/release identity 已同步到 15 migrations。
 - M7 commit=`d8ed6cc`；Shared 108/108、Server 555/555、`test:render=green`、M7 DB-only Playwright 1/1；Scrutiny/Runtime=`passed`。当前进入 M8。
+
+## 21. G5-M8 稳定结论
+
+- 手机预览是独立 lazy route，只复用只读文档/字体/素材投影；页面不导入编辑 store，浏览器网络记录证明没有 Working Copy、Revision、Publication 或 pending 写请求。
+- AI 建议只保存严格 `layout_editor_command_set` pending artifact；Server 在 preview/apply 时重算 Working Copy rowVersion、document/source digest，并拒绝任何直接或嵌套来源注入。apply 是单个 DB 事务与单个浏览器 Undo，discard/expire 不改 Working Copy。
+- 0016 是 forward-only legacy cutover：可解析旧 ChapterLayout 转为 V1 Working Copy；unresolved 只允许明确重建，不伪造 current；旧同步 build/export DTO、Service、Web 按钮与复制候选源图路径已删除。
+- profile resize 同时支持 `keep_coordinates` 与 `scale_uniform` 预览并一次 Undo；条漫单段改高不移动后续段文档坐标。复制 canvas/element 会为顶层和嵌套实体生成新 ID。
+- 正式图片 resolver 逐字节识别 PNG/JPEG/WebP，EXIF 非 1、未受控色彩空间、APNG/动画 WebP、声明 MIME 与字节不一致均 fail-closed；保存版本和 renderer 使用同一检查。
+- M8 commit=`fc9ea47`；Shared 115/115、Server 568/568、G5 DB-only Playwright 8/8，type/build/Prisma/render/migration/diff 全绿；Scrutiny=`passed`、Runtime 技术复核=`passed`。当前停在 `WAIT_G5_USER_ACCEPTANCE`。

@@ -13,8 +13,8 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = G5_M8_IN_PROGRESS
-last_completed = G5_M7_PASSED
+current = WAIT_G5_USER_ACCEPTANCE
+last_completed = G5_M8_TECHNICAL_PASSED
 next_human_gate = WAIT_G5_USER_ACCEPTANCE
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `in_progress_m8` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69`, `d8ed6cc` | M7 Scrutiny=`passed`；Runtime/User=`passed` | 固定 renderer 与持久出版已关闭；进入 mobile/AI/legacy 与总体收口 |
+| G5 | `technical_complete_waiting_user` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69`, `d8ed6cc`, `fc9ea47` | M8 Scrutiny=`passed`；Runtime 技术复核=`passed`；用户签收=`waiting` | M0～M8 技术门禁全部通过；停在最终用户签收 |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -250,6 +250,17 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`d8ed6cc`。
 - 风险/未运行：未删除 backup/archive，未执行 down migration、file-only 回退、G6、视频或 push。
 - next：`G5_M8_IN_PROGRESS`。
+
+## 2026-07-15：G5-M8 手机、AI、legacy cutover 与技术收口
+
+- baseline：M7 code=`d8ed6cc`、docs=`380d293`；只提交 M8 代码、测试、0016 与本阶段证据，保留工作树内其他任务文档和旧截图改动。
+- 实现：新增手机 lazy GET-only 预览；AI `PendingEditorCommandSet` 严格 codec、DB-only preview/apply/discard/expire、来源/CAS 门禁和一次 Undo；legacy layout convert/rebuild 与旧 build/export 入口删除；Page/Strip profile resize 预览、`keep_coordinates`/`scale_uniform`、段高单命令；PNG/JPEG/WebP 字节识别、EXIF/色彩空间/动画标准化门禁；复制 canvas/element 生成全新嵌套 ID；补齐键盘、label 与 reduced-motion。
+- 测试：Shared 24 files/115 tests；Server 93 files/568 tests；`typecheck`、`typecheck:e2e`、`build`、Prisma validate、`test:render`、`test:migration:g5` 和 `git diff --check` 全部通过；DB-only G5 Playwright 8/8，包含 profile resize/段高一次 Undo、AI preview/discard/apply/Undo、stale source 拒绝和手机 0 写请求。
+- 证据：`evidence/g5_m8_mobile_ai.png`、`g5_m8_scrutiny_review.md`、`g5_m8_runtime_review.md`、`g5_user_acceptance_handoff.md`、`../../功能完成记录/2026-07-15_G5-M8手机AI与旧排版切换.md`。
+- Review：Scrutiny=`passed`；Runtime 技术复核=`passed`；最终用户签收尚未发生，不能标记 `G0_G5_COMPLETE`。
+- commit：`fc9ea47`。
+- 边界：backup/archive 保留；未执行 down migration、file-only 回退、G6、视频、删除或 push。
+- next：`WAIT_G5_USER_ACCEPTANCE`。
 
 ## Luna 每次推进必须追加的格式
 

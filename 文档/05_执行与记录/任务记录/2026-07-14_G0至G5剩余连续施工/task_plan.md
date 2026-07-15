@@ -34,7 +34,7 @@ source: G0～G5 路线图、R0-R2 runbook、G2/G4/G5 正式验收文档
 | R1 | C0～C7 真实切换 | `completed` | 已完成 | `DB_ONLY_ACTIVATED` |
 | R2 | OBS-01～10 观察期 | `completed` | 已完成并通过双 Review | `DB_ONLY_OBSERVATION_PASSED` |
 | G4 | CandidateLock 正式返修闭环 | `completed` | 已完成 | `G4_PASSED` |
-| G5 | 高自由编辑器与确定性出版 | `in_progress_m8` | 连续执行 | `WAIT_G5_USER_ACCEPTANCE` |
+| G5 | 高自由编辑器与确定性出版 | `technical_complete_waiting_user` | M0～M8 技术验收已完成 | `WAIT_G5_USER_ACCEPTANCE` |
 
 当前唯一入口为 `luna_current_handoff.md`。v5 `completedThrough=C7`、evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`；以下 S0～R1-C7 activation 内容是已完成施工基线，不得重复执行。
 
@@ -419,14 +419,14 @@ docs(g2): close db-only web cutover gate
 
 ### G5-M8 手机、AI、legacy cutover 与收尾
 
-状态：`in_progress`。
+状态：`completed_technical`；提交=`fc9ea47`；Scrutiny=`passed`；Runtime 技术复核=`passed`；最终用户签收=`waiting`。
 
 - 手机只读 route，网络断言无写请求。
 - AI 只产 PendingEditorCommandSet；preview/apply/discard/expire，未经用户确认不改画布。
 - 迁移可解析 legacy；unresolved 明确重建；删除旧复制源图导出和 runtime legacy 写入口。
 - 性能、可访问性、安全、故障注入、文档、完成记录、Scrutiny、Runtime/User Review。
 
-退出：五条 Runtime 路径和 G5 清单全绿，进入 `WAIT_G5_USER_ACCEPTANCE`。用户签收后才能写 `G0_G5_COMPLETE`。
+退出：手机 GET-only 预览、AI pending preview/apply/discard/expire、legacy convert/rebuild、0016 forward-only cutover、图片标准化门禁、尺寸变更预览/一次 Undo、20 段像素拼回、安全/可访问性与五条 Runtime 路径已通过。完整回归为 Shared 115/115、Server 568/568、G5 浏览器 8/8；当前状态=`WAIT_G5_USER_ACCEPTANCE`。用户签收前不得写 `G0_G5_COMPLETE`。
 
 ## 11. Stop 条件
 

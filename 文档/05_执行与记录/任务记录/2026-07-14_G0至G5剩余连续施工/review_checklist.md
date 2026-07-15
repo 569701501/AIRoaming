@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M7 已完成，G4 总体=`G4_PASSED`，当前进入 `G5_M8_IN_PROGRESS`。本清单不设置工期或日期；后续按依赖连续执行。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M8 技术验收已完成，G4 总体=`G4_PASSED`，当前停在 `WAIT_G5_USER_ACCEPTANCE`。本清单不设置工期或日期；用户签收前不写 `G0_G5_COMPLETE`。
 
 ## 1. 角色分离
 
@@ -25,15 +25,15 @@ source: deep-think 复核流程与各阶段验收清单
 
 ## 2. 每个切片提交前
 
-- [ ] baseline SHA、status 和 in-scope 文件清单已记录。
-- [ ] 已确认未知用户改动并保留。
-- [ ] 失败用例/复现证据先于修复存在。
-- [ ] 修改没有越过本切片非目标。
-- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M6）。
-- [ ] 定向测试、受影响 package typecheck/build 退出 0。
-- [ ] `git diff --check` 通过。
-- [ ] 只暂存本阶段文件；没有 `git add -A`。
-- [ ] commit message 能说明一个原子结果。
+- [x] baseline SHA、status 和 in-scope 文件清单已记录。
+- [x] 已确认未知用户改动并保留。
+- [x] 失败用例/复现证据先于修复存在。
+- [x] 修改没有越过本切片非目标。
+- [x] 新协议/Schema/状态枚举同步 Shared 与正式文档（截至 G5-M8）。
+- [x] 定向测试、受影响 package typecheck/build 退出 0。
+- [x] `git diff --check` 通过。
+- [x] 只暂存本阶段文件；没有 `git add -A`。
+- [x] commit message 能说明一个原子结果。
 
 ## 3. S0 Review
 
@@ -119,15 +119,15 @@ source: deep-think 复核流程与各阶段验收清单
 
 ### Scrutiny
 
-- [ ] LayoutDocument/command/renderer 共用语义，画布私有 JSON/DOM 不落盘。
-- [ ] autosave 只写 Working Copy；导出只读 LayoutRevision。
-- [ ] source replacement 绑定 G4 revision 和 digest，不使用 `lockedCandidateId`。
+- [x] LayoutDocument/command/renderer 共用语义，画布私有 JSON/DOM 不落盘。
+- [x] autosave 只写 Working Copy；导出只读 LayoutRevision。
+- [x] source replacement 绑定 G4 revision 和 digest，不使用 `lockedCandidateId`。
 - [x] 受控 FontAsset/许可证/embedding 有硬门。
-- [ ] renderer 无外网/file scheme，不截图编辑器控件。
-- [ ] publication 多 Artifact 共用一个 LayoutRevision/current 判定。
-- [ ] mobile 无写接口；AI pending 无自动 apply/save/export。
-- [ ] legacy 写/复制源图导出后门已删除。
-- [ ] resource limits、日志脱敏、SEC-10 和可访问性有证据。
+- [x] renderer 无外网/file scheme，不截图编辑器控件。
+- [x] publication 多 Artifact 共用一个 LayoutRevision/current 判定。
+- [x] mobile 无写接口；AI pending 无自动 apply/save/export。
+- [x] legacy 写/复制源图导出后门已删除。
+- [x] resource limits、日志脱敏、图片标准化门禁和可访问性有证据。
 
 M4 切片复核：
 
@@ -167,24 +167,24 @@ M7 切片复核：
 
 ### Runtime/User
 
-- [ ] 路径 A 页漫：PNG/PDF 实际打开。
-- [ ] 路径 B 条漫：slices 可像素拼回。
-- [ ] 路径 C 返修：旧/新 Publication 均可查，crop 选择生效。
-- [ ] 路径 D 故障：多标签/restart/late task 安全收敛。
-- [ ] 路径 E 手机/AI：0 写请求，pending/apply/Undo 正确。
-- [ ] 固定输入连续三次 sha 一致。
-- [ ] 正式输出无 selection/control handles。
-- [ ] 用户尚未签收时状态为 `WAIT_G5_USER_ACCEPTANCE`。
+- [x] 路径 A 页漫：PNG/PDF 实际打开。
+- [x] 路径 B 条漫：slices 可像素拼回。
+- [x] 路径 C 返修：旧/新 Publication 均可查，crop 选择生效。
+- [x] 路径 D 故障：多标签/restart/late task 安全收敛。
+- [x] 路径 E 手机/AI：0 写请求，pending/apply/Undo 正确。
+- [x] 固定输入连续三次 sha 一致。
+- [x] 正式输出无 selection/control handles。
+- [x] 用户尚未签收时状态为 `WAIT_G5_USER_ACCEPTANCE`。
 
 ## 8. Handoff 完整性
 
-- [ ] 当前状态只描述已发生事实。
-- [ ] 修改文件、migration、命令、退出码、证据、风险完整。
-- [ ] `not_run`、`passed_isolated`、`passed` 使用准确。
-- [ ] 上位架构/模块/路线图/验收文档同步。
-- [ ] 持续价值功能有完成记录。
-- [ ] 会话记忆和长期记忆已去重更新。
-- [ ] 下一步只有一个明确状态/授权，不让用户重新猜路线。
+- [x] 当前状态只描述已发生事实。
+- [x] 修改文件、migration、命令、退出码、证据、风险完整。
+- [x] `not_run`、`passed_isolated`、`passed` 使用准确。
+- [x] 上位架构/模块/路线图/验收文档同步。
+- [x] 持续价值功能有完成记录。
+- [x] 会话记忆和长期记忆已去重更新。
+- [x] 下一步只有一个明确状态/授权，不让用户重新猜路线。
 
 ## 9. 判定模板
 
