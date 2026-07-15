@@ -41,14 +41,6 @@
               <button class="primary-next" type="button" @click="enterCompletedChapterStructure">
                 {{ completionPrimaryActionLabel }}
               </button>
-              <button
-                v-if="activeCompletionPrompt.nextChapterId"
-                class="secondary-next"
-                type="button"
-                @click="continueNextChapter"
-              >
-                继续{{ activeCompletionPrompt.nextChapterTitle }}
-              </button>
             </div>
           </div>
           <ScriptDocumentEditor
@@ -347,14 +339,6 @@ function enterCompletedChapterStructure() {
   emit("selectStep", "story_structure");
 }
 
-function continueNextChapter() {
-  if (!activeCompletionPrompt.value?.nextChapterId) {
-    return;
-  }
-
-  emit("dismissCompletionPrompt");
-  emit("selectChapter", activeCompletionPrompt.value.nextChapterId);
-}
 </script>
 
 <style scoped>

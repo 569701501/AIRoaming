@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import {
   DocumentValidationError,
   encodeScriptTextV1,
+  parseScriptOutlineMarkdownV1,
   PreflightDocumentCodecV2,
   resolveChapterProductionState,
   type ChapterProductionState,
@@ -274,7 +275,7 @@ export class ScriptVersionRepository {
         completedAt: now,
         rowVersion: { increment: 1 },
       });
-      const next = request.createNextChapter ? await this.ensureNextChapter(tx, scope.projectId, chapter.order, request.nextChapterTitle) : null;
+      const next = request.createNextChapter ? await this.ensureNextChapterFromConfirmedOutline(tx, scope.projectId, chapter.order, request.nextChapterTitle) : null;
       const updated = await this.readChapter(scope, tx);
       return this.publishResponse(updated, created, next !== null, false);
     });
@@ -510,6 +511,29 @@ export class ScriptVersionRepository {
         lastScriptRevisionId: null,
       },
     });
+  }
+
+  private async ensureNextChapterFromConfirmedOutline(
+    tx: Prisma.TransactionClient,
+    projectId: string,
+    order: number,
+    legacyTitle?: string,
+  ) {
+    const project = await tx.project.findFirst({
+      where: { id: projectId, lifecycleStatus: "active" },
+      include: { currentScriptOutline: true },
+    });
+    const outline = project?.currentScriptOutline;
+    if (outline?.status === "confirmed") {
+      try {
+        const nextCard = parseScriptOutlineMarkdownV1(outline.sourceText).chapterCards.find((card) => card.order === order + 1);
+        if (!nextCard) return null;
+        return this.ensureNextChapter(tx, projectId, order, nextCard.title);
+      } catch {
+        // 历史大纲可能不符合 v1 严格章节卡契约，继续保留旧项目的建章行为。
+      }
+    }
+    return this.ensureNextChapter(tx, projectId, order, legacyTitle);
   }
 
   private publishResponse(

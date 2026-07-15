@@ -1,18 +1,26 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
-  ChapterListItem,
   DialogueToolResult,
   ProjectScriptOutline,
   ScriptImportAnalysis,
   ScriptInspirationSeed,
-  ScriptRevisionItem,
   SendDialogueMessageRequest,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
-import { SCRIPT_INSPIRATION_SEED_COUNT, extractChapterScriptTitle } from "@airoaming/shared";
+import {
+  SCRIPT_INSPIRATION_SEED_COUNT,
+  extractChapterScriptTitle,
+  getChapterScriptFormatPrompt,
+  getScriptOutlineFormatPrompt,
+  parseChapterScriptMarkdownV1,
+  parseScriptOutlineMarkdownV1,
+  serializeChapterScriptMarkdownV1,
+  serializeScriptOutlineMarkdownV1,
+} from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
 import { ProjectsService } from "../projects/projects.service.js";
+import { ScriptWorkflowSourceRepository, type AiChapterGenerationContext } from "../projects/script-workflow-source.repository.js";
 import type {
   DialogueTurn,
   LocalDialogueThread,
@@ -29,6 +37,7 @@ import {
   isCancellingScriptOutline,
   isConfirmingScriptImport,
   isConfirmingScriptOutline,
+  isExplicitlyRequestingChapterGeneration,
   isSelectingInspirationSeed,
   resolveBatchChapterRange,
   resolveRequestedScriptChapterOrder,
@@ -50,7 +59,6 @@ import {
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
   ensureChapterMarkdown,
-  ensureScriptOutlineMarkdown,
   formatRevisionSource,
   getErrorMessage,
   summarizeDraftUpdate,
@@ -76,6 +84,7 @@ export class ScriptDialogueService {
 
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
+    @Inject(ScriptWorkflowSourceRepository) private readonly scriptWorkflowSourceRepository: ScriptWorkflowSourceRepository,
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
   ) {}
 
@@ -447,7 +456,7 @@ export class ScriptDialogueService {
     this.pendingInspirationSeeds.set(pendingKey, {
       seeds,
       prompt: input.content,
-      chapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
+      chapterId: turn.thread.chapterId,
       createdAt: new Date().toISOString(),
     });
     return this.createGenerateInspirationSeedsToolResult(turn, seeds);
@@ -467,21 +476,40 @@ export class ScriptDialogueService {
     }
 
     const batchRange = resolveBatchChapterRange(input.content);
-    if (input.intent === "generate_script_from_outline" || isConfirmingScriptOutline(input.content) || batchRange) {
-      this.pendingScriptOutlines.delete(pendingKey);
-      if (batchRange) {
-        return this.createGenerateMultipleChaptersToolResult(turn, input, outline, batchRange, signal);
-      }
+    if (batchRange) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_script_from_outline",
+        "AI 创作路线按当前章节逐章生成，不支持一次生成多章。请先切换到目标章节，再在该章节对话中明确输入“生成当前章节”。",
+      );
+    }
+    const explicitGeneration = isExplicitlyRequestingChapterGeneration(input);
+    const confirmsPendingOutline = pending !== undefined && isConfirmingScriptOutline(input.content);
+    if (explicitGeneration) {
+      if (pending) this.pendingScriptOutlines.delete(pendingKey);
       return this.createGenerateScriptFromOutlineToolResult(turn, input, outline, signal);
     }
 
-    if (isCancellingScriptOutline(input.content)) {
+    if (confirmsPendingOutline) {
+      this.pendingScriptOutlines.delete(pendingKey);
+      const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId, outline.id);
+      return this.createGenerateScriptOutlineToolResult(
+        turn,
+        confirmedOutline,
+        "剧本大纲已确认。本次没有生成章节；请打开目标章节，并在该章节对话中明确输入“生成当前章节”。",
+        "succeeded",
+        pending.source === "topic" ? "generate_script_outline_from_topic" : "generate_script_outline_from_seed",
+      );
+    }
+
+    if (pending && isCancellingScriptOutline(input.content)) {
       this.pendingScriptOutlines.delete(pendingKey);
       return this.createGenerateScriptOutlineToolResult(
         turn,
         outline,
         "已取消当前剧本大纲确认，本次没有生成章节。你可以继续让我重新找灵感或重新生成大纲。",
         "failed",
+        pending.source === "topic" ? "generate_script_outline_from_topic" : "generate_script_outline_from_seed",
       );
     }
 
@@ -528,7 +556,7 @@ export class ScriptDialogueService {
       source: "seed",
       seed,
       seedPrompt,
-      chapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
+      chapterId: turn.thread.chapterId,
       createdAt: new Date().toISOString(),
     });
 
@@ -542,6 +570,7 @@ export class ScriptDialogueService {
         outline.sourceText.trim(),
       ].join("\n"),
       "needs_user_confirmation",
+      "generate_script_outline_from_seed",
     );
   }
 
@@ -575,7 +604,7 @@ export class ScriptDialogueService {
     this.pendingScriptOutlines.set(getPendingScriptOutlineKey(turn.thread.projectId, turn.normalizedStepKey), {
       outline,
       source: "topic",
-      chapterId: turn.snapshot.currentChapter?.id ?? turn.thread.chapterId,
+      chapterId: turn.thread.chapterId,
       createdAt: new Date().toISOString(),
     });
 
@@ -589,6 +618,7 @@ export class ScriptDialogueService {
         outline.sourceText.trim(),
       ].join("\n"),
       "needs_user_confirmation",
+      "generate_script_outline_from_topic",
     );
   }
 
@@ -608,9 +638,23 @@ export class ScriptDialogueService {
 
     const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId, outline.id);
     const toolCallId = randomUUID();
+    let context: AiChapterGenerationContext;
+    try {
+      context = await this.scriptWorkflowSourceRepository.getAiChapterGenerationContext({
+        projectId: turn.thread.projectId,
+        chapterId: targetChapter.id,
+        outlineId: confirmedOutline.id,
+      });
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_script_from_outline",
+        `当前章节暂时不能生成：${getErrorMessage(error)}。请检查本章是否已有正文或待确认草稿，以及上一章是否已经完成。`,
+      );
+    }
     let sourceText: string;
     try {
-      sourceText = await this.generateScriptFromOutlineWithAI(turn, input, confirmedOutline, targetChapter.title, signal);
+      sourceText = await this.generateScriptFromOutlineWithAI(turn, input, context, signal);
     } catch (error) {
       return this.createFailedToolResult(
         turn,
@@ -619,16 +663,30 @@ export class ScriptDialogueService {
       );
     }
 
-    const chapterTitle = extractChapterScriptTitle(sourceText) ?? targetChapter.title;
-    const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, targetChapter.id, {
-      sourceText,
-      title: chapterTitle,
-      summary: `根据已确认剧本大纲「${confirmedOutline.title}」生成 ${chapterTitle} 草稿。`,
-      threadId: turn.thread.id,
-      messageId: turn.assistantMessage.id,
-      toolCallId,
-      operation: "generate_script_from_outline",
-    });
+    const chapterTitle = extractChapterScriptTitle(sourceText) ?? `第 ${context.chapter.order} 章：${context.targetCard.title}`;
+    try {
+      await this.scriptWorkflowSourceRepository.createAiChapterPending({
+        projectId: turn.thread.projectId,
+        chapterId: targetChapter.id,
+        outlineId: confirmedOutline.id,
+        expectedSourceSetDigest: context.sourceSetDigest,
+        sourceText,
+        summary: `根据已确认剧本大纲「${confirmedOutline.title}」生成 ${chapterTitle} 待确认草稿。`,
+        threadId: turn.thread.id,
+        messageId: turn.assistantMessage.id,
+        toolCallId,
+        operation: "generate_script_from_outline",
+      });
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "generate_script_from_outline",
+        `章节已生成但来源发生变化，未写入待确认草稿：${getErrorMessage(error)}。请重新输入“生成当前章节”。`,
+      );
+    }
+    const refreshed = await this.projectsService.getWorkbenchSnapshot(turn.thread.projectId, targetChapter.id);
+    const chapter = refreshed.currentChapter;
+    if (!chapter) return this.createFailedToolResult(turn, "generate_script_from_outline", "章节草稿已生成，但刷新当前章节失败。");
     const now = new Date().toISOString();
 
     return {
@@ -639,119 +697,14 @@ export class ScriptDialogueService {
       toolCallId,
       tool: "generate_script_from_outline",
       status: "succeeded",
-      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${result.chapter.title} 的草稿。草稿在右侧待确认，采用后才会覆盖正式正文。来源：${formatRevisionSource(result.revision)}`,
-      chapters: result.chapters,
-      currentChapterId: result.chapter.id,
-      currentChapter: result.chapter,
+      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${chapter.title} 的待确认草稿。请先完整查看；采用后进入可编辑正文，完成本章后才形成正式版本。来源：${chapter.lastScriptRevision ? formatRevisionSource(chapter.lastScriptRevision) : "系统密封来源"}`,
+      chapters: refreshed.chapters,
+      currentChapterId: chapter.id,
+      currentChapter: chapter,
       analysis: null,
       inspirationSeeds: null,
       scriptOutline: confirmedOutline,
-      revision: result.revision,
-      createdAt: now,
-    };
-  }
-
-  /**
-   * 多章批量生成(见 ADR-0008 三期)。
-   * 从 start 开始连续生成 count 章:每章 ensureChapterExists → 检查正式非空停 → AI 生成 → 写 pending。
-   * 碰已有正式正文的章节停下,返回已停位置;AI 生成失败也停下。
-   * 正文写入 pending 缓冲,不覆盖正式 sourceText;用户事后逐章确认。
-   */
-  private async createGenerateMultipleChaptersToolResult(
-    turn: DialogueTurn,
-    input: SendDialogueMessageRequest,
-    outline: ProjectScriptOutline,
-    range: { start: number; count: number },
-    signal?: AbortSignal,
-  ): Promise<DialogueToolResult> {
-    const confirmedOutline = await this.projectsService.confirmScriptOutline(turn.thread.projectId, outline.id);
-    const toolCallId = randomUUID();
-    const generatedChapters: ChapterListItem[] = [];
-    const summaries: string[] = [];
-    let stoppedAt: { order: number; title: string } | null = null;
-    let failedAt: { order: number; reason: string } | null = null;
-    let lastChapterId: string | null = null;
-    let lastRevision: ScriptRevisionItem | null = null;
-
-    for (let offset = 0; offset < range.count; offset += 1) {
-      const order = range.start + offset;
-
-      // 确保章节存在(边生成边建章)
-      const ensured = await this.projectsService.ensureChapterExists(
-        turn.thread.projectId,
-        order,
-        `第 ${order} 章`,
-      );
-
-      // 碰正式非空章节停下(保护用户已有内容)
-      if (ensured.sourceText.trim().length > 0) {
-        stoppedAt = { order, title: ensured.title };
-        summaries.push(`第 ${order} 章「${ensured.title}」已有正式正文,已停止,未覆盖。`);
-        lastChapterId = ensured.id;
-        break;
-      }
-
-      // AI 生成该章正文
-      let sourceText: string;
-      try {
-        sourceText = await this.generateScriptFromOutlineWithAI(turn, input, confirmedOutline, ensured.title, signal);
-      } catch (error) {
-        failedAt = { order, reason: getErrorMessage(error) };
-        summaries.push(`第 ${order} 章「${ensured.title}」生成失败:${getErrorMessage(error)}。`);
-        lastChapterId = ensured.id;
-        break;
-      }
-
-      // 写入 pending 缓冲(不碰正式 sourceText)
-      const chapterTitle = extractChapterScriptTitle(sourceText) ?? ensured.title;
-      const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, ensured.id, {
-        sourceText,
-        title: chapterTitle,
-        summary: `批量生成第 ${order} 章「${chapterTitle}」草稿。`,
-        threadId: turn.thread.id,
-        messageId: turn.assistantMessage.id,
-        toolCallId,
-        operation: "generate_script_from_outline",
-      });
-      generatedChapters.push(result.chapter);
-      lastChapterId = result.chapter.id;
-      lastRevision = result.revision;
-      summaries.push(`第 ${order} 章「${result.chapter.title}」草稿已生成(待确认)。`);
-    }
-
-    const now = new Date().toISOString();
-    const succeededCount = generatedChapters.length;
-    const status: DialogueToolResult["status"] = succeededCount > 0 ? "succeeded" : "failed";
-
-    let summaryText: string;
-    if (succeededCount === 0) {
-      summaryText = failedAt
-        ? `批量生成失败,第 ${failedAt.order} 章生成出错:${failedAt.reason}。本次没有写入任何草稿。`
-        : `批量生成未开始:第 ${stoppedAt?.order} 章已有正式正文。`;
-    } else if (stoppedAt) {
-      summaryText = `已生成 ${succeededCount} 章草稿(第 ${range.start} - ${range.start + succeededCount - 1} 章),在第 ${stoppedAt.order} 章「${stoppedAt.title}」处停止(已有正式正文)。草稿在右侧待确认,采用后才覆盖正式正文。`;
-    } else if (failedAt) {
-      summaryText = `已生成 ${succeededCount} 章草稿,在第 ${failedAt.order} 章处因生成出错停止(${failedAt.reason})。已生成的草稿在右侧待确认。`;
-    } else {
-      summaryText = `已生成 ${succeededCount} 章草稿(第 ${range.start} - ${range.start + succeededCount - 1} 章)。草稿在右侧待确认,采用后才覆盖正式正文。`;
-    }
-
-    return {
-      id: randomUUID(),
-      projectId: turn.thread.projectId,
-      threadId: turn.thread.id,
-      messageId: turn.assistantMessage.id,
-      toolCallId,
-      tool: "generate_multiple_chapters",
-      status,
-      summary: [summaryText, "", ...summaries].join("\n"),
-      chapters: generatedChapters,
-      currentChapterId: lastChapterId,
-      currentChapter: null,
-      analysis: null,
-      inspirationSeeds: null,
-      scriptOutline: confirmedOutline,
-      revision: lastRevision,
+      revision: chapter.lastScriptRevision,
       createdAt: now,
     };
   }
@@ -761,6 +714,7 @@ export class ScriptDialogueService {
     outline: ProjectScriptOutline,
     summary: string,
     status: DialogueToolResult["status"],
+    tool: "generate_script_outline_from_seed" | "generate_script_outline_from_topic",
   ): DialogueToolResult {
     return {
       id: randomUUID(),
@@ -768,7 +722,7 @@ export class ScriptDialogueService {
       threadId: turn.thread.id,
       messageId: turn.assistantMessage.id,
       toolCallId: randomUUID(),
-      tool: "generate_script_outline_from_seed",
+      tool,
       status,
       summary,
       chapters: [],
@@ -964,26 +918,21 @@ export class ScriptDialogueService {
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
   ): { id: string; title: string; order: number | null } | { error: string } | null {
+    const chapterId = input.chapterId ?? turn.snapshot.currentChapter?.id ?? turn.thread.chapterId;
+    if (!chapterId) return null;
+    const scopedChapter = turn.snapshot.chapters.find((item) => item.id === chapterId);
     const requestedOrder = resolveRequestedScriptChapterOrder(input.content, turn.snapshot);
     if (requestedOrder) {
-      const chapter = turn.snapshot.chapters.find((item) => item.order === requestedOrder);
-      if (!chapter) {
+      if (!scopedChapter || scopedChapter.order !== requestedOrder) {
         return {
-          error: `第 ${requestedOrder} 章还不存在。请先完成当前章进入下一章，或先创建第 ${requestedOrder} 章后再生成。`,
+          error: `当前对话作用域不是第 ${requestedOrder} 章。请先在章节下拉框切换到第 ${requestedOrder} 章，再输入“生成当前章节”。`,
         };
       }
-
-      return toScriptFromOutlineTarget(chapter);
+      return toScriptFromOutlineTarget(scopedChapter);
     }
 
-    const chapterId = input.chapterId ?? turn.snapshot.currentChapter?.id ?? turn.thread.chapterId;
-    if (!chapterId) {
-      return null;
-    }
-
-    const chapter = turn.snapshot.chapters.find((item) => item.id === chapterId);
-    return chapter
-      ? toScriptFromOutlineTarget(chapter)
+    return scopedChapter
+      ? toScriptFromOutlineTarget(scopedChapter)
       : {
           id: chapterId,
           title: turn.snapshot.currentChapter?.title ?? "当前章节",
@@ -1006,7 +955,23 @@ export class ScriptDialogueService {
       signal,
     });
 
-    return parseInspirationSeeds(response.content);
+    try {
+      return parseInspirationSeeds(response.content);
+    } catch (error) {
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId: openCodeSessionId,
+        model: input.model,
+        content: [
+          "上一次输出未通过 creative.ideation/1.0 格式校验。只修复格式，不改变三套创意的语义。",
+          "只返回严格 JSON；顶层只能有 seeds；seeds 必须恰好 3 项；每项只含 title、genreTags、logline、keyConflict、visualHook、firstChapterDirection。不要代码块或解释。",
+          `校验错误：${getErrorMessage(error)}`,
+          "待修复输出：",
+          response.content,
+        ].join("\n"),
+        signal,
+      });
+      return parseInspirationSeeds(repaired.content);
+    }
   }
 
   private async generateScriptOutlineFromSeedWithAI(
@@ -1025,7 +990,7 @@ export class ScriptDialogueService {
       signal,
     });
 
-    return ensureScriptOutlineMarkdown(response.content, seed.title);
+    return this.normalizeScriptOutlineWithOneRepair(openCodeSessionId, input, response.content, signal);
   }
 
   /**
@@ -1045,25 +1010,66 @@ export class ScriptDialogueService {
       signal,
     });
 
-    return ensureScriptOutlineMarkdown(response.content, turn.snapshot.project.storyTitle || turn.snapshot.project.name);
+    return this.normalizeScriptOutlineWithOneRepair(openCodeSessionId, input, response.content, signal);
   }
 
   private async generateScriptFromOutlineWithAI(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
-    outline: ProjectScriptOutline,
-    targetChapterTitle: string,
+    context: AiChapterGenerationContext,
     signal?: AbortSignal,
   ): Promise<string> {
     const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
-      content: buildScriptFromOutlinePrompt(turn, input, outline, targetChapterTitle),
+      content: buildScriptFromOutlinePrompt(input, context),
       signal,
     });
+    const expectedHeading = `第 ${context.chapter.order} 章：${context.targetCard.title}`;
+    try {
+      return serializeChapterScriptMarkdownV1(parseChapterScriptMarkdownV1(response.content, { expectedChapterHeading: expectedHeading, mode: "creative" }));
+    } catch (error) {
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId: openCodeSessionId,
+        model: input.model,
+        content: [
+          "上一次输出未通过 creative.chapter-draft/1.0 格式校验。只修复格式，不新增、删减或改写剧情事实。",
+          `二级标题必须精确为：## ${expectedHeading}`,
+          getChapterScriptFormatPrompt(),
+          `校验错误：${getErrorMessage(error)}`,
+          "待修复输出：",
+          response.content,
+        ].join("\n"),
+        signal,
+      });
+      return serializeChapterScriptMarkdownV1(parseChapterScriptMarkdownV1(repaired.content, { expectedChapterHeading: expectedHeading, mode: "creative" }));
+    }
+  }
 
-    return ensureChapterMarkdown(response.content, targetChapterTitle);
+  private async normalizeScriptOutlineWithOneRepair(
+    sessionId: string,
+    input: SendDialogueMessageRequest,
+    sourceText: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    try {
+      return serializeScriptOutlineMarkdownV1(parseScriptOutlineMarkdownV1(sourceText));
+    } catch (error) {
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId,
+        model: input.model,
+        content: [
+          "上一次输出未通过 creative.outline/1.0 格式校验。只修复格式，不改变故事方向、角色、章数或结局。",
+          getScriptOutlineFormatPrompt(),
+          `校验错误：${getErrorMessage(error)}`,
+          "待修复输出：",
+          sourceText,
+        ].join("\n"),
+        signal,
+      });
+      return serializeScriptOutlineMarkdownV1(parseScriptOutlineMarkdownV1(repaired.content));
+    }
   }
 
   private async generateScriptFromSeedWithAI(

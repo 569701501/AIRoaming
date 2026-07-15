@@ -49,7 +49,7 @@ import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutPublicationService } from "./layout-publication.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
-import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, LayoutPublicationProfileCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
+import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, LayoutPublicationProfileCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, serializeScriptOutlineMarkdownV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
 
@@ -2408,13 +2408,31 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const prisma = app.get(PrismaService).database();
     const project = await projects.createProject({ name: "P7 对话 DB", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
     const fakeModel = { providerId: "fake", modelId: "fake-dialogue" };
-    runtime.createSession = async () => "fake-session-1";
-    runtime.sendMessage = async ({ content }) => content.includes("灵感")
+    let fakeSessionSequence = 0;
+    runtime.createSession = async () => `fake-session-${++fakeSessionSequence}`;
+    runtime.sendMessage = async ({ content }) => content.includes("script-outline-drafting")
       ? {
+        content: serializeScriptOutlineMarkdownV1({
+          title: "章节线程大纲",
+          genreStyle: "悬疑",
+          episodeLength: "2 章短篇",
+          chapterCount: 2,
+          synopsis: "主角循着钥匙调查真相。",
+          mainCharacters: ["林舟（主角）：寻找真相的调查者。"],
+          plotStages: ["开端：林舟发现钥匙，但是门外响起暗号，因此决定调查。"],
+          endingDirection: "林舟确认来客身份并揭露内鬼。",
+          chapterCards: [
+            { order: 1, title: "旧钥匙", chapterGoal: "发现钥匙", coreConflict: "线索不足", majorTurn: "听见暗号", endingHook: "来客敲门", nextChapterBridge: "判断来客" },
+            { order: 2, title: "门外来客", chapterGoal: "确认身份", coreConflict: "无法信任", majorTurn: "说出暗号", endingHook: "暗号来自内鬼", nextChapterBridge: "故事结束" },
+          ],
+        }),
+        model: fakeModel,
+      }
+      : content.includes("灵感") ? {
         content: JSON.stringify({ seeds: [
-          { title: "方向一", logline: "一个关于选择的故事", keyConflict: "选择与代价", visualHook: "雨夜车站", firstChapterDirection: "主角在车站做出第一次选择", genreTags: ["剧情"] },
-          { title: "方向二", logline: "一个关于寻找的故事", keyConflict: "真相与谎言", visualHook: "废弃剧院", firstChapterDirection: "主角在剧院发现第一条线索", genreTags: ["悬疑"] },
-          { title: "方向三", logline: "一个关于守护的故事", keyConflict: "责任与自由", visualHook: "海边灯塔", firstChapterDirection: "主角在灯塔守住秘密", genreTags: ["奇幻"] },
+          { title: "方向一", logline: "一个关于选择的故事", keyConflict: "选择与代价", visualHook: "雨夜车站", firstChapterDirection: "主角在车站做出第一次选择", genreTags: ["剧情", "都市"] },
+          { title: "方向二", logline: "一个关于寻找的故事", keyConflict: "真相与谎言", visualHook: "废弃剧院", firstChapterDirection: "主角在剧院发现第一条线索", genreTags: ["悬疑", "调查"] },
+          { title: "方向三", logline: "一个关于守护的故事", keyConflict: "责任与自由", visualHook: "海边灯塔", firstChapterDirection: "主角在灯塔守住秘密", genreTags: ["奇幻", "冒险"] },
         ]}),
         model: fakeModel,
       }
@@ -2427,6 +2445,16 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const toolTurn = await dialogue.sendMessage(project.id, "project_characters", { content: "请提取项目角色", intent: "generate_project_characters", model: fakeModel });
     expect(toolTurn.toolResults?.[0]?.status).toBe("failed");
     expect(await prisma.dialogueToolResult.count({ where: { threadId: toolTurn.thread.id } })).toBe(1);
+    const initialChapterId = (await projects.getWorkbenchSnapshot(project.id)).currentChapter?.id;
+    expect(initialChapterId).toBeTruthy();
+    const scopedOutline = await dialogue.sendMessage(project.id, "project_story", { content: "写一个 2 章悬疑故事", chapterId: initialChapterId, model: fakeModel });
+    expect(scopedOutline.toolResults?.[0], JSON.stringify(scopedOutline.toolResults?.[0], null, 2)).toMatchObject({ status: "needs_user_confirmation", scriptOutline: { title: "章节线程大纲" } });
+    expect(await prisma.pendingDialogueArtifact.findFirstOrThrow({ where: { threadId: scopedOutline.thread.id, status: "pending" } })).toMatchObject({ projectId: project.id, chapterId: initialChapterId, kind: "script_outline_decision" });
+    const outlineConfirmed = await dialogue.sendMessage(project.id, "project_story", { content: "继续", chapterId: initialChapterId, model: fakeModel });
+    expect(outlineConfirmed.toolResults?.[0]).toMatchObject({ status: "succeeded", scriptOutline: { status: "confirmed" } });
+    expect(outlineConfirmed.toolResults?.[0]?.summary).toContain("本次没有生成章节");
+    expect(await prisma.pendingDialogueArtifact.count({ where: { threadId: scopedOutline.thread.id, status: "pending" } })).toBe(0);
+    expect(await prisma.pendingDialogueArtifact.count({ where: { threadId: scopedOutline.thread.id, status: "applied" } })).toBe(1);
     const pendingTurn = await dialogue.sendMessage(project.id, "project_story", { content: "请生成灵感方向", intent: "generate_inspiration_seeds", model: fakeModel });
     expect(pendingTurn.toolResults?.[0]?.status).toBe("succeeded");
     expect(await prisma.pendingDialogueArtifact.count({ where: { projectId: project.id, status: "pending" } })).toBe(1);
@@ -2445,7 +2473,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await reopenedPrisma.pendingDialogueArtifact.count({ where: { projectId: project.id, status: "pending" } })).toBe(0);
     expect(await reopenedPrisma.pendingDialogueArtifact.count({ where: { projectId: project.id, status: "discarded" } })).toBe(1);
     const reopenedRuntime = app.get(OpenCodeRuntimeService);
-    reopenedRuntime.createSession = async () => "fake-session-2";
+    reopenedRuntime.createSession = async () => "fake-session-after-restart";
     reopenedRuntime.sendMessage = async () => ({ content: "fake response after restart", model: fakeModel });
     await app.get(DialogueService).sendMessage(project.id, "project_story", { content: "hello after restart", model: fakeModel });
     expect(await reopenedPrisma.dialogueRuntimeSession.count({ where: { threadId: first.thread.id, status: "active" } })).toBe(1);

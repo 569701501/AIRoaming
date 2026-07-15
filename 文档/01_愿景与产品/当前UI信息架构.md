@@ -155,7 +155,7 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 | 项目级已确认事实 | `current` | 仅保存用户已确认的故事、角色、世界观、风格、结构、分镜和锁定结果 |
 | 章节列表 | `current` | 剧本步骤内已展示章节顺序、标题、正文预览和状态，并支持切换当前章节 |
 | 项目角色库 | `current/partial` | 已调整为 `/characters` 项目级常驻资产入口，不再作为顶部主流程步骤；普通角色图路径以只读角色名、图卡展示、编辑生图描述 / prompt、重新生成、应用当前图和删除当前图片版本为主；加入、合并、标记临时或忽略仅作为底层归类或高级/异常处理 |
-| AI 创作草稿采用与完成 | `current/needs_update` | `采用草稿` 只把 AI pending 转为可编辑 Working Copy；`完成本章` 才发布不可变 ScriptVersion。页面停留当前章；仅在大纲存在下一章卡时增加下一章入口 |
+| AI 创作草稿采用与完成 | `current` | AI pending 在正文区完整只读展示；`采用草稿` 只转为可编辑 Working Copy，`完成本章` 才发布不可变 ScriptVersion。页面停留当前章；仅在大纲存在下一章卡时增加下一章入口 |
 | 已有剧本逐章确认 | `target/needs_implementation` | 目录确认后全部导入章节先进入只读 pending；用户自由切换查看，通过 `确认章节` 将当前 pending 原子发布为正式 ScriptVersion，不提供采用、丢弃、手动修改、AI 重新整理或批量确认 |
 
 ## 6. 设计原则
@@ -183,13 +183,13 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 | 项目工作区 | current | 创建或打开项目后进入工作区，隐藏全局左侧导航，保留返回项目库、项目名、锁定漫画版式和紧凑 7 步流程栏 |
 | 项目 workflow | current | 顶部主流程为 `project_story -> story_structure -> storyboard -> image_preflight -> image_candidates -> layout_export -> asset_package`；状态由 DB `ChapterProductionState` 和 current/freshness 派生，`project_characters` 保留为 `/characters` 项目级资产入口 |
 | 项目路由 | current | 已实现 `/projects`、`/projects/:projectId/script`、`/projects/:projectId/characters`、`/projects/:projectId/preflight` 和后续步骤地址；`characters` 是常驻资产页，不计入顶部主流程序号 |
-| 剧本 | current/needs_update | 当前代码支持 CodeMirror Markdown、章节切换、OpenCode 对话、灵感种子、章节 pending 和第一版直接导入。目标双路线中的“轻量章节卡与前章门禁”“原稿副本—观察大纲—目录确认—整批 pending”“导入 pending 逐章只读确认”尚未实现；现有页面展示字段继续复用，不因上游流程设计增加常驻面板 |
+| 剧本 | current/partial | AI 创作路线已支持严格灵感、大纲与轻量章节卡、显式单章生成、前章正式门禁、密封来源、完整 pending 查看、采用/丢弃与完成本章；已有剧本路线的“原稿副本—观察大纲—目录确认—整批 pending—逐章确认”仍待生产接线。现有页面展示字段继续复用，不增加常驻面板 |
 | 剧情结构 | current/completed_g2 | 按章节生成 pending，字段编辑后确认不可变 StoryVersion；上游变化派生 stale，旧版本保留；页面提供章节切换、状态和元素化结构编辑 |
 | 分镜工作台 | current/completed_g2 | 按章节生成和编辑 pending StoryboardVersion，确认后形成不可变版本与稳定 Shot；基础镜头卡、新增/删除和版本历史已完成。缩略图、拖拽重排、单镜重写和批量重编号属于后置体验增强 |
 | 出图准备 | current/completed_g2 | 从 current StoryboardVersion、角色/场景视觉和画风构建 SourceSnapshot，确认不可变 PreflightRevision；未就绪和来源变化均由服务端门禁。更丰富的场景模板 UI 属于后置增强 |
 | 候选图工作台 | current/completed_g4 | 真实候选生成、Asset/Task 追溯、收藏/废弃、线性 CandidateLockRevision、更换/clear 影响预览、冲突重预览、历史恢复和布局 stale 均已完成；旧 `Shot.lockedCandidateId` 不再是 runtime 权威路径 |
 | 排版导出 | current/completed_g5 | DB-only Working Copy、画格/图片/模板/裁切、受控字体、横竖排富文本、气泡、来源返修、不可变 LayoutRevision、固定 RenderScene、`layout_publication`、手机只读、AI pending 与 legacy cutover 均已完成 |
-| 章节工作流 | current/needs_update | 已实现章节列表、`/projects/:projectId/script/:chapterId`、章节级保存与完成。目标中，AI 创作仅在大纲存在下一章卡时增加入口，切换不生成、用户明确提出后才生成且要求前章正式；已有剧本在目录确认后一次创建全部入口并逐章确认。角色库待处理只提示不阻塞剧情结构；手动新建、重命名、删除和下游失效提示仍未实现 |
+| 章节工作流 | current/partial | 已实现章节列表、`/projects/:projectId/script/:chapterId`、章节级保存与完成；AI 创作仅在大纲存在下一章卡时增加入口，切换不生成、用户明确提出后才生成且要求前章正式。已有剧本仍待实现目录确认后一次创建全部入口并逐章确认。角色库待处理只提示不阻塞剧情结构；手动新建、重命名、删除和下游失效提示仍未实现 |
 | 对话过程展示 | current | 已参考 AuroraPlatformWeb 的 reasoning/tool 展示模式：消息区独立滚动，长正文局部滚动，AI 思考、技能调用和工具结果以紧凑过程卡片展示 |
 | 设置 | current | 文本模型 key 交给本机 OpenCode，图片模型 key 由后端 SecretStore 保存；前端只展示配置状态、来源和 fingerprint，不回显明文；外观支持深色、浅色和跟随系统 |
 | 素材库、通知、团队 | deferred | 不进入当前主路径 |

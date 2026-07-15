@@ -19,6 +19,8 @@ import {
   type ConfirmedScriptChapterMapV1,
   type ImportAnalysisOutputV1,
   type ImportFidelityOutputV1,
+  type ScriptOutlineChapterCardV1,
+  type ScriptOutlineDocumentV1,
   type ScriptPendingSourceBindingV1,
   type ScriptRawSourceDocumentInputV1,
   type ScriptRawSourceInputModeV1,
@@ -28,6 +30,7 @@ import {
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { getDefaultChapterTitle } from "./project-domain.util.js";
+import { createScriptPendingIds } from "./versioning/runtime-command-id.js";
 import { createG2DatabaseError, G2DatabaseError, mapG2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import { VersionTransactionRunner } from "./versioning/version-transaction-runner.service.js";
 
@@ -126,12 +129,57 @@ export interface ImportBatchResult {
   replayed: boolean;
 }
 
+export interface AiChapterGenerationContext {
+  project: {
+    id: string;
+    name: string;
+    storyTitle: string;
+    genreTags: string[];
+    comicFormat: string;
+    artStyle: string;
+  };
+  outline: {
+    id: string;
+    title: string;
+    sourceText: string;
+    sourceDigest: `sha256:${string}`;
+    document: ScriptOutlineDocumentV1;
+  };
+  chapter: {
+    id: string;
+    order: number;
+    title: string;
+    rowVersion: number;
+  };
+  targetCard: ScriptOutlineChapterCardV1;
+  previousCard: ScriptOutlineChapterCardV1 | null;
+  nextCard: ScriptOutlineChapterCardV1 | null;
+  previousScript: {
+    id: string;
+    chapterId: string;
+    chapterTitle: string;
+    sourceText: string;
+    sourceDigest: `sha256:${string}`;
+  } | null;
+  sourceBindings: ScriptPendingSourceBindingV1[];
+  sourceSetDigest: `sha256:${string}`;
+}
+
 @Injectable()
 export class ScriptWorkflowSourceRepository {
   constructor(
     @Inject(PrismaService) private readonly prismaService: PrismaService,
     @Inject(VersionTransactionRunner) private readonly transactionRunner: VersionTransactionRunner,
   ) {}
+
+  async getAiChapterGenerationContext(input: {
+    projectId: string;
+    chapterId: string;
+    outlineId: string;
+  }): Promise<AiChapterGenerationContext> {
+    this.assertDatabaseMode();
+    return this.run((tx) => this.readAiChapterGenerationContext(tx, input));
+  }
 
   async createRawSource(projectId: string, input: CreateRawScriptSourceInput): Promise<RawScriptSourceResult> {
     this.assertDatabaseMode();
@@ -328,46 +376,104 @@ export class ScriptWorkflowSourceRepository {
     });
   }
 
-  async createAiChapterPending(input: { projectId: string; chapterId: string; outlineId: string; sourceText: string; operation?: string }): Promise<{ pendingId: string; sourceSetDigest: `sha256:${string}` }> {
+  async createAiChapterPending(input: {
+    projectId: string;
+    chapterId: string;
+    outlineId: string;
+    expectedSourceSetDigest: `sha256:${string}`;
+    sourceText: string;
+    threadId: string;
+    messageId: string;
+    toolCallId: string;
+    summary: string;
+    operation?: string;
+  }): Promise<{ pendingId: string; revisionId: string; sourceSetDigest: `sha256:${string}`; replayed: boolean }> {
     this.assertDatabaseMode();
     const script = canonicalScript(input.sourceText, "creative");
+    const operation = input.operation ?? "generate_script_from_outline";
+    const ids = createScriptPendingIds({
+      projectId: input.projectId,
+      chapterId: input.chapterId,
+      threadId: input.threadId,
+      toolCallId: input.toolCallId,
+      operation,
+    });
     return this.run(async (tx) => {
-      const chapter = await tx.chapter.findFirst({ where: { id: input.chapterId, projectId: input.projectId }, include: { chapterScriptPendingByChapter: true } });
-      if (!chapter) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
-      if (chapter.chapterScriptPendingByChapter) throw createG2DatabaseError(409, "ACTIVE_PENDING_EXISTS");
-      if (
-        chapter.currentScriptVersionId !== null
-        || chapter.scriptWorkingText !== ""
-        || chapter.scriptWorkingState !== "empty"
-      ) {
-        throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT", {
-          chapterId: chapter.id,
-          order: chapter.order,
+      const existing = await tx.chapterScriptPending.findUnique({ where: { id: ids.pendingId } });
+      if (existing) {
+        if (
+          existing.chapterId !== input.chapterId
+          || existing.sourceDigest !== script.sourceDigest
+          || existing.operation !== operation
+          || existing.kind !== "ai"
+          || existing.sourceSetDigest !== input.expectedSourceSetDigest
+        ) {
+          throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
+        }
+        return {
+          pendingId: existing.id,
+          revisionId: ids.revisionId,
+          sourceSetDigest: input.expectedSourceSetDigest,
+          replayed: true,
+        };
+      }
+
+      const context = await this.readAiChapterGenerationContext(tx, input);
+      if (context.sourceSetDigest !== input.expectedSourceSetDigest) {
+        throw createG2DatabaseError(409, "CURRENT_VERSION_CHANGED", {
+          expectedSourceSetDigest: input.expectedSourceSetDigest,
+          actualSourceSetDigest: context.sourceSetDigest,
         });
       }
-      const project = await tx.project.findFirst({ where: { id: input.projectId, lifecycleStatus: "active", currentScriptOutlineId: input.outlineId } });
-      const outline = await tx.projectScriptOutline.findFirst({ where: { id: input.outlineId, projectId: input.projectId, status: "confirmed" } });
-      if (!project || !outline) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
-      let card;
-      try { card = parseScriptOutlineMarkdownV1(outline.sourceText).chapterCards.find((item) => item.order === chapter.order); }
-      catch (error) { throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", error); }
-      if (!card) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", { chapterOrder: chapter.order });
-      const bindings: ScriptPendingSourceBindingV1[] = [
-        { role: "outline", order: 1, sourceType: "project_script_outline", sourceId: outline.id, sourceDigest: outline.sourceDigest as `sha256:${string}` },
-        { role: "chapter_card", order: 2, sourceType: "project_script_outline_card", sourceId: `${outline.id}#chapter-${String(card.order).padStart(3, "0")}`, sourceDigest: scriptOutlineCardDigestV1(card) },
-      ];
-      if (chapter.order > 1) {
-        const previous = await tx.chapter.findUnique({ where: { projectId_order: { projectId: input.projectId, order: chapter.order - 1 } }, include: { currentScriptVersion: true } });
-        if (!previous?.currentScriptVersion) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
-        bindings.push({ role: "previous_script", order: 3, sourceType: "chapter_script_version", sourceId: previous.currentScriptVersion.id, sourceDigest: previous.currentScriptVersion.sourceDigest as `sha256:${string}` });
-      }
-      const sealed = buildScriptPendingSourceProjectionV1({ kind: "ai", policyVersion: "ai-chapter-generate/1.0", bindings });
-      const pendingId = randomUUID();
+      const sealed = buildScriptPendingSourceProjectionV1({ kind: "ai", policyVersion: "ai-chapter-generate/1.0", bindings: context.sourceBindings });
+      const thread = await tx.conversationThread.findUnique({ where: { id: input.threadId } });
+      const message = await tx.conversationMessage.findUnique({ where: { id: input.messageId } });
+      const persistedToolCallId = thread && message ? input.toolCallId : null;
       const now = new Date();
-      await tx.chapterScriptPending.create({ data: { id: pendingId, chapterId: chapter.id, sourceText: script.sourceText, sourceDigest: script.sourceDigest, operation: input.operation ?? "generate_chapter", kind: "ai", sourcePolicyVersion: "ai-chapter-generate/1.0", rowVersion: 0, createdAt: now, updatedAt: now } });
-      await tx.chapterScriptPendingSourceBinding.createMany({ data: sealed.projection.bindings.map((binding) => ({ id: randomUUID(), pendingId, role: binding.role, order: binding.order, sourceType: binding.sourceType, sourceId: binding.sourceId, sourceDigest: binding.sourceDigest, createdAt: now })) });
-      await tx.chapterScriptPending.update({ where: { id: pendingId }, data: { sourceProjectionJson: json(sealed.projection), sourceSetDigest: sealed.sourceSetDigest, sourceSetSealedAt: now, rowVersion: { increment: 1 }, updatedAt: now } });
-      return { pendingId, sourceSetDigest: sealed.sourceSetDigest };
+      await tx.chapterScriptPending.create({ data: {
+        id: ids.pendingId,
+        chapterId: context.chapter.id,
+        sourceText: script.sourceText,
+        sourceDigest: script.sourceDigest,
+        operation,
+        kind: "ai",
+        sourcePolicyVersion: "ai-chapter-generate/1.0",
+        threadId: thread ? input.threadId : null,
+        messageId: message ? input.messageId : null,
+        toolCallId: persistedToolCallId,
+        rowVersion: 0,
+        createdAt: now,
+        updatedAt: now,
+      } });
+      await tx.chapterScriptPendingSourceBinding.createMany({ data: sealed.projection.bindings.map((binding) => ({ id: randomUUID(), pendingId: ids.pendingId, role: binding.role, order: binding.order, sourceType: binding.sourceType, sourceId: binding.sourceId, sourceDigest: binding.sourceDigest, createdAt: now })) });
+      await tx.chapterScriptPending.update({
+        where: { id: ids.pendingId },
+        data: {
+          sourceProjectionJson: json(sealed.projection),
+          sourceSetDigest: sealed.sourceSetDigest,
+          sourceSetSealedAt: now,
+          rowVersion: { increment: 1 },
+          updatedAt: now,
+        },
+      });
+      await tx.chapterScriptRevision.create({ data: {
+        id: ids.revisionId,
+        chapterId: context.chapter.id,
+        source: "ai_tool",
+        threadId: thread ? input.threadId : null,
+        messageId: message ? input.messageId : null,
+        toolCallId: persistedToolCallId,
+        operation,
+        summary: input.summary.trim(),
+        targetWorkingDigest: script.sourceDigest,
+        createdAt: now,
+      } });
+      const updated = await tx.chapter.updateMany({
+        where: { id: context.chapter.id, projectId: input.projectId, rowVersion: context.chapter.rowVersion },
+        data: { title: context.targetCard.title, lastScriptRevisionId: ids.revisionId, rowVersion: { increment: 1 }, updatedAt: now },
+      });
+      if (updated.count !== 1) throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT");
+      return { pendingId: ids.pendingId, revisionId: ids.revisionId, sourceSetDigest: sealed.sourceSetDigest, replayed: false };
     });
   }
 
@@ -480,6 +586,88 @@ export class ScriptWorkflowSourceRepository {
     if (batch.items.some((item) => ["queued", "materializing", "verifying"].includes(item.status))) return;
     const failed = batch.items.some((item) => item.status === "generation_failed");
     await tx.scriptImportBatch.update({ where: { id: batch.id }, data: { status: failed ? "partial_failure" : "ready_for_review", completedAt: now, rowVersion: { increment: 1 }, updatedAt: now } });
+  }
+
+  private async readAiChapterGenerationContext(
+    tx: Prisma.TransactionClient,
+    input: { projectId: string; chapterId: string; outlineId: string },
+  ): Promise<AiChapterGenerationContext> {
+    const project = await tx.project.findFirst({
+      where: { id: input.projectId, lifecycleStatus: "active", currentScriptOutlineId: input.outlineId },
+    });
+    if (!project) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+    const outline = await tx.projectScriptOutline.findFirst({
+      where: { id: input.outlineId, projectId: input.projectId, status: "confirmed" },
+    });
+    if (!outline) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+    const chapter = await tx.chapter.findFirst({
+      where: { id: input.chapterId, projectId: input.projectId },
+      include: { chapterScriptPendingByChapter: true },
+    });
+    if (!chapter) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
+    if (chapter.chapterScriptPendingByChapter) throw createG2DatabaseError(409, "ACTIVE_PENDING_EXISTS");
+    if (chapter.currentScriptVersionId !== null || chapter.scriptWorkingText !== "" || chapter.scriptWorkingState !== "empty") {
+      throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT", { chapterId: chapter.id, order: chapter.order });
+    }
+
+    let document: ScriptOutlineDocumentV1;
+    try {
+      document = parseScriptOutlineMarkdownV1(outline.sourceText);
+    } catch (error) {
+      throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", error);
+    }
+    const targetCard = document.chapterCards.find((card) => card.order === chapter.order);
+    if (!targetCard) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", { chapterOrder: chapter.order });
+    const previousCard = document.chapterCards.find((card) => card.order === chapter.order - 1) ?? null;
+    const nextCard = document.chapterCards.find((card) => card.order === chapter.order + 1) ?? null;
+    const bindings: ScriptPendingSourceBindingV1[] = [
+      { role: "outline", order: 1, sourceType: "project_script_outline", sourceId: outline.id, sourceDigest: outline.sourceDigest as `sha256:${string}` },
+      { role: "chapter_card", order: 2, sourceType: "project_script_outline_card", sourceId: `${outline.id}#chapter-${String(targetCard.order).padStart(3, "0")}`, sourceDigest: scriptOutlineCardDigestV1(targetCard) },
+    ];
+    let previousScript: AiChapterGenerationContext["previousScript"] = null;
+    if (chapter.order > 1) {
+      const previous = await tx.chapter.findUnique({
+        where: { projectId_order: { projectId: input.projectId, order: chapter.order - 1 } },
+        include: { currentScriptVersion: true },
+      });
+      if (!previous?.currentScriptVersion) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+      previousScript = {
+        id: previous.currentScriptVersion.id,
+        chapterId: previous.id,
+        chapterTitle: previous.title,
+        sourceText: previous.currentScriptVersion.sourceText,
+        sourceDigest: previous.currentScriptVersion.sourceDigest as `sha256:${string}`,
+      };
+      bindings.push({ role: "previous_script", order: 3, sourceType: "chapter_script_version", sourceId: previousScript.id, sourceDigest: previousScript.sourceDigest });
+    }
+    const sealed = buildScriptPendingSourceProjectionV1({ kind: "ai", policyVersion: "ai-chapter-generate/1.0", bindings });
+    const genreTags = Array.isArray(project.genreTags)
+      ? project.genreTags.filter((tag): tag is string => typeof tag === "string")
+      : [];
+    return {
+      project: {
+        id: project.id,
+        name: project.name,
+        storyTitle: project.storyTitle ?? outline.title,
+        genreTags,
+        comicFormat: project.comicFormat,
+        artStyle: project.artStyle ?? "未设置",
+      },
+      outline: {
+        id: outline.id,
+        title: outline.title,
+        sourceText: outline.sourceText,
+        sourceDigest: outline.sourceDigest as `sha256:${string}`,
+        document,
+      },
+      chapter: { id: chapter.id, order: chapter.order, title: chapter.title, rowVersion: chapter.rowVersion },
+      targetCard,
+      previousCard,
+      nextCard,
+      previousScript,
+      sourceBindings: bindings,
+      sourceSetDigest: sealed.sourceSetDigest,
+    };
   }
 
   private assertDatabaseMode(): void {

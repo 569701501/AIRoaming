@@ -301,6 +301,7 @@ const selectedModelValue = computed(() => props.selectedModel ? serializeModel(p
 const skillTools = new Set<DialogueToolResult["tool"]>([
   "generate_inspiration_seeds",
   "generate_script_outline_from_seed",
+  "generate_script_outline_from_topic",
   "generate_script_from_outline",
   "generate_script_from_seed",
   "generate_multiple_chapters",

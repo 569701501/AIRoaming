@@ -93,6 +93,6 @@ import { LayoutPendingCommandService } from "./layout-pending-command.service.js
     LayoutPublicationWorkerService,
     LayoutPendingCommandService,
   ],
-  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService, LayoutPendingCommandService],
+  exports: [ProjectsService, ScriptWorkflowSourceRepository, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService, LayoutPendingCommandService],
 })
 export class ProjectsModule {}

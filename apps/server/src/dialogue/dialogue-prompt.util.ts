@@ -7,11 +7,11 @@
  */
 import type {
   DialogueMessageItem,
-  ProjectScriptOutline,
   ScriptInspirationSeed,
   SendDialogueMessageRequest,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
+import type { AiChapterGenerationContext } from "../projects/script-workflow-source.repository.js";
 import {
   SCRIPT_INSPIRATION_SEED_COUNT,
   getChapterScriptForbiddenOutputPrompt,
@@ -344,8 +344,6 @@ export function buildStoryboardPrompt(turn: DialogueTurn, input: SendDialogueMes
 export function buildInspirationSeedsPrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
   const snapshot = turn.snapshot;
   const tags = snapshot.project.genreTags.length > 0 ? snapshot.project.genreTags.join("、") : "未设置";
-  const currentChapterText = snapshot.currentChapter?.sourceText?.trim() || "（当前章节为空）";
-
   return [
     "你正在为 AI漫游执行剧本阶段 skill：script-inspiration-seeding。",
     `任务：根据用户输入，为漫画项目生成 ${SCRIPT_INSPIRATION_SEED_COUNT} 个可选择的灵感种子。`,
@@ -356,21 +354,16 @@ export function buildInspirationSeedsPrompt(turn: DialogueTurn, input: SendDialo
     "- 只生成灵感种子，不写章节正文，不声称已经更新项目文件。",
     "- 每个方向要明显不同，能支撑后续生成第 1 章。",
     "- 不要返回固定模板，要结合用户输入、项目名称、题材标签和当前章节状态。",
-    "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
+    "- 只返回一个严格 JSON 对象，不要代码块，不要 Markdown，不要在 JSON 前后追加解释。",
+    "- JSON 顶层只能有 seeds；每个 seed 只能有约定的 6 个字段。",
     "",
     "JSON 结构必须是：",
-    "```json",
     "{\"seeds\":[{\"title\":\"\",\"genreTags\":[\"\"],\"logline\":\"\",\"keyConflict\":\"\",\"visualHook\":\"\",\"firstChapterDirection\":\"\"}]}",
-    "```",
-    "",
-    "JSON 后可以用中文简短提示用户：回复“选第 N 个”即可生成项目级剧本大纲；不喜欢可以要求重新生成 3 个。",
     "",
     `项目名称：${snapshot.project.name}`,
     `题材标签：${tags}`,
     `画幅：${snapshot.project.comicFormat}`,
     `画风：${snapshot.project.artStyle}`,
-    "当前章节正文：",
-    currentChapterText.slice(0, 1200),
     "用户本轮输入：",
     input.content,
   ].join("\n");
@@ -389,8 +382,9 @@ export function buildScriptOutlineFromTopicPrompt(turn: DialogueTurn, input: Sen
     "- 必须按「剧本大纲」固定格式输出,不要改名、删块或合并块。",
     "- 剧集名称优先使用用户题材里提到的作品名或篇章名;如果没有,用一个贴合题材的标题。",
     "- 大纲是项目级产物,用于让用户确认故事方向;不要写章节正文。",
-    "- 情节概要按漫剧集数段落写,例如「第 1 - 2 集：...」,内容必须紧扣用户给定的题材。",
-    "- 剧集章数要说明每集对应多少漫画章节或每组集数覆盖的章节范围;如果用户明确说了章数(如 10-12 章),按用户说的规划。",
+    "- 情节概要必须形成清晰的“但是/因此”因果推进，并明确最终结局方向，不以空泛口号代替结局。",
+    "- 剧集章数必须确定为一个正整数；如果用户给范围，要结合故事体量选定一个具体数字。",
+    "- 必须为每一章生成一张轻量章节卡；章节卡只规划目标、冲突、转折、钩子和跨章衔接，不生成详细场景与剧情节拍。",
     "- 不要套用提示中示例的人名、剧情或设定,只参考格式。",
     "- 不要声称你直接操作本地文件;保存由后端受控工具完成。",
     "",
@@ -422,8 +416,9 @@ export function buildScriptOutlineFromSeedPrompt(
     "- 必须按「剧本大纲」固定格式输出，不要改名、删块或合并块。",
     `- 剧集名称优先使用选中的灵感种子标题：${seed.title}`,
     "- 大纲是项目级产物，用于让用户确认故事方向；不要写章节正文。",
-    "- 情节概要按漫剧集数段落写，例如「第 1 - 2 集：...」，但具体内容必须来自当前项目和灵感种子。",
-    "- 剧集章数要说明每集或每组集数对应的漫画章节规划；后续按单个目标章节生成，不会一次性生成多章。",
+    "- 情节概要必须形成清晰的“但是/因此”因果推进，并明确最终结局方向。",
+    "- 剧集章数必须确定为一个正整数，并为每一章生成一张轻量章节卡；后续只按单个目标章节生成。",
+    "- 章节卡只规划目标、冲突、转折、钩子和跨章衔接，不生成详细场景、剧情节拍或正文。",
     "- 不要套用用户示例里的人名、古装重生剧情、角色关系或情节，只参考格式。",
     "- 不要声称你直接操作本地文件；保存由后端受控工具完成。",
     "",
@@ -452,22 +447,30 @@ export function buildScriptOutlineFromSeedPrompt(
 // ---------- 章节剧本 prompt ----------
 
 export function buildScriptFromOutlinePrompt(
-  turn: DialogueTurn,
   input: SendDialogueMessageRequest,
-  outline: ProjectScriptOutline,
-  targetChapterTitle: string,
+  context: AiChapterGenerationContext,
 ): string {
+  const expectedHeading = `第 ${context.chapter.order} 章：${context.targetCard.title}`;
+  const userSupplement = input.content
+    .replace(/(请|帮我|现在|开始)?\s*(生成|写|起草|创作|重新生成|重写)\s*(当前章节|当前章|这一章|这章|本章|第\s*[0-9一二三四五六七八九十百千万零〇两]+\s*(?:章|话))?/g, "")
+    .replace(/确认大纲[：:]?[^，。；\n]*/g, "")
+    .trim();
   return [
     "你正在为 AI漫游执行剧本阶段 skill：script-chapter-drafting。",
-    "任务：根据用户已确认的项目级「剧本大纲」，只生成目标章节的完整「章节剧本」。",
+    `任务：依据密封的已确认来源，只生成「${expectedHeading}」这一章的完整章节剧本。`,
     buildScriptStageBoundaryContract(),
     "",
     "硬性规则：",
     "- 只返回章节 Markdown 正文，不要返回 JSON，不要包代码块。",
     "- 必须按「章节剧本」固定格式输出，不要改名、删块或合并块。",
-    `- 项目级剧本名称是「${outline.title}」，只作为上下文使用，不要在章节正文里输出“剧本名称”。`,
-    `- 只生成目标章节「${targetChapterTitle}」，不要一次性生成多章，也不要输出整部大纲。`,
-    "- 内容要能直接写入目标章节的 `script.md`。",
+    `- 二级标题必须精确为「## ${expectedHeading}」，章序和标题不得自行改动。`,
+    `- 项目级剧本名称是「${context.outline.title}」，只作为上下文使用，不要在章节正文里输出“剧本名称”。`,
+    `- 只生成第 ${context.chapter.order} 章，不要提前写下一章，不要输出整部大纲。`,
+    "- 来源优先级固定为：当前章节卡与项目大纲 > 上一章已确认正式正文 > 用户本轮有效补充。来源冲突时不得自行猜测或覆盖上位来源。",
+    "- P3 场景契约：每场戏都要有进入状态、明确目的、阻力或选择、可见变化和退出状态；没有推动剧情或人物的场景应合并或删除。",
+    "- P5 连续性：人物状态、已知信息、关键物品、地点、关系和未回收悬念必须承接上一章正式正文；不得把未确认草稿当事实。",
+    "- 当前章节卡的章节目标、核心冲突、关键转折和结尾钩子必须在正文中可观察，不得只写在顶部摘要字段。",
+    "- 内容要能直接进入当前章节的待确认草稿。",
     "- 「视觉基调」只是方向，不是图片 Prompt。",
     "- 「剧本正文」里可以有场景、人物、动作和对白，但不能输出正式场景列表、剧情节拍、分镜剧本或镜头编号。",
     "- 不要声称你直接操作本地文件；写入由后端受控工具完成。",
@@ -476,10 +479,22 @@ export function buildScriptFromOutlinePrompt(
     "",
     getChapterScriptForbiddenOutputPrompt(),
     "",
-    `目标章节：${targetChapterTitle}`,
-    `用户确认消息：${input.content}`,
-    "已确认剧本大纲：",
-    outline.sourceText,
+    `项目：${context.project.name}`,
+    `题材：${context.project.genreTags.join("、") || context.outline.document.genreStyle}`,
+    `漫画形式：${context.project.comicFormat}`,
+    `画风：${context.project.artStyle}`,
+    "当前章节卡（本章直接写作合同）：",
+    JSON.stringify(context.targetCard, null, 2),
+    "前一张章节卡（只用于跨章衔接）：",
+    context.previousCard ? JSON.stringify(context.previousCard, null, 2) : "（第 1 章，无前一张章节卡）",
+    "后一张章节卡（只用于控制本章结尾，不得提前写入下一章）：",
+    context.nextCard ? JSON.stringify(context.nextCard, null, 2) : "（最终章，无后一张章节卡）",
+    "上一章已确认正式正文（必须完整承接；第 1 章为空）：",
+    context.previousScript?.sourceText ?? "（第 1 章，无上一章正文）",
+    "已确认项目级剧本大纲（项目方向与结局事实源）：",
+    context.outline.sourceText,
+    "用户本轮有效补充：",
+    userSupplement || "（无；本轮只是发出生成命令）",
   ].join("\n");
 }
 

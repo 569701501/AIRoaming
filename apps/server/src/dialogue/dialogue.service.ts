@@ -486,21 +486,28 @@ export class DialogueService {
 
   private async syncPendingArtifactsForThread(projectId: string, threadId: string, inputContent: string): Promise<void> {
     if (!this.prismaService.isDatabaseMode()) return;
-    const artifacts = this.scriptDialogue.capturePendingArtifacts(this.threads).filter((artifact) => artifact.projectId === projectId && artifact.threadId === threadId);
+    const artifacts = this.scriptDialogue.capturePendingArtifacts(this.threads).filter((artifact) => artifact.projectId === projectId);
     const currentIds = new Set(artifacts.map((artifact) => artifact.id));
-    const threadChapterId = this.threads.get(threadId)?.chapterId ?? null;
+    if (![...this.threads.values()].some((candidate) => candidate.id === threadId)) {
+      throw new Error(`PENDING_DIALOGUE_THREAD_NOT_FOUND:${threadId}`);
+    }
     const resolutionStatus = /(取消|不要|先不|不生成|别生成|算了)/.test(inputContent.trim()) ? "discarded" : "applied";
     const resolvedAt = new Date();
     await this.prismaService.runBusinessTransaction(async (tx) => {
       for (const artifact of artifacts) {
+        const ownerThread = [...this.threads.values()].find((candidate) => candidate.id === artifact.threadId);
+        if (!ownerThread) throw new Error(`PENDING_DIALOGUE_THREAD_NOT_FOUND:${artifact.threadId}`);
+        if (artifact.chapterId !== ownerThread.chapterId) {
+          throw new Error(`PENDING_DIALOGUE_ARTIFACT_SCOPE_MISMATCH:${artifact.id}`);
+        }
         const redacted = redactCredentials(artifact.payload).value;
         await tx.pendingDialogueArtifact.upsert({
           where: { id: artifact.id },
-          create: { id: artifact.id, projectId: artifact.projectId, chapterId: threadChapterId, threadId: artifact.threadId, kind: artifact.kind, status: "pending", activeSlotKey: artifact.activeSlotKey, payloadJson: redacted as Prisma.InputJsonValue, schemaVersion: artifact.schemaVersion, payloadDigest: digestCanonicalJson(redacted), sourceMessageId: null, toolResultId: null, createdAt: new Date(artifact.createdAt), updatedAt: new Date(artifact.updatedAt), resolvedAt: null },
+          create: { id: artifact.id, projectId: artifact.projectId, chapterId: ownerThread.chapterId, threadId: artifact.threadId, kind: artifact.kind, status: "pending", activeSlotKey: artifact.activeSlotKey, payloadJson: redacted as Prisma.InputJsonValue, schemaVersion: artifact.schemaVersion, payloadDigest: digestCanonicalJson(redacted), sourceMessageId: null, toolResultId: null, createdAt: new Date(artifact.createdAt), updatedAt: new Date(artifact.updatedAt), resolvedAt: null },
           update: { payloadJson: redacted as Prisma.InputJsonValue, payloadDigest: digestCanonicalJson(redacted), updatedAt: new Date(artifact.updatedAt), status: "pending", activeSlotKey: artifact.activeSlotKey, resolvedAt: null },
         });
       }
-      const stale = await tx.pendingDialogueArtifact.findMany({ where: { projectId, threadId, status: "pending" } });
+      const stale = await tx.pendingDialogueArtifact.findMany({ where: { projectId, status: "pending" } });
       for (const artifact of stale) {
         if (currentIds.has(artifact.id)) continue;
         await tx.pendingDialogueArtifact.update({ where: { id: artifact.id }, data: { status: resolutionStatus, activeSlotKey: null, resolvedAt, updatedAt: resolvedAt } });

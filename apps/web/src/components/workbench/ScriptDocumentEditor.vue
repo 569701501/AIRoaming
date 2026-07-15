@@ -7,7 +7,6 @@
         <strong>AI 草稿待确认</strong>
         <span class="pending-source-tag">{{ pendingOperationLabel }}</span>
       </div>
-      <p class="pending-source-preview">{{ pendingSourcePreview || "（草稿为空）" }}</p>
       <div class="pending-banner-actions">
         <button class="pending-adopt-btn" type="button" :disabled="loading" @click="submitConfirmPendingSource">
           <CheckCircle2 :size="14" />
@@ -18,7 +17,7 @@
           <span>丢弃</span>
         </button>
       </div>
-      <p class="pending-source-hint">采用后会覆盖当前正式正文；丢弃后正式正文不变。</p>
+      <p class="pending-source-hint">请先完整查看。采用后进入可编辑正文，完成本章后才形成正式版本；丢弃后当前正文不变。</p>
     </div>
 
     <div class="editor-content">
@@ -37,7 +36,9 @@
           <span>清空本章</span>
         </button>
       </div>
+      <pre v-if="pendingSourceText" class="pending-source-document" aria-label="待确认章节草稿全文">{{ pendingSourceText.sourceText }}</pre>
       <MarkdownTextEditor
+        v-else
         ref="editorRef"
         v-model="sourceText"
         :disabled="loading"
@@ -47,7 +48,7 @@
 
     <footer class="editor-footer">
       <div class="footer-stats">
-        <span>{{ sourceText.length }} 字 · 约 {{ estimatedPages }} 页</span>
+        <span>{{ displayedSourceText.length }} 字 · 约 {{ estimatedPages }} 页</span>
         <div v-if="lastScriptRevision" class="revision-status" :title="revisionTitle">
           <History :size="14" />
           <span>{{ lastScriptRevision.summary }}</span>
@@ -58,11 +59,11 @@
         </div>
       </div>
       <div class="footer-actions">
-        <button class="save-draft-btn" type="button" :disabled="loading || !hasChanges" @click="submitSave">
+        <button class="save-draft-btn" type="button" :disabled="loading || Boolean(pendingSourceText) || !hasChanges" @click="submitSave">
           <Save :size="14" />
           <span>保存草稿</span>
         </button>
-        <button class="next-step-btn" type="button" :disabled="loading || !canComplete" @click="submitComplete">
+        <button class="next-step-btn" type="button" :disabled="loading || Boolean(pendingSourceText) || !canComplete" @click="submitComplete">
           <span>完成本章</span>
           <ArrowRight :size="14" />
         </button>
@@ -119,9 +120,11 @@ const showResetConfirm = ref(false);
 const showMoreMenu = ref(false);
 const moreMenuRef = ref<HTMLElement | null>(null);
 const currentChapterSourceText = computed(() => getCurrentChapterSourceText(props.snapshot));
+const pendingSourceText = computed(() => props.snapshot.currentChapter?.pendingSourceText ?? null);
+const displayedSourceText = computed(() => pendingSourceText.value?.sourceText ?? sourceText.value);
 
 const estimatedPages = computed(() => {
-  const length = sourceText.value.trim().length;
+  const length = displayedSourceText.value.trim().length;
   if (length === 0) return "0";
   const min = Math.ceil(length / 300);
   const max = Math.ceil(length / 250);
@@ -133,18 +136,9 @@ const hasChanges = computed(() => sourceText.value !== currentChapterSourceText.
 // 保存草稿必须同时满足"有变化"和"非空":
 // 切章瞬间编辑器尚未同步时会误判 hasChanges=true,若不判空会让空内容覆盖正式正文。
 const canSave = computed(() => hasChanges.value && sourceText.value.trim().length > 0);
-const canComplete = computed(() => sourceText.value.trim().length > 0);
-const canReset = computed(() => sourceText.value.trim().length > 0 || props.snapshot.currentChapter?.status !== "draft");
+const canComplete = computed(() => !pendingSourceText.value && sourceText.value.trim().length > 0);
+const canReset = computed(() => !pendingSourceText.value && (sourceText.value.trim().length > 0 || props.snapshot.currentChapter?.status !== "draft"));
 const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScriptRevision ?? null);
-const pendingSourceText = computed(() => props.snapshot.currentChapter?.pendingSourceText ?? null);
-const pendingSourcePreview = computed(() => {
-  const pending = pendingSourceText.value;
-  if (!pending) {
-    return "";
-  }
-  const text = pending.sourceText;
-  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
-});
 const pendingOperationLabel = computed(() => {
   const operation = pendingSourceText.value?.operation;
   switch (operation) {
@@ -170,6 +164,10 @@ const revisionTitle = computed(() => {
 const saveStatusLabel = computed(() => {
   if (props.loading) {
     return "保存中";
+  }
+
+  if (pendingSourceText.value) {
+    return "待采用或丢弃";
   }
 
   return hasChanges.value ? "有未保存更改" : "已保存";
@@ -288,17 +286,6 @@ html[data-theme="light"] .pending-banner-head {
 html[data-theme="light"] .pending-source-tag {
   background: rgba(8, 145, 178, 0.1);
   color: #0e7490;
-}
-.pending-source-preview {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #cbd5e1;
-  max-height: 96px;
-  overflow: hidden;
-}
-html[data-theme="light"] .pending-source-preview {
-  color: #475569;
 }
 .pending-banner-actions {
   display: flex;
@@ -434,6 +421,22 @@ html[data-theme="light"] .pending-source-hint {
   background: rgba(13, 18, 33, 0.6);
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.2);
   position: relative;
+}
+
+.pending-source-document {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #e2e8f0;
+  font: inherit;
+  line-height: 1.75;
+}
+
+html[data-theme="light"] .pending-source-document {
+  color: #1e293b;
 }
 
 .editor-more-btn {

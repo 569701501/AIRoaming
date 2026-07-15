@@ -212,19 +212,63 @@ describe("script workflow source repository", () => {
     const chapter1 = await prisma.chapter.findFirstOrThrow({ where: { projectId: project.id, order: 1 } });
     const first = chapterMarkdown(1, "旧钥匙").replace("按本章确认原稿范围完整整理", "约 1200 字");
     const working = await scripts.updateWorkingCopy({ projectId: project.id, chapterId: chapter1.id }, { sourceText: first, expectedChapterRowVersion: chapter1.rowVersion });
-    await scripts.publish({ projectId: project.id, chapterId: chapter1.id }, { expectedCurrentScriptVersionId: null, expectedWorkingDigest: working.value.digest, expectedChapterRowVersion: working.value.chapterRowVersion, createNextChapter: true, nextChapterTitle: "门外来客" });
-    await expect(
-      repository.createAiChapterPending({
-        projectId: project.id,
-        chapterId: chapter1.id,
-        outlineId: outline.outlineId,
-        sourceText: first,
-      }),
-    ).rejects.toMatchObject({ code: "CHAPTER_VERSION_CONFLICT" });
+    await scripts.publish({ projectId: project.id, chapterId: chapter1.id }, { expectedCurrentScriptVersionId: null, expectedWorkingDigest: working.value.digest, expectedChapterRowVersion: working.value.chapterRowVersion, createNextChapter: true, nextChapterTitle: "不应采用的调用方标题" });
+    await expect(repository.getAiChapterGenerationContext({
+      projectId: project.id,
+      chapterId: chapter1.id,
+      outlineId: outline.outlineId,
+    })).rejects.toMatchObject({ code: "CHAPTER_VERSION_CONFLICT" });
     const chapter2 = await prisma.chapter.findFirstOrThrow({ where: { projectId: project.id, order: 2 } });
+    expect(chapter2.title).toBe("门外来客");
     const second = chapterMarkdown(2, "门外来客").replace("按本章确认原稿范围完整整理", "约 1200 字");
-    const pending = await repository.createAiChapterPending({ projectId: project.id, chapterId: chapter2.id, outlineId: outline.outlineId, sourceText: second });
+    const context = await repository.getAiChapterGenerationContext({ projectId: project.id, chapterId: chapter2.id, outlineId: outline.outlineId });
+    expect(context).toMatchObject({
+      targetCard: { order: 2, title: "门外来客" },
+      previousCard: { order: 1, title: "旧钥匙" },
+      nextCard: null,
+      previousScript: { chapterId: chapter1.id, sourceText: first.trimEnd() },
+      sourceBindings: [{ role: "outline" }, { role: "chapter_card" }, { role: "previous_script" }],
+    });
+    await expect(repository.createAiChapterPending({
+      projectId: project.id,
+      chapterId: chapter2.id,
+      outlineId: outline.outlineId,
+      expectedSourceSetDigest: context.sourceSetDigest.replace(/.$/, "0") as `sha256:${string}`,
+      sourceText: second,
+      threadId: "thread",
+      messageId: "message",
+      toolCallId: "chapter-2-stale",
+      summary: "生成第二章",
+    })).rejects.toMatchObject({ code: "CURRENT_VERSION_CHANGED" });
+    const pending = await repository.createAiChapterPending({
+      projectId: project.id,
+      chapterId: chapter2.id,
+      outlineId: outline.outlineId,
+      expectedSourceSetDigest: context.sourceSetDigest,
+      sourceText: second,
+      threadId: "thread",
+      messageId: "message",
+      toolCallId: "chapter-2",
+      summary: "根据已确认大纲生成第二章",
+    });
     expect(pending.sourceSetDigest).toMatch(/^sha256:/);
     expect(await scripts.getPendingSuggestion({ projectId: project.id, chapterId: chapter2.id })).toMatchObject({ kind: "ai", sourceBindings: [{ role: "outline" }, { role: "chapter_card" }, { role: "previous_script" }] });
+    expect(await prisma.chapterScriptRevision.findUniqueOrThrow({ where: { id: pending.revisionId } })).toMatchObject({ chapterId: chapter2.id, source: "ai_tool", operation: "generate_script_from_outline" });
+    const pendingDto = await scripts.getPendingSuggestion({ projectId: project.id, chapterId: chapter2.id });
+    await scripts.discardPendingSuggestion(
+      { projectId: project.id, chapterId: chapter2.id },
+      { pendingId: pendingDto!.id, expectedPendingRowVersion: pendingDto!.rowVersion },
+    );
+    const emptyChapter2 = await prisma.chapter.findUniqueOrThrow({ where: { id: chapter2.id } });
+    const secondWorking = await scripts.updateWorkingCopy(
+      { projectId: project.id, chapterId: chapter2.id },
+      { sourceText: second, expectedChapterRowVersion: emptyChapter2.rowVersion },
+    );
+    const completedSecond = await scripts.publish(
+      { projectId: project.id, chapterId: chapter2.id },
+      { expectedCurrentScriptVersionId: null, expectedWorkingDigest: secondWorking.value.digest, expectedChapterRowVersion: secondWorking.value.chapterRowVersion, createNextChapter: true, nextChapterTitle: "不应创建的第三章" },
+    );
+    expect(completedSecond.createdNextChapter).toBe(false);
+    expect(await prisma.chapter.count({ where: { projectId: project.id } })).toBe(2);
   }, 30_000);
 });

@@ -117,10 +117,20 @@ export function isConfirmingScriptOutline(content: string): boolean {
 
   return /^(确认|可以|继续|同意|就这个|没问题|通过)$/.test(text)
     || /(确认|通过).{0,8}(大纲|方向)/.test(text)
-    || /(按这个|就这个).{0,8}(生成|写|继续)/.test(text)
-    || /(生成|写|起草).{0,8}(?:第\s*)?[0-9一二三四五六七八九十]+\s*(?:章|张|话)/.test(text)
-    || /^(?:第\s*)?[0-9一二三四五六七八九十]+\s*(?:章|张|话)$/.test(text)
-    || /(生成|写|起草).{0,12}(当前章|当前章节|这一章|这章|本章|下一章)/.test(text);
+    || /(按这个|就这个).{0,8}(生成|写|继续)/.test(text);
+}
+
+/**
+ * A4 只接受显式的当前章节生成命令。章节切换、裸“继续”、只说“第 2 章”
+ * 都不属于生成命令；页面确认按钮通过 intent 明确表达同一动作。
+ */
+export function isExplicitlyRequestingChapterGeneration(input: SendDialogueMessageRequest): boolean {
+  if (input.intent === "generate_script_from_outline") return true;
+  const text = input.content.trim();
+  if (/(不生成|别生成|不要写|先别写|取消)/.test(text)) return false;
+  const generateVerb = /(生成|写|起草|创作|开始写|帮我写|重新生成|重写)/;
+  const chapterTarget = /(?:当前章|当前章节|这一章|这章|本章|下一章|第\s*[0-9一二三四五六七八九十百千万零〇两]+\s*(?:章|话))/;
+  return generateVerb.test(text) && chapterTarget.test(text);
 }
 
 export function isCancellingScriptOutline(content: string): boolean {

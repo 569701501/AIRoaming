@@ -12,7 +12,6 @@ import type {
   StoryStructureJson,
 } from "@airoaming/shared";
 import {
-  SCRIPT_INSPIRATION_SEED_COUNT,
   normalizeCameraAngle,
   normalizeCameraMovement,
   normalizeFrameType,
@@ -20,6 +19,7 @@ import {
   normalizeShotType,
   normalizeVoiceLines,
   parseDurationHintToMs,
+  parseCreativeIdeationOutputV1,
 } from "@airoaming/shared";
 import {
   asRecord,
@@ -262,17 +262,5 @@ export function parseStoryStructureJson(content: string, currentChapterId: strin
 // ---------- 灵感种子 JSON 解析 ----------
 
 export function parseInspirationSeeds(content: string): ScriptInspirationSeed[] {
-  const jsonText = extractJsonPayload(content);
-  const value = JSON.parse(jsonText) as unknown;
-  const rawSeeds = Array.isArray(value)
-    ? value
-    : typeof value === "object" && value !== null && Array.isArray((value as { seeds?: unknown }).seeds)
-      ? (value as { seeds: unknown[] }).seeds
-      : null;
-
-  if (!rawSeeds || rawSeeds.length < SCRIPT_INSPIRATION_SEED_COUNT) {
-    throw new Error(`AI 没有按约定返回 ${SCRIPT_INSPIRATION_SEED_COUNT} 个灵感种子`);
-  }
-
-  return rawSeeds.slice(0, SCRIPT_INSPIRATION_SEED_COUNT).map((rawSeed, index) => normalizeInspirationSeed(rawSeed, index));
+  return parseCreativeIdeationOutputV1(content).seeds.map((seed, index) => normalizeInspirationSeed(seed, index));
 }
