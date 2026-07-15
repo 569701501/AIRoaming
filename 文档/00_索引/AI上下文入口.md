@@ -133,6 +133,7 @@ $deep-think
 | Web 工作台 | `apps/web` | Vue 3 + Vite + Pinia，已实现项目库首版和项目工作区第 1 步首屏；后续 5 个项目内页面仍按当前 UI 信息架构分阶段实现 |
 | 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、项目 API、任务 mock API、OpenCode 对话运行时、对话 API 和 Prisma schema |
 | 共享契约 | `packages/shared` | 任务枚举、DTO、workspace 虚拟路径工具 |
+| 剧本双流程严格输出契约 | `packages/shared/src/script-workflow-contract.ts` | 七个模型阶段的灵感/大纲/章节/导入分析/忠实度可执行 Schema；当前只完成 Shared 基线，生产 Prompt 与来源状态门尚待接线 |
 | 测试安全网 | `apps/server/src/**/*.spec.ts`、`tests/e2e` | Vitest Service characterization + Playwright API/Chromium；临时 workspace、loopback fake provider 与受控进程清理 |
 | 本地素材根 | `workspace/projects` | 开发期项目素材占位目录 |
 
@@ -198,10 +199,10 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - 2026-05-26 项目路由骨架已落地：前端引入 `vue-router`，`/projects` 为项目库，`/projects/:projectId/script` 为剧本工作区，`structure/storyboard/candidates/layout/assets` 为后续 5 个步骤预留地址；URL 表示当前位置，Pinia 和后端负责项目快照、对话线程和临时状态。
 - 2026-05-26 剧本文本编辑器已换成 CodeMirror Markdown：右侧剧本文档编辑器不再使用原生 `textarea`，支持 Markdown 标题、列表、加粗、斜体、删除线、引用、插入图片文本和纯文本保存；保存接口仍只提交 `sourceText`。右侧大纲仍未接入真实解析，本阶段不处理。
 - 2026-05-28 剧本页最右侧“当前章节信息”面板已废弃：第 1 步“剧本”的当前剧本区域就是写剧本正文，不再常驻展示当前章节、故事主线、出场角色和场景列表。主线、角色、场景的整理应后置到剧情结构步骤或用户主动打开的局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
-- 2026-05-27 章节工作流结论已收口：项目内创作应按章节推进，`Chapter` 是项目内一等工作单元；剧本步骤需要章节列表、当前章节编辑器、保存草稿、完成本章并进入下一章。后续结构化剧情、分镜、候选图、排版和导出都应优先挂到 `chapterId`，项目级角色、世界观、通用场景和共享素材继续挂到 `projectId`。
+- 2026-07-15 A+ 双路线已完成静态一致性复核：AI 创作按“灵感/题材 -> 项目大纲与轻量章节卡 -> 单章 pending -> 采用并编辑 -> 完成本章”推进；只有大纲存在下一章卡时才增加入口，切换不触发生成，第 N 章生成要求第 N-1 章正式。已有剧本按“原稿副本 -> 观察性大纲与拆章候选 -> 整本目录确认一次 -> 创建全部章节并完成整批生成尝试 -> 逐章只读确认”推进，不提供手动修改、AI 重新整理、采用、丢弃或批量确认。两条路线只在正式 `ChapterScriptVersion` 汇合，再进入现有 StoryStructure；页面展示字段保持不变。当前代码仍是第一版直接导入与通用 pending 交互，属于后续实施差距。
 - 2026-05-27 后端默认章节已接入：创建项目时写入 `chapters/chapter-001/chapter.json` 和 `script.md`；旧 `PATCH /api/projects/{projectId}` 仍可保存 `sourceText`，但只同步写入当前章节脚本；`story/story_draft.source.txt` 旧兼容路径已移除。
 - 2026-05-27 当前章节快照读取已接入：`WorkbenchSnapshot.chapters/currentChapter` 是剧本页读取章节的主契约；剧本编辑器和剧本步骤对话 prompt 优先读取 `currentChapter`，`snapshot.story` 仅作旧链路兼容兜底。
-- 2026-05-27 章节列表与章节推进已接入：剧本页支持章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；完成本章会写入章节剧本版本，将当前章节标记为 `script_done`，并创建或进入下一章。
+- 2026-05-27 章节列表与章节推进已接入：剧本页支持章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章；完成本章会写入章节剧本版本，将当前章节标记为 `script_done` 并创建下一章。2026-07-15 目标交互修正为创建后仍停留当前章，下一章只加入下拉框，用户自行切换。
 - 2026-05-27 章节作用域任务校验已接入：`story_parse`、`shot_generate`、`shot_prompt_generate`、`image_generate`、`layout_export` 创建时必须带 `target.chapterId`；`input.chapterId` 如传入必须一致，省略时由服务端规范化写回。
 - 2026-06-02 项目 workflow 口径已落地：顶部主流程为 `project_story -> story_structure -> storyboard -> image_preflight -> image_candidates -> layout_export -> asset_package`；`project_characters` 已迁出顶部主流程，只保留为 `/characters` 项目级常驻资产入口。
 - 2026-06-06 项目角色库流程收口：剧本大纲或导入剧本中的主角和常驻角色应创建为项目级 `Character` 草稿，AI 自动判断角色层级；角色名是项目内身份标识，普通图片生成弹窗不能改名。剧情结构和分镜阶段发现的新角色进入待处理队列，普通路径以角色图卡片、编辑生图描述 / prompt、重新生成和应用当前图为主；加入角色库、合并、标记临时或忽略属于底层归类或高级/异常处理。角色视觉定稿不阻塞剧情结构，主要在出图准备阶段阻塞候选图生成；角色定稿图一旦用于生成漫画候选图，旧参考图不能覆盖，只能创建新视觉版本。

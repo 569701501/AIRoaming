@@ -8,6 +8,7 @@
 - `文档/` 是项目事实源；实现前先读文档，改变产品、架构、数据、模块边界或功能完成后同步文档。
 - 正式文档使用中文，文档要服务人和 AI；重要结论必须落到对应 Markdown 文件，不把聊天隐含上下文当事实源。
 - `$deep-think` 是按需技能，只在用户明确调用、任务高风险或跨多模块时使用；不是每次对话默认流程。
+- 2026-07-15 外部创作 Skill 调研仍为 `proposed`：不整体导入网上 Skill，推荐按现有四阶段吸收 P1 灵感质量门槛、P2 因果大纲与结局方向、P3 章节场景契约、P4 分层修订、P5 连续性检查、P6 固定评测与触发测试。追加公开提示词调研确认“黄金钩子”并非统一标准；可继续候选钩子类型矩阵、`钩子→承接→预告`、单章 `种→养→收`、黄金三章可选模式、高潮逆推和悬念承诺/回收账本，不能把“每章必爽”、固定钩子数量或未经实证的留存数字做成通用硬规则。第一版保持现有 JSON/Markdown、用户确认点、四个 Skill 边界和受控写入不变；生产 `SKILL.md`、`dialogue-prompt.util.ts`、Agent 说明与测试必须同步，连续性承诺不得超出真实注入上下文。正式字段为 `keyConflict`，调研正文中的 `coreConflict` 属待实施时统一的命名笔误。
 - 当前应用入口是项目库；创建项目弹窗已实现“项目名称”和默认空的必选“漫画版式（竖向条漫/分页漫画）”，版式创建后不可直接修改，创建成功后直接进入项目工作区第 1 步“剧本”。HTTP/DB/新 artifact 只接受 canonical 两值。
 - 项目库操作区 banner 源文件为 `apps/web/src/assets/project-library/hero-banner.png`，由 `ProjectCommandPanel.vue` 静态导入；该受跟踪图片缺失会导致 Vite 启动/构建无法解析资源。
 - 项目库删除入口保持为项目卡片封面右上角删除按钮；卡片底部 `MoreHorizontal` 不是删除入口。删除按钮组件事件使用明确的 `request-delete`，按钮常驻可点击，hover 只改变样式。删除确认弹窗 `DeleteProjectDialog` 必须在项目列表页显式导入。删除成功后前端应先从本地项目列表移除卡片，再刷新校准后端列表，避免完整刷新延迟造成“点击删除没用”的感知。
@@ -27,6 +28,16 @@
 - 2026-07-09 出图准备定稿口径已收口：`lead`/`recurring` 不论本章出镜几次都必须锁定 `final_reference` 四要素角色定稿组合图（正面半身、正面全身、侧面全身、背面全身）；`chapter`/`minor`/`extra` 按本章实际出镜次数判断，出镜 ≥2 次（`appearanceCount > 1`）才要求定稿，只出镜 1 次的路人不强制（由剧情内容驱动，不按 level 一刀切）。判断函数 `isRequiredPreflightReferenceCharacter` 三处实现必须同口径：后端 `character-domain.util.ts`、前端 `workbench-preflight.ts`、`ImagePreflightWorkspace.vue`。场景参考图检查新增：本章被引用场景无 `referenceAssetId` 只给 warning 提示（`missing_scene_reference` issue），不阻塞出图；`ImagePreflightSceneCheck` 新增 `referenceAssetId`/`referenceReady` 字段。
 - 角色定稿图在未被漫画候选图使用前可重新生成、替换或编辑；一旦用于生成 `Candidate`，旧参考图不能覆盖，后续换形象应创建新视觉版本并保留旧候选图追溯。
 - 章节推进采用“按章流水线”：完成某一章剧本后，优先进入该章剧情结构；角色库待处理项只提示，不阻塞结构化；分镜完成后进入出图准备，检查本章出镜角色、场景和画风参考后才能进入候选图。不要求整部作品所有章节剧本都先写完。
+- 完整剧本导入与 AI 创作是两条不同链路。产品文档和旧 file-mode 导入会先判断内容类型和章节边界，可信时按标题拆章，边界不清时经确认先作为单章；但当前 DB-only 已明确退役旧 `import_script_to_chapters` 整文件覆盖入口（`LEGACY_WRITE_ROUTE_DISABLED`），替代为逐章 pending suggestion / Working Copy + 显式采用，新的非破坏性完整剧本导入闭环尚未补齐。旧导入也不会自动生成项目级大纲或全书章节结构；项目级大纲主要属于灵感/题材创作链路，后续生产仍按章推进。
+- 2026-07-15 用户已确认采用 `A+` 双路径方案：上游区分 `AI 创作` 与 `已有剧本分析/整理`，两路方法、质量门和阶段 Prompt 不同，但在“已确认 ChapterScriptVersion”汇合，之后继续使用现有 StoryStructure、分镜和下游流程。V1 不新增正式 `ChapterPlan`；AI 创作在项目大纲 Markdown 中保存轻量章节卡，导入路线保存观察性大纲和拆章预览，不要求两路中间产物字段相同。澄清循环以“没有阻断下一阶段的问题”为退出条件，非阻断疑点记录为假设或风险。
+- 2026-07-15 A+ 的页面边界已确认：项目大纲、章节卡、导入分析和拆章预览只作为对话、预览或内部项目产物，暂不增加剧本页和剧情结构页字段。现有 StoryStructure 继续承载 `synopsis`、`direction`、角色卡、场景卡、beats 和 notes，只分析已确认章节正文；只有未来出现独立查询、编辑或版本比较的真实需求时，才评估把章节卡升级为正式 ChapterPlan。
+- 2026-07-15 AI 创作 A1 已确认：系统自动判断用户是在找灵感还是已有明确题材；找灵感进入 3 个候选，明确题材跳过灵感直接进入项目大纲；完整原稿转已有剧本分析路线。只有无法判断路线或硬约束矛盾时才提阻断问题；A1 不增加表单、页面字段、正式产物或单独确认门。
+- 2026-07-15 AI 创作 A2 已确认：找灵感时固定生成 3 个候选，沿用现有 `title/genreTags/logline/keyConflict/visualHook/firstChapterDirection` 和当前页面展示；P1 反差、人物压力、冲突发动机、视觉承诺与结局潜力只做内部质量门。用户可选择一个、换一批或改用自己的明确题材；V1 不做单候选编辑、候选合并或页面评分，选择后直接进入项目大纲。
+- 2026-07-15 AI 创作 A3 已确认：项目大纲保留现有基础信息、主要角色和情节概要，并在同一 Markdown 中增加轻量“章节安排”；每章只含标题、本章目标、核心冲突、关键转折、结尾钩子和下一章衔接，不新增正式 ChapterPlan、页面字段或章节正文。大纲在现有对话预览中展示，修改通过对话生成完整新候选，只确认最新一版；确认后才进入章节生成。
+- 2026-07-15 AI 创作 A4 已确认：大纲确认后默认只生成一个当前目标章节的待确认草稿，后续章节等前章确认后再生成，以使用已确认实际正文做连续性输入；现有批量生成不作为默认主流程，也不新增页面入口。A4 保持当前章节 Markdown 格式，只写 pending，不覆盖正式正文；目标已有正式正文时转修订，已有 pending 时不得静默覆盖。
+- 2026-07-15 AI 创作 A5 已确认：待确认章节草稿必须可完整只读查看，pending 本身不提供手动修改；“采用草稿”只进入可编辑 Working Copy，之后可手动保存，或按`continuity_logic / structure_character / scene_dialogue / prose_format`调用现有`script-chapter-editing`生成新的 revision pending；点击“完成本章”才发布正式`ChapterScriptVersion`并允许 StoryStructure。查看、采用、丢弃、保存、完成和下一章入口都是确定性动作，只有采用后的可选 AI 修订调用模型。
+- 2026-07-15 完整剧本导入的确认规则已拍板：拆章目录整体确认一次后，一次创建全部待确认章节草稿，让用户能在章节列表中自由切换查看；不限制检查顺序或次数。拆章目录确认不等于批准正文，只有用户点击某章“确认章节”后，该章才落入正式章节剧本，其他章继续保持待确认草稿；不得整本批量自动正式化。V1 草稿阶段只提供查看和确认，不提供手动修改或 AI 重新整理；不满意的章节保持待确认，修改能力以后单独设计。
+- 2026-07-15 成熟产品与开源流程验证上述双路径：Boords 将 `Import Script / Write with AI / Blank` 分入口后汇入同一分镜流；Sudowrite 将整稿导入与大纲生成分开但统一到 Story Bible/Outline/章节；Novelcrafter、LumenX 使用结构/实体预览后确认；Jellyfish 使用候选确认和 `ready` 门。长期产品原则应是“入口分流、同标准产物、来源可追溯、结构化预览/报告、阻断问题才追问、确认后发布、高成本生成前再设门”，而非无限问答或整稿一次性直接覆盖正式数据。长稿应分组处理并保留原文范围/覆盖证据；结构化输入应尽量绕过不必要的 AI 改写。
 - “AI 分步生成、用户确认后推进”已经是现有七阶段实现：共享章节状态链、前后端 workflow、步骤门禁以及完成/确认/锁定/导出动作均已存在，不应作为 D2 新功能重复建设。D2 只后置自动跨步骤、批量调度和一键生产的详细边界；当前先完成 G0–G5 到 current `layout_publication`/`layout_done` 的阶段性闭环，未来再做 G6/G7 到 ZIP/`exported` 的完整七阶段验收。
 - 七阶段补全保留 G0–G7 总结构，但 2026-07-11 用户决定当前开发波次只到 G5：G0 行为刻画 → G1 DB-only → G2 版本/freshness → G3 漫画版式 → G4 候选定稿返修 → G5 成稿出版；G6 素材包 V2 和 G7 ZIP 总验收后置。第七步导航和现有素材包骨架保留，不改回六阶段，也不把旧目录包视为完成版。
 - G0 测试安全网已于 2026-07-11 实现：常用门禁为 `corepack pnpm test`、`typecheck:e2e`、`test:e2e:env`、`test:e2e:prepare`、`test:e2e`、`test:e2e:repeat` 和 `test:all`。E2E 使用临时 workspace、唯一 runId/marker、loopback fake provider、假 key、HTTP/WebSocket 网络守卫与受控 PID；Node 22.17.1 下显式 `node --import tsx`，Nest/Vite 直接解析 Shared source。G0～G4 已完成，G5 M0～M8 技术验收已通过并等待用户签收；G6/G7 后置。
@@ -44,7 +55,7 @@
 - 剧情结构按章节逐章生成和确认：一个 `Chapter` 对应自己的 `StoryVersion` / `structure.json`，不把整本剧本一次性生成成全局剧情结构。
 - 剧情结构步骤也需要章节下拉/切换器，展示每章结构状态；`Chapter.status = structured` 且 `currentStoryVersionId` 存在表示该章剧情结构完成，待确认预览不推进章节状态。
 - 剧情结构章节下拉展示所有章节；`draft` 章节不能生成结构，只提示先完成本章剧本；`script_done` 章节可生成待确认预览；`structured` 及后续章节可查看/编辑结构，重新生成前必须提示会影响后续分镜、候选图和排版。`需更新` 是 UI 派生状态，只在结构 `sourceScriptVersionId` 与章节 `currentScriptVersionId` 不一致时显示，不使用 `chapter.updatedAt` 判定。
-- 剧情结构入口按“当前章节”解锁：完成本章后当前章节应保留在刚完成的 `script_done` 章节，顶部「剧情结构」可直接进入；下一章草稿只作为 `继续下一章` 的可选后续。
+- 剧情结构入口按“当前章节”解锁：任一路线形成正式 `ChapterScriptVersion` 后，当前章可直接进入剧情结构；系统不自动生成 StoryStructure，也不要求其他章节先完成。
 - 分镜工作台同样按章节逐章生成和确认：只有已完成剧情结构的章节才能生成分镜；AI 生成后先展示待确认预览，用户确认后才写入当前章节 `storyboard.json` / `Shot[]` 并将章节推进到 `storyboard_done`，未确认分镜不能触发候选图生成。
 - 分镜工作台产物是 `Shot`，是用于出图和排版的镜头/画格；一个剧情结构 `StoryBeat` 可拆成多个 `Shot`。`Shot.promptDraft` 只是后续提示词生成的草稿输入，不等同于最终图片 provider Prompt。
 - 分镜工作台需在同一次生成中产出漫画画格字段和基础漫剧镜头字段；正式模型是同一个 `Shot` 核心下分 `comic` / `motion` 两组表达字段。漫画关注阅读顺序、画格构图、对白气泡/旁白和页面/条漫节奏；漫剧关注时间轴、画面持续、运镜、配音角色、台词、字幕/声音和画面类型。M1 采用一个 `Shot` 对应一组 `comic` 和一组 `motion`，但不能把漫画一格和漫剧一镜永久写死为一一对应；完整轻漫剧成片、TTS、字幕和视频导出仍后置。
@@ -74,7 +85,15 @@
 - 2026-05-29 产品口径更新：剧本页不再需要最右侧“当前章节信息”面板；当前剧本区域就是写剧本正文，主线、出场角色和场景列表不再常驻展示，应后置到剧情结构步骤或局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
 - 当前后端仍未接数据库，项目 API 运行时使用进程内项目索引加本地 workspace 文件写入；服务启动或首次访问项目接口时会从 `workspace/projects/*/project.json`、章节目录和 `script.md` 恢复项目索引，避免重启后项目库丢失。
 - 本地 workspace 路径由后端统一管理，前端不能直接写本地物理路径。
-- 2026-06-02 章节工作流目标口径：`Chapter` 是项目内一等工作单元，剧本步骤需要章节列表、保存草稿、完成本章，并在完成后选择进入本章剧情结构或继续下一章；角色库待处理项只提示，不阻塞剧情结构。
+- 2026-07-15 AI 创作章节推进口径：`Chapter` 是项目内一等工作单元；完成本章后停留当前章并可进入本章剧情结构，仅在已确认大纲存在下一章卡时增加下一章入口，不提供“继续下一章”。切换只改变当前章节和对话作用域，不触发 A4；用户明确输入“生成当前章节”后，A4 才读取当前章章节卡与上一章正式正文，第 N 章生成要求第 N-1 章正式。角色库待处理项只提示，不阻塞剧情结构。
+- 2026-07-15 已有剧本路线 B1 口径：复用剧本页对话框 `.txt/.md` 附件或长文本粘贴；用户发送分析/拆章请求后，系统保存未经改写的内部原稿副本，只检查可读性、内容类型、多文件顺序、用户目标和既有章节冲突。无阻断问题时不设确认门并进入 B2；B1 不生成大纲、拆章目录、Chapter 或章节草稿。V1 已有非空/正式章节的项目不允许被导入覆盖，提示改用空项目。
+- 2026-07-15 已有剧本路线 B2 口径：基于带稳定`sourceRef/blockRef`的不可变原稿生成`outlineRole=observed`的大纲和拆章候选；优先保留明确章/话/幕/集边界，建议边界必须有连续来源范围与证据，禁止固定字数、固定章数或黄金钩子切分。长稿不得首尾截断，应分层扫描、全局合并和边界复核；覆盖由服务端范围并集计算，不接收模型自报百分比。B2 不创建 Chapter/pending，结果交 B3。
+- 2026-07-15 已有剧本路线 B3 口径：在剧本页对话结果卡只读展示观察性大纲、全文覆盖、warnings 和完整拆章候选；不新增主页面字段，不提供目录表格内手动编辑。用户可在对话中反馈并返回 B2 生成完整新候选、取消导入，或对最新整本目录确认一次。确认只批准章节数、顺序、原稿范围、排除项和建议标题，并授权 B4 创建全部 pending；不代表章节正文已正确或正式。
+- 2026-07-15 已有剧本路线 B4 口径：B3 确认后按 confirmed chapter map 原子建立全部章节入口；每章独立执行`import.materialize`生成现有六区块 Markdown，再执行`import.verify`检查来源覆盖、无来源新增、顺序、对白、人物和跨章污染，只有无硬问题才写只读 import pending。单章失败隔离、无 20 章上限、全部章节至少尝试一次才进入 B5；B4 不写正式版本或 StoryStructure。
+- 2026-07-15 A+ Prompt 体系设计已完成：保留五个公开 Skill，内部有七个模型 stage contract（A2、A3、A4、A5.3、B2、B4 materialize、B4 verify）；A1/B1/B3/B5和确认/正式化由后端编排。实施必须同步`SKILL.md`、运行时 Stage Prompt、Shared Schema/严格 parser、来源与状态门、P6 fixtures 和页面投影，不能只改 Skill 文档或一条长 Prompt。推荐顺序为共享输出契约→来源/状态/pending→A 路线→B 路线→真实用户路径验收。
+- 2026-07-15 双流程实施包 1 已完成：`packages/shared/src/script-workflow-contract.ts` 提供七个模型阶段的可执行严格契约，覆盖灵感恰好 3 个、A3 四区块/等量连续章节卡、统一六区块章节 Markdown、`import-analysis/1.0` 和 `import-fidelity/1.0`；支持稳定 source block/output line 上下文、无缺口/重叠检查、canonical round-trip 和服务端硬问题判定。七 stage 正反 fixture 通过 `@airoaming/shared/script-workflow-test-fixtures` 复用；Shared 25 files/144 tests、全工作区 typecheck/build 通过。当前尚未接生产动态 Prompt、旧宽松 parser、来源/pending 数据模型或页面，不能宣称双流程已上线。
+- 2026-07-15 已有剧本路线 B5 口径：所有章节至少完成一次生成尝试后进入逐章检查；用户可任意顺序完整只读查看 import pending，不提供手动编辑、AI 重新整理、采用后编辑、丢弃或批量确认。不满意时保持待确认；点击一次“确认章节”原子发布正式 `ChapterScriptVersion`，绑定原稿、confirmed chapter map 和 source range，停留当前章并解锁该章 StoryStructure。其他章节 pending/failed 不阻塞当前正式章向下生产。
+- 2026-07-15 双路线一致性复核通过：AI 创作走“方向/大纲与轻量章节卡 → 单章 pending → 采用 Working Copy → 完成本章”，已有剧本走“原稿副本 → 观察性大纲与拆章候选 → 一次确认目录 → 全章 import pending → 逐章确认”；两路只在正式 `ChapterScriptVersion` 汇合，StoryStructure 必须绑定精确 `sourceScriptVersionId`。AI 第 N 章要求第 N-1 章正式，切章不触发生成；导入复用空白默认第 1 章，所有章节至少完成一次生成尝试后才进入 B5。内容页面字段不变，但需要 B3 结果卡、完整 pending 查看和按来源区分动作。
 - 章节内产物后续优先挂到 `chapterId`，包括章节剧本、结构化剧情、分镜、候选图、排版和导出；项目级角色、世界观、通用场景和共享素材继续挂到 `projectId`。
 - 目标本地结构为 `workspace/projects/{projectId}/chapters/chapter-001/script.md` 等章节目录；`story/story_draft.source.txt` 旧兼容路径已移除，新项目不再创建、读取或写入旧 `story/` 目录。
 - 章节共享契约已接入 `packages/shared`：包括 `ChapterStatus`、章节列表/详情/版本 DTO、保存草稿、完成本章请求响应；`WorkbenchSnapshot.chapters/currentChapter` 是剧本页当前章节读取主契约。
@@ -86,13 +105,13 @@
 - 项目 workflow 为 7 步：`ProjectWorkflow` 定义 `project_story -> story_structure -> storyboard -> image_preflight -> image_candidates -> layout_export -> asset_package`，其中项目角色库是常驻资产入口，不作为顶部主流程步骤；`storyboard_done` 后进入出图准备，用户确认后写入 `preflight.json`，确认记录与当前分镜匹配且派生检查仍通过时才推进到候选图。
 - `ConversationThread.stepKey` 的正式 scope 包含上述七个 workflow key，并额外允许辅助域 `project_characters`；不能漏掉 `image_preflight`。
 - 剧本对话当前已覆盖“聊天辅助 + OpenCode 流式输出 + 已保存/编辑器当前章节上下文 + 用户提供剧本整理 + 灵感种子生成 + AI 受控写章节草稿”；刷新或离开页面导致 SSE 中断时，后端会 abort 对应 OpenCode 请求并把不活跃的旧 `running` assistant 消息收敛为失败；正式停止生成、对话持久化和完整回退仍待实现。
-- 剧本对话新方向已确认：剧本阶段有“用户提供剧本整理”和“无灵感生成剧本”双来源；已有剧本复用对话框附件上传或输入框粘贴，不新增独立导入主按钮，AI 负责整理格式、拆分章节并写入 `chapters/*/script.md`；无灵感时 AI 每次生成 3 个灵感种子，用户选择其一后先生成可保存、可确认的「剧本大纲」，确认大纲后再按单个目标章节生成固定格式「章节剧本」，不喜欢灵感可重新生成 3 个。
+- 剧本阶段有“AI 创作”和“已有剧本分析整理”双来源，不新增独立导入主按钮。AI 创作每次提供 3 个灵感种子或接受明确题材，先确认含轻量章节卡的项目大纲，再按章生成；已有剧本先保存原稿、确认整本拆章目录，再生成全部只读 pending 并逐章确认。两路只在正式 `ChapterScriptVersion` 汇合。
 - 项目级「剧本大纲」固定保存到 `workspace/projects/{projectId}/script-outline.md`，元数据保存到 `script-outline.json`；固定格式包含 `基础信息`（剧集名称、题材风格、剧集篇幅、剧集章数、剧情简介）、`主要角色`、`情节概要`。大纲必须在对话中展示并询问用户确认；用户说“不行”或提出修改要求时重新生成大纲，直到用户确认后才生成单个目标章节。
 - 剧本阶段 AI 工具应按业务能力暴露：读取当前章节/章节列表/项目事实、整理用户提供剧本并写入章节、生成灵感种子、从种子生成项目级剧本大纲、从确认大纲生成目标章节、更新当前章节草稿、记录 AI 写入来源；不暴露本地物理路径或 shell。
 - 剧本阶段 AI 统一边界契约默认覆盖所有剧本对话：普通建议不写入，灵感先生成候选，导入/改写/生成章节必须走 AI漫游受控工具/API；覆盖非空章节、替换整本剧本、低可信拆章或可能导致后续产物失效时必须先让用户确认。
 - 剧本阶段需要独立 agent/skill 约束：定义 AI 是漫画剧本协作者，区分固定剧本导入、灵感共创、章节起草、章节编辑和一致性检查；AI 可通过受控工具更新章节草稿，但必须保留来源追溯。
 - AI漫游已采用 `apps/server/opencodeAI` 作为 OpenCode AI 资产源码目录，参考 AuroraPlatformWeb 的 `agents / skills / tools` 组织方式，但内容必须是 AI漫游自己的漫画创作资产；当前已落地剧本协作 agent 和 `script-import-normalize` skill，运行时模板复制和真实 tool bridge 尚未接入。
-- 用户提供剧本整理已接入导入前分析：对话框回形针支持 `.txt/.md` 文本附件，输入框支持粘贴长剧本；明确整理意图或长文本会先触发 `analyze_script_import`，只有内容像可导入剧本且章节边界可信时才调用 `import_script_to_chapters` 写入章节。失败或需要确认时不写 `chapters/*/script.md`；需要确认的待导入文本暂存在进程内剧本线程，用户回复“确认导入/确认覆盖”后再写入。
+- 当前第一版导入实现支持 `.txt/.md` 附件或长文本，走 `analyze_script_import → import_script_to_chapters`，并可能通过“确认导入/确认覆盖”直接写章节；这只是现状/历史行为，不是 A+ 目标。目标必须拆成 B1～B5，V1 禁止覆盖非空项目，确认词限定为 B3“确认拆章目录”和 B5“确认章节”。
 - 剧本灵感和章节内 AI 编辑已接入 AI skill 驱动链路：用户说“帮我找灵感”会触发 `generate_inspiration_seeds`，后端调用 OpenCode / `script-inspiration-seeding` 生成 3 个方向；用户回复“选第 N 个方向”会触发 `generate_script_outline_from_seed`，调用 `script-outline-drafting` 生成并保存项目级剧本大纲；用户确认大纲后触发 `generate_script_from_outline`，调用 `script-chapter-drafting` 单章生成并写入目标章节，支持“生成第 N 章/下一章/当前章”这类已有章节目标；用户在章节内要求改写会触发 `update_chapter_draft`。
 - 2026-05-29 实测确认：已确认的大纲会落盘到 `script-outline.md/json`，确认大纲后生成的当前章会落盘到 `chapters/{chapterSlug}/script.md`、`chapter.json` 和 `script.revisions/latest.json`；灵感种子本身仍不是稳定项目文件，只存在 pending/对话工具结果中。
 - 2026-05-29 发现项目文件元数据缺口：`project.json.status` 当前仍可能写成 `draft`，而 `GET /api/projects` 会根据当前章节正文推导 `story_ready`；后续应统一文件状态与运行时视图。

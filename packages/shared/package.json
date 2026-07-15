@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./script-workflow-test-fixtures": {
+      "types": "./dist/script-workflow-test-fixtures.d.ts",
+      "import": "./dist/script-workflow-test-fixtures.js"
     }
   },
   "dependencies": {
