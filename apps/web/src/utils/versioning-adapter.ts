@@ -7,17 +7,25 @@ import type {
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 
+// Request-only token. The DB repository resolves it to a real Character.id
+// before the StoryVersion pending document is persisted.
+const UNRESOLVED_STORY_CHARACTER_PREFIX = "unresolved-story-character:";
+
 /** Convert the legacy-shaped workbench editor value to the strict G2 document. */
 export function toStoryDocumentV2(input: StoryStructureJson, snapshot: WorkbenchSnapshot): StoryDocumentV2 {
   const byName = new Map(snapshot.characters.map((character) => [normalize(character.name), character]));
+  const structureCharacterIdByToken = new Map<string, string>();
+  input.characters.forEach((character) => {
+    structureCharacterIdByToken.set(character.id, character.id);
+    structureCharacterIdByToken.set(normalize(character.name), character.id);
+  });
   const characters = input.characters.map((character) => {
     const projectCharacter = character.projectCharacterId
       ? snapshot.characters.find((item) => item.id === character.projectCharacterId)
       : byName.get(normalize(character.name));
-    if (!projectCharacter) throw new Error(`角色「${character.name}」尚未绑定项目角色库`);
     return {
       id: character.id,
-      projectCharacterId: projectCharacter.id,
+      projectCharacterId: projectCharacter?.id ?? `${UNRESOLVED_STORY_CHARACTER_PREFIX}${encodeURIComponent(normalize(character.name))}`,
       name: character.name,
       role: character.role,
       level: character.level ?? "extra",
@@ -35,7 +43,17 @@ export function toStoryDocumentV2(input: StoryStructureJson, snapshot: Workbench
     direction: input.direction,
     characters,
     scenes: input.scenes.map(({ id, name, location, timeOfDay, atmosphere, purpose }) => ({ id, name, location, timeOfDay, atmosphere, purpose })),
-    beats: input.beats.map(({ id, order, title, summary, conflict, characters: beatCharacters, sceneId, visualFocus, outcome }) => ({ id, order, title, summary, conflict, characters: beatCharacters, sceneId, visualFocus, outcome })),
+    beats: input.beats.map(({ id, order, title, summary, conflict, characters: beatCharacters, sceneId, visualFocus, outcome }) => ({
+      id,
+      order,
+      title,
+      summary,
+      conflict,
+      characters: beatCharacters.map((token) => structureCharacterIdByToken.get(token) ?? structureCharacterIdByToken.get(normalize(token)) ?? token),
+      sceneId,
+      visualFocus,
+      outcome,
+    })),
     notes: input.notes,
   };
 }

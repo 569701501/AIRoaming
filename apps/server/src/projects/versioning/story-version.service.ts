@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable } from "@nestjs/common";
+import { HttpException, Inject, Injectable, Logger } from "@nestjs/common";
 import type {
   ConfirmStoryWorkingCopyRequest,
   CreateStoryWorkingCopyRequest,
@@ -12,10 +12,16 @@ import type {
 import { createG2DatabaseError, G2DatabaseError } from "./g2-database-error.mapper.js";
 import { StoryVersionRepository } from "./story-version.repository.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
+import { CharacterReferenceService } from "../character-reference.service.js";
 
 @Injectable()
 export class StoryVersionService {
-  constructor(@Inject(StoryVersionRepository) private readonly repository: StoryVersionRepository) {}
+  private readonly logger = new Logger(StoryVersionService.name);
+
+  constructor(
+    @Inject(StoryVersionRepository) private readonly repository: StoryVersionRepository,
+    @Inject(CharacterReferenceService) private readonly characterReference: CharacterReferenceService,
+  ) {}
 
   getWorkingCopy(scope: VersionScopeV1): Promise<StoryWorkingCopyDto> {
     return this.execute(() => this.repository.getWorkingCopy(scope));
@@ -34,7 +40,12 @@ export class StoryVersionService {
   }
 
   confirmWorkingCopy(scope: VersionScopeV1, request: ConfirmStoryWorkingCopyRequest): Promise<VersionMutationResult<StoryWorkingCopyMutationValue>> {
-    return this.execute(() => { validateConfirmRequest(request); return this.repository.confirmWorkingCopy(scope, request); });
+    return this.execute(async () => {
+      validateConfirmRequest(request);
+      const result = await this.repository.confirmWorkingCopy(scope, request);
+      await this.queueMissingCharacterPreviews(scope.projectId, result.value.document);
+      return result;
+    });
   }
 
   copyHistoryToWorkingCopy(scope: VersionScopeV1, versionId: string, request: VersionHistoryCopyRequest): Promise<VersionMutationResult<StoryWorkingCopyDto>> {
@@ -49,6 +60,21 @@ export class StoryVersionService {
         throw new HttpException({ success: false, error: { code: error.code, message: error.message, details: error.details } }, error.status);
       }
       throw error;
+    }
+  }
+
+  private async queueMissingCharacterPreviews(projectId: string, document: StoryWorkingCopyMutationValue["document"]): Promise<void> {
+    try {
+      const library = await this.characterReference.listProjectCharacters(projectId);
+      const byId = new Map(library.characters.map((character) => [character.id, character]));
+      for (const card of document.characters) {
+        const character = byId.get(card.projectCharacterId);
+        if (!character || character.previewReferenceAssetId || character.status === "in_use") continue;
+        await this.characterReference.queueCharacterReference(projectId, character.id, { referenceKind: "preview_front" });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "UNKNOWN_CHARACTER_PREVIEW_QUEUE_ERROR";
+      this.logger.warn(`剧情结构已确认，但角色预览图自动排队失败：${message}`);
     }
   }
 }

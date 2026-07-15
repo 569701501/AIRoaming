@@ -48,7 +48,7 @@ export function extractJsonPayload(content: string): string {
     return content.slice(startArray, endArray + 1);
   }
 
-  throw new Error("AI 返回中没有可解析的 JSON 灵感种子");
+  throw new Error("AI 返回中没有可解析的 JSON 内容");
 }
 
 // ---------- 分镜 JSON normalize ----------

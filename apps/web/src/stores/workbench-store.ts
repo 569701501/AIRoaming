@@ -625,7 +625,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           });
           await api.confirmStoryWorkingCopy(projectId, chapterId, {
             pendingVersionId: updated.value.pending?.id ?? working.pending?.id ?? "",
-            expectedPendingDocumentDigest: digestCanonicalJson(document),
+            expectedPendingDocumentDigest: updated.value.pending?.documentDigest ?? digestCanonicalJson(updated.value.document ?? document),
             expectedPendingRowVersion: updated.value.pending?.rowVersion ?? 0,
             expectedCurrentVersionId: working.current?.id ?? null,
             expectedSourceScriptVersionId: this.scriptWorkingCopy.currentVersion.id,

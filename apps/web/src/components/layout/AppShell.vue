@@ -17,7 +17,7 @@
           v-if="isProjectRoute && snapshot"
           :active-step-key="activeStepKey"
           :chapter-completion-prompt="chapterCompletionPrompt"
-          :dialogue-error="dialogueError"
+          :dialogue-error="dialogueError || error"
           :dialogue-notice="dialogueNotice"
           :dialogue-sending="dialogueSending"
           :dialogue-thread="dialogueThread"

@@ -308,7 +308,9 @@ export class CharacterReferenceService {
   // ====== 编排方法(门面委托目标) ======
 
   async listProjectCharacters(projectId: string): Promise<ProjectCharactersResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
+    const project = this.isDatabaseMode()
+      ? await this.repository.refreshProjectFromDatabase(projectId)
+      : await this.projectStore.getReadyProject(projectId);
     return this.toProjectCharactersResponse(project);
   }
 

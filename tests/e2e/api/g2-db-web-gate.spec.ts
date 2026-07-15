@@ -272,4 +272,28 @@ test.describe("W1 DB-only Web/API gate", () => {
     expect(discarded.data.value.pending).toBeNull();
     expect(preflight.data.preflight.id).toBeTruthy();
   });
+
+  test("W1-E2E-05：页面生成并确认剧情结构时自动同步新角色", async ({ api, page, rainSmokeProject }) => {
+    const projectId = rainSmokeProject.id;
+    const workbench = await api.get<{ snapshot: { currentChapter: { id: string } | null } }>(`/projects/${projectId}/workbench`);
+    const chapterId = workbench.data.snapshot.currentChapter?.id;
+    expect(chapterId).toBeTruthy();
+    await publishScript(api, projectId, chapterId!);
+
+    await page.goto(`/projects/${projectId}/structure`);
+    await page.getByRole("button", { name: "生成剧情结构", exact: true }).click();
+    await expect(page.getByRole("button", { name: "确认结构", exact: true })).toBeVisible();
+    await expect(page.getByText("林夏在雨夜站台等待末班车，异常广播后空车进站。", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "确认结构", exact: true }).click();
+    await expect(page.getByTestId("story-db-versioning-status")).toContainText("current");
+    await expect(page.getByRole("button", { name: "3 分镜工作台", exact: true })).toBeEnabled();
+
+    const confirmed = await api.get<{ snapshot: { characters: Array<{ id: string; name: string }>; storyStructure: { structureJson: { characters: Array<{ projectCharacterId?: string | null }> } } | null } }>(`/projects/${projectId}/workbench`);
+    const character = confirmed.data.snapshot.characters.find((item) => item.name === "林夏");
+    expect(character?.id).toBeTruthy();
+    expect(confirmed.data.snapshot.storyStructure?.structureJson.characters[0]?.projectCharacterId).toBe(character?.id);
+    const tasks = await api.get<{ items: Array<{ type: string; target?: { type: string; id: string } | null }> }>("/tasks");
+    expect(tasks.data.items.some((item) => item.type === "character_reference_generate" && item.target?.type === "character" && item.target.id === character?.id)).toBe(true);
+  });
 });

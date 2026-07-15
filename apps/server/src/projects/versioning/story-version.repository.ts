@@ -25,8 +25,12 @@ import { ChapterVersionQueryRepository, type ChapterVersionQueryRow } from "./ch
 import { ScriptVersionRepository } from "./script-version.repository.js";
 import { VersionTransactionRunner } from "./version-transaction-runner.service.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
+import * as wsCharacter from "../character-domain.util.js";
 
 const STORY_SOURCE_POLICY = "story-source-v1";
+// Accepted only on the Working Copy update boundary; persisted documents are
+// rewritten with real Character.id values in the same business transaction.
+const UNRESOLVED_STORY_CHARACTER_PREFIX = "unresolved-story-character:";
 
 export interface ApplyStoryTaskResultRequest {
   readonly expectedTargetId: string;
@@ -192,9 +196,11 @@ export class StoryVersionRepository {
     request: UpdateStoryWorkingCopyRequest,
   ): Promise<VersionMutationResult<StoryWorkingCopyDto>> {
     this.assertDatabaseMode();
-    const encoded = encodeStoryDocument(request.document, scope.chapterId);
+    const input = encodeStoryDocument(request.document, scope.chapterId).value;
     return this.run(async (tx) => {
       const chapter = await this.readChapter(scope, tx);
+      const document = await this.resolveCharacters(tx, scope.projectId, input);
+      const encoded = encodeStoryDocument(document, scope.chapterId);
       const pending = chapter.pendingStoryVersion;
       if (!pending || chapter.pendingStoryVersionId !== request.pendingVersionId) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
       if (chapter.rowVersion !== request.expectedChapterRowVersion || pending.rowVersion !== request.expectedPendingRowVersion) {
@@ -203,7 +209,6 @@ export class StoryVersionRepository {
         }
         throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT");
       }
-      await this.resolveCharacters(tx, scope.projectId, encoded.value);
       await tx.storyVersion.updateMany({
         where: { id: pending.id, chapterId: chapter.id, rowVersion: request.expectedPendingRowVersion },
         data: { documentJson: encoded.value as unknown as Prisma.InputJsonValue, documentDigest: encoded.digest, schemaVersion: 2, rowVersion: { increment: 1 } },
@@ -347,8 +352,9 @@ export class StoryVersionRepository {
       throw createG2DatabaseError(409, "TASK_TARGET_SUPERSEDED", { expectedTargetId: request.expectedTargetId, expectedTargetRowVersion: request.expectedTargetRowVersion, actualRowVersion: pending.rowVersion });
     }
     this.assertScriptGate(chapter, request.sourceId, request.sourceDigest);
-    const encoded = encodeStoryDocument(request.document, chapter.id);
-    await this.resolveCharacters(tx, chapter.projectId, encoded.value);
+    const input = encodeStoryDocument(request.document, chapter.id).value;
+    const document = await this.resolveCharacters(tx, chapter.projectId, input);
+    const encoded = encodeStoryDocument(document, chapter.id);
     const updated = await tx.storyVersion.updateMany({
       where: { id: pending.id, chapterId: chapter.id, rowVersion: request.expectedTargetRowVersion, status: "pending_confirmation" },
       data: { documentJson: encoded.value as unknown as Prisma.InputJsonValue, documentDigest: encoded.digest, schemaVersion: 2, rowVersion: { increment: 1 } },
@@ -408,13 +414,49 @@ export class StoryVersionRepository {
     if (result.count !== 1) throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT");
   }
 
-  private async resolveCharacters(tx: Prisma.TransactionClient, projectId: string, document: StoryDocumentV2): Promise<void> {
-    const ids = [...new Set(document.characters.map((character) => character.projectCharacterId))];
-    if (ids.length === 0) return;
-    const rows = await tx.character.findMany({ where: { projectId, id: { in: ids } }, select: { id: true } });
-    const found = new Set(rows.map((row) => row.id));
-    const unresolved = ids.filter((id) => !found.has(id));
-    if (unresolved.length > 0) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", { entityIds: unresolved });
+  private async resolveCharacters(tx: Prisma.TransactionClient, projectId: string, document: StoryDocumentV2): Promise<StoryDocumentV2> {
+    if (document.characters.length === 0) return document;
+    const rows = await tx.character.findMany({ where: { projectId } });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const byName = new Map(rows.map((row) => [row.normalizedName, row]));
+    const characters = [] as StoryDocumentV2["characters"];
+
+    for (const character of document.characters) {
+      const normalizedName = wsCharacter.normalizeCharacterNameKey(character.name);
+      const isUnresolved = character.projectCharacterId.startsWith(UNRESOLVED_STORY_CHARACTER_PREFIX);
+      let resolved = isUnresolved
+        ? byName.get(normalizedName)
+        : byId.get(character.projectCharacterId);
+
+      if (!resolved && isUnresolved) {
+        const id = `char_${randomUUID()}`;
+        resolved = await tx.character.create({
+          data: {
+            id,
+            projectId,
+            name: wsCharacter.normalizeCharacterName(character.name),
+            normalizedName,
+            role: character.role.trim() || wsCharacter.getDefaultRoleForLevel(character.level),
+            level: character.level,
+            entityType: character.entityType,
+            status: character.level === "lead" || character.level === "recurring" ? "needs_reference" : "draft",
+            appearance: character.visualTraits.trim() || character.notes.trim(),
+            personality: character.motivation.trim(),
+            promptFragment: character.visualTraits.trim(),
+            source: "story_structure",
+          },
+        });
+        byId.set(resolved.id, resolved);
+        byName.set(resolved.normalizedName, resolved);
+      }
+
+      if (!resolved) {
+        throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", { entityIds: [character.projectCharacterId] });
+      }
+      characters.push({ ...character, projectCharacterId: resolved.id });
+    }
+
+    return { ...document, characters };
   }
 
   private async archivePendingStoryboard(tx: Prisma.TransactionClient, chapter: ChapterVersionQueryRow): Promise<void> {

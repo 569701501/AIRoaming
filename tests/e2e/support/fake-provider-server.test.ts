@@ -52,6 +52,33 @@ describe("G0 loopback fake provider", () => {
     assert.doesNotMatch(serialized, /never-log-this|complete prompt/);
   });
 
+  test("returns a deterministic story structure for the real structure-story-parse prompt", async () => {
+    const response = await fetch(`${fake.url}/opencode/session/e2e-session-1/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: { providerID: "e2e", modelID: "deterministic" },
+        parts: [{
+          type: "text",
+          text: "你正在为 AI漫游执行剧情结构阶段 skill：structure-story-parse。\n当前章节剧本文档：\n雨夜站台。",
+        }],
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { parts: Array<{ type: string; text: string }> };
+    const text = payload.parts[0]?.text ?? "";
+    assert.match(text, /^```json\s/);
+    const structure = JSON.parse(text.replace(/^```json\s*/, "").replace(/\s*```$/, "")) as {
+      synopsis?: string;
+      direction?: { endingHook?: string };
+      beats?: unknown[];
+    };
+    assert.equal(structure.synopsis, "林夏在雨夜站台等待末班车，异常广播后空车进站。");
+    assert.equal(structure.direction?.endingHook, "无人驾驶的末班车在林夏面前打开车门。");
+    assert.equal(structure.beats?.length, 3);
+  });
+
   test("supports local failure injection without exposing a production endpoint", async () => {
     const control = await fetch(`${fake.url}/__e2e__/control`, {
       method: "POST",
