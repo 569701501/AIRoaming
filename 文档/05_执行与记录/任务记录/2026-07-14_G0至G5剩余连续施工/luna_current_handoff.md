@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-LUNA-CURRENT-HANDOFF-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目
@@ -12,10 +12,10 @@ source: v5 C0～C7 production evidence、R2 OBS-01～10、G0～G5 总计划、�
 
 ## 1. 任务目标
 
-R2 DB-only 观察、G4-A～F 与 G5-M0～M8 技术验收已通过；当前只等待 G5 最终用户签收：
+R2 DB-only 观察、G4-A～F、G5-M0～M8 技术验收与最终用户签收均已通过；本任务已到终态：
 
 ```text
-AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收
+AUTH-C5 -> C5 -> C6 -> AUTH-C7 -> C7 -> R2 -> G4-A～F -> G5-M0～M8 -> 用户签收 -> G0_G5_COMPLETE
 ```
 
 本文件是 Luna 当前唯一总执行入口。不要重做 S0、W1、R0B、SH-10、C0～C7 或 R2；不要根据旧 `WAIT_R0B_AUTH`、`BLOCKED_R2_OBS_06_PURGE`、`BLOCKED_R2_OBS_07_DB_ONLY_BACKUP` 文档回退状态。
@@ -39,12 +39,12 @@ cutoverId = cutover-20260714-immediate-sanitized-v5
 planDigest = sha256:2ba999ffee2061cdf57110fc10cf4720748431ba1aeaf603dab12c19863fc096
 completedThrough = C7
 currentEvidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-currentState = WAIT_G5_USER_ACCEPTANCE
+currentState = G0_G5_COMPLETE
 ```
 
-已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F 与 G5-M0～M8 技术验收；G4 状态=`G4_PASSED`，G5 M8 状态=`G5_M8_TECHNICAL_PASSED`，ADR-0016 已采纳。
+已经完成：S0、W1、R0B、SH-10、C0～C7 激活、首笔 DB-only 写入、R2 OBS-01～10、R2 Scrutiny/Runtime Review、G4-A～F、G5-M0～M8 技术验收与最终用户签收；G4 状态=`G4_PASSED`，G5 状态=`G5_COMPLETE`，总体=`G0_G5_COMPLETE`，ADR-0016 已采纳。
 
-尚未完成：G5 最终用户签收。这里不需要新的开发授权；用户可按 `g5_user_acceptance_handoff.md` 验收并确认，或报告具体问题继续修复。
+尚未完成：本任务范围内无。G6、素材包 ZIP 与视频链路明确不在本任务范围内，不能自动开始。
 
 ## 4. Luna 开始前只读核验
 
@@ -164,11 +164,11 @@ E0 只有两种合法结果：
 - 至少一条候选通过全部硬门且许可证可接受：记录 ADR，立即进入 M2。
 - 没有候选通过，或结果需要新的付费/系统权限/产品决策：停止并提交对比证据，状态为 `BLOCKED_G5_E0_DECISION`。
 
-M3～M8 已连续完成，未做 G6 ZIP/视频。真实页面路径、PNG/PDF/条漫样例、三次确定性 sha、性能/字体/许可证证据和完整 Review 已交付；当前停止在 `WAIT_G5_USER_ACCEPTANCE`。
+M3～M8 已连续完成，未做 G6 ZIP/视频。真实页面路径、PNG/PDF/条漫样例、三次确定性 sha、性能/字体/许可证证据和完整 Review 已交付；用户已签收，当前终态为 `G0_G5_COMPLETE`。
 
-## 9.1 当前唯一动作：G5 用户签收
+## 9.1 G5 用户签收（已完成）
 
-用户签收不再是“授权 Luna 继续施工”，而是确认已完成的 G5 运行结果。签收前不得把 G5 或 G0～G5 总体标为完成；签收后只更新状态和留痕，不自动进入 G6。
+用户已确认 G5 M0～M8 运行结果通过，并授权将 G5 和本轮 G0～G5 标记完成。该确认不授权进入 G6、删除 backup/archive 或执行 down migration。
 
 验收入口：`g5_user_acceptance_handoff.md`。
 
@@ -182,7 +182,8 @@ M3～M8 已连续完成，未做 G6 ZIP/视频。真实页面路径、PNG/PDF/�
 | `BLOCKED_R2_OBS_06_PURGE` | 历史状态，已由 0011 与真实 purge 复核关闭 | 不再作为恢复点 |
 | `BLOCKED_*` | fail-closed、身份漂移、证据损坏或无法保留用户改动 | blocker 修复并重新复核；不得按日期自动恢复 |
 | `BLOCKED_G5_E0_DECISION` | E0 无候选过硬门或需要新授权 | 用户完成技术/许可/权限决策 |
-| `WAIT_G5_USER_ACCEPTANCE` | G5 运行产物需最终签收 | 用户签收 |
+| `WAIT_G5_USER_ACCEPTANCE` | G5 运行产物需最终签收（已通过） | 不再作为当前恢复点 |
+| `G0_G5_COMPLETE` | G0～G5 技术验收与用户签收均已完成 | 终态；新范围必须由用户另行提出 |
 
 除此之外，不因“一个文件完成”“一个测试完成”“一个切片提交完成”或“今天先到这里”停止。
 

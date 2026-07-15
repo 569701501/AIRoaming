@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-M8-SCRUTINY-001
-status: active
+status: completed
 created: 2026-07-15
 updated: 2026-07-15
 owner: AI漫游项目
@@ -17,7 +17,7 @@ phase = G5-M8
 commit = fc9ea47
 result = passed
 blocker = none
-next = WAIT_G5_USER_ACCEPTANCE
+next = G0_G5_COMPLETE
 ```
 
 ## 复核范围
@@ -45,4 +45,4 @@ next = WAIT_G5_USER_ACCEPTANCE
 
 ## 残留边界
 
-技术 blocker 为 0。G5 总体不能在本复核中自行签收；唯一未完成项是用户确认运行结果。
+技术 blocker 为 0。本复核没有代替用户签收；用户随后已明确确认运行结果，最终状态见 `g5_user_acceptance_handoff.md`。

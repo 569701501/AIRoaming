@@ -82,7 +82,7 @@ source: AI漫游文档体系
 文档/05_执行与记录/任务记录/2026-07-13_R0-R2真实切换施工包/handoff.md
 ```
 
-当前数据库切换事实：D2 capability=`blockedIds=[]`；S0、W1、R0B、SH-10、v5 C0～C7、首写边界和 R2 OBS-01～10 已通过，production status=`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。G4-A～F 已总体关闭为 `G4_PASSED`；G5-M0～M8 技术验收已通过，当前=`WAIT_G5_USER_ACCEPTANCE`。旧授权门、窗口与 `BLOCKED_R2_*` 只作历史，不能覆盖当前状态。
+当前数据库切换事实：D2 capability=`blockedIds=[]`；S0、W1、R0B、SH-10、v5 C0～C7、首写边界和 R2 OBS-01～10 已通过，production status=`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。G4-A～F=`G4_PASSED`；G5-M0～M8 技术验收与最终用户签收已通过，G5=`G5_COMPLETE`，总体=`G0_G5_COMPLETE`。旧授权门、窗口与 `BLOCKED_R2_*` 只作历史，不能覆盖当前状态。
 
 当前 G0～G5 剩余连续施工的唯一总入口：
 
@@ -90,7 +90,7 @@ source: AI漫游文档体系
 文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/luna_current_handoff.md
 ```
 
-该入口采用无排期、依赖驱动执行：不设置工期、开始/结束日期或等待日期。已消费的 AUTH-C5/AUTH-C7/R2 不再重复申请；M8 已完成，不需要新的开发授权，当前只等待最终用户签收。G6/视频不在范围内。
+该入口记录已完成的无排期、依赖驱动执行结果。AUTH-C5/AUTH-C7/R2 和 G5 最终签收均已消费，不得重复申请；G6/视频不在范围内，不能自动开始。
 
 涉及对话框真实 AI、模型添加、模型切换、provider 配置或 OpenCode 接入时，必须额外读取：
 
@@ -172,7 +172,7 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - G2-E1/E2/F1 交付边界仍有效：production-state API 返回服务端权威 production/workflow/chapterRowVersion；NewWorkGate 对四类任务统一返回稳定 reasonCodes；Preflight API 只允许服务端重建 SourceSnapshot；TaskApplicabilityGuard 在完成前把来源/目标不再 current 的任务标为 historical。其后的 F2～F4 已补齐持久 worker/claim/lease/history 和四类任务闭环；capability switch、独立 Outbox consumer 与真实 provider smoke 仍未实现。
 - G3-core、G3-M0～M4 foundation、M5-A0～A4、D2-A0～A8 与 M6-A1 隔离验收均已完成并有阶段证据；capability 当前为 8/36、`blockedIds=[]`。生产 SecretStore/evidence/runner、R0B/SH-10、v5 C0～C7、首写与 R2 已闭合；AUTH-C5、AUTH-C7、R2 均已按独立边界消费，不得复用或再次要求用户授权。
 - G4 开发级方案已完成：CandidateLock 闭集、线性 Schema overlay、legacy direct-evidence import、preview/commit/API、工作流门禁、Web 工作台、restart/backup restore 与总体 Review 均通过。更换不改写旧 Layout/Export/Asset/current pointers/milestone，只派生来源 stale；G4 只提供 stale 来源和门禁，画布逐格/批量解决由 G5 实现。详见 `文档/04_方案与决策/2026-07-11_G4候选定稿修订与返修开发方案.md`、`文档/04_方案与决策/2026-07-11_G4候选定稿与影响预览契约字典.md` 和 `文档/06_测试与验收/G4候选定稿返修验收清单.md`。
-- G5 M0～M8 技术验收已完成：strict `LayoutDocumentV1`/命令、DB-only Working Copy、画格/图片/模板/裁切、FontAsset/富文本/气泡、来源返修、不可变 Revision/SourceBinding、固定 renderer、`layout_publication`、PNG/PDF/条漫切片、手机只读、AI pending 与 legacy cutover 均已通过。Working Copy 自动保存与显式不可变 LayoutRevision 分离；正式出版只读 sealed Revision。当前等待最终用户签收，G6 已后置且不会自动开始。详见三份 G5 方案和 `文档/06_测试与验收/G5成稿编辑器与确定性导出验收清单.md`。
+- G5 M0～M8 技术验收与最终用户签收已完成：strict `LayoutDocumentV1`/命令、DB-only Working Copy、画格/图片/模板/裁切、FontAsset/富文本/气泡、来源返修、不可变 Revision/SourceBinding、固定 renderer、`layout_publication`、PNG/PDF/条漫切片、手机只读、AI pending 与 legacy cutover 均已通过。Working Copy 自动保存与显式不可变 LayoutRevision 分离；正式出版只读 sealed Revision。当前总体=`G0_G5_COMPLETE`，G6 已后置且不会自动开始。
 - 先把漫画主链路做扎实，轻漫剧只做基础合成。
 - 先固化角色、分镜、候选、素材、任务、版本模型，再优化生成效果。
 - 所有 AI 输出都应允许人工编辑、选择、锁定、重生成。

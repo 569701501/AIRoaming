@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-REMAIN-AUTH-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目
@@ -12,7 +12,7 @@ source: R0-R2 真实切换 Runbook 与 G5 退出签字
 
 ## 1. 原则
 
-- 当前 S0/W1/R0B/SH-10/C0～C7 activation/首写边界、R2 OBS-01～10、G4-A～F 和 G5-M0～M8 技术验收已完成；AUTH-C5/AUTH-C7/R2 已使用并通过，当前只等待 G5 最终用户签收。
+- 当前 S0/W1/R0B/SH-10/C0～C7 activation/首写边界、R2 OBS-01～10、G4-A～F、G5-M0～M8 技术验收和最终用户签收均已完成；AUTH-C5/AUTH-C7/R2/G5 签收均已消费，总体=`G0_G5_COMPLETE`。
 - R0B、SH-10、AUTH-C1、AUTH-C5、AUTH-C7、R2 观察授权、G5 最终签收分别独立；后一个授权不能提前合并到前一个。
 - Luna 只能准备脱敏摘要和不可覆盖的授权文件模板，不能替用户签署或根据聊天上下文自行生成 AUTH。
 - 授权必须绑定当时的 plan/run/release/appCommit/evidence digest；相关 identity 变化后旧授权失效。
@@ -139,13 +139,13 @@ PNG/PDF/slices 的尺寸/页数/解码/manifest 结果
 已知风险与 G6 边界
 ```
 
-用户签收句：
+用户签收句（已消费）：
 
 ```text
 我确认 G5 运行验收结果，接受当前已知风险，同意将静态漫画 G0～G5 标记完成；不授权自动进入 G6 或视频链路。
 ```
 
-在此之前状态只能是 `WAIT_G5_USER_ACCEPTANCE`，不能写 `G0_G5_COMPLETE`。
+用户已用等价且更明确的固定语句确认 G5 M0～M8 运行结果通过，并授权将 G5 和本轮 G0～G5 标记完成，同时明确不进入 G6、不删除 backup/archive、不执行 down migration。最终状态=`G0_G5_COMPLETE`。
 
 ## 9. 授权失效条件
 

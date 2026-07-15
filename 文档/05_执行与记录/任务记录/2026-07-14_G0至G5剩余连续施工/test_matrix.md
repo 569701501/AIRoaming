@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-REMAIN-TEST-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目

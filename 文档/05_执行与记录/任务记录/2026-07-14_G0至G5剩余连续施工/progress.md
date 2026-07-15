@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-REMAIN-PROGRESS-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目
@@ -13,9 +13,9 @@ source: 本任务执行时间线
 ## 当前状态
 
 ```text
-current = WAIT_G5_USER_ACCEPTANCE
-last_completed = G5_M8_TECHNICAL_PASSED
-next_human_gate = WAIT_G5_USER_ACCEPTANCE
+current = G0_G5_COMPLETE
+last_completed = G5_USER_ACCEPTANCE_PASSED
+next_human_gate = none
 schedule_policy = NO_CALENDAR_SCHEDULE
 ```
 
@@ -30,7 +30,7 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 | R1 | `c7_activation_and_first_write_passed` | v5 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real_through_c7_first_write` | completedThrough=C7；首写/file guard 已通过 |
 | R2 | `completed` | `62da892`, `0be5621`, `7ddeb21`, `a90f546` + 私有 evidence | Scrutiny=`passed`；Runtime=`passed_real` | OBS-01～10 全部通过，backup/archive 保留 |
 | G4 | `completed` | `79dc806`, `9cd599a`, `179be50`, `894d1e8`, `3826611`, `81c922a` | Scrutiny=`passed`；Runtime/User=`passed` | `G4_PASSED`，迁移/E2E/restart/backup restore 总体复核通过 |
-| G5 | `technical_complete_waiting_user` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69`, `d8ed6cc`, `fc9ea47` | M8 Scrutiny=`passed`；Runtime 技术复核=`passed`；用户签收=`waiting` | M0～M8 技术门禁全部通过；停在最终用户签收 |
+| G5 | `completed` | `53b65e4`, `68b00cb`, `e93d70f`, `ec71594`, `93a58b2`, `cd35053`, `429ec69`, `d8ed6cc`, `fc9ea47` | M8 Scrutiny=`passed`；Runtime=`passed`；用户签收=`passed` | M0～M8 技术门禁与最终签收全部通过；总体=`G0_G5_COMPLETE` |
 
 当前状态只以本节和 `luna_current_handoff.md` 为准。下方旧停止点是历史时间线，不是 Luna 当前停止点。
 
@@ -261,6 +261,14 @@ schedule_policy = NO_CALENDAR_SCHEDULE
 - commit：`fc9ea47`。
 - 边界：backup/archive 保留；未执行 down migration、file-only 回退、G6、视频、删除或 push。
 - next：`WAIT_G5_USER_ACCEPTANCE`。
+
+## 2026-07-15：G5 最终用户签收
+
+- 用户明确确认 G5 M0～M8 运行结果通过，并授权将 G5 和本轮 G0～G5 标记完成。
+- 状态从 `WAIT_G5_USER_ACCEPTANCE` 单向推进为 `G0_G5_COMPLETE`；没有新增代码、数据库写入或运行环境变更。
+- 用户边界继续生效：不进入 G6，不删除 backup/archive，不执行 down migration。
+- 文档、验收清单、`../../功能完成记录/2026-07-15_G0至G5阶段完成.md`、会话记忆与长期记忆已同步。
+- next：无自动后续阶段；只有用户另行提出新目标时再开始新任务。
 
 ## Luna 每次推进必须追加的格式
 

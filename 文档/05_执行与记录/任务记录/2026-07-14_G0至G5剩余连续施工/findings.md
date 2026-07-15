@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-REMAIN-FINDINGS-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目
@@ -18,7 +18,7 @@ source: 代码、Git、v5 production evidence 与正式验收文档复核
 - v5 C0～C7 activation 已完成；production status=`completedThrough=C7`。
 - 当前 evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。
 - 首笔业务写、R2 OBS-01～10、G4-A～F 与 G5-M0～M8 技术验收已通过；只剩最终用户签收。
-- 当前唯一执行入口为 `luna_current_handoff.md`，当前状态为 `WAIT_G5_USER_ACCEPTANCE`。
+- 当前唯一状态入口为 `luna_current_handoff.md`，当前状态为 `G0_G5_COMPLETE`。
 
 ## 2. 已完成能力不能等同于总目标完成
 
@@ -38,6 +38,7 @@ AUTH-C5（已消费）
   -> G4-A～F
   -> G5-M0～M8
   -> WAIT_G5_USER_ACCEPTANCE
+  -> G0_G5_COMPLETE（用户已签收）
 ```
 
 除明确人工门和真实 blocker 外，前一步通过后立即进入下一步。
@@ -67,8 +68,8 @@ AUTH-C5（已消费）
 ```text
 plan_ready = yes
 schedule_policy = NO_CALENDAR_SCHEDULE
-current = WAIT_G5_USER_ACCEPTANCE
-next = USER_ACCEPT_OR_REPORT_CONCRETE_ISSUE
+current = G0_G5_COMPLETE
+next = NONE_UNLESS_USER_STARTS_NEW_SCOPE
 ```
 
 ## 7. G4-A 稳定结论
@@ -194,3 +195,9 @@ next = USER_ACCEPT_OR_REPORT_CONCRETE_ISSUE
 - profile resize 同时支持 `keep_coordinates` 与 `scale_uniform` 预览并一次 Undo；条漫单段改高不移动后续段文档坐标。复制 canvas/element 会为顶层和嵌套实体生成新 ID。
 - 正式图片 resolver 逐字节识别 PNG/JPEG/WebP，EXIF 非 1、未受控色彩空间、APNG/动画 WebP、声明 MIME 与字节不一致均 fail-closed；保存版本和 renderer 使用同一检查。
 - M8 commit=`fc9ea47`；Shared 115/115、Server 568/568、G5 DB-only Playwright 8/8，type/build/Prisma/render/migration/diff 全绿；Scrutiny=`passed`、Runtime 技术复核=`passed`。当前停在 `WAIT_G5_USER_ACCEPTANCE`。
+
+## 22. G5 用户签收结论
+
+- 用户已明确确认 G5 M0～M8 运行结果通过，并授权将 G5 与本轮 G0～G5 标记完成。
+- 最终状态=`G0_G5_COMPLETE`；此状态不包含 G6、素材包 ZIP 或视频链路。
+- backup/archive 保留；down migration、file-only 回退与自动清理仍禁止。

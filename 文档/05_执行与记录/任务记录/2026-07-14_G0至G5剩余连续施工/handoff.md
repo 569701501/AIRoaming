@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-REMAIN-HANDOFF-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目
@@ -32,8 +32,8 @@ R0B / SH-10 = completed
 R1 v5 C0～C7 activation = passed
 completedThrough = C7
 evidence = sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452
-current = WAIT_G5_USER_ACCEPTANCE
-C5/C6/C7_activation/first_write = completed; R2_OBS-01~10 = passed_real; R2_reviews = passed; G4-A～F = G4_PASSED; G5-M0～M8 = technical_passed; G5 = waiting_user_acceptance
+current = G0_G5_COMPLETE
+C5/C6/C7_activation/first_write = completed; R2_OBS-01~10 = passed_real; R2_reviews = passed; G4-A～F = G4_PASSED; G5-M0～M8 = passed; G5_user_acceptance = passed
 ```
 
 Luna 不得重复 R0B、SH-10、C0～C7 或 R2，也不得从旧 `WAIT_R0B_AUTH`/`BLOCKED_R2_*` 恢复。
@@ -83,7 +83,7 @@ G6 素材包与视频链路不在本任务。
 | `WAIT_AUTH_C5` | C4 后人工门（已通过） | 不适用 |
 | `WAIT_FIRST_BUSINESS_WRITE` | C7 activation 后首写边界 | 首写/file guard 证据后申请 R2 |
 | `WAIT_R2_AUTH` | OBS-01～10 的明确授权 | OBS-01～10→Review→G4-A～F→G5-M0～M8 |
-| `WAIT_G5_USER_ACCEPTANCE` | 用户核验 G5 真实产物 | 签收后才写 `G0_G5_COMPLETE` |
+| `WAIT_G5_USER_ACCEPTANCE` | 用户核验 G5 真实产物（已通过） | 历史门，不再恢复 |
 
 固定授权文本和授权文件字段只以 `authorization_gates.md` 与 R0-R2 Runbook 为准。Luna 不得代替用户扩大 AUTH 范围。
 

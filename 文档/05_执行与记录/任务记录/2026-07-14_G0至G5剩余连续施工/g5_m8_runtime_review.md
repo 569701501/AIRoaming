@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-M8-RUNTIME-001
-status: active
+status: completed
 created: 2026-07-15
 updated: 2026-07-15
 owner: AI漫游项目
@@ -14,8 +14,8 @@ source: DB-only Playwright、固定 renderer、migration gate、完整 package �
 
 ```text
 technical_runtime = passed
-human_acceptance = waiting
-current_state = WAIT_G5_USER_ACCEPTANCE
+human_acceptance = passed
+current_state = G0_G5_COMPLETE
 ```
 
 ## 运行路径
@@ -43,4 +43,4 @@ current_state = WAIT_G5_USER_ACCEPTANCE
 - 未删除 backup/archive，未执行 down migration 或 file-only 回退。
 - 未进入 G6、素材包 ZIP 或视频链路，未 push。
 
-本记录证明技术运行路径通过，不代替用户最终签收。
+本记录证明技术运行路径通过；用户随后已完成最终签收，见 `g5_user_acceptance_handoff.md`。

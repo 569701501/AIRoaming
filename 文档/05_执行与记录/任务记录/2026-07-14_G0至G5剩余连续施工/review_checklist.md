@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-G05-REMAIN-REVIEW-001
-status: active
+status: completed
 created: 2026-07-14
 updated: 2026-07-15
 owner: AI漫游项目
@@ -10,7 +10,7 @@ source: deep-think 复核流程与各阶段验收清单
 
 # G0～G5 连续施工复核清单
 
-当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F 与 G5-M0～M8 技术验收已完成，G4 总体=`G4_PASSED`，当前停在 `WAIT_G5_USER_ACCEPTANCE`。本清单不设置工期或日期；用户签收前不写 `G0_G5_COMPLETE`。
+当前事实：S0/W1/R0B/SH-10/C0～C7、首写边界、R2 OBS-01～10、G4-A～F、G5-M0～M8 技术验收与最终用户签收均已完成，G4 总体=`G4_PASSED`，G5 总体=`G5_COMPLETE`，当前=`G0_G5_COMPLETE`。本清单不设置工期或日期；G6 不在范围内。
 
 ## 1. 角色分离
 
@@ -174,7 +174,7 @@ M7 切片复核：
 - [x] 路径 E 手机/AI：0 写请求，pending/apply/Undo 正确。
 - [x] 固定输入连续三次 sha 一致。
 - [x] 正式输出无 selection/control handles。
-- [x] 用户尚未签收时状态为 `WAIT_G5_USER_ACCEPTANCE`。
+- [x] 用户已签收，状态已从 `WAIT_G5_USER_ACCEPTANCE` 单向推进为 `G0_G5_COMPLETE`。
 
 ## 8. Handoff 完整性
 
