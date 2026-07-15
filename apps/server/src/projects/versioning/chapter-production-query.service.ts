@@ -156,7 +156,7 @@ export class ChapterProductionQueryService {
   }
 
   private canStartTask(key: ProjectWorkflowStepKey, state: ChapterProductionState): boolean {
-    if (key === "story_structure") return state.script.freshness === "current" && state.script.workingState === "clean" && !state.script.hasAiPending;
+    if (key === "story_structure") return state.script.freshness === "current" && state.script.workingState === "clean" && !state.script.hasScriptPending;
     if (key === "storyboard") return state.story.freshness === "current" && state.story.pendingVersionId === null;
     if (key === "image_preflight") return state.storyboard.freshness === "current" && state.storyboard.pendingVersionId === null;
     if (key === "image_candidates") return state.preflight.freshness === "current";

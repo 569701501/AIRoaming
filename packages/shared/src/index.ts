@@ -4,6 +4,7 @@ export * from "./candidate-lock.js";
 export * from "./dto.js";
 export * from "./script-format.js";
 export * from "./script-workflow-contract.js";
+export * from "./script-workflow-state.js";
 export * from "./storyboard-normalize.js";
 export * from "./workspace-path.js";
 export * from "./versioning/index.js";

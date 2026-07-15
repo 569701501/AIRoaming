@@ -369,6 +369,38 @@ export function assertG1PrismaSchemaMatchesManifestV1(
   return expected;
 }
 
+function prismaModelBlock(schema: string, modelName: string): string {
+  const escaped = modelName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = schema.match(new RegExp(`^model\\s+${escaped}\\s*\\{([\\s\\S]*?)^\\}`, "m"));
+  invariant(match !== null, `G1_PRISMA_BASE_MODEL_MISSING:${modelName}`);
+  return match[1] ?? "";
+}
+
+function normalizedPrismaLines(block: string): string[] {
+  return block.split("\n").map((line) => line.trim().replace(/\s+/g, " ")).filter(Boolean);
+}
+
+/**
+ * Forward migrations after the frozen G1 baseline may append models, fields,
+ * relations and indexes. Every original G1 line must still be present exactly;
+ * additions are governed by their own small migration contracts.
+ */
+export function assertG1PrismaSchemaEmbeddedV1(
+  manifest: G1PrismaManifest,
+  schema: string,
+): string {
+  const expected = buildG1PrismaSchema(manifest);
+  invariant(schema.startsWith(`${PRISMA_HEADER}\n`), "G1_PRISMA_HEADER_NOT_CURRENT");
+  for (const model of manifest.models) {
+    const expectedLines = normalizedPrismaLines(prismaModelBlock(expected, model.model));
+    const actualLines = new Set(normalizedPrismaLines(prismaModelBlock(schema, model.model)));
+    for (const line of expectedLines) {
+      invariant(actualLines.has(line), `G1_PRISMA_BASE_LINE_MISSING:${model.model}:${line}`);
+    }
+  }
+  return schema;
+}
+
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await open(directory, "r");
   try {
@@ -439,7 +471,7 @@ export async function checkG1PrismaSchemaV1(
     path.join(canonicalRoot, G1_PRISMA_SCHEMA_PATH),
     "utf8",
   );
-  assertG1PrismaSchemaMatchesManifestV1(state.manifest, currentSchema);
+  assertG1PrismaSchemaEmbeddedV1(state.manifest, currentSchema);
   return {
     manifestDigest: state.manifest.manifestDigest,
     schema: currentSchema,
@@ -454,6 +486,15 @@ export async function writeG1PrismaSchemaV1(
 }> {
   const canonicalRoot = await realpath(path.resolve(workspaceRoot));
   const first = await loadAuthorizedExpected(canonicalRoot);
+
+  const currentSchema = await readFile(
+    path.join(canonicalRoot, G1_PRISMA_SCHEMA_PATH),
+    "utf8",
+  );
+  assertG1PrismaSchemaEmbeddedV1(first.manifest, currentSchema);
+  if (currentSchema !== first.expectedSchema) {
+    return { manifestDigest: first.manifest.manifestDigest, schema: currentSchema };
+  }
 
   const prismaRoot = path.join(canonicalRoot, "apps/server/prisma");
   const schemaPath = path.join(canonicalRoot, G1_PRISMA_SCHEMA_PATH);

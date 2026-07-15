@@ -304,6 +304,7 @@ export class ScriptVersionRepository {
       if (pending.id !== request.pendingId || pending.rowVersion !== request.expectedPendingRowVersion || pending.sourceDigest !== request.expectedPendingDigest) {
         throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
       }
+      if (pending.kind === "import") throw createG2DatabaseError(409, "IMPORT_PENDING_ACTION_NOT_ALLOWED");
       if (chapter.rowVersion !== request.expectedChapterRowVersion) errorForMismatch("CHAPTER_VERSION_CONFLICT");
       const encoded = normalizeScript(pending.sourceText, false);
       if (encoded.digest !== pending.sourceDigest) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
@@ -331,6 +332,7 @@ export class ScriptVersionRepository {
       if (pending.id !== request.pendingId || pending.rowVersion !== request.expectedPendingRowVersion) {
         throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
       }
+      if (pending.kind === "import") throw createG2DatabaseError(409, "IMPORT_PENDING_ACTION_NOT_ALLOWED");
       await tx.chapterScriptPending.delete({ where: { id: pending.id } });
       return this.mutation(await this.readChapter(scope, tx), null, false);
     });
@@ -461,6 +463,11 @@ export class ScriptVersionRepository {
       sourceText: row.sourceText,
       digest: digest(row.sourceDigest),
       operation: row.operation,
+      kind: row.kind as ScriptPendingSuggestionDto["kind"],
+      sourcePolicyVersion: row.sourcePolicyVersion,
+      sourceSetDigest: row.sourceSetDigest ? digest(row.sourceSetDigest) : null,
+      sourceSetSealedAt: row.sourceSetSealedAt ? iso(row.sourceSetSealedAt) : null,
+      sourceBindings: row.sourceBindings.map((binding) => ({ role: binding.role, order: binding.order, sourceType: binding.sourceType, sourceId: binding.sourceId, sourceDigest: digest(binding.sourceDigest) })),
       rowVersion: row.rowVersion,
       chapterRowVersion,
       threadId: row.threadId,
@@ -550,7 +557,9 @@ export class ScriptVersionRepository {
         scriptWorkingText: row.scriptWorkingText,
         scriptWorkingDigest: digest(row.scriptWorkingDigest),
         scriptWorkingState: row.scriptWorkingState as ChapterVersionGraphInput["chapter"]["scriptWorkingState"],
-        hasAiPending: row.chapterScriptPendingByChapter !== null,
+        hasAiPending: row.chapterScriptPendingByChapter !== null && row.chapterScriptPendingByChapter.kind !== "import",
+        hasScriptPending: row.chapterScriptPendingByChapter !== null,
+        pendingKind: row.chapterScriptPendingByChapter?.kind as "legacy" | "ai" | "import" | undefined ?? null,
         currentScriptVersionId: row.currentScriptVersionId,
         currentStoryVersionId: row.currentStoryVersionId,
         pendingStoryVersionId: row.pendingStoryVersionId,

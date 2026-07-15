@@ -49,6 +49,17 @@ export interface ScriptPendingSuggestionDto {
   sourceText: string;
   digest: Digest;
   operation: string;
+  kind: "legacy" | "ai" | "import";
+  sourcePolicyVersion: string | null;
+  sourceSetDigest: Digest | null;
+  sourceSetSealedAt: string | null;
+  sourceBindings: Array<{
+    role: string;
+    order: number;
+    sourceType: string;
+    sourceId: string;
+    sourceDigest: Digest;
+  }>;
   rowVersion: number;
   chapterRowVersion: number;
   threadId: string | null;

@@ -14,7 +14,7 @@ import path from "node:path";
 import {
   assertG1PrismaForeignKeyContract,
   assertG1PrismaManifestCounts,
-  assertG1PrismaSchemaMatchesManifestV1,
+  assertG1PrismaSchemaEmbeddedV1,
   g1PhysicalForeignKeyName,
   type G1PrismaManifest,
   type G1PrismaManifestField,
@@ -1081,6 +1081,7 @@ export async function assertG1MigrationArtifactTreeV1(
     "0014_g5_layout_binding_source_digest",
     "0015_g5_layout_publication_overlay",
     "0016_g5_legacy_layout_cutover",
+    "0017_script_dual_flow_source_state",
   ]);
   const g1RootEntries = rootEntries.filter(
     (entry) => !persistedPostG1Overlays.has(entry),
@@ -1134,7 +1135,7 @@ async function loadCurrentMigrationInputs(canonicalRoot: string): Promise<{
     ),
   ]);
   const manifest = current.manifest as G1MigrationManifest;
-  assertG1PrismaSchemaMatchesManifestV1(manifest, currentSchema);
+  assertG1PrismaSchemaEmbeddedV1(manifest, currentSchema);
   return { manifest, plan: buildG1MigrationPlanV1(manifest) };
 }
 

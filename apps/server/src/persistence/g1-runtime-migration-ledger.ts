@@ -23,6 +23,7 @@ export const POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES = [
   "0014_g5_layout_binding_source_digest",
   "0015_g5_layout_publication_overlay",
   "0016_g5_legacy_layout_cutover",
+  "0017_script_dual_flow_source_state",
 ] as const;
 
 export interface G1RuntimeMigrationExpectationV1 {

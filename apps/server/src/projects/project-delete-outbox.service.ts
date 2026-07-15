@@ -606,7 +606,16 @@ export class ProjectDeleteOutboxService {
             OR "current_export_revision_id" IS NOT NULL
             OR "last_script_revision_id" IS NOT NULL)`);
       await q('DELETE FROM "pending_dialogue_artifacts" WHERE "project_id" = ?');
+      await q('DELETE FROM "chapter_script_pending_source_bindings" WHERE "pending_id" IN (SELECT pending."id" FROM "chapter_script_pending" AS pending JOIN "chapters" AS chapter ON chapter."id" = pending."chapter_id" WHERE chapter."project_id" = ?)');
       await q('DELETE FROM "chapter_script_pending" WHERE "chapter_id" IN (SELECT "id" FROM "chapters" WHERE "project_id" = ?)');
+      await q('DELETE FROM "script_import_fidelity_reports" WHERE "batch_item_id" IN (SELECT item."id" FROM "script_import_batch_items" AS item JOIN "script_import_batches" AS batch ON batch."id" = item."batch_id" WHERE batch."project_id" = ?)');
+      await q('DELETE FROM "script_import_batch_items" WHERE "batch_id" IN (SELECT "id" FROM "script_import_batches" WHERE "project_id" = ?)');
+      await q('DELETE FROM "script_import_batches" WHERE "project_id" = ?');
+      await q('DELETE FROM "script_chapter_maps" WHERE "project_id" = ?');
+      await q('DELETE FROM "script_import_analysis_candidates" WHERE "project_id" = ?');
+      await q('DELETE FROM "script_raw_source_blocks" WHERE "raw_source_version_id" IN (SELECT "id" FROM "script_raw_source_versions" WHERE "project_id" = ?)');
+      await q('DELETE FROM "script_raw_source_documents" WHERE "raw_source_version_id" IN (SELECT "id" FROM "script_raw_source_versions" WHERE "project_id" = ?)');
+      await q('DELETE FROM "script_raw_source_versions" WHERE "project_id" = ?');
       await q('DELETE FROM "chapter_script_revisions" WHERE "chapter_id" IN (SELECT "id" FROM "chapters" WHERE "project_id" = ?)');
       await q('DELETE FROM "dialogue_tool_results" WHERE "thread_id" IN (SELECT "id" FROM "conversation_threads" WHERE "project_id" = ?)');
       await q('DELETE FROM "dialogue_runtime_sessions" WHERE "thread_id" IN (SELECT "id" FROM "conversation_threads" WHERE "project_id" = ?)');

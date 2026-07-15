@@ -54,6 +54,18 @@ const EXPECTED_G1_MODELS = [
   "GenerationTaskSource",
 ] as const;
 
+const EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS = [
+  "ScriptRawSourceVersion",
+  "ScriptRawSourceDocument",
+  "ScriptRawSourceBlock",
+  "ScriptImportAnalysisCandidate",
+  "ScriptChapterMap",
+  "ScriptImportBatch",
+  "ScriptImportBatchItem",
+  "ScriptImportFidelityReport",
+  "ChapterScriptPendingSourceBinding",
+] as const;
+
 const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly string[]> = {
   PersistenceState: ["storageContractVersion", "activationState", "firstBusinessWriteAt"],
   MigrationRun: ["kind", "status", "sourceManifestDigest", "snapshotManifestDigest", "reportDigest"],
@@ -102,14 +114,14 @@ const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly 
 };
 
 describe("SCH-00 G1 schema public contract", () => {
-  it("contains exactly the accepted 44 models and pins Prisma 6.19.3", async () => {
+  it("contains the frozen 44-model G1 base plus the approved script-workflow overlay and pins Prisma 6.19.3", async () => {
     const contract = await inspectG1SchemaContract({
       schemaPath: path.join(SERVER_ROOT, "prisma/schema.prisma"),
       packageJsonPath: path.join(SERVER_ROOT, "package.json"),
     });
 
-    expect(contract.models).toEqual([...EXPECTED_G1_MODELS].sort());
-    expect(contract.models).toHaveLength(44);
+    expect(contract.models).toEqual([...EXPECTED_G1_MODELS, ...EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS].sort());
+    expect(contract.models).toHaveLength(53);
     expect(contract.prismaVersion).toBe("6.19.3");
     expect(contract.prismaClientVersion).toBe("6.19.3");
   });

@@ -49,6 +49,22 @@ describe("ChapterProductionState resolver", () => {
     expect(state.story.reasonCodes).toContain("STORY_PENDING_CONFIRMATION");
   });
 
+  it("distinguishes an import pending and blocks the derived chain", () => {
+    const input = baseInput();
+    input.chapter.hasAiPending = false;
+    input.chapter.hasScriptPending = true;
+    input.chapter.pendingKind = "import";
+    const state = resolveChapterProductionState(input);
+    expect(state.script).toMatchObject({
+      hasAiPending: false,
+      hasScriptPending: true,
+      pendingKind: "import",
+    });
+    expect(state.script.reasonCodes).toContain("SCRIPT_IMPORT_PENDING");
+    expect(state.story.freshness).toBe("stale");
+    expect(state.earliestAttentionStep).toBe("project_story");
+  });
+
   it("marks source changes stale and propagates upstream stale", () => {
     const input = baseInput();
     input.currentStory = { ...input.currentStory!, sourceDigest: d2 };
@@ -91,4 +107,3 @@ describe("ChapterProductionState resolver", () => {
     expect(state.story.reasonCodes).toContain("SOURCE_POLICY_UNSUPPORTED");
   });
 });
-

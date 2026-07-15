@@ -54,7 +54,7 @@ export class NewWorkGateService {
   private requireScriptReady(row: Awaited<ReturnType<ChapterProductionQueryService["readScoped"]>>["row"], state: ChapterProductionState, reasons: FreshnessReasonCode[]): void {
     if (row.currentScriptVersionId === null || state.script.freshness !== "current") reasons.push(...state.script.reasonCodes, "SCRIPT_VERSION_MISSING");
     if (state.script.workingState !== "clean") reasons.push(...state.script.reasonCodes, "SCRIPT_WORKING_DIRTY");
-    if (state.script.hasAiPending || row.chapterScriptPendingByChapter !== null) reasons.push("SCRIPT_AI_PENDING");
+    if (state.script.hasScriptPending || row.chapterScriptPendingByChapter !== null) reasons.push(row.chapterScriptPendingByChapter?.kind === "import" ? "SCRIPT_IMPORT_PENDING" : "SCRIPT_AI_PENDING");
   }
 
   private checkStoryParse(row: Awaited<ReturnType<ChapterProductionQueryService["readScoped"]>>["row"], state: ChapterProductionState, input: NewWorkGateInput, reasons: FreshnessReasonCode[]): void {

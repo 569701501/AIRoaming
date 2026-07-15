@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertG1PrismaManifestCounts,
   assertG1PrismaForeignKeyContract,
+  assertG1PrismaSchemaEmbeddedV1,
   assertG1PrismaSchemaMatchesManifestV1,
   buildG1PrismaSchema,
   checkG1PrismaSchemaV1,
@@ -86,9 +87,10 @@ describe("SCH-00 exact manifest to Prisma contract", () => {
 
   it("matches the deterministic field, mapping, relation, action and index rendering", async () => {
     const { manifest, schema } = await loadInputs();
-    expect(schema).toBe(buildG1PrismaSchema(manifest));
-    expect(schema).toContain(
-      'candidatesByAsset Candidate[] @relation("Candidate_asset_Asset")',
+    expect(() => assertG1PrismaSchemaEmbeddedV1(manifest, schema)).not.toThrow();
+    expect(schema).not.toBe(buildG1PrismaSchema(manifest));
+    expect(schema).toMatch(
+      /candidatesByAsset\s+Candidate\[\]\s+@relation\("Candidate_asset_Asset"\)/,
     );
     expect(schema).not.toMatch(/@relation\([^\n]*\bmap:/);
     expect(() =>

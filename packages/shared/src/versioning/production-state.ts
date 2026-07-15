@@ -9,7 +9,7 @@ export type PendingReadiness = "generating" | "ready" | "failed";
 export type ScriptWorkingState = "empty" | "clean" | "dirty";
 export type ChapterMilestoneStatus = "draft" | "script_done" | "structured" | "storyboard_done" | "images_done" | "layout_done" | "exported";
 export type FreshnessReasonCode =
-  | "SCRIPT_VERSION_MISSING" | "SCRIPT_WORKING_EMPTY" | "SCRIPT_WORKING_DIRTY" | "SCRIPT_AI_PENDING"
+  | "SCRIPT_VERSION_MISSING" | "SCRIPT_WORKING_EMPTY" | "SCRIPT_WORKING_DIRTY" | "SCRIPT_AI_PENDING" | "SCRIPT_IMPORT_PENDING"
   | "STORY_VERSION_MISSING" | "STORY_PENDING_CONFIRMATION" | "STORYBOARD_VERSION_MISSING" | "STORYBOARD_PENDING_CONFIRMATION" | "PREFLIGHT_MISSING"
   | "STORY_SOURCE_SCRIPT_CHANGED" | "STORY_SOURCE_UNRESOLVED" | "STORYBOARD_SOURCE_STORY_CHANGED" | "STORYBOARD_SOURCE_UNRESOLVED"
   | "PREFLIGHT_SOURCE_STORYBOARD_CHANGED" | "PREFLIGHT_CHARACTER_INPUT_CHANGED" | "PREFLIGHT_SCENE_INPUT_CHANGED" | "PREFLIGHT_STYLE_INPUT_CHANGED" | "PREFLIGHT_SOURCE_UNRESOLVED" | "UPSTREAM_STALE" | "SOURCE_POLICY_UNSUPPORTED"
@@ -44,6 +44,8 @@ export interface ChapterVersionGraphChapter {
   scriptWorkingDigest: Digest | null;
   scriptWorkingState?: ScriptWorkingState;
   hasAiPending?: boolean;
+  hasScriptPending?: boolean;
+  pendingKind?: "legacy" | "ai" | "import" | null;
   currentScriptVersionId: string | null;
   currentStoryVersionId: string | null;
   pendingStoryVersionId: string | null;
@@ -78,6 +80,8 @@ export interface ScriptVersionNodeState extends VersionNodeState {
   workingState: ScriptWorkingState;
   workingDigest: Digest | null;
   hasAiPending: boolean;
+  hasScriptPending: boolean;
+  pendingKind: "legacy" | "ai" | "import" | null;
 }
 
 export interface ChapterProductionState {
@@ -158,7 +162,10 @@ function resolveDerivedNode(input: {
 function resolveScript(input: ChapterVersionGraphInput): ScriptVersionNodeState {
   const chapter = input.chapter;
   const workingState = chapter.scriptWorkingState ?? (chapter.scriptWorkingText.trim() === "" ? "empty" : input.currentScript?.id ? (chapter.scriptWorkingDigest === input.currentScript.sourceDigest ? "clean" : "dirty") : "dirty");
-  const node: ScriptVersionNodeState = { ...baseNode({ currentVersionId: chapter.currentScriptVersionId, pendingVersionId: null, sourceDigest: input.currentScript?.sourceDigest ?? null, historyCount: historyCount(input.historyCounts, "script") }), workingState, workingDigest: chapter.scriptWorkingDigest, hasAiPending: chapter.hasAiPending ?? false };
+  const hasAiPending = chapter.hasAiPending ?? false;
+  const hasScriptPending = chapter.hasScriptPending ?? hasAiPending;
+  const pendingKind = chapter.pendingKind ?? (hasAiPending ? "legacy" : null);
+  const node: ScriptVersionNodeState = { ...baseNode({ currentVersionId: chapter.currentScriptVersionId, pendingVersionId: null, sourceDigest: input.currentScript?.sourceDigest ?? null, historyCount: historyCount(input.historyCounts, "script") }), workingState, workingDigest: chapter.scriptWorkingDigest, hasAiPending, hasScriptPending, pendingKind };
   if (chapter.currentScriptVersionId === null || input.currentScript === null) { node.freshness = null; node.reasonCodes.push("SCRIPT_VERSION_MISSING"); }
   else if (input.currentScript.id !== chapter.currentScriptVersionId) { node.freshness = "historical"; node.reasonCodes.push("VERSION_DOCUMENT_INVALID"); }
   else if (input.currentScript.projectId !== chapter.projectId || input.currentScript.chapterId !== chapter.id) { node.freshness = "stale"; node.reasonCodes.push("VERSION_SCOPE_MISMATCH"); }
@@ -166,7 +173,7 @@ function resolveScript(input: ChapterVersionGraphInput): ScriptVersionNodeState 
   else node.freshness = "current";
   if (workingState === "empty") node.reasonCodes.push("SCRIPT_WORKING_EMPTY");
   else if (workingState === "dirty") node.reasonCodes.push("SCRIPT_WORKING_DIRTY");
-  if (node.hasAiPending) node.reasonCodes.push("SCRIPT_AI_PENDING");
+  if (node.hasScriptPending) node.reasonCodes.push(node.pendingKind === "import" ? "SCRIPT_IMPORT_PENDING" : "SCRIPT_AI_PENDING");
   return node;
 }
 
@@ -181,7 +188,7 @@ function expectedPreflightSource(input: ChapterVersionGraphInput): { id: string;
 
 export function resolveChapterProductionState(input: ChapterVersionGraphInput, generatedAt = new Date().toISOString()): ChapterProductionState {
   const script = resolveScript(input);
-  const scriptUpstream: ArtifactFreshness | null = script.freshness === null ? null : script.freshness === "current" && script.workingState === "clean" && !script.hasAiPending ? "current" : "stale";
+  const scriptUpstream: ArtifactFreshness | null = script.freshness === null ? null : script.freshness === "current" && script.workingState === "clean" && !script.hasScriptPending ? "current" : "stale";
   const story = resolveDerivedNode({ chapter: input.chapter, current: input.currentStory, pending: input.pendingStory, currentVersionId: input.chapter.currentStoryVersionId, pendingVersionId: input.chapter.pendingStoryVersionId, sourcePolicyVersion: "story-source-v1", expectedSource: script.currentVersionId !== null && input.currentScript !== null ? { id: input.currentScript.id, digest: input.currentScript.sourceDigest } : null, missingReason: "STORY_VERSION_MISSING", pendingReason: "STORY_PENDING_CONFIRMATION", changedReason: "STORY_SOURCE_SCRIPT_CHANGED", unresolvedReason: "STORY_SOURCE_UNRESOLVED", upstreamFreshness: scriptUpstream, historyKey: "story", historyCounts: input.historyCounts });
   const storyboard = resolveDerivedNode({ chapter: input.chapter, current: input.currentStoryboard, pending: input.pendingStoryboard, currentVersionId: input.chapter.currentStoryboardVersionId, pendingVersionId: input.chapter.pendingStoryboardVersionId, sourcePolicyVersion: "storyboard-source-v1", expectedSource: story.freshness === "current" && input.currentStory?.documentDigest !== null && input.currentStory?.documentDigest !== undefined ? { id: input.currentStory.id, digest: input.currentStory.documentDigest } as { id: string; digest: Digest } : null, missingReason: "STORYBOARD_VERSION_MISSING", pendingReason: "STORYBOARD_PENDING_CONFIRMATION", changedReason: "STORYBOARD_SOURCE_STORY_CHANGED", unresolvedReason: "STORYBOARD_SOURCE_UNRESOLVED", upstreamFreshness: story.freshness, historyKey: "storyboard", historyCounts: input.historyCounts });
   const preflightExpected = expectedPreflightSource(input);
@@ -190,6 +197,6 @@ export function resolveChapterProductionState(input: ChapterVersionGraphInput, g
     && (input.currentPreflightSourceSnapshot.storyboard.id !== input.currentStoryboard.id || input.currentPreflightSourceSnapshot.storyboard.digest !== input.currentStoryboard.documentDigest);
   const preflightUnresolvedReason: FreshnessReasonCode = preflightSourceChanged ? "PREFLIGHT_SOURCE_STORYBOARD_CHANGED" : "PREFLIGHT_SOURCE_UNRESOLVED";
   const preflight = resolveDerivedNode({ chapter: input.chapter, current: input.currentPreflight, pending: null, currentVersionId: input.chapter.currentPreflightRevisionId, pendingVersionId: null, sourcePolicyVersion: "preflight-source-v1", expectedSource: storyboard.freshness === "current" ? preflightExpected : null, missingReason: "PREFLIGHT_MISSING", pendingReason: "PREFLIGHT_MISSING", changedReason: preflightSourceChanged ? "PREFLIGHT_SOURCE_STORYBOARD_CHANGED" : "PREFLIGHT_SOURCE_UNRESOLVED", unresolvedReason: preflightUnresolvedReason, upstreamFreshness: storyboard.freshness, historyKey: "preflight", historyCounts: input.historyCounts });
-  const earliestAttentionStep = script.freshness !== "current" || script.workingState !== "clean" || script.hasAiPending ? "project_story" : story.freshness !== "current" ? "story_structure" : storyboard.freshness !== "current" ? "storyboard" : preflight.freshness !== "current" ? "image_preflight" : "image_preflight";
+  const earliestAttentionStep = script.freshness !== "current" || script.workingState !== "clean" || script.hasScriptPending ? "project_story" : story.freshness !== "current" ? "story_structure" : storyboard.freshness !== "current" ? "storyboard" : preflight.freshness !== "current" ? "image_preflight" : "image_preflight";
   return { schemaVersion: 1, projectId: input.chapter.projectId, chapterId: input.chapter.id, chapterRowVersion: input.chapter.rowVersion, milestoneStatus: input.chapter.milestoneStatus, script, story, storyboard, preflight, earliestAttentionStep, generatedAt };
 }

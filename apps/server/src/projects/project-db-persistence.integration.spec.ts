@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { G1_RUNTIME_MIGRATION_NAMES } from "../persistence/g1-runtime-migration-ledger.js";
-import { G5_RUNTIME_MIGRATION_NAMES } from "../persistence/g5-runtime-migration-ledger.js";
+import { SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES } from "../persistence/script-workflow-runtime-migration-ledger.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectsModule } from "./projects.module.js";
@@ -112,7 +112,7 @@ async function runPrismaDeploy(
 
 async function copyFormalMigration(
   prismaRoot: string,
-  migrationName: (typeof G5_RUNTIME_MIGRATION_NAMES)[number],
+  migrationName: (typeof SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES)[number],
 ): Promise<void> {
   const targetDirectory = path.join(prismaRoot, "migrations", migrationName);
   await mkdir(targetDirectory, { recursive: false });
@@ -126,7 +126,7 @@ async function copyFormalMigration(
 
 async function materializePartialPrismaRoot(
   testRoot: string,
-  migrationNames: readonly (typeof G5_RUNTIME_MIGRATION_NAMES)[number][],
+  migrationNames: readonly (typeof SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES)[number][],
 ): Promise<string> {
   const prismaRoot = path.join(testRoot, "partial-prisma");
   await mkdir(path.join(prismaRoot, "migrations"), { recursive: true });
@@ -176,8 +176,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   );
 
   async function prepareDatabase(
-    migrationNames: readonly (typeof G5_RUNTIME_MIGRATION_NAMES)[number][] =
-      G5_RUNTIME_MIGRATION_NAMES,
+    migrationNames: readonly (typeof SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES)[number][] =
+      SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES,
   ): Promise<{
     readonly workspaceRoot: string;
     readonly dataRoot: string;
@@ -202,9 +202,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await handle.close();
     const databaseUrl = `file:${databasePath}`;
     const isFormalTree =
-      migrationNames.length === G5_RUNTIME_MIGRATION_NAMES.length &&
+      migrationNames.length === SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.length &&
         migrationNames.every(
-        (migrationName, index) => migrationName === G5_RUNTIME_MIGRATION_NAMES[index],
+        (migrationName, index) => migrationName === SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES[index],
       );
     const prismaRoot = isFormalTree
       ? null
@@ -269,7 +269,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_G5_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_SCRIPT_WORKFLOW_MIGRATION_LEDGER_MISSING:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -314,7 +314,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expect(
       NestFactory.createApplicationContext(ProjectsModule, { logger: false }),
     ).rejects.toThrow(
-      "DB_PERSISTENCE_G5_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
+      "DB_PERSISTENCE_SCRIPT_WORKFLOW_MIGRATION_LEDGER_FAILED:0008_sqlite_checks_triggers_indexes",
     );
     expect(readBusinessFacts(databasePath)).toEqual({
       projects: 0,
@@ -326,7 +326,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("16 migrations found");
+    expect(deployed.stdout).toContain("17 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });

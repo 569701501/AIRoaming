@@ -2,7 +2,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-07-15
+updated: 2026-07-16
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -133,7 +133,8 @@ $deep-think
 | Web 工作台 | `apps/web` | Vue 3 + Vite + Pinia，已实现项目库首版和项目工作区第 1 步首屏；后续 5 个项目内页面仍按当前 UI 信息架构分阶段实现 |
 | 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、项目 API、任务 mock API、OpenCode 对话运行时、对话 API 和 Prisma schema |
 | 共享契约 | `packages/shared` | 任务枚举、DTO、workspace 虚拟路径工具 |
-| 剧本双流程严格输出契约 | `packages/shared/src/script-workflow-contract.ts` | 七个模型阶段的灵感/大纲/章节/导入分析/忠实度可执行 Schema；当前只完成 Shared 基线，生产 Prompt 与来源状态门尚待接线 |
+| 剧本双流程严格输出契约 | `packages/shared/src/script-workflow-contract.ts` | 七个模型阶段的灵感/大纲/章节/导入分析/忠实度可执行 Schema |
+| 剧本双流程来源状态 | `文档/02_架构与契约/2026-07-16_双流程来源与状态契约.md` | 0017 已实现不可变原稿、确认目录、导入批次/忠实度、AI/导入 pending 来源密封和逐章正式化基础；生产 Prompt、对话和页面仍待接线 |
 | 测试安全网 | `apps/server/src/**/*.spec.ts`、`tests/e2e` | Vitest Service characterization + Playwright API/Chromium；临时 workspace、loopback fake provider 与受控进程清理 |
 | 本地素材根 | `workspace/projects` | 开发期项目素材占位目录 |
 
@@ -159,7 +160,7 @@ apps/server/prisma/contracts/g1-schema-manifest.json
 文档/05_执行与记录/功能完成记录/2026-07-12_G1纠偏与DB垂直切片.md
 ```
 
-G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bundle/CAS 写入门禁，digest=`sha256:ad3b0e1ba884e20718e6e81994cbb8beaedbb9e6777e471ac2a21e4c94c2b1ea`，作为历史生成 provenance 保留。当前发布 Schema identity 由 SQLite 引擎、`schema.prisma` checksum 与全部有序 migration checksum 计算；正式 migration tree 已前向追加到 0016。runtime 通过显式 catalog 精确核验 0001～0016，新增 migration 会改变 release identity，未同步 runtime catalog 时不会自动放行。
+G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bundle/CAS 写入门禁，当前 digest=`sha256:392bd4cb98fc29c35f43886071edced76b7e48f732e0f55a380d1e3a76f0231c`，作为冻结 G1 基线的生成 provenance 保留。当前发布 Schema identity 由 SQLite 引擎、`schema.prisma` checksum 与全部有序 migration checksum 计算；正式 migration tree 已前向追加到 0017。runtime 通过显式 catalog 精确核验 0001～0017，新增 migration 会改变 release identity，未同步 runtime catalog 时不会自动放行。
 
 ## 8. 当前产品取舍
 
@@ -167,7 +168,7 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - “可控工作流”统一指 AI 分步生成、用户查看/编辑/确认后推进，不表示用户手工绘图。该七阶段状态机、确认动作和步骤门禁已在当前代码中实现，是现有基线，不是 D2 待开发功能；D2 真正后置的是跨步骤自动推进、批量调度和一键生产的详细边界。
 - 当前七阶段补全入口为 `文档/04_方案与决策/2026-07-10_七阶段能力缺口与升级顺序.md`；完整验收入口为 `文档/06_测试与验收/七阶段完整链路验收基线.md`。2026-07-11 用户决定当前开发波次只到 G5，G6 素材包 V2 与 G7 ZIP 总验收后置；仍保留七阶段 workflow，不改回六阶段。`G0至G5开发文档完备性复核.md` 是开发授权前的内容/批准快照；当前 G0 实施状态以任务记录、自动化测试体系和功能完成记录为准。
 - G0 测试安全网已于 2026-07-11 实现：Vitest Service characterization、Playwright API/Chromium、独立 provider/server/web 生命周期、失败证据与 Runtime/User Review 均已建立。该段数量是 G0 当时的历史基线；当前 G1～G5 已在同一安全底座上完成并扩大覆盖，最新数量以 `文档/06_测试与验收/自动化测试体系.md` 和本轮回归记录为准。
-- G1 数据库化与真实切换已完成：44 模型、0001～0016 forward-only migration、final importer、SecretStore、持久任务/Outbox、Asset、Dialogue、Layout/Export、协调备份恢复、C0～C7、首笔 DB-only 业务写、file guard 和 R2 OBS-01～10 均已通过。SQLite 是唯一业务事实源；首次 DB 写后禁止 file-only 回退。backup/archive 保留，禁止 down migration。
+- G1 数据库化与真实切换已完成：44 模型冻结基线及 0017 的 9 模型剧本来源状态 overlay、0001～0017 forward-only migration、final importer、SecretStore、持久任务/Outbox、Asset、Dialogue、Layout/Export、协调备份恢复、C0～C7、首笔 DB-only 业务写、file guard 和 R2 OBS-01～10 均已通过。SQLite 是唯一业务事实源；首次 DB 写后禁止 file-only 回退。backup/archive 保留，禁止 down migration。
 - G2 已完成：Script 使用 Chapter Working Copy，Story/Storyboard 使用 pending version 做 copy-on-write，确认后形成不可变正式版本；Preflight 保存 storyboard + 角色/场景/风格聚合来源快照。`freshness=current/stale/historical/pending` 只从 current 指针、来源 ID 和 JCS 摘要派生，不存第二套可写真值。G2-A0～F4 的 codec、Repository、ProductionState、NewWorkGate、任务 applicability、持久 worker 与 completion transaction 均已通过；后续 importer/Outbox/capability 切换也已在 G3/R2 收口。
 - G2-B1 已完成 Script DB repository、CAS/幂等、publish/clear/revert、pending/history API；G2-C1 已完成 Story pending create/update/discard/confirm、projection、source gate、CAS/replay 和 fresh SQLite 重启证据；G2-D1 已完成 Storyboard pending CRUD、stable Shot、projection、confirm/retire；G2-E1 已完成 ProductionState/Workflow 查询、reasonCodes 和四类 NewWorkGate；G2-E2 已完成 Preflight preview/confirm、SourceSnapshot 和 stale 派生；G2-F1～F4 已完成 applicability、持久 runtime、四类 worker、completion transaction、task history 和统一创建门禁。
 - G2-E1/E2/F1 交付边界仍有效：production-state API 返回服务端权威 production/workflow/chapterRowVersion；NewWorkGate 对四类任务统一返回稳定 reasonCodes；Preflight API 只允许服务端重建 SourceSnapshot；TaskApplicabilityGuard 在完成前把来源/目标不再 current 的任务标为 historical。F2～F4、capability switch、Outbox 和 DB-only 切换均已由后续阶段闭合。

@@ -2,7 +2,7 @@
 doc_id: AIR-DOC-INDEX-001
 status: active
 created: 2026-05-23
-updated: 2026-07-12
+updated: 2026-07-16
 owner: AI漫游项目
 audience: human, ai-agent
 source: 原始种子文档、AuroraPlatformWeb 文档体系参考
@@ -80,6 +80,7 @@ AI漫游是一个内部 AI 制作工作台，目标是把故事创意稳定转�
 | G2 数据库 Overlay 清单 | `文档/04_方案与决策/2026-07-12_G2施工包_数据库Overlay清单.md` |
 | G2 文件/Repository/事务地图 | `文档/04_方案与决策/2026-07-12_G2施工包_文件Repository与事务地图.md` |
 | G2 API/DTO/幂等契约 | `文档/04_方案与决策/2026-07-12_G2施工包_API与幂等契约.md` |
+| 剧本双流程来源与状态契约 | `文档/02_架构与契约/2026-07-16_双流程来源与状态契约.md` |
 | ADR-0013 上游版本链决策 | `文档/04_方案与决策/ADR-0013_上游版本链与派生Freshness.md` |
 | ADR-0015 G1 生成器渐进退役与发布 Schema 身份 | `文档/04_方案与决策/ADR-0015_G1生成器渐进退役与发布Schema身份.md` |
 | G3 漫画版式入口与不可变约束 | `文档/04_方案与决策/2026-07-11_G3漫画版式入口与不可变约束开发方案.md` |

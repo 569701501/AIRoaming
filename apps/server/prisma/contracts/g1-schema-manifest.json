@@ -102,7 +102,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-migration-plan.ts",
-      "digest": "sha256:31b8ca7db9aee1012137087830620fc6b6d661869d0f1598e259642d6b6c26d1",
+      "digest": "sha256:31523a1ae46ffa0408ffa55d1f9675ca9e80e4177f6c0639b7cb4d363c0d1c2e",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -116,7 +116,7 @@
     },
     {
       "path": "apps/server/src/persistence/g1-prisma-schema.ts",
-      "digest": "sha256:1f36241beadca0ca4bcec0f198d84fd5bda5e0b19278f45171e7b33e63a3e316",
+      "digest": "sha256:452fc4d43898d0d953934699e6b6835e9b2ecc9b8d564621c618c7c5873bfffa",
       "sections": [
         "Pass2 source-only manifest assembly"
       ]
@@ -28946,5 +28946,5 @@
     "issueCount": 0,
     "issues": []
   },
-  "manifestDigest": "sha256:dd80f3191a098dcce9add786c710f2c7da01fddb107e1b407bdf0cc64eafc64b"
+  "manifestDigest": "sha256:392bd4cb98fc29c35f43886071edced76b7e48f732e0f55a380d1e3a76f0231c"
 }

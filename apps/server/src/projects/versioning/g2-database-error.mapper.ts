@@ -22,6 +22,14 @@ export type G2DatabaseErrorCode =
   | "SHOT_ID_UNKNOWN"
   | "PREFLIGHT_SOURCE_CHANGED"
   | "SOURCE_UNRESOLVED"
+  | "RAW_SOURCE_NOT_FOUND"
+  | "IMPORT_ANALYSIS_NOT_FOUND"
+  | "IMPORT_ANALYSIS_BLOCKED"
+  | "IMPORT_MAP_NOT_FOUND"
+  | "IMPORT_CHAPTER_OCCUPIED"
+  | "IMPORT_ITEM_STATE_CONFLICT"
+  | "IMPORT_FIDELITY_FAILED"
+  | "IMPORT_PENDING_ACTION_NOT_ALLOWED"
   | "TASK_TARGET_SUPERSEDED"
   | "PROJECT_COMIC_FORMAT_CORRUPTED"
   | "G2_DATABASE_CONTRACT_VIOLATION";
@@ -103,6 +111,12 @@ export function mapG2DatabaseError(error: unknown): G2MappedDatabaseError {
     return mapped(409, "PREFLIGHT_SOURCE_CHANGED", error);
   }
   if (/SOURCE_UNRESOLVED/i.test(message)) {
+    return mapped(422, "SOURCE_UNRESOLVED", error);
+  }
+  if (/AIR_SCRIPT_FLOW:.*(?:SCOPE|STATE|TRANSITION|CAS|IDENTITY)/i.test(message)) {
+    return mapped(409, "IMPORT_ITEM_STATE_CONFLICT", error);
+  }
+  if (/AIR_SCRIPT_FLOW:/i.test(message)) {
     return mapped(422, "SOURCE_UNRESOLVED", error);
   }
   return mapped(500, "G2_DATABASE_CONTRACT_VIOLATION", error);

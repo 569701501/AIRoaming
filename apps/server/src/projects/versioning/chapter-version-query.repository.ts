@@ -5,7 +5,7 @@ import { PrismaService } from "../../persistence/prisma.service.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
 
 export const CHAPTER_VERSION_QUERY_INCLUDE = {
-  chapterScriptPendingByChapter: true,
+  chapterScriptPendingByChapter: { include: { sourceBindings: { orderBy: { order: "asc" } } } },
   currentScriptVersion: true,
   currentStoryVersion: true,
   pendingStoryVersion: true,

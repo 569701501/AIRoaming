@@ -34,6 +34,7 @@ import { TaskApplicabilityGuardService } from "./versioning/task-applicability-g
 import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js";
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
+import { ScriptWorkflowSourceRepository } from "./script-workflow-source.repository.js";
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { CandidateLockRepository } from "./candidate-lock.repository.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
@@ -52,6 +53,7 @@ import { LayoutPendingCommandService } from "./layout-pending-command.service.js
   providers: [
     ProjectRepository,
     ProjectScriptCommandRepository,
+    ScriptWorkflowSourceRepository,
     ImageProviderService,
     CandidateReferenceResolver,
     ProjectStore,
