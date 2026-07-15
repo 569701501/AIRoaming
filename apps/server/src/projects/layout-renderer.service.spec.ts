@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildLayoutRenderPlanV1, type LayoutPublicationProfileV1 } from "@airoaming/shared";
+import { buildLayoutRenderPlanV1, digestCanonicalJson, type LayoutPublicationProfileV1 } from "@airoaming/shared";
 import { describe, expect, it } from "vitest";
 
 import { LayoutRendererService, type ResolvedRenderAssetV1 } from "./layout-renderer.service.js";
@@ -11,6 +11,9 @@ import { LayoutRendererService, type ResolvedRenderAssetV1 } from "./layout-rend
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const fixtureRoot = path.join(repoRoot, "tests/fixtures/layout");
 const require = createRequire(import.meta.url);
+const { PNG } = require("pngjs") as {
+  PNG: { sync: { read(bytes: Buffer): { width: number; height: number; data: Buffer } } };
+};
 
 function sha256(bytes: Uint8Array): `sha256:${string}` {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
@@ -31,6 +34,49 @@ async function resolvedAssets(manifest: any): Promise<ResolvedRenderAssetV1[]> {
 }
 
 describe("G5-M7 fixed Chromium renderer", () => {
+  it("fails closed before browser launch when a pinned render asset is missing", async () => {
+    const fixture = await loadFixture("crop-rotate-flip");
+    const profile: LayoutPublicationProfileV1 = {
+      schemaVersion: 1,
+      kind: "paged_publication",
+      outputScale: 1,
+      includePdf: false,
+      pdfPixelDpi: 96,
+    };
+    const plan = buildLayoutRenderPlanV1({
+      document: fixture.document,
+      sourceLockSetDigest: fixture.expected.sourceLockSetDigest,
+      profile,
+      assets: fixture.expected.assetManifest,
+    });
+    const assets = await resolvedAssets(fixture.expected.assetManifest);
+    await expect(new LayoutRendererService().render(plan, profile, assets.slice(1)))
+      .rejects.toThrow("LAYOUT_RENDER_ASSET_INVALID");
+  });
+
+  it("fails closed before browser launch when the render plan exceeds output limits", async () => {
+    const fixture = await loadFixture("crop-rotate-flip");
+    const profile: LayoutPublicationProfileV1 = {
+      schemaVersion: 1,
+      kind: "paged_publication",
+      outputScale: 1,
+      includePdf: false,
+      pdfPixelDpi: 96,
+    };
+    const plan = buildLayoutRenderPlanV1({
+      document: fixture.document,
+      sourceLockSetDigest: fixture.expected.sourceLockSetDigest,
+      profile,
+      assets: fixture.expected.assetManifest,
+    });
+    const oversized = structuredClone(plan);
+    oversized.canvases[0]!.width = 8_193;
+    const { renderPlanDigest: _oldDigest, ...unsignedPlan } = oversized;
+    oversized.renderPlanDigest = digestCanonicalJson(unsignedPlan);
+    await expect(new LayoutRendererService().render(oversized, profile, await resolvedAssets(fixture.expected.assetManifest)))
+      .rejects.toThrow("LAYOUT_RENDER_OUTPUT_LIMIT_EXCEEDED:DIMENSION");
+  });
+
   it("renders decodable page PNG/PDF with identical sha across three runs", async () => {
     const fixture = await loadFixture("crop-rotate-flip");
     const profile: LayoutPublicationProfileV1 = {
@@ -60,7 +106,7 @@ describe("G5-M7 fixed Chromium renderer", () => {
     ]));
   }, 60_000);
 
-  it("renders the 20-section vertical corpus into boundary-aligned decodable slices", async () => {
+  it("renders the 20-section vertical corpus into slices that reassemble pixel-exactly", async () => {
     const fixture = await loadFixture("vertical-long-20-sections");
     const profile: LayoutPublicationProfileV1 = {
       schemaVersion: 1,
@@ -68,7 +114,7 @@ describe("G5-M7 fixed Chromium renderer", () => {
       outputScale: 1,
       maxSliceHeightPx: 8192,
       cutPolicy: "prefer_section_boundary_then_exact",
-      includeLongPng: false,
+      includeLongPng: true,
     };
     const plan = buildLayoutRenderPlanV1({
       document: fixture.document,
@@ -77,13 +123,27 @@ describe("G5-M7 fixed Chromium renderer", () => {
       assets: fixture.expected.assetManifest,
     });
     const output = await new LayoutRendererService().render(plan, profile, await resolvedAssets(fixture.expected.assetManifest));
-    expect(output.artifacts.map((artifact) => ({ role: artifact.role, order: artifact.order, width: artifact.width, height: artifact.height }))).toEqual([
+    const slices = output.artifacts.filter((artifact) => artifact.role === "strip_slice_png");
+    expect(slices.map((artifact) => ({ role: artifact.role, order: artifact.order, width: artifact.width, height: artifact.height }))).toEqual([
       { role: "strip_slice_png", order: 1, width: 1080, height: 7680 },
       { role: "strip_slice_png", order: 2, width: 1080, height: 7680 },
       { role: "strip_slice_png", order: 3, width: 1080, height: 7680 },
       { role: "strip_slice_png", order: 4, width: 1080, height: 7680 },
       { role: "strip_slice_png", order: 5, width: 1080, height: 7680 },
     ]);
+    const long = output.artifacts.find((artifact) => artifact.role === "long_png");
+    expect(long).toMatchObject({ width: 1080, height: 38_400 });
+    const decodedLong = PNG.sync.read(long!.bytes);
+    let rowOffset = 0;
+    for (const slice of slices) {
+      const decodedSlice = PNG.sync.read(slice.bytes);
+      expect(decodedSlice.width).toBe(decodedLong.width);
+      const start = rowOffset * decodedLong.width * 4;
+      const end = start + decodedSlice.data.byteLength;
+      expect(decodedSlice.data.equals(decodedLong.data.subarray(start, end))).toBe(true);
+      rowOffset += decodedSlice.height;
+    }
+    expect(rowOffset).toBe(decodedLong.height);
   }, 60_000);
 
   it("embeds the pinned CJK font in a real PDF without exposing a local path", async () => {

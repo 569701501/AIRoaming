@@ -596,14 +596,32 @@ const candidateBatches = computed<CandidateBatch[]>(() => {
 const selectedCandidates = computed(() => candidateBatches.value.flatMap((batch) => batch.candidates));
 /** 折叠的批次 taskId 集合(最新批次默认展开,旧批默认折叠) */
 const collapsedBatchIds = ref<Set<string>>(new Set());
-watch(candidateBatches, (batches) => {
-  // 旧批次(非第0个)默认折叠;最新批次保持展开
-  const next = new Set<string>();
-  for (let i = 1; i < batches.length; i += 1) {
-    next.add(batches[i].taskId);
-  }
-  collapsedBatchIds.value = next;
-});
+let candidateBatchScopeKey = "";
+let knownCandidateBatchIds = new Set<string>();
+watch(
+  [
+    () => `${props.snapshot.project.id}\0${currentChapterId.value ?? ""}\0${selectedShot.value?.id ?? ""}`,
+    candidateBatches,
+  ],
+  ([scopeKey, batches]) => {
+    const scopeChanged = scopeKey !== candidateBatchScopeKey;
+    const currentIds = new Set(batches.map((batch) => batch.taskId));
+    const next = scopeChanged
+      ? new Set<string>()
+      : new Set([...collapsedBatchIds.value].filter((taskId) => currentIds.has(taskId)));
+    // 只给首次出现的旧批次设置默认折叠；任务轮询刷新时必须保留用户已展开的状态。
+    for (let index = 0; index < batches.length; index += 1) {
+      const batch = batches[index]!;
+      if ((scopeChanged || !knownCandidateBatchIds.has(batch.taskId)) && index > 0) {
+        next.add(batch.taskId);
+      }
+    }
+    candidateBatchScopeKey = scopeKey;
+    knownCandidateBatchIds = currentIds;
+    collapsedBatchIds.value = next;
+  },
+  { immediate: true },
+);
 
 watch(
   shots,

@@ -80,6 +80,11 @@ export const router = createRouter({
       }),
     },
     {
+      path: "/projects/:projectId/layout/preview",
+      name: "layout-preview",
+      component: () => import("../views/LayoutReadOnlyPreviewView.vue"),
+    },
+    {
       path: "/projects/:projectId/:step(script|characters|structure|storyboard|preflight|candidates|layout|assets)",
       name: "project-step",
       component: RouteStub,

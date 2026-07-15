@@ -14,3 +14,5 @@ export * from "./font.js";
 export * from "./source-replacement.js";
 export * from "./preflight.js";
 export * from "./revision.js";
+export * from "./pending.js";
+export * from "./resize.js";

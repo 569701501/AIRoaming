@@ -18,7 +18,6 @@ import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
 import { ImagePreflightService } from "./image-preflight.service.js";
 import { ImageCandidateService } from "./image-candidate.service.js";
-import { LayoutExportService } from "./layout-export.service.js";
 import { LayoutPublicationService } from "./layout-publication.service.js";
 import { AssetPackageService } from "./asset-package.service.js";
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
@@ -60,8 +59,6 @@ import {
   type CreateGenerationTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectResponse,
-  type BuildChapterLayoutResponse,
-  type ExportChapterLayoutResponse,
   type ExportAssetPackageResponse,
   type CreateLayoutPublicationResponseV1,
   type LayoutPublicationHistoryResponseV1,
@@ -245,7 +242,6 @@ export class ProjectsService implements OnModuleInit {
     @Inject(StoryStructureService) private readonly storyStructure: StoryStructureService,
     @Inject(ImagePreflightService) private readonly imagePreflight: ImagePreflightService,
     @Inject(ImageCandidateService) private readonly imageCandidate: ImageCandidateService,
-    @Inject(LayoutExportService) private readonly layoutExport: LayoutExportService,
     @Inject(AssetPackageService) private readonly assetPackage: AssetPackageService,
     @Optional() @Inject(PersistentG2TaskCreateGuardService) private readonly g2TaskCreateGuard?: PersistentG2TaskCreateGuardService,
     @Optional() @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
@@ -836,14 +832,6 @@ export class ProjectsService implements OnModuleInit {
       this.repository.assertDatabaseOperationSupported("complete_chapter_images");
     }
     return this.imageCandidate.completeChapterImages(projectId, chapterId);
-  }
-
-  async buildChapterLayout(projectId: string, chapterId: string): Promise<BuildChapterLayoutResponse> {
-    return this.layoutExport.buildChapterLayout(projectId, chapterId);
-  }
-
-  async exportChapterLayout(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
-    return this.layoutExport.exportChapterLayout(projectId, chapterId);
   }
 
   async createLayoutPublication(projectId: string, chapterId: string, input: unknown): Promise<CreateLayoutPublicationResponseV1> {

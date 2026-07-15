@@ -22,6 +22,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     await expect(controller.confirmChapterPreflight("p", "c", {} as never)).resolves.toEqual({ success: true, data: { mode: "db" } });
     expect(dbConfirm).toHaveBeenCalledOnce();
@@ -34,6 +35,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       {} as never,
       { confirm: dbConfirm } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

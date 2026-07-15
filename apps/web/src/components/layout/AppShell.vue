@@ -49,8 +49,6 @@
           @generate-all-unlocked="generateAllUnlocked"
           @candidate-changed="refreshCandidateState"
           @complete-images="completeImages"
-          @build-layout="buildLayout"
-          @export-layout="exportLayout"
           @export-package="exportPackage"
           @dismiss-completion-prompt="workbench.clearChapterCompletionPrompt"
           @reset-script="clearCurrentChapterScript"
@@ -316,17 +314,6 @@ async function completeImages() {
   const ok = await workbench.completeChapterImages();
   if (ok) {
     await goProjectStep("layout_export");
-  }
-}
-
-async function buildLayout() {
-  await workbench.buildChapterLayout();
-}
-
-async function exportLayout() {
-  const ok = await workbench.exportChapterLayout();
-  if (ok) {
-    await goProjectStep("asset_package");
   }
 }
 

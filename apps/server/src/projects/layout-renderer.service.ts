@@ -11,6 +11,25 @@ import {
   type RenderPlanV1,
 } from "@airoaming/shared";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+import { inspectLayoutImageNormalizationV1 } from "./layout-image-normalization.util.js";
+
+interface PngImage {
+  width: number;
+  height: number;
+  data: Buffer;
+}
+
+const require = createRequire(import.meta.url);
+const { PNG } = require("pngjs") as {
+  PNG: {
+    new(options: { width: number; height: number }): PngImage;
+    sync: {
+      read(bytes: Buffer): PngImage;
+      write(image: PngImage): Buffer;
+    };
+  };
+};
 
 export interface ResolvedRenderAssetV1 {
   assetId: string;
@@ -72,6 +91,25 @@ function pngDimensions(bytes: Buffer): { width: number; height: number } {
     throw new Error("LAYOUT_RENDER_OUTPUT_INVALID:PNG_MAGIC");
   }
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+function stitchVerticalPngSlices(
+  slices: readonly RenderedPublicationArtifactV1[],
+  width: number,
+  height: number,
+): Buffer {
+  const output = new PNG({ width, height });
+  let rowOffset = 0;
+  for (const slice of slices) {
+    const decoded = PNG.sync.read(slice.bytes);
+    if (decoded.width !== width || rowOffset + decoded.height > height) {
+      throw new Error("LAYOUT_RENDER_OUTPUT_INVALID:SLICE_STITCH_DIMENSIONS");
+    }
+    decoded.data.copy(output.data, rowOffset * width * 4);
+    rowOffset += decoded.height;
+  }
+  if (rowOffset !== height) throw new Error("LAYOUT_RENDER_OUTPUT_INVALID:SLICE_STITCH_HEIGHT");
+  return PNG.sync.write(output);
 }
 
 function normalizePdf(bytes: Buffer): Buffer {
@@ -284,6 +322,11 @@ export class LayoutRendererService {
         throw new Error(`LAYOUT_RENDER_ASSET_INVALID:${asset.assetId}`);
       }
     }
+    for (const asset of plan.assets.images) {
+      const resolved = assetById.get(asset.assetId)!;
+      const issue = inspectLayoutImageNormalizationV1(resolved.bytes, resolved.mimeType).issueCodes[0];
+      if (issue) throw new Error(`${issue}:${asset.assetId}`);
+    }
     const browser = await chromium.launch(browserLaunchOptions());
     const renderer: LayoutRendererIdentityV1 = {
       rendererId: "airoaming_layout_renderer",
@@ -418,14 +461,11 @@ export class LayoutRendererService {
       }
       if (profile.includeLongPng) {
         const logicalHeight = plan.canvases.reduce((sum, canvas) => sum + canvas.height, 0);
-        await page.evaluate(() => {
-          const scene = document.querySelector<HTMLElement>("#scene");
-          if (!scene) throw new Error("LAYOUT_RENDER_SCENE_MISSING");
-          scene.style.transform = "none";
-          document.body.style.height = "auto";
-          document.body.style.overflow = "visible";
-        });
-        const bytes = await page.locator("#scene").screenshot({ animations: "disabled", scale: "device" });
+        const bytes = stitchVerticalPngSlices(
+          artifacts.filter((artifact) => artifact.role === "strip_slice_png"),
+          width * profile.outputScale,
+          logicalHeight * profile.outputScale,
+        );
         const dimensions = pngDimensions(bytes);
         if (dimensions.width !== width * profile.outputScale || dimensions.height !== logicalHeight * profile.outputScale) {
           throw new Error(`LAYOUT_RENDER_OUTPUT_INVALID:LONG_DIMENSIONS:${dimensions.width}x${dimensions.height}:expected:${width * profile.outputScale}x${logicalHeight * profile.outputScale}`);

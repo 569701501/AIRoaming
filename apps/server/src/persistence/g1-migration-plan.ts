@@ -1080,6 +1080,7 @@ export async function assertG1MigrationArtifactTreeV1(
     "0013_g5_layout_working_copy_overlay",
     "0014_g5_layout_binding_source_digest",
     "0015_g5_layout_publication_overlay",
+    "0016_g5_legacy_layout_cutover",
   ]);
   const g1RootEntries = rootEntries.filter(
     (entry) => !persistedPostG1Overlays.has(entry),

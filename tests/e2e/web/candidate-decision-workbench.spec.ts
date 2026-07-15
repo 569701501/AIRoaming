@@ -1,4 +1,12 @@
-import type { WorkbenchSnapshot } from "@airoaming/shared";
+import type {
+  CreateLayoutRevisionResponseV1,
+  InitializeLayoutWorkingCopyResponseV1,
+  LayoutPublicationHistoryResponseV1,
+  LayoutPreflightReportV1,
+  SaveLayoutWorkingCopyResponseV1,
+  WorkbenchSnapshot,
+} from "@airoaming/shared";
+import { LayoutDocumentCodecV1, LayoutPublicationProfileCodecV1 } from "@airoaming/shared";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "../support/e2e-fixture.ts";
@@ -13,7 +21,8 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
   page,
   rainSmokeProject,
 }) => {
-  test.setTimeout(60_000);
+  // 该用例包含一次真实 LayoutRevision + Chromium publication worker，不能沿用旧同步复制导出的 60 秒上限。
+  test.setTimeout(120_000);
   const evidenceRoot = path.resolve(
     "文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence",
   );
@@ -69,8 +78,84 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
   });
 
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
-  await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/build`);
-  await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/export`);
+  const initialized = await api.post<InitializeLayoutWorkingCopyResponseV1>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy/initialize`,
+    {
+      schemaVersion: 1,
+      profile: { kind: "vertical_strip", presetId: "webtoon_1080", width: 1080, defaultSectionHeight: 1920, safeInsetX: 64 },
+      initializationMode: "default_storyboard_layout",
+      expectedCurrentLayoutRevisionId: null,
+    },
+  );
+  const publicationDocument = structuredClone(initialized.data.value.document);
+  const publicationPanel = publicationDocument.canvases[0]?.elements[0];
+  if (publicationPanel?.type !== "panel_frame" || !publicationPanel.contentImage) throw new Error("G4_F_PUBLICATION_PANEL_MISSING");
+  publicationPanel.transform = { ...publicationPanel.transform, x: 64, y: 64, width: 1, height: 1 };
+  publicationPanel.shape.cornerRadius = 0;
+  publicationPanel.contentImage.crop = { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false };
+  const publicationEncoded = LayoutDocumentCodecV1.encode(publicationDocument);
+  const publicationWorkingCopy = await api.put<SaveLayoutWorkingCopyResponseV1>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
+    {
+      schemaVersion: 1,
+      expectedRowVersion: initialized.data.value.rowVersion,
+      baseDocumentDigest: initialized.data.value.documentDigest,
+      documentDigest: publicationEncoded.digest,
+      document: publicationEncoded.value,
+    },
+  );
+  const preflight = await api.post<LayoutPreflightReportV1>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/preflight`,
+    {
+      schemaVersion: 1,
+      target: {
+        kind: "working_copy",
+        expectedRowVersion: publicationWorkingCopy.data.value.rowVersion,
+        expectedDocumentDigest: publicationWorkingCopy.data.value.documentDigest,
+      },
+      profile: null,
+    },
+  );
+  const formalRevision = await api.post<CreateLayoutRevisionResponseV1>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions`,
+    {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: publicationWorkingCopy.data.value.rowVersion,
+      expectedDocumentDigest: publicationWorkingCopy.data.value.documentDigest,
+      expectedCurrentRevisionId: null,
+      saveReason: "user_checkpoint",
+      acknowledgedIssueKeys: preflight.data.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    },
+  );
+  const publicationProfile = {
+    schemaVersion: 1 as const,
+    kind: "vertical_publication" as const,
+    outputScale: 1 as const,
+    maxSliceHeightPx: 2048,
+    cutPolicy: "prefer_section_boundary_then_exact" as const,
+    includeLongPng: true,
+  };
+  const exportPreflight = await api.post<LayoutPreflightReportV1>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/preflight`,
+    {
+      schemaVersion: 1,
+      target: { kind: "layout_revision", layoutRevisionId: formalRevision.data.revision.id },
+      profile: publicationProfile,
+    },
+  );
+  await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/exports/layout-publications`, {
+    schemaVersion: 1,
+    requestId: `g4-f-publication-${Date.now()}`,
+    layoutRevisionId: formalRevision.data.revision.id,
+    expectedCurrentLayoutRevisionId: formalRevision.data.revision.id,
+    profile: publicationProfile,
+    profileDigest: LayoutPublicationProfileCodecV1.encode(publicationProfile).digest,
+    preflightDigest: exportPreflight.data.preflightDigest,
+    acknowledgedIssueKeys: exportPreflight.data.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+  });
+  await expect.poll(async () => (await api.get<LayoutPublicationHistoryResponseV1>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/exports/layout-publications`,
+  )).data.items[0]?.status, { timeout: 45_000 }).toBe("ready");
 
   await test.step("已导出后只生成新候选不会改变当前定稿或来源 freshness", async () => {
     const before = await api.get<{ snapshot: WorkbenchSnapshot }>(`/projects/${fixture.projectId}/workbench?chapterId=${fixture.chapterId}`);
@@ -133,7 +218,10 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
     const sourceStatus = page.getByTestId("candidate-source-status");
     await expect(sourceStatus).toContainText("候选定稿已变化");
     await expect(sourceStatus).toContainText("可在下方先预览换图及裁切，再显式提交到 Working Copy");
-    await expect(page.getByRole("button", { name: "导出 PNG 序列" })).toBeDisabled();
+    await page.getByRole("button", { name: "正式出版", exact: true }).click();
+    await expect(page.getByTestId("layout-publication-preflight")).toBeVisible();
+    await expect(page.getByText("存在阻断", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "开始正式出版" })).toBeDisabled();
     await page.screenshot({
       path: path.join(evidenceRoot, "g4_f_layout_stale.png"),
       fullPage: true,
@@ -152,7 +240,9 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
     await page.goto(`/projects/${fixture.projectId}/layout`);
     await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿尚未完整");
     await expect(page.getByRole("button", { name: "生成排版" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "导出 PNG 序列" })).toBeDisabled();
+    await page.getByRole("button", { name: "正式出版", exact: true }).click();
+    await expect(page.getByTestId("layout-publication-preflight")).toBeVisible();
+    await expect(page.getByRole("button", { name: "开始正式出版" })).toBeDisabled();
   });
 });
 

@@ -24,6 +24,8 @@ import {
   type LayoutSourceEvaluation,
   type LayoutTopLevelElementV1,
   type LayoutWorkingCopyResponseV1,
+  type LayoutLegacyCutoverResponseV1,
+  type LayoutLegacyCutoverStatusV1,
   type SaveLayoutWorkingCopyResponseV1,
 } from "@airoaming/shared";
 
@@ -35,6 +37,7 @@ import {
   resolveLayoutWorkingCopySave,
 } from "./layout-working-copy-policy.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
+import { convertLegacyChapterLayoutV1 } from "./layout-legacy-converter.js";
 
 type Reader = Prisma.TransactionClient | PrismaClient;
 
@@ -244,6 +247,182 @@ export class LayoutWorkingCopyService {
       }
       return this.toResponse(scope, row, tx);
     }));
+  }
+
+  async legacyStatus(scope: VersionScopeV1): Promise<LayoutLegacyCutoverStatusV1> {
+    return this.execute(() => this.prismaService.runReadTransaction(async (tx) => {
+      const row = await tx.layoutWorkingCopy.findFirst({
+        where: { chapterId: scope.chapterId, projectId: scope.projectId },
+      });
+      if (!row) {
+        return { schemaVersion: 1, state: "none", workingCopyId: null, legacyDocumentDigest: null, sourceResolution: null, provenancePreserved: false };
+      }
+      const provenance = await tx.importedEntitySource.findFirst({
+        where: { entityType: "LayoutWorkingCopy", entityId: row.id },
+        select: { id: true },
+      });
+      if (row.documentKind === "layout_document_v1") {
+        return {
+          schemaVersion: 1,
+          state: "layout_document_v1",
+          workingCopyId: row.id,
+          legacyDocumentDigest: null,
+          sourceResolution: null,
+          provenancePreserved: Boolean(provenance),
+        };
+      }
+      const envelope = row.documentJson && typeof row.documentJson === "object" && !Array.isArray(row.documentJson)
+        ? row.documentJson as Record<string, unknown>
+        : {};
+      const sourceResolution = envelope.sourceResolution === "complete" ? "complete" : "unresolved";
+      return {
+        schemaVersion: 1,
+        state: sourceResolution === "complete" ? "legacy_convertible" : "legacy_unresolved",
+        workingCopyId: row.id,
+        legacyDocumentDigest: row.documentDigest as LayoutDigest,
+        sourceResolution,
+        provenancePreserved: Boolean(provenance),
+      };
+    }));
+  }
+
+  async convertLegacy(scope: VersionScopeV1): Promise<LayoutLegacyCutoverResponseV1> {
+    return this.execute(async () => {
+      const fontCatalog = await this.layoutFonts.ensureReady(scope);
+      const defaultFont = fontCatalog.find((item) => item.metadata.face.weight === 400 && item.metadata.face.style === "normal");
+      if (!defaultFont) serviceError("LAYOUT_FONT_REFERENCE_INVALID", 422);
+      return this.prismaService.runBusinessTransaction(async (tx) => {
+        const [project, row] = await Promise.all([
+          tx.project.findUnique({ where: { id: scope.projectId } }),
+          tx.layoutWorkingCopy.findFirst({ where: { projectId: scope.projectId, chapterId: scope.chapterId } }),
+        ]);
+        if (!project || project.lifecycleStatus !== "active" || !row) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
+        if (row.documentKind !== "legacy_chapter_layout_v1") serviceError("LAYOUT_LEGACY_NOT_FOUND", 409);
+        if (project.comicFormat !== "paged_comic" && project.comicFormat !== "vertical_scroll") serviceError("LAYOUT_COMIC_FORMAT_IMMUTABLE", 409);
+        const envelope = row.documentJson && typeof row.documentJson === "object" && !Array.isArray(row.documentJson)
+          ? row.documentJson as Record<string, unknown>
+          : null;
+        if (!envelope || envelope.sourceResolution !== "complete" || !Array.isArray(envelope.sourceBindings)) {
+          serviceError("LAYOUT_LEGACY_REBUILD_REQUIRED", 409);
+        }
+        const sourceState = await this.candidateSources.get(scope, tx);
+        // 可解析旧布局只复用 importer 已封存的直接 lock/binding 证据；不把 legacy task 状态猜成 runtime current。
+        // 上游任务 provenance 仍可保持 legacy_unresolved，并继续阻止后续正式 Revision/出版。
+        if (sourceState.candidateLockSet.state !== "complete" || !sourceState.candidateLockSet.digest) {
+          serviceError("LAYOUT_LEGACY_REBUILD_REQUIRED", 409, { reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes });
+        }
+        const sources = [] as Array<{
+          elementId: string;
+          shotId: string;
+          candidateId: string;
+          candidateLockRevisionId: string;
+          assetId: string;
+          assetSha256: LayoutDigest;
+          width: number;
+          height: number;
+        }>;
+        for (const value of envelope.sourceBindings) {
+          if (!value || typeof value !== "object" || Array.isArray(value)) serviceError("LAYOUT_LEGACY_REBUILD_REQUIRED", 409);
+          const binding = value as Record<string, unknown>;
+          const elementId = typeof binding.elementId === "string" ? binding.elementId : null;
+          const shotId = typeof binding.shotId === "string" ? binding.shotId : null;
+          const candidateId = typeof binding.candidateId === "string" ? binding.candidateId : null;
+          const candidateLockRevisionId = typeof binding.candidateLockRevisionId === "string" ? binding.candidateLockRevisionId : null;
+          const assetId = typeof binding.assetId === "string" ? binding.assetId : null;
+          if (!elementId || !shotId || !candidateId || !candidateLockRevisionId || !assetId) serviceError("LAYOUT_LEGACY_REBUILD_REQUIRED", 409);
+          const [shot, candidate, lock, asset] = await Promise.all([
+            tx.shot.findFirst({ where: { id: shotId, projectId: scope.projectId, chapterId: scope.chapterId } }),
+            tx.candidate.findFirst({ where: { id: candidateId, projectId: scope.projectId, chapterId: scope.chapterId, shotId } }),
+            tx.candidateLockRevision.findFirst({ where: { id: candidateLockRevisionId, projectId: scope.projectId, chapterId: scope.chapterId, shotId, candidateId } }),
+            tx.asset.findFirst({ where: { id: assetId, projectId: scope.projectId, chapterId: scope.chapterId } }),
+          ]);
+          if (
+            !shot || shot.currentCandidateLockRevisionId !== candidateLockRevisionId
+            || !candidate || candidate.assetId !== assetId
+            || !lock || lock.action === "clear"
+            || !asset || asset.status !== "ready" || !asset.sha256 || !asset.width || !asset.height
+          ) serviceError("LAYOUT_LEGACY_REBUILD_REQUIRED", 409);
+          sources.push({ elementId, shotId, candidateId, candidateLockRevisionId, assetId, assetSha256: asDigest(asset.sha256, "LAYOUT_LEGACY_REBUILD_REQUIRED"), width: asset.width, height: asset.height });
+        }
+        let converted;
+        try {
+          converted = convertLegacyChapterLayoutV1({
+            projectId: scope.projectId,
+            chapterId: scope.chapterId,
+            comicFormat: project.comicFormat,
+            fontAssetId: defaultFont.assetId,
+            legacyDocument: envelope.legacyDocument,
+            sources,
+          });
+        } catch (error) {
+          serviceError("LAYOUT_LEGACY_REBUILD_REQUIRED", 409, { reason: error instanceof Error ? error.message : "LEGACY_LAYOUT_INVALID" });
+        }
+        if (converted.sourceLockSetDigest !== sourceState.candidateLockSet.digest) serviceError("LAYOUT_SOURCE_DIGEST_MISMATCH", 409);
+        const updatedAt = new Date(Math.max(Date.now(), row.updatedAt.getTime() + 1));
+        const updatedCount = await tx.layoutWorkingCopy.updateMany({
+          where: { id: row.id, rowVersion: row.rowVersion, documentKind: "legacy_chapter_layout_v1" },
+          data: {
+            documentKind: "layout_document_v1",
+            documentJson: converted.document as unknown as Prisma.InputJsonValue,
+            schemaVersion: 1,
+            documentDigest: converted.documentDigest,
+            sourceLockSetDigest: converted.sourceLockSetDigest,
+            rowVersion: { increment: 1 },
+            updatedAt,
+          },
+        });
+        if (updatedCount.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
+        const updated = await tx.layoutWorkingCopy.findUniqueOrThrow({ where: { id: row.id } });
+        return { schemaVersion: 1, result: "converted", value: await this.toResponse(scope, updated, tx) };
+      });
+    });
+  }
+
+  async rebuildLegacy(scope: VersionScopeV1, input: unknown): Promise<LayoutLegacyCutoverResponseV1> {
+    return this.execute(async () => {
+      const request = parseInitializeLayoutWorkingCopyRequestV1(input);
+      const fontCatalog = await this.layoutFonts.ensureReady(scope);
+      const defaultFont = fontCatalog.find((item) => item.metadata.face.weight === 400 && item.metadata.face.style === "normal");
+      if (!defaultFont) serviceError("LAYOUT_FONT_REFERENCE_INVALID", 422);
+      return this.prismaService.runBusinessTransaction(async (tx) => {
+        const existing = await tx.layoutWorkingCopy.findFirst({ where: { projectId: scope.projectId, chapterId: scope.chapterId } });
+        const chapter = await tx.chapter.findFirst({ where: { id: scope.chapterId, projectId: scope.projectId }, include: { project: true } });
+        if (!existing || existing.documentKind !== "legacy_chapter_layout_v1" || !chapter) serviceError("LAYOUT_LEGACY_NOT_FOUND", 409);
+        if (chapter.currentLayoutRevisionId !== request.expectedCurrentLayoutRevisionId) serviceError("LAYOUT_EXPECTED_CURRENT_REVISION_MISMATCH", 409);
+        const comicFormat = chapter.project.comicFormat;
+        if (comicFormat !== "paged_comic" && comicFormat !== "vertical_scroll") serviceError("LAYOUT_COMIC_FORMAT_IMMUTABLE", 409);
+        if ((comicFormat === "paged_comic" && request.profile.kind !== "paged") || (comicFormat === "vertical_scroll" && request.profile.kind !== "vertical_strip")) {
+          serviceError("LAYOUT_PROFILE_FORMAT_MISMATCH", 400);
+        }
+        const sourceState = await this.candidateSources.get(scope, tx);
+        if (!sourceState.gates.buildLayoutWorkingCopy.allowed) serviceError("LAYOUT_LOCK_SET_INCOMPLETE", 409, { reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes });
+        const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, tx);
+        const document = makeInitialDocument({
+          scope,
+          comicFormat,
+          profile: request.profile,
+          fontPolicy: { defaultFontAssetId: defaultFont.assetId, fallbackFontAssetIds: [] },
+          mode: request.initializationMode,
+          sources,
+        });
+        const imageByAssetId = Object.fromEntries(sources.map((source) => [source.assetId, {
+          width: source.width, height: source.height, sha256: source.assetSha256, ready: true,
+          projectId: scope.projectId, chapterId: scope.chapterId, shotId: source.shotId,
+          candidateId: source.candidateId, candidateLockRevisionId: source.candidateLockRevisionId,
+        } satisfies LayoutImageValidationContextV1]));
+        const encoded = LayoutDocumentCodecV1.encode(document, { projectId: scope.projectId, chapterId: scope.chapterId, comicFormat, imageByAssetId });
+        const sourceLockSetDigest = digestLayoutSourceLockSet(encoded.value, sources.map((source) => source.shotId));
+        if (sourceLockSetDigest !== sourceState.candidateLockSet.digest) serviceError("LAYOUT_SOURCE_DIGEST_MISMATCH", 409);
+        const updatedAt = new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1));
+        const updatedCount = await tx.layoutWorkingCopy.updateMany({
+          where: { id: existing.id, rowVersion: existing.rowVersion, documentKind: "legacy_chapter_layout_v1" },
+          data: { documentKind: "layout_document_v1", documentJson: encoded.value as unknown as Prisma.InputJsonValue, schemaVersion: 1, documentDigest: encoded.digest, sourceLockSetDigest, basedOnRevisionId: chapter.currentLayoutRevisionId, rowVersion: { increment: 1 }, updatedAt },
+        });
+        if (updatedCount.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
+        const updated = await tx.layoutWorkingCopy.findUniqueOrThrow({ where: { id: existing.id } });
+        return { schemaVersion: 1, result: "rebuilt", value: await this.toResponse(scope, updated, tx) };
+      });
+    });
   }
 
   async sourceCatalog(scope: VersionScopeV1): Promise<LayoutSourceCatalogResponseV1> {

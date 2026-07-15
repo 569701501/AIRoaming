@@ -326,7 +326,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("15 migrations found");
+    expect(deployed.stdout).toContain("16 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -1602,7 +1602,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.storyboardVersion.findUniqueOrThrow({ where: { id: boardId } })).rowVersion).toBe(1);
   }, 30_000);
 
-  it("P6/G4-D: keeps formal layout/export source-gated across replacement, late task, new candidate, and restart", async () => {
+  it("P6/G4-D: keeps formal layout/publication sources gated across replacement, late task, new candidate, and restart", async () => {
     const { deployed, workspaceRoot } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
     const httpApp = await NestFactory.create(ProjectsModule, { logger: false });
@@ -1794,28 +1794,90 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(completedImages.chapter.status).toBe("images_done");
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("images_done");
 
-    const layout = await projects.buildChapterLayout(project.id, scope.chapterId);
-    expect(layout.layout.pages).toHaveLength(1);
-    expect(await prisma.layoutWorkingCopy.count({ where: { chapterId: scope.chapterId } })).toBe(1);
-    const exported = await projects.exportChapterLayout(project.id, scope.chapterId);
-    expect(exported.layout.pages).toHaveLength(1);
+    const layoutWorkingCopies = app.get(LayoutWorkingCopyService);
+    const seedWorkingCopy = await layoutWorkingCopies.initialize(scope, {
+      schemaVersion: 1,
+      profile: {
+        kind: "vertical_strip",
+        presetId: "webtoon_1080",
+        width: 1080,
+        defaultSectionHeight: 1920,
+        safeInsetX: 64,
+      },
+      initializationMode: "default_storyboard_layout",
+      expectedCurrentLayoutRevisionId: null,
+    });
+    const seedPublicationDocument = structuredClone(seedWorkingCopy.value.document);
+    const seedPublicationPanel = seedPublicationDocument.canvases[0]?.elements[0];
+    if (seedPublicationPanel?.type !== "panel_frame" || !seedPublicationPanel.contentImage) throw new Error("G4_D_SEED_PUBLICATION_PANEL_MISSING");
+    seedPublicationPanel.transform = { ...seedPublicationPanel.transform, x: 64, y: 64, width: 1, height: 1 };
+    seedPublicationPanel.shape.cornerRadius = 0;
+    seedPublicationPanel.contentImage.crop = { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false };
+    const seedPublicationEncoded = LayoutDocumentCodecV1.encode(seedPublicationDocument);
+    const seedPublicationWorkingCopy = await layoutWorkingCopies.save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: seedWorkingCopy.value.rowVersion,
+      baseDocumentDigest: seedWorkingCopy.value.documentDigest,
+      documentDigest: seedPublicationEncoded.digest,
+      document: seedPublicationEncoded.value,
+    });
+    const initialVersioning = app.get(LayoutVersioningService);
+    const seedPreflight = await initialVersioning.preflight(scope, {
+      schemaVersion: 1,
+      target: {
+        kind: "working_copy",
+        expectedRowVersion: seedPublicationWorkingCopy.value.rowVersion,
+        expectedDocumentDigest: seedPublicationWorkingCopy.value.documentDigest,
+      },
+      profile: null,
+    });
+    expect(seedPreflight.issues.filter((issue) => issue.blockingScopes.includes("revision"))).toEqual([]);
+    const seededRevision = await initialVersioning.createRevision(scope, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: seedPublicationWorkingCopy.value.rowVersion,
+      expectedDocumentDigest: seedPublicationWorkingCopy.value.documentDigest,
+      expectedCurrentRevisionId: null,
+      saveReason: "user_checkpoint",
+      acknowledgedIssueKeys: seedPreflight.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    });
+    expect(seededRevision).toMatchObject({ result: "created", revision: { revision: 1, sourceResolution: "current" } });
     const layoutRevision = await prisma.layoutRevision.findFirstOrThrow({ where: { chapterId: scope.chapterId } });
     expect(layoutRevision.bindingSetSealedAt).not.toBeNull();
     expect(await prisma.layoutSourceBinding.count({ where: { layoutRevisionId: layoutRevision.id } })).toBe(1);
-    const exportRevision = await prisma.exportRevision.findFirstOrThrow({ where: { chapterId: scope.chapterId, kind: "layout_publication" } });
-    expect(exportRevision).toMatchObject({ status: "ready", completionApplicability: "current" });
-    expect(await prisma.exportArtifact.count({ where: { exportRevisionId: exportRevision.id } })).toBe(1);
-    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentExportRevisionId).toBe(exportRevision.id);
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentLayoutRevisionId).toBe(layoutRevision.id);
-    const workingCopyAfterExport = await prisma.layoutWorkingCopy.findUniqueOrThrow({ where: { chapterId: scope.chapterId } });
-    expect({ wc: workingCopyAfterExport.documentDigest, rev: layoutRevision.documentDigest, wcLocks: workingCopyAfterExport.sourceLockSetDigest, revLocks: layoutRevision.sourceLockSetDigest }).toEqual({ wc: layoutRevision.documentDigest, rev: layoutRevision.documentDigest, wcLocks: layoutRevision.sourceLockSetDigest, revLocks: layoutRevision.sourceLockSetDigest });
-    const replayedExport = await projects.exportChapterLayout(project.id, scope.chapterId);
-    expect(replayedExport.layout.id).toBe(exported.layout.id);
     expect(await prisma.layoutRevision.count({ where: { chapterId: scope.chapterId } })).toBe(1);
-    expect(await prisma.exportRevision.count({ where: { chapterId: scope.chapterId, kind: "layout_publication" } })).toBe(1);
+
+    const initialPublicationProfile = {
+      schemaVersion: 1 as const,
+      kind: "vertical_publication" as const,
+      outputScale: 1 as const,
+      maxSliceHeightPx: 2048,
+      cutPolicy: "prefer_section_boundary_then_exact" as const,
+      includeLongPng: true,
+    };
+    const initialPublicationPreflight = await initialVersioning.preflight(scope, {
+      schemaVersion: 1,
+      target: { kind: "layout_revision", layoutRevisionId: layoutRevision.id },
+      profile: initialPublicationProfile,
+    });
+    expect(initialPublicationPreflight.issues.filter((issue) => issue.blockingScopes.includes("export"))).toEqual([]);
+    const initialPublication = await app.get(LayoutPublicationService).create(scope, {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      layoutRevisionId: layoutRevision.id,
+      expectedCurrentLayoutRevisionId: layoutRevision.id,
+      profile: initialPublicationProfile,
+      profileDigest: LayoutPublicationProfileCodecV1.encode(initialPublicationProfile).digest,
+      preflightDigest: initialPublicationPreflight.preflightDigest,
+      acknowledgedIssueKeys: initialPublicationPreflight.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    });
+    expect(await worker.runOnce("g4-d-initial-publication-worker")).toMatchObject({ id: initialPublication.task.id, status: "succeeded" });
+    expect(await prisma.exportRevision.findUniqueOrThrow({ where: { id: initialPublication.exportRevision.id } })).toMatchObject({
+      status: "ready",
+      completionApplicability: "current",
+    });
 
     await prisma.layoutWorkingCopy.delete({ where: { chapterId: scope.chapterId } });
-    const layoutWorkingCopies = app.get(LayoutWorkingCopyService);
     const initializedV1 = await layoutWorkingCopies.initialize(scope, {
       schemaVersion: 1,
       profile: {
@@ -2055,8 +2117,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       chapter: await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId }, select: { currentLayoutRevisionId: true, currentExportRevisionId: true, milestoneStatus: true } }),
       packageManifest: await readFile(path.join(workspaceRoot, packageResult.packagePath, "manifest.json"), "utf8"),
     };
-    await expect(projects.buildChapterLayout(project.id, scope.chapterId)).rejects.toMatchObject({ status: 409, response: { code: "LAYOUT_SOURCE_STALE" } });
-    await expect(projects.exportChapterLayout(project.id, scope.chapterId)).rejects.toMatchObject({ status: 409, response: { code: "LAYOUT_SOURCE_STALE" } });
     await expect(projects.exportAssetPackage(project.id, scope.chapterId)).rejects.toMatchObject({ status: 409, response: { code: "LAYOUT_SOURCE_STALE" } });
     expect({
       layoutRevisionIds: (await prisma.layoutRevision.findMany({ where: { chapterId: scope.chapterId }, orderBy: { revision: "asc" }, select: { id: true } })).map((item) => item.id),

@@ -18,10 +18,10 @@
       </div>
 
       <div class="top-actions">
-        <button type="button" :disabled="!session.canUndo.value" title="撤销" @click="session.undo">
+        <button type="button" :disabled="!session.canUndo.value" title="撤销" aria-label="撤销" @click="session.undo">
           <Undo2 :size="16" />
         </button>
-        <button type="button" :disabled="!session.canRedo.value" title="重做" @click="session.redo">
+        <button type="button" :disabled="!session.canRedo.value" title="重做" aria-label="重做" @click="session.redo">
           <Redo2 :size="16" />
         </button>
         <button type="button" :disabled="!session.isDirty.value || session.isReadOnly.value" @click="session.flush">
@@ -36,8 +36,49 @@
         >生成排版</button>
         <button type="button" :disabled="session.isReadOnly.value || !session.server.value || m6Busy" @click="prepareRevision">保存版本</button>
         <button type="button" :disabled="session.isReadOnly.value || session.isDirty.value || !currentLayoutRevisionId || publicationBusy" @click="preparePublication">正式出版</button>
+        <button type="button" :disabled="!session.server.value" title="打开独立手机只读预览" @click="openMobilePreview"><Smartphone :size="16" />手机预览</button>
+        <button
+          type="button"
+          :aria-expanded="aiDrawerOpen"
+          aria-controls="layout-ai-drawer"
+          :disabled="session.isReadOnly.value || !session.server.value"
+          title="打开 AI 成稿建议"
+          @click="openAiDrawer"
+        ><Sparkles :size="16" />AI 建议</button>
       </div>
     </header>
+
+    <aside
+      v-if="aiDrawerOpen"
+      id="layout-ai-drawer"
+      class="layout-ai-drawer"
+      data-testid="layout-ai-drawer"
+      aria-label="AI 成稿建议"
+    >
+      <header>
+        <div><Sparkles :size="18" /><strong>AI 成稿建议</strong></div>
+        <button type="button" aria-label="关闭 AI 成稿建议" @click="aiDrawerOpen = false">×</button>
+      </header>
+      <p>建议只读取最近一次成功保存的草稿。应用前会再次核对行版本、文档摘要和来源摘要；AI 不能保存正式版本或发起出版。</p>
+      <div v-if="aiBusy" class="ai-pending-state"><LoaderCircle class="spin" :size="18" />正在核对建议…</div>
+      <section v-else-if="session.pendingCommand.value" class="ai-command-preview" data-testid="layout-ai-command-preview">
+        <strong>{{ session.pendingCommand.value.payload.summary }}</strong>
+        <small>before {{ shortDigest(session.pendingCommand.value.payload.baseDocumentDigest) }} → after {{ shortDigest(session.pendingCommand.value.payload.resultDocumentDigest) }}</small>
+        <p>影响对象：{{ session.pendingCommand.value.payload.changedElementIds.join('、') || '无' }}</p>
+        <ul v-if="session.pendingCommand.value.payload.warnings.length">
+          <li v-for="warning in session.pendingCommand.value.payload.warnings" :key="warning">{{ warning }}</li>
+        </ul>
+        <div>
+          <button type="button" :disabled="aiBusy" @click="discardAiSuggestion">放弃建议</button>
+          <button class="primary-action" type="button" :disabled="aiBusy" @click="applyAiSuggestion">应用为一次可撤销操作</button>
+        </div>
+      </section>
+      <section v-else class="ai-empty-state">
+        <strong>没有待确认建议</strong>
+        <p>先选择一个未锁定对象，可生成一次小幅构图微调的受控命令预览。来源换图不会走这里，必须使用来源返修预览。</p>
+        <button type="button" :disabled="!canSuggestCenter || aiBusy" @click="previewCenterSuggestion">预览构图微调建议</button>
+      </section>
+    </aside>
 
     <section
       v-if="sourceAttention"
@@ -202,7 +243,29 @@
     </section>
 
     <section v-else-if="session.saveState.value === 'missing'" class="create-draft">
-      <div class="create-card">
+      <div v-if="session.legacyStatus.value" class="create-card legacy-cutover-card" data-testid="layout-legacy-cutover">
+        <AlertTriangle :size="30" />
+        <h2>{{ session.legacyStatus.value.state === 'legacy_convertible' ? '发现可转换的旧排版' : '旧排版来源无法完整解析' }}</h2>
+        <p v-if="session.legacyStatus.value.state === 'legacy_convertible'">系统会保留旧页面尺寸、顺序和已核对来源，把内容转换为 V1 数据库草稿；不会自动创建正式版本。</p>
+        <p v-else>系统不会把缺失的旧候选来源猜成当前来源。只有你明确确认后，才会使用当前 G4 定稿重新建立草稿；旧 metadata 与迁移 provenance 继续保留。</p>
+        <small>旧摘要：{{ session.legacyStatus.value.legacyDocumentDigest ? shortDigest(session.legacyStatus.value.legacyDocumentDigest) : '无' }} · provenance {{ session.legacyStatus.value.provenancePreserved ? '已保留' : '待核对' }}</small>
+        <button
+          v-if="session.legacyStatus.value.state === 'legacy_convertible'"
+          class="primary-action"
+          type="button"
+          :disabled="session.isReadOnly.value || legacyCutoverBusy"
+          @click="convertLegacyDraft"
+        >转换为 V1 草稿</button>
+        <button
+          v-else
+          class="primary-action"
+          type="button"
+          :disabled="session.isReadOnly.value || legacyCutoverBusy || !canInitialize"
+          @click="rebuildLegacyDraft"
+        >明确使用当前定稿重建</button>
+        <button type="button" @click="$emit('goCandidates')">返回候选图核对来源</button>
+      </div>
+      <div v-else class="create-card">
         <LayoutPanelTop :size="30" />
         <h2>创建成稿草稿</h2>
         <p>草稿只保存在目标数据库，不会生成正式版本，也不会写入旧 layout.json。</p>
@@ -232,13 +295,13 @@
 
     <div v-else-if="session.document.value && session.currentCanvas.value" class="editor-shell" :class="{ 'is-readonly': session.isReadOnly.value }">
       <nav class="tool-rail" aria-label="画布工具">
-        <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" @click="activeTool = 'select'"><MousePointer2 :size="18" /></button>
-        <button type="button" title="平移"><Hand :size="18" /></button>
+        <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" aria-label="选择工具" @click="activeTool = 'select'"><MousePointer2 :size="18" /></button>
+        <button type="button" title="平移" aria-label="平移工具"><Hand :size="18" /></button>
         <span />
-        <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" @click="addPanel"><SquareDashed :size="18" /></button>
-        <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="18" /></button>
-        <button type="button" :class="{ 'is-active': activeTool === 'text' }" :disabled="session.isReadOnly.value" title="添加文字" @click="addText"><Type :size="18" /></button>
-        <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" @click="addBalloon"><MessageCircle :size="18" /></button>
+        <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" aria-label="添加空画格" @click="addPanel"><SquareDashed :size="18" /></button>
+        <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" aria-label="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="18" /></button>
+        <button type="button" :class="{ 'is-active': activeTool === 'text' }" :disabled="session.isReadOnly.value" title="添加文字" aria-label="添加文字" @click="addText"><Type :size="18" /></button>
+        <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" aria-label="添加气泡" @click="addBalloon"><MessageCircle :size="18" /></button>
       </nav>
 
       <aside class="canvas-navigation">
@@ -259,8 +322,9 @@
             <small>{{ canvas.width }} × {{ canvas.height }}</small>
           </div>
           <div class="canvas-nav-actions">
-            <button type="button" :disabled="session.isReadOnly.value || index === 0" title="前移" @click.stop="moveCanvas(canvas.id, 'up')"><ChevronUp :size="13" /></button>
-            <button type="button" :disabled="session.isReadOnly.value || index === session.document.value.canvases.length - 1" title="后移" @click.stop="moveCanvas(canvas.id, 'down')"><ChevronDown :size="13" /></button>
+            <button type="button" :disabled="session.isReadOnly.value" :aria-label="`复制${canvas.name}`" title="复制画布" @click.stop="duplicateCanvas(canvas.id)">＋</button>
+            <button type="button" :disabled="session.isReadOnly.value || index === 0" :aria-label="`${canvas.name}前移`" title="前移" @click.stop="moveCanvas(canvas.id, 'up')"><ChevronUp :size="13" /></button>
+            <button type="button" :disabled="session.isReadOnly.value || index === session.document.value.canvases.length - 1" :aria-label="`${canvas.name}后移`" title="后移" @click.stop="moveCanvas(canvas.id, 'down')"><ChevronDown :size="13" /></button>
           </div>
         </div>
         <div class="canvas-list-actions">
@@ -306,6 +370,7 @@
             <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('center')">水平居中</button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('top')">顶对齐</button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 3 || session.isReadOnly.value" @click="distributeHorizontal">水平分布</button>
+            <button type="button" :disabled="!primaryElement || session.isReadOnly.value" @click="duplicatePrimaryElement">复制对象</button>
           </div>
           <label>
             缩放
@@ -330,7 +395,11 @@
               class="canvas-element"
               :class="[`type-${element.type}`, { 'is-selected': isSelected(element.id), 'is-locked': element.locked, 'has-text-overflow': textIssueElementIds.has(element.id) }]"
               :style="[elementStyle(element), panelFrameStyle(element)]"
+              :aria-label="`${element.name}${element.locked ? '，已锁定' : ''}${element.hidden ? '，已隐藏' : ''}`"
+              tabindex="0"
               @pointerdown.stop="startDrag($event, element)"
+              @keydown.enter.stop="session.selectElement(element.id, $event.shiftKey)"
+              @keydown.space.prevent.stop="session.selectElement(element.id, $event.shiftKey)"
             >
               <template v-if="element.type === 'panel_frame'">
                 <img
@@ -369,6 +438,35 @@
         </div>
 
         <div v-if="inspectorTab === 'properties'" class="property-panel">
+          <section class="special-properties profile-resize" data-testid="layout-profile-resize-preview" aria-label="画布尺寸预览">
+            <div class="section-heading">
+              <strong>画布尺寸</strong>
+              <small>先预览，再作为一次可撤销命令应用</small>
+            </div>
+            <div class="number-grid">
+              <label>宽度 <input v-model.number="resizeWidth" type="number" min="320" :max="isPaged ? 8192 : 4096" :disabled="session.isReadOnly.value" /></label>
+              <label>{{ isPaged ? '高度' : '新段默认高' }} <input v-model.number="resizeHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" /></label>
+            </div>
+            <label>已有内容处理
+              <select v-model="resizeMode" :disabled="session.isReadOnly.value">
+                <option value="keep_coordinates">保留坐标</option>
+                <option value="scale_uniform">等比缩放</option>
+              </select>
+            </label>
+            <p v-if="profileResizeResult.preview" aria-live="polite">
+              {{ profileResizeResult.preview.mode === 'scale_uniform' ? '已有内容将等比缩放' : '已有内容坐标不变' }}；
+              {{ isPaged ? `全部页面变为 ${resizeWidth} × ${resizeHeight}` : `已有段落保持独立文档坐标，新段默认高 ${resizeHeight}` }}。
+            </p>
+            <p v-else role="alert">{{ profileResizeResult.error }}</p>
+            <button type="button" :disabled="session.isReadOnly.value || !profileResizeResult.preview" @click="applyProfileResize">应用尺寸调整（可撤销）</button>
+            <template v-if="!isPaged">
+              <label>当前段高度
+                <input v-model.number="currentSectionHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" />
+              </label>
+              <button type="button" :disabled="session.isReadOnly.value || currentSectionHeight < 320" @click="applyCurrentSectionHeight">调整当前段高（可撤销）</button>
+            </template>
+          </section>
+
           <section class="preset-picker" data-testid="layout-preset-picker">
             <div class="section-heading">
               <strong>画格模板</strong>
@@ -553,6 +651,7 @@ import {
   MessageCircle,
   MousePointer2,
   Redo2,
+  Sparkles,
   Smartphone,
   SquareDashed,
   Type,
@@ -571,6 +670,7 @@ import type {
   LayoutProfileV1,
   LayoutPreflightCodeV1,
   LayoutPreflightReportV1,
+  LayoutProfileResizeModeV1,
   LayoutPublicationHistoryResponseV1,
   LayoutPublicationProfileV1,
   LayoutSourceCatalogItemV1,
@@ -593,6 +693,7 @@ import {
   projectVisibleShotPlacementsV1,
   replaceRichTextRange,
   LayoutPublicationProfileCodecV1,
+  previewLayoutProfileResizeV1,
 } from "@airoaming/shared";
 
 import { useLayoutEditorSession } from "../../composables/layout-editor-session";
@@ -620,6 +721,10 @@ const formatLabel = computed(() => isPaged.value ? "页漫" : "条漫");
 const initializationMode = ref<"default_storyboard_layout" | "blank">("default_storyboard_layout");
 const profileWidth = ref(isPaged.value ? 1800 : 1080);
 const profileHeight = ref(isPaged.value ? 2400 : 1920);
+const resizeWidth = ref(isPaged.value ? 1800 : 1080);
+const resizeHeight = ref(isPaged.value ? 2400 : 1920);
+const resizeMode = ref<LayoutProfileResizeModeV1>("keep_coordinates");
+const currentSectionHeight = ref(1920);
 const inspectorTab = ref<"properties" | "layers">("properties");
 const selectedSourceShotId = ref<string | null>(null);
 const selectedPresetId = ref<LayoutPresetIdV1>(isPaged.value ? "four_panel" : "single");
@@ -633,6 +738,9 @@ const publicationAcknowledgedIssueKeys = ref<string[]>([]);
 const publicationRequestId = ref<string | null>(null);
 const publicationBusy = ref(false);
 const activeTool = ref<"select" | "text">("select");
+const aiDrawerOpen = ref(false);
+const aiBusy = ref(false);
+const legacyCutoverBusy = ref(false);
 let publicationPollTimer: ReturnType<typeof setInterval> | null = null;
 const fontLoader = useLayoutFontLoader({
   projectId,
@@ -700,12 +808,29 @@ const canBatchInitialize = computed(() => {
   return session.document.value.canvases.every((canvas) => canvas.elements.every((element) => element.type === "panel_frame"));
 });
 const cannotEditPrimary = computed(() => session.isReadOnly.value || Boolean(primaryElement.value?.locked));
+const canSuggestCenter = computed(() => Boolean(primaryElement.value && !primaryElement.value.locked && session.server.value && session.currentCanvas.value));
 const textIssues = computed(() => session.document.value
   ? collectLayoutTextIssuesV1(session.document.value, session.fontCatalog.value?.items ?? [])
   : []);
 const textIssueElementIds = computed(() => new Set(textIssues.value.filter((issue) => issue.code === "LAYOUT_TEXT_OVERFLOW").map((issue) => issue.elementId)));
 const primaryTextIssues = computed(() => primaryElement.value ? textIssues.value.filter((issue) => issue.elementId === primaryElement.value!.id) : []);
 const canInitialize = computed(() => Boolean(chapterId.value) && profileWidth.value >= 320 && profileHeight.value >= 320);
+const profileResizeResult = computed(() => {
+  if (!session.document.value) return { preview: null, error: "排版草稿尚未加载。" };
+  try {
+    return {
+      preview: previewLayoutProfileResizeV1({
+        document: session.document.value,
+        width: resizeWidth.value,
+        height: resizeHeight.value,
+        mode: resizeMode.value,
+      }),
+      error: null,
+    };
+  } catch (error) {
+    return { preview: null, error: error instanceof Error ? error.message : "尺寸预览失败" };
+  }
+});
 const sourceAttention = computed(() => {
   if (session.server.value?.sourceEvaluation.sourceResolution === "current") return null;
   const sources = props.snapshot.candidateSources;
@@ -819,6 +944,133 @@ function initializeDraft(): void {
       };
   const currentLayoutId = props.snapshot.candidateSources?.currentLayout?.id ?? null;
   void session.initialize(profile, initializationMode.value, currentLayoutId);
+}
+
+function currentProfile(): LayoutProfileV1 {
+  return isPaged.value
+    ? {
+        kind: "paged",
+        presetId: profileWidth.value === 1800 && profileHeight.value === 2400 ? "portrait_3_4" : "custom",
+        width: profileWidth.value,
+        height: profileHeight.value,
+        safeArea: { top: 72, right: 72, bottom: 72, left: 72 },
+        panelReadingDirection: "ltr_ttb",
+      }
+    : {
+        kind: "vertical_strip",
+        presetId: profileWidth.value === 1080 ? "webtoon_1080" : "custom",
+        width: profileWidth.value,
+        defaultSectionHeight: profileHeight.value,
+        safeInsetX: 64,
+      };
+}
+
+async function convertLegacyDraft(): Promise<void> {
+  legacyCutoverBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.convertLegacy();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "旧排版转换失败，请明确重建";
+  } finally {
+    legacyCutoverBusy.value = false;
+  }
+}
+
+async function rebuildLegacyDraft(): Promise<void> {
+  if (!window.confirm("将使用当前定稿重新建立 V1 草稿。旧排版证据仍保留，但不会被猜测为 current。确认继续？")) return;
+  legacyCutoverBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.rebuildLegacy(currentProfile(), initializationMode.value, props.snapshot.candidateSources?.currentLayout?.id ?? null);
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "旧排版重建失败";
+  } finally {
+    legacyCutoverBusy.value = false;
+  }
+}
+
+function openMobilePreview(): void {
+  if (!chapterId.value) return;
+  const url = `/projects/${encodeURIComponent(projectId.value)}/layout/preview?chapterId=${encodeURIComponent(chapterId.value)}&source=working_copy`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+async function openAiDrawer(): Promise<void> {
+  aiDrawerOpen.value = true;
+  aiBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.loadPendingCommand();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "AI 建议读取失败";
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
+async function previewCenterSuggestion(): Promise<void> {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  const server = session.server.value;
+  if (!element || !canvas || !server || element.locked) return;
+  aiBusy.value = true;
+  actionError.value = null;
+  try {
+    const maxX = Math.max(0, canvas.width - element.transform.width);
+    const shiftedX = element.transform.x + 8 <= maxX
+      ? element.transform.x + 8
+      : Math.max(0, element.transform.x - 8);
+    const transform = { ...element.transform, x: Math.round(shiftedX * 1_000) / 1_000 };
+    const suggestion = command("element.set_transform", "微调所选对象留白", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      transform,
+    });
+    await session.previewPendingCommand({
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: server.rowVersion,
+      expectedDocumentDigest: server.documentDigest,
+      selectionElementIds: [element.id],
+      summary: `将「${element.name}」横向微调 8 像素`,
+      warnings: [],
+      commandBatch: {
+        schemaVersion: 1,
+        batchId: newId("ai_batch"),
+        label: "AI 建议：微调所选对象留白",
+        commands: [suggestion],
+      },
+    });
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "AI 建议预览失败";
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
+async function applyAiSuggestion(): Promise<void> {
+  aiBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.applyPendingCommand();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "AI 建议已过期，请重新生成";
+    await session.loadPendingCommand().catch(() => null);
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
+async function discardAiSuggestion(): Promise<void> {
+  aiBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.discardPendingCommand();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "AI 建议放弃失败";
+  } finally {
+    aiBusy.value = false;
+  }
 }
 
 async function prepareRevision(): Promise<void> {
@@ -1011,6 +1263,9 @@ function preflightIssueLabel(code: LayoutPreflightCodeV1): string {
     SOURCE_DIGEST_MISMATCH: "图片来源摘要不一致",
     IMAGE_ASSET_MISSING_OR_NOT_READY: "图片素材未就绪",
     IMAGE_SHA_MISMATCH: "图片素材摘要不一致",
+    IMAGE_ORIENTATION_UNNORMALIZED: "图片 EXIF 方向尚未规范",
+    IMAGE_COLORSPACE_UNSUPPORTED: "图片色彩空间不是 sRGB",
+    IMAGE_ANIMATION_UNSUPPORTED: "动画图片不能用于正式成稿",
     FONT_ASSET_MISSING_OR_NOT_READY: "字体素材未就绪",
     FONT_EMBEDDING_FORBIDDEN: "字体不允许嵌入",
     FONT_GLYPH_MISSING: "字体缺少字符",
@@ -1499,6 +1754,73 @@ function addCanvas(): void {
   session.selectCanvas(canvas.id);
 }
 
+function cloneElementWithNewIds(element: LayoutTopLevelElementV1): LayoutTopLevelElementV1 {
+  const cloned = structuredClone(element);
+  cloned.id = newId(element.type);
+  cloned.name = `${element.name} 副本`;
+  if (cloned.type === "panel_frame" && cloned.contentImage) cloned.contentImage.id = newId("image");
+  return cloned;
+}
+
+function duplicatePrimaryElement(): void {
+  const canvas = session.currentCanvas.value;
+  const element = primaryElement.value;
+  if (!canvas || !element) return;
+  const cloned = cloneElementWithNewIds(element);
+  cloned.transform = { ...cloned.transform, x: cloned.transform.x + 24, y: cloned.transform.y + 24 };
+  session.execute(command("element.duplicate", `复制${element.name}`, {
+    canvasId: canvas.id,
+    sourceElementId: element.id,
+    element: cloned,
+    beforeElementId: null,
+  }));
+  session.selectElement(cloned.id);
+}
+
+function duplicateCanvas(canvasId: string): void {
+  const document = session.document.value;
+  const source = document?.canvases.find((canvas) => canvas.id === canvasId);
+  if (!document || !source) return;
+  const cloned = structuredClone(source);
+  cloned.id = newId(source.kind);
+  cloned.name = `${source.name} 副本`;
+  const idMap = new Map<string, string>();
+  cloned.elements = source.elements.map((element) => {
+    const copied = cloneElementWithNewIds(element);
+    idMap.set(element.id, copied.id);
+    return copied;
+  });
+  cloned.panelReadingOrder = source.panelReadingOrder.map((id) => idMap.get(id)!).filter(Boolean);
+  const sourceIndex = document.canvases.findIndex((canvas) => canvas.id === source.id);
+  const beforeCanvasId = document.canvases[sourceIndex + 1]?.id ?? null;
+  session.execute(command("canvas.duplicate", `复制${source.name}`, {
+    sourceCanvasId: source.id,
+    canvas: cloned,
+    beforeCanvasId,
+  }));
+  session.selectCanvas(cloned.id);
+}
+
+function applyProfileResize(): void {
+  const preview = profileResizeResult.value.preview;
+  const selectedCanvasId = session.currentCanvas.value?.id ?? null;
+  if (!preview) return;
+  session.execute(command("layout.resize_profile", resizeMode.value === "scale_uniform" ? "等比调整画布尺寸" : "保坐标调整画布尺寸", {
+    profile: preview.profile,
+    canvases: preview.canvases,
+  }));
+  if (selectedCanvasId) session.selectCanvas(selectedCanvasId);
+}
+
+function applyCurrentSectionHeight(): void {
+  const canvas = session.currentCanvas.value;
+  if (!canvas || isPaged.value || currentSectionHeight.value < 320 || currentSectionHeight.value > 8192) return;
+  session.execute(command("canvas.resize", "调整当前段高", {
+    canvasId: canvas.id,
+    canvas: { ...structuredClone(canvas), height: currentSectionHeight.value },
+  }));
+}
+
 function moveCanvas(canvasId: string, direction: "up" | "down"): void {
   const canvases = session.document.value?.canvases ?? [];
   const index = canvases.findIndex((canvas) => canvas.id === canvasId);
@@ -1878,9 +2200,18 @@ function handleKeydown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement | null;
   if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
   const commandKey = event.metaKey || event.ctrlKey;
+  if (commandKey && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    session.selectedElementIds.value = currentElements.value.map((element) => element.id);
+    return;
+  }
   if (commandKey && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) session.redo(); else session.undo();
+    return;
+  }
+  if (event.key === "Escape") {
+    session.selectedElementIds.value = [];
     return;
   }
   const step = event.shiftKey ? 10 : 1;
@@ -1905,6 +2236,17 @@ watch(chapterId, () => {
   publicationRequestId.value = null;
   void refreshPublicationHistory().catch(() => undefined);
 });
+watch(() => {
+  const profile = session.document.value?.profile;
+  const canvas = session.currentCanvas.value;
+  return profile ? `${profile.kind}:${profile.width}:${profile.kind === "paged" ? profile.height : profile.defaultSectionHeight}:${canvas?.id ?? ""}:${canvas?.height ?? 0}` : "";
+}, () => {
+  const profile = session.document.value?.profile;
+  if (!profile) return;
+  resizeWidth.value = profile.width;
+  resizeHeight.value = profile.kind === "paged" ? profile.height : profile.defaultSectionHeight;
+  currentSectionHeight.value = session.currentCanvas.value?.height ?? resizeHeight.value;
+}, { immediate: true });
 onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
   void refreshPublicationHistory().catch(() => undefined);
@@ -1922,6 +2264,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .layout-editor {
+  position: relative;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   width: 100%;
@@ -1933,6 +2276,45 @@ onBeforeUnmount(() => {
   background: #080d19;
   color: #e8edf8;
 }
+
+.layout-ai-drawer {
+  position: absolute;
+  z-index: 40;
+  top: 53px;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  width: min(390px, calc(100% - 24px));
+  box-sizing: border-box;
+  border-left: 1px solid rgba(116, 95, 255, 0.34);
+  background: rgba(9, 15, 28, 0.98);
+  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.42);
+  padding: 16px;
+  overflow: auto;
+}
+
+.layout-ai-drawer > header,
+.layout-ai-drawer > header > div,
+.ai-command-preview > div,
+.ai-pending-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layout-ai-drawer > header { justify-content: space-between; }
+.layout-ai-drawer > header button { width: 32px; padding: 0; font-size: 20px; }
+.layout-ai-drawer > p,
+.ai-empty-state p,
+.ai-command-preview p { margin: 0; color: #9eabc3; font-size: 12px; line-height: 1.65; }
+.ai-command-preview,
+.ai-empty-state { display: grid; gap: 10px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 12px; background: rgba(19, 28, 48, 0.72); padding: 13px; }
+.ai-command-preview small { color: #8da0c2; overflow-wrap: anywhere; }
+.ai-command-preview ul { margin: 0; padding-left: 18px; color: #fcd34d; font-size: 11px; }
+.ai-command-preview > div { justify-content: flex-end; flex-wrap: wrap; }
+.ai-pending-state { color: #bdb5ff; }
 
 button,
 select,
@@ -2382,5 +2764,9 @@ button:disabled {
   .m6-control-center { grid-template-columns: 1fr; max-height: none; }
   .history-card { grid-column: auto; }
   .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
 </style>

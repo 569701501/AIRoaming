@@ -13,7 +13,6 @@ import { ImagePreflightService } from "./image-preflight.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { ImageCandidateService } from "./image-candidate.service.js";
 import { CandidateReferenceResolver } from "./candidate-reference-resolver.js";
-import { LayoutExportService } from "./layout-export.service.js";
 import { AssetPackageService } from "./asset-package.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
@@ -45,6 +44,7 @@ import { LayoutVersioningService } from "./layout-versioning.service.js";
 import { LayoutRendererService } from "./layout-renderer.service.js";
 import { LayoutPublicationService } from "./layout-publication.service.js";
 import { LayoutPublicationWorkerService } from "./layout-publication-worker.service.js";
+import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -61,7 +61,6 @@ import { LayoutPublicationWorkerService } from "./layout-publication-worker.serv
     StoryStructureService,
     ImagePreflightService,
     ImageCandidateService,
-    LayoutExportService,
     AssetPackageService,
     ProjectsService,
     ChapterVersionQueryRepository,
@@ -90,7 +89,8 @@ import { LayoutPublicationWorkerService } from "./layout-publication-worker.serv
     LayoutRendererService,
     LayoutPublicationService,
     LayoutPublicationWorkerService,
+    LayoutPendingCommandService,
   ],
-  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService],
+  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService, LayoutPendingCommandService],
 })
 export class ProjectsModule {}

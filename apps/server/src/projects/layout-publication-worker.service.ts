@@ -470,7 +470,14 @@ export class LayoutPublicationWorkerService {
         },
       });
       if (current) {
-        await tx.chapter.update({ where: { id: chapter.id }, data: { currentExportRevisionId: publication.id, rowVersion: { increment: 1 } } });
+        await tx.chapter.update({
+          where: { id: chapter.id },
+          data: {
+            currentExportRevisionId: publication.id,
+            milestoneStatus: "exported",
+            rowVersion: { increment: 1 },
+          },
+        });
       }
       return this.tasks.finishInTransaction(tx, {
         taskId: task.id,

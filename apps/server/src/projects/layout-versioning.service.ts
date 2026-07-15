@@ -1,6 +1,7 @@
 import { HttpException, Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
 import {
   buildLayoutSourceReplacementPreviewV1,
   digestCandidateImageSourceV1,
@@ -32,7 +33,9 @@ import {
 } from "@airoaming/shared";
 
 import { PrismaService } from "../persistence/prisma.service.js";
+import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
+import { inspectLayoutImageNormalizationV1 } from "./layout-image-normalization.util.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
@@ -77,6 +80,7 @@ export class LayoutVersioningService {
     @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
     @Inject(LayoutFontService) private readonly layoutFonts: LayoutFontService,
     @Inject(LayoutWorkingCopyService) private readonly workingCopies: LayoutWorkingCopyService,
+    @Inject(WorkspacePathService) private readonly workspacePath: WorkspacePathService,
   ) {}
 
   async previewSourceReplacements(
@@ -370,7 +374,12 @@ export class LayoutVersioningService {
             projectId: scope.projectId,
             currentLayoutRevisionId: request.expectedCurrentRevisionId,
           },
-          data: { currentLayoutRevisionId: sealed.id, rowVersion: { increment: 1 } },
+          data: {
+            currentLayoutRevisionId: sealed.id,
+            // 已有历史出版指针时保留 exported；freshness 由来源查询派生，不能伪造删除旧 current 证据。
+            milestoneStatus: chapter.currentExportRevisionId ? chapter.milestoneStatus : "layout_done",
+            rowVersion: { increment: 1 },
+          },
         });
         if (pointer.count !== 1) serviceError("LAYOUT_EXPECTED_CURRENT_REVISION_MISMATCH", 409);
         const updatedAt = new Date(Math.max(Date.now(), workingCopy.updatedAt.getTime() + 1));
@@ -633,12 +642,28 @@ export class LayoutVersioningService {
     const result: Record<string, LayoutPreflightImageAssetV1> = {};
     for (const row of rows) {
       if (!row.sha256 || !/^sha256:[0-9a-f]{64}$/.test(row.sha256) || !row.width || !row.height) continue;
+      let ready = row.status === "ready";
+      let normalizationIssues: LayoutPreflightImageAssetV1["normalizationIssues"] = [];
+      if (ready) {
+        try {
+          const absolute = this.workspacePath.resolveVirtualPath(`/workspace/${row.storageKey}`);
+          const canonical = await realpath(absolute);
+          if (canonical !== absolute) throw new Error("LAYOUT_IMAGE_PATH_NOT_CANONICAL");
+          const bytes = await readFile(absolute);
+          const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+          if (row.bytes !== bytes.byteLength || row.sha256 !== digest) throw new Error("LAYOUT_IMAGE_BYTES_MISMATCH");
+          normalizationIssues = inspectLayoutImageNormalizationV1(bytes, row.mimeType).issueCodes;
+        } catch {
+          ready = false;
+        }
+      }
       result[row.id] = {
         assetId: row.id,
         sha256: row.sha256 as LayoutDigest,
         width: row.width,
         height: row.height,
-        ready: row.status === "ready",
+        ready,
+        normalizationIssues,
       };
     }
     return result;

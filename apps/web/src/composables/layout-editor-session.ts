@@ -28,6 +28,9 @@ import {
   type LayoutRevisionHistoryResponseV1,
   type LayoutSourceReplacementCropModeV1,
   type LayoutSourceReplacementPreviewV1,
+  type CreatePendingEditorCommandSetRequestV1,
+  type PendingEditorCommandPreviewV1,
+  type LayoutLegacyCutoverStatusV1,
 } from "@airoaming/shared";
 
 import { api, ApiClientError } from "../services/api";
@@ -87,6 +90,8 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   const revisionHistory = shallowRef<LayoutRevisionHistoryResponseV1 | null>(null);
   const preflight = shallowRef<LayoutPreflightReportV1 | null>(null);
   const sourceReplacementPreview = shallowRef<LayoutSourceReplacementPreviewV1 | null>(null);
+  const pendingCommand = shallowRef<PendingEditorCommandPreviewV1 | null>(null);
+  const legacyStatus = shallowRef<LayoutLegacyCutoverStatusV1 | null>(null);
   const history = shallowRef<LayoutCommandHistoryV1>(createLayoutCommandHistory());
   const saveState = ref<SaveState>("loading");
   const errorMessage = ref<string | null>(null);
@@ -146,6 +151,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     conflictServer.value = null;
     preflight.value = null;
     sourceReplacementPreview.value = null;
+    legacyStatus.value = null;
     errorMessage.value = null;
     isDirty.value = false;
     firstDirtyAt = null;
@@ -190,6 +196,16 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         saveState.value = "missing";
         return;
       }
+      if (error instanceof ApiClientError && error.code === "LAYOUT_WORKING_COPY_EXISTS" && error.status === 409) {
+        const legacy = await api.getLayoutLegacyStatus(input.projectId.value, chapterId).catch(() => null);
+        if (legacy?.state === "legacy_convertible" || legacy?.state === "legacy_unresolved") {
+          document.value = null;
+          server.value = null;
+          legacyStatus.value = legacy;
+          saveState.value = "missing";
+          return;
+        }
+      }
       errorMessage.value = error instanceof Error ? error.message : "成稿草稿读取失败";
       saveState.value = "error";
     }
@@ -219,6 +235,35 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
       errorMessage.value = error instanceof Error ? error.message : "成稿草稿初始化失败";
       saveState.value = "error";
     }
+  }
+
+  async function convertLegacy(): Promise<void> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || isReadOnly.value) return;
+    saveState.value = "loading";
+    const result = await api.convertLegacyLayout(input.projectId.value, chapterId);
+    replaceFromServer(result.value);
+    sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
+    revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId).catch(() => null);
+  }
+
+  async function rebuildLegacy(
+    profile: LayoutProfileV1,
+    mode: LayoutWorkingCopyInitializationModeV1,
+    expectedCurrentLayoutRevisionId: string | null,
+  ): Promise<void> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || isReadOnly.value) return;
+    saveState.value = "loading";
+    const result = await api.rebuildLegacyLayout(input.projectId.value, chapterId, {
+      schemaVersion: 1,
+      profile,
+      initializationMode: mode,
+      expectedCurrentLayoutRevisionId,
+    });
+    replaceFromServer(result.value);
+    sourceCatalog.value = await api.getLayoutSourceCatalog(input.projectId.value, chapterId).catch(() => null);
+    revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId).catch(() => null);
   }
 
   function scheduleAutosave(): void {
@@ -485,6 +530,57 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
   }
 
+  async function loadPendingCommand(): Promise<PendingEditorCommandPreviewV1 | null> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId) return null;
+    const result = await api.getCurrentPendingLayoutCommand(input.projectId.value, chapterId);
+    pendingCommand.value = result.item;
+    return result.item;
+  }
+
+  async function previewPendingCommand(
+    request: CreatePendingEditorCommandSetRequestV1,
+  ): Promise<PendingEditorCommandPreviewV1 | null> {
+    const chapterId = input.chapterId.value;
+    if (!chapterId || !server.value || isReadOnly.value) return null;
+    await flush();
+    if (!server.value || isDirty.value) return null;
+    const result = await api.previewPendingLayoutCommand(input.projectId.value, chapterId, request);
+    pendingCommand.value = result;
+    return result;
+  }
+
+  async function applyPendingCommand(): Promise<void> {
+    const chapterId = input.chapterId.value;
+    const pending = pendingCommand.value;
+    if (!chapterId || !pending || !document.value || isReadOnly.value) return;
+    await flush();
+    if (isDirty.value) return;
+    const result = await api.applyPendingLayoutCommand(input.projectId.value, chapterId, pending.id);
+    replaceFromServer(result.workingCopy);
+    history.value = pushLayoutCommandHistory(history.value, {
+      batchId: result.appliedBatch.batchId,
+      label: result.appliedBatch.label,
+      inverse: {
+        schemaVersion: 1,
+        commandId: `inverse:${result.appliedBatch.batchId}`,
+        type: "layout.restore_snapshot",
+        label: `Undo ${result.appliedBatch.label}`,
+        payload: { document: structuredClone(result.previousDocument) },
+      },
+      forward: result.appliedBatch,
+    });
+    pendingCommand.value = null;
+  }
+
+  async function discardPendingCommand(): Promise<void> {
+    const chapterId = input.chapterId.value;
+    const pending = pendingCommand.value;
+    if (!chapterId || !pending) return;
+    await api.discardPendingLayoutCommand(input.projectId.value, chapterId, pending.id);
+    pendingCommand.value = null;
+  }
+
   async function keepLocalAndRetry(): Promise<void> {
     const chapterId = input.chapterId.value;
     if (!chapterId || !document.value) return;
@@ -572,6 +668,8 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     revisionHistory,
     preflight,
     sourceReplacementPreview,
+    pendingCommand,
+    legacyStatus,
     saveState,
     errorMessage,
     currentCanvas,
@@ -586,6 +684,8 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     selectCanvas,
     selectElement,
     initialize,
+    convertLegacy,
+    rebuildLegacy,
     execute,
     executeBatch,
     undo,
@@ -597,6 +697,10 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     commitSourceReplacement,
     createRevision,
     restoreRevision,
+    loadPendingCommand,
+    previewPendingCommand,
+    applyPendingCommand,
+    discardPendingCommand,
     keepLocalAndRetry,
     downloadRecovery,
     makeTransformCommand,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readImageDimensions } from "./image-dimensions.util.js";
+import { detectImageMimeType, readImageDimensions } from "./image-dimensions.util.js";
 
 describe("readImageDimensions", () => {
   it("读取 PNG 和 WebP VP8X 图片头中的实际宽高", () => {
@@ -19,5 +19,8 @@ describe("readImageDimensions", () => {
     expect(readImageDimensions(png)).toEqual({ width: 1, height: 1 });
     expect(readImageDimensions(webp)).toEqual({ width: 1024, height: 1536 });
     expect(readImageDimensions(Buffer.from("not-an-image"))).toBeNull();
+    expect(detectImageMimeType(png)).toBe("image/png");
+    expect(detectImageMimeType(webp)).toBe("image/webp");
+    expect(detectImageMimeType(Buffer.from("not-an-image"))).toBeNull();
   });
 });

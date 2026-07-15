@@ -1002,60 +1002,6 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async buildChapterLayout(): Promise<boolean> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
-        if (!projectId || !chapterId || !this.snapshot) {
-          throw new Error("请先打开章节");
-        }
-        const result = await api.buildChapterLayout(projectId, chapterId);
-        this.snapshot = {
-          ...this.snapshot,
-          chapterLayout: result.layout,
-          currentChapter: result.chapter,
-          chapters: result.chapters,
-          assets: result.assets,
-        };
-        this.dialogueNotice = `已生成 ${result.layout.pages.length} 页排版草稿。`;
-        return true;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "生成排版失败";
-        return false;
-      } finally {
-        this.loading = false;
-      }
-    },
-    async exportChapterLayout(): Promise<boolean> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        const chapterId = this.snapshot ? getCurrentChapterId(this.snapshot) : null;
-        if (!projectId || !chapterId || !this.snapshot) {
-          throw new Error("请先打开章节");
-        }
-        const result = await api.exportChapterLayout(projectId, chapterId);
-        this.snapshot = {
-          ...this.snapshot,
-          chapterLayout: result.layout,
-          currentChapter: result.chapter,
-          chapters: result.chapters,
-          assets: result.assets,
-          workflow: result.workflow,
-          stages: result.workflow.steps,
-        };
-        this.dialogueNotice = `已导出 ${result.exportAssets.length} 页漫画图，可进入素材包。`;
-        return true;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "导出排版失败";
-        return false;
-      } finally {
-        this.loading = false;
-      }
-    },
     async exportAssetPackage(): Promise<boolean> {
       this.loading = true;
       this.error = null;

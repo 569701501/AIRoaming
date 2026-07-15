@@ -41,6 +41,7 @@ import { digestCanonicalJson, encodeStoryboardDocumentV2 } from "@airoaming/shar
 import { createComicFormatReport } from "./migration-report.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { ProjectsService } from "../projects/projects.service.js";
+import { LayoutWorkingCopyService } from "../projects/layout-working-copy.service.js";
 import { ScriptVersionService } from "../projects/versioning/script-version.service.js";
 
 const execFileAsync = promisify(execFile);
@@ -2128,6 +2129,42 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().chapter.findFirstOrThrow()).toMatchObject({ currentLayoutRevisionId: null });
     await new LayoutShadowImporter(prisma!, prepared.repository).import(snapshot.outputPath, decisionsPath, { runId: "shadow-a12-layout-replay" });
     expect(await prisma!.database().layoutWorkingCopy.count()).toBe(1);
+    const project = await prisma!.database().project.findFirstOrThrow();
+    const chapter = await prisma!.database().chapter.findFirstOrThrow();
+    process.env.AIROAMING_WORKSPACE_ROOT = path.join(prepared.root!, "workspace");
+    process.env.AIROAMING_SECRET_STORE_ADAPTER = "fake";
+    process.env.AIROAMING_FAKE_SECRET_STORE_ROOT = path.join(prepared.root!, "secret-store");
+    await mkdir(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT, { recursive: true });
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const cutover = app.get(LayoutWorkingCopyService);
+    const scope = { projectId: project.id, chapterId: chapter.id };
+    expect(await cutover.legacyStatus(scope)).toMatchObject({
+      state: "legacy_convertible",
+      sourceResolution: "complete",
+      provenancePreserved: true,
+    });
+    const provenanceCount = await prisma!.database().importedEntitySource.count({
+      where: { entityType: "LayoutWorkingCopy", entityId: workingCopy.id },
+    });
+    const convertedLegacy = await cutover.convertLegacy(scope).catch((error: unknown) => {
+      const response = error && typeof error === "object" && "getResponse" in error
+        ? (error as { getResponse(): unknown }).getResponse()
+        : error;
+      throw new Error(`IMP_A12_CUTOVER_FAILED:${JSON.stringify(response)}`);
+    });
+    expect(convertedLegacy).toMatchObject({
+      result: "converted",
+      value: {
+        id: workingCopy.id,
+        rowVersion: 1,
+        document: { kind: "layout_document_v1", canvases: [{ elements: [{ type: "panel_frame" }] }] },
+        sourceEvaluation: { sourceResolution: "current" },
+      },
+    });
+    expect(await cutover.legacyStatus(scope)).toMatchObject({ state: "layout_document_v1", provenancePreserved: true });
+    expect(await prisma!.database().importedEntitySource.count({
+      where: { entityType: "LayoutWorkingCopy", entityId: workingCopy.id },
+    })).toBe(provenanceCount);
   }, 30_000);
 
   it("IMP-A13-01 imports legacy export evidence as unresolved history without current", async () => {

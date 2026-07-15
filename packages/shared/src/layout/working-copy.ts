@@ -78,6 +78,21 @@ export interface SaveLayoutWorkingCopyResponseV1 {
   value: LayoutWorkingCopyResponseV1;
 }
 
+export interface LayoutLegacyCutoverStatusV1 {
+  schemaVersion: 1;
+  state: "none" | "layout_document_v1" | "legacy_convertible" | "legacy_unresolved";
+  workingCopyId: string | null;
+  legacyDocumentDigest: LayoutDigest | null;
+  sourceResolution: "complete" | "unresolved" | null;
+  provenancePreserved: boolean;
+}
+
+export interface LayoutLegacyCutoverResponseV1 {
+  schemaVersion: 1;
+  result: "converted" | "rebuilt";
+  value: LayoutWorkingCopyResponseV1;
+}
+
 export interface LayoutWorkingCopyRecoveryV1 {
   schemaVersion: 1;
   kind: "layout_working_copy_recovery_v1";

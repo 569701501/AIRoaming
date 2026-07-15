@@ -23,7 +23,6 @@ import type {
   ExtractProjectCharactersResponse,
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
-  BuildChapterLayoutResponse,
   CandidateGenerationPreviewResponse,
   CandidateLockCommitResponse,
   CandidateLockHistoryPage,
@@ -33,7 +32,6 @@ import type {
   CompleteChapterImagesResponse,
   CreateGenerationTaskRequest,
   ExportAssetPackageResponse,
-  ExportChapterLayoutResponse,
   GenerationTaskItem,
   GetChapterResponse,
   HealthResponse,
@@ -109,6 +107,14 @@ import type {
   CreateLayoutPublicationRequestV1,
   CreateLayoutPublicationResponseV1,
   LayoutPublicationHistoryResponseV1,
+  LayoutPublicationSummaryV1,
+  CreatePendingEditorCommandSetRequestV1,
+  PendingEditorCommandCurrentResponseV1,
+  PendingEditorCommandPreviewV1,
+  ApplyPendingEditorCommandResponseV1,
+  DiscardPendingEditorCommandResponseV1,
+  LayoutLegacyCutoverResponseV1,
+  LayoutLegacyCutoverStatusV1,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -633,6 +639,21 @@ export const api = {
   getLayoutWorkingCopy: (projectId: string, chapterId: string) => request<LayoutWorkingCopyResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
   ),
+  getLayoutLegacyStatus: (projectId: string, chapterId: string) => request<LayoutLegacyCutoverStatusV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/legacy-status`,
+  ),
+  convertLegacyLayout: (projectId: string, chapterId: string) => request<LayoutLegacyCutoverResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/legacy/convert`,
+    { method: "POST" },
+  ),
+  rebuildLegacyLayout: (
+    projectId: string,
+    chapterId: string,
+    input: InitializeLayoutWorkingCopyRequestV1,
+  ) => request<LayoutLegacyCutoverResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/legacy/rebuild`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
   getLayoutSourceCatalog: (projectId: string, chapterId: string) => request<LayoutSourceCatalogResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-catalog`,
   ),
@@ -719,23 +740,33 @@ export const api = {
   listLayoutPublications: (projectId: string, chapterId: string) => request<LayoutPublicationHistoryResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications`,
   ),
+  getLayoutPublication: (projectId: string, chapterId: string, exportRevisionId: string) => request<LayoutPublicationSummaryV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}`,
+  ),
   cancelLayoutPublication: (projectId: string, chapterId: string, exportRevisionId: string) => request<unknown>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}/cancel`,
     { method: "POST" },
   ),
   layoutPublicationArtifactUrl: (projectId: string, chapterId: string, exportRevisionId: string, assetId: string) =>
     `${API_BASE}/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}/artifacts/${encodeURIComponent(assetId)}/file`,
-  buildChapterLayout: (projectId: string, chapterId: string) => request<BuildChapterLayoutResponse>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/build`,
-    {
-      method: "POST",
-    },
+  getCurrentPendingLayoutCommand: (projectId: string, chapterId: string) => request<PendingEditorCommandCurrentResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/current`,
   ),
-  exportChapterLayout: (projectId: string, chapterId: string) => request<ExportChapterLayoutResponse>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/export`,
-    {
-      method: "POST",
-    },
+  previewPendingLayoutCommand: (
+    projectId: string,
+    chapterId: string,
+    input: CreatePendingEditorCommandSetRequestV1,
+  ) => request<PendingEditorCommandPreviewV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/preview`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  applyPendingLayoutCommand: (projectId: string, chapterId: string, pendingId: string) => request<ApplyPendingEditorCommandResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/${encodeURIComponent(pendingId)}/apply`,
+    { method: "POST" },
+  ),
+  discardPendingLayoutCommand: (projectId: string, chapterId: string, pendingId: string) => request<DiscardPendingEditorCommandResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/${encodeURIComponent(pendingId)}`,
+    { method: "DELETE" },
   ),
   exportAssetPackage: (projectId: string, chapterId: string) => request<ExportAssetPackageResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/asset-package/export`,

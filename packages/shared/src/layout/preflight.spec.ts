@@ -178,4 +178,35 @@ describe("G5-M6 layout preflight", () => {
     ]));
     expect(new Set(report.issues.map((issue) => issue.issueKey)).size).toBe(report.issues.length);
   });
+
+  it("G5-IMG-010 blocks unnormalized orientation and unsupported color space before rendering", () => {
+    const value = document();
+    const report = runLayoutPreflightV1({
+      document: value,
+      target: {
+        kind: "layout_revision",
+        id: "revision_normalization",
+        documentDigest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        rowVersion: null,
+      },
+      currentSources: [{ order: 1, source: currentSource, width: 1200, height: 1200 }],
+      imageAssets: {
+        asset_1: {
+          assetId: "asset_1",
+          sha256: imageSha,
+          width: 1200,
+          height: 1200,
+          ready: true,
+          normalizationIssues: ["IMAGE_ORIENTATION_UNNORMALIZED", "IMAGE_COLORSPACE_UNSUPPORTED"],
+        },
+      },
+      fontCatalog: [font],
+      profile: { schemaVersion: 1, kind: "paged_publication", outputScale: 1, includePdf: true, pdfPixelDpi: 96 },
+    });
+    expect(report.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      "IMAGE_ORIENTATION_UNNORMALIZED",
+      "IMAGE_COLORSPACE_UNSUPPORTED",
+    ]));
+    expect(report.status).toBe("blocked");
+  });
 });

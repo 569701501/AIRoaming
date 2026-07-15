@@ -28,7 +28,7 @@ import { VersionTransactionRunner } from "./versioning/version-transaction-runne
 import { ImageProviderService } from "./image-provider.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
-import { readImageDimensions } from "./image-dimensions.util.js";
+import { detectImageMimeType, readImageDimensions } from "./image-dimensions.util.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
 import { LayoutPublicationWorkerService } from "./layout-publication-worker.service.js";
 
@@ -545,12 +545,17 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       const itemIndex = value.index === undefined ? index + 1 : integer(value.index, `providerOutput.candidates[${index}].index`);
       if (itemIndex < 1 || itemIndex > 6 || seen.has(itemIndex)) throw new TypeError("providerOutput candidate index must be unique 1..6");
       seen.add(itemIndex);
-      const mimeType = typeof value.mimeType === "string" && value.mimeType.trim() ? value.mimeType : "image/webp";
+      const declaredMimeType = typeof value.mimeType === "string" && value.mimeType.trim() ? value.mimeType : "image/webp";
+      const mimeType = detectImageMimeType(buffer);
+      if (!mimeType) throw new TypeError(`providerOutput.candidates[${index}].buffer must be PNG, JPEG or WebP`);
       const dimensions = readImageDimensions(buffer) ?? { width: integer(requestedImage.width, "input.promptSpec.image.width"), height: integer(requestedImage.height, "input.promptSpec.image.height") };
       const sha256 = `sha256:${createHash("sha256").update(buffer).digest("hex")}` as `sha256:${string}`;
       return {
         index: itemIndex, buffer, mimeType, width: dimensions.width, height: dimensions.height,
-        warnings: Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === "string") : [],
+        warnings: [
+          ...(Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === "string") : []),
+          ...(declaredMimeType === mimeType ? [] : [`candidate_output_mime_normalized:${declaredMimeType}:${mimeType}`]),
+        ],
         candidateId: randomUUID(), assetId: randomUUID(), storageKey: `projects/${projectId}/chapters/${text(input.chapterId, "input.chapterId")}/shots/${targetId}/candidates/${randomUUID()}.${mimeType.includes("png") ? "png" : mimeType.includes("jpeg") ? "jpg" : "webp"}`,
         sha256, bytes: buffer.length,
       };

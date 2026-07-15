@@ -1230,22 +1230,6 @@ export interface ChapterLayout {
   confirmedAt: string | null;
 }
 
-export interface BuildChapterLayoutResponse {
-  layout: ChapterLayout;
-  chapter: ChapterDetail;
-  chapters: ChapterListItem[];
-  assets: WorkbenchAsset[];
-}
-
-export interface ExportChapterLayoutResponse {
-  layout: ChapterLayout;
-  exportAssets: WorkbenchAsset[];
-  chapter: ChapterDetail;
-  chapters: ChapterListItem[];
-  assets: WorkbenchAsset[];
-  workflow: ProjectWorkflow;
-}
-
 export interface AssetPackageManifestFile {
   path: string;
   type: string;

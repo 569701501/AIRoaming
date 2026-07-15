@@ -27,6 +27,9 @@ export type LayoutPreflightCodeV1 =
   | "SOURCE_DIGEST_MISMATCH"
   | "IMAGE_ASSET_MISSING_OR_NOT_READY"
   | "IMAGE_SHA_MISMATCH"
+  | "IMAGE_ORIENTATION_UNNORMALIZED"
+  | "IMAGE_COLORSPACE_UNSUPPORTED"
+  | "IMAGE_ANIMATION_UNSUPPORTED"
   | "FONT_ASSET_MISSING_OR_NOT_READY"
   | "FONT_EMBEDDING_FORBIDDEN"
   | "FONT_GLYPH_MISSING"
@@ -79,6 +82,11 @@ export interface LayoutPreflightImageAssetV1 {
   width: number;
   height: number;
   ready: boolean;
+  normalizationIssues?: Array<
+    | "IMAGE_ORIENTATION_UNNORMALIZED"
+    | "IMAGE_COLORSPACE_UNSUPPORTED"
+    | "IMAGE_ANIMATION_UNSUPPORTED"
+  >;
 }
 
 function compareUnicode(left: string, right: string): number {
@@ -314,6 +322,13 @@ export function runLayoutPreflightV1(input: {
       }, asset.sha256);
       if (expectedDigest !== image.source.sourceDigest) {
         add("IMAGE_SHA_MISMATCH", "error", ["revision", "export"], false, {
+          canvasId: image.canvas.id,
+          elementId: image.elementId,
+          shotId: image.source.shotId,
+        }, { assetId: image.source.assetId });
+      }
+      for (const code of asset.normalizationIssues ?? []) {
+        add(code, "error", ["revision", "export"], false, {
           canvasId: image.canvas.id,
           elementId: image.elementId,
           shotId: image.source.shotId,

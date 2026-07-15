@@ -138,8 +138,6 @@
         :loading="loading"
         :snapshot="snapshot"
         @select-chapter="$emit('selectChapter', $event)"
-        @build-layout="$emit('buildLayout')"
-        @export-layout="$emit('exportLayout')"
         @go-candidates="$emit('selectStep', 'image_candidates')"
       />
 
@@ -228,8 +226,6 @@ const emit = defineEmits<{
   generateAllUnlocked: [];
   candidateChanged: [];
   completeImages: [];
-  buildLayout: [];
-  exportLayout: [];
   exportPackage: [];
 }>();
 

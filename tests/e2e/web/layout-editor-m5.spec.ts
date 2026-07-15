@@ -196,7 +196,7 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   await page.getByRole("button", { name: "保存版本" }).click();
   await expect(page.getByTestId("layout-preflight-result")).toContainText("文字发生溢出");
   await expect(page.getByRole("button", { name: "还需确认 1 项警告" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "导出 PNG 序列" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "正式出版", exact: true })).toBeDisabled();
   await saveNow(page);
 
   const isolatedFamilies = await page.locator(".canvas-element.type-text .rich-text-preview span").first().evaluate((element) => getComputedStyle(element).fontFamily);

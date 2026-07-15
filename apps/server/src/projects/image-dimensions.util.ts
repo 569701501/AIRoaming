@@ -3,6 +3,16 @@ export interface ImageDimensions {
   height: number;
 }
 
+export type SupportedImageMimeType = "image/png" | "image/jpeg" | "image/webp";
+
+/** MIME 以字节头为事实源，不能只信 provider 声明或文件扩展名。 */
+export function detectImageMimeType(buffer: Buffer): SupportedImageMimeType | null {
+  if (buffer.length >= 8 && buffer.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "image/png";
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xd8) return "image/jpeg";
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
 /**
  * Provider 可以返回与请求像素不同但比例等价的图片，因此这里只校验宽高比。
  * 使用对数距离让横图/竖图误差对称，3% 容差覆盖常见取整差异。

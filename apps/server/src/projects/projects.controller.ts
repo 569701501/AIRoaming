@@ -42,6 +42,7 @@ import type {
   RestoreLayoutRevisionRequestV1,
   RunLayoutPreflightRequestV1,
   CreateLayoutPublicationRequestV1,
+  CreatePendingEditorCommandSetRequestV1,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
@@ -54,6 +55,7 @@ import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
+import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
 
 @Controller("projects")
 export class ProjectsController {
@@ -68,6 +70,7 @@ export class ProjectsController {
     @Inject(LayoutFontService) private readonly layoutFontService: LayoutFontService,
     @Inject(LayoutWorkingCopyService) private readonly layoutWorkingCopyService: LayoutWorkingCopyService,
     @Inject(LayoutVersioningService) private readonly layoutVersioningService: LayoutVersioningService,
+    @Inject(LayoutPendingCommandService) private readonly layoutPendingCommandService: LayoutPendingCommandService,
   ) {}
 
   @Get()
@@ -626,6 +629,31 @@ export class ProjectsController {
     return ok(await this.layoutWorkingCopyService.sourceCatalog({ projectId, chapterId }));
   }
 
+  @Get(":projectId/chapters/:chapterId/layout/legacy-status")
+  async getLayoutLegacyStatus(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutWorkingCopyService.legacyStatus({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/legacy/convert")
+  async convertLegacyLayout(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutWorkingCopyService.convertLegacy({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/legacy/rebuild")
+  async rebuildLegacyLayout(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: InitializeLayoutWorkingCopyRequestV1,
+  ) {
+    return ok(await this.layoutWorkingCopyService.rebuildLegacy({ projectId, chapterId }, body));
+  }
+
   @Get(":projectId/chapters/:chapterId/layout/fonts")
   async getLayoutFonts(
     @Param("projectId") projectId: string,
@@ -738,6 +766,41 @@ export class ProjectsController {
     return ok(await this.layoutVersioningService.restoreRevision({ projectId, chapterId }, revisionId, body));
   }
 
+  @Get(":projectId/chapters/:chapterId/layout/pending-commands/current")
+  async getCurrentPendingLayoutCommand(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.layoutPendingCommandService.current({ projectId, chapterId }));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/pending-commands/preview")
+  async previewPendingLayoutCommand(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreatePendingEditorCommandSetRequestV1,
+  ) {
+    return ok(await this.layoutPendingCommandService.create({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/pending-commands/:pendingId/apply")
+  async applyPendingLayoutCommand(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("pendingId") pendingId: string,
+  ) {
+    return ok(await this.layoutPendingCommandService.apply({ projectId, chapterId }, pendingId));
+  }
+
+  @Delete(":projectId/chapters/:chapterId/layout/pending-commands/:pendingId")
+  async discardPendingLayoutCommand(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("pendingId") pendingId: string,
+  ) {
+    return ok(await this.layoutPendingCommandService.discard({ projectId, chapterId }, pendingId));
+  }
+
   @Post(":projectId/chapters/:chapterId/exports/layout-publications")
   async createLayoutPublication(
     @Param("projectId") projectId: string,
@@ -787,22 +850,6 @@ export class ProjectsController {
     @Param("exportRevisionId") exportRevisionId: string,
   ) {
     return ok(await this.projectsService.cancelLayoutPublication(projectId, chapterId, exportRevisionId));
-  }
-
-  @Post(":projectId/chapters/:chapterId/layout/build")
-  async buildChapterLayout(
-    @Param("projectId") projectId: string,
-    @Param("chapterId") chapterId: string,
-  ) {
-    return ok(await this.projectsService.buildChapterLayout(projectId, chapterId));
-  }
-
-  @Post(":projectId/chapters/:chapterId/layout/export")
-  async exportChapterLayout(
-    @Param("projectId") projectId: string,
-    @Param("chapterId") chapterId: string,
-  ) {
-    return ok(await this.projectsService.exportChapterLayout(projectId, chapterId));
   }
 
   @Post(":projectId/chapters/:chapterId/asset-package/export")

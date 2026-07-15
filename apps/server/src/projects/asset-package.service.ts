@@ -9,7 +9,7 @@ import type {
   ExportAssetPackageResponse,
   WorkbenchAsset,
 } from "@airoaming/shared";
-import { digestCanonicalJson } from "@airoaming/shared";
+import { canonicalizeJson, digestCanonicalJson } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import { ProjectRepository } from "./project-repository.service.js";
@@ -261,10 +261,10 @@ export class AssetPackageService {
     await mkdir(packageAbsDir, { recursive: true });
     const files: AssetPackageManifestFile[] = [];
     const layoutPath = `chapters/${chapter.slug}/layout/layout.json`;
-    const layoutSource = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}/chapters/${chapter.slug}/exports/layout/${layoutRevision.id}/layout.json`);
     const layoutTarget = path.join(packageAbsDir, layoutPath);
     await mkdir(path.dirname(layoutTarget), { recursive: true });
-    try { await copyFile(layoutSource, layoutTarget); } catch { throw new BadRequestException("PACKAGE_LAYOUT_SOURCE_MISSING"); }
+    // DB-only 后直接从 sealed LayoutRevision 投影规范 JSON，禁止回读已关闭的 legacy export/layout.json。
+    await this.atomicWrite(layoutTarget, `${canonicalizeJson(layoutRevision.documentJson)}\n`);
     files.push({ path: layoutPath, type: "json", chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
     for (const binding of bindings) {
       const asset = sourceAssets.find((item) => item.id === binding.assetId)!;

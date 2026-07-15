@@ -102,6 +102,52 @@ describe("G5-M2 command reducer", () => {
     expect(unlocked.canvases[0]!.elements[0]!.locked).toBe(false);
   });
 
+  it("G5-CMD-008 duplicates canvases and nested elements without retaining entity IDs", async () => {
+    const before = await document();
+    const sourceCanvas = before.canvases[0]!;
+    const canvasCopy = structuredClone(sourceCanvas);
+    canvasCopy.id = "canvas_page_copy";
+    const elementIdMap = new Map<string, string>();
+    canvasCopy.elements = canvasCopy.elements.map((element, index) => {
+      const next = structuredClone(element);
+      next.id = `copy_element_${index}`;
+      elementIdMap.set(element.id, next.id);
+      if (next.type === "panel_frame" && next.contentImage) next.contentImage.id = `copy_image_${index}`;
+      return next;
+    });
+    canvasCopy.panelReadingOrder = sourceCanvas.panelReadingOrder.map((id) => elementIdMap.get(id)!);
+    const duplicatedCanvas = applyLayoutCommand(before, command("canvas.duplicate", {
+      sourceCanvasId: sourceCanvas.id,
+      canvas: canvasCopy,
+      beforeCanvasId: null,
+    })).document;
+    const sourceIds = new Set([
+      sourceCanvas.id,
+      ...sourceCanvas.elements.flatMap((element) => [element.id, ...(element.type === "panel_frame" && element.contentImage ? [element.contentImage.id] : [])]),
+    ]);
+    const copiedIds = [
+      canvasCopy.id,
+      ...canvasCopy.elements.flatMap((element) => [element.id, ...(element.type === "panel_frame" && element.contentImage ? [element.contentImage.id] : [])]),
+    ];
+    expect(copiedIds.some((id) => sourceIds.has(id))).toBe(false);
+    expect(duplicatedCanvas.canvases[1]!.panelReadingOrder).toEqual(canvasCopy.panelReadingOrder);
+
+    const sourcePanel = sourceCanvas.elements.find((element) => element.type === "panel_frame" && element.contentImage);
+    if (sourcePanel?.type !== "panel_frame" || !sourcePanel.contentImage) throw new Error("source panel image missing");
+    const panelCopy = structuredClone(sourcePanel);
+    panelCopy.id = "copy_panel_standalone";
+    if (!panelCopy.contentImage) throw new Error("copied panel image missing");
+    panelCopy.contentImage.id = "copy_panel_image_standalone";
+    const copiedImageId = panelCopy.contentImage.id;
+    const duplicatedElement = applyLayoutCommand(before, command("element.duplicate", {
+      canvasId: sourceCanvas.id,
+      sourceElementId: sourcePanel.id,
+      element: panelCopy,
+      beforeElementId: null,
+    })).document.canvases[0]!.elements.at(-1);
+    expect(duplicatedElement).toMatchObject({ id: panelCopy.id, contentImage: { id: copiedImageId } });
+  });
+
   it("maintains reading order when deleting and restoring a panel", async () => {
     const before = await document();
     const deleted = applyLayoutCommand(before, command("element.delete", {

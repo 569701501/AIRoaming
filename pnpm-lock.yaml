@@ -47,6 +47,9 @@ importers:
       fontkit:
         specifier: 2.0.4
         version: 2.0.4
+      pngjs:
+        specifier: 7.0.0
+        version: 7.0.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
