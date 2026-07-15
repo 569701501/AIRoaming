@@ -117,7 +117,10 @@ export default defineConfig({
       name: "server",
       command: `node --import tsx tests/e2e/support/start-e2e-server.mjs server ${runIdentity}`,
       cwd: runtime.repoRoot,
-      env: environments.server,
+      env: {
+        ...environments.server,
+        AIROAMING_LAYOUT_RENDERER_EXECUTABLE_PATH: chromiumExecutablePath,
+      },
       url: `${runtime.serverUrl}/api/health`,
       reuseExistingServer: false,
       timeout: 60_000,

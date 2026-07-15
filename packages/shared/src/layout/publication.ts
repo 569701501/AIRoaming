@@ -6,8 +6,13 @@ import {
 } from "../versioning/canonical-json.js";
 import type {
   EncodedLayoutValue,
+  LayoutCanvasV1,
+  LayoutDigest,
+  LayoutDocumentV1,
   LayoutPublicationProfileV1,
 } from "./document.js";
+import { LayoutDocumentCodecV1 } from "./codec.js";
+import type { GenerationTaskItem } from "../dto.js";
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label}: expected object`);
@@ -65,3 +70,360 @@ export const LayoutPublicationProfileCodecV1 = {
     return encode(parseLayoutPublicationProfileV1(input));
   },
 };
+
+export interface RenderImageAssetV1 {
+  assetId: string;
+  role: "candidate_image";
+  mimeType: string;
+  sha256: LayoutDigest;
+  bytes: number;
+  width: number;
+  height: number;
+}
+
+export interface RenderFontAssetV1 {
+  assetId: string;
+  role: "font";
+  mimeType: string;
+  sha256: LayoutDigest;
+  bytes: number;
+  metadataDigest: LayoutDigest;
+}
+
+export interface RenderAssetManifestV1 {
+  schemaVersion: 1;
+  images: RenderImageAssetV1[];
+  fonts: RenderFontAssetV1[];
+}
+
+export interface RenderCanvasPlanV1 {
+  canvasId: string;
+  order: number;
+  width: number;
+  height: number;
+  canvas: LayoutCanvasV1;
+}
+
+export interface RenderPlanDiagnosticV1 {
+  code: string;
+  canvasId: string | null;
+  elementId: string | null;
+}
+
+export interface RenderPlanV1 {
+  schemaVersion: 1;
+  documentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest;
+  profileDigest: LayoutDigest;
+  rendererPolicyVersion: "layout_render_policy_v1";
+  canvases: RenderCanvasPlanV1[];
+  assets: RenderAssetManifestV1;
+  diagnostics: RenderPlanDiagnosticV1[];
+  renderPlanDigest: LayoutDigest;
+}
+
+export interface LayoutRendererIdentityV1 {
+  rendererId: "airoaming_layout_renderer";
+  rendererVersion: string;
+  rendererPolicyVersion: "layout_render_policy_v1";
+  geometryPolicyVersion: "layout_geometry_v1";
+  textPolicyVersion: "layout_text_v1";
+  balloonPolicyVersion: "balloon_shape_v1";
+  rasterEngine: "chromium" | "resvg" | "other_approved";
+  rasterEngineVersion: string;
+  buildDigest: LayoutDigest;
+}
+
+export interface LayoutRendererCapabilitiesV1 {
+  maxCanvasWidthPx: number;
+  maxCanvasHeightPx: number;
+  maxRasterPixels: number;
+  maxPdfPages: number;
+  maxLongPngHeightPx: number;
+  supportsPagedPdf: boolean;
+  supportsLongPng: boolean;
+  supportedImageMimeTypes: string[];
+  supportedFontMimeTypes: string[];
+}
+
+export interface VerticalSlicePlanV1 {
+  order: number;
+  startY: number;
+  endY: number;
+  height: number;
+  crossesContent: boolean;
+}
+
+export interface CreateLayoutPublicationRequestV1 {
+  schemaVersion: 1;
+  requestId: string;
+  layoutRevisionId: string;
+  expectedCurrentLayoutRevisionId: string;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  preflightDigest: LayoutDigest;
+  acknowledgedIssueKeys: string[];
+}
+
+export interface LayoutPublicationArtifactV1 {
+  assetId: string;
+  role: PublicationOutputRoleV1 | "publication_manifest";
+  order: number;
+  storageKey: string;
+  mimeType: string;
+  sha256: LayoutDigest | null;
+  bytes: number | null;
+  width: number | null;
+  height: number | null;
+  pageCount: number | null;
+  status: string;
+}
+
+export interface LayoutPublicationSummaryV1 {
+  schemaVersion: 1;
+  id: string;
+  projectId: string;
+  chapterId: string;
+  revision: number;
+  status: "queued" | "rendering" | "ready" | "failed" | "cancelled";
+  taskId: string;
+  layoutRevisionId: string;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  preflightDigest: LayoutDigest;
+  rendererVersion: string;
+  manifest: PublicationManifestV1 | null;
+  manifestDigest: LayoutDigest | null;
+  completionApplicability: "current" | "historical" | null;
+  revisionPosition: "current" | "historical";
+  artifacts: LayoutPublicationArtifactV1[];
+  createdAt: string;
+  readyAt: string | null;
+  failedAt: string | null;
+  cancelledAt: string | null;
+}
+
+export interface CreateLayoutPublicationResponseV1 {
+  schemaVersion: 1;
+  result: "created" | "replayed";
+  exportRevision: LayoutPublicationSummaryV1;
+  task: GenerationTaskItem;
+}
+
+export interface LayoutPublicationHistoryResponseV1 {
+  schemaVersion: 1;
+  currentExportRevisionId: string | null;
+  items: LayoutPublicationSummaryV1[];
+}
+
+export interface PublicationInputAssetV1 {
+  assetId: string;
+  role: "candidate_image" | "font";
+  sha256: LayoutDigest;
+  mimeType: string;
+}
+
+export type PublicationOutputRoleV1 = "page_png" | "strip_slice_png" | "document_pdf" | "long_png";
+
+export interface PublicationOutputArtifactV1 {
+  assetId: string;
+  role: PublicationOutputRoleV1;
+  order: number;
+  storageKey: string;
+  mimeType: string;
+  sha256: LayoutDigest;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  pageCount: number | null;
+}
+
+export interface PublicationManifestV1 {
+  schemaVersion: 1;
+  kind: "layout_publication_manifest_v1";
+  projectId: string;
+  chapterId: string;
+  exportRevisionId: string;
+  exportRevision: number;
+  layoutRevisionId: string;
+  layoutRevision: number;
+  documentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  renderer: LayoutRendererIdentityV1;
+  inputs: { images: PublicationInputAssetV1[]; fonts: PublicationInputAssetV1[] };
+  outputs: PublicationOutputArtifactV1[];
+}
+
+function nonEmpty(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.trim() === "") throw new Error(`${label}: expected non-empty string`);
+  return value.trim();
+}
+
+function digest(value: unknown, label: string): LayoutDigest {
+  const normalized = nonEmpty(value, label);
+  if (!/^sha256:[0-9a-f]{64}$/.test(normalized)) throw new Error(`${label}: expected sha256 digest`);
+  return normalized as LayoutDigest;
+}
+
+function positiveInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw new Error(`${label}: expected positive integer`);
+  return value;
+}
+
+function normalizeRenderAssets(input: unknown): RenderAssetManifestV1 {
+  const value = record(input, "assets");
+  if (!Array.isArray(value.images) || !Array.isArray(value.fonts)) throw new Error("assets: images and fonts must be arrays");
+  const images = value.images.map((raw, index) => {
+    const item = record(raw, `assets.images[${index}]`);
+    return {
+      assetId: nonEmpty(item.assetId ?? item.id, `assets.images[${index}].assetId`),
+      role: "candidate_image" as const,
+      mimeType: nonEmpty(item.mimeType, `assets.images[${index}].mimeType`),
+      sha256: digest(item.sha256, `assets.images[${index}].sha256`),
+      bytes: positiveInteger(item.bytes, `assets.images[${index}].bytes`),
+      width: positiveInteger(item.width, `assets.images[${index}].width`),
+      height: positiveInteger(item.height, `assets.images[${index}].height`),
+    };
+  }).sort((left, right) => left.assetId.localeCompare(right.assetId));
+  const fonts = value.fonts.flatMap((raw, index) => {
+    const item = record(raw, `assets.fonts[${index}]`);
+    if (item.status === "red") return [];
+    const metadataDigest = item.metadataDigest === undefined
+      ? digestCanonical(record(item.metadata, `assets.fonts[${index}].metadata`))
+      : digest(item.metadataDigest, `assets.fonts[${index}].metadataDigest`);
+    return [{
+      assetId: nonEmpty(item.assetId, `assets.fonts[${index}].assetId`),
+      role: "font" as const,
+      mimeType: nonEmpty(item.mimeType, `assets.fonts[${index}].mimeType`),
+      sha256: digest(item.sha256, `assets.fonts[${index}].sha256`),
+      bytes: positiveInteger(item.bytes, `assets.fonts[${index}].bytes`),
+      metadataDigest,
+    }];
+  }).sort((left, right) => left.assetId.localeCompare(right.assetId));
+  return { schemaVersion: 1, images, fonts };
+}
+
+function digestCanonical(value: unknown): LayoutDigest {
+  return sha256Bytes(canonicalJsonBytes(value));
+}
+
+export function buildLayoutRenderPlanV1(input: {
+  document: unknown;
+  sourceLockSetDigest: unknown;
+  profile: unknown;
+  assets: unknown;
+  diagnostics?: readonly RenderPlanDiagnosticV1[];
+}): RenderPlanV1 {
+  const document = LayoutDocumentCodecV1.parseAndNormalize(input.document);
+  const profile = LayoutPublicationProfileCodecV1.encode(input.profile);
+  if ((document.comicFormat === "paged_comic") !== (profile.value.kind === "paged_publication")) {
+    throw new Error("render plan: profile format mismatch");
+  }
+  const assets = normalizeRenderAssets(input.assets);
+  const diagnostics = [...(input.diagnostics ?? [])].map((item) => ({
+    code: nonEmpty(item.code, "diagnostics.code"),
+    canvasId: item.canvasId ?? null,
+    elementId: item.elementId ?? null,
+  })).sort((left, right) => left.code.localeCompare(right.code)
+    || (left.canvasId ?? "").localeCompare(right.canvasId ?? "")
+    || (left.elementId ?? "").localeCompare(right.elementId ?? ""));
+  const unsigned = {
+    schemaVersion: 1 as const,
+    documentDigest: LayoutDocumentCodecV1.encode(document).digest,
+    sourceLockSetDigest: digest(input.sourceLockSetDigest, "sourceLockSetDigest"),
+    profileDigest: profile.digest,
+    rendererPolicyVersion: "layout_render_policy_v1" as const,
+    canvases: document.canvases.map((canvas, index) => ({
+      canvasId: canvas.id,
+      order: index + 1,
+      width: canvas.width,
+      height: canvas.height,
+      canvas,
+    })),
+    assets,
+    diagnostics,
+  };
+  return { ...unsigned, renderPlanDigest: digestCanonical(unsigned) };
+}
+
+export function buildVerticalSlicePlanV1(
+  canvases: readonly Pick<LayoutCanvasV1, "height">[],
+  maxSliceHeightPx: number,
+  outputScale: 1 | 2,
+): VerticalSlicePlanV1[] {
+  if (!Number.isInteger(maxSliceHeightPx) || maxSliceHeightPx < 1) throw new Error("maxSliceHeightPx: expected positive integer");
+  const boundaries = [0];
+  for (const canvas of canvases) boundaries.push(boundaries.at(-1)! + Math.round(canvas.height * outputScale));
+  const total = boundaries.at(-1)!;
+  const slices: VerticalSlicePlanV1[] = [];
+  let startY = 0;
+  while (startY < total) {
+    const alignedMaximumHeight = Math.max(outputScale, Math.floor(maxSliceHeightPx / outputScale) * outputScale);
+    const maximumEnd = Math.min(total, startY + alignedMaximumHeight);
+    const boundaryEnd = [...boundaries].reverse().find((value) => value > startY && value <= maximumEnd);
+    const endY = boundaryEnd ?? maximumEnd;
+    slices.push({
+      order: slices.length + 1,
+      startY,
+      endY,
+      height: endY - startY,
+      crossesContent: !boundaries.includes(endY),
+    });
+    startY = endY;
+  }
+  return slices;
+}
+
+export function parseCreateLayoutPublicationRequestV1(input: unknown): CreateLayoutPublicationRequestV1 {
+  const value = typeof input === "string" ? parseStrictJson(input) : input;
+  const row = exact(value, [
+    "schemaVersion", "requestId", "layoutRevisionId", "expectedCurrentLayoutRevisionId",
+    "profile", "profileDigest", "preflightDigest", "acknowledgedIssueKeys",
+  ], "layoutPublicationRequest");
+  if (row.schemaVersion !== 1) throw new Error("layoutPublicationRequest.schemaVersion: expected 1");
+  if (!Array.isArray(row.acknowledgedIssueKeys)) throw new Error("layoutPublicationRequest.acknowledgedIssueKeys: expected array");
+  const acknowledgedIssueKeys = row.acknowledgedIssueKeys.map((item, index) => nonEmpty(item, `acknowledgedIssueKeys[${index}]`)).sort();
+  if (new Set(acknowledgedIssueKeys).size !== acknowledgedIssueKeys.length) throw new Error("layoutPublicationRequest.acknowledgedIssueKeys: duplicate issue key");
+  return {
+    schemaVersion: 1,
+    requestId: nonEmpty(row.requestId, "layoutPublicationRequest.requestId"),
+    layoutRevisionId: nonEmpty(row.layoutRevisionId, "layoutPublicationRequest.layoutRevisionId"),
+    expectedCurrentLayoutRevisionId: nonEmpty(row.expectedCurrentLayoutRevisionId, "layoutPublicationRequest.expectedCurrentLayoutRevisionId"),
+    profile: LayoutPublicationProfileCodecV1.parse(row.profile),
+    profileDigest: digest(row.profileDigest, "layoutPublicationRequest.profileDigest"),
+    preflightDigest: digest(row.preflightDigest, "layoutPublicationRequest.preflightDigest"),
+    acknowledgedIssueKeys,
+  };
+}
+
+export function buildPublicationManifestV1(
+  input: Omit<PublicationManifestV1, "schemaVersion" | "kind" | "profileDigest">,
+): EncodedLayoutValue<PublicationManifestV1> {
+  const profile = LayoutPublicationProfileCodecV1.encode(input.profile);
+  const outputs = [...input.outputs].sort((left, right) => left.role.localeCompare(right.role) || left.order - right.order);
+  const value: PublicationManifestV1 = {
+    schemaVersion: 1,
+    kind: "layout_publication_manifest_v1",
+    projectId: nonEmpty(input.projectId, "manifest.projectId"),
+    chapterId: nonEmpty(input.chapterId, "manifest.chapterId"),
+    exportRevisionId: nonEmpty(input.exportRevisionId, "manifest.exportRevisionId"),
+    exportRevision: positiveInteger(input.exportRevision, "manifest.exportRevision"),
+    layoutRevisionId: nonEmpty(input.layoutRevisionId, "manifest.layoutRevisionId"),
+    layoutRevision: positiveInteger(input.layoutRevision, "manifest.layoutRevision"),
+    documentDigest: digest(input.documentDigest, "manifest.documentDigest"),
+    sourceLockSetDigest: digest(input.sourceLockSetDigest, "manifest.sourceLockSetDigest"),
+    profile: profile.value,
+    profileDigest: profile.digest,
+    renderer: input.renderer,
+    inputs: {
+      images: [...input.inputs.images].sort((left, right) => left.assetId.localeCompare(right.assetId)),
+      fonts: [...input.inputs.fonts].sort((left, right) => left.assetId.localeCompare(right.assetId)),
+    },
+    outputs,
+  };
+  const canonical = canonicalizeJson(value);
+  const canonicalBytes = canonicalJsonBytes(value);
+  return { schemaVersion: 1, value, canonical, canonicalBytes, digest: sha256Bytes(canonicalBytes) };
+}

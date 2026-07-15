@@ -174,57 +174,64 @@ export class LayoutVersioningService {
   }
 
   async preflight(scope: VersionScopeV1, input: unknown): Promise<LayoutPreflightReportV1> {
-    return this.execute(async () => {
-      const request = parseRunLayoutPreflightRequestV1(input);
-      return this.prismaService.runReadTransaction(async (tx) => {
-        const current = await this.loadCurrentSources(scope, tx, false);
-        const fontCatalog = await this.layoutFonts.listForReader(scope, tx, false);
-        let document: LayoutDocumentV1;
-        let target: LayoutPreflightReportV1["target"];
-        let workingCopyDocumentDigest: LayoutDigest | null = null;
-        if (request.target.kind === "working_copy") {
-          const workingCopy = await this.loadWorkingCopy(scope, tx);
-          this.assertWorkingCopyExpectation(
-            workingCopy,
-            request.target.expectedRowVersion,
-            request.target.expectedDocumentDigest,
-          );
-          document = this.parseWorkingCopyDocument(scope, workingCopy);
-          target = {
-            kind: "working_copy",
-            id: workingCopy.id,
-            documentDigest: asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
-            rowVersion: workingCopy.rowVersion,
-          };
-        } else {
-          const revision = await this.loadRevision(scope, request.target.layoutRevisionId, tx);
-          document = this.parseRevisionDocument(scope, revision);
-          target = {
-            kind: "layout_revision",
-            id: revision.id,
-            documentDigest: asDigest(revision.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
-            rowVersion: null,
-          };
-          const workingCopy = await tx.layoutWorkingCopy.findFirst({
-            where: { projectId: scope.projectId, chapterId: scope.chapterId, documentKind: "layout_document_v1" },
-            select: { documentDigest: true },
-          });
-          workingCopyDocumentDigest = workingCopy
-            ? asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH")
-            : null;
-        }
-        const imageAssets = await this.loadImageAssets(document, current.items, tx);
-        return runLayoutPreflightV1({
-          document,
-          target,
-          currentSources: current.current ? current.items : [],
-          activeShotIds: current.activeShotIds,
-          imageAssets,
-          fontCatalog,
-          profile: request.profile,
-          workingCopyDocumentDigest,
-        });
+    return this.execute(() => this.prismaService.runReadTransaction(
+      (tx) => this.preflightForReader(scope, input, tx),
+    ));
+  }
+
+  /** Re-runs preflight inside the caller's publication-creation transaction. */
+  async preflightForReader(
+    scope: VersionScopeV1,
+    input: unknown,
+    reader: Reader,
+  ): Promise<LayoutPreflightReportV1> {
+    const request = parseRunLayoutPreflightRequestV1(input);
+    const current = await this.loadCurrentSources(scope, reader, false);
+    const fontCatalog = await this.layoutFonts.listForReader(scope, reader, false);
+    let document: LayoutDocumentV1;
+    let target: LayoutPreflightReportV1["target"];
+    let workingCopyDocumentDigest: LayoutDigest | null = null;
+    if (request.target.kind === "working_copy") {
+      const workingCopy = await this.loadWorkingCopy(scope, reader);
+      this.assertWorkingCopyExpectation(
+        workingCopy,
+        request.target.expectedRowVersion,
+        request.target.expectedDocumentDigest,
+      );
+      document = this.parseWorkingCopyDocument(scope, workingCopy);
+      target = {
+        kind: "working_copy",
+        id: workingCopy.id,
+        documentDigest: asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
+        rowVersion: workingCopy.rowVersion,
+      };
+    } else {
+      const revision = await this.loadRevision(scope, request.target.layoutRevisionId, reader);
+      document = this.parseRevisionDocument(scope, revision);
+      target = {
+        kind: "layout_revision",
+        id: revision.id,
+        documentDigest: asDigest(revision.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
+        rowVersion: null,
+      };
+      const workingCopy = await reader.layoutWorkingCopy.findFirst({
+        where: { projectId: scope.projectId, chapterId: scope.chapterId, documentKind: "layout_document_v1" },
+        select: { documentDigest: true },
       });
+      workingCopyDocumentDigest = workingCopy
+        ? asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH")
+        : null;
+    }
+    const imageAssets = await this.loadImageAssets(document, current.items, reader);
+    return runLayoutPreflightV1({
+      document,
+      target,
+      currentSources: current.current ? current.items : [],
+      activeShotIds: current.activeShotIds,
+      imageAssets,
+      fontCatalog,
+      profile: request.profile,
+      workingCopyDocumentDigest,
     });
   }
 

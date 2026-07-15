@@ -10,11 +10,13 @@ import {
 import type { G1RuntimeMigrationLedgerRowV1 } from "./g1-runtime-migration-ledger.js";
 import { G5_LAYOUT_OVERLAY_MIGRATION_NAME } from "./g5-layout-overlay-contract.js";
 import { G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME } from "./g5-layout-binding-digest-contract.js";
+import { G5_LAYOUT_PUBLICATION_MIGRATION_NAME } from "./g5-layout-publication-contract.js";
 
 export const G5_RUNTIME_MIGRATION_NAMES = [
   ...G4_RUNTIME_MIGRATION_NAMES,
   G5_LAYOUT_OVERLAY_MIGRATION_NAME,
   G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME,
+  G5_LAYOUT_PUBLICATION_MIGRATION_NAME,
 ] as const;
 
 export interface G5RuntimeMigrationExpectationV1 {
@@ -65,6 +67,10 @@ export async function loadG5RuntimeMigrationExpectationsV1(
     {
       migrationName: G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME,
       checksum: await readOverlayChecksum(root, G5_LAYOUT_BINDING_DIGEST_MIGRATION_NAME),
+    },
+    {
+      migrationName: G5_LAYOUT_PUBLICATION_MIGRATION_NAME,
+      checksum: await readOverlayChecksum(root, G5_LAYOUT_PUBLICATION_MIGRATION_NAME),
     },
   ];
 }

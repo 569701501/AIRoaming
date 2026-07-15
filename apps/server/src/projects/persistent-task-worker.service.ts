@@ -30,6 +30,7 @@ import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { readImageDimensions } from "./image-dimensions.util.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
+import { LayoutPublicationWorkerService } from "./layout-publication-worker.service.js";
 
 export interface VersionDocumentTaskOutputV2<TDocument = unknown> {
   readonly schemaVersion: 2;
@@ -109,7 +110,7 @@ interface SceneReferenceTaskOutput {
 
 type NormalizedTaskOutput = VersionDocumentTaskOutputV2 | ShotPromptTaskOutput | ImageTaskOutput | CharacterReferenceTaskOutput | SceneReferenceTaskOutput;
 
-const HANDLED_TASK_TYPES = ["character_reference_generate", "scene_reference_generate", "story_parse", "shot_generate", "shot_prompt_generate", "image_generate"] as const;
+const HANDLED_TASK_TYPES = ["character_reference_generate", "scene_reference_generate", "story_parse", "shot_generate", "shot_prompt_generate", "image_generate", "layout_export"] as const;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const RETRY_DELAY_MS = 5_000;
 
@@ -187,6 +188,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     @Inject(OpenCodeRuntimeService) private readonly openCode: OpenCodeRuntimeService,
     @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
     @Inject(WorkspacePathService) private readonly workspacePath: WorkspacePathService,
+    @Inject(LayoutPublicationWorkerService) private readonly layoutPublicationWorker: LayoutPublicationWorkerService,
     @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
   ) {
     this.handlers.set("character_reference_generate", (context) => this.runCharacterReferenceProvider(context));
@@ -233,6 +235,16 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     try {
       const claim = await this.tasks.claimNext(workerId, now, HANDLED_TASK_TYPES);
       if (!claim) return null;
+      if (claim.item.type === "layout_export" && claim.item.target?.type === "export") {
+        const heartbeat = setInterval(() => {
+          void this.tasks.heartbeat(claim.item.id, claim.claimToken, new Date()).catch(() => undefined);
+        }, HEARTBEAT_INTERVAL_MS);
+        try {
+          return await this.layoutPublicationWorker.run(claim);
+        } finally {
+          clearInterval(heartbeat);
+        }
+      }
       const handler = this.handlers.get(claim.item.type);
       if (!handler) return this.failClaim(claim, new Error(`TASK_HANDLER_NOT_REGISTERED:${claim.item.type}`), false);
       const heartbeat = setInterval(() => {

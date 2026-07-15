@@ -21,6 +21,7 @@ export const POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES = [
   "0012_g4_candidate_lock_linear_history",
   "0013_g5_layout_working_copy_overlay",
   "0014_g5_layout_binding_source_digest",
+  "0015_g5_layout_publication_overlay",
 ] as const;
 
 export interface G1RuntimeMigrationExpectationV1 {

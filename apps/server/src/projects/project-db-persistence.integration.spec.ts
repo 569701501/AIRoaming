@@ -47,8 +47,9 @@ import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
+import { LayoutPublicationService } from "./layout-publication.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
-import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
+import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, LayoutPublicationProfileCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
 
@@ -325,7 +326,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("14 migrations found");
+    expect(deployed.stdout).toContain("15 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -2184,7 +2185,158 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(restored).toMatchObject({ result: "restored", restoredFromRevisionId: createdRevision.revision.id, workingCopy: { documentDigest: createdRevision.revision.documentDigest } });
     expect((await versioning.restoreRevision(scope, createdRevision.revision.id, restoreRequest)).result).toBe("replayed");
     expect((await versioningPrisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentLayoutRevisionId).toBe(createdRevision.revision.id);
-  }, 30_000);
+
+    const publicationWorkingCopy = restored.workingCopy;
+    const publicationDocument = structuredClone(publicationWorkingCopy.document);
+    const publicationPanel = publicationDocument.canvases[0]?.elements[0];
+    if (publicationPanel?.type !== "panel_frame" || !publicationPanel.contentImage) throw new Error("G5_M7_PANEL_IMAGE_MISSING");
+    publicationPanel.transform = { ...publicationPanel.transform, x: 64, y: 64, width: 1, height: 1 };
+    publicationPanel.shape.cornerRadius = 0;
+    publicationPanel.contentImage.crop = { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false };
+    const publicationDocumentEncoded = LayoutDocumentCodecV1.encode(publicationDocument);
+    const publicationWorkingCopySaved = await app.get(LayoutWorkingCopyService).save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: publicationWorkingCopy.rowVersion,
+      baseDocumentDigest: publicationWorkingCopy.documentDigest,
+      documentDigest: publicationDocumentEncoded.digest,
+      document: publicationDocumentEncoded.value,
+    });
+    const publicationRevisionPreflight = await versioning.preflight(scope, {
+      schemaVersion: 1,
+      target: {
+        kind: "working_copy",
+        expectedRowVersion: publicationWorkingCopySaved.value.rowVersion,
+        expectedDocumentDigest: publicationWorkingCopySaved.value.documentDigest,
+      },
+      profile: null,
+    });
+    expect(publicationRevisionPreflight.issues.filter((issue) => issue.blockingScopes.includes("revision"))).toEqual([]);
+    const publicationRevision = await versioning.createRevision(scope, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: publicationWorkingCopySaved.value.rowVersion,
+      expectedDocumentDigest: publicationWorkingCopySaved.value.documentDigest,
+      expectedCurrentRevisionId: createdRevision.revision.id,
+      saveReason: "user_checkpoint",
+      acknowledgedIssueKeys: publicationRevisionPreflight.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    });
+    const publicationProfile = {
+      schemaVersion: 1 as const,
+      kind: "vertical_publication" as const,
+      outputScale: 1 as const,
+      maxSliceHeightPx: 2048,
+      cutPolicy: "prefer_section_boundary_then_exact" as const,
+      includeLongPng: true,
+    };
+    const publicationProfileDigest = LayoutPublicationProfileCodecV1.encode(publicationProfile).digest;
+    const publicationPreflight = await versioning.preflight(scope, {
+      schemaVersion: 1,
+      target: { kind: "layout_revision", layoutRevisionId: publicationRevision.revision.id },
+      profile: publicationProfile,
+    });
+    expect(publicationPreflight.issues.filter((issue) => issue.blockingScopes.includes("export"))).toEqual([]);
+    const publications = app.get(LayoutPublicationService);
+    const publicationRequest = {
+      schemaVersion: 1 as const,
+      requestId: randomUUID(),
+      layoutRevisionId: publicationRevision.revision.id,
+      expectedCurrentLayoutRevisionId: publicationRevision.revision.id,
+      profile: publicationProfile,
+      profileDigest: publicationProfileDigest,
+      preflightDigest: publicationPreflight.preflightDigest,
+      acknowledgedIssueKeys: publicationPreflight.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    };
+    const queuedPublication = await publications.create(scope, publicationRequest);
+    expect(queuedPublication).toMatchObject({
+      result: "created",
+      exportRevision: { status: "queued", revisionPosition: "historical", artifacts: [] },
+      task: { type: "layout_export", status: "queued", maxAttempts: 2 },
+    });
+    expect((await publications.create(scope, publicationRequest)).result).toBe("replayed");
+    expect(await versioningPrisma.generationTaskSource.count({ where: { taskId: queuedPublication.task.id } })).toBeGreaterThanOrEqual(4);
+    expect(await versioningPrisma.generationTask.findUniqueOrThrow({ where: { id: queuedPublication.task.id } })).toMatchObject({
+      concurrencyKey: "layout-render",
+      sourceSetSealedAt: expect.any(Date),
+    });
+
+    const publicationOutbox = app.get(ProjectDeleteOutboxService);
+    const processAssetPromotion = publicationOutbox.processAssetPromotion.bind(publicationOutbox);
+    publicationOutbox.processAssetPromotion = async () => null;
+    const interruptedPublication = await app.get(PersistentTaskWorkerService).runOnce("g5-m7-interrupted-worker");
+    publicationOutbox.processAssetPromotion = processAssetPromotion;
+    expect(interruptedPublication?.error?.message).toBe("LAYOUT_RENDER_PROMOTION_FAILED");
+    expect(interruptedPublication).toMatchObject({ id: queuedPublication.task.id, status: "retrying", attempt: 1 });
+    const stagedArtifactCount = await versioningPrisma.exportArtifact.count({ where: { exportRevisionId: queuedPublication.exportRevision.id } });
+    expect(stagedArtifactCount).toBeGreaterThanOrEqual(3);
+    expect((await publications.get(scope, queuedPublication.exportRevision.id)).status).toBe("rendering");
+
+    const completedPublicationTask = await app.get(PersistentTaskWorkerService).runOnce("g5-m7-recovery-worker", new Date(Date.now() + 10_000));
+    expect(completedPublicationTask).toMatchObject({ id: queuedPublication.task.id, status: "succeeded", attempt: 2 });
+    expect((await versioningPrisma.generationTask.findUniqueOrThrow({ where: { id: queuedPublication.task.id } })).applicability).toBe("current");
+    expect(await versioningPrisma.exportArtifact.count({ where: { exportRevisionId: queuedPublication.exportRevision.id } })).toBe(stagedArtifactCount);
+    const readyPublication = await publications.get(scope, queuedPublication.exportRevision.id);
+    expect(readyPublication).toMatchObject({
+      status: "ready",
+      completionApplicability: "current",
+      revisionPosition: "current",
+      manifestDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      artifacts: expect.arrayContaining([
+        expect.objectContaining({ role: "strip_slice_png", status: "ready", width: 1080, height: 1920 }),
+        expect.objectContaining({ role: "long_png", status: "ready", width: 1080, height: 1920 }),
+        expect.objectContaining({ role: "publication_manifest", status: "ready", mimeType: "application/json" }),
+      ]),
+    });
+    expect(readyPublication.manifest?.outputs.some((output) => String(output.role) === "publication_manifest")).toBe(false);
+    for (const artifact of readyPublication.artifacts) {
+      const bytes = await readFile(path.join(workspaceRoot, artifact.storageKey));
+      expect(`sha256:${createHash("sha256").update(bytes).digest("hex")}`).toBe(artifact.sha256);
+      if (artifact.mimeType === "image/png") expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    }
+    const readableArtifact = readyPublication.artifacts.find((artifact) => artifact.role === "strip_slice_png")!;
+    expect(await publications.readArtifact(scope, readyPublication.id, readableArtifact.assetId)).toMatchObject({
+      mimeType: "image/png",
+      sha256: readableArtifact.sha256,
+      buffer: expect.any(Buffer),
+    });
+    await expect(publications.readArtifact(scope, readyPublication.id, "asset_out_of_scope")).rejects.toMatchObject({ status: 404 });
+    expect((await versioningPrisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentExportRevisionId).toBe(queuedPublication.exportRevision.id);
+
+    const cancelRequest = { ...publicationRequest, requestId: randomUUID() };
+    const cancellablePublication = await publications.create(scope, cancelRequest);
+    const cancelledPublication = await publications.cancel(scope, cancellablePublication.exportRevision.id);
+    expect(cancelledPublication).toMatchObject({ exportRevision: { status: "cancelled" }, task: { status: "cancelled" } });
+
+    const lateRequest = { ...publicationRequest, requestId: randomUUID() };
+    const latePublication = await publications.create(scope, lateRequest);
+    const currentWorkingCopy = await app.get(LayoutWorkingCopyService).get(scope);
+    const nextDocument = structuredClone(currentWorkingCopy.document);
+    nextDocument.canvases[0]!.name = "M7 newer revision";
+    const nextDocumentEncoded = LayoutDocumentCodecV1.encode(nextDocument);
+    const nextWorkingCopy = await app.get(LayoutWorkingCopyService).save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: currentWorkingCopy.rowVersion,
+      baseDocumentDigest: currentWorkingCopy.documentDigest,
+      documentDigest: nextDocumentEncoded.digest,
+      document: nextDocumentEncoded.value,
+    });
+    const nextRevisionPreflight = await versioning.preflight(scope, {
+      schemaVersion: 1,
+      target: { kind: "working_copy", expectedRowVersion: nextWorkingCopy.value.rowVersion, expectedDocumentDigest: nextWorkingCopy.value.documentDigest },
+      profile: null,
+    });
+    const nextRevision = await versioning.createRevision(scope, {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: nextWorkingCopy.value.rowVersion,
+      expectedDocumentDigest: nextWorkingCopy.value.documentDigest,
+      expectedCurrentRevisionId: publicationRevision.revision.id,
+      saveReason: "user_checkpoint",
+      acknowledgedIssueKeys: nextRevisionPreflight.issues.filter((issue) => issue.requiresAcknowledgement).map((issue) => issue.issueKey),
+    });
+    expect(nextRevision.revision.id).not.toBe(publicationRevision.revision.id);
+    expect(await app.get(PersistentTaskWorkerService).runOnce("g5-m7-late-worker")).toMatchObject({ id: latePublication.task.id, status: "succeeded" });
+    expect((await versioningPrisma.generationTask.findUniqueOrThrow({ where: { id: latePublication.task.id } })).applicability).toBe("historical");
+    expect(await publications.get(scope, latePublication.exportRevision.id)).toMatchObject({ status: "ready", completionApplicability: "historical", revisionPosition: "historical" });
+    expect((await versioningPrisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).currentExportRevisionId).toBe(queuedPublication.exportRevision.id);
+  }, 60_000);
 
   it("P7-DIALOGUE-DB-01: persists dialogue thread/messages/session and settles running messages after restart", async () => {
     const { deployed } = await prepareDatabase();

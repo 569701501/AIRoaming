@@ -19,6 +19,7 @@ import { StoryStructureService } from "./story-structure.service.js";
 import { ImagePreflightService } from "./image-preflight.service.js";
 import { ImageCandidateService } from "./image-candidate.service.js";
 import { LayoutExportService } from "./layout-export.service.js";
+import { LayoutPublicationService } from "./layout-publication.service.js";
 import { AssetPackageService } from "./asset-package.service.js";
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { parseCreateProjectRequestV1, parseUpdateProjectDraftRequestV1 } from "./project-input.contract.js";
@@ -62,6 +63,9 @@ import {
   type BuildChapterLayoutResponse,
   type ExportChapterLayoutResponse,
   type ExportAssetPackageResponse,
+  type CreateLayoutPublicationResponseV1,
+  type LayoutPublicationHistoryResponseV1,
+  type LayoutPublicationSummaryV1,
   type LockChapterCandidateRequest,
   type LockChapterCandidateResponse,
   type ExtractProjectCharactersRequest,
@@ -248,6 +252,7 @@ export class ProjectsService implements OnModuleInit {
     @Optional() @Inject(ProjectDeleteOutboxService) private readonly projectDeleteOutbox?: ProjectDeleteOutboxService,
     @Optional() @Inject(ChapterProductionQueryService) private readonly chapterProductionQuery?: ChapterProductionQueryService,
     @Optional() @Inject(CandidateDecisionService) private readonly candidateDecision?: CandidateDecisionService,
+    @Optional() @Inject(LayoutPublicationService) private readonly layoutPublication?: LayoutPublicationService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -839,6 +844,31 @@ export class ProjectsService implements OnModuleInit {
 
   async exportChapterLayout(projectId: string, chapterId: string): Promise<ExportChapterLayoutResponse> {
     return this.layoutExport.exportChapterLayout(projectId, chapterId);
+  }
+
+  async createLayoutPublication(projectId: string, chapterId: string, input: unknown): Promise<CreateLayoutPublicationResponseV1> {
+    if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
+    return this.layoutPublication.create({ projectId, chapterId }, input);
+  }
+
+  async listLayoutPublications(projectId: string, chapterId: string): Promise<LayoutPublicationHistoryResponseV1> {
+    if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
+    return this.layoutPublication.list({ projectId, chapterId });
+  }
+
+  async getLayoutPublication(projectId: string, chapterId: string, exportRevisionId: string): Promise<LayoutPublicationSummaryV1> {
+    if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
+    return this.layoutPublication.get({ projectId, chapterId }, exportRevisionId);
+  }
+
+  async cancelLayoutPublication(projectId: string, chapterId: string, exportRevisionId: string) {
+    if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
+    return this.layoutPublication.cancel({ projectId, chapterId }, exportRevisionId);
+  }
+
+  async readLayoutPublicationArtifact(projectId: string, chapterId: string, exportRevisionId: string, assetId: string) {
+    if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
+    return this.layoutPublication.readArtifact({ projectId, chapterId }, exportRevisionId, assetId);
   }
 
   async exportAssetPackage(projectId: string, chapterId?: string): Promise<ExportAssetPackageResponse> {

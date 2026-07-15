@@ -28,7 +28,7 @@ const TASK_DEFAULTS: Record<string, { maxAttempts: number; concurrencyKey: strin
   shot_generate: { maxAttempts: 3, concurrencyKey: "llm-provider", slotCount: 1 },
   shot_prompt_generate: { maxAttempts: 2, concurrencyKey: "local-cpu", slotCount: 2 },
   image_generate: { maxAttempts: 3, concurrencyKey: "image-provider", slotCount: 1 },
-  layout_export: { maxAttempts: 1, concurrencyKey: "local-cpu", slotCount: 2 },
+  layout_export: { maxAttempts: 2, concurrencyKey: "layout-render", slotCount: 1 },
   tts_generate: { maxAttempts: 1, concurrencyKey: "tts-provider", slotCount: 1 },
   video_export: { maxAttempts: 1, concurrencyKey: "local-cpu", slotCount: 2 },
   asset_package_export: { maxAttempts: 1, concurrencyKey: "local-cpu", slotCount: 2 },
@@ -388,6 +388,21 @@ export class PersistentTaskRepository {
             },
           });
           if (result.count !== 1) return null;
+          if (current.type === "layout_export" && current.targetType === "export") {
+            if (current.status === "queued") {
+              const exportClaim = await tx.exportRevision.updateMany({
+                where: { taskId: current.id, id: current.targetId!, status: "queued", kind: "layout_publication" },
+                data: { status: "rendering" },
+              });
+              if (exportClaim.count !== 1) throw new Error("LAYOUT_EXPORT_TASK_MAPPING_INVALID");
+            } else {
+              const mapped = await tx.exportRevision.findFirst({
+                where: { taskId: current.id, id: current.targetId!, status: "rendering", kind: "layout_publication" },
+                select: { id: true },
+              });
+              if (!mapped) throw new Error("LAYOUT_EXPORT_TASK_MAPPING_INVALID");
+            }
+          }
           return tx.generationTask.findUnique({ where: { id: current.id } });
         });
         if (claimed) {
@@ -491,6 +506,13 @@ export class PersistentTaskRepository {
         where: { id: taskId },
         data: { status: "cancelled", phase: "cancelled", cancelRequestedAt: now, finishedAt: now, nextRunAt: null },
       });
+      if (current.type === "layout_export" && current.targetType === "export") {
+        const exportCancel = await tx.exportRevision.updateMany({
+          where: { taskId: current.id, id: current.targetId!, status: "queued", kind: "layout_publication" },
+          data: { status: "cancelled", cancelledAt: now },
+        });
+        if (exportCancel.count !== 1) throw new Error("LAYOUT_EXPORT_TASK_MAPPING_INVALID");
+      }
       return itemFromRow(updated);
     });
   }

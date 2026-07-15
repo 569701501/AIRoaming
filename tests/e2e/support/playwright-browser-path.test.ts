@@ -126,6 +126,10 @@ test("main runner and isolated worker converge without trusting an inherited ove
     if (webServers.some((server) => server?.env?.AIROAMING_E2E_CHROMIUM_EXECUTABLE_PATH !== undefined)) {
       throw new Error("E2E_CHROMIUM_POISON_REACHED_WEB_SERVER_ENVIRONMENT");
     }
+    const server = webServers.find((service) => service?.name === "server");
+    if (server?.env?.AIROAMING_LAYOUT_RENDERER_EXECUTABLE_PATH !== configured) {
+      throw new Error("E2E_LAYOUT_RENDERER_PATH_NOT_PINNED");
+    }
     process.stdout.write(JSON.stringify({
       resolvedBeforeIsolation,
       configured,
@@ -179,6 +183,10 @@ test("main runner and isolated worker converge without trusting an inherited ove
     const webServers = Array.isArray(config.webServer) ? config.webServer : [config.webServer];
     if (webServers.some((server) => server?.env?.AIROAMING_E2E_CHROMIUM_EXECUTABLE_PATH !== undefined)) {
       throw new Error("E2E_CHROMIUM_POISON_REACHED_WORKER_WEB_SERVER_ENVIRONMENT");
+    }
+    const server = webServers.find((service) => service?.name === "server");
+    if (server?.env?.AIROAMING_LAYOUT_RENDERER_EXECUTABLE_PATH !== configured) {
+      throw new Error("E2E_LAYOUT_RENDERER_WORKER_PATH_NOT_PINNED");
     }
   `;
   const workerResult = await execFileAsync(process.execPath, [

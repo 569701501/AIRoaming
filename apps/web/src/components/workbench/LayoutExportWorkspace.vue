@@ -35,7 +35,7 @@
           @click="batchInitializeFromSources"
         >生成排版</button>
         <button type="button" :disabled="session.isReadOnly.value || !session.server.value || m6Busy" @click="prepareRevision">保存版本</button>
-        <button type="button" disabled title="M7 接入正式出版">导出 PNG 序列</button>
+        <button type="button" :disabled="session.isReadOnly.value || session.isDirty.value || !currentLayoutRevisionId || publicationBusy" @click="preparePublication">正式出版</button>
       </div>
     </header>
 
@@ -152,6 +152,45 @@
             </div>
             <span v-if="revision.id === session.revisionHistory.value.currentLayoutRevisionId">当前正式</span>
             <button type="button" :disabled="m6Busy || session.isReadOnly.value" @click="restoreRevision(revision.id, revision.revision)">恢复到草稿</button>
+          </section>
+        </div>
+      </article>
+
+      <article class="m6-card publication-card" data-testid="layout-publication-center">
+        <header>
+          <div><strong>正式出版</strong><small>{{ isPaged ? '逐页 PNG + PDF' : '条漫切片 + 条件长图' }}；只读取当前不可变版本</small></div>
+          <span v-if="publicationPreflight" :class="`tone-${publicationPreflight.status}`">{{ publicationStatusLabel }}</span>
+        </header>
+        <button type="button" :disabled="publicationBusy || session.isReadOnly.value || !currentLayoutRevisionId" @click="preparePublication">运行导出预检</button>
+        <div v-if="publicationPreflight" class="preflight-result" data-testid="layout-publication-preflight">
+          <p v-if="!publicationPreflight.issues.length">导出门禁已通过，可以提交持久出版任务。</p>
+          <label v-for="issue in publicationPreflight.issues" :key="issue.issueKey" class="issue-row" :class="`severity-${issue.severity}`">
+            <input
+              v-if="issue.requiresAcknowledgement"
+              v-model="publicationAcknowledgedIssueKeys"
+              type="checkbox"
+              :value="issue.issueKey"
+              :disabled="publicationBusy || session.isReadOnly.value"
+            />
+            <span v-else class="issue-marker">{{ issue.severity === 'error' ? '×' : '·' }}</span>
+            <span><strong>{{ preflightIssueLabel(issue.code) }}</strong><small>{{ issue.elementId || issue.shotId || issue.canvasId || '文档级检查' }}</small></span>
+          </label>
+          <button class="primary-action" type="button" :disabled="!canPublish || publicationBusy || session.isReadOnly.value" @click="publishCurrentRevision">
+            {{ publicationMissingAcknowledgementCount ? `还需确认 ${publicationMissingAcknowledgementCount} 项警告` : publicationBusy ? '正在提交…' : '开始正式出版' }}
+          </button>
+        </div>
+        <p v-if="!publicationHistory?.items.length" class="muted-copy">尚无正式出版记录。</p>
+        <div v-else class="revision-list publication-list" data-testid="layout-publication-history">
+          <section v-for="publication in publicationHistory.items" :key="publication.id">
+            <div>
+              <strong>出版 {{ publication.revision }} · {{ publicationStateLabel(publication.status) }}</strong>
+              <small>版面 v{{ revisionNumber(publication.layoutRevisionId) }} · {{ publication.completionApplicability === 'historical' ? '历史结果' : publication.revisionPosition === 'current' ? '当前成品' : '等待完成' }}</small>
+              <nav v-if="publication.status === 'ready'" class="publication-artifacts" aria-label="出版产物">
+                <a v-for="artifact in publication.artifacts" :key="artifact.assetId" :href="publicationArtifactUrl(publication.id, artifact.assetId)" target="_blank" rel="noopener">{{ artifactLabel(artifact.role, artifact.order) }}</a>
+              </nav>
+            </div>
+            <span v-if="publication.revisionPosition === 'current'">当前</span>
+            <button v-if="publication.status === 'queued' || publication.status === 'rendering'" type="button" :disabled="publicationBusy" @click="cancelPublication(publication.id)">取消</button>
           </section>
         </div>
       </article>
@@ -497,7 +536,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   AlertTriangle,
   ChevronDown,
@@ -531,6 +570,9 @@ import type {
   LayoutPresetIdV1,
   LayoutProfileV1,
   LayoutPreflightCodeV1,
+  LayoutPreflightReportV1,
+  LayoutPublicationHistoryResponseV1,
+  LayoutPublicationProfileV1,
   LayoutSourceCatalogItemV1,
   LayoutSourceReplacementCropModeV1,
   LayoutTextIssueV1,
@@ -550,6 +592,7 @@ import {
   initializeLayoutCanvasesFromSourcesV1,
   projectVisibleShotPlacementsV1,
   replaceRichTextRange,
+  LayoutPublicationProfileCodecV1,
 } from "@airoaming/shared";
 
 import { useLayoutEditorSession } from "../../composables/layout-editor-session";
@@ -584,7 +627,13 @@ const actionError = ref<string | null>(null);
 const m6Busy = ref(false);
 const replacementCropMode = ref<LayoutSourceReplacementCropModeV1>("preserve_normalized_crop");
 const acknowledgedIssueKeys = ref<string[]>([]);
+const publicationPreflight = ref<LayoutPreflightReportV1 | null>(null);
+const publicationHistory = ref<LayoutPublicationHistoryResponseV1 | null>(null);
+const publicationAcknowledgedIssueKeys = ref<string[]>([]);
+const publicationRequestId = ref<string | null>(null);
+const publicationBusy = ref(false);
 const activeTool = ref<"select" | "text">("select");
+let publicationPollTimer: ReturnType<typeof setInterval> | null = null;
 const fontLoader = useLayoutFontLoader({
   projectId,
   chapterId,
@@ -711,6 +760,19 @@ const canCreateRevision = computed(() => Boolean(session.preflight.value)
   && missingAcknowledgementCount.value === 0
   && !session.isDirty.value
   && session.saveState.value === "saved");
+const currentLayoutRevisionId = computed(() => session.revisionHistory.value?.currentLayoutRevisionId ?? null);
+const publicationProfile = computed<LayoutPublicationProfileV1>(() => isPaged.value
+  ? { schemaVersion: 1, kind: "paged_publication", outputScale: 1, includePdf: true, pdfPixelDpi: 96 }
+  : { schemaVersion: 1, kind: "vertical_publication", outputScale: 1, maxSliceHeightPx: 8192, cutPolicy: "prefer_section_boundary_then_exact", includeLongPng: true });
+const publicationBlockingIssueCount = computed(() => publicationPreflight.value?.issues.filter((issue) => issue.blockingScopes.includes("export")).length ?? 0);
+const publicationMissingAcknowledgementCount = computed(() => publicationPreflight.value?.issues.filter((issue) =>
+  issue.requiresAcknowledgement && !publicationAcknowledgedIssueKeys.value.includes(issue.issueKey)).length ?? 0);
+const canPublish = computed(() => Boolean(publicationPreflight.value)
+  && publicationPreflight.value?.target.kind === "layout_revision"
+  && publicationPreflight.value.target.id === currentLayoutRevisionId.value
+  && publicationBlockingIssueCount.value === 0
+  && publicationMissingAcknowledgementCount.value === 0);
+const publicationStatusLabel = computed(() => ({ ready: "可出版", warning: "需要确认", blocked: "存在阻断" }[publicationPreflight.value?.status ?? "blocked"]));
 const canvasStyle = computed(() => ({
   width: `${session.currentCanvas.value!.width * session.zoom.value}px`,
   height: `${session.currentCanvas.value!.height * session.zoom.value}px`,
@@ -831,6 +893,102 @@ async function restoreRevision(revisionId: string, revision: number): Promise<vo
   } finally {
     m6Busy.value = false;
   }
+}
+
+async function refreshPublicationHistory(): Promise<void> {
+  const id = chapterId.value;
+  if (!id) {
+    publicationHistory.value = null;
+    return;
+  }
+  publicationHistory.value = await api.listLayoutPublications(projectId.value, id);
+}
+
+async function preparePublication(): Promise<void> {
+  const id = chapterId.value;
+  const revisionId = currentLayoutRevisionId.value;
+  if (!id || !revisionId) return;
+  publicationBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.flush();
+    if (session.isDirty.value) throw new Error("请先完成当前草稿保存。");
+    const report = await api.runLayoutPreflight(projectId.value, id, {
+      schemaVersion: 1,
+      target: { kind: "layout_revision", layoutRevisionId: revisionId },
+      profile: publicationProfile.value,
+    });
+    publicationPreflight.value = report;
+    publicationAcknowledgedIssueKeys.value = publicationAcknowledgedIssueKeys.value.filter((issueKey) =>
+      report.issues.some((issue) => issue.issueKey === issueKey && issue.requiresAcknowledgement));
+    publicationRequestId.value = null;
+    await refreshPublicationHistory();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "导出预检失败";
+  } finally {
+    publicationBusy.value = false;
+  }
+}
+
+async function publishCurrentRevision(): Promise<void> {
+  const id = chapterId.value;
+  const revisionId = currentLayoutRevisionId.value;
+  const report = publicationPreflight.value;
+  if (!id || !revisionId || !report || !canPublish.value) return;
+  publicationBusy.value = true;
+  actionError.value = null;
+  try {
+    publicationRequestId.value ??= globalThis.crypto?.randomUUID?.() ?? `publication_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const profile = LayoutPublicationProfileCodecV1.encode(publicationProfile.value);
+    await api.createLayoutPublication(projectId.value, id, {
+      schemaVersion: 1,
+      requestId: publicationRequestId.value,
+      layoutRevisionId: revisionId,
+      expectedCurrentLayoutRevisionId: revisionId,
+      profile: profile.value,
+      profileDigest: profile.digest,
+      preflightDigest: report.preflightDigest,
+      acknowledgedIssueKeys: [...publicationAcknowledgedIssueKeys.value],
+    });
+    await refreshPublicationHistory();
+    publicationRequestId.value = null;
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "正式出版提交失败";
+  } finally {
+    publicationBusy.value = false;
+  }
+}
+
+async function cancelPublication(exportRevisionId: string): Promise<void> {
+  const id = chapterId.value;
+  if (!id) return;
+  publicationBusy.value = true;
+  actionError.value = null;
+  try {
+    await api.cancelLayoutPublication(projectId.value, id, exportRevisionId);
+    await refreshPublicationHistory();
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "取消出版失败";
+  } finally {
+    publicationBusy.value = false;
+  }
+}
+
+function publicationArtifactUrl(exportRevisionId: string, assetId: string): string {
+  return api.layoutPublicationArtifactUrl(projectId.value, chapterId.value!, exportRevisionId, assetId);
+}
+
+function publicationStateLabel(status: string): string {
+  return ({ queued: "排队中", rendering: "渲染中", ready: "已完成", failed: "失败", cancelled: "已取消" } as Record<string, string>)[status] ?? status;
+}
+
+function artifactLabel(role: string, order: number): string {
+  const label = ({ page_png: "页面 PNG", document_pdf: "PDF", strip_slice_png: "条漫切片", long_png: "长图", publication_manifest: "清单" } as Record<string, string>)[role] ?? role;
+  return role === "page_png" || role === "strip_slice_png" ? `${label} ${order}` : label;
+}
+
+function revisionNumber(revisionId: string): number | string {
+  return session.revisionHistory.value?.items.find((revision) => revision.id === revisionId)?.revision ?? "—";
 }
 
 function shortDigest(digest: string): string {
@@ -1741,8 +1899,25 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 }
 
-onMounted(() => window.addEventListener("keydown", handleKeydown));
-onBeforeUnmount(() => window.removeEventListener("keydown", handleKeydown));
+watch(chapterId, () => {
+  publicationPreflight.value = null;
+  publicationAcknowledgedIssueKeys.value = [];
+  publicationRequestId.value = null;
+  void refreshPublicationHistory().catch(() => undefined);
+});
+onMounted(() => {
+  window.addEventListener("keydown", handleKeydown);
+  void refreshPublicationHistory().catch(() => undefined);
+  publicationPollTimer = setInterval(() => {
+    if (publicationHistory.value?.items.some((item) => item.status === "queued" || item.status === "rendering")) {
+      void refreshPublicationHistory().catch(() => undefined);
+    }
+  }, 1_000);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleKeydown);
+  if (publicationPollTimer) clearInterval(publicationPollTimer);
+});
 </script>
 
 <style scoped>
@@ -1914,6 +2089,11 @@ button:disabled {
 .revision-list { display: grid; gap: 6px; max-height: 175px; overflow: auto; }
 .revision-list section { border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 8px; padding: 7px; }
 .revision-list section button { min-height: 27px; padding: 0 6px; font-size: 9px; }
+.publication-card { grid-column: 1 / -1; }
+.publication-list { max-height: 230px; }
+.publication-artifacts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.publication-artifacts a { color: #93c5fd; font-size: 9px; font-weight: 800; text-decoration: none; border: 1px solid rgba(96, 165, 250, 0.24); border-radius: 999px; padding: 2px 6px; }
+.publication-artifacts a:hover { background: rgba(59, 130, 246, 0.12); }
 
 .chapter-picker select,
 .create-card select,

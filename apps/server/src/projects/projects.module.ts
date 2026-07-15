@@ -42,6 +42,9 @@ import { CandidateSourceQueryService } from "./candidate-source-query.service.js
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
+import { LayoutRendererService } from "./layout-renderer.service.js";
+import { LayoutPublicationService } from "./layout-publication.service.js";
+import { LayoutPublicationWorkerService } from "./layout-publication-worker.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -84,7 +87,10 @@ import { LayoutVersioningService } from "./layout-versioning.service.js";
     LayoutFontService,
     LayoutWorkingCopyService,
     LayoutVersioningService,
+    LayoutRendererService,
+    LayoutPublicationService,
+    LayoutPublicationWorkerService,
   ],
-  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService],
+  exports: [ProjectsService, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService],
 })
 export class ProjectsModule {}

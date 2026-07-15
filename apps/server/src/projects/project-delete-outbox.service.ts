@@ -268,6 +268,34 @@ export class ProjectDeleteOutboxService {
     return null;
   }
 
+  private async claimAssetPromotion(assetId: string, workerId: string, now: Date): Promise<ClaimedOutboxEvent | null> {
+    if (!assetId.trim() || !workerId.trim()) throw new TypeError("assetId and workerId must be non-empty");
+    await this.recoverExpired(now);
+    const candidate = await this.database().outboxEvent.findFirst({
+      where: {
+        eventType: "asset.promote",
+        aggregateType: "asset",
+        aggregateId: assetId,
+        status: "pending",
+        availableAt: { lte: now },
+      },
+    });
+    if (!candidate) return null;
+    const token = randomUUID();
+    const stamp = nextStamp(now, candidate.updatedAt);
+    const leaseExpiresAt = new Date(stamp.getTime() + OUTBOX_LEASE_MS);
+    const claimed = await this.prismaService.runBusinessTransaction(async (tx) => {
+      const current = await tx.outboxEvent.findUnique({ where: { id: candidate.id } });
+      if (!current || current.eventType !== "asset.promote" || current.aggregateId !== assetId || current.status !== "pending" || current.availableAt > now || current.attempt >= current.maxAttempts) return null;
+      const result = await tx.outboxEvent.updateMany({
+        where: { id: current.id, status: "pending", attempt: current.attempt },
+        data: { status: "processing", attempt: current.attempt + 1, leaseOwnerId: workerId, leaseToken: token, leaseExpiresAt, updatedAt: stamp },
+      });
+      return result.count === 1 ? tx.outboxEvent.findUnique({ where: { id: current.id } }) : null;
+    });
+    return claimed ? { event: claimed, workerId, leaseToken: token, leaseExpiresAt: leaseExpiresAt.toISOString() } : null;
+  }
+
   async heartbeat(eventId: string, leaseToken: string, now = new Date()): Promise<OutboxRow> {
     return this.prismaService.runBusinessTransaction(async (tx) => {
       const current = await tx.outboxEvent.findUnique({ where: { id: eventId } });
@@ -301,6 +329,17 @@ export class ProjectDeleteOutboxService {
   async processNext(workerId: string, now = new Date()): Promise<OutboxProcessResult | null> {
     const claim = await this.claimNext(workerId, now);
     if (!claim) return null;
+    return this.processClaim(claim, now);
+  }
+
+  /** 只处理指定发布产物的提升事件，避免发布 worker 顺带消费无关删除事件。 */
+  async processAssetPromotion(assetId: string, workerId: string, now = new Date()): Promise<OutboxProcessResult | null> {
+    const claim = await this.claimAssetPromotion(assetId, workerId, now);
+    if (!claim) return null;
+    return this.processClaim(claim, now);
+  }
+
+  private async processClaim(claim: ClaimedOutboxEvent, now: Date): Promise<OutboxProcessResult> {
     let decoded: DecodedPayload;
     let markedProcessed = false;
     try {

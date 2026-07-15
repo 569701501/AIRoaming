@@ -106,6 +106,9 @@ import type {
   RestoreLayoutRevisionRequestV1,
   RestoreLayoutRevisionResponseV1,
   RunLayoutPreflightRequestV1,
+  CreateLayoutPublicationRequestV1,
+  CreateLayoutPublicationResponseV1,
+  LayoutPublicationHistoryResponseV1,
 } from "@airoaming/shared";
 
 const API_BASE = import.meta.env?.VITE_API_BASE_URL || "/api";
@@ -705,6 +708,23 @@ export const api = {
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions/${encodeURIComponent(revisionId)}/restore-to-working-copy`,
     { method: "POST", body: JSON.stringify(input) },
   ),
+  createLayoutPublication: (
+    projectId: string,
+    chapterId: string,
+    input: CreateLayoutPublicationRequestV1,
+  ) => request<CreateLayoutPublicationResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  listLayoutPublications: (projectId: string, chapterId: string) => request<LayoutPublicationHistoryResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications`,
+  ),
+  cancelLayoutPublication: (projectId: string, chapterId: string, exportRevisionId: string) => request<unknown>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}/cancel`,
+    { method: "POST" },
+  ),
+  layoutPublicationArtifactUrl: (projectId: string, chapterId: string, exportRevisionId: string, assetId: string) =>
+    `${API_BASE}/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}/artifacts/${encodeURIComponent(assetId)}/file`,
   buildChapterLayout: (projectId: string, chapterId: string) => request<BuildChapterLayoutResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/build`,
     {

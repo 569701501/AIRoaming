@@ -41,6 +41,7 @@ import type {
   PreviewLayoutSourceReplacementRequestV1,
   RestoreLayoutRevisionRequestV1,
   RunLayoutPreflightRequestV1,
+  CreateLayoutPublicationRequestV1,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
@@ -735,6 +736,57 @@ export class ProjectsController {
     @Body() body: RestoreLayoutRevisionRequestV1,
   ) {
     return ok(await this.layoutVersioningService.restoreRevision({ projectId, chapterId }, revisionId, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/exports/layout-publications")
+  async createLayoutPublication(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreateLayoutPublicationRequestV1,
+  ) {
+    return ok(await this.projectsService.createLayoutPublication(projectId, chapterId, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/exports/layout-publications")
+  async listLayoutPublications(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    return ok(await this.projectsService.listLayoutPublications(projectId, chapterId));
+  }
+
+  @Get(":projectId/chapters/:chapterId/exports/layout-publications/:exportRevisionId")
+  async getLayoutPublication(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("exportRevisionId") exportRevisionId: string,
+  ) {
+    return ok(await this.projectsService.getLayoutPublication(projectId, chapterId, exportRevisionId));
+  }
+
+  @Get(":projectId/chapters/:chapterId/exports/layout-publications/:exportRevisionId/artifacts/:assetId/file")
+  async getLayoutPublicationArtifact(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("exportRevisionId") exportRevisionId: string,
+    @Param("assetId") assetId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const file = await this.projectsService.readLayoutPublicationArtifact(projectId, chapterId, exportRevisionId, assetId);
+    response.setHeader("Content-Type", file.mimeType);
+    response.setHeader("Cache-Control", "private, max-age=60");
+    response.setHeader("ETag", `"${file.sha256}"`);
+    response.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(file.fileName)}"`);
+    return new StreamableFile(file.buffer);
+  }
+
+  @Post(":projectId/chapters/:chapterId/exports/layout-publications/:exportRevisionId/cancel")
+  async cancelLayoutPublication(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("exportRevisionId") exportRevisionId: string,
+  ) {
+    return ok(await this.projectsService.cancelLayoutPublication(projectId, chapterId, exportRevisionId));
   }
 
   @Post(":projectId/chapters/:chapterId/layout/build")
