@@ -1,8 +1,8 @@
 ---
 doc_id: AIR-G3M-TEST-HANDOFF-001
-status: active
+status: superseded
 created: 2026-07-12
-updated: 2026-07-13
+updated: 2026-07-15
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
@@ -10,9 +10,11 @@ source: G1 导入/切换验收、G3 MIG/RST/FLT deferred 用例与当前代码
 
 # G3-M 施工包：可执行验收与 Luna 交接
 
+> 本施工交接已由后续 D2、M6、R0～R2 和 G4/G5 执行记录取代。当前 G3-M6 activate/cutover、C0～C7、首写和 R2 均已完成；本文后续 `prerequisite_blocked`、`未实现` 和预期命令仅保留历史阶段语境，不得作为当前阻塞或再次授权依据。当前唯一终态为 `G0_G5_COMPLETE`。
+
 ## 1. 当前结论
 
-M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1～A4-4 已完成并复核，M5 恢复为 `completed`。这不代表 full shadow 是 final importer，也不代表 pre-cutover/activate 或 M6 已完成。
+M0～M5 的本施工包已完成；后续 D2/M6、final importer、pre-cutover/activate、C0～C7、首写与 R2 也已由连续施工任务完成。下表中的早期提交保留阶段来源，当前不再存在授权阻塞。
 
 | 范围 | 当前状态 |
 | --- | --- |
@@ -40,8 +42,8 @@ M0～M4 foundation 已完成并正式签字；M5-A0～A3 已有实现，A4-1～A
 | G3-M3-A15 Dialogue runtime shadow | implemented；captured 对话历史、closed session 与显式 pending Dialogue artifact 均导入并留证，deferred 状态零实体 |
 | G3-M3 full importer | implemented，commit `9e04495`；新增 16 slice 依赖顺序编排与聚合摘要，仍不是 final importer |
 | G3-M4 verifier/shadow | completed；来源注册表、full replay、双 fresh、API/Asset/DB-only、pending Dialogue、真实 CLI 与正式签字均已完成 |
-| G3-M5 backup/restore | completed；A0～A3 与 A4-1～A4-4 已实现并复核，D2/M6 仍独立后置 |
-| G3-M6 activate/cutover | prerequisite_blocked |
+| G3-M5 backup/restore | completed；A0～A3 与 A4-1～A4-4 已实现并复核，后续 coordinated DB-only backup/restore 也已通过 |
+| G3-M6 activate/cutover | completed；D2、C0～C7、首写、file guard 与 R2 均有正式证据 |
 
 ## 2. 必读顺序
 
@@ -71,7 +73,7 @@ db:verify --snapshot <sealed-dir> --decisions <normalized-decisions.json> --impo
 db:capabilities（已实现；required blocker 存在时退出 2）
 app:backup（coordinated 已实现；M5-A4 已完成）
 app:restore（verify/materialize 已实现；M5-A4 已完成）
-db:activate（未实现，D2/D3 阻塞）
+db:activate（已实现；历史动作授权已经消费，不得重复执行生产切换）
 ```
 
 每个 CLI 支持 --format json；成功/失败都返回稳定 code，不打印物理根、正文、prompt 或 secret。
