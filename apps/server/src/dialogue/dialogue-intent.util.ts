@@ -67,6 +67,24 @@ export function shouldGenerateStoryboard(input: SendDialogueMessageRequest): boo
     || /分镜工作台/.test(content);
 }
 
+/**
+ * 只识别对当前待确认分镜的明确修改命令。
+ * “看看/分析/给建议”仍走普通对话，不能写入或替换 pending。
+ */
+export function shouldRevisePendingStoryboard(input: SendDialogueMessageRequest): boolean {
+  if (input.intent === "revise_pending_storyboard") {
+    return true;
+  }
+
+  const content = input.content.trim();
+  if (!content || /(不要|先别|取消|只分析|看看|评价|给.*建议|有什么问题)/.test(content)) {
+    return false;
+  }
+  const reviseVerb = /(调整|修改|重写|优化|加快|放慢|拆开|拆分|合并|加强|减弱|减少|增加|改成|换成)/;
+  const storyboardTarget = /(分镜|镜头|画格|节奏|景别|机位|构图|对白密度|结尾钩子)/;
+  return reviseVerb.test(content) && storyboardTarget.test(content);
+}
+
 // ---------- 确认/取消判定 ----------
 
 export function isConfirmingStoryStructure(content: string): boolean {

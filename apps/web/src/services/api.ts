@@ -33,6 +33,8 @@ import type {
   CommitCandidateLockRequest,
   CompleteChapterImagesResponse,
   CreateGenerationTaskRequest,
+  CreatePendingShotRequest,
+  CreatePendingShotResponse,
   ExportAssetPackageResponse,
   GenerationTaskItem,
   GetChapterResponse,
@@ -461,6 +463,9 @@ export const api = {
   ),
   createStoryboardWorkingCopy: (projectId: string, chapterId: string, input: CreateStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "POST", body: JSON.stringify(input) },
+  ),
+  createPendingStoryboardShot: (projectId: string, chapterId: string, input: CreatePendingShotRequest) => request<CreatePendingShotResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy/shots`, { method: "POST", body: JSON.stringify(input) },
   ),
   updateStoryboardWorkingCopy: (projectId: string, chapterId: string, input: UpdateStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "PATCH", body: JSON.stringify(input) },

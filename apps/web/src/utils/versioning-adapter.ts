@@ -58,7 +58,29 @@ export function toStoryDocumentV2(input: StoryStructureJson, snapshot: Workbench
   };
 }
 
-export function toStoryboardDocumentV2(input: StoryboardJson): StoryboardDocumentV2 {
+export function toStoryboardDocumentV2(input: StoryboardJson, snapshot?: WorkbenchSnapshot): StoryboardDocumentV2 {
+  const characterIdByToken = new Map<string, string>();
+  if (snapshot) {
+    for (const character of snapshot.characters) {
+      characterIdByToken.set(character.id, character.id);
+      characterIdByToken.set(normalize(character.name), character.id);
+    }
+    for (const card of snapshot.storyStructure?.structureJson.characters ?? []) {
+      const projectCharacter = card.projectCharacterId
+        ? snapshot.characters.find((item) => item.id === card.projectCharacterId)
+        : findProjectCharacter(snapshot, card.name);
+      if (!projectCharacter) continue;
+      characterIdByToken.set(card.id, projectCharacter.id);
+      characterIdByToken.set(normalize(card.name), projectCharacter.id);
+    }
+  }
+  const resolveCharacter = (token: string): string => {
+    if (!snapshot) return token;
+    const resolved = characterIdByToken.get(token) ?? characterIdByToken.get(normalize(token));
+    if (!resolved) throw new Error(`分镜引用的角色「${token}」尚未绑定到项目角色库`);
+    return resolved;
+  };
+
   return {
     schemaVersion: 2,
     chapterId: input.chapterId,
@@ -67,13 +89,19 @@ export function toStoryboardDocumentV2(input: StoryboardJson): StoryboardDocumen
       order: shot.order,
       beatId: shot.beatId,
       sceneId: shot.sceneId,
-      characterIds: shot.characterIds,
+      characterIds: [...new Set(shot.characterIds.map(resolveCharacter))],
       coreAction: shot.coreAction,
       emotion: shot.emotion,
       shotType: shot.shotType,
       cameraAngle: shot.cameraAngle,
       comic: shot.comic,
-      motion: shot.motion,
+      motion: {
+        ...shot.motion,
+        voiceLines: shot.motion.voiceLines.map((line) => ({
+          ...line,
+          characterId: line.characterId === null ? null : resolveCharacter(line.characterId),
+        })),
+      },
       promptDraft: shot.promptDraft,
     })),
     notes: input.notes,

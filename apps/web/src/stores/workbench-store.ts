@@ -827,15 +827,15 @@ export const useWorkbenchStore = defineStore("workbench", {
         if (this.snapshot?.versioningCapability.mode === "g2_db") {
           const story = this.snapshot.storyStructure;
           if (!story?.id) throw new Error("剧情结构尚未确认，不能确认分镜");
-          const document = toStoryboardDocumentV2(storyboardJson);
+          const document = toStoryboardDocumentV2(storyboardJson, this.snapshot ?? undefined);
           let working = await api.getStoryboardWorkingCopy(projectId, chapterId);
-          let chapterRowVersion = this.scriptWorkingCopy?.chapterRowVersion ?? 0;
+          let chapterRowVersion = working.productionState.chapterRowVersion;
           if (!working.pending) {
             const created = await api.createStoryboardWorkingCopy(projectId, chapterId, {
               mode: working.current ? "clone_current" : "empty",
               expectedCurrentVersionId: working.current?.id ?? null,
               expectedSourceStoryVersionId: story.id,
-              expectedChapterRowVersion: this.scriptWorkingCopy?.chapterRowVersion ?? 0,
+              expectedChapterRowVersion: chapterRowVersion,
             });
             working = created.value;
             chapterRowVersion = created.chapterRowVersion;
@@ -882,19 +882,55 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         if (this.snapshot?.versioningCapability.mode === "g2_db") {
           if (!this.snapshot.storyStructure?.id) throw new Error("剧情结构尚未确认，不能编辑分镜");
-          const document = toStoryboardDocumentV2(storyboardJson);
+          let document = toStoryboardDocumentV2(storyboardJson, this.snapshot ?? undefined);
           let working = await api.getStoryboardWorkingCopy(projectId, chapterId);
-          let chapterRowVersion = this.scriptWorkingCopy?.chapterRowVersion ?? 0;
+          let chapterRowVersion = working.productionState.chapterRowVersion;
           if (!working.pending) {
             const created = await api.createStoryboardWorkingCopy(projectId, chapterId, {
               mode: working.current ? "clone_current" : "empty",
               expectedCurrentVersionId: working.current?.id ?? null,
               expectedSourceStoryVersionId: this.snapshot.storyStructure.id,
-              expectedChapterRowVersion: this.scriptWorkingCopy?.chapterRowVersion ?? 0,
+              expectedChapterRowVersion: chapterRowVersion,
             });
             working = created.value;
             chapterRowVersion = created.chapterRowVersion;
           }
+          const existingShotIds = new Set(working.document?.shots.map((shot) => shot.id) ?? []);
+          const allocatedIds = new Map<string, string>();
+          for (const shot of document.shots) {
+            if (existingShotIds.has(shot.id)) continue;
+            if (!working.pending) throw new Error("没有可写入的新分镜 Working Copy");
+            const created = await api.createPendingStoryboardShot(projectId, chapterId, {
+              pendingVersionId: working.pending.id,
+              requestId: crypto.randomUUID(),
+              afterShotId: null,
+              expectedPendingRowVersion: working.pending.rowVersion ?? 0,
+              expectedChapterRowVersion: chapterRowVersion,
+              initial: {
+                beatId: shot.beatId,
+                sceneId: shot.sceneId,
+                characterIds: shot.characterIds,
+                coreAction: shot.coreAction,
+                emotion: shot.emotion,
+                shotType: shot.shotType,
+                cameraAngle: shot.cameraAngle,
+                comic: shot.comic,
+                motion: shot.motion,
+                promptDraft: shot.promptDraft,
+              },
+            });
+            allocatedIds.set(shot.id, created.shotId);
+            working = created.workingCopy;
+            chapterRowVersion = working.productionState.chapterRowVersion;
+          }
+          document = {
+            ...document,
+            shots: document.shots.map((shot, index) => ({
+              ...shot,
+              id: allocatedIds.get(shot.id) ?? shot.id,
+              order: index + 1,
+            })),
+          };
           await api.updateStoryboardWorkingCopy(projectId, chapterId, {
             pendingVersionId: working.pending?.id ?? "",
             document,
@@ -925,14 +961,14 @@ export const useWorkbenchStore = defineStore("workbench", {
         }
         if (this.snapshot?.versioningCapability.mode === "g2_db") {
           if (!this.snapshot.storyStructure?.id) throw new Error("剧情结构尚未确认，不能编辑分镜");
-          const document = toStoryboardDocumentV2(storyboardJson);
+          const document = toStoryboardDocumentV2(storyboardJson, this.snapshot ?? undefined);
           const working = await api.getStoryboardWorkingCopy(projectId, chapterId);
           if (!working.pending) throw new Error("没有可更新的 DB 分镜 Working Copy");
           await api.updateStoryboardWorkingCopy(projectId, chapterId, {
             pendingVersionId: working.pending.id,
             document,
             expectedPendingRowVersion: working.pending.rowVersion ?? 0,
-            expectedChapterRowVersion: this.scriptWorkingCopy?.chapterRowVersion ?? 0,
+            expectedChapterRowVersion: working.productionState.chapterRowVersion,
           });
           await this.refreshActiveProjectRuntime();
           return this.snapshot?.pendingStoryboard ?? null;

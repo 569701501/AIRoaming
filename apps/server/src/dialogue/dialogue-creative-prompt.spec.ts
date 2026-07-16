@@ -24,6 +24,7 @@ import {
   buildScriptImportVerifyPrompt,
   buildScriptOutlineFromTopicPrompt,
   buildStoryStructurePrompt,
+  buildStoryboardPrompt,
 } from "./dialogue-prompt.util.js";
 
 function turn(): DialogueTurn {
@@ -166,6 +167,69 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("章序永远不能改变");
     expect(prompt).toContain("不要把层级、清单、评分、诊断或差异说明输出给用户");
     expect(prompt).toContain("当前完整草稿");
+  });
+});
+
+function storyboardTurn(): DialogueTurn {
+  const shot = {
+    id: "shot-existing",
+    order: 1,
+    beatId: "beat_01",
+    sceneId: "scene_01",
+    characterIds: ["char-lin"],
+    coreAction: "林舟推过录音笔",
+    emotion: "警惕",
+    shotType: "medium" as const,
+    cameraAngle: "over_shoulder" as const,
+    comic: { panelDescription: "两人隔桌对峙", composition: "过肩构图", dialogue: "林舟：听完再决定。", caption: "", panelRhythm: "normal" as const },
+    motion: { visualDescription: "林舟推过录音笔", compositionDesign: "过肩构图", cameraMovement: "push_in" as const, frameType: "dialogue" as const, durationMs: 3000, durationHint: "约 3s", voiceLines: [{ characterId: "char-lin", name: "林舟", line: "听完再决定。", voiceStyle: "克制" }] },
+    promptDraft: "雨夜室内，两人对峙",
+    lockedCandidateId: null,
+    status: "draft" as const,
+  };
+  return {
+    ...turn(),
+    normalizedStepKey: "storyboard",
+    snapshot: {
+      ...turn().snapshot,
+      currentChapter: { id: "chapter-1", title: "雨夜交易", status: "structured", currentStoryVersionId: "story-v1", sourceText: "林舟把录音笔推给许澄。" },
+      storyStructure: {
+        id: "story-v1",
+        structureJson: {
+          characters: [{ id: "character_01", projectCharacterId: "char-lin", name: "林舟" }],
+          scenes: [{ id: "scene_01", name: "雨夜办公室" }],
+          beats: [{ id: "beat_01", order: 1, title: "交出录音" }],
+        },
+      },
+      pendingStoryboard: {
+        id: "board-pending",
+        storyboardJson: { chapterTitle: "雨夜交易", shots: [shot], notes: "当前节奏偏慢" },
+      },
+    } as WorkbenchSnapshot,
+  } as DialogueTurn;
+}
+
+describe("S1 分镜 Prompt 契约", () => {
+  it("首次生成使用结构本地引用、正式枚举和固定漫画分镜方法", () => {
+    const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成分镜"), "generate");
+    expect(prompt).toContain("动作：generate");
+    expect(prompt).toContain("character_01=林舟");
+    expect(prompt).toContain("不能填写数据库 UUID、角色名、别名或简称");
+    expect(prompt).toContain("每个 beat 至少被一个 Shot 承接");
+    expect(prompt).toContain("单帧可画");
+    expect(prompt).toContain("over_shoulder");
+    expect(prompt).not.toContain("over_the_shoulder");
+    expect(prompt).toContain("首次生成的所有镜头都省略 id");
+  });
+
+  it("调整动作读取当前 pending、保留已有 ID，并要求返回完整草稿", () => {
+    const prompt = buildStoryboardPrompt(storyboardTurn(), request("把结尾节奏加快"), "revise_pending");
+    expect(prompt).toContain("动作：revise_pending");
+    expect(prompt).toContain("当前待确认分镜");
+    expect(prompt).toContain("shot-existing");
+    expect(prompt).toContain("保留镜头必须沿用当前草稿 id");
+    expect(prompt).toContain("必须返回完整 shots 数组");
+    expect(prompt).toContain("把结尾节奏加快");
   });
 });
 

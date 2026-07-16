@@ -850,6 +850,7 @@ export type DialogueIntent =
   | "confirm_story_structure"
   | "generate_project_characters"
   | "generate_storyboard"
+  | "revise_pending_storyboard"
   | "confirm_storyboard";
 
 export interface DialogueAttachmentInput {

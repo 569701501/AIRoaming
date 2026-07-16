@@ -9,6 +9,7 @@ import {
   resolveSelectedInspirationSeed,
   shouldGenerateInspirationSeeds,
   shouldOrganizeProvidedScript,
+  shouldRevisePendingStoryboard,
   shouldReviseScriptImportAnalysis,
   shouldUpdateChapterDraft,
 } from "./dialogue-intent.util.js";
@@ -100,5 +101,21 @@ describe("P4 章节改写意图", () => {
     expect(shouldUpdateChapterDraft(request("看看本章对白有什么问题"), snapshot)).toBe(false);
     expect(shouldUpdateChapterDraft(request("给我建议，如何加强这一章的冲突"), snapshot)).toBe(false);
     expect(shouldUpdateChapterDraft(request("评价一下当前草稿"), snapshot)).toBe(false);
+  });
+});
+
+describe("S1 待确认分镜调整意图", () => {
+  it("明确调整分镜、镜头或节奏时触发", () => {
+    expect(shouldRevisePendingStoryboard(request("把分镜节奏加快"))).toBe(true);
+    expect(shouldRevisePendingStoryboard(request("重写结尾镜头，多给一个特写"))).toBe(true);
+    expect(shouldRevisePendingStoryboard(request("只调整景别和机位"))).toBe(true);
+    expect(shouldRevisePendingStoryboard(request("按这个调整", "revise_pending_storyboard"))).toBe(true);
+  });
+
+  it("建议、评价、否定和首次生成不触发草稿写入", () => {
+    expect(shouldRevisePendingStoryboard(request("看看分镜节奏有什么问题"))).toBe(false);
+    expect(shouldRevisePendingStoryboard(request("给我建议，镜头应该怎么拆"))).toBe(false);
+    expect(shouldRevisePendingStoryboard(request("先别调整分镜"))).toBe(false);
+    expect(shouldRevisePendingStoryboard(request("生成分镜", "generate_storyboard"))).toBe(false);
   });
 });

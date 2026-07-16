@@ -476,38 +476,112 @@ export function buildStoryStructureRepairPrompt(input: {
 
 // ---------- 分镜 prompt ----------
 
-export function buildStoryboardPrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
+export type StoryboardPromptMode = "generate" | "revise_pending";
+
+export function buildStoryboardPrompt(
+  turn: DialogueTurn,
+  input: SendDialogueMessageRequest,
+  mode: StoryboardPromptMode = "generate",
+): string {
   const snapshot = turn.snapshot;
   const currentChapter = snapshot.currentChapter;
   const structure = snapshot.storyStructure?.structureJson;
-  const availableCharacterNames = Array.isArray(structure?.characters)
-    ? structure.characters.map((card) => card?.name).filter((name): name is string => typeof name === "string" && name.trim() !== "")
+  const availableCharacterRefs = Array.isArray(structure?.characters)
+    ? structure.characters
+      .filter((card) => typeof card?.id === "string" && card.id.trim() !== "" && typeof card?.name === "string" && card.name.trim() !== "")
+      .map((card) => `${card.id}=${card.name}`)
     : [];
   const beatCount = Array.isArray(structure?.beats) ? structure.beats.length : 0;
   const targetShotRange = beatCount > 0
-    ? `${beatCount}-${Math.min(Math.max(beatCount * 2, beatCount), 24)}`
+    ? `${beatCount}-${beatCount * 2}`
     : "8-16";
-  const chapterScriptExcerpt = compactPromptText(currentChapter?.sourceText?.trim() ?? "", 6000);
+  const chapterScriptExcerpt = compactPromptText(
+    input.context?.sourceText?.trim() ?? currentChapter?.sourceText?.trim() ?? "",
+    6000,
+  );
+  const pendingStoryboard = snapshot.pendingStoryboard?.storyboardJson ?? null;
+  const isRevision = mode === "revise_pending";
+  const exampleCharacterRef = structure?.characters?.[0]?.id ?? "character_01";
+  const exampleBeatRef = structure?.beats?.[0]?.id ?? "beat_01";
+  const exampleSceneRef = structure?.scenes?.[0]?.id ?? "scene_01";
+  const shotExample: Record<string, unknown> = {
+    order: 1,
+    beatId: exampleBeatRef,
+    sceneId: exampleSceneRef,
+    characterIds: [exampleCharacterRef],
+    coreAction: "镜头核心动作",
+    emotion: "情绪",
+    shotType: "medium",
+    cameraAngle: "eye_level",
+    comic: {
+      panelDescription: "漫画画格画面描述",
+      composition: "构图（人物位置/视觉重心，不含景别机位）",
+      dialogue: "对白气泡文字，没有就空字符串",
+      caption: "旁白，没有就空字符串",
+      panelRhythm: "slow",
+    },
+    motion: {
+      visualDescription: "漫剧动态画面描述",
+      compositionDesign: "动态构图设计",
+      cameraMovement: "push_in",
+      frameType: "atmosphere",
+      durationMs: 3000,
+      durationHint: "约 3s",
+      voiceLines: [
+        {
+          characterId: exampleCharacterRef,
+          name: "角色名",
+          line: "台词内容",
+          voiceStyle: "声音风格，如低声、克制",
+        },
+      ],
+    },
+    promptDraft: "给后续图片提示词生成的简短草稿，不是最终 Prompt",
+  };
+  if (isRevision) {
+    shotExample.id = pendingStoryboard?.shots[0]?.id ?? "existing_shot_id";
+  }
 
   return [
     "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。",
-    "任务：只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。",
+    isRevision
+      ? "动作：revise_pending。根据用户的明确要求调整当前待确认分镜，并返回调整后的完整 Shot[]。"
+      : "动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。",
     "",
     "硬性边界：",
     "- 只生成当前章节分镜，不要生成整部作品分镜。",
     "- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。",
+    "- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。",
     "- 每个 Shot 必须有共同核心字段，并同时包含 comic 漫画画格表达和 motion 基础漫剧镜头表达。",
     "- M1 可以默认一个 Shot 对应一个漫画画格和一个基础漫剧镜头，但不要在文案中声称未来永远一一对应。",
     "- 不要生成最终图片 Prompt；promptDraft 只能是给后续候选图阶段的草稿摘要。",
     "- 不要生成候选图、TTS、字幕、视频或排版。",
-    `- characterIds 必须从已确认剧情结构的角色名里选(可用角色名：${availableCharacterNames.join("、") || "暂无"})，不要自创新名字、用别名或简称。`,
-    `- 本章建议生成 ${targetShotRange} 个 Shot；每个剧情节拍默认拆 1-2 个 Shot，除非关键动作/情绪转折必须拆开。`,
+    `- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：${availableCharacterRefs.join("、") || "暂无"}），不能填写数据库 UUID、角色名、别名或简称。`,
+    "- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。",
+    "- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。",
+    "- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。",
+    ...(isRevision
+      ? [
+        "- 当前动作只修改待确认草稿，不得把它描述成已经确认或已经进入出图准备。",
+        "- 未被用户要求改变的剧情事实和镜头含义应尽量保持；保留镜头必须沿用当前草稿 id，新增镜头省略 id。",
+        "- 即使只改一个镜头，也必须返回完整 shots 数组，不能返回 patch、diff 或单个镜头。",
+      ]
+      : ["- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。"]),
+    `- 本章建议生成 ${targetShotRange} 个 Shot；每个剧情节拍至少一个 Shot，关键动作、反应、线索或情绪转折可拆成第二个 Shot。`,
     "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
     "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
     "",
+    "分镜质量契约（输出前内部检查，不新增评分或诊断字段）：",
+    "- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。",
+    "- 单帧可画：一个 Shot 聚焦一个主要瞬间，不把连续多动作塞进同一画格。",
+    "- 连续性：人物、道具、空间位置、视线和动作结果前后可以衔接。",
+    "- 漫画阅读：对白不过载，信息揭示顺序清楚，关键选择、反应、线索和结尾钩子得到画面强调。",
+    "- 视觉变化：避免连续镜头无意义地重复同一景别、机位、构图和动作描述；不要机械平均各种枚举。",
+    "- 双表达一致：comic 与 motion 描述同一个剧情瞬间，motion 只能补充时间和运镜，不能改写事实。",
+    "",
     "枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：",
     "- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up",
-    "- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_the_shoulder / top_down / dutch_angle",
+    "- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle",
     "- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition",
     "- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none",
     "- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition",
@@ -519,42 +593,7 @@ export function buildStoryboardPrompt(turn: DialogueTurn, input: SendDialogueMes
     "JSON 结构必须是：",
     "```json",
     JSON.stringify({
-      shots: [
-        {
-          order: 1,
-          beatId: "beat_01",
-          sceneId: "scene_01",
-          characterIds: ["角色名"],
-          coreAction: "镜头核心动作",
-          emotion: "情绪",
-          shotType: "medium",
-          cameraAngle: "eye_level",
-          comic: {
-            panelDescription: "漫画画格画面描述",
-            composition: "构图（人物位置/视觉重心，不含景别机位）",
-            dialogue: "对白气泡文字，没有就空字符串",
-            caption: "旁白，没有就空字符串",
-            panelRhythm: "slow",
-          },
-          motion: {
-            visualDescription: "漫剧动态画面描述",
-            compositionDesign: "动态构图设计",
-            cameraMovement: "push_in",
-            frameType: "atmosphere",
-            durationMs: 3000,
-            durationHint: "约 3s",
-            voiceLines: [
-              {
-                characterId: null,
-                name: "角色名",
-                line: "台词内容",
-                voiceStyle: "声音风格，如低声、克制",
-              },
-            ],
-          },
-          promptDraft: "给后续图片提示词生成的简短草稿，不是最终 Prompt",
-        },
-      ],
+      shots: [shotExample],
       notes: "分镜节奏说明",
     }, null, 2),
     "```",
@@ -568,6 +607,10 @@ export function buildStoryboardPrompt(turn: DialogueTurn, input: SendDialogueMes
     JSON.stringify(structure ?? {}, null, 2),
     "当前章节剧本摘录（仅作对白和动作参考；正式拆分以 structure.json 为准）：",
     chapterScriptExcerpt || "（当前章节为空）",
+    ...(isRevision ? [
+      "当前待确认分镜（这是本轮允许调整的唯一草稿；必须返回调整后的完整版本）：",
+      JSON.stringify(pendingStoryboard ?? {}, null, 2),
+    ] : []),
     "用户本次要求：",
     input.content,
   ].join("\n");
