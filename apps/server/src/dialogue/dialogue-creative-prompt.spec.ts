@@ -41,7 +41,13 @@ function context(): AiChapterGenerationContext {
     targetCard: second,
     previousCard: first,
     nextCard: { ...second, order: 3, title: "内鬼" },
-    previousScript: { id: "script-1", chapterId: "chapter-1", chapterTitle: "旧钥匙", sourceText: "上一章正式正文末尾：门外响起三短一长的暗号。", sourceDigest: digest },
+    previousScript: {
+      id: "script-1",
+      chapterId: "chapter-1",
+      chapterTitle: "旧钥匙",
+      sourceText: "【前章开头】林舟从旧屋地板下找到钥匙。\n【前章中段】钥匙刻着父亲编号。\n【前章结尾】门外响起三短一长的暗号。",
+      sourceDigest: digest,
+    },
     sourceBindings: [],
     sourceSetDigest: digest,
   };
@@ -74,7 +80,11 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("## 第 2 章：门外来客");
     expect(prompt).toContain("P3 场景契约");
     expect(prompt).toContain("P5 连续性");
-    expect(prompt).toContain("上一章正式正文末尾：门外响起三短一长的暗号。");
+    expect(prompt).toContain("【前章开头】林舟从旧屋地板下找到钥匙。");
+    expect(prompt).toContain("【前章中段】钥匙刻着父亲编号。");
+    expect(prompt).toContain("【前章结尾】门外响起三短一长的暗号。");
+    expect(prompt).toContain("不要把这些分析新增为输出字段");
+    expect(prompt).toContain("第 1 章无前章检查");
     expect(prompt).toContain('"title": "旧钥匙"');
     expect(prompt).toContain('"title": "内鬼"');
     expect(prompt).toContain("（无；本轮只是发出生成命令）");

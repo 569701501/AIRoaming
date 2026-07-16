@@ -67,11 +67,18 @@ function chapterMarkdown(): string {
     visualAtmosphere: "雨夜",
     colorDirection: "冷蓝",
     visualMotif: "旧钥匙",
-    scenes: [{ order: 1, name: "门内门外", location: "旧屋", time: "夜", atmosphere: "戒备", characters: "林舟、许澄", description: "许澄在门外说出暗号。", actions: "林舟握紧钥匙。", dialogue: "许澄：三短一长。", narration: "雨声掩住脚步。", endingPoint: "林舟拉开门闩。" }],
+    scenes: [{ order: 1, name: "门内门外", location: "旧屋", time: "夜", atmosphere: "戒备", characters: "林舟、许澄", description: "许澄在门外说出父亲暗号，林舟借暗号确认来客身份。", actions: "林舟无法信任来客，担心开门会暴露藏身处，仍握紧钥匙准备验证暗号。", dialogue: "许澄：三短一长。", narration: "雨声掩住脚步。", endingPoint: "林舟确认身份后拉开门闩，许澄递出的名册显示暗号来自警局内鬼。" }],
     endingEvent: "许澄递出警员名册。",
     suspense: "内鬼是谁？",
     nextChapterLead: "林舟开始核实名册。",
   });
+}
+
+function weakChapterMarkdown(): string {
+  return chapterMarkdown()
+    .replace("许澄在门外说出父亲暗号，林舟借暗号确认来客身份。", "无")
+    .replace("林舟无法信任来客，担心开门会暴露藏身处，仍握紧钥匙准备验证暗号。", "无动作")
+    .replace("林舟确认身份后拉开门闩，许澄递出的名册显示暗号来自警局内鬼。", "场景结束");
 }
 
 function outline(): ProjectScriptOutline {
@@ -333,6 +340,35 @@ describe("ScriptDialogueService A4 显式生成", () => {
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
     expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("只修复格式");
     expect(repository.createAiChapterPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("P3/P5 首次不合格时只定向重写一次，合格后才创建待确认草稿", async () => {
+    const { service, runtime, repository } = setup([weakChapterMarkdown(), chapterMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      turn(),
+      { content: "生成当前章节", chapterId: "chapter-2" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_script_from_outline", status: "succeeded" });
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("未通过 P3 场景契约 / P5 连续性质量门");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P3_SCENE_DESCRIPTION_MISSING");
+    expect(repository.createAiChapterPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("P3/P5 重写一次仍不合格就停止，不创建弱章节草稿", async () => {
+    const { service, runtime, repository } = setup([weakChapterMarkdown(), weakChapterMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      turn(),
+      { content: "生成当前章节", chapterId: "chapter-2" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_script_from_outline", status: "failed" });
+    expect(results[0]?.summary).toContain("P3/P5 质量门未通过");
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(repository.createAiChapterPending).not.toHaveBeenCalled();
   });
 });
 

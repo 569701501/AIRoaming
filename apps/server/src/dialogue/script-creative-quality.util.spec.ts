@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   parseCreativeIdeationOutputV1,
   parseScriptOutlineMarkdownV1,
+  serializeChapterScriptMarkdownV1,
+  type ChapterScriptDocumentV1,
 } from "@airoaming/shared";
 
 import {
   assertP1InspirationQuality,
   assertP2OutlineQuality,
+  assertP3P5ChapterDraftQuality,
   ScriptCreativeQualityError,
 } from "./script-creative-quality.util.js";
 import { normalizeInspirationSeed } from "./dialogue-text.util.js";
@@ -57,6 +60,90 @@ function normalizedSeeds(value: unknown = GOOD_SEEDS) {
   return parseCreativeIdeationOutputV1(value).seeds.map(normalizeInspirationSeed);
 }
 
+const GOOD_CHAPTER: ChapterScriptDocumentV1 = {
+  chapterOrder: 2,
+  chapterTitle: "门外来客",
+  type: "悬疑",
+  theme: "信任",
+  style: "紧凑",
+  comicForm: "竖向条漫",
+  targetLength: "约 1200 字",
+  logline: "林舟判断门外来客是否可信。",
+  chapterGoal: "确认门外来客身份。",
+  coreConflict: "开门会暴露藏身处。",
+  emotionalArc: "戒备到震惊。",
+  endingHook: "暗号指向警局内鬼。",
+  highlights: ["暗号", "选择", "内鬼"],
+  visualAtmosphere: "雨夜",
+  colorDirection: "冷蓝",
+  visualMotif: "旧钥匙",
+  scenes: [
+    {
+      order: 1,
+      name: "门内门外",
+      location: "旧屋",
+      time: "夜",
+      atmosphere: "戒备",
+      characters: "林舟、许澄",
+      description: "许澄在门外说出父亲暗号，林舟借暗号确认门外来客身份。",
+      actions: "林舟没有立刻开门，因为开门会暴露藏身处。",
+      dialogue: "许澄：三短一长，我来交出名册。",
+      narration: "雨声掩住脚步。",
+      endingPoint: "林舟确认暗号无误，拉开门闩让许澄进入。",
+    },
+    {
+      order: 2,
+      name: "警员名册",
+      location: "旧屋内",
+      time: "同夜",
+      atmosphere: "震惊",
+      characters: "林舟、许澄",
+      description: "许澄摊开警员名册，名单证明父亲暗号指向警局内鬼。",
+      actions: "林舟锁门并圈出泄露藏身处的警员姓名。",
+      dialogue: "林舟：内鬼一直知道我们的路线。",
+      narration: "信任从这一刻变成共同承担的危险。",
+      endingPoint: "林舟决定连夜核实名册，调查方向转向警局内部。",
+    },
+  ],
+  endingEvent: "许澄交出警员名册。",
+  suspense: "内鬼是谁？",
+  nextChapterLead: "林舟开始核实名册。",
+};
+
+const PREVIOUS_CHAPTER = serializeChapterScriptMarkdownV1({
+  ...GOOD_CHAPTER,
+  chapterOrder: 1,
+  chapterTitle: "旧钥匙",
+  logline: "林舟在旧屋找到钥匙，并听见门外来客敲出父亲暗号。",
+  scenes: [{
+    ...GOOD_CHAPTER.scenes[0]!,
+    order: 1,
+    name: "暗号敲门",
+    description: "林舟找到旧钥匙时，门外来客敲出父亲暗号。",
+    actions: "林舟握住钥匙，停在门闩前。",
+    dialogue: "门外来客：三短一长。",
+    narration: "父亲只把这个暗号告诉过林舟。",
+    endingPoint: "门外再次响起三短一长，来客等待林舟回应。",
+  }],
+  endingEvent: "门外来客敲出父亲暗号。",
+  suspense: "来客为何知道父亲暗号？",
+  nextChapterLead: "林舟必须确认门外来客身份。",
+});
+
+const GOOD_CHAPTER_CONTEXT = {
+  targetCard: {
+    order: 2,
+    title: "门外来客",
+    chapterGoal: "确认门外来客身份",
+    coreConflict: "开门会暴露藏身处",
+    majorTurn: "来客说出父亲暗号",
+    endingHook: "暗号指向警局内鬼",
+    nextChapterBridge: "追查内鬼",
+  },
+  mainCharacters: ["林舟（主角）：调查者", "许澄（搭档）：来客"],
+  previousScriptSourceText: PREVIOUS_CHAPTER,
+};
+
 describe("P1 灵感质量门", () => {
   it("接受三个冲突发动机、视觉承诺和第一章方向均不同的候选", () => {
     expect(() => assertP1InspirationQuality(normalizedSeeds())).not.toThrow();
@@ -94,5 +181,57 @@ describe("P2 大纲质量门", () => {
     expect(() => assertP2OutlineQuality(parseScriptOutlineMarkdownV1(weak))).toThrow(/P2_TURN_CONNECTOR_MISSING/);
     expect(() => assertP2OutlineQuality(parseScriptOutlineMarkdownV1(weak))).toThrow(/P2_ENDING_DIRECTION_VAGUE/);
     expect(() => assertP2OutlineQuality(parseScriptOutlineMarkdownV1(weak))).toThrow(/P2_FINAL_BRIDGE_NOT_TERMINAL/);
+  });
+});
+
+describe("P3/P5 章节草稿质量门", () => {
+  it("接受场景有动作和退出变化、章节卡可观察且承接前章结尾的草稿", () => {
+    expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, GOOD_CHAPTER_CONTEXT)).not.toThrow();
+  });
+
+  it("拒绝剧情或动作缺失以及空泛场景结束点", () => {
+    const weak = structuredClone(GOOD_CHAPTER);
+    weak.scenes[0]!.description = "无";
+    weak.scenes[0]!.actions = "无动作";
+    weak.scenes[0]!.endingPoint = "场景结束";
+    expect(() => assertP3P5ChapterDraftQuality(weak, GOOD_CHAPTER_CONTEXT)).toThrow(/P3_SCENE_DESCRIPTION_MISSING/);
+    expect(() => assertP3P5ChapterDraftQuality(weak, GOOD_CHAPTER_CONTEXT)).toThrow(/P3_SCENE_ACTIONS_MISSING/);
+    expect(() => assertP3P5ChapterDraftQuality(weak, GOOD_CHAPTER_CONTEXT)).toThrow(/P3_SCENE_ENDING_GENERIC/);
+  });
+
+  it("拒绝多个场景复制相同的有效剧情、动作、对白和结束点", () => {
+    const weak = structuredClone(GOOD_CHAPTER);
+    weak.scenes[1] = { ...weak.scenes[1]!, description: weak.scenes[0]!.description, actions: weak.scenes[0]!.actions, dialogue: weak.scenes[0]!.dialogue, endingPoint: weak.scenes[0]!.endingPoint };
+    expect(() => assertP3P5ChapterDraftQuality(weak, GOOD_CHAPTER_CONTEXT)).toThrow(/P3_SCENE_DESCRIPTION_REPEATED/);
+    expect(() => assertP3P5ChapterDraftQuality(weak, GOOD_CHAPTER_CONTEXT)).toThrow(/P3_SCENE_ENDING_REPEATED/);
+  });
+
+  it("不把多个场景中的极短自然回应误判成场景复制", () => {
+    const shortReplies = structuredClone(GOOD_CHAPTER);
+    shortReplies.scenes[0]!.dialogue = "好。";
+    shortReplies.scenes[1]!.dialogue = "好。";
+    expect(() => assertP3P5ChapterDraftQuality(shortReplies, GOOD_CHAPTER_CONTEXT)).not.toThrow();
+  });
+
+  it("拒绝章节卡四项承诺在正文中完全不可观察的跑题草稿", () => {
+    const unrelated = {
+      ...GOOD_CHAPTER_CONTEXT,
+      previousScriptSourceText: null,
+      targetCard: {
+        ...GOOD_CHAPTER_CONTEXT.targetCard,
+        chapterGoal: "摧毁海底反应堆",
+        coreConflict: "氧气耗尽迫使潜水员抛弃同伴",
+        majorTurn: "白鲸揭露卫星密码",
+        endingHook: "深海城升上海面",
+      },
+    };
+    expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, unrelated)).toThrow(/P3_CHAPTER_GOAL_NOT_OBSERVABLE/);
+    expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, unrelated)).toThrow(/P3_MAJOR_TURN_NOT_OBSERVABLE/);
+  });
+
+  it("拒绝第 2 章与上一章结尾没有任何稳定锚点的明显重置稿，但第 1 章跳过该检查", () => {
+    const reset = { ...GOOD_CHAPTER_CONTEXT, previousScriptSourceText: "上一章结尾：雪山卫星坠入冰湖，白鲸密码被永远冻结。" };
+    expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, reset)).toThrow(/P5_PREVIOUS_ENDING_NOT_CARRIED/);
+    expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, { ...GOOD_CHAPTER_CONTEXT, previousScriptSourceText: null })).not.toThrow();
   });
 });

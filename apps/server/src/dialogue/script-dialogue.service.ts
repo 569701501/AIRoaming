@@ -75,6 +75,7 @@ import { ScriptImportWorkerService } from "./script-import-worker.service.js";
 import {
   assertP1InspirationQuality,
   assertP2OutlineQuality,
+  assertP3P5ChapterDraftQuality,
   ScriptCreativeQualityError,
 } from "./script-creative-quality.util.js";
 
@@ -1161,23 +1162,45 @@ export class ScriptDialogueService {
       signal,
     });
     const expectedHeading = `第 ${context.chapter.order} 章：${context.targetCard.title}`;
+    const validate = (content: string): string => {
+      const document = parseChapterScriptMarkdownV1(content, { expectedChapterHeading: expectedHeading, mode: "creative" });
+      assertP3P5ChapterDraftQuality(document, {
+        targetCard: context.targetCard,
+        mainCharacters: context.outline.document.mainCharacters,
+        previousScriptSourceText: context.previousScript?.sourceText ?? null,
+      });
+      return serializeChapterScriptMarkdownV1(document);
+    };
     try {
-      return serializeChapterScriptMarkdownV1(parseChapterScriptMarkdownV1(response.content, { expectedChapterHeading: expectedHeading, mode: "creative" }));
+      return validate(response.content);
     } catch (error) {
+      const qualityFailure = error instanceof ScriptCreativeQualityError;
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId: openCodeSessionId,
         model: input.model,
-        content: [
-          "上一次输出未通过 creative.chapter-draft/1.0 格式校验。只修复格式，不新增、删减或改写剧情事实。",
-          `二级标题必须精确为：## ${expectedHeading}`,
-          getChapterScriptFormatPrompt(),
-          `校验错误：${getErrorMessage(error)}`,
-          "待修复输出：",
-          response.content,
-        ].join("\n"),
+        content: qualityFailure
+          ? [
+              "上一次输出格式合法，但未通过 P3 场景契约 / P5 连续性质量门。允许完整重写薄弱场景，但必须保持目标章节卡、上一章正式事实、章序标题和固定章节格式。",
+              "每场戏要有有效剧情描写、人物动作、阻力或选择、转折和可见退出变化；目标、冲突、关键转折与结尾钩子必须在正文中出现，不能只留在顶部摘要。第 2 章以后必须承接上一轮提供的完整前章正式正文。",
+              "请按问题代码重新生成完整本章；不要输出评分、诊断、代码块、额外栏目、剧情结构或分镜。",
+              `质量问题：${error.issues.join("、")}`,
+              `目标章节卡：${JSON.stringify(context.targetCard)}`,
+              `二级标题必须精确为：## ${expectedHeading}`,
+              getChapterScriptFormatPrompt(),
+              "待重写输出：",
+              response.content,
+            ].join("\n")
+          : [
+              "上一次输出未通过 creative.chapter-draft/1.0 格式校验。只修复格式，不新增、删减或改写剧情事实。",
+              `二级标题必须精确为：## ${expectedHeading}`,
+              getChapterScriptFormatPrompt(),
+              `校验错误：${getErrorMessage(error)}`,
+              "待修复输出：",
+              response.content,
+            ].join("\n"),
         signal,
       });
-      return serializeChapterScriptMarkdownV1(parseChapterScriptMarkdownV1(repaired.content, { expectedChapterHeading: expectedHeading, mode: "creative" }));
+      return validate(repaired.content);
     }
   }
 
