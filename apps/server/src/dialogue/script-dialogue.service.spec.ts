@@ -78,6 +78,74 @@ function outline(): ProjectScriptOutline {
   return { id: "outline-1", projectId: "project-1", title: "雨夜证人", sourceText: "# 剧本大纲\n完整大纲", outlinePath: "/outline.md", createdAt: "2026-07-16T00:00:00.000Z", updatedAt: "2026-07-16T00:00:00.000Z" } as ProjectScriptOutline;
 }
 
+const goodSeeds = [
+  { title: "记忆典当行", genreTags: ["奇幻", "悬疑"], logline: "失忆少女必须赎回被父亲卖掉的最后一天。", keyConflict: "每取回一段记忆，敌人就会获得她的另一段秘密。", visualHook: "霓虹雨夜里，记忆瓶沿高墙流进地下金库。", firstChapterDirection: "少女闯入拍卖会，却看见主持人戴着父亲的脸。" },
+  { title: "潮汐列车", genreTags: ["灾难", "亲情"], logline: "胆小列车员驾驶末班列车寻找被洪水困住的弟弟。", keyConflict: "每救一站乘客都会耗尽无法补充的浮力燃料。", visualHook: "银色列车在淹没楼群的海面轨道上跃过巨浪。", firstChapterDirection: "列车员违令停靠学校站，得到弟弟留下的车票。" },
+  { title: "纸兽法庭", genreTags: ["古风", "法庭"], logline: "见习讼师必须替一只被控弑主的纸鹤辩护。", keyConflict: "纸兽每次作证都会烧毁一页决定主人生死的契约。", visualHook: "宣纸百兽盘踞悬空法庭，墨迹随证词化作锁链。", firstChapterDirection: "讼师发现纸鹤隐瞒的名字属于老师，决定冒险接案。" },
+];
+
+function inspirationJson(seeds = goodSeeds): string {
+  return JSON.stringify({ seeds });
+}
+
+function duplicateInspirationJson(): string {
+  return inspirationJson(goodSeeds.map((seed, index) => ({
+    ...seed,
+    title: `伪方向${index + 1}`,
+    logline: goodSeeds[0]!.logline,
+    keyConflict: goodSeeds[0]!.keyConflict,
+    visualHook: goodSeeds[0]!.visualHook,
+    firstChapterDirection: goodSeeds[0]!.firstChapterDirection,
+  })));
+}
+
+const goodOutlineMarkdown = `# 剧本大纲
+
+## 一、基础信息
+剧集名称：雨夜末班车
+题材风格：都市悬疑
+剧集篇幅：2 章短篇
+剧集章数：2 章
+剧情简介：林夏想寻找失踪姐姐，但是异常末班车会抹去乘客记录，因此她必须在车辆进入隧道前查清真相。
+
+## 二、主要角色
+林夏（主角）：想找到姐姐，却逃避自己曾错过姐姐求救的愧疚。
+
+## 三、情节概要
+开端：林夏登上无人末班车，但是车辆拒绝停车，因此她被迫追查姐姐留下的钥匙。
+发展：钥匙打开封闭总站，然而公开证据会危及姐姐，所以林夏必须在救人和留证之间选择。
+结局方向：林夏冒险直播运营方的罪证并救出姐姐，承认自己的愧疚但不再被它控制。
+
+## 四、章节安排
+
+### 第 1 章：无人末班车
+章节目标：找到姐姐留下的第一条线索
+核心冲突：登车追踪线索就可能无法返回
+关键转折：广播准确叫出林夏的名字
+结尾钩子：姐姐的钥匙指向封闭总站
+下一章衔接：钥匙迫使林夏继续前往封闭总站
+
+### 第 2 章：封闭总站
+章节目标：救出姐姐并公开事故证据
+核心冲突：救人会让运营方有时间销毁证据
+关键转折：姐姐主动要求林夏先开启直播
+结尾钩子：负责人在直播中承认掩盖事故
+下一章衔接：姐妹获救、证据公开，故事收束（终章）
+`;
+
+function weakOutlineMarkdown(): string {
+  return goodOutlineMarkdown
+    .replace("林夏想寻找失踪姐姐，但是异常末班车会抹去乘客记录，因此她必须在车辆进入隧道前查清真相。", "林夏寻找失踪姐姐，登上末班车，来到封闭总站。")
+    .replace("开端：林夏登上无人末班车，但是车辆拒绝停车，因此她被迫追查姐姐留下的钥匙。", "开端：林夏登上无人末班车。")
+    .replace("发展：钥匙打开封闭总站，然而公开证据会危及姐姐，所以林夏必须在救人和留证之间选择。", "发展：林夏来到封闭总站。")
+    .replace("林夏冒险直播运营方的罪证并救出姐姐，承认自己的愧疚但不再被它控制。", "开放式结局")
+    .replace("救出姐姐并公开事故证据", "找到姐姐留下的第一条线索")
+    .replace("救人会让运营方有时间销毁证据", "登车追踪线索就可能无法返回")
+    .replace("姐姐主动要求林夏先开启直播", "广播准确叫出林夏的名字")
+    .replace("负责人在直播中承认掩盖事故", "姐姐的钥匙指向封闭总站")
+    .replace("姐妹获救、证据公开，故事收束（终章）", "钥匙迫使林夏继续前往封闭总站");
+}
+
 function context(): AiChapterGenerationContext {
   const first = { order: 1, title: "旧钥匙", chapterGoal: "发现钥匙", coreConflict: "线索不足", majorTurn: "听见暗号", endingHook: "来客敲门", nextChapterBridge: "判断来客" };
   const second = { order: 2, title: "门外来客", chapterGoal: "确认身份", coreConflict: "无法信任", majorTurn: "说出暗号", endingHook: "暗号来自内鬼", nextChapterBridge: "追查内鬼" };
@@ -103,6 +171,10 @@ function snapshot(): WorkbenchSnapshot {
   } as WorkbenchSnapshot;
 }
 
+function snapshotWithoutOutline(): WorkbenchSnapshot {
+  return { ...snapshot(), scriptOutline: null } as WorkbenchSnapshot;
+}
+
 function turn(value = snapshot()): DialogueTurn {
   return {
     thread: { id: "thread-1", projectId: "project-1", chapterId: "chapter-2" },
@@ -118,6 +190,10 @@ function setup(runtimeOutputs: string[]) {
   const projects = {
     confirmScriptOutline: vi.fn().mockResolvedValue(outline()),
     getWorkbenchSnapshot: vi.fn().mockResolvedValue(refreshed),
+    saveScriptOutlineFromAI: vi.fn().mockImplementation(async (_projectId: string, input: { sourceText: string }) => ({
+      ...outline(),
+      sourceText: input.sourceText,
+    })),
   };
   const repository = {
     getAiChapterGenerationContext: vi.fn().mockResolvedValue(context()),
@@ -137,6 +213,67 @@ function setup(runtimeOutputs: string[]) {
   service.setEnsureSession(async () => "session-1");
   return { service, projects, repository, runtime };
 }
+
+describe("ScriptDialogueService A2/A3 P1～P2 质量门", () => {
+  it("P1 发现伪差异候选后只定向重写一次，再返回合格的三项灵感", async () => {
+    const { service, runtime } = setup([duplicateInspirationJson(), inspirationJson()]);
+
+    const results = await service.handleScriptTurn(
+      turn(snapshotWithoutOutline()),
+      { content: "帮我找三个都市悬疑灵感", intent: "generate_inspiration_seeds" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_inspiration_seeds", status: "succeeded" });
+    expect(results[0]?.inspirationSeeds).toHaveLength(3);
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("未通过 P1 灵感质量门");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P1_CONFLICT_ENGINE_NOT_DISTINCT");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("重新生成完整 3 项");
+  });
+
+  it("P1 重写一次后仍是假差异就停止，不把不合格候选交给用户", async () => {
+    const { service, runtime } = setup([duplicateInspirationJson(), duplicateInspirationJson()]);
+
+    const results = await service.handleScriptTurn(
+      turn(snapshotWithoutOutline()),
+      { content: "帮我找三个都市悬疑灵感", intent: "generate_inspiration_seeds" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_inspiration_seeds", status: "failed", inspirationSeeds: null });
+    expect(results[0]?.summary).toContain("P1 质量门未通过");
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("P2 发现弱因果和空泛结局后只定向重写一次，合格后才保存待确认大纲", async () => {
+    const { service, projects, runtime } = setup([weakOutlineMarkdown(), goodOutlineMarkdown]);
+
+    const results = await service.handleScriptTurn(
+      turn(snapshotWithoutOutline()),
+      { content: "写一个 2 章都市悬疑剧本" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_script_outline_from_topic", status: "needs_user_confirmation" });
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("未通过 P2 因果大纲与结局方向质量门");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P2_ENDING_DIRECTION_VAGUE");
+    expect(projects.saveScriptOutlineFromAI).toHaveBeenCalledTimes(1);
+    expect(projects.saveScriptOutlineFromAI).toHaveBeenCalledWith("project-1", expect.objectContaining({ sourceText: expect.stringContaining("故事收束（终章）") }));
+  });
+
+  it("P2 重写一次后仍不合格就停止，绝不保存弱大纲", async () => {
+    const { service, projects, runtime } = setup([weakOutlineMarkdown(), weakOutlineMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      turn(snapshotWithoutOutline()),
+      { content: "写一个 2 章都市悬疑剧本" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_script_outline_from_topic", status: "failed", scriptOutline: null });
+    expect(results[0]?.summary).toContain("P2 质量门未通过");
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(projects.saveScriptOutlineFromAI).not.toHaveBeenCalled();
+  });
+});
 
 describe("ScriptDialogueService A4 显式生成", () => {
   it("已确认大纲下，裸继续和章节切换不会调用生成", async () => {

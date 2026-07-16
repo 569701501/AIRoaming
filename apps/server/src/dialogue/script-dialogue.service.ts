@@ -72,6 +72,11 @@ import {
 import { getPendingInspirationKey, getPendingScriptOutlineKey } from "./dialogue-key.util.js";
 import { ScriptImportAnalysisService } from "./script-import-analysis.service.js";
 import { ScriptImportWorkerService } from "./script-import-worker.service.js";
+import {
+  assertP1InspirationQuality,
+  assertP2OutlineQuality,
+  ScriptCreativeQualityError,
+} from "./script-creative-quality.util.js";
 
 /**
  * 剧本工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -1068,22 +1073,38 @@ export class ScriptDialogueService {
       signal,
     });
 
+    const validate = (content: string): ScriptInspirationSeed[] => {
+      const seeds = parseInspirationSeeds(content);
+      assertP1InspirationQuality(seeds);
+      return seeds;
+    };
+
     try {
-      return parseInspirationSeeds(response.content);
+      return validate(response.content);
     } catch (error) {
+      const qualityFailure = error instanceof ScriptCreativeQualityError;
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId: openCodeSessionId,
         model: input.model,
-        content: [
-          "上一次输出未通过 creative.ideation/1.0 格式校验。只修复格式，不改变三套创意的语义。",
-          "只返回严格 JSON；顶层只能有 seeds；seeds 必须恰好 3 项；每项只含 title、genreTags、logline、keyConflict、visualHook、firstChapterDirection。不要代码块或解释。",
-          `校验错误：${getErrorMessage(error)}`,
-          "待修复输出：",
-          response.content,
-        ].join("\n"),
+        content: qualityFailure
+          ? [
+              "上一次输出格式合法，但未通过 P1 灵感质量门。允许重新设计薄弱候选，但必须保持用户题材方向和固定六字段格式。",
+              "请根据问题代码重新生成完整 3 项；必须让主角压力、冲突发动机和视觉前提形成实质差异，不能只换标题、人名或措辞。不要输出评分、诊断、代码块或解释。",
+              "只返回严格 JSON；顶层只能有 seeds；seeds 必须恰好 3 项；每项只含 title、genreTags、logline、keyConflict、visualHook、firstChapterDirection。",
+              `质量问题：${error.issues.join("、")}`,
+              "待重写输出：",
+              response.content,
+            ].join("\n")
+          : [
+              "上一次输出未通过 creative.ideation/1.0 格式校验。只修复格式，不改变三套创意的语义。",
+              "只返回严格 JSON；顶层只能有 seeds；seeds 必须恰好 3 项；每项只含 title、genreTags、logline、keyConflict、visualHook、firstChapterDirection。不要代码块或解释。",
+              `校验错误：${getErrorMessage(error)}`,
+              "待修复输出：",
+              response.content,
+            ].join("\n"),
         signal,
       });
-      return parseInspirationSeeds(repaired.content);
+      return validate(repaired.content);
     }
   }
 
@@ -1166,22 +1187,38 @@ export class ScriptDialogueService {
     sourceText: string,
     signal?: AbortSignal,
   ): Promise<string> {
+    const normalize = (content: string): string => {
+      const document = parseScriptOutlineMarkdownV1(content);
+      assertP2OutlineQuality(document);
+      return serializeScriptOutlineMarkdownV1(document);
+    };
+
     try {
-      return serializeScriptOutlineMarkdownV1(parseScriptOutlineMarkdownV1(sourceText));
+      return normalize(sourceText);
     } catch (error) {
+      const qualityFailure = error instanceof ScriptCreativeQualityError;
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId,
         model: input.model,
-        content: [
-          "上一次输出未通过 creative.outline/1.0 格式校验。只修复格式，不改变故事方向、角色、章数或结局。",
-          getScriptOutlineFormatPrompt(),
-          `校验错误：${getErrorMessage(error)}`,
-          "待修复输出：",
-          sourceText,
-        ].join("\n"),
+        content: qualityFailure
+          ? [
+              "上一次输出格式合法，但未通过 P2 因果大纲与结局方向质量门。保持用户题材、核心承诺和固定大纲格式，重新写清薄弱的因果推进、章节变化或结局兑现。",
+              "允许调整情节概要和章节卡的语义内容，但不要新增栏目、详细场景、剧情节拍或章节正文。必须返回完整大纲，不要输出评分、诊断、代码块或解释。",
+              `质量问题：${error.issues.join("、")}`,
+              getScriptOutlineFormatPrompt(),
+              "待重写输出：",
+              sourceText,
+            ].join("\n")
+          : [
+              "上一次输出未通过 creative.outline/1.0 格式校验。只修复格式，不改变故事方向、角色、章数或结局。",
+              getScriptOutlineFormatPrompt(),
+              `校验错误：${getErrorMessage(error)}`,
+              "待修复输出：",
+              sourceText,
+            ].join("\n"),
         signal,
       });
-      return serializeScriptOutlineMarkdownV1(parseScriptOutlineMarkdownV1(repaired.content));
+      return normalize(repaired.content);
     }
   }
 

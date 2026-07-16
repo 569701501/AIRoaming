@@ -522,6 +522,17 @@ export function buildStoryboardPrompt(turn: DialogueTurn, input: SendDialogueMes
 
 // ---------- 灵感种子 prompt ----------
 
+function getP2OutlineQualityGatePrompt(): string[] {
+  return [
+    "P2 因果大纲与结局方向质量门（输出前内部检查）：",
+    "- 主角必须有可识别的外在追求、内在缺口或错误信念；把必要信息压缩进现有剧情简介、角色说明和情节概要，不新增栏目。",
+    "- 情节不能只是“然后发生什么”的事件清单；关键推进要形成自然的转折与结果关系，可用“但是/因此”或同义表达呈现。",
+    "- 阻力、代价和选择必须逐步升级；每一章都要造成状态变化，下一章衔接必须由本章结果触发。",
+    "- 结局方向必须写清主角的最终选择、结果与前期承诺如何兑现；终章的下一章衔接必须明确标记故事已经收束，不得继续悬空引向下一章。",
+    "- 质量门只用于内部检查；不要输出评分、检查报告或额外字段。未通过时先重写薄弱内容，再按固定格式输出完整大纲。",
+  ];
+}
+
 export function buildInspirationSeedsPrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
   const snapshot = turn.snapshot;
   const tags = snapshot.project.genreTags.length > 0 ? snapshot.project.genreTags.join("、") : "未设置";
@@ -537,6 +548,12 @@ export function buildInspirationSeedsPrompt(turn: DialogueTurn, input: SendDialo
     "- 不要返回固定模板，要结合用户输入、项目名称、题材标签和当前章节状态。",
     "- 只返回一个严格 JSON 对象，不要代码块，不要 Markdown，不要在 JSON 前后追加解释。",
     "- JSON 顶层只能有 seeds；每个 seed 只能有约定的 6 个字段。",
+    "",
+    "P1 灵感质量门（输出前内部检查）：",
+    "- 每个候选都要能看出反差、情绪钩子、主角压力、可持续冲突发动机、鲜明视觉承诺和可兑现的结局潜力。",
+    "- 三个候选必须在主角承受的核心压力、冲突发动机和视觉前提上实质不同；只换标题、人名、题材标签或措辞不算不同。",
+    "- 将人物欲望、阻碍、风险和升级空间压缩进现有 logline、keyConflict、visualHook、firstChapterDirection，不新增字段。",
+    "- 质量门只用于内部检查；不要输出评分、诊断或额外字段。候选不合格时先重新构思，再输出完整 3 项。",
     "",
     "JSON 结构必须是：",
     "{\"seeds\":[{\"title\":\"\",\"genreTags\":[\"\"],\"logline\":\"\",\"keyConflict\":\"\",\"visualHook\":\"\",\"firstChapterDirection\":\"\"}]}",
@@ -568,6 +585,8 @@ export function buildScriptOutlineFromTopicPrompt(turn: DialogueTurn, input: Sen
     "- 必须为每一章生成一张轻量章节卡；章节卡只规划目标、冲突、转折、钩子和跨章衔接，不生成详细场景与剧情节拍。",
     "- 不要套用提示中示例的人名、剧情或设定,只参考格式。",
     "- 不要声称你直接操作本地文件;保存由后端受控工具完成。",
+    "",
+    ...getP2OutlineQualityGatePrompt(),
     "",
     getScriptOutlineFormatPrompt(),
     "",
@@ -602,6 +621,8 @@ export function buildScriptOutlineFromSeedPrompt(
     "- 章节卡只规划目标、冲突、转折、钩子和跨章衔接，不生成详细场景、剧情节拍或正文。",
     "- 不要套用用户示例里的人名、古装重生剧情、角色关系或情节，只参考格式。",
     "- 不要声称你直接操作本地文件；保存由后端受控工具完成。",
+    "",
+    ...getP2OutlineQualityGatePrompt(),
     "",
     getScriptOutlineFormatPrompt(),
     "",

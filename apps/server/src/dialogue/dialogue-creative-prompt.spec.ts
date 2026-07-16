@@ -51,6 +51,9 @@ describe("A2-A4 创作 Prompt 契约", () => {
   it("A2 只要求严格三项 JSON，不注入当前章节正文", () => {
     const prompt = buildInspirationSeedsPrompt(turn(), request("给我三个悬疑方向"));
     expect(prompt).toContain("只返回一个严格 JSON 对象");
+    expect(prompt).toContain("P1 灵感质量门");
+    expect(prompt).toContain("主角承受的核心压力、冲突发动机和视觉前提上实质不同");
+    expect(prompt).toContain("不新增字段");
     expect(prompt).not.toContain("```json");
     expect(prompt).not.toContain("这段旧正文绝不能进入");
   });
@@ -61,6 +64,9 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("结局方向：");
     expect(prompt).toContain("剧集章数：12 章");
     expect(prompt).toContain("章节卡数量必须与剧集章数完全一致");
+    expect(prompt).toContain("P2 因果大纲与结局方向质量门");
+    expect(prompt).toContain("终章的下一章衔接必须明确标记故事已经收束");
+    expect(prompt).toContain("不要输出评分、检查报告或额外字段");
   });
 
   it("A4 只生成当前章，并完整读取目标卡、相邻卡和上一章正式正文", () => {
