@@ -218,6 +218,21 @@ export interface AiChapterGenerationContext {
   sourceSetDigest: `sha256:${string}`;
 }
 
+export interface ChapterRevisionContinuityContext {
+  chapter: {
+    id: string;
+    order: number;
+    title: string;
+  };
+  previousScript: {
+    id: string;
+    chapterId: string;
+    chapterTitle: string;
+    sourceText: string;
+    sourceDigest: `sha256:${string}`;
+  } | null;
+}
+
 @Injectable()
 export class ScriptWorkflowSourceRepository {
   constructor(
@@ -232,6 +247,59 @@ export class ScriptWorkflowSourceRepository {
   }): Promise<AiChapterGenerationContext> {
     this.assertDatabaseMode();
     return this.run((tx) => this.readAiChapterGenerationContext(tx, input));
+  }
+
+  async getChapterRevisionContinuityContext(input: {
+    projectId: string;
+    chapterId: string;
+  }): Promise<ChapterRevisionContinuityContext> {
+    this.assertDatabaseMode();
+    return this.run(async (tx) => {
+      const project = await tx.project.findFirst({
+        where: { id: input.projectId, lifecycleStatus: "active" },
+      });
+      if (!project?.currentScriptOutlineId) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+      const outline = await tx.projectScriptOutline.findFirst({
+        where: { id: project.currentScriptOutlineId, projectId: input.projectId, status: "confirmed" },
+      });
+      if (!outline) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+      const chapter = await tx.chapter.findFirst({
+        where: { id: input.chapterId, projectId: input.projectId },
+        include: { chapterScriptPendingByChapter: true },
+      });
+      if (!chapter) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
+      if (chapter.chapterScriptPendingByChapter) throw createG2DatabaseError(409, "ACTIVE_PENDING_EXISTS");
+
+      let document: ScriptOutlineDocumentV1;
+      try {
+        document = parseScriptOutlineMarkdownV1(outline.sourceText);
+      } catch (error) {
+        throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", error);
+      }
+      if (!document.chapterCards.some((card) => card.order === chapter.order)) {
+        throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", { chapterOrder: chapter.order });
+      }
+
+      let previousScript: ChapterRevisionContinuityContext["previousScript"] = null;
+      if (chapter.order > 1) {
+        const previous = await tx.chapter.findUnique({
+          where: { projectId_order: { projectId: input.projectId, order: chapter.order - 1 } },
+          include: { currentScriptVersion: true },
+        });
+        if (!previous?.currentScriptVersion) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+        previousScript = {
+          id: previous.currentScriptVersion.id,
+          chapterId: previous.id,
+          chapterTitle: previous.title,
+          sourceText: previous.currentScriptVersion.sourceText,
+          sourceDigest: previous.currentScriptVersion.sourceDigest as `sha256:${string}`,
+        };
+      }
+      return {
+        chapter: { id: chapter.id, order: chapter.order, title: chapter.title },
+        previousScript,
+      };
+    });
   }
 
   async createRawSource(projectId: string, input: CreateRawScriptSourceInput): Promise<RawScriptSourceResult> {

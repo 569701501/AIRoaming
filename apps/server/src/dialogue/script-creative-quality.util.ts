@@ -6,7 +6,7 @@ import {
   type ScriptOutlineDocumentV1,
 } from "@airoaming/shared";
 
-export type ScriptCreativeQualityGate = "P1" | "P2" | "P3/P5" | "P4";
+export type ScriptCreativeQualityGate = "P1" | "P2" | "P3/P5" | "P4" | "P5";
 
 export class ScriptCreativeQualityError extends Error {
   readonly code = "SCRIPT_CREATIVE_QUALITY_FAILED";
@@ -108,6 +108,30 @@ function previousEndingAnchors(sourceText: string): string {
     ].join("\n");
   } catch {
     return sourceText.slice(-800);
+  }
+}
+
+function chapterCharacterNames(...documents: readonly ChapterScriptDocumentV1[]): string[] {
+  return [...new Set(documents.flatMap((document) => document.scenes.flatMap((scene) =>
+    scene.characters.split(/[、，,；;\s]+/u).map((name) => name.trim()).filter(Boolean),
+  )))];
+}
+
+export function assertP5RevisionContinuity(
+  source: ChapterScriptDocumentV1,
+  revised: ChapterScriptDocumentV1,
+  previousScriptSourceText: string,
+): void {
+  const names = chapterCharacterNames(source, revised);
+  const anchorUnits = semanticBigrams(previousEndingAnchors(previousScriptSourceText), names);
+  if (anchorUnits.size < 2) return;
+  const sourceEvidence = [chapterSceneText(source), source.endingEvent, source.suspense, source.nextChapterLead].join("\n");
+  const sourceUnits = semanticBigrams(sourceEvidence, names);
+  if ([...anchorUnits].filter((unit) => sourceUnits.has(unit)).length < 2) return;
+  const revisedEvidence = [chapterSceneText(revised), revised.endingEvent, revised.suspense, revised.nextChapterLead].join("\n");
+  const revisedUnits = semanticBigrams(revisedEvidence, names);
+  if ([...anchorUnits].filter((unit) => revisedUnits.has(unit)).length < 2) {
+    throw new ScriptCreativeQualityError("P5", ["P5_PREVIOUS_ENDING_REGRESSED"]);
   }
 }
 

@@ -2489,6 +2489,39 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await reopenedPrisma.conversationMessage.count({ where: { threadId: first.thread.id } })).toBe(messageCountBeforeDeleting);
   }, 30_000);
 
+  it("P7-DIALOGUE-DB-02: polling a thread does not settle an active non-streaming message", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(DialogueModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const dialogue = app.get(DialogueService);
+    const runtime = app.get(OpenCodeRuntimeService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P7 非流式消息轮询", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapterId = project.currentChapterId!;
+    const fakeModel = { providerId: "fake", modelId: "fake-dialogue" };
+    let releaseResponse!: () => void;
+    let markStarted!: () => void;
+    const responseGate = new Promise<void>((resolve) => { releaseResponse = resolve; });
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    runtime.createSession = async () => "fake-session-active-non-streaming";
+    runtime.sendMessage = async () => {
+      markStarted();
+      await responseGate;
+      return { content: "完成回复", model: fakeModel };
+    };
+
+    const sending = dialogue.sendMessage(project.id, "project_story", { content: "生成回复", chapterId, model: fakeModel });
+    await started;
+    const during = await dialogue.getProjectThread(project.id, "project_story", chapterId);
+    releaseResponse();
+    const completed = await sending;
+
+    expect(during.messages.at(-1)).toMatchObject({ role: "assistant", status: "running" });
+    expect(completed.assistantMessage).toMatchObject({ status: "completed", content: "完成回复" });
+    expect(await prisma.conversationMessage.findUniqueOrThrow({ where: { id: completed.assistantMessage.id } })).toMatchObject({ status: "completed", content: "完成回复" });
+  }, 30_000);
+
   it("P8-OTB-01/DEL-00: claims strict events and records a DB project deleting intent idempotently", async () => {
     const { deployed, workspaceRoot } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

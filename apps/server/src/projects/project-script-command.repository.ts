@@ -101,6 +101,22 @@ export class ProjectScriptCommandRepository {
       const chapter = await tx.chapter.findUnique({ where: { id: chapterId, projectId } });
       if (!project || project.lifecycleStatus !== "active") throw createG2DatabaseError(404, "PROJECT_NOT_FOUND");
       if (!chapter) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
+      if (input.operation === "update_chapter_draft" && chapter.order > 1) {
+        const continuitySource = input.continuitySource;
+        if (!continuitySource) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+        const previous = await tx.chapter.findUnique({
+          where: { projectId_order: { projectId, order: chapter.order - 1 } },
+          include: { currentScriptVersion: true },
+        });
+        if (!previous?.currentScriptVersion) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+        if (
+          previous.id !== continuitySource.previousChapterId
+          || previous.currentScriptVersion.id !== continuitySource.previousScriptVersionId
+          || previous.currentScriptVersion.sourceDigest !== continuitySource.previousSourceDigest
+        ) {
+          throw createG2DatabaseError(409, "CURRENT_VERSION_CHANGED");
+        }
+      }
       const existing = await tx.chapterScriptPending.findUnique({ where: { id: ids.pendingId } });
       if (existing) {
         if (existing.chapterId !== chapterId || existing.sourceDigest !== encoded.digest || existing.operation !== input.operation) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");

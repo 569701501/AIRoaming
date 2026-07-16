@@ -332,9 +332,49 @@ describe("script workflow source repository", () => {
       { projectId: project.id, chapterId: chapter2.id },
       { sourceText: second, expectedChapterRowVersion: emptyChapter2.rowVersion },
     );
+    const revisionContext = await repository.getChapterRevisionContinuityContext({
+      projectId: project.id,
+      chapterId: chapter2.id,
+    });
+    expect(revisionContext).toMatchObject({
+      chapter: { id: chapter2.id, order: 2 },
+      previousScript: { chapterId: chapter1.id, sourceText: first.trimEnd() },
+    });
+    const revisionInput = {
+      sourceText: second.replace("场景1", "场景1（修订）"),
+      summary: "修订第二章",
+      threadId: "thread",
+      messageId: "message",
+      toolCallId: "chapter-2-revision",
+      operation: "update_chapter_draft" as const,
+    };
+    await expect(commands.createAiPendingSuggestion(project.id, chapter2.id, {
+      ...revisionInput,
+      continuitySource: {
+        previousChapterId: revisionContext.previousScript!.chapterId,
+        previousScriptVersionId: revisionContext.previousScript!.id,
+        previousSourceDigest: `sha256:${"0".repeat(64)}`,
+      },
+    })).rejects.toMatchObject({ code: "CURRENT_VERSION_CHANGED" });
+    expect(await scripts.getPendingSuggestion({ projectId: project.id, chapterId: chapter2.id })).toBeNull();
+    await commands.createAiPendingSuggestion(project.id, chapter2.id, {
+      ...revisionInput,
+      continuitySource: {
+        previousChapterId: revisionContext.previousScript!.chapterId,
+        previousScriptVersionId: revisionContext.previousScript!.id,
+        previousSourceDigest: revisionContext.previousScript!.sourceDigest,
+      },
+    });
+    const revisionPending = await scripts.getPendingSuggestion({ projectId: project.id, chapterId: chapter2.id });
+    expect(revisionPending).toMatchObject({ kind: "legacy", sourceBindings: [] });
+    await scripts.discardPendingSuggestion(
+      { projectId: project.id, chapterId: chapter2.id },
+      { pendingId: revisionPending!.id, expectedPendingRowVersion: revisionPending!.rowVersion },
+    );
+    const chapter2AfterRevisionDiscard = await prisma.chapter.findUniqueOrThrow({ where: { id: chapter2.id } });
     const completedSecond = await scripts.publish(
       { projectId: project.id, chapterId: chapter2.id },
-      { expectedCurrentScriptVersionId: null, expectedWorkingDigest: secondWorking.value.digest, expectedChapterRowVersion: secondWorking.value.chapterRowVersion, createNextChapter: true, nextChapterTitle: "不应创建的第三章" },
+      { expectedCurrentScriptVersionId: null, expectedWorkingDigest: secondWorking.value.digest, expectedChapterRowVersion: chapter2AfterRevisionDiscard.rowVersion, createNextChapter: true, nextChapterTitle: "不应创建的第三章" },
     );
     expect(completedSecond.createdNextChapter).toBe(false);
     expect(await prisma.chapter.count({ where: { projectId: project.id } })).toBe(2);

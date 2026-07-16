@@ -74,6 +74,39 @@ function chapterMarkdown(): string {
   });
 }
 
+function previousChapterMarkdown(): string {
+  return serializeChapterScriptMarkdownV1({
+    chapterOrder: 1,
+    chapterTitle: "旧钥匙",
+    type: "悬疑",
+    theme: "信任",
+    style: "紧凑",
+    comicForm: "竖向条漫",
+    targetLength: "约 1200 字",
+    logline: "林舟听见门外来客敲出父亲暗号。",
+    chapterGoal: "确认门外异动。",
+    coreConflict: "回应暗号可能暴露藏身处。",
+    emotionalArc: "疑惑到戒备。",
+    endingHook: "门外来客知道父亲暗号。",
+    highlights: ["旧钥匙", "暗号", "来客"],
+    visualAtmosphere: "雨夜",
+    colorDirection: "冷蓝",
+    visualMotif: "旧钥匙",
+    scenes: [{ order: 1, name: "暗号敲门", location: "旧屋", time: "夜", atmosphere: "戒备", characters: "林舟、门外来客", description: "林舟找到旧钥匙时听见敲门。", actions: "林舟握住钥匙停在门闩前。", dialogue: "门外来客：三短一长。", narration: "父亲只把这个暗号告诉过林舟。", endingPoint: "门外再次响起三短一长，来客等待林舟回应。" }],
+    endingEvent: "门外来客敲出父亲暗号。",
+    suspense: "来客为何知道父亲暗号？",
+    nextChapterLead: "林舟必须确认门外来客身份。",
+  });
+}
+
+function uniqueAnchorPreviousChapterMarkdown(): string {
+  return previousChapterMarkdown()
+    .replace("门外再次响起三短一长，来客等待林舟回应。", "雾铃七响。")
+    .replaceAll("门外来客敲出父亲暗号。", "雾铃七响。")
+    .replace("来客为何知道父亲暗号？", "雾铃七响。")
+    .replace("林舟必须确认门外来客身份。", "雾铃七响。");
+}
+
 function weakChapterMarkdown(): string {
   return chapterMarkdown()
     .replace("许澄在门外说出父亲暗号，林舟借暗号确认来客身份。", "无")
@@ -175,7 +208,7 @@ function context(): AiChapterGenerationContext {
     targetCard: second,
     previousCard: first,
     nextCard: null,
-    previousScript: { id: "script-1", chapterId: "chapter-1", chapterTitle: "旧钥匙", sourceText: "上一章正式正文：门外响起三短一长。", sourceDigest: digest },
+    previousScript: { id: "script-1", chapterId: "chapter-1", chapterTitle: "旧钥匙", sourceText: previousChapterMarkdown(), sourceDigest: digest },
     sourceBindings: [],
     sourceSetDigest: digest,
   };
@@ -207,6 +240,7 @@ function setup(runtimeOutputs: string[]) {
   const refreshed = snapshot();
   refreshed.currentChapter = { ...refreshed.currentChapter!, pendingSourceText: { sourceText: chapterMarkdown(), threadId: "thread-1", messageId: "message-1", toolCallId: "tool", operation: "generate_script_from_outline", createdAt: "2026-07-16T00:00:00.000Z", updatedAt: "2026-07-16T00:00:00.000Z" } };
   const projects = {
+    usesDatabasePersistence: vi.fn().mockReturnValue(true),
     confirmScriptOutline: vi.fn().mockResolvedValue(outline()),
     getWorkbenchSnapshot: vi.fn().mockResolvedValue(refreshed),
     saveScriptOutlineFromAI: vi.fn().mockImplementation(async (_projectId: string, input: { sourceText: string }) => ({
@@ -244,6 +278,7 @@ function setup(runtimeOutputs: string[]) {
   };
   const repository = {
     getAiChapterGenerationContext: vi.fn().mockResolvedValue(context()),
+    getChapterRevisionContinuityContext: vi.fn().mockResolvedValue({ chapter: context().chapter, previousScript: context().previousScript }),
     createAiChapterPending: vi.fn().mockResolvedValue({ pendingId: "pending", revisionId: "revision", sourceSetDigest: digest, replayed: false }),
   };
   const runtime = { sendMessage: vi.fn() };
@@ -336,7 +371,7 @@ describe("ScriptDialogueService A4 显式生成", () => {
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ tool: "generate_script_from_outline", status: "succeeded", currentChapterId: "chapter-2" });
     expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
-    expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("上一章正式正文：门外响起三短一长。");
+    expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("门外再次响起三短一长");
     expect(repository.createAiChapterPending).toHaveBeenCalledWith(expect.objectContaining({ chapterId: "chapter-2", outlineId: "outline-1", expectedSourceSetDigest: digest, operation: "generate_script_from_outline" }));
   });
 
@@ -413,9 +448,9 @@ describe("ScriptDialogueService A4 显式生成", () => {
 });
 
 describe("ScriptDialogueService P4 分层修订", () => {
-  function editingTurn(): DialogueTurn {
+  function editingTurn(sourceText = chapterMarkdown(), order = 2): DialogueTurn {
     const value = snapshot();
-    value.currentChapter = { ...value.currentChapter!, sourceText: chapterMarkdown(), pendingSourceText: null };
+    value.currentChapter = { ...value.currentChapter!, order, sourceText, pendingSourceText: null };
     return turn(value);
   }
 
@@ -430,10 +465,16 @@ describe("ScriptDialogueService P4 分层修订", () => {
     expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "succeeded" });
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
     expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("P4 当前修订层：场景与对白修订");
+    expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("上一章正式正文（只读跨章事实，不是改写对象）");
+    expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("门外再次响起三短一长");
     expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P4 场景与对白修订保护");
     expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P4_UNREQUESTED_ENDING_EVENT_CHANGE");
     expect(projects.writeChapterDraftFromAI).toHaveBeenCalledTimes(1);
-    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledWith("project-1", "chapter-2", expect.objectContaining({ sourceText: expect.stringContaining("你父亲教过我"), operation: "update_chapter_draft" }));
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledWith("project-1", "chapter-2", expect.objectContaining({
+      sourceText: expect.stringContaining("你父亲教过我"),
+      operation: "update_chapter_draft",
+      continuitySource: { previousChapterId: "chapter-1", previousScriptVersionId: "script-1", previousSourceDigest: digest },
+    }));
   });
 
   it("P4 重写一次后仍越层就停止，不创建待确认草稿", async () => {
@@ -475,6 +516,76 @@ describe("ScriptDialogueService P4 分层修订", () => {
     expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "succeeded" });
     expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
     expect(projects.writeChapterDraftFromAI).toHaveBeenCalledWith("project-1", "chapter-2", expect.objectContaining({ sourceText: expect.stringContaining("## 第 2 章：暗号证人") }));
+  });
+
+  it("P5 删除当前稿已经承接的上一章结尾时只修订一次，恢复后才创建 pending", async () => {
+    const source = chapterMarkdown().replace("许澄：三短一长。", "许澄：雾铃七响。");
+    const regressed = source.replace("许澄：雾铃七响。", "许澄：名册在我手里。");
+    const repaired = source.replace("许澄：雾铃七响。", "许澄：你听——雾铃七响。");
+    const { service, projects, repository, runtime } = setup([regressed, repaired]);
+    repository.getChapterRevisionContinuityContext.mockResolvedValue({
+      chapter: context().chapter,
+      previousScript: { ...context().previousScript!, sourceText: uniqueAnchorPreviousChapterMarkdown() },
+    });
+
+    const results = await service.handleScriptTurn(
+      editingTurn(source),
+      { content: "只润色本章对白", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: source } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "succeeded" });
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P5 前章连续性保护");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P5_PREVIOUS_ENDING_REGRESSED");
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledTimes(1);
+  });
+
+  it("第 1 章没有上一章时跳过 P5，且保存参数不伪造 continuitySource", async () => {
+    const source = chapterMarkdown().replace("## 第 2 章：门外来客", "## 第 1 章：门外来客");
+    const revised = source.replace("许澄：三短一长。", "许澄：我带来了名册。");
+    const { service, projects, repository, runtime } = setup([revised]);
+    repository.getChapterRevisionContinuityContext.mockResolvedValue({
+      chapter: { id: "chapter-2", order: 1, title: "门外来客" },
+      previousScript: null,
+    });
+
+    const results = await service.handleScriptTurn(
+      editingTurn(source, 1),
+      { content: "只润色本章对白", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: source } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ status: "succeeded" });
+    expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("跳过跨章检查");
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledWith("project-1", "chapter-2", expect.not.objectContaining({ continuitySource: expect.anything() }));
+  });
+
+  it("第 2 章找不到上一章正式版本时在调用模型前停止", async () => {
+    const { service, projects, repository, runtime } = setup([]);
+    repository.getChapterRevisionContinuityContext.mockRejectedValue(new Error("UPSTREAM_WORK_NOT_CONFIRMED"));
+
+    const results = await service.handleScriptTurn(
+      editingTurn(),
+      { content: "只润色本章对白", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: chapterMarkdown() } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "failed" });
+    expect(results[0]?.summary).toContain("本次没有调用模型");
+    expect(runtime.sendMessage).not.toHaveBeenCalled();
+    expect(projects.writeChapterDraftFromAI).not.toHaveBeenCalled();
+  });
+
+  it("模型运行期间上一章正式版本变化时返回失败结果，不把事务围栏错误升级成 HTTP 异常", async () => {
+    const { service, projects, runtime } = setup([dialogueEditedChapterMarkdown()]);
+    projects.writeChapterDraftFromAI.mockRejectedValue(new Error("CURRENT_VERSION_CHANGED"));
+
+    const results = await service.handleScriptTurn(
+      editingTurn(),
+      { content: "只润色本章对白", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: chapterMarkdown() } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "failed" });
+    expect(results[0]?.summary).toContain("上一章正式版本或当前待确认状态发生变化");
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
   });
 });
 

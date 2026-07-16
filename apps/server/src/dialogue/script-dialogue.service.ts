@@ -24,6 +24,7 @@ import { ProjectsService } from "../projects/projects.service.js";
 import {
   ScriptWorkflowSourceRepository,
   type AiChapterGenerationContext,
+  type ChapterRevisionContinuityContext,
   type ImportBatchProjection,
 } from "../projects/script-workflow-source.repository.js";
 import type {
@@ -76,6 +77,7 @@ import {
   assertP1InspirationQuality,
   assertP2OutlineQuality,
   assertP3P5ChapterDraftQuality,
+  assertP5RevisionContinuity,
   ScriptCreativeQualityError,
 } from "./script-creative-quality.util.js";
 import {
@@ -938,9 +940,24 @@ export class ScriptDialogueService {
     }
 
     const toolCallId = randomUUID();
+    let continuityContext: ChapterRevisionContinuityContext | null = null;
+    if (this.projectsService.usesDatabasePersistence()) {
+      try {
+        continuityContext = await this.scriptWorkflowSourceRepository.getChapterRevisionContinuityContext({
+          projectId: turn.thread.projectId,
+          chapterId,
+        });
+      } catch (error) {
+        return this.createFailedToolResult(
+          turn,
+          "update_chapter_draft",
+          `章节草稿改写失败：无法确认当前章对应的已确认大纲或上一章正式正文（${getErrorMessage(error)}）。本次没有调用模型，也没有写入章节。`,
+        );
+      }
+    }
     let updatedSourceText: string;
     try {
-      updatedSourceText = await this.rewriteChapterDraftWithAI(turn, input, sourceText, signal);
+      updatedSourceText = await this.rewriteChapterDraftWithAI(turn, input, sourceText, continuityContext, signal);
     } catch (error) {
       return this.createFailedToolResult(
         turn,
@@ -951,15 +968,31 @@ export class ScriptDialogueService {
 
     const summary = summarizeDraftUpdate(input.content);
     const chapterTitle = extractChapterScriptTitle(updatedSourceText);
-    const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, chapterId, {
-      sourceText: updatedSourceText,
-      title: chapterTitle ?? undefined,
-      summary,
-      threadId: turn.thread.id,
-      messageId: turn.assistantMessage.id,
-      toolCallId,
-      operation: "update_chapter_draft",
-    });
+    let result: Awaited<ReturnType<ProjectsService["writeChapterDraftFromAI"]>>;
+    try {
+      result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, chapterId, {
+        sourceText: updatedSourceText,
+        title: chapterTitle ?? undefined,
+        summary,
+        threadId: turn.thread.id,
+        messageId: turn.assistantMessage.id,
+        toolCallId,
+        operation: "update_chapter_draft",
+        ...(continuityContext?.previousScript ? {
+          continuitySource: {
+            previousChapterId: continuityContext.previousScript.chapterId,
+            previousScriptVersionId: continuityContext.previousScript.id,
+            previousSourceDigest: continuityContext.previousScript.sourceDigest,
+          },
+        } : {}),
+      });
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "update_chapter_draft",
+        `章节已改写但上一章正式版本或当前待确认状态发生变化，未写入章节：${getErrorMessage(error)}。请重新提交本章改写要求。`,
+      );
+    }
     const now = new Date().toISOString();
 
     return {
@@ -1272,6 +1305,7 @@ export class ScriptDialogueService {
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
     sourceText: string,
+    continuityContext: ChapterRevisionContinuityContext | null,
     signal?: AbortSignal,
   ): Promise<string> {
     const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
@@ -1285,7 +1319,7 @@ export class ScriptDialogueService {
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
-      content: buildChapterEditingPrompt(turn, input, sourceText, layer),
+      content: buildChapterEditingPrompt(turn, input, sourceText, layer, continuityContext?.previousScript ?? null),
       signal,
     });
     const expectedOrder = sourceDocument?.chapterOrder ?? turn.snapshot.currentChapter?.order ?? null;
@@ -1298,6 +1332,9 @@ export class ScriptDialogueService {
         throw new ScriptCreativeQualityError("P4", ["P4_CHAPTER_ORDER_CHANGED"]);
       }
       if (sourceDocument) assertP4LayeredRevision(sourceDocument, revised, layer, input.content);
+      if (sourceDocument && continuityContext?.previousScript) {
+        assertP5RevisionContinuity(sourceDocument, revised, continuityContext.previousScript.sourceText);
+      }
       return serializeChapterScriptMarkdownV1(revised);
     };
 
@@ -1310,13 +1347,19 @@ export class ScriptDialogueService {
         model: input.model,
         content: qualityFailure
           ? [
-              `上一次输出未通过 P4 ${getScriptRevisionLayerLabel(layer)}保护。只重新执行当前层及必要下层修改，不得改变被保护内容。`,
+              error.gate === "P5"
+                ? "上一次输出未通过 P5 前章连续性保护。保留用户要求的有效修改，并恢复当前草稿原本已经承接的上一章结尾事实。"
+                : `上一次输出未通过 P4 ${getScriptRevisionLayerLabel(layer)}保护。只重新执行当前层及必要下层修改，不得改变被保护内容。`,
               `质量问题：${error.issues.join("、")}`,
               `用户改写要求：${input.content}`,
               headingRule,
               getChapterScriptFormatPrompt(),
               "保护基线：",
               sourceText,
+              ...(continuityContext?.previousScript ? [
+                "上一章正式正文（只读跨章事实）：",
+                continuityContext.previousScript.sourceText,
+              ] : []),
               "待重写输出：",
               response.content,
             ].join("\n")
@@ -1328,6 +1371,10 @@ export class ScriptDialogueService {
               `校验错误：${getErrorMessage(error)}`,
               "保护基线：",
               sourceText,
+              ...(continuityContext?.previousScript ? [
+                "上一章正式正文（只读跨章事实）：",
+                continuityContext.previousScript.sourceText,
+              ] : []),
               "待修复输出：",
               response.content,
             ].join("\n"),

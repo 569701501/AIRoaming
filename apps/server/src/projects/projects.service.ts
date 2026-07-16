@@ -197,6 +197,11 @@ export interface WriteChapterDraftFromAIInput {
   messageId: string;
   toolCallId: string;
   operation: "update_chapter_draft" | "generate_script_from_seed" | "generate_script_from_outline";
+  continuitySource?: {
+    previousChapterId: string;
+    previousScriptVersionId: string;
+    previousSourceDigest: `sha256:${string}`;
+  };
 }
 
 export interface WriteChapterDraftFromAIResult {

@@ -10,6 +10,7 @@ import {
   assertP1InspirationQuality,
   assertP2OutlineQuality,
   assertP3P5ChapterDraftQuality,
+  assertP5RevisionContinuity,
   ScriptCreativeQualityError,
 } from "./script-creative-quality.util.js";
 import { normalizeInspirationSeed } from "./dialogue-text.util.js";
@@ -233,5 +234,48 @@ describe("P3/P5 章节草稿质量门", () => {
     const reset = { ...GOOD_CHAPTER_CONTEXT, previousScriptSourceText: "上一章结尾：雪山卫星坠入冰湖，白鲸密码被永远冻结。" };
     expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, reset)).toThrow(/P5_PREVIOUS_ENDING_NOT_CARRIED/);
     expect(() => assertP3P5ChapterDraftQuality(GOOD_CHAPTER, { ...GOOD_CHAPTER_CONTEXT, previousScriptSourceText: null })).not.toThrow();
+  });
+});
+
+describe("P5 章节改写连续性不退化", () => {
+  const previousWithUniqueAnchor = serializeChapterScriptMarkdownV1({
+    ...GOOD_CHAPTER,
+    chapterOrder: 1,
+    chapterTitle: "雾铃",
+    scenes: [{ ...GOOD_CHAPTER.scenes[0]!, order: 1, endingPoint: "雾铃七响。" }],
+    endingEvent: "雾铃七响。",
+    suspense: "雾铃七响。",
+    nextChapterLead: "雾铃七响。",
+  });
+
+  it("当前稿已承接上一章时，拒绝改写后删除该结尾锚点", () => {
+    const source = structuredClone(GOOD_CHAPTER);
+    source.scenes[0]!.dialogue = "许澄：雾铃七响。";
+    const revised = structuredClone(source);
+    revised.scenes[0]!.dialogue = "许澄：名册在我手里。";
+    expect(() => assertP5RevisionContinuity(source, revised, previousWithUniqueAnchor)).toThrow(/P5_PREVIOUS_ENDING_REGRESSED/);
+  });
+
+  it("当前稿原本就未承接时不把既有问题误判为本次改写退化", () => {
+    const revised = structuredClone(GOOD_CHAPTER);
+    revised.scenes[0]!.dialogue = "许澄：名册在我手里。";
+    expect(() => assertP5RevisionContinuity(GOOD_CHAPTER, revised, previousWithUniqueAnchor)).not.toThrow();
+  });
+
+  it("改写后仍保留上一章锚点时通过", () => {
+    const source = structuredClone(GOOD_CHAPTER);
+    source.scenes[0]!.dialogue = "许澄：雾铃七响。";
+    const revised = structuredClone(source);
+    revised.scenes[0]!.dialogue = "许澄：你听——雾铃七响。";
+    expect(() => assertP5RevisionContinuity(source, revised, previousWithUniqueAnchor)).not.toThrow();
+  });
+
+  it("单个通用二元词重合不被当成已经建立的连续性锚点", () => {
+    const previousWithGenericOverlap = previousWithUniqueAnchor.replaceAll("雾铃七响", "打开房门");
+    const source = structuredClone(GOOD_CHAPTER);
+    source.scenes[0]!.dialogue = "许澄：先打开电脑。";
+    const revised = structuredClone(source);
+    revised.scenes[0]!.dialogue = "许澄：先检查电脑。";
+    expect(() => assertP5RevisionContinuity(source, revised, previousWithGenericOverlap)).not.toThrow();
   });
 });

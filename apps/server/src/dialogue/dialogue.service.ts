@@ -32,7 +32,7 @@ import { PrismaService } from "../persistence/prisma.service.js";
 @Injectable()
 export class DialogueService {
   private readonly threads = new Map<string, LocalDialogueThread>();
-  private readonly activeStreamingAssistantMessageIds = new Set<string>();
+  private readonly activeAssistantMessageIds = new Set<string>();
 
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
@@ -102,42 +102,47 @@ export class DialogueService {
     input: SendDialogueMessageRequest,
   ): Promise<SendDialogueMessageResponse> {
     const turn = await this.createDialogueTurn(projectId, stepKey, input);
-    const toolResults = await this.tryHandleScriptTools(turn, input);
+    this.activeAssistantMessageIds.add(turn.assistantMessage.id);
+    try {
+      const toolResults = await this.tryHandleScriptTools(turn, input);
 
-    if (toolResults.length > 0) {
-      this.recordToolResults(turn.thread, toolResults);
-      await this.persistToolResults(turn.thread, toolResults);
-      await this.syncPendingArtifactsForThread(turn.thread.projectId, turn.thread.id, input.content);
-      const lastResult = toolResults[toolResults.length - 1];
-      this.completeAssistantMessage(turn, lastResult.summary, input.model ?? this.openCodeRuntimeService.getDefaultModel());
-      await this.persistMessageUpdate(turn.assistantMessage);
+      if (toolResults.length > 0) {
+        this.recordToolResults(turn.thread, toolResults);
+        await this.persistToolResults(turn.thread, toolResults);
+        await this.syncPendingArtifactsForThread(turn.thread.projectId, turn.thread.id, input.content);
+        const lastResult = toolResults[toolResults.length - 1];
+        this.completeAssistantMessage(turn, lastResult.summary, input.model ?? this.openCodeRuntimeService.getDefaultModel());
+        await this.persistMessageUpdate(turn.assistantMessage);
+        return {
+          thread: this.toThreadDto(turn.thread),
+          userMessage: turn.userMessage,
+          assistantMessage: turn.assistantMessage,
+          toolResults,
+        };
+      }
+
+      try {
+        const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot);
+        const response = await this.openCodeRuntimeService.sendMessage({
+          sessionId: openCodeSessionId,
+          model: input.model,
+          content: turn.prompt,
+        });
+        this.completeAssistantMessage(turn, response.content, response.model);
+        await this.persistMessageUpdate(turn.assistantMessage);
+      } catch (error) {
+        this.failAssistantMessage(turn, error);
+        await this.persistMessageUpdate(turn.assistantMessage);
+      }
+
       return {
         thread: this.toThreadDto(turn.thread),
         userMessage: turn.userMessage,
         assistantMessage: turn.assistantMessage,
-        toolResults,
       };
+    } finally {
+      this.activeAssistantMessageIds.delete(turn.assistantMessage.id);
     }
-
-    try {
-      const openCodeSessionId = await this.ensureOpenCodeSession(turn.thread, turn.snapshot);
-      const response = await this.openCodeRuntimeService.sendMessage({
-        sessionId: openCodeSessionId,
-        model: input.model,
-        content: turn.prompt,
-      });
-      this.completeAssistantMessage(turn, response.content, response.model);
-      await this.persistMessageUpdate(turn.assistantMessage);
-    } catch (error) {
-      this.failAssistantMessage(turn, error);
-      await this.persistMessageUpdate(turn.assistantMessage);
-    }
-
-    return {
-      thread: this.toThreadDto(turn.thread),
-      userMessage: turn.userMessage,
-      assistantMessage: turn.assistantMessage,
-    };
   }
 
   async streamMessage(
@@ -159,7 +164,7 @@ export class DialogueService {
     signal?: AbortSignal,
   ): Promise<void> {
     const turn = await this.createDialogueTurn(projectId, stepKey, input);
-    this.activeStreamingAssistantMessageIds.add(turn.assistantMessage.id);
+    this.activeAssistantMessageIds.add(turn.assistantMessage.id);
     try {
       await emit({
         type: "dialogue.message.created",
@@ -252,7 +257,7 @@ export class DialogueService {
         createdAt: new Date().toISOString(),
       });
     } finally {
-      this.activeStreamingAssistantMessageIds.delete(turn.assistantMessage.id);
+      this.activeAssistantMessageIds.delete(turn.assistantMessage.id);
     }
   }
 
@@ -443,7 +448,7 @@ export class DialogueService {
 
   private async settleDatabaseRunningMessages(threadId: string): Promise<void> {
     const db = this.prismaService.database();
-    const activeIds = this.activeStreamingAssistantMessageIds;
+    const activeIds = this.activeAssistantMessageIds;
     const running = await db.conversationMessage.findMany({ where: { threadId, status: "running" } });
     if (running.some((message) => activeIds.has(message.id))) return;
     const now = new Date();
@@ -546,7 +551,7 @@ export class DialogueService {
       if (
         message.role !== "assistant"
         || message.status !== "running"
-        || this.activeStreamingAssistantMessageIds.has(message.id)
+        || this.activeAssistantMessageIds.has(message.id)
       ) {
         continue;
       }
@@ -577,7 +582,7 @@ export class DialogueService {
 
       deletedThreadIds.add(thread.id);
       for (const message of thread.messages) {
-        this.activeStreamingAssistantMessageIds.delete(message.id);
+        this.activeAssistantMessageIds.delete(message.id);
       }
       this.threads.delete(threadKey);
       deletedCount += 1;

@@ -14,6 +14,7 @@ import type {
 } from "@airoaming/shared";
 import type {
   AiChapterGenerationContext,
+  ChapterRevisionContinuityContext,
   ImportItemWorkContext,
   RawScriptSourceContext,
 } from "../projects/script-workflow-source.repository.js";
@@ -757,6 +758,7 @@ export function buildChapterEditingPrompt(
   input: SendDialogueMessageRequest,
   sourceText: string,
   layer: ScriptRevisionLayer,
+  previousScript: ChapterRevisionContinuityContext["previousScript"] = null,
 ): string {
   const layerContract = getScriptRevisionLayerContract(layer);
   return [
@@ -776,6 +778,10 @@ export function buildChapterEditingPrompt(
     "- 章序永远不能改变。标题、类型、主题、风格、漫画形式、目标篇幅和角色名单只有用户明确点名时才可改变。",
     "- 先在内部列出“允许修改 / 必须保护”，再执行；不要把层级、清单、评分、诊断或差异说明输出给用户。",
     "- 尊重当前草稿中的既有事实和剧情方向，不为了写得更顺擅自发明人物、道具、关系或事件。",
+    previousScript
+      ? "- P5：下方上一章正式正文是只读跨章事实；如果当前草稿已经承接其结尾，改写后不得丢失、重置或矛盾。不得改写上一章。"
+      : "- P5：当前是第 1 章或没有可用的上一章正式正文；跳过跨章检查，不得自行编造前情。",
+    "- 后续章节卡或未来规划不是已经发生的事实，不得用它覆盖正式前情。",
     "- 不要新增主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号或图片 Prompt。",
     "- 不要声称你直接操作本地文件；写入由后端受控工具完成。",
     "",
@@ -789,5 +795,12 @@ export function buildChapterEditingPrompt(
     input.content,
     "当前编辑器最新草稿（这是本轮保护基线，最终仍返回完整更新稿）：",
     sourceText,
+    ...(previousScript ? [
+      "上一章正式正文（只读跨章事实，不是改写对象）：",
+      `正式版本：${previousScript.id}`,
+      `章节：${previousScript.chapterTitle}`,
+      `内容摘要：${previousScript.sourceDigest}`,
+      previousScript.sourceText,
+    ] : []),
   ].join("\n");
 }
