@@ -247,9 +247,26 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态");
     expect(prompt).toContain("不得逐句改写 comic.panelDescription");
     expect(prompt).toContain("不机械复制 comic.composition");
+    expect(prompt).toContain("一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化");
+    expect(prompt).toContain("同一 beat 超过 2 次显著状态变化");
+    expect(prompt).toContain("一个 Shot 计划承载超过 3 条有内容的 voiceLines");
+    expect(prompt).toContain("新增 comic 也必须承载不同且必要的静态决定性瞬间");
+    expect(prompt).toContain("正式正文摘录中可见的 voiceLines[].line 必须逐字引用");
+    expect(prompt).toContain("不得同义改写、补词或改标点");
     expect(prompt).toContain("不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动");
     expect(prompt).not.toContain("comic 与 motion 描述同一个剧情瞬间");
     expect(prompt).not.toContain("motion 只能补充时间和运镜");
+  });
+
+  it("V2.1 用动态负载触发必要第二镜，但保护漫画轨道且不做机械硬切", () => {
+    const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成当前章节完整分镜"), "generate");
+    expect(prompt).toContain("动态负载无法在一个共享锚点中清楚承接时才增加第二个");
+    expect(prompt).toContain("把进入/选择与结果/反应分开");
+    expect(prompt).toContain("不按固定秒数机械切分");
+    expect(prompt).toContain("当前 M1 每个 beat 最多两个 Shot");
+    expect(prompt).toContain("达到两镜仍过载时，缩小每镜动作范围");
+    expect(prompt).toContain("不能用重复反应、换景别或空画格填充");
+    expect(prompt).not.toContain("每 3 条对白拆一镜");
   });
 
   it("调整动作读取当前 pending、保留已有 ID，并要求返回完整草稿", () => {
@@ -272,6 +289,9 @@ describe("S1 分镜 Prompt 契约", () => {
     });
     expect(prompt).toContain("comic 独立修复为一个可画的静态决定性瞬间");
     expect(prompt).toContain("motion 独立修复为开始状态→主要动作/表演变化→结束状态");
+    expect(prompt).toContain("超过 2 次显著状态变化或超过 3 条有内容的 voiceLines");
+    expect(prompt).toContain("新增 comic 仍必须是不同且必要的静态决定性瞬间");
+    expect(prompt).toContain("可见于正式正文摘录的台词逐字保留");
     expect(prompt).toContain("不要求描述同一瞬间、相同构图或相同节奏");
     expect(prompt).toContain("promptDraft 只属于静态候选图");
     expect(prompt).not.toContain("每个 Shot 只表达一个静态瞬间");
