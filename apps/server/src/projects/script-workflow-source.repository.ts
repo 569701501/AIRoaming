@@ -108,6 +108,7 @@ export interface AnalysisCandidateResult {
   status: string;
   analysisDigest: `sha256:${string}`;
   candidateDigest: `sha256:${string}`;
+  blockingIssues: string[];
   replayed: boolean;
 }
 
@@ -127,6 +128,63 @@ export interface ImportBatchResult {
   status: string;
   items: Array<{ id: string; chapterId: string; mapItemRef: string; order: number; status: string }>;
   replayed: boolean;
+}
+
+export interface RawScriptSourceContext {
+  id: string;
+  projectId: string;
+  sourceDigest: `sha256:${string}`;
+  inputMode: ScriptRawSourceInputModeV1;
+  contentTypeHint: ScriptRawSourceContentTypeHintV1;
+  documents: Array<{
+    sourceRef: string;
+    order: number;
+    name: string;
+    mediaType: string;
+    sourceText: string;
+    sourceDigest: `sha256:${string}`;
+  }>;
+  blocks: Array<{
+    sourceRef: string;
+    blockRef: string;
+    globalOrder: number;
+    sourceOrder: number;
+    locatorLabel: string;
+    kind: ScriptSourceBlockRefV1["kind"];
+    sourceText: string;
+    sourceDigest: `sha256:${string}`;
+  }>;
+}
+
+export interface ImportItemWorkContext {
+  batchId: string;
+  batchStatus: string;
+  item: {
+    id: string;
+    chapterId: string;
+    order: number;
+    status: string;
+    attempt: number;
+    mapItemRef: string;
+  };
+  chapter: { id: string; title: string; order: number };
+  analysis: ImportAnalysisOutputV1;
+  mapItem: ConfirmedScriptChapterMapItemV1;
+  sourceBlocks: RawScriptSourceContext["blocks"];
+}
+
+export interface ImportBatchProjection {
+  id: string;
+  chapterMapId: string;
+  status: string;
+  items: Array<{
+    id: string;
+    chapterId: string;
+    order: number;
+    title: string;
+    status: string;
+    errorCode: string | null;
+  }>;
 }
 
 export interface AiChapterGenerationContext {
@@ -236,6 +294,45 @@ export class ScriptWorkflowSourceRepository {
     });
   }
 
+  async getRawSourceContext(projectId: string, rawSourceVersionId: string): Promise<RawScriptSourceContext> {
+    this.assertDatabaseMode();
+    return this.run(async (tx) => {
+      const source = await tx.scriptRawSourceVersion.findFirst({
+        where: { id: rawSourceVersionId, projectId },
+        include: {
+          documents: { orderBy: { sourceOrder: "asc" } },
+          blocks: { orderBy: { globalOrder: "asc" } },
+        },
+      });
+      if (!source) throw createG2DatabaseError(404, "RAW_SOURCE_NOT_FOUND");
+      return {
+        id: source.id,
+        projectId: source.projectId,
+        sourceDigest: source.sourceDigest as `sha256:${string}`,
+        inputMode: source.inputMode as ScriptRawSourceInputModeV1,
+        contentTypeHint: source.contentTypeHint as ScriptRawSourceContentTypeHintV1,
+        documents: source.documents.map((document) => ({
+          sourceRef: document.sourceRef,
+          order: document.sourceOrder,
+          name: document.sourceName,
+          mediaType: document.mediaType,
+          sourceText: document.sourceText,
+          sourceDigest: document.sourceDigest as `sha256:${string}`,
+        })),
+        blocks: source.blocks.map((block) => ({
+          sourceRef: block.sourceRef,
+          blockRef: block.blockRef,
+          globalOrder: block.globalOrder,
+          sourceOrder: block.sourceOrder,
+          locatorLabel: block.locatorLabel,
+          kind: block.kind as ScriptSourceBlockRefV1["kind"],
+          sourceText: block.sourceText,
+          sourceDigest: block.sourceDigest as `sha256:${string}`,
+        })),
+      };
+    });
+  }
+
   async createAnalysisCandidate(input: {
     projectId: string;
     rawSourceVersionId: string;
@@ -259,12 +356,15 @@ export class ScriptWorkflowSourceRepository {
         throw createG2DatabaseError(422, "IMPORT_ANALYSIS_BLOCKED", error);
       }
       const analysisDigest = digestCanonicalJson(analysis);
-      const validation = { schemaVersion: "import-analysis-validation/1.0", blockingIssues: [] as string[] };
+      const blockingIssues = analysis.unresolvedItems
+        .filter((item) => ["source_scope", "source_order", "boundary"].includes(item.impact))
+        .map((item) => `${item.code}: ${item.description}`);
+      const validation = { schemaVersion: "import-analysis-validation/1.0", blockingIssues };
       const validationDigest = digestCanonicalJson(validation);
       const candidateDigest = digestCanonicalJson({ sourceDigest: source.sourceDigest, analysisDigest, validationDigest, promptPackVersion: input.promptPackVersion });
       const active = await tx.scriptImportAnalysisCandidate.findFirst({ where: { rawSourceVersionId: source.id, status: "active" } });
       if (active?.candidateDigest === candidateDigest) {
-        return { id: active.id, rawSourceVersionId: source.id, version: active.version, status: active.status, analysisDigest: active.analysisDigest as `sha256:${string}`, candidateDigest: active.candidateDigest as `sha256:${string}`, replayed: true };
+        return { id: active.id, rawSourceVersionId: source.id, version: active.version, status: active.status, analysisDigest: active.analysisDigest as `sha256:${string}`, candidateDigest: active.candidateDigest as `sha256:${string}`, blockingIssues, replayed: true };
       }
       const now = new Date();
       if (active) await tx.scriptImportAnalysisCandidate.update({ where: { id: active.id }, data: { status: "superseded", resolvedAt: now } });
@@ -274,7 +374,7 @@ export class ScriptWorkflowSourceRepository {
         contractVersion: analysis.schemaVersion, analysisJson: json(analysis), analysisDigest, validationJson: json(validation), validationDigest,
         candidateDigest, sourceDigest: source.sourceDigest, promptPackVersion: input.promptPackVersion, createdAt: now,
       } });
-      return { id: created.id, rawSourceVersionId: source.id, version: created.version, status: created.status, analysisDigest, candidateDigest, replayed: false };
+      return { id: created.id, rawSourceVersionId: source.id, version: created.version, status: created.status, analysisDigest, candidateDigest, blockingIssues, replayed: false };
     });
   }
 
@@ -291,6 +391,13 @@ export class ScriptWorkflowSourceRepository {
         return { id: candidate.chapterMap.id, rawSourceVersionId: candidate.rawSourceVersionId, analysisCandidateId: candidate.id, version: candidate.chapterMap.version, mapDigest: candidate.chapterMap.mapDigest as `sha256:${string}`, chapters: document.chapters, replayed: true };
       }
       if (candidate.status !== "active") throw createG2DatabaseError(409, "IMPORT_ANALYSIS_BLOCKED");
+      const validation = candidate.validationJson && typeof candidate.validationJson === "object" && !Array.isArray(candidate.validationJson)
+        ? candidate.validationJson as Record<string, unknown>
+        : {};
+      const blockingIssues = Array.isArray(validation.blockingIssues)
+        ? validation.blockingIssues.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+      if (blockingIssues.length > 0) throw createG2DatabaseError(409, "IMPORT_ANALYSIS_BLOCKED", { blockingIssues });
       let analysis: ImportAnalysisOutputV1;
       try {
         analysis = parseImportAnalysisOutputV1(candidate.analysisJson, {
@@ -491,6 +598,110 @@ export class ScriptWorkflowSourceRepository {
     });
   }
 
+  async getImportItemWorkContext(projectId: string, itemId: string): Promise<ImportItemWorkContext> {
+    this.assertDatabaseMode();
+    return this.run(async (tx) => {
+      const item = await tx.scriptImportBatchItem.findFirst({
+        where: { id: itemId, batch: { projectId } },
+        include: {
+          chapter: true,
+          batch: {
+            include: {
+              rawSourceVersion: { include: { blocks: { orderBy: { globalOrder: "asc" } } } },
+              chapterMap: { include: { analysisCandidate: true } },
+            },
+          },
+        },
+      });
+      if (!item) throw createG2DatabaseError(404, "IMPORT_ITEM_NOT_FOUND");
+      const map = mapDocument(item.batch.chapterMap.mapJson, item.batch.chapterMap.mapDigest);
+      const mapItem = map.chapters.find((candidate) => candidate.mapItemRef === item.mapItemRef && candidate.order === item.order);
+      if (!mapItem || mapItem.sourceRangeDigest !== item.sourceRangeDigest) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED");
+      const allBlocks = item.batch.rawSourceVersion.blocks.map((block) => ({
+        sourceRef: block.sourceRef,
+        blockRef: block.blockRef,
+        globalOrder: block.globalOrder,
+        sourceOrder: block.sourceOrder,
+        locatorLabel: block.locatorLabel,
+        kind: (block.kind ?? "narrative") as NonNullable<ScriptSourceBlockRefV1["kind"]>,
+        sourceText: block.sourceText,
+        sourceDigest: block.sourceDigest as `sha256:${string}`,
+      }));
+      const selectedRefs = new Set(sourceBlocksForMapItem(allBlocks, mapItem).map((block) => block.blockRef));
+      let analysis: ImportAnalysisOutputV1;
+      try {
+        analysis = parseImportAnalysisOutputV1(item.batch.chapterMap.analysisCandidate.analysisJson, {
+          sourceBlocks: allBlocks,
+          requireCompleteAssignment: true,
+        });
+      } catch (error) {
+        throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", error);
+      }
+      return {
+        batchId: item.batchId,
+        batchStatus: item.batch.status,
+        item: { id: item.id, chapterId: item.chapterId, order: item.order, status: item.status, attempt: item.attempt, mapItemRef: item.mapItemRef },
+        chapter: { id: item.chapter.id, title: item.chapter.title, order: item.chapter.order },
+        analysis,
+        mapItem,
+        sourceBlocks: allBlocks.filter((block) => selectedRefs.has(block.blockRef)),
+      };
+    });
+  }
+
+  async markImportItemFailed(input: {
+    projectId: string;
+    itemId: string;
+    errorCode: string;
+    stage: "materializing" | "verifying";
+    message: string;
+  }): Promise<void> {
+    this.assertDatabaseMode();
+    await this.run(async (tx) => {
+      const item = await tx.scriptImportBatchItem.findFirst({
+        where: { id: input.itemId, status: input.stage, batch: { projectId: input.projectId } },
+      });
+      if (!item) throw createG2DatabaseError(409, "IMPORT_ITEM_STATE_CONFLICT");
+      const now = new Date();
+      await tx.scriptImportBatchItem.update({
+        where: { id: item.id },
+        data: {
+          status: "generation_failed",
+          errorCode: input.errorCode,
+          errorJson: json({ stage: input.stage, message: input.message.slice(0, 2000) }),
+          completedAt: now,
+          rowVersion: { increment: 1 },
+          updatedAt: now,
+        },
+      });
+      await this.refreshBatchReadiness(tx, item.batchId, now);
+    });
+  }
+
+  async getImportBatchProjection(projectId: string, batchId: string): Promise<ImportBatchProjection> {
+    this.assertDatabaseMode();
+    return this.run(async (tx) => {
+      const batch = await tx.scriptImportBatch.findFirst({
+        where: { id: batchId, projectId },
+        include: { items: { include: { chapter: true }, orderBy: { order: "asc" } } },
+      });
+      if (!batch) throw createG2DatabaseError(404, "IMPORT_BATCH_NOT_FOUND");
+      return {
+        id: batch.id,
+        chapterMapId: batch.chapterMapId,
+        status: batch.status,
+        items: batch.items.map((item) => ({
+          id: item.id,
+          chapterId: item.chapterId,
+          order: item.order,
+          title: item.chapter.title,
+          status: item.status,
+          errorCode: item.errorCode,
+        })),
+      };
+    });
+  }
+
   async markImportItemVerifying(projectId: string, itemId: string, sourceText: string): Promise<{ itemId: string; outputDigest: `sha256:${string}` }> {
     this.assertDatabaseMode();
     const script = canonicalScript(sourceText, "import");
@@ -556,13 +767,27 @@ export class ScriptWorkflowSourceRepository {
     });
   }
 
-  async confirmImportPending(input: { projectId: string; chapterId: string; pendingId: string }): Promise<{ scriptVersionId: string; batchItemId: string }> {
+  async confirmImportPending(input: {
+    projectId: string;
+    chapterId: string;
+    pendingId: string;
+    expectedPendingRowVersion: number;
+    expectedPendingDigest: `sha256:${string}`;
+    expectedChapterRowVersion: number;
+  }): Promise<{ scriptVersionId: string; batchItemId: string }> {
     this.assertDatabaseMode();
     return this.run(async (tx) => {
       const chapter = await tx.chapter.findFirst({ where: { id: input.chapterId, projectId: input.projectId }, include: { chapterScriptPendingByChapter: { include: { sourceBindings: true } }, currentScriptVersion: true } });
       const pending = chapter?.chapterScriptPendingByChapter;
       if (!chapter || !pending) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
-      if (pending.id !== input.pendingId || pending.kind !== "import" || pending.sourceSetSealedAt === null) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
+      if (
+        pending.id !== input.pendingId
+        || pending.kind !== "import"
+        || pending.sourceSetSealedAt === null
+        || pending.rowVersion !== input.expectedPendingRowVersion
+        || pending.sourceDigest !== input.expectedPendingDigest
+        || chapter.rowVersion !== input.expectedChapterRowVersion
+      ) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
       if (chapter.currentScriptVersion !== null || chapter.scriptWorkingText !== "" || chapter.scriptWorkingState !== "empty") throw createG2DatabaseError(409, "IMPORT_CHAPTER_OCCUPIED");
       const itemSource = pending.sourceBindings.find((binding) => binding.role === "batch_item" && binding.sourceType === "script_import_batch_item");
       if (!itemSource) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED");

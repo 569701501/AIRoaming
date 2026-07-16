@@ -92,6 +92,21 @@ export interface ChapterCompletionPrompt {
   nextChapterTitle: string | null;
 }
 
+const PROJECT_SCRIPT_DECISION_TOOLS = new Set<DialogueToolResult["tool"]>([
+  "analyze_script_import",
+  "import_script_to_chapters",
+  "generate_inspiration_seeds",
+  "generate_script_outline_from_seed",
+  "generate_script_outline_from_topic",
+]);
+
+function hasPendingProjectScriptDecision(thread: DialogueThread): boolean {
+  const latest = [...thread.toolResults]
+    .reverse()
+    .find((result) => PROJECT_SCRIPT_DECISION_TOOLS.has(result.tool));
+  return latest?.status === "needs_user_confirmation";
+}
+
 export const useWorkbenchStore = defineStore("workbench", {
   state: (): WorkbenchState => ({
     health: null,
@@ -149,8 +164,18 @@ export const useWorkbenchStore = defineStore("workbench", {
             this.scriptWorkingCopy = null;
             this.scriptPendingSuggestion = null;
           }
-          const dialogue = await api.dialogueThread(this.activeProjectId, this.activeStepKey, this.getActiveDialogueChapterId());
-          this.dialogueThread = dialogue.thread;
+          if (this.activeStepKey === "project_story" && this.activeChapterId) {
+            const [chapterDialogue, projectDialogue] = await Promise.all([
+              api.dialogueThread(this.activeProjectId, this.activeStepKey, this.activeChapterId),
+              api.dialogueThread(this.activeProjectId, this.activeStepKey, null),
+            ]);
+            this.dialogueThread = hasPendingProjectScriptDecision(projectDialogue.thread)
+              ? projectDialogue.thread
+              : chapterDialogue.thread;
+          } else {
+            const dialogue = await api.dialogueThread(this.activeProjectId, this.activeStepKey, this.getActiveDialogueChapterId());
+            this.dialogueThread = dialogue.thread;
+          }
         } else {
           this.snapshot = null;
           this.dialogueThread = null;
@@ -552,7 +577,32 @@ export const useWorkbenchStore = defineStore("workbench", {
           throw new Error("请先进入项目");
         }
         if (this.snapshot?.versioningCapability.mode === "g2_db") {
-          if (!this.scriptPendingSuggestion || this.scriptPendingSuggestion.chapterId !== chapterId || !this.scriptWorkingCopy) throw new Error("没有可采用的 AI 草稿");
+          if (!this.scriptPendingSuggestion || this.scriptPendingSuggestion.chapterId !== chapterId) throw new Error("没有待确认章节草稿");
+          if (this.scriptPendingSuggestion.kind === "import") {
+            await api.confirmImportChapter(projectId, chapterId, {
+              pendingId: this.scriptPendingSuggestion.id,
+              expectedPendingRowVersion: this.scriptPendingSuggestion.rowVersion,
+              expectedPendingDigest: this.scriptPendingSuggestion.digest,
+              expectedChapterRowVersion: this.scriptPendingSuggestion.chapterRowVersion,
+            });
+            this.scriptPendingSuggestion = null;
+            await this.refreshActiveProjectRuntime();
+            const confirmedChapter = this.snapshot?.chapters.find((item) => item.id === chapterId) ?? null;
+            const nextChapter = confirmedChapter
+              ? this.snapshot?.chapters.find((item) => item.order > confirmedChapter.order) ?? null
+              : null;
+            if (confirmedChapter) {
+              this.chapterCompletionPrompt = {
+                completedChapterId: confirmedChapter.id,
+                completedChapterTitle: confirmedChapter.title,
+                nextChapterId: nextChapter?.id ?? null,
+                nextChapterTitle: nextChapter?.title ?? null,
+              };
+            }
+            this.dialogueNotice = "该导入章节已确认并形成正式版本，可以进入剧情结构。";
+            return;
+          }
+          if (!this.scriptWorkingCopy) throw new Error("当前章节 Working Copy 不可用");
           const result = await api.adoptScriptPendingSuggestion(projectId, chapterId, { pendingId: this.scriptPendingSuggestion.id, expectedPendingRowVersion: this.scriptPendingSuggestion.rowVersion, expectedPendingDigest: this.scriptPendingSuggestion.digest, expectedChapterRowVersion: this.scriptPendingSuggestion.chapterRowVersion });
           this.scriptWorkingCopy = result.value;
           this.scriptPendingSuggestion = null;
@@ -1423,6 +1473,9 @@ export const useWorkbenchStore = defineStore("workbench", {
       }
 
       this.applyChapterUpdate(currentChapter, toolResult.chapters);
+      if (toolResult.tool === "import_script_to_chapters") {
+        await this.refreshActiveProjectRuntime();
+      }
     },
     closeProject() {
       this.activeProjectId = null;

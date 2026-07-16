@@ -4,20 +4,20 @@
     <div v-if="pendingSourceText" class="pending-source-banner">
       <div class="pending-banner-head">
         <FileText :size="15" />
-        <strong>AI 草稿待确认</strong>
+        <strong>{{ isImportPending ? "导入章节待确认" : "AI 草稿待确认" }}</strong>
         <span class="pending-source-tag">{{ pendingOperationLabel }}</span>
       </div>
       <div class="pending-banner-actions">
         <button class="pending-adopt-btn" type="button" :disabled="loading" @click="submitConfirmPendingSource">
           <CheckCircle2 :size="14" />
-          <span>采用草稿</span>
+          <span>{{ isImportPending ? "确认章节" : "采用草稿" }}</span>
         </button>
-        <button class="pending-discard-btn" type="button" :disabled="loading" @click="submitDiscardPendingSource">
+        <button v-if="!isImportPending" class="pending-discard-btn" type="button" :disabled="loading" @click="submitDiscardPendingSource">
           <Trash2 :size="14" />
           <span>丢弃</span>
         </button>
       </div>
-      <p class="pending-source-hint">请先完整查看。采用后进入可编辑正文，完成本章后才形成正式版本；丢弃后当前正文不变。</p>
+      <p class="pending-source-hint">{{ pendingHint }}</p>
     </div>
 
     <div class="editor-content">
@@ -121,6 +121,7 @@ const showMoreMenu = ref(false);
 const moreMenuRef = ref<HTMLElement | null>(null);
 const currentChapterSourceText = computed(() => getCurrentChapterSourceText(props.snapshot));
 const pendingSourceText = computed(() => props.snapshot.currentChapter?.pendingSourceText ?? null);
+const isImportPending = computed(() => pendingSourceText.value?.kind === "import");
 const displayedSourceText = computed(() => pendingSourceText.value?.sourceText ?? sourceText.value);
 
 const estimatedPages = computed(() => {
@@ -142,6 +143,8 @@ const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScr
 const pendingOperationLabel = computed(() => {
   const operation = pendingSourceText.value?.operation;
   switch (operation) {
+    case "import_materialize":
+      return "原稿忠实整理";
     case "generate_script_from_seed":
       return "灵感种子生成";
     case "generate_script_from_outline":
@@ -152,6 +155,9 @@ const pendingOperationLabel = computed(() => {
       return "AI 生成";
   }
 });
+const pendingHint = computed(() => isImportPending.value
+  ? "请完整只读检查本章。确认后将直接形成正式章节版本；暂不确认时可以切换查看其他章节。"
+  : "请先完整查看。采用后进入可编辑正文，完成本章后才形成正式版本；丢弃后当前正文不变。");
 const revisionTitle = computed(() => {
   const revision = lastScriptRevision.value;
   if (!revision) {
@@ -167,7 +173,7 @@ const saveStatusLabel = computed(() => {
   }
 
   if (pendingSourceText.value) {
-    return "待采用或丢弃";
+    return isImportPending.value ? "待确认章节" : "待采用或丢弃";
   }
 
   return hasChanges.value ? "有未保存更改" : "已保存";

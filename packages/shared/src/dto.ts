@@ -21,6 +21,7 @@ import type {
   TaskApplicability,
 } from "./candidate-lock.js";
 import type { ArtifactFreshness, FreshnessReasonCode } from "./versioning/production-state.js";
+import type { ImportAnalysisOutputV1 } from "./script-workflow-contract.js";
 
 export interface ApiEnvelope<T> {
   success: true;
@@ -198,6 +199,8 @@ export interface ChapterDetail extends ChapterListItem {
  * 单草稿:一个章节同时只有一份 pending,新生成覆盖旧的。
  */
 export interface ChapterPendingSourceText {
+  /** DB-only 来源类型；旧文件态数据可缺省为 legacy。 */
+  kind?: "legacy" | "ai" | "import";
   /** 草稿正文文本。 */
   sourceText: string;
   /** 生成该草稿的来源对话消息 id,用于追溯。 */
@@ -205,7 +208,7 @@ export interface ChapterPendingSourceText {
   messageId: string | null;
   toolCallId: string | null;
   /** 生成操作类型。 */
-  operation: "generate_script_from_seed" | "generate_script_from_outline" | "update_chapter_draft";
+  operation: "generate_script_from_seed" | "generate_script_from_outline" | "update_chapter_draft" | "import_materialize";
   /** 生成时间。 */
   createdAt: string;
   /** 最近一次更新时间。 */
@@ -271,6 +274,18 @@ export interface ConfirmChapterPendingSourceResponse {
 export interface DiscardChapterPendingSourceResponse {
   chapter: ChapterDetail;
   chapters: ChapterListItem[];
+}
+
+export interface ConfirmImportChapterRequest {
+  pendingId: string;
+  expectedPendingRowVersion: number;
+  expectedPendingDigest: `sha256:${string}`;
+  expectedChapterRowVersion: number;
+}
+
+export interface ConfirmImportChapterResponse {
+  scriptVersionId: string;
+  batchItemId: string;
 }
 
 export interface ResetProjectScriptResponse {
@@ -825,6 +840,7 @@ export type DialogueIntent =
   | "general_chat"
   | "analyze_script"
   | "organize_script_to_chapters"
+  | "confirm_script_chapter_map"
   | "generate_inspiration_seeds"
   | "generate_script_outline_from_seed"
   | "generate_script_from_outline"
@@ -867,7 +883,7 @@ export interface ScriptRevisionItem {
   threadId: string | null;
   messageId: string | null;
   toolCallId: string | null;
-  operation: "import_script_to_chapters" | "update_chapter_draft" | "generate_script_from_seed" | "generate_script_from_outline";
+  operation: "import_script_to_chapters" | "import_materialize" | "update_chapter_draft" | "generate_script_from_seed" | "generate_script_from_outline";
   summary: string;
   createdAt: string;
 }
@@ -916,6 +932,27 @@ export interface ScriptImportAnalysis {
   nextTool: "import_script_to_chapters" | null;
 }
 
+export interface ScriptImportWorkflowBatchItem {
+  id: string;
+  chapterId: string;
+  order: number;
+  title: string;
+  status: "queued" | "materializing" | "verifying" | "pending_ready" | "generation_failed" | "confirmed";
+  errorCode: string | null;
+}
+
+export interface ScriptImportWorkflowResult {
+  stage: "analysis_candidate" | "batch_result";
+  rawSourceVersionId: string;
+  analysisCandidateId: string;
+  analysis: ImportAnalysisOutputV1;
+  blockingIssues: string[];
+  chapterMapId: string | null;
+  batchId: string | null;
+  batchStatus: "queued" | "processing" | "ready_for_review" | "partial_failure" | "failed" | "completed" | null;
+  batchItems: ScriptImportWorkflowBatchItem[];
+}
+
 export interface DialogueToolResult {
   id: string;
   projectId: string;
@@ -943,6 +980,7 @@ export interface DialogueToolResult {
   currentChapterId: string | null;
   currentChapter?: ChapterDetail | null;
   analysis?: ScriptImportAnalysis | null;
+  importWorkflow?: ScriptImportWorkflowResult | null;
   inspirationSeeds?: ScriptInspirationSeed[] | null;
   scriptOutline?: ProjectScriptOutline | null;
   storyStructure?: ChapterStoryStructure | null;

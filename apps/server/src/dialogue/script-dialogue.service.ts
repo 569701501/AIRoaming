@@ -2,8 +2,9 @@ import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
   DialogueToolResult,
+  ImportAnalysisOutputV1,
   ProjectScriptOutline,
-  ScriptImportAnalysis,
+  ScriptImportWorkflowResult,
   ScriptInspirationSeed,
   SendDialogueMessageRequest,
   WorkbenchSnapshot,
@@ -14,13 +15,18 @@ import {
   getChapterScriptFormatPrompt,
   getScriptOutlineFormatPrompt,
   parseChapterScriptMarkdownV1,
+  parseImportAnalysisOutputV1,
   parseScriptOutlineMarkdownV1,
   serializeChapterScriptMarkdownV1,
   serializeScriptOutlineMarkdownV1,
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
 import { ProjectsService } from "../projects/projects.service.js";
-import { ScriptWorkflowSourceRepository, type AiChapterGenerationContext } from "../projects/script-workflow-source.repository.js";
+import {
+  ScriptWorkflowSourceRepository,
+  type AiChapterGenerationContext,
+  type RawScriptSourceContext,
+} from "../projects/script-workflow-source.repository.js";
 import type {
   DialogueTurn,
   LocalDialogueThread,
@@ -44,6 +50,7 @@ import {
   resolveSelectedInspirationSeed,
   shouldGenerateInspirationSeeds,
   shouldOrganizeProvidedScript,
+  shouldReviseScriptImportAnalysis,
   shouldUpdateChapterDraft,
   getTextAttachments,
   toScriptFromOutlineTarget,
@@ -51,6 +58,8 @@ import {
 import {
   buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
+  buildScriptImportAnalysisPrompt,
+  buildScriptImportFormatRepairPrompt,
   buildScriptFromOutlinePrompt,
   buildScriptFromSeedPrompt,
   buildScriptOutlineFromSeedPrompt,
@@ -64,6 +73,7 @@ import {
   summarizeDraftUpdate,
 } from "./dialogue-text.util.js";
 import { getPendingInspirationKey, getPendingScriptOutlineKey } from "./dialogue-key.util.js";
+import { ScriptImportBatchService } from "./script-import-batch.service.js";
 
 /**
  * 剧本工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -85,6 +95,7 @@ export class ScriptDialogueService {
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
     @Inject(ScriptWorkflowSourceRepository) private readonly scriptWorkflowSourceRepository: ScriptWorkflowSourceRepository,
+    @Inject(ScriptImportBatchService) private readonly scriptImportBatchService: ScriptImportBatchService,
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
   ) {}
 
@@ -209,7 +220,7 @@ export class ScriptDialogueService {
     input: SendDialogueMessageRequest,
     signal?: AbortSignal,
   ): Promise<DialogueToolResult[]> {
-    const importResults = await this.tryHandleScriptImport(turn, input);
+    const importResults = await this.tryHandleScriptImport(turn, input, signal);
     if (importResults.length > 0) {
       return importResults;
     }
@@ -232,8 +243,9 @@ export class ScriptDialogueService {
   private async tryHandleScriptImport(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
   ): Promise<DialogueToolResult[]> {
-    const pendingResult = await this.tryResolvePendingScriptImport(turn, input);
+    const pendingResult = await this.tryResolvePendingScriptImport(turn, input, signal);
     if (pendingResult) {
       return [pendingResult];
     }
@@ -243,111 +255,186 @@ export class ScriptDialogueService {
       return [];
     }
 
-    const analysisToolCallId = randomUUID();
-    const analysis = await this.projectsService.analyzeScriptImport(turn.thread.projectId, {
-      sourceText: scriptInput.sourceText,
-      sourceName: scriptInput.sourceName,
-      userConfirmedOverwrite: isConfirmingScriptImport(input.content),
-    });
-    const analysisResult = this.createScriptImportAnalysisToolResult(turn, analysisToolCallId, scriptInput.sourceName, analysis);
-
-    if (analysis.decision !== "ready_to_import") {
-      if (analysis.decision === "needs_user_confirmation") {
-        this.pendingScriptImports.set(turn.thread.id, {
-          ...scriptInput,
-          analysis,
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        this.pendingScriptImports.delete(turn.thread.id);
-      }
-
-      return [analysisResult];
+    try {
+      const raw = await this.scriptWorkflowSourceRepository.createRawSource(turn.thread.projectId, {
+        inputMode: scriptInput.inputMode,
+        contentTypeHint: "unknown",
+        documents: scriptInput.documents,
+      });
+      const source = await this.scriptWorkflowSourceRepository.getRawSourceContext(turn.thread.projectId, raw.id);
+      const analysis = await this.generateImportAnalysisWithAI(
+        turn,
+        input,
+        source,
+        scriptInput.inputMode === "paste" ? "请忠实分析这份粘贴原稿并给出完整拆章候选。" : input.content,
+        undefined,
+        signal,
+      );
+      const candidate = await this.scriptWorkflowSourceRepository.createAnalysisCandidate({
+        projectId: turn.thread.projectId,
+        rawSourceVersionId: raw.id,
+        analysis,
+        promptPackVersion: "import-analyze/1.0",
+      });
+      const pending: PendingScriptImport = {
+        workflowVersion: 2,
+        sourceName: scriptInput.sourceName,
+        rawSourceVersionId: raw.id,
+        analysisCandidateId: candidate.id,
+        analysis,
+        blockingIssues: candidate.blockingIssues,
+        model: input.model ?? null,
+        createdAt: new Date().toISOString(),
+      };
+      this.pendingScriptImports.set(turn.thread.id, pending);
+      return [this.createScriptImportAnalysisToolResult(turn, randomUUID(), pending)];
+    } catch (error) {
+      return [this.createFailedToolResult(
+        turn,
+        "analyze_script_import",
+        `已有剧本分析失败：${getErrorMessage(error)}。原稿不会覆盖任何章节。`,
+      )];
     }
-
-    this.pendingScriptImports.delete(turn.thread.id);
-    return [
-      analysisResult,
-      await this.createImportScriptToChaptersToolResult(turn, scriptInput),
-    ];
   }
 
   private async tryResolvePendingScriptImport(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
+    signal?: AbortSignal,
   ): Promise<DialogueToolResult | null> {
     const pending = this.pendingScriptImports.get(turn.thread.id);
     if (!pending || hasScriptPayload(input)) {
       return null;
     }
-
-    if (isCancellingScriptImport(input.content)) {
+    if ((pending as { workflowVersion?: number }).workflowVersion !== 2) {
       this.pendingScriptImports.delete(turn.thread.id);
-      const analysis: ScriptImportAnalysis = {
-        ...pending.analysis,
-        decision: "reject",
-        reason: "已取消本次剧本导入。",
-        risk: "未写入任何章节文件。",
-        nextTool: null,
-      };
-      return this.createScriptImportAnalysisToolResult(turn, randomUUID(), pending.sourceName, analysis);
-    }
-
-    if (!isConfirmingScriptImport(input.content)) {
       return null;
     }
 
-    this.pendingScriptImports.delete(turn.thread.id);
-    return this.createImportScriptToChaptersToolResult(turn, pending);
+    if (isCancellingScriptImport(input.content)) {
+      this.pendingScriptImports.delete(turn.thread.id);
+      return this.createScriptImportAnalysisToolResult(turn, randomUUID(), pending, "failed", "已取消本次已有剧本导入；原稿副本保留用于追溯，但没有创建章节目录或正文。");
+    }
+
+    const confirmsChapterMap = isConfirmingScriptImport(input.content, input.intent);
+    const answersBlockingQuestion = pending.blockingIssues.length > 0
+      && input.content.trim().length > 0
+      && !/^(继续|可以|确认|没问题|为什么|解释一下)$/.test(input.content.trim());
+    if (!confirmsChapterMap && (shouldReviseScriptImportAnalysis(input.content) || answersBlockingQuestion)) {
+      try {
+        const source = await this.scriptWorkflowSourceRepository.getRawSourceContext(turn.thread.projectId, pending.rawSourceVersionId);
+        const analysis = await this.generateImportAnalysisWithAI(turn, input, source, input.content, pending.analysis, signal);
+        const candidate = await this.scriptWorkflowSourceRepository.createAnalysisCandidate({
+          projectId: turn.thread.projectId,
+          rawSourceVersionId: source.id,
+          analysis,
+          promptPackVersion: "import-analyze/1.0",
+        });
+        const updated: PendingScriptImport = {
+          ...pending,
+          analysisCandidateId: candidate.id,
+          analysis,
+          blockingIssues: candidate.blockingIssues,
+          model: input.model ?? pending.model,
+          createdAt: new Date().toISOString(),
+        };
+        this.pendingScriptImports.set(turn.thread.id, updated);
+        return this.createScriptImportAnalysisToolResult(turn, randomUUID(), updated, "needs_user_confirmation", "已根据你的边界反馈生成一份完整新拆章候选，请重新检查后整体确认。");
+      } catch (error) {
+        return this.createFailedToolResult(turn, "analyze_script_import", `重新分析拆章边界失败：${getErrorMessage(error)}。上一份候选仍保留。`);
+      }
+    }
+
+    if (!confirmsChapterMap) {
+      return null;
+    }
+
+    if (pending.blockingIssues.length > 0) {
+      return this.createScriptImportAnalysisToolResult(
+        turn,
+        randomUUID(),
+        pending,
+        "needs_user_confirmation",
+        `当前拆章候选仍有 ${pending.blockingIssues.length} 个阻断问题，不能确认目录。请先回答或补充原稿信息。`,
+      );
+    }
+
+    try {
+      const map = await this.scriptWorkflowSourceRepository.confirmAnalysisCandidate(turn.thread.projectId, pending.analysisCandidateId);
+      const batch = await this.scriptWorkflowSourceRepository.startImportBatch(turn.thread.projectId, map.id);
+      const projection = await this.scriptImportBatchService.run({
+        projectId: turn.thread.projectId,
+        batchId: batch.id,
+        model: input.model ?? pending.model ?? undefined,
+      });
+      this.pendingScriptImports.delete(turn.thread.id);
+      const snapshot = await this.projectsService.getWorkbenchSnapshot(turn.thread.projectId, batch.items[0]?.chapterId);
+      return this.createImportScriptToChaptersToolResult(turn, pending, map.id, projection, snapshot);
+    } catch (error) {
+      return this.createFailedToolResult(
+        turn,
+        "import_script_to_chapters",
+        `确认拆章目录失败：${getErrorMessage(error)}。系统没有覆盖任何正式章节。`,
+      );
+    }
   }
 
-  private async createImportScriptToChaptersToolResult(
+  private createImportScriptToChaptersToolResult(
     turn: DialogueTurn,
-    scriptInput: ScriptOrganizationInput,
-  ): Promise<DialogueToolResult> {
-    const toolCallId = randomUUID();
-    const result = await this.projectsService.importScriptToChapters(turn.thread.projectId, {
-      sourceText: scriptInput.sourceText,
-      sourceName: scriptInput.sourceName,
-      threadId: turn.thread.id,
-      messageId: turn.assistantMessage.id,
-      toolCallId,
-    });
-
-    const now = new Date().toISOString();
+    pending: PendingScriptImport,
+    chapterMapId: string,
+    projection: Awaited<ReturnType<ScriptImportBatchService["run"]>>,
+    snapshot: WorkbenchSnapshot,
+  ): DialogueToolResult {
+    const readyCount = projection.items.filter((item) => item.status === "pending_ready").length;
+    const failedCount = projection.items.filter((item) => item.status === "generation_failed").length;
     return {
       id: randomUUID(),
       projectId: turn.thread.projectId,
       threadId: turn.thread.id,
       messageId: turn.assistantMessage.id,
-      toolCallId,
+      toolCallId: randomUUID(),
       tool: "import_script_to_chapters",
       status: "succeeded",
-      summary: `已根据${scriptInput.sourceName}整理并写入 ${result.chapters.length} 个章节，当前打开 ${result.currentChapter.title}。`,
-      chapters: result.chapters,
-      currentChapterId: result.currentChapter.id,
-      currentChapter: result.currentChapter,
+      summary: failedCount > 0
+        ? `拆章目录已确认，共创建 ${projection.items.length} 个章节入口；${readyCount} 章已生成待确认稿，${failedCount} 章整理或忠实度验证失败。成功章节可逐章确认，失败不会影响其他章节。`
+        : `拆章目录已确认，共创建 ${projection.items.length} 个章节入口并完成全部待确认稿。请自由切换章节，完整查看后逐章点击“确认章节”。`,
+      chapters: snapshot.chapters,
+      currentChapterId: snapshot.currentChapter?.id ?? null,
+      currentChapter: snapshot.currentChapter,
       analysis: null,
+      importWorkflow: {
+        stage: "batch_result",
+        rawSourceVersionId: pending.rawSourceVersionId,
+        analysisCandidateId: pending.analysisCandidateId,
+        analysis: pending.analysis,
+        blockingIssues: [],
+        chapterMapId,
+        batchId: projection.id,
+        batchStatus: projection.status as ScriptImportWorkflowResult["batchStatus"],
+        batchItems: projection.items.map((item) => ({
+          ...item,
+          status: item.status as ScriptImportWorkflowResult["batchItems"][number]["status"],
+        })),
+      },
       inspirationSeeds: null,
       scriptOutline: null,
-      revision: result.revision,
-      createdAt: now,
+      revision: null,
+      createdAt: new Date().toISOString(),
     };
   }
 
   private createScriptImportAnalysisToolResult(
     turn: DialogueTurn,
     toolCallId: string,
-    sourceName: string,
-    analysis: ScriptImportAnalysis,
+    pending: PendingScriptImport,
+    status: DialogueToolResult["status"] = "needs_user_confirmation",
+    overrideSummary?: string,
   ): DialogueToolResult {
-    const now = new Date().toISOString();
-    const status = analysis.decision === "ready_to_import"
-      ? "succeeded"
-      : analysis.decision === "needs_user_confirmation"
-        ? "needs_user_confirmation"
-        : "failed";
-
+    const chapterCount = pending.analysis.chapterCandidates.length;
+    const summary = overrideSummary ?? (pending.blockingIssues.length > 0
+      ? `已保存并分析${pending.sourceName}，提出 ${chapterCount} 个章节候选，但有 ${pending.blockingIssues.length} 个阻断问题；解决前不能确认拆章目录。`
+      : `已保存并分析${pending.sourceName}，提出 ${chapterCount} 个章节候选。请检查观察性大纲、章节范围和边界证据，再整体确认拆章目录。`);
     return {
       id: randomUUID(),
       projectId: turn.thread.projectId,
@@ -356,28 +443,27 @@ export class ScriptDialogueService {
       toolCallId,
       tool: "analyze_script_import",
       status,
-      summary: this.getScriptImportAnalysisSummary(sourceName, analysis),
+      summary,
       chapters: [],
       currentChapterId: null,
       currentChapter: null,
-      analysis,
+      analysis: null,
+      importWorkflow: {
+        stage: "analysis_candidate",
+        rawSourceVersionId: pending.rawSourceVersionId,
+        analysisCandidateId: pending.analysisCandidateId,
+        analysis: pending.analysis,
+        blockingIssues: pending.blockingIssues,
+        chapterMapId: null,
+        batchId: null,
+        batchStatus: null,
+        batchItems: [],
+      },
       inspirationSeeds: null,
       scriptOutline: null,
       revision: null,
-      createdAt: now,
+      createdAt: new Date().toISOString(),
     };
-  }
-
-  private getScriptImportAnalysisSummary(sourceName: string, analysis: ScriptImportAnalysis): string {
-    if (analysis.decision === "ready_to_import") {
-      return `已检查${sourceName}：${analysis.reason} 接下来会写入章节草稿。`;
-    }
-
-    if (analysis.decision === "needs_user_confirmation") {
-      return `已检查${sourceName}：${analysis.reason} ${analysis.risk ?? ""} 请回复“确认导入”继续，或回复“取消导入”。`;
-    }
-
-    return `已检查${sourceName}：${analysis.reason} ${analysis.risk ?? ""} 本次没有写入章节。`;
   }
 
   private getScriptOrganizationInput(input: SendDialogueMessageRequest): ScriptOrganizationInput | null {
@@ -390,13 +476,55 @@ export class ScriptDialogueService {
       return {
         sourceName: attachments.length === 1 ? attachments[0].name : `${attachments.length} 个附件`,
         sourceText: attachments.map((attachment) => attachment.content).join("\n\n"),
+        inputMode: "upload",
+        documents: attachments.map((attachment, index) => ({
+          sourceRef: `source-${String(index + 1).padStart(3, "0")}`,
+          name: attachment.name,
+          mediaType: attachment.mimeType,
+          sourceText: attachment.content,
+        })),
       };
     }
 
     return {
       sourceName: "粘贴剧本",
       sourceText: input.content,
+      inputMode: "paste",
+      documents: [{ name: "粘贴剧本", mediaType: "text/plain", sourceText: input.content }],
     };
+  }
+
+  private async generateImportAnalysisWithAI(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+    source: RawScriptSourceContext,
+    userRequest: string,
+    previousAnalysis?: ImportAnalysisOutputV1,
+    signal?: AbortSignal,
+  ): Promise<ImportAnalysisOutputV1> {
+    const sessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
+    const prompt = buildScriptImportAnalysisPrompt({ source, userRequest, previousAnalysis });
+    const parse = (content: string): ImportAnalysisOutputV1 => parseImportAnalysisOutputV1(content, {
+      sourceBlocks: source.blocks,
+      requireCompleteAssignment: true,
+    });
+    const first = await this.openCodeRuntimeService.sendMessage({ sessionId, model: input.model, content: prompt, signal });
+    try {
+      return parse(first.content);
+    } catch (error) {
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId,
+        model: input.model,
+        content: buildScriptImportFormatRepairPrompt({
+          stage: "analysis",
+          validationError: getErrorMessage(error),
+          originalPrompt: prompt,
+          invalidOutput: first.content,
+        }),
+        signal,
+      });
+      return parse(repaired.content);
+    }
   }
 
   // ---------- 灵感种子 + 剧本大纲 ----------

@@ -17,6 +17,7 @@ describe("W1 DB-only Web route gate", () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
       { confirm: dbConfirm } as never,
       {} as never,
       {} as never,
@@ -30,6 +31,7 @@ describe("W1 DB-only Web route gate", () => {
 
     const fileController = new ProjectsController(
       { usesDatabasePersistence: () => false, confirmChapterImagePreflight: fileConfirm } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

@@ -174,7 +174,14 @@ describe("script workflow source repository", () => {
     await expect(scripts.adoptPendingSuggestion({ projectId: project.id, chapterId: item.chapterId }, { pendingId: pending!.id, expectedPendingRowVersion: pending!.rowVersion, expectedPendingDigest: pending!.digest, expectedChapterRowVersion: pending!.chapterRowVersion })).rejects.toMatchObject({ code: "IMPORT_PENDING_ACTION_NOT_ALLOWED" });
     await expect(scripts.discardPendingSuggestion({ projectId: project.id, chapterId: item.chapterId }, { pendingId: pending!.id, expectedPendingRowVersion: pending!.rowVersion })).rejects.toMatchObject({ code: "IMPORT_PENDING_ACTION_NOT_ALLOWED" });
 
-    const confirmed = await repository.confirmImportPending({ projectId: project.id, chapterId: item.chapterId, pendingId: pending!.id });
+    const confirmed = await repository.confirmImportPending({
+      projectId: project.id,
+      chapterId: item.chapterId,
+      pendingId: pending!.id,
+      expectedPendingRowVersion: pending!.rowVersion,
+      expectedPendingDigest: pending!.digest,
+      expectedChapterRowVersion: pending!.chapterRowVersion,
+    });
     expect(await prisma.chapterScriptVersion.findUniqueOrThrow({ where: { id: confirmed.scriptVersionId } })).toMatchObject({ origin: "import", sourceText: markdown.trimEnd() });
     expect(await prisma.scriptImportBatchItem.findUniqueOrThrow({ where: { id: item.id } })).toMatchObject({ status: "confirmed", confirmedScriptVersionId: confirmed.scriptVersionId });
     expect(await scripts.getPendingSuggestion({ projectId: project.id, chapterId: item.chapterId })).toBeNull();

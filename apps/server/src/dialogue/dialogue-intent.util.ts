@@ -101,12 +101,21 @@ export function isConfirmingStoryboardRegeneration(content: string): boolean {
     || /(重新生成|重生成).{0,8}(分镜|镜头|storyboard)/.test(content.trim());
 }
 
-export function isConfirmingScriptImport(content: string): boolean {
-  return /(确认|可以|继续|同意|覆盖).{0,8}(导入|写入|覆盖|继续)|确认导入|继续导入|确认覆盖/.test(content.trim());
+export function isConfirmingScriptImport(content: string, intent?: SendDialogueMessageRequest["intent"]): boolean {
+  if (intent === "confirm_script_chapter_map") return true;
+  const text = content.trim();
+  if (/(不要|先别|先不|取消|不确认|不同意|不通过)/.test(text)) return false;
+  return /(确认|可以|同意|通过).{0,8}(拆章目录|章节目录|拆章方案|章节方案|导入)|确认导入|确认拆章目录/.test(text);
 }
 
 export function isCancellingScriptImport(content: string): boolean {
   return /(取消|不要|先不|不导入|别导入|算了).{0,8}(导入|写入|覆盖)?/.test(content.trim());
+}
+
+export function shouldReviseScriptImportAnalysis(content: string): boolean {
+  const text = content.trim();
+  if (!text || /^(继续|可以|确认|没问题|为什么|解释一下)$/.test(text)) return false;
+  return /(重新分析|重新拆|调整|修改|改成|合并|拆开|拆分|边界|目录|标题|第\s*[0-9一二三四五六七八九十百千万零〇两]+\s*章)/.test(text);
 }
 
 export function isConfirmingScriptOutline(content: string): boolean {
@@ -341,7 +350,7 @@ export function shouldOrganizeProvidedScript(input: SendDialogueMessageRequest):
   }
 
   if (hasAttachment) {
-    return false;
+    return true;
   }
 
   return content.length >= 1200;

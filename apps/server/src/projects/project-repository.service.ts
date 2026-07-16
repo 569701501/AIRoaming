@@ -913,7 +913,16 @@ export class ProjectRepository {
     const operation = row.operation === "generate_script_from_seed" || row.operation === "update_chapter_draft"
       ? row.operation
       : "generate_script_from_outline";
-    return { sourceText: row.sourceText, threadId: row.threadId, messageId: row.messageId, toolCallId: row.toolCallId, operation, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+    return {
+      sourceText: row.sourceText,
+      kind: ["ai", "import"].includes(row.kind) ? row.kind as "ai" | "import" : "legacy",
+      threadId: row.threadId,
+      messageId: row.messageId,
+      toolCallId: row.toolCallId,
+      operation: row.operation === "import_materialize" ? "import_materialize" : operation,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 
   private databaseRevisionToLocal(row: Prisma.ChapterScriptRevisionGetPayload<{}>, projectId: string, chapterId: string): ScriptRevisionItem {

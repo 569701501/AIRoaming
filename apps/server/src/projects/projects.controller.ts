@@ -33,6 +33,7 @@ import type {
   DiscardStoryboardWorkingCopyRequest,
   UpdateStoryboardWorkingCopyRequest,
   ConfirmChapterPreflightRequest,
+  ConfirmImportChapterRequest,
   VersionHistoryCopyRequest,
   InitializeLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyRequestV1,
@@ -56,12 +57,14 @@ import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
 import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
+import { ScriptWorkflowSourceRepository } from "./script-workflow-source.repository.js";
 
 @Controller("projects")
 export class ProjectsController {
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
     @Inject(ScriptVersionService) private readonly scriptVersionService: ScriptVersionService,
+    @Inject(ScriptWorkflowSourceRepository) private readonly scriptWorkflowSourceRepository: ScriptWorkflowSourceRepository,
     @Inject(StoryVersionService) private readonly storyVersionService: StoryVersionService,
     @Inject(StoryboardVersionService) private readonly storyboardVersionService: StoryboardVersionService,
     @Inject(ChapterProductionQueryService) private readonly chapterProductionQueryService: ChapterProductionQueryService,
@@ -262,6 +265,22 @@ export class ProjectsController {
     @Body() body: ScriptPendingDiscardRequest,
   ) {
     return ok(await this.scriptVersionService.discardPendingSuggestion({ projectId, chapterId }, body));
+  }
+
+  @Post(":projectId/chapters/:chapterId/script/import-pending/confirm")
+  async confirmImportChapter(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: ConfirmImportChapterRequest,
+  ) {
+    return ok(await this.scriptWorkflowSourceRepository.confirmImportPending({
+      projectId,
+      chapterId,
+      pendingId: body.pendingId,
+      expectedPendingRowVersion: body.expectedPendingRowVersion,
+      expectedPendingDigest: body.expectedPendingDigest,
+      expectedChapterRowVersion: body.expectedChapterRowVersion,
+    }));
   }
 
   @Get(":projectId/chapters/:chapterId/script/versions")

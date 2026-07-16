@@ -11,7 +11,11 @@ import type {
   SendDialogueMessageRequest,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
-import type { AiChapterGenerationContext } from "../projects/script-workflow-source.repository.js";
+import type {
+  AiChapterGenerationContext,
+  ImportItemWorkContext,
+  RawScriptSourceContext,
+} from "../projects/script-workflow-source.repository.js";
 import {
   SCRIPT_INSPIRATION_SEED_COUNT,
   getChapterScriptForbiddenOutputPrompt,
@@ -152,6 +156,168 @@ export function buildPrompt(input: {
     "用户本次消息：",
     input.userContent,
   ].filter(Boolean).join("\n\n");
+}
+
+// ---------- 已有剧本 B1～B4 Prompt ----------
+
+function importSourceBlocksForPrompt(blocks: RawScriptSourceContext["blocks"]): string {
+  return JSON.stringify(blocks.map((block) => ({
+    sourceRef: block.sourceRef,
+    blockRef: block.blockRef,
+    globalOrder: block.globalOrder,
+    locatorLabel: block.locatorLabel,
+    kind: block.kind,
+    sourceText: block.sourceText,
+  })), null, 2);
+}
+
+export function buildScriptImportAnalysisPrompt(input: {
+  source: RawScriptSourceContext;
+  userRequest: string;
+  previousAnalysis?: unknown;
+}): string {
+  const first = input.source.blocks[0];
+  const last = input.source.blocks.at(-1);
+  return [
+    "你正在执行 AI漫游已有剧本路线 B2：原稿观察性分析与拆章候选。",
+    "你是来源分析员，不是改编作者。只描述原稿实际内容，不得补剧情、强化钩子、调整人物弧或为了套公式改变章节边界。",
+    "只输出一个严格 JSON 对象，不要代码围栏、Markdown、解释或数据库 ID。",
+    "",
+    "硬性规则：",
+    "- schemaVersion 必须是 import-analysis/1.0，outlineRole 必须是 observed。",
+    "- 每个原稿 block 必须且只能归入一个 chapterCandidates.sourceRanges 或 excludedRanges；不得遗漏、重叠或打乱全局顺序。",
+    "- 优先保留原稿明确章节/话/幕边界；只有没有可靠源边界时，才可按完整的目标、冲突、转折或场景序列结束提出生产章节边界。",
+    "- boundaryEvidence.start/end 的 anchorBlockRef 必须位于该候选范围内。",
+    "- 无法确定文件顺序、正文范围或章节边界时，写入 unresolvedItems；impact 使用 source_scope/source_order/boundary，系统会阻止确认，不要猜测。",
+    "- 标题来自原稿时 basis=source；否则只能给保守建议并写 basis=suggested。",
+    "- observedOutline 只能做观察性摘要，不得伪造作者意图。",
+    "- chapterCandidates.order 和 plotStages.order 必须从 1 连续递增。",
+    "- sourceRanges 只使用提供的 sourceRef/blockRef。",
+    "",
+    "必须输出以下精确顶层字段：",
+    JSON.stringify({
+      schemaVersion: "import-analysis/1.0",
+      outlineRole: "observed",
+      sourceProfile: { contentType: "script|story_prose|scene_draft|mixed", explicitBoundaryLevel: "volume|chapter|episode|act|scene|none|mixed" },
+      observedOutline: {
+        sourceTitle: { value: "原稿标题或 null", basis: "source|not_provided" },
+        synopsis: "观察性剧情摘要",
+        mainCharacters: [{ name: "角色名", aliases: [], observedIdentity: "原稿可观察身份", observedPursuit: "原稿可观察追求", relationships: [], sourceRanges: [{ sourceRef: first?.sourceRef ?? "source-001", startBlockRef: first?.blockRef ?? "source-001:block-000001", endBlockRef: first?.blockRef ?? "source-001:block-000001" }] }],
+        plotStages: [{ order: 1, label: "阶段名", summary: "原稿阶段摘要", sourceRanges: [{ sourceRef: first?.sourceRef ?? "source-001", startBlockRef: first?.blockRef ?? "source-001:block-000001", endBlockRef: last?.sourceRef === first?.sourceRef ? last?.blockRef ?? first?.blockRef : first?.blockRef ?? "source-001:block-000001" }] }],
+        endingObservation: { kind: "resolved|open|incomplete|multiple|unknown", summary: "结尾观察", sourceRanges: [{ sourceRef: last?.sourceRef ?? "source-001", startBlockRef: last?.blockRef ?? "source-001:block-000001", endBlockRef: last?.blockRef ?? "source-001:block-000001" }] },
+      },
+      chapterCandidates: [{
+        localRef: "chapter-001",
+        order: 1,
+        title: { value: "章节标题", basis: "source|suggested" },
+        summary: "本章原稿摘要",
+        sourceRanges: [{ sourceRef: first?.sourceRef ?? "source-001", startBlockRef: first?.blockRef ?? "source-001:block-000001", endBlockRef: last?.sourceRef === first?.sourceRef ? last?.blockRef ?? first?.blockRef : first?.blockRef ?? "source-001:block-000001" }],
+        boundaryMode: "preserved_source_unit|grouped_source_scenes|proposed_story_transition|whole_source",
+        boundaryEvidence: {
+          start: { type: "source_start|explicit_heading|goal_or_conflict_resolution|major_turn|time_jump|location_shift|pov_or_mainline_shift|scene_sequence_end|source_end", anchorBlockRef: first?.blockRef ?? "source-001:block-000001", description: "开始边界证据" },
+          end: { type: "source_start|explicit_heading|goal_or_conflict_resolution|major_turn|time_jump|location_shift|pov_or_mainline_shift|scene_sequence_end|source_end", anchorBlockRef: last?.blockRef ?? "source-001:block-000001", description: "结束边界证据" },
+        },
+        confidence: "high|medium|low",
+        warnings: [],
+      }],
+      excludedRanges: [],
+      unresolvedItems: [],
+      globalWarnings: [],
+    }, null, 2),
+    "",
+    `原稿版本摘要：${input.source.sourceDigest}`,
+    `输入模式：${input.source.inputMode}`,
+    "原稿文件：",
+    JSON.stringify(input.source.documents.map((document) => ({ sourceRef: document.sourceRef, order: document.order, name: document.name, mediaType: document.mediaType })), null, 2),
+    "稳定原稿 blocks（完整输入，不得主动忽略中段）：",
+    importSourceBlocksForPrompt(input.source.blocks),
+    "用户本轮要求或边界反馈：",
+    input.userRequest || "请忠实分析并提出拆章候选。",
+    "上一版分析候选（仅在用户要求调整边界时参考；本轮仍必须输出完整新候选）：",
+    input.previousAnalysis ? JSON.stringify(input.previousAnalysis, null, 2) : "（无）",
+  ].join("\n");
+}
+
+export function buildScriptImportMaterializePrompt(context: ImportItemWorkContext): string {
+  return [
+    "你正在执行 AI漫游已有剧本路线 B4：把一个已确认原稿范围忠实整理为标准章节剧本。",
+    "只输出章节剧本 Markdown，不要代码围栏、解释、JSON、sourceRef、blockRef 或系统状态。",
+    "",
+    "忠实边界：",
+    "- 只使用本章确认范围内的原稿，不得添加事件、对白、人物动机、结局、伏笔或原稿外信息。",
+    "- 不得删除剧情信息、改变事件顺序、合并或拆分人物身份、改变对白说话人。",
+    "- 可以把小说叙述或分场稿规范为场景字段，但只能做格式转换，不得润色成新剧情。",
+    "- 原稿未明确的辅助字段统一写“原稿未明确”；正文中的原有叙事、动作和对白必须完整保留。",
+    `- 章节标题必须是“第 ${context.chapter.order} 章：${context.chapter.title}”。`,
+    "- 目标篇幅必须固定写“按本章确认原稿范围完整整理”。",
+    "- 不输出角色卡、场景卡、剧情节拍、分镜、镜头或图片 Prompt。",
+    "",
+    getChapterScriptFormatPrompt(),
+    "",
+    "观察性项目大纲（只能辅助理解称谓，不得覆盖原稿）：",
+    JSON.stringify(context.analysis.observedOutline, null, 2),
+    "确认的本章目录项：",
+    JSON.stringify(context.mapItem, null, 2),
+    "本章确认范围内的完整原稿 blocks：",
+    importSourceBlocksForPrompt(context.sourceBlocks),
+  ].join("\n");
+}
+
+export function buildScriptImportVerifyPrompt(context: ImportItemWorkContext, sourceText: string): string {
+  const outputLines = sourceText.trimEnd().split("\n").map((line, index) => ({
+    lineRef: `line-${String(index + 1).padStart(6, "0")}`,
+    text: line,
+  }));
+  return [
+    "你正在执行 AI漫游已有剧本路线 B4：忠实度验证。你只能审计，不能继续改写章节正文。",
+    "只输出一个严格 JSON 对象，不要代码围栏、Markdown 或解释。",
+    "",
+    "审计规则：",
+    "- sourceCoverage 必须完整、无重叠覆盖本章确认范围的每个原稿 block。",
+    "- 每一项只能使用给定 sourceRef/blockRef 和 lineRef。",
+    "- 原稿信息完整保留且只做格式变化时使用 preserved_in_body/reformatted_in_body/preserved_in_title。",
+    "- 任何遗漏、无来源新增、顺序变化、对白或说话人改变、人物合并拆分、越界内容都必须进入对应 finding 数组，不能用 uncertainties 掩盖硬问题。",
+    "- 不凭印象给覆盖率数字；只输出逐范围证据。",
+    "",
+    "精确顶层结构：",
+    JSON.stringify({
+      schemaVersion: "import-fidelity/1.0",
+      sourceCoverage: [{ sourceRange: context.mapItem.sourceRanges[0], outputLineRanges: [{ startLineRef: "line-000001", endLineRef: `line-${String(outputLines.length).padStart(6, "0")}` }], disposition: "reformatted_in_body", note: "说明原稿如何保留" }],
+      unsupportedAdditions: [],
+      sequenceFindings: [],
+      dialogueFindings: [],
+      entityFindings: [],
+      metadataFindings: [],
+      uncertainties: [],
+    }, null, 2),
+    "finding 结构固定为：",
+    JSON.stringify({ code: "SOURCE_OMISSION", description: "问题说明", sourceBlockRefs: [context.sourceBlocks[0]?.blockRef ?? "source-001:block-000001"], outputLineRefs: ["line-000001"] }, null, 2),
+    "",
+    "本章确认目录项：",
+    JSON.stringify(context.mapItem, null, 2),
+    "本章确认范围原稿 blocks：",
+    importSourceBlocksForPrompt(context.sourceBlocks),
+    "待验证章节输出（每行已添加只用于审计的 lineRef）：",
+    JSON.stringify(outputLines, null, 2),
+  ].join("\n");
+}
+
+export function buildScriptImportFormatRepairPrompt(input: {
+  stage: "analysis" | "materialize" | "verify";
+  validationError: string;
+  originalPrompt: string;
+  invalidOutput: string;
+}): string {
+  return [
+    `上一份 ${input.stage} 输出未通过固定契约校验。`,
+    "只修复格式、字段、引用和结构错误，不新增、删除、改写或重新解释任何剧情事实。",
+    "仍需遵守原任务全部忠实边界，只输出原任务要求的最终内容，不要解释。",
+    `校验错误：${input.validationError}`,
+    "原任务：",
+    input.originalPrompt,
+    "未通过的输出：",
+    input.invalidOutput,
+  ].join("\n\n");
 }
 
 // ---------- 剧情结构 prompt ----------

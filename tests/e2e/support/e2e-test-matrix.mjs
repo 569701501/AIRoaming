@@ -21,6 +21,7 @@ export const E2E_TEST_MATRIX = Object.freeze([
       "tests/e2e/web/layout-publication-m7.spec.ts",
       "tests/e2e/web/layout-mobile-ai-m8.spec.ts",
       "tests/e2e/web/script-ai-explicit-generation.spec.ts",
+      "tests/e2e/web/script-import-existing-flow.spec.ts",
     ]),
   }),
 ]);

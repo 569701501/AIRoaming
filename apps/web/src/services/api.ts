@@ -6,6 +6,8 @@ import type {
   CompleteChapterRequest,
   CompleteChapterResponse,
   ConfirmChapterPendingSourceResponse,
+  ConfirmImportChapterRequest,
+  ConfirmImportChapterResponse,
   ConfirmCharacterPreviewRequest,
   ConfirmCharacterPreviewResponse,
   ConfirmCharacterReferenceRequest,
@@ -430,6 +432,9 @@ export const api = {
   ),
   discardScriptPendingSuggestion: (projectId: string, chapterId: string, input: ScriptPendingDiscardRequest) => request<ScriptMutationResult<null>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/pending-suggestion`, { method: "DELETE", body: JSON.stringify(input) },
+  ),
+  confirmImportChapter: (projectId: string, chapterId: string, input: ConfirmImportChapterRequest) => request<ConfirmImportChapterResponse>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/import-pending/confirm`, { method: "POST", body: JSON.stringify(input) },
   ),
   getStoryWorkingCopy: (projectId: string, chapterId: string) => request<StoryWorkingCopyDto>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`,

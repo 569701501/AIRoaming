@@ -134,7 +134,7 @@ $deep-think
 | 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、项目 API、任务 mock API、OpenCode 对话运行时、对话 API 和 Prisma schema |
 | 共享契约 | `packages/shared` | 任务枚举、DTO、workspace 虚拟路径工具 |
 | 剧本双流程严格输出契约 | `packages/shared/src/script-workflow-contract.ts` | 七个模型阶段的灵感/大纲/章节/导入分析/忠实度可执行 Schema |
-| 剧本双流程来源状态 | `文档/02_架构与契约/2026-07-16_双流程来源与状态契约.md` | 0017 已实现不可变原稿、确认目录、导入批次/忠实度、AI/导入 pending 来源密封和逐章正式化基础；生产 Prompt、对话和页面仍待接线 |
+| 剧本双流程来源状态 | `文档/02_架构与契约/2026-07-16_双流程来源与状态契约.md` | 0017 及生产链已实现不可变原稿、观察性分析、确认目录、整批整理/忠实度、AI/导入 pending 来源密封和逐章正式化；页面内容字段保持不变 |
 | 测试安全网 | `apps/server/src/**/*.spec.ts`、`tests/e2e` | Vitest Service characterization + Playwright API/Chromium；临时 workspace、loopback fake provider 与受控进程清理 |
 | 本地素材根 | `workspace/projects` | 开发期项目素材占位目录 |
 
@@ -200,7 +200,7 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - 2026-05-26 项目路由骨架已落地：前端引入 `vue-router`，`/projects` 为项目库，`/projects/:projectId/script` 为剧本工作区，`structure/storyboard/candidates/layout/assets` 为后续 5 个步骤预留地址；URL 表示当前位置，Pinia 和后端负责项目快照、对话线程和临时状态。
 - 2026-05-26 剧本文本编辑器已换成 CodeMirror Markdown：右侧剧本文档编辑器不再使用原生 `textarea`，支持 Markdown 标题、列表、加粗、斜体、删除线、引用、插入图片文本和纯文本保存；保存接口仍只提交 `sourceText`。右侧大纲仍未接入真实解析，本阶段不处理。
 - 2026-05-28 剧本页最右侧“当前章节信息”面板已废弃：第 1 步“剧本”的当前剧本区域就是写剧本正文，不再常驻展示当前章节、故事主线、出场角色和场景列表。主线、角色、场景的整理应后置到剧情结构步骤或用户主动打开的局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
-- 2026-07-16 A+ 双路线进度：AI 创作按“灵感/题材 -> 项目大纲与轻量章节卡 -> 用户明确要求生成当前章 -> 单章 pending -> 采用并编辑 -> 完成本章”推进，A2～A5 已接入生产链路并完成 DB-only Chromium 验证；只有大纲存在下一章卡时才增加入口，切换不触发生成，第 N 章生成要求第 N-1 章正式。已有剧本目标路线仍为“原稿副本 -> 观察性大纲与拆章候选 -> 整本目录确认一次 -> 创建全部章节并完成整批生成尝试 -> 逐章只读确认”，不提供手动修改、AI 重新整理、采用、丢弃或批量确认，B1～B5 尚待接线。两条路线只在正式 `ChapterScriptVersion` 汇合，再进入现有 StoryStructure；页面展示字段保持不变。
+- 2026-07-16 A+ 双路线已接通：AI 创作按“灵感/题材 -> 项目大纲与轻量章节卡 -> 用户明确要求生成当前章 -> 单章 pending -> 采用并编辑 -> 完成本章”推进；只有大纲存在下一章卡时才增加入口，切换不触发生成，第 N 章生成要求第 N-1 章正式。已有剧本按“不可变原稿副本 -> 观察性大纲与拆章候选 -> 整本目录确认一次 -> 创建全部章节并完成整批生成/验证尝试 -> 逐章只读确认”推进，不提供手动修改、AI 重新整理、采用、丢弃或批量确认。两条路线均已完成 DB-only Chromium 验证，只在正式 `ChapterScriptVersion` 汇合，再进入现有 StoryStructure；页面展示字段保持不变。当前增强项是超长稿分层分析、后台断点续跑和失败项重试入口。
 - 2026-05-27 后端默认章节已接入：创建项目时写入 `chapters/chapter-001/chapter.json` 和 `script.md`；旧 `PATCH /api/projects/{projectId}` 仍可保存 `sourceText`，但只同步写入当前章节脚本；`story/story_draft.source.txt` 旧兼容路径已移除。
 - 2026-05-27 当前章节快照读取已接入：`WorkbenchSnapshot.chapters/currentChapter` 是剧本页读取章节的主契约；剧本编辑器和剧本步骤对话 prompt 优先读取 `currentChapter`，`snapshot.story` 仅作旧链路兼容兜底。
 - 2026-05-27 章节列表与章节推进已接入：剧本页支持章节列表、`/projects/:projectId/script/:chapterId`、章节级保存草稿和完成本章。2026-07-16 已修正为：完成本章发布正式版本并停留当前章；只有确认大纲存在下一张章节卡时才创建下一章入口，且不生成正文、不自动切换。

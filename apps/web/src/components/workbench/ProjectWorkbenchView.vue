@@ -153,7 +153,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -298,10 +298,25 @@ function emitDiscardPendingSource() {
 
 function emitDialogue(input: SendDialogueMessageRequest) {
   const hasAttachments = (input.attachments?.length ?? 0) > 0;
+  const projectDecisionTools: DialogueToolResult["tool"][] = [
+    "analyze_script_import",
+    "import_script_to_chapters",
+    "generate_inspiration_seeds",
+    "generate_script_outline_from_seed",
+    "generate_script_outline_from_topic",
+  ];
+  const latestProjectDecision = [...(props.dialogueThread?.toolResults ?? [])]
+    .reverse()
+    .find((result) => projectDecisionTools.includes(result.tool));
+  const continuesProjectScopedDecision = props.activeStepKey === "project_story"
+    && props.dialogueThread?.chapterId === null
+    && latestProjectDecision?.status === "needs_user_confirmation";
   const shouldUseProjectThread = hasAttachments
     || input.intent === "organize_script_to_chapters"
+    || input.intent === "confirm_script_chapter_map"
     || input.intent === "generate_inspiration_seeds"
-    || input.intent === "generate_script_outline_from_seed";
+    || input.intent === "generate_script_outline_from_seed"
+    || continuesProjectScopedDecision;
   emit("sendDialogue", {
     ...input,
     chapterId: shouldUseProjectThread ? null : currentChapterId.value,

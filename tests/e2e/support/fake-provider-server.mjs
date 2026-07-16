@@ -101,6 +101,74 @@ const CHAPTER_SCRIPT_RESPONSE = `# 章节剧本
 悬念：无人驾驶的车辆为什么知道林夏的名字，姐姐又为何留下警告？
 下一章引子：车辆正驶向隧道后的封闭总站，控制面板需要姐姐的钥匙扣才能解锁。
 `;
+const IMPORT_CHAPTER_ONE_RESPONSE = CHAPTER_SCRIPT_RESPONSE.replace(
+  "目标篇幅：约 1200 字",
+  "目标篇幅：按本章确认原稿范围完整整理",
+);
+const IMPORT_CHAPTER_TWO_RESPONSE = IMPORT_CHAPTER_ONE_RESPONSE
+  .replace("## 第 1 章：雨夜站台", "## 第 2 章：封闭总站")
+  .replace("一句话梗概：林夏在雨夜登上一辆无人驾驶的末班车，并听见失踪姐姐留下的警告。", "一句话梗概：林夏抵达封闭总站，找到姐姐并取得运营方掩盖事故的证据。")
+  .replace("本章目标：让林夏登上异常末班车并发现姐姐留下的录音。", "本章目标：让林夏在封闭总站找到姐姐并公开事故证据。")
+  .replace("核心冲突：离开会错失线索，登车又可能无法返回。", "核心冲突：救出姐姐会触发运营方销毁证据，保留证据又会延误救援。")
+  .replace("结尾钩子：姐姐警告她不要让车辆进入隧道。", "结尾钩子：监控直播出运营方负责人承认掩盖事故。")
+  .replace("#### 场景 1：空站台", "#### 场景 1：封闭总站入口")
+  .replace("#### 场景 2：无人末班车", "#### 场景 2：总站控制室")
+  .replace("下一章引子：车辆正驶向隧道后的封闭总站，控制面板需要姐姐的钥匙扣才能解锁。", "下一章引子：姐妹获救，事故证据已经公开。 ");
+const IMPORT_ANALYSIS_RESPONSE = Object.freeze({
+  schemaVersion: "import-analysis/1.0",
+  outlineRole: "observed",
+  sourceProfile: { contentType: "script", explicitBoundaryLevel: "chapter" },
+  observedOutline: {
+    sourceTitle: { value: "雨夜末班车", basis: "source" },
+    synopsis: "林夏登上异常末班车寻找失踪姐姐，最终在封闭总站救出姐姐并取得事故证据。",
+    mainCharacters: [{
+      name: "林夏",
+      aliases: [],
+      observedIdentity: "寻找失踪姐姐的记者",
+      observedPursuit: "找到姐姐并查明异常车辆真相",
+      relationships: ["林岚的妹妹"],
+      sourceRanges: [{ sourceRef: "source-001", startBlockRef: "source-001:block-000001", endBlockRef: "source-001:block-000002" }],
+    }],
+    plotStages: [
+      { order: 1, label: "登车", summary: "林夏在雨夜登上异常末班车。", sourceRanges: [{ sourceRef: "source-001", startBlockRef: "source-001:block-000001", endBlockRef: "source-001:block-000001" }] },
+      { order: 2, label: "总站", summary: "林夏在封闭总站救出姐姐并取得证据。", sourceRanges: [{ sourceRef: "source-001", startBlockRef: "source-001:block-000002", endBlockRef: "source-001:block-000002" }] },
+    ],
+    endingObservation: { kind: "resolved", summary: "姐妹获救，事故证据公开。", sourceRanges: [{ sourceRef: "source-001", startBlockRef: "source-001:block-000002", endBlockRef: "source-001:block-000002" }] },
+  },
+  chapterCandidates: [
+    {
+      localRef: "chapter-001",
+      order: 1,
+      title: { value: "雨夜站台", basis: "source" },
+      summary: "林夏登上异常末班车并听见姐姐的警告。",
+      sourceRanges: [{ sourceRef: "source-001", startBlockRef: "source-001:block-000001", endBlockRef: "source-001:block-000001" }],
+      boundaryMode: "preserved_source_unit",
+      boundaryEvidence: {
+        start: { type: "source_start", anchorBlockRef: "source-001:block-000001", description: "原稿第一章开始" },
+        end: { type: "scene_sequence_end", anchorBlockRef: "source-001:block-000001", description: "异常车辆驶向隧道，第一章行动结束" },
+      },
+      confidence: "high",
+      warnings: [],
+    },
+    {
+      localRef: "chapter-002",
+      order: 2,
+      title: { value: "封闭总站", basis: "source" },
+      summary: "林夏在封闭总站救出姐姐并公开事故证据。",
+      sourceRanges: [{ sourceRef: "source-001", startBlockRef: "source-001:block-000002", endBlockRef: "source-001:block-000002" }],
+      boundaryMode: "preserved_source_unit",
+      boundaryEvidence: {
+        start: { type: "explicit_heading", anchorBlockRef: "source-001:block-000002", description: "原稿第二章标题" },
+        end: { type: "source_end", anchorBlockRef: "source-001:block-000002", description: "原稿结尾" },
+      },
+      confidence: "high",
+      warnings: [],
+    },
+  ],
+  excludedRanges: [],
+  unresolvedItems: [],
+  globalWarnings: [],
+});
 const STORY_STRUCTURE_RESPONSE = Object.freeze({
   synopsis: "林夏在雨夜站台等待末班车，异常广播后空车进站。",
   direction: {
@@ -336,6 +404,33 @@ function deterministicOpenCodeResponse(payload) {
     : "";
   if (prompt.includes("structure-story-parse")) {
     return `\`\`\`json\n${JSON.stringify(STORY_STRUCTURE_RESPONSE, null, 2)}\n\`\`\``;
+  }
+  if (prompt.includes("已有剧本路线 B2")) {
+    return JSON.stringify(IMPORT_ANALYSIS_RESPONSE);
+  }
+  if (prompt.includes("已有剧本路线 B4：把一个已确认原稿范围忠实整理")) {
+    return prompt.includes("第 2 章：封闭总站") ? IMPORT_CHAPTER_TWO_RESPONSE : IMPORT_CHAPTER_ONE_RESPONSE;
+  }
+  if (prompt.includes("已有剧本路线 B4：忠实度验证")) {
+    const secondChapter = prompt.includes("第 2 章：封闭总站");
+    const blockRef = secondChapter ? "source-001:block-000002" : "source-001:block-000001";
+    const outputLineRefs = [...prompt.matchAll(/"lineRef":\s*"(line-\d+)"/g)].map((match) => match[1]);
+    const endLineRef = outputLineRefs.at(-1) ?? "line-000001";
+    return JSON.stringify({
+      schemaVersion: "import-fidelity/1.0",
+      sourceCoverage: [{
+        sourceRange: { sourceRef: "source-001", startBlockRef: blockRef, endBlockRef: blockRef },
+        outputLineRanges: [{ startLineRef: "line-000001", endLineRef }],
+        disposition: "reformatted_in_body",
+        note: "原稿内容完整整理进章节正文",
+      }],
+      unsupportedAdditions: [],
+      sequenceFindings: [],
+      dialogueFindings: [],
+      entityFindings: [],
+      metadataFindings: [],
+      uncertainties: [],
+    });
   }
   if (prompt.includes("script-outline-drafting")) {
     return SCRIPT_OUTLINE_RESPONSE;

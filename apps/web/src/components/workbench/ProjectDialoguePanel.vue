@@ -71,6 +71,47 @@
                         </div>
                       </div>
 
+                      <div v-if="toolResult.importWorkflow" class="tool-detail-section import-workflow-detail">
+                        <span class="tool-detail-label">原稿分析与拆章目录</span>
+                        <p>{{ toolResult.importWorkflow.analysis.observedOutline.synopsis }}</p>
+                        <div class="tool-meta-grid">
+                          <span>内容类型：{{ getImportContentTypeLabel(toolResult.importWorkflow.analysis.sourceProfile.contentType) }}</span>
+                          <span>章节候选：{{ toolResult.importWorkflow.analysis.chapterCandidates.length }} 章</span>
+                        </div>
+                        <ol class="chapter-result-list import-chapter-candidates">
+                          <li v-for="candidate in toolResult.importWorkflow.analysis.chapterCandidates" :key="candidate.localRef">
+                            <span>{{ candidate.order }}. {{ candidate.title.value }}</span>
+                            <small>{{ getImportConfidenceLabel(candidate.confidence) }} · {{ candidate.boundaryEvidence.start.description }} → {{ candidate.boundaryEvidence.end.description }}</small>
+                            <small>{{ candidate.summary }}</small>
+                            <small v-if="candidate.warnings.length" class="import-warning">{{ candidate.warnings.join("；") }}</small>
+                          </li>
+                        </ol>
+                        <div v-if="toolResult.importWorkflow.blockingIssues.length" class="import-blocking-list">
+                          <strong>需要先解决的问题</strong>
+                          <p v-for="issue in toolResult.importWorkflow.blockingIssues" :key="issue">{{ issue }}</p>
+                        </div>
+                        <button
+                          v-if="toolResult.importWorkflow.stage === 'analysis_candidate' && toolResult.status === 'needs_user_confirmation' && toolResult.importWorkflow.blockingIssues.length === 0"
+                          class="tool-confirm-btn"
+                          type="button"
+                          :disabled="dialogueSending"
+                          title="整体确认拆章目录并开始生成全部章节待确认稿"
+                          @click="confirmScriptChapterMap"
+                        >
+                          <CheckCircle2 :size="14" />
+                          <span>确认拆章目录</span>
+                        </button>
+                        <div v-if="toolResult.importWorkflow.stage === 'batch_result'" class="import-batch-result">
+                          <strong>整批结果：{{ getImportBatchStatusLabel(toolResult.importWorkflow.batchStatus) }}</strong>
+                          <ol class="chapter-result-list">
+                            <li v-for="item in toolResult.importWorkflow.batchItems" :key="item.id">
+                              <span>{{ item.order }}. {{ item.title }}</span>
+                              <small>{{ getImportItemStatusLabel(item.status) }}<template v-if="item.errorCode"> · {{ item.errorCode }}</template></small>
+                            </li>
+                          </ol>
+                        </div>
+                      </div>
+
                       <div v-if="toolResult.inspirationSeeds?.length" class="tool-detail-section">
                         <span class="tool-detail-label">灵感种子</span>
                         <ol class="seed-list">
@@ -299,6 +340,8 @@ const canSend = computed(() => {
 });
 const selectedModelValue = computed(() => props.selectedModel ? serializeModel(props.selectedModel) : "");
 const skillTools = new Set<DialogueToolResult["tool"]>([
+  "analyze_script_import",
+  "import_script_to_chapters",
   "generate_inspiration_seeds",
   "generate_script_outline_from_seed",
   "generate_script_outline_from_topic",
@@ -313,8 +356,8 @@ const skillTools = new Set<DialogueToolResult["tool"]>([
   "confirm_storyboard",
 ]);
 const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
-  analyze_script_import: "analyze_script_import",
-  import_script_to_chapters: "import_script_to_chapters",
+  analyze_script_import: "script-import-normalize",
+  import_script_to_chapters: "script-import-normalize",
   generate_inspiration_seeds: "script-inspiration-seeding",
   generate_script_outline_from_seed: "script-outline-drafting",
   generate_script_outline_from_topic: "script-outline-drafting",
@@ -458,6 +501,16 @@ function confirmScriptOutline(outline: ProjectScriptOutline) {
   emit("send", {
     content: `确认大纲：${outline.title}，生成当前章节`,
     intent: "generate_script_from_outline",
+  });
+}
+
+function confirmScriptChapterMap() {
+  if (props.dialogueSending) {
+    return;
+  }
+  emit("send", {
+    content: "确认拆章目录",
+    intent: "confirm_script_chapter_map",
   });
 }
 
@@ -715,6 +768,18 @@ function getImportDecisionLabel(decision: string) {
     reject: "拒绝导入",
   };
   return labels[decision] ?? decision;
+}
+
+function getImportConfidenceLabel(confidence: string) {
+  return ({ high: "高置信", medium: "中置信", low: "低置信" } as Record<string, string>)[confidence] ?? confidence;
+}
+
+function getImportBatchStatusLabel(status: string | null) {
+  return ({ queued: "等待整理", processing: "整理中", ready_for_review: "可逐章检查", partial_failure: "部分章节失败", failed: "整批失败", completed: "全部章节已确认" } as Record<string, string>)[status ?? ""] ?? status ?? "未知";
+}
+
+function getImportItemStatusLabel(status: string) {
+  return ({ queued: "等待整理", materializing: "整理中", verifying: "忠实度验证中", pending_ready: "待确认", generation_failed: "生成或验证失败", confirmed: "已确认" } as Record<string, string>)[status] ?? status;
 }
 </script>
 

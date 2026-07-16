@@ -8,8 +8,9 @@ import type {
   ChapterStoryStructure,
   DialogueMessageItem,
   DialogueToolResult,
+  ImportAnalysisOutputV1,
+  AIRuntimeModelSelection,
   ProjectScriptOutline,
-  ScriptImportAnalysis,
   ScriptInspirationSeed,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
@@ -41,11 +42,24 @@ export interface DialogueTurn {
 export interface ScriptOrganizationInput {
   sourceText: string;
   sourceName: string;
+  inputMode: "upload" | "paste" | "mixed";
+  documents: Array<{
+    sourceRef?: string;
+    name: string;
+    mediaType: string;
+    sourceText: string;
+  }>;
 }
 
-/** 待确认导入剧本(分析通过,等用户确认写入)。 */
-export interface PendingScriptImport extends ScriptOrganizationInput {
-  analysis: ScriptImportAnalysis;
+/** B2 待确认拆章候选；原稿正文只保存在不可变 RawSource 中。 */
+export interface PendingScriptImport {
+  workflowVersion: 2;
+  sourceName: string;
+  rawSourceVersionId: string;
+  analysisCandidateId: string;
+  analysis: ImportAnalysisOutputV1;
+  blockingIssues: string[];
+  model: AIRuntimeModelSelection | null;
   createdAt: string;
 }
 
