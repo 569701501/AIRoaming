@@ -42,6 +42,18 @@ interface OpenCodeConfigResponse {
   provider?: Record<string, OpenCodeProviderConfig>;
 }
 
+const TEXT_GENERATION_SESSION_PERMISSIONS = [
+  {
+    permission: "*",
+    pattern: "*",
+    action: "deny",
+  },
+] as const;
+
+const TEXT_GENERATION_MESSAGE_TOOLS = {
+  "*": false,
+} as const;
+
 @Injectable()
 export class OpenCodeRuntimeService implements OnModuleDestroy {
   private readonly host = process.env.OPENCODE_HOST ?? "127.0.0.1";
@@ -108,7 +120,10 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     const session = await this.withReadyRetry(() => {
       return this.requestJson<OpenCodeSession>("/session", {
         method: "POST",
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({
+          title,
+          permission: TEXT_GENERATION_SESSION_PERMISSIONS,
+        }),
         signal,
       });
     });
@@ -344,6 +359,9 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
           providerID: model.providerId,
           modelID: model.modelId,
         },
+        // OpenCode 1.17.x 会把消息级 tools 规则写回会话权限。
+        // 这里同时保护升级前已存在、仍会被复用的文本生成会话。
+        tools: TEXT_GENERATION_MESSAGE_TOOLS,
         parts: [
           {
             type: "text",

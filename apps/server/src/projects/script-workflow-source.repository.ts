@@ -596,8 +596,16 @@ export class ScriptWorkflowSourceRepository {
         });
       }
       const sealed = buildScriptPendingSourceProjectionV1({ kind: "ai", policyVersion: "ai-chapter-generate/1.0", bindings: context.sourceBindings });
-      const thread = await tx.conversationThread.findUnique({ where: { id: input.threadId } });
-      const message = await tx.conversationMessage.findUnique({ where: { id: input.messageId } });
+      const thread = await tx.conversationThread.findFirst({
+        where: {
+          id: input.threadId,
+          projectId: input.projectId,
+          chapterId: context.chapter.id,
+        },
+      });
+      const message = thread
+        ? await tx.conversationMessage.findFirst({ where: { id: input.messageId, threadId: thread.id } })
+        : null;
       const persistedToolCallId = thread && message ? input.toolCallId : null;
       const now = new Date();
       await tx.chapterScriptPending.create({ data: {

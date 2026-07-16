@@ -308,20 +308,46 @@ describe("script workflow source repository", () => {
       toolCallId: "chapter-2-stale",
       summary: "生成第二章",
     })).rejects.toMatchObject({ code: "CURRENT_VERSION_CHANGED" });
+    const projectThread = await prisma.conversationThread.create({ data: {
+      id: "thread-project-story",
+      projectId: project.id,
+      chapterId: null,
+      stepKey: "project_story",
+      scopeKey: "project",
+      title: "项目故事",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } });
+    const projectMessage = await prisma.conversationMessage.create({ data: {
+      id: "message-project-story",
+      threadId: projectThread.id,
+      role: "assistant",
+      content: "已生成章节候选",
+      status: "completed",
+      providerId: "self",
+      modelId: "test",
+      errorJson: undefined,
+      errorSchemaVersion: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      completedAt: new Date(),
+    } });
     const pending = await repository.createAiChapterPending({
       projectId: project.id,
       chapterId: chapter2.id,
       outlineId: outline.outlineId,
       expectedSourceSetDigest: context.sourceSetDigest,
       sourceText: second,
-      threadId: "thread",
-      messageId: "message",
+      threadId: projectThread.id,
+      messageId: projectMessage.id,
       toolCallId: "chapter-2",
       summary: "根据已确认大纲生成第二章",
     });
     expect(pending.sourceSetDigest).toMatch(/^sha256:/);
     expect(await scripts.getPendingSuggestion({ projectId: project.id, chapterId: chapter2.id })).toMatchObject({ kind: "ai", sourceBindings: [{ role: "outline" }, { role: "chapter_card" }, { role: "previous_script" }] });
-    expect(await prisma.chapterScriptRevision.findUniqueOrThrow({ where: { id: pending.revisionId } })).toMatchObject({ chapterId: chapter2.id, source: "ai_tool", operation: "generate_script_from_outline" });
+    expect(await prisma.chapterScriptPending.findUniqueOrThrow({ where: { id: pending.pendingId } })).toMatchObject({ threadId: null, messageId: null, toolCallId: null });
+    expect(await prisma.chapterScriptRevision.findUniqueOrThrow({ where: { id: pending.revisionId } })).toMatchObject({ chapterId: chapter2.id, source: "ai_tool", operation: "generate_script_from_outline", threadId: null, messageId: null, toolCallId: null });
     const pendingDto = await scripts.getPendingSuggestion({ projectId: project.id, chapterId: chapter2.id });
     await scripts.discardPendingSuggestion(
       { projectId: project.id, chapterId: chapter2.id },

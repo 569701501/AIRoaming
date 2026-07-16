@@ -119,6 +119,9 @@ export function summarizeDraftUpdate(instruction: string): string {
 }
 
 export function formatRevisionSource(revision: { threadId: string | null; messageId: string | null; toolCallId: string | null }): string {
+  if (!revision.threadId && !revision.messageId && !revision.toolCallId) {
+    return "系统密封来源";
+  }
   return `thread=${shortId(revision.threadId ?? "")} message=${shortId(revision.messageId ?? "")} tool=${shortId(revision.toolCallId ?? "")}`;
 }
 
