@@ -1,4 +1,5 @@
 import type { StoryboardJson, StoryStructureJson } from "@airoaming/shared";
+import type { StoryboardDialogueReference } from "./storyboard-dialogue-reference.util.js";
 
 export class StoryboardOutputContractError extends Error {
   readonly code = "STORYBOARD_OUTPUT_CONTRACT_FAILED";
@@ -181,7 +182,11 @@ function assertMeaningfulText(issues: string[], value: string, code: string): vo
  * 待确认分镜写入前的高确定性质量门。
  * 不评价审美、商业节奏或主观镜头优劣。
  */
-export function assertStoryboardQuality(storyboard: StoryboardJson, structure: StoryStructureJson): void {
+export function assertStoryboardQuality(
+  storyboard: StoryboardJson,
+  structure: StoryStructureJson,
+  dialogueReference?: StoryboardDialogueReference,
+): void {
   const issues: string[] = [];
   const beatOrder = new Map(structure.beats.map((beat) => [beat.id, beat.order]));
   const beatScene = new Map(structure.beats.map((beat) => [beat.id, beat.sceneId]));
@@ -189,6 +194,9 @@ export function assertStoryboardQuality(storyboard: StoryboardJson, structure: S
   const shotIds = new Set<string>();
   const shotSignatures = new Set<string>();
   const promptDraftKeys: string[] = [];
+  const allowedVoiceLines = dialogueReference?.available
+    ? new Set(dialogueReference.candidates.map((candidate) => candidate.line))
+    : null;
   let previousBeatOrder = 0;
 
   storyboard.shots.forEach((shot, index) => {
@@ -224,6 +232,13 @@ export function assertStoryboardQuality(storyboard: StoryboardJson, structure: S
 
     const dialogueKey = semanticKey(shot.comic.dialogue);
     const voiceLineKeys = shot.motion.voiceLines.map((line) => semanticKey(line.line)).filter(Boolean);
+    if (allowedVoiceLines) {
+      shot.motion.voiceLines.forEach((line, lineIndex) => {
+        if (!allowedVoiceLines.has(line.line.trim())) {
+          issues.push(`STORYBOARD_VOICE_LINE_NOT_IN_FORMAL_SCRIPT:${path}.motion.voiceLines[${lineIndex}]`);
+        }
+      });
+    }
     if (shot.motion.frameType === "dialogue" && !dialogueKey && voiceLineKeys.length === 0) {
       issues.push(`STORYBOARD_DIALOGUE_FRAME_EMPTY:${path}`);
     }

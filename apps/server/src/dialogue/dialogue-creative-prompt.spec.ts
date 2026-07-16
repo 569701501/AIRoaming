@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   SCRIPT_WORKFLOW_STAGE_IDS,
+  serializeChapterScriptMarkdownV1,
+  type ChapterScriptDocumentV1,
   type ImportAnalysisOutputV1,
   type ScriptWorkflowStageId,
   type SendDialogueMessageRequest,
@@ -27,6 +29,7 @@ import {
   buildStoryboardPrompt,
   buildStoryboardRepairPrompt,
 } from "./dialogue-prompt.util.js";
+import { compactPromptText } from "./dialogue-text.util.js";
 
 function turn(): DialogueTurn {
   return {
@@ -210,6 +213,49 @@ function storyboardTurn(): DialogueTurn {
   } as DialogueTurn;
 }
 
+function longStoryboardScript(): string {
+  const scene = (order: number, name: string, description: string, dialogue: string) => ({
+    order,
+    name,
+    location: "旧办公室",
+    time: "深夜",
+    atmosphere: "戒备",
+    characters: "林舟",
+    description,
+    actions: "林舟观察桌面上的录音笔。",
+    dialogue,
+    narration: "无",
+    endingPoint: "录音灯继续闪烁。",
+  });
+  const document: ChapterScriptDocumentV1 = {
+    chapterOrder: 1,
+    chapterTitle: "雨夜交易",
+    type: "悬疑",
+    theme: "信任",
+    style: "克制",
+    comicForm: "竖向条漫",
+    targetLength: "完整单章",
+    logline: "林舟交出录音笔。",
+    chapterGoal: "确认录音内容",
+    coreConflict: "双方互不信任",
+    emotionalArc: "警惕到合作",
+    endingHook: "录音出现失踪者声音",
+    highlights: ["录音笔", "雨夜", "声音反转"],
+    visualAtmosphere: "冷雨",
+    colorDirection: "冷蓝",
+    visualMotif: "红色录音灯",
+    scenes: [
+      scene(1, "开场", "前段动作。".repeat(1200), "林舟：先坐下。"),
+      scene(2, "中段", "两人隔桌对峙。", "林舟：这句只存在于被摘掉的正文中段。"),
+      scene(3, "结尾", "后段动作。".repeat(1200), "林舟：录音开始了。"),
+    ],
+    endingEvent: "录音开始播放",
+    suspense: "声音来自谁",
+    nextChapterLead: "追查录音来源",
+  };
+  return serializeChapterScriptMarkdownV1(document);
+}
+
 describe("S1 分镜 Prompt 契约", () => {
   it("首次生成使用结构本地引用、正式枚举和固定双轨分镜方法", () => {
     const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成分镜"), "generate");
@@ -226,17 +272,27 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("首次生成的所有镜头都省略 id");
   });
 
-  it("把共享事实、漫画 Prompt 和漫剧 Prompt 分开，并注入现有版式与画风", () => {
+  it("按对白分配、状态边界、共享 Shot、漫画静态价值的顺序规划，并保留双轨独立 Prompt", () => {
     const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成当前章漫画和漫剧分镜"), "generate");
+    const dialoguePlanningIndex = prompt.indexOf("步骤 1：正式对白/配音候选与选择");
+    const dialogueSegmentIndex = prompt.indexOf("步骤 2：对白分段");
+    const stateIndex = prompt.indexOf("步骤 3：状态边界");
+    const shotIndex = prompt.indexOf("步骤 4：共享 Shot");
+    const comicValueIndex = prompt.indexOf("步骤 5：comic 静态价值");
     const sharedIndex = prompt.indexOf("共享剧情事实契约");
     const comicIndex = prompt.indexOf("漫画分镜 Prompt（独立设计 comic）");
     const motionIndex = prompt.indexOf("漫剧分镜 Prompt（独立设计 motion");
     const boundaryIndex = prompt.indexOf("漫画 / 漫剧双轨一致性边界");
 
-    expect(sharedIndex).toBeGreaterThan(-1);
-    expect(comicIndex).toBeGreaterThan(sharedIndex);
-    expect(motionIndex).toBeGreaterThan(comicIndex);
-    expect(boundaryIndex).toBeGreaterThan(motionIndex);
+    expect(dialoguePlanningIndex).toBeGreaterThan(-1);
+    expect(dialogueSegmentIndex).toBeGreaterThan(dialoguePlanningIndex);
+    expect(stateIndex).toBeGreaterThan(dialogueSegmentIndex);
+    expect(shotIndex).toBeGreaterThan(stateIndex);
+    expect(comicValueIndex).toBeGreaterThan(shotIndex);
+    expect(sharedIndex).toBeGreaterThan(comicValueIndex);
+    expect(motionIndex).toBeGreaterThan(sharedIndex);
+    expect(comicIndex).toBeGreaterThan(motionIndex);
+    expect(boundaryIndex).toBeGreaterThan(comicIndex);
     expect(prompt).toContain("漫画版式：vertical_scroll");
     expect(prompt).toContain("项目画风：comic_style");
     expect(prompt).toContain("角色外观以结构角色卡 visualTraits 为准");
@@ -248,25 +304,41 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("不得逐句改写 comic.panelDescription");
     expect(prompt).toContain("不机械复制 comic.composition");
     expect(prompt).toContain("一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化");
-    expect(prompt).toContain("同一 beat 超过 2 次显著状态变化");
-    expect(prompt).toContain("一个 Shot 计划承载超过 3 条有内容的 voiceLines");
+    expect(prompt).toContain("对白分段或状态边界确有两段时");
+    expect(prompt).toContain("每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限");
     expect(prompt).toContain("新增 comic 也必须承载不同且必要的静态决定性瞬间");
-    expect(prompt).toContain("正式正文摘录中可见的 voiceLines[].line 必须逐字引用");
-    expect(prompt).toContain("不得同义改写、补词或改标点");
+    expect(prompt).toContain("voiceLines[].line 只能逐字复制下方全章正式对白候选");
+    expect(prompt).toContain("不得同义改写、补词、改标点");
     expect(prompt).toContain("不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动");
     expect(prompt).not.toContain("comic 与 motion 描述同一个剧情瞬间");
     expect(prompt).not.toContain("motion 只能补充时间和运镜");
   });
 
-  it("V2.1 用动态负载触发必要第二镜，但保护漫画轨道且不做机械硬切", () => {
+  it("V2.3 先减负和分段，再执行状态停镜与 10 秒软复核，不做三条对白硬门", () => {
     const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成当前章节完整分镜"), "generate");
+    expect(prompt).toContain("每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限");
+    expect(prompt).toContain("达到退出状态就停镜");
+    expect(prompt).toContain("人物改变行动目标或对象");
+    expect(prompt).toContain("伸手→按键→屏幕亮起");
+    expect(prompt).toContain("超过 10 秒只能用于一段需要不间断表演的单一对白或动作");
+    expect(prompt).toContain("只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算");
     expect(prompt).toContain("动态负载无法在一个共享锚点中清楚承接时才增加第二个");
-    expect(prompt).toContain("把进入/选择与结果/反应分开");
+    expect(prompt).toContain("陈述/揭示→选择/后果");
     expect(prompt).toContain("不按固定秒数机械切分");
     expect(prompt).toContain("当前 M1 每个 beat 最多两个 Shot");
     expect(prompt).toContain("达到两镜仍过载时，缩小每镜动作范围");
     expect(prompt).toContain("不能用重复反应、换景别或空画格填充");
     expect(prompt).not.toContain("每 3 条对白拆一镜");
+  });
+
+  it("正文摘录看不到中段台词时，仍注入完整正式对白候选表", () => {
+    const sourceText = longStoryboardScript();
+    expect(compactPromptText(sourceText, 6000)).not.toContain("这句只存在于被摘掉的正文中段。");
+    const sourceTurn = storyboardTurn();
+    sourceTurn.snapshot.currentChapter!.sourceText = sourceText;
+    const prompt = buildStoryboardPrompt(sourceTurn, { ...request("生成分镜"), context: { sourceText } }, "generate");
+    expect(prompt).toContain("全章正式对白/配音候选（voiceLines 唯一逐字来源）");
+    expect(prompt).toContain('"line": "这句只存在于被摘掉的正文中段。"');
   });
 
   it("调整动作读取当前 pending、保留已有 ID，并要求返回完整草稿", () => {
@@ -289,9 +361,10 @@ describe("S1 分镜 Prompt 契约", () => {
     });
     expect(prompt).toContain("comic 独立修复为一个可画的静态决定性瞬间");
     expect(prompt).toContain("motion 独立修复为开始状态→主要动作/表演变化→结束状态");
-    expect(prompt).toContain("超过 2 次显著状态变化或超过 3 条有内容的 voiceLines");
+    expect(prompt).toContain("先从全章正式对白候选中删除非必要来回并完成最多两段分配");
+    expect(prompt).toContain("达到退出状态就停镜");
     expect(prompt).toContain("新增 comic 仍必须是不同且必要的静态决定性瞬间");
-    expect(prompt).toContain("可见于正式正文摘录的台词逐字保留");
+    expect(prompt).toContain("voiceLines[].line 必须逐字复制原任务中的全章正式对白候选");
     expect(prompt).toContain("不要求描述同一瞬间、相同构图或相同节奏");
     expect(prompt).toContain("promptDraft 只属于静态候选图");
     expect(prompt).not.toContain("每个 Shot 只表达一个静态瞬间");

@@ -1,13 +1,41 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
   ChapterStoryboard,
+  ChapterScriptDocumentV1,
   StoryboardJson,
   StoryboardWorkingCopyDto,
 } from "@airoaming/shared";
+import { serializeChapterScriptMarkdownV1 } from "@airoaming/shared";
 import type { DialogueTurn } from "./dialogue-types.js";
 import { StoryboardDialogueService } from "./storyboard-dialogue.service.js";
 
 const digest = `sha256:${"a".repeat(64)}` as const;
+
+function formalScript(): string {
+  const document: ChapterScriptDocumentV1 = {
+    chapterOrder: 1,
+    chapterTitle: "雨夜交易",
+    type: "悬疑",
+    theme: "信任",
+    style: "克制",
+    comicForm: "竖向条漫",
+    targetLength: "完整单章",
+    logline: "林舟交出录音笔。",
+    chapterGoal: "确认录音内容",
+    coreConflict: "双方互不信任",
+    emotionalArc: "警惕到合作",
+    endingHook: "录音出现失踪者声音",
+    highlights: ["录音笔", "雨夜", "声音反转"],
+    visualAtmosphere: "冷雨",
+    colorDirection: "冷蓝",
+    visualMotif: "红色录音灯",
+    scenes: [{ order: 1, name: "雨夜办公室", location: "旧办公室", time: "深夜", atmosphere: "戒备", characters: "林舟", description: "林舟把录音笔推过桌面。", actions: "林舟收回手。", dialogue: "林舟：听完再决定。", narration: "无", endingPoint: "录音灯亮起。" }],
+    endingEvent: "录音开始播放",
+    suspense: "声音来自谁",
+    nextChapterLead: "追查录音来源",
+  };
+  return serializeChapterScriptMarkdownV1(document);
+}
 
 function aiStoryboard(id?: string): StoryboardJson {
   return {
@@ -268,5 +296,33 @@ describe("StoryboardDialogueService S1", () => {
     expect(runtime.sendMessage.mock.calls[1]?.[0]?.content).toContain("校验错误：");
     expect(projects.savePendingChapterStoryboard).not.toHaveBeenCalled();
     expect(result).toMatchObject({ status: "failed", summary: expect.stringContaining("本次没有写入或替换待确认分镜") });
+  });
+
+  it("V2.3 正式正文对白被改写时进入同一次修复，逐字恢复后才保存 pending", async () => {
+    const invalid = aiStoryboard();
+    invalid.shots[0]!.comic.dialogue = "林舟：听完之后再决定。";
+    invalid.shots[0]!.motion.voiceLines[0]!.line = "听完之后再决定。";
+    const repaired = aiStoryboard();
+    const source = pendingBoard("legacy-pending", "shot-existing");
+    const runtime = {
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce({ content: JSON.stringify(invalid) })
+        .mockResolvedValueOnce({ content: JSON.stringify(repaired) }),
+    };
+    const projects = {
+      getPendingChapterStoryboard: vi.fn(async () => null),
+      savePendingChapterStoryboard: vi.fn(async (_projectId, _chapterId, input) => ({ storyboard: { ...source, storyboardJson: input.storyboardJson } })),
+    };
+    const sourceTurn = turn();
+    sourceTurn.snapshot.currentChapter!.sourceText = formalScript();
+    const service = new StoryboardDialogueService(projects as never, runtime as never);
+    service.setEnsureSession(async () => "session-1");
+
+    const result = await service.handleStoryboardTurn(sourceTurn, { content: "生成分镜", intent: "generate_storyboard" });
+
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0]?.content).toContain("STORYBOARD_VOICE_LINE_NOT_IN_FORMAL_SCRIPT:shots[0].motion.voiceLines[0]");
+    expect(projects.savePendingChapterStoryboard).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "needs_user_confirmation", tool: "generate_storyboard" });
   });
 });

@@ -31,6 +31,10 @@ import {
   getScriptRevisionLayerLabel,
   type ScriptRevisionLayer,
 } from "./script-revision-quality.util.js";
+import {
+  buildStoryboardDialogueReference,
+  type StoryboardDialogueReference,
+} from "./storyboard-dialogue-reference.util.js";
 
 /** workflow 步骤中文标签(用于 prompt 上下文)。 */
 export const STEP_LABELS: Record<string, string> = {
@@ -478,6 +482,19 @@ export function buildStoryStructureRepairPrompt(input: {
 
 export type StoryboardPromptMode = "generate" | "revise_pending";
 
+function getStoryboardV23PlanningPrompt(dialogueReference: StoryboardDialogueReference): string[] {
+  return [
+    "V2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：",
+    dialogueReference.available
+      ? "步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。"
+      : "步骤 1：正式对白/配音候选与选择。当前正文没有可稳定解析的全章候选；只能逐字使用正文摘录中明确可见的台词，选择推进本 beat 所需的最少台词，禁止凭记忆或常识补写。",
+    "步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。",
+    "步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。",
+    "步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。",
+    "步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。",
+  ];
+}
+
 function getStoryboardSharedNarrativePrompt(): string[] {
   return [
     "共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：",
@@ -509,12 +526,15 @@ function getMotionStoryboardPrompt(): string[] {
     "漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：",
     "- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。",
     "- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。",
-    "- 必要拆镜：如果同一 beat 超过 2 次显著状态变化，或一个 Shot 计划承载超过 3 条有内容的 voiceLines，优先使用该 beat 的第二个共享 Shot；把进入/选择与结果/反应分开，不按固定秒数机械切分。",
+    "- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。",
+    "- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。",
+    "- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。",
+    "- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。",
     "- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。",
     "- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。",
     "- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。",
-    "- 内容时长：durationMs 同时容纳动作完成、台词说完、人物反应和必要停顿，不套固定 3 秒、5 秒、15 秒或平台等距分段。",
-    "- 表演与配音：frameType 匹配本镜主要功能；voiceLines 只使用正式正文对应台词，不能为成片节奏擅自改词、补词或新增说话人。正式正文摘录中可见的 voiceLines[].line 必须逐字引用，只允许去掉说话人标记和外层引号，不得同义改写、补词或改标点；摘录中不可见的台词不得凭空补写。",
+    "- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。",
+    "- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。",
     "- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。",
     "- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。",
   ];
@@ -534,6 +554,7 @@ export function buildStoryboardPrompt(
   turn: DialogueTurn,
   input: SendDialogueMessageRequest,
   mode: StoryboardPromptMode = "generate",
+  suppliedDialogueReference?: StoryboardDialogueReference,
 ): string {
   const snapshot = turn.snapshot;
   const currentChapter = snapshot.currentChapter;
@@ -550,6 +571,13 @@ export function buildStoryboardPrompt(
   const chapterScriptExcerpt = compactPromptText(
     input.context?.sourceText?.trim() ?? currentChapter?.sourceText?.trim() ?? "",
     6000,
+  );
+  const dialogueReference = suppliedDialogueReference ?? buildStoryboardDialogueReference(
+    input.context?.sourceText?.trim() ?? currentChapter?.sourceText?.trim() ?? "",
+    {
+      characters: structure?.characters ?? [],
+      scenes: structure?.scenes ?? [],
+    },
   );
   const pendingStoryboard = snapshot.pendingStoryboard?.storyboardJson ?? null;
   const isRevision = mode === "revise_pending";
@@ -624,11 +652,13 @@ export function buildStoryboardPrompt(
     "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
     "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
     "",
+    ...getStoryboardV23PlanningPrompt(dialogueReference),
+    "",
     ...getStoryboardSharedNarrativePrompt(),
     "",
-    ...getComicStoryboardPrompt(),
-    "",
     ...getMotionStoryboardPrompt(),
+    "",
+    ...getComicStoryboardPrompt(),
     "",
     ...getDualTrackStoryboardBoundaryPrompt(),
     "",
@@ -660,8 +690,19 @@ export function buildStoryboardPrompt(
     `当前剧情结构版本：${currentChapter?.currentStoryVersionId ?? "未确认"}`,
     "已确认剧情结构：",
     JSON.stringify(structure ?? {}, null, 2),
-    "当前章节剧本摘录（仅作对白和动作参考；正式拆分以 structure.json 为准）：",
+    "当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：",
     chapterScriptExcerpt || "（当前章节为空）",
+    "全章正式对白/配音候选（voiceLines 唯一逐字来源）：",
+    dialogueReference.available
+      ? JSON.stringify(dialogueReference.candidates.map((candidate) => ({
+        localRef: candidate.localRef,
+        sceneRef: candidate.sceneRef,
+        sourceSpeaker: candidate.sourceSpeaker,
+        characterRef: candidate.characterRef,
+        sourceKind: candidate.sourceKind,
+        line: candidate.line,
+      })), null, 2)
+      : "（当前正式正文不是可稳定解析的固定章节 Markdown；本轮不提供全章候选，不得补写摘录外台词）",
     ...(isRevision ? [
       "当前待确认分镜（这是本轮允许调整的唯一草稿；必须返回调整后的完整版本）：",
       JSON.stringify(pendingStoryboard ?? {}, null, 2),
@@ -683,9 +724,10 @@ export function buildStoryboardRepairPrompt(input: {
     qualityFailure
       ? "上一次输出格式可读取，但未通过分镜固定质量门。只修复列出的问题，重新返回当前章节的完整分镜 JSON。"
       : "上一次输出未通过分镜 JSON、字段或引用校验。只修复格式、字段和引用，重新返回当前章节的完整分镜 JSON。",
-    "每个剧情 beat 至少一个共享 Shot 锚点，Shot 按 beat 叙事顺序排列，并使用已有 beatId、sceneId 和角色卡 id；只有明确的原因/结果、揭示/反应、选择/代价、空间连续或动态负载需要时才增加第二个。超过 2 次显著状态变化或超过 3 条有内容的 voiceLines 时优先拆为该 beat 的第二镜，不按固定秒数机械切分。",
+    "先从全章正式对白候选中删除非必要来回并完成最多两段分配，再为每段定义进入状态→唯一聚焦变化→退出状态；没有稳定候选时只能使用原任务正文摘录中明确可见的台词。每段 1～3 条只是复核触发，不是机械硬门。",
+    "每个剧情 beat 至少一个共享 Shot 锚点，Shot 按 beat 叙事顺序排列，并使用已有 beatId、sceneId 和角色卡 id；达到退出状态就停镜，新的独立反应、命令、障碍或行动目标进入第二镜；不按固定秒数机械切分。",
     "comic 独立修复为一个可画的静态决定性瞬间、漫画构图、阅读节奏和气泡留白；因动态负载增加第二镜时，新增 comic 仍必须是不同且必要的静态决定性瞬间，不能用重复反应、换景别或空画格填充。motion 独立修复为开始状态→主要动作/表演变化→结束状态，并核对运镜用途、内容时长和尾首帧连续。",
-    "每个 motion 默认只保留一个主要动作或一次明确的信息/情绪变化；达到每 beat 两镜仍过载时缩小动作范围、保留关键台词并给足时长，不得把动作链重新塞回一镜。可见于正式正文摘录的台词逐字保留，只允许移除说话人标记和外层引号，不得同义改写、补词或改标点。",
+    "每个 motion 默认只保留一个主要动作或一次明确的信息/情绪变化；达到每 beat 两镜仍过载时缩小动作范围、保留关键台词并给足时长，不得把动作链重新塞回一镜。voiceLines[].line 必须逐字复制原任务中的全章正式对白候选，不得从未通过输出抄回改写句，也不得同义改写、补词或改标点。",
     "所有必填文本、枚举、order、durationMs 和 voiceLines 必须合法；禁止空壳、占位和完全重复镜头。comic 与 motion 只需来自同一剧情锚点且事实不冲突，不要求描述同一瞬间、相同构图或相同节奏；漫画正式对白必须在 voiceLines 中保留对应台词。",
     "promptDraft 只属于静态候选图，保留 comic 所需的主体、决定性瞬间、环境、光线、情绪和构图，不得泄漏对白原文、字幕、气泡、整页分格、模型名或 provider 参数。",
     ...(input.mode === "revise_pending"

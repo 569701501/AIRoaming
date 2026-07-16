@@ -27,6 +27,7 @@ import { buildStoryboardPrompt, buildStoryboardRepairPrompt, type StoryboardProm
 import { normalizeStoryboardJson, parseStoryboardJson } from "./dialogue-json.util.js";
 import { getErrorMessage } from "./dialogue-text.util.js";
 import { resolveStoryboardReferences } from "./storyboard-reference.util.js";
+import { buildStoryboardDialogueReference } from "./storyboard-dialogue-reference.util.js";
 import {
   assertStoryboardQuality,
   StoryboardQualityError,
@@ -294,10 +295,11 @@ export class StoryboardDialogueService {
     const structure = turn.snapshot.storyStructure?.structureJson;
     if (!structure) throw new Error("当前章节没有可读取的已确认剧情结构");
     const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
+    const dialogueReference = buildStoryboardDialogueReference(sourceText, structure);
     const prompt = buildStoryboardPrompt(turn, {
       ...input,
       context: { ...input.context, sourceText },
-    }, mode);
+    }, mode, dialogueReference);
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
@@ -311,7 +313,7 @@ export class StoryboardDialogueService {
         turn.snapshot.currentChapter?.title ?? "",
         turn.snapshot.currentChapter?.currentStoryVersionId ?? undefined,
       );
-      assertStoryboardQuality(storyboard, structure);
+      assertStoryboardQuality(storyboard, structure, dialogueReference);
       return resolveStoryboardReferences(storyboard, structure, turn.snapshot.characters);
     };
 
