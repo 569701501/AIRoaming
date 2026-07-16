@@ -91,10 +91,12 @@ async function startNestServer(runtime) {
   const nestCoreUrl = pathToFileURL(requireFromServer.resolve("@nestjs/core")).href;
   const appModuleUrl = pathToFileURL(path.join(runtime.repoRoot, "apps", "server", "src", "app.module.ts")).href;
   const workerServiceUrl = pathToFileURL(path.join(runtime.repoRoot, "apps", "server", "src", "projects", "persistent-task-worker.service.ts")).href;
-  const [{ NestFactory }, { AppModule }, { PersistentTaskWorkerService }] = await Promise.all([
+  const importWorkerServiceUrl = pathToFileURL(path.join(runtime.repoRoot, "apps", "server", "src", "dialogue", "script-import-worker.service.ts")).href;
+  const [{ NestFactory }, { AppModule }, { PersistentTaskWorkerService }, { ScriptImportWorkerService }] = await Promise.all([
     import(nestCoreUrl),
     import(appModuleUrl),
     import(workerServiceUrl),
+    import(importWorkerServiceUrl),
   ]);
   const app = await NestFactory.create(AppModule, {
     cors: true,
@@ -103,6 +105,7 @@ async function startNestServer(runtime) {
   app.setGlobalPrefix("api");
   if (process.env.AIROAMING_PERSISTENCE_MODE === "db") {
     app.get(PersistentTaskWorkerService).start(`e2e-worker-${runtime.runId}`);
+    app.get(ScriptImportWorkerService).start();
   }
   try {
     await app.listen(runtime.serverPort, LOOPBACK_HOST);

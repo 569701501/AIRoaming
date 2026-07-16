@@ -7,6 +7,7 @@
  */
 import type {
   DialogueMessageItem,
+  ImportAnalysisOutputV1,
   ScriptInspirationSeed,
   SendDialogueMessageRequest,
   WorkbenchSnapshot,
@@ -160,14 +161,21 @@ export function buildPrompt(input: {
 
 // ---------- 已有剧本 B1～B4 Prompt ----------
 
-function importSourceBlocksForPrompt(blocks: RawScriptSourceContext["blocks"]): string {
+function importSourceBlocksForPrompt(
+  blocks: RawScriptSourceContext["blocks"],
+  mode: "full" | "catalog" = "full",
+): string {
   return JSON.stringify(blocks.map((block) => ({
     sourceRef: block.sourceRef,
     blockRef: block.blockRef,
     globalOrder: block.globalOrder,
     locatorLabel: block.locatorLabel,
     kind: block.kind,
-    sourceText: block.sourceText,
+    ...(mode === "full" ? { sourceText: block.sourceText } : {
+      sourceExcerpt: block.sourceText.length <= 360
+        ? block.sourceText
+        : `${block.sourceText.slice(0, 180)}…${block.sourceText.slice(-180)}`,
+    }),
   })), null, 2);
 }
 
@@ -175,11 +183,14 @@ export function buildScriptImportAnalysisPrompt(input: {
   source: RawScriptSourceContext;
   userRequest: string;
   previousAnalysis?: unknown;
+  sourceBlocksMode?: "full" | "catalog";
+  segmentAnalyses?: readonly ImportAnalysisOutputV1[];
+  hierarchyLabel?: string;
 }): string {
   const first = input.source.blocks[0];
   const last = input.source.blocks.at(-1);
   return [
-    "你正在执行 AI漫游已有剧本路线 B2：原稿观察性分析与拆章候选。",
+    `你正在执行 AI漫游已有剧本路线 B2：原稿观察性分析与拆章候选${input.hierarchyLabel ? `（${input.hierarchyLabel}）` : ""}。`,
     "你是来源分析员，不是改编作者。只描述原稿实际内容，不得补剧情、强化钩子、调整人物弧或为了套公式改变章节边界。",
     "只输出一个严格 JSON 对象，不要代码围栏、Markdown、解释或数据库 ID。",
     "",
@@ -229,8 +240,12 @@ export function buildScriptImportAnalysisPrompt(input: {
     `输入模式：${input.source.inputMode}`,
     "原稿文件：",
     JSON.stringify(input.source.documents.map((document) => ({ sourceRef: document.sourceRef, order: document.order, name: document.name, mediaType: document.mediaType })), null, 2),
-    "稳定原稿 blocks（完整输入，不得主动忽略中段）：",
-    importSourceBlocksForPrompt(input.source.blocks),
+    input.sourceBlocksMode === "catalog"
+      ? "稳定原稿 block 目录（正文事实已由下方相邻分段分析给出；必须重新合并全部 block，不得丢失中段）："
+      : "稳定原稿 blocks（完整输入，不得主动忽略中段）：",
+    importSourceBlocksForPrompt(input.source.blocks, input.sourceBlocksMode),
+    "相邻分段的严格分析结果（需要合并时使用；不得把分段边界误当章节边界）：",
+    input.segmentAnalyses?.length ? JSON.stringify(input.segmentAnalyses, null, 2) : "（无，当前直接读取原稿正文）",
     "用户本轮要求或边界反馈：",
     input.userRequest || "请忠实分析并提出拆章候选。",
     "上一版分析候选（仅在用户要求调整边界时参考；本轮仍必须输出完整新候选）：",

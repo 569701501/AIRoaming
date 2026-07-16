@@ -26,6 +26,8 @@ import {
   type ScriptRawSourceInputModeV1,
   type ScriptRawSourceContentTypeHintV1,
   type ScriptSourceBlockRefV1,
+  type ScriptImportWorkflowBatchItem,
+  type ScriptImportWorkflowResult,
 } from "@airoaming/shared";
 
 import { PrismaService } from "../persistence/prisma.service.js";
@@ -176,15 +178,8 @@ export interface ImportItemWorkContext {
 export interface ImportBatchProjection {
   id: string;
   chapterMapId: string;
-  status: string;
-  items: Array<{
-    id: string;
-    chapterId: string;
-    order: number;
-    title: string;
-    status: string;
-    errorCode: string | null;
-  }>;
+  status: Exclude<ScriptImportWorkflowResult["batchStatus"], null>;
+  items: ScriptImportWorkflowBatchItem[];
 }
 
 export interface AiChapterGenerationContext {
@@ -584,7 +579,48 @@ export class ScriptWorkflowSourceRepository {
     });
   }
 
-  async beginImportItem(projectId: string, itemId: string): Promise<{ itemId: string; attempt: number }> {
+  async findNextQueuedImportItem(): Promise<{ projectId: string; batchId: string; itemId: string } | null> {
+    this.assertDatabaseMode();
+    return this.run(async (tx) => {
+      const item = await tx.scriptImportBatchItem.findFirst({
+        where: {
+          status: "queued",
+          batch: {
+            status: { in: ["queued", "processing"] },
+            project: { lifecycleStatus: "active" },
+          },
+        },
+        include: { batch: true },
+        orderBy: [{ createdAt: "asc" }, { order: "asc" }],
+      });
+      return item ? { projectId: item.batch.projectId, batchId: item.batchId, itemId: item.id } : null;
+    });
+  }
+
+  async recoverInterruptedImportItems(maxAutomaticAttempts = 3): Promise<Array<{ projectId: string; batchId: string; itemId: string }>> {
+    this.assertDatabaseMode();
+    const interrupted = await this.run((tx) => tx.scriptImportBatchItem.findMany({
+      where: { status: { in: ["materializing", "verifying"] }, batch: { project: { lifecycleStatus: "active" } } },
+      include: { batch: true },
+      orderBy: [{ createdAt: "asc" }, { order: "asc" }],
+    }));
+    const recoverable: Array<{ projectId: string; batchId: string; itemId: string }> = [];
+    for (const item of interrupted) {
+      await this.markImportItemFailed({
+        projectId: item.batch.projectId,
+        itemId: item.id,
+        stage: item.status as "materializing" | "verifying",
+        errorCode: "IMPORT_WORKER_INTERRUPTED",
+        message: "服务进程在本章处理完成前停止；本次尝试已明确结束，将从本章起点重新处理。",
+      });
+      if (item.attempt < maxAutomaticAttempts) {
+        recoverable.push({ projectId: item.batch.projectId, batchId: item.batchId, itemId: item.id });
+      }
+    }
+    return recoverable;
+  }
+
+  async beginImportItem(projectId: string, itemId: string): Promise<{ projectId: string; batchId: string; itemId: string; attempt: number }> {
     this.assertDatabaseMode();
     return this.run(async (tx) => {
       const item = await tx.scriptImportBatchItem.findFirst({ where: { id: itemId, batch: { projectId } }, include: { batch: true } });
@@ -594,7 +630,7 @@ export class ScriptWorkflowSourceRepository {
       else if (!["processing", "partial_failure", "ready_for_review"].includes(item.batch.status)) throw createG2DatabaseError(409, "IMPORT_ITEM_STATE_CONFLICT");
       else if (item.batch.status !== "processing") await tx.scriptImportBatch.update({ where: { id: item.batch.id }, data: { status: "processing", completedAt: null, rowVersion: { increment: 1 }, updatedAt: now } });
       const updated = await tx.scriptImportBatchItem.update({ where: { id: item.id }, data: { status: "materializing", attempt: { increment: 1 }, outputDigest: null, errorCode: null, errorJson: Prisma.JsonNull, completedAt: null, rowVersion: { increment: 1 }, updatedAt: now } });
-      return { itemId: item.id, attempt: updated.attempt };
+      return { projectId, batchId: item.batchId, itemId: item.id, attempt: updated.attempt };
     });
   }
 
@@ -689,13 +725,13 @@ export class ScriptWorkflowSourceRepository {
       return {
         id: batch.id,
         chapterMapId: batch.chapterMapId,
-        status: batch.status,
+        status: batch.status as ImportBatchProjection["status"],
         items: batch.items.map((item) => ({
           id: item.id,
           chapterId: item.chapterId,
           order: item.order,
           title: item.chapter.title,
-          status: item.status,
+          status: item.status as ScriptImportWorkflowBatchItem["status"],
           errorCode: item.errorCode,
         })),
       };

@@ -169,6 +169,7 @@ const IMPORT_ANALYSIS_RESPONSE = Object.freeze({
   unresolvedItems: [],
   globalWarnings: [],
 });
+let importMaterializeFailureResponses = 0;
 const STORY_STRUCTURE_RESPONSE = Object.freeze({
   synopsis: "林夏在雨夜站台等待末班车，异常广播后空车进站。",
   direction: {
@@ -409,6 +410,10 @@ function deterministicOpenCodeResponse(payload) {
     return JSON.stringify(IMPORT_ANALYSIS_RESPONSE);
   }
   if (prompt.includes("已有剧本路线 B4：把一个已确认原稿范围忠实整理")) {
+    if (prompt.includes("【本章首次整理失败】") && importMaterializeFailureResponses < 2) {
+      importMaterializeFailureResponses += 1;
+      return "这不是合法的章节 Markdown";
+    }
     return prompt.includes("第 2 章：封闭总站") ? IMPORT_CHAPTER_TWO_RESPONSE : IMPORT_CHAPTER_ONE_RESPONSE;
   }
   if (prompt.includes("已有剧本路线 B4：忠实度验证")) {

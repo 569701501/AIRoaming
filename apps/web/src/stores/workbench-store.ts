@@ -104,7 +104,15 @@ function hasPendingProjectScriptDecision(thread: DialogueThread): boolean {
   const latest = [...thread.toolResults]
     .reverse()
     .find((result) => PROJECT_SCRIPT_DECISION_TOOLS.has(result.tool));
-  return latest?.status === "needs_user_confirmation";
+  return latest?.status === "needs_user_confirmation"
+    || Boolean(latest?.importWorkflow?.stage === "batch_result" && latest.importWorkflow.batchStatus !== "completed");
+}
+
+function getLatestImportBatchResult(thread: DialogueThread | null): DialogueToolResult | null {
+  if (!thread) return null;
+  return [...thread.toolResults]
+    .reverse()
+    .find((result) => result.importWorkflow?.stage === "batch_result" && result.importWorkflow.batchId) ?? null;
 }
 
 export const useWorkbenchStore = defineStore("workbench", {
@@ -135,6 +143,10 @@ export const useWorkbenchStore = defineStore("workbench", {
   getters: {
     runningTaskCount: (state) => state.tasks.filter((task) => task.status === "queued" || task.status === "running" || task.status === "retrying").length,
     completedTaskCount: (state) => state.tasks.filter((task) => task.status === "succeeded").length,
+    importBatchNeedsPolling: (state) => {
+      const result = getLatestImportBatchResult(state.dialogueThread);
+      return result?.importWorkflow?.batchStatus === "queued" || result?.importWorkflow?.batchStatus === "processing";
+    },
   },
   actions: {
     async refresh() {
@@ -441,6 +453,56 @@ export const useWorkbenchStore = defineStore("workbench", {
         // Runtime polling must not replace the user's visible error with a transient refresh failure.
       }
     },
+    patchScriptImportBatch(batch: Awaited<ReturnType<typeof api.getScriptImportBatch>>["batch"]) {
+      if (!this.dialogueThread) return;
+      this.dialogueThread = {
+        ...this.dialogueThread,
+        toolResults: this.dialogueThread.toolResults.map((result) => {
+          if (result.importWorkflow?.batchId !== batch.id) return result;
+          return {
+            ...result,
+            importWorkflow: {
+              ...result.importWorkflow,
+              batchStatus: batch.status,
+              batchItems: batch.items,
+            },
+          };
+        }),
+      };
+    },
+    async syncScriptImportBatch() {
+      const projectId = this.activeProjectId;
+      const result = getLatestImportBatchResult(this.dialogueThread);
+      const batchId = result?.importWorkflow?.batchId;
+      if (!projectId || !batchId) return;
+      try {
+        const previous = JSON.stringify(result.importWorkflow?.batchItems ?? []);
+        const response = await api.getScriptImportBatch(projectId, batchId);
+        this.patchScriptImportBatch(response.batch);
+        if (previous !== JSON.stringify(response.batch.items)) {
+          await this.refreshActiveProjectRuntime();
+        }
+      } catch {
+        // 进度轮询是显示增强，瞬时失败不应覆盖用户正在看的对话或正文。
+      }
+    },
+    async retryScriptImportItem(batchId: string, itemId: string) {
+      const projectId = this.activeProjectId;
+      if (!projectId) return;
+      this.loading = true;
+      this.dialogueError = null;
+      try {
+        const response = await api.retryScriptImportItem(projectId, batchId, itemId, {
+          model: this.selectedDialogueModel ?? undefined,
+        });
+        this.patchScriptImportBatch(response.batch);
+        this.dialogueNotice = "已重新提交这个章节；其他章节不受影响。";
+      } catch (error) {
+        this.dialogueError = error instanceof Error ? error.message : "章节重试失败";
+      } finally {
+        this.loading = false;
+      }
+    },
     patchProjectPreviewFromChapter(chapter: ChapterDetail, chapterCount: number) {
       const exists = this.projects.some((project) => project.id === chapter.projectId);
       if (!exists) {
@@ -587,6 +649,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             });
             this.scriptPendingSuggestion = null;
             await this.refreshActiveProjectRuntime();
+            await this.syncScriptImportBatch();
             const confirmedChapter = this.snapshot?.chapters.find((item) => item.id === chapterId) ?? null;
             const nextChapter = confirmedChapter
               ? this.snapshot?.chapters.find((item) => item.order > confirmedChapter.order) ?? null

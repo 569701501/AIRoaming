@@ -107,6 +107,15 @@
                             <li v-for="item in toolResult.importWorkflow.batchItems" :key="item.id">
                               <span>{{ item.order }}. {{ item.title }}</span>
                               <small>{{ getImportItemStatusLabel(item.status) }}<template v-if="item.errorCode"> · {{ item.errorCode }}</template></small>
+                              <button
+                                v-if="item.status === 'generation_failed' && toolResult.importWorkflow.batchId"
+                                class="tool-retry-btn"
+                                type="button"
+                                :disabled="dialogueSending || loading"
+                                @click="retryImportItem(toolResult.importWorkflow.batchId, item.id)"
+                              >
+                                重试本章
+                              </button>
                             </li>
                           </ol>
                         </div>
@@ -304,6 +313,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   send: [input: SendDialogueMessageRequest];
   selectModel: [model: AIRuntimeModelSelection];
+  retryImportItem: [payload: { batchId: string; itemId: string }];
 }>();
 
 const quickPrompts = [
@@ -512,6 +522,11 @@ function confirmScriptChapterMap() {
     content: "确认拆章目录",
     intent: "confirm_script_chapter_map",
   });
+}
+
+function retryImportItem(batchId: string, itemId: string) {
+  if (props.dialogueSending || props.loading) return;
+  emit("retryImportItem", { batchId, itemId });
 }
 
 function confirmStoryStructure() {
@@ -1255,6 +1270,24 @@ function getImportItemStatusLabel(status: string) {
 .tool-confirm-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.tool-retry-btn {
+  justify-self: start;
+  min-height: 28px;
+  border: 1px solid rgba(248, 113, 113, 0.34);
+  border-radius: 8px;
+  background: rgba(248, 113, 113, 0.1);
+  color: #fecaca;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tool-retry-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .dialogue-quick-actions {

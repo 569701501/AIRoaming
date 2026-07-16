@@ -44,38 +44,50 @@ export class ScriptImportBatchService {
     const initial = await this.repository.getImportBatchProjection(input.projectId, input.batchId);
     for (const item of initial.items) {
       if (item.status !== "queued") continue;
-      let stage: "materializing" | "verifying" = "materializing";
-      let began = false;
       try {
         await this.repository.beginImportItem(input.projectId, item.id);
-        began = true;
-        const context = await this.repository.getImportItemWorkContext(input.projectId, item.id);
-        const sessionId = await this.runtime.createSession(`AI漫游 导入第 ${context.chapter.order} 章`);
-        const sourceText = await this.materialize(sessionId, context, input.model);
-        await this.repository.markImportItemVerifying(input.projectId, item.id, sourceText);
-        stage = "verifying";
-        const report = await this.verify(sessionId, context, sourceText, input.model);
-        await this.repository.recordImportFidelity({
-          projectId: input.projectId,
-          itemId: item.id,
-          sourceText,
-          report,
-          materializePromptVersion: MATERIALIZE_PROMPT_VERSION,
-          verifyPromptVersion: VERIFY_PROMPT_VERSION,
-        });
-      } catch (error) {
-        if (began) {
-          await this.repository.markImportItemFailed({
-            projectId: input.projectId,
-            itemId: item.id,
-            stage,
-            errorCode: stage === "materializing" ? "IMPORT_MATERIALIZE_FAILED" : "IMPORT_VERIFY_FAILED",
-            message: errorMessage(error),
-          }).catch(() => undefined);
-        }
+        await this.processClaimedItem({ projectId: input.projectId, itemId: item.id, model: input.model });
+      } catch {
+        // 兼容旧的整批同步调用：若条目已被其他执行器领取，本轮直接跳过。
       }
     }
     return this.repository.getImportBatchProjection(input.projectId, input.batchId);
+  }
+
+  /**
+   * 处理一个已经由 beginImportItem 原子领取、处于 materializing 状态的章节。
+   * 领取与执行拆开后，后台 Worker 和显式重试可以复用同一条整理/验证链路。
+   */
+  async processClaimedItem(input: {
+    projectId: string;
+    itemId: string;
+    model?: AIRuntimeModelSelection;
+  }): Promise<void> {
+    let stage: "materializing" | "verifying" = "materializing";
+    try {
+      const context = await this.repository.getImportItemWorkContext(input.projectId, input.itemId);
+      const sessionId = await this.runtime.createSession(`AI漫游 导入第 ${context.chapter.order} 章`);
+      const sourceText = await this.materialize(sessionId, context, input.model);
+      await this.repository.markImportItemVerifying(input.projectId, input.itemId, sourceText);
+      stage = "verifying";
+      const report = await this.verify(sessionId, context, sourceText, input.model);
+      await this.repository.recordImportFidelity({
+        projectId: input.projectId,
+        itemId: input.itemId,
+        sourceText,
+        report,
+        materializePromptVersion: MATERIALIZE_PROMPT_VERSION,
+        verifyPromptVersion: VERIFY_PROMPT_VERSION,
+      });
+    } catch (error) {
+      await this.repository.markImportItemFailed({
+        projectId: input.projectId,
+        itemId: input.itemId,
+        stage,
+        errorCode: stage === "materializing" ? "IMPORT_MATERIALIZE_FAILED" : "IMPORT_VERIFY_FAILED",
+        message: errorMessage(error),
+      });
+    }
   }
 
   private async materialize(

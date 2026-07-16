@@ -29,6 +29,7 @@
           :snapshot="snapshot"
           :tasks="tasks"
           @send-dialogue="sendDialogue"
+          @retry-import-item="retryImportItem"
           @back="goProjectLibrary"
           @open-characters="openCharacterLibrary"
           @save-chapter-draft="saveChapterDraft"
@@ -127,6 +128,7 @@ const {
 
 let runtimePoller: ReturnType<typeof setInterval> | null = null;
 let taskPoller: ReturnType<typeof setInterval> | null = null;
+let importPoller: ReturnType<typeof setInterval> | null = null;
 const isCharacterLibraryOpen = ref(false);
 
 const routeProjectId = computed(() => {
@@ -214,9 +216,19 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => workbench.importBatchNeedsPolling,
+  (shouldPoll) => {
+    if (shouldPoll) startImportPolling();
+    else stopImportPolling();
+  },
+  { immediate: true },
+);
+
 onBeforeUnmount(() => {
   stopRuntimePolling();
   stopTaskPolling();
+  stopImportPolling();
 });
 
 async function saveChapterDraft(payload: { chapterId: string; input: SaveChapterDraftRequest }) {
@@ -342,6 +354,10 @@ async function sendDialogue(input: SendDialogueMessageRequest) {
   await workbench.sendDialogueMessage(input);
 }
 
+async function retryImportItem(payload: { batchId: string; itemId: string }) {
+  await workbench.retryScriptImportItem(payload.batchId, payload.itemId);
+}
+
 function selectDialogueModel(model: AIRuntimeModelSelection) {
   workbench.selectDialogueModel(model);
 }
@@ -423,6 +439,18 @@ function stopTaskPolling() {
   }
   clearInterval(taskPoller);
   taskPoller = null;
+}
+
+function startImportPolling() {
+  if (importPoller) return;
+  void workbench.syncScriptImportBatch();
+  importPoller = setInterval(() => void workbench.syncScriptImportBatch(), 800);
+}
+
+function stopImportPolling() {
+  if (!importPoller) return;
+  clearInterval(importPoller);
+  importPoller = null;
 }
 </script>
 

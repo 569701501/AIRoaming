@@ -14,6 +14,7 @@ import {
 export const SCRIPT_RAW_SOURCE_SNAPSHOT_SCHEMA_VERSION = "script-raw-source/1.0" as const;
 export const SCRIPT_CHAPTER_MAP_SCHEMA_VERSION = "script-chapter-map/1.0" as const;
 export const SCRIPT_PENDING_SOURCE_SCHEMA_VERSION = "script-pending-sources/1.0" as const;
+export const SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT = 12_000;
 
 export type ScriptRawSourceInputModeV1 = "upload" | "paste" | "mixed";
 export type ScriptRawSourceContentTypeHintV1 = "script" | "story_prose" | "scene_draft" | "mixed" | "unknown";
@@ -93,12 +94,35 @@ function blockKind(text: string): ScriptSourceBlockKindV1 {
   return "narrative";
 }
 
+function splitLongBlock(source: string): string[] {
+  const chunks: string[] = [];
+  let cursor = 0;
+  while (source.length - cursor > SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT) {
+    const hardEnd = cursor + SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT;
+    const preferredEnd = source.lastIndexOf("\n", hardEnd);
+    let end = preferredEnd > cursor + Math.floor(SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT / 2)
+      ? preferredEnd
+      : hardEnd;
+    const previous = source.charCodeAt(end - 1);
+    const next = source.charCodeAt(end);
+    if (previous >= 0xD800 && previous <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF) {
+      end -= 1;
+    }
+    chunks.push(source.slice(cursor, end).trim());
+    cursor = end;
+  }
+  const tail = source.slice(cursor).trim();
+  if (tail) chunks.push(tail);
+  return chunks;
+}
+
 function splitBlocks(sourceText: string): string[] {
   return sourceText
     .trimEnd()
     .split(/\n[\t ]*\n+/)
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .flatMap(splitLongBlock);
 }
 
 export function buildScriptRawSourceSnapshotV1(input: {

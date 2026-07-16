@@ -70,6 +70,8 @@ import type {
   ScriptPendingAdoptRequest,
   ScriptPendingDiscardRequest,
   ScriptMutationResult,
+  ScriptImportBatchStatusResponse,
+  RetryScriptImportItemRequest,
   StoryWorkingCopyDto,
   StoryWorkingCopyMutationValue,
   CreateStoryWorkingCopyRequest,
@@ -592,6 +594,18 @@ export const api = {
       body: JSON.stringify(input),
     },
     onEvent,
+  ),
+  getScriptImportBatch: (projectId: string, batchId: string) => request<ScriptImportBatchStatusResponse>(
+    `/projects/${encodeURIComponent(projectId)}/script/import-batches/${encodeURIComponent(batchId)}`,
+  ),
+  retryScriptImportItem: (
+    projectId: string,
+    batchId: string,
+    itemId: string,
+    input: RetryScriptImportItemRequest,
+  ) => request<ScriptImportBatchStatusResponse>(
+    `/projects/${encodeURIComponent(projectId)}/script/import-batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(itemId)}/retry`,
+    { method: "POST", body: JSON.stringify(input) },
   ),
   previewCandidateDecision: (
     projectId: string,

@@ -15,7 +15,6 @@ import {
   getChapterScriptFormatPrompt,
   getScriptOutlineFormatPrompt,
   parseChapterScriptMarkdownV1,
-  parseImportAnalysisOutputV1,
   parseScriptOutlineMarkdownV1,
   serializeChapterScriptMarkdownV1,
   serializeScriptOutlineMarkdownV1,
@@ -25,7 +24,7 @@ import { ProjectsService } from "../projects/projects.service.js";
 import {
   ScriptWorkflowSourceRepository,
   type AiChapterGenerationContext,
-  type RawScriptSourceContext,
+  type ImportBatchProjection,
 } from "../projects/script-workflow-source.repository.js";
 import type {
   DialogueTurn,
@@ -58,8 +57,6 @@ import {
 import {
   buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
-  buildScriptImportAnalysisPrompt,
-  buildScriptImportFormatRepairPrompt,
   buildScriptFromOutlinePrompt,
   buildScriptFromSeedPrompt,
   buildScriptOutlineFromSeedPrompt,
@@ -73,7 +70,8 @@ import {
   summarizeDraftUpdate,
 } from "./dialogue-text.util.js";
 import { getPendingInspirationKey, getPendingScriptOutlineKey } from "./dialogue-key.util.js";
-import { ScriptImportBatchService } from "./script-import-batch.service.js";
+import { ScriptImportAnalysisService } from "./script-import-analysis.service.js";
+import { ScriptImportWorkerService } from "./script-import-worker.service.js";
 
 /**
  * 剧本工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -95,7 +93,8 @@ export class ScriptDialogueService {
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
     @Inject(ScriptWorkflowSourceRepository) private readonly scriptWorkflowSourceRepository: ScriptWorkflowSourceRepository,
-    @Inject(ScriptImportBatchService) private readonly scriptImportBatchService: ScriptImportBatchService,
+    @Inject(ScriptImportWorkerService) private readonly scriptImportWorkerService: ScriptImportWorkerService,
+    @Inject(ScriptImportAnalysisService) private readonly scriptImportAnalysisService: ScriptImportAnalysisService,
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
   ) {}
 
@@ -274,7 +273,7 @@ export class ScriptDialogueService {
         projectId: turn.thread.projectId,
         rawSourceVersionId: raw.id,
         analysis,
-        promptPackVersion: "import-analyze/1.0",
+        promptPackVersion: "import-analyze/2.0-hierarchical",
       });
       const pending: PendingScriptImport = {
         workflowVersion: 2,
@@ -328,7 +327,7 @@ export class ScriptDialogueService {
           projectId: turn.thread.projectId,
           rawSourceVersionId: source.id,
           analysis,
-          promptPackVersion: "import-analyze/1.0",
+          promptPackVersion: "import-analyze/2.0-hierarchical",
         });
         const updated: PendingScriptImport = {
           ...pending,
@@ -362,11 +361,8 @@ export class ScriptDialogueService {
     try {
       const map = await this.scriptWorkflowSourceRepository.confirmAnalysisCandidate(turn.thread.projectId, pending.analysisCandidateId);
       const batch = await this.scriptWorkflowSourceRepository.startImportBatch(turn.thread.projectId, map.id);
-      const projection = await this.scriptImportBatchService.run({
-        projectId: turn.thread.projectId,
-        batchId: batch.id,
-        model: input.model ?? pending.model ?? undefined,
-      });
+      const projection = await this.scriptWorkflowSourceRepository.getImportBatchProjection(turn.thread.projectId, batch.id);
+      this.scriptImportWorkerService.wake(batch.id, input.model ?? pending.model ?? undefined);
       this.pendingScriptImports.delete(turn.thread.id);
       const snapshot = await this.projectsService.getWorkbenchSnapshot(turn.thread.projectId, batch.items[0]?.chapterId);
       return this.createImportScriptToChaptersToolResult(turn, pending, map.id, projection, snapshot);
@@ -383,7 +379,7 @@ export class ScriptDialogueService {
     turn: DialogueTurn,
     pending: PendingScriptImport,
     chapterMapId: string,
-    projection: Awaited<ReturnType<ScriptImportBatchService["run"]>>,
+    projection: ImportBatchProjection,
     snapshot: WorkbenchSnapshot,
   ): DialogueToolResult {
     const readyCount = projection.items.filter((item) => item.status === "pending_ready").length;
@@ -396,7 +392,9 @@ export class ScriptDialogueService {
       toolCallId: randomUUID(),
       tool: "import_script_to_chapters",
       status: "succeeded",
-      summary: failedCount > 0
+      summary: ["queued", "processing"].includes(projection.status)
+        ? `拆章目录已确认，共创建 ${projection.items.length} 个章节入口。系统正在后台逐章整理并验证；你可以自由切换章节查看进度，已经完成的章节会先进入“待确认”。`
+        : failedCount > 0
         ? `拆章目录已确认，共创建 ${projection.items.length} 个章节入口；${readyCount} 章已生成待确认稿，${failedCount} 章整理或忠实度验证失败。成功章节可逐章确认，失败不会影响其他章节。`
         : `拆章目录已确认，共创建 ${projection.items.length} 个章节入口并完成全部待确认稿。请自由切换章节，完整查看后逐章点击“确认章节”。`,
       chapters: snapshot.chapters,
@@ -497,34 +495,21 @@ export class ScriptDialogueService {
   private async generateImportAnalysisWithAI(
     turn: DialogueTurn,
     input: SendDialogueMessageRequest,
-    source: RawScriptSourceContext,
+    source: Awaited<ReturnType<ScriptWorkflowSourceRepository["getRawSourceContext"]>>,
     userRequest: string,
     previousAnalysis?: ImportAnalysisOutputV1,
     signal?: AbortSignal,
   ): Promise<ImportAnalysisOutputV1> {
     const sessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
-    const prompt = buildScriptImportAnalysisPrompt({ source, userRequest, previousAnalysis });
-    const parse = (content: string): ImportAnalysisOutputV1 => parseImportAnalysisOutputV1(content, {
-      sourceBlocks: source.blocks,
-      requireCompleteAssignment: true,
+    const result = await this.scriptImportAnalysisService.analyze({
+      sessionId,
+      source,
+      userRequest,
+      previousAnalysis,
+      model: input.model,
+      signal,
     });
-    const first = await this.openCodeRuntimeService.sendMessage({ sessionId, model: input.model, content: prompt, signal });
-    try {
-      return parse(first.content);
-    } catch (error) {
-      const repaired = await this.openCodeRuntimeService.sendMessage({
-        sessionId,
-        model: input.model,
-        content: buildScriptImportFormatRepairPrompt({
-          stage: "analysis",
-          validationError: getErrorMessage(error),
-          originalPrompt: prompt,
-          invalidOutput: first.content,
-        }),
-        signal,
-      });
-      return parse(repaired.content);
-    }
+    return result.analysis;
   }
 
   // ---------- 灵感种子 + 剧本大纲 ----------

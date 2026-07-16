@@ -953,6 +953,19 @@ export interface ScriptImportWorkflowResult {
   batchItems: ScriptImportWorkflowBatchItem[];
 }
 
+export interface ScriptImportBatchStatusResponse {
+  batch: {
+    id: string;
+    chapterMapId: string;
+    status: Exclude<ScriptImportWorkflowResult["batchStatus"], null>;
+    items: ScriptImportWorkflowBatchItem[];
+  };
+}
+
+export interface RetryScriptImportItemRequest {
+  model?: AIRuntimeModelSelection;
+}
+
 export interface DialogueToolResult {
   id: string;
   projectId: string;

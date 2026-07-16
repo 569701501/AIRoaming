@@ -22,6 +22,7 @@
         :step-label="currentStageLabel"
         @send="emitDialogue"
         @select-model="$emit('selectDialogueModel', $event)"
+        @retry-import-item="$emit('retryImportItem', $event)"
       />
 
       <template v-if="isScriptStep">
@@ -199,6 +200,7 @@ const emit = defineEmits<{
   dismissCompletionPrompt: [];
   selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [input: SendDialogueMessageRequest];
+  retryImportItem: [payload: { batchId: string; itemId: string }];
   extractCharacters: [];
   ensureCharacterPreviews: [];
   updateProjectCharacter: [payload: { characterId: string; input: UpdateProjectCharacterRequest }];

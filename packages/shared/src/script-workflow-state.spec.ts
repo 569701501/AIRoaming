@@ -4,6 +4,7 @@ import {
   buildConfirmedScriptChapterMapV1,
   buildScriptPendingSourceProjectionV1,
   buildScriptRawSourceSnapshotV1,
+  SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT,
   scriptOutlineCardDigestV1,
   scriptSourceBlockCatalogV1,
   ScriptWorkflowStateError,
@@ -83,6 +84,23 @@ describe("script workflow state", () => {
         { sourceRef: "same", name: "B", mediaType: "text/plain", sourceText: "B" },
       ],
     })).toThrow(ScriptWorkflowStateError);
+  });
+
+  it("deterministically splits a single oversized paragraph without losing its middle", () => {
+    const middleMarker = "【不可丢失的中段】";
+    const sourceText = `${"甲".repeat(SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT)}${middleMarker}${"乙".repeat(SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT)}`;
+    const snapshot = buildScriptRawSourceSnapshotV1({
+      inputMode: "paste",
+      documents: [{ name: "长稿", mediaType: "text/plain", sourceText }],
+    });
+    const blocks = snapshot.documents[0]!.blocks;
+    expect(blocks.length).toBeGreaterThan(1);
+    expect(blocks.every((block) => block.sourceText.length <= SCRIPT_RAW_SOURCE_BLOCK_CHAR_LIMIT)).toBe(true);
+    expect(blocks.map((block) => block.sourceText).join("")).toContain(middleMarker);
+    expect(buildScriptRawSourceSnapshotV1({
+      inputMode: "paste",
+      documents: [{ name: "长稿", mediaType: "text/plain", sourceText }],
+    })).toEqual(snapshot);
   });
 
   it("builds a confirmed boundary decision without creating ChapterPlan fields", () => {

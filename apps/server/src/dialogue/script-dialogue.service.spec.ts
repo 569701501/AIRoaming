@@ -12,6 +12,7 @@ import type { ProjectsService } from "../projects/projects.service.js";
 import type { AiChapterGenerationContext, ScriptWorkflowSourceRepository } from "../projects/script-workflow-source.repository.js";
 import type { DialogueTurn } from "./dialogue-types.js";
 import { ScriptDialogueService } from "./script-dialogue.service.js";
+import { ScriptImportAnalysisService } from "./script-import-analysis.service.js";
 
 const digest = `sha256:${"a".repeat(64)}` as const;
 const blockRef = "source-001:block-000001";
@@ -124,11 +125,13 @@ function setup(runtimeOutputs: string[]) {
   };
   const runtime = { sendMessage: vi.fn() };
   runtimeOutputs.forEach((content) => runtime.sendMessage.mockResolvedValueOnce({ content }));
-  const batchService = { run: vi.fn() };
+  const importWorker = { wake: vi.fn() };
+  const analysisService = new ScriptImportAnalysisService(runtime as never);
   const service = new ScriptDialogueService(
     projects as unknown as ProjectsService,
     repository as unknown as ScriptWorkflowSourceRepository,
-    batchService as never,
+    importWorker as never,
+    analysisService,
     runtime as unknown as OpenCodeRuntimeService,
   );
   service.setEnsureSession(async () => "session-1");
@@ -214,22 +217,24 @@ describe("ScriptDialogueService B1～B4 导入编排", () => {
         .mockImplementation(async ({ analysis }: { analysis: ImportAnalysisOutputV1 }) => ({ id: analysis.unresolvedItems.length > 0 ? "analysis-blocked" : "analysis-ready", blockingIssues: analysis.unresolvedItems.map((item) => `${item.code}: ${item.description}`) })),
       confirmAnalysisCandidate: vi.fn().mockResolvedValue({ id: "map-1", chapters: [{ order: 1, title: "旧钥匙" }] }),
       startImportBatch: vi.fn().mockResolvedValue({ id: "batch-1", items: [{ id: "item-1", chapterId: "chapter-1" }] }),
+      getImportBatchProjection: vi.fn().mockResolvedValue({
+        id: "batch-1",
+        chapterMapId: "map-1",
+        status: "queued",
+        items: [{ id: "item-1", chapterId: "chapter-1", order: 1, title: "旧钥匙", status: "queued", errorCode: null }],
+      }),
     };
     const refreshed = snapshot();
     refreshed.chapters = [{ ...refreshed.chapters[0]!, id: "chapter-1", order: 1, title: "旧钥匙" }];
     refreshed.currentChapter = { ...refreshed.currentChapter!, id: "chapter-1", order: 1, title: "旧钥匙" };
     const projects = { getWorkbenchSnapshot: vi.fn().mockResolvedValue(refreshed) };
-    const batchService = { run: vi.fn().mockResolvedValue({
-      id: "batch-1",
-      chapterMapId: "map-1",
-      status: "ready_for_review",
-      items: [{ id: "item-1", chapterId: "chapter-1", order: 1, title: "旧钥匙", status: "pending_ready", errorCode: null }],
-    }) };
+    const importWorker = { wake: vi.fn() };
     const runtime = { sendMessage: vi.fn() };
     outputs.forEach((output) => runtime.sendMessage.mockResolvedValueOnce({ content: JSON.stringify(output) }));
-    const service = new ScriptDialogueService(projects as never, repository as never, batchService as never, runtime as never);
+    const analysisService = new ScriptImportAnalysisService(runtime as never);
+    const service = new ScriptDialogueService(projects as never, repository as never, importWorker as never, analysisService, runtime as never);
     service.setEnsureSession(async () => "session-import");
-    return { service, repository, batchService, runtime };
+    return { service, repository, importWorker, runtime };
   }
 
   const upload: SendDialogueMessageRequest = {
@@ -239,7 +244,7 @@ describe("ScriptDialogueService B1～B4 导入编排", () => {
   };
 
   it("先保存原稿并返回只待整体确认的拆章候选，裸继续不会建章", async () => {
-    const { service, repository, batchService } = setupImport([importAnalysis()]);
+    const { service, repository, importWorker } = setupImport([importAnalysis()]);
     const analysisResult = await service.handleScriptTurn(turn(), upload);
     expect(analysisResult[0]).toMatchObject({
       tool: "analyze_script_import",
@@ -250,32 +255,32 @@ describe("ScriptDialogueService B1～B4 导入编排", () => {
 
     await expect(service.handleScriptTurn(turn(), { content: "继续", chapterId: "chapter-2" })).resolves.toEqual([]);
     expect(repository.confirmAnalysisCandidate).not.toHaveBeenCalled();
-    expect(batchService.run).not.toHaveBeenCalled();
+    expect(importWorker.wake).not.toHaveBeenCalled();
   });
 
-  it("页面明确确认目录后创建整批章节待确认稿", async () => {
-    const { service, repository, batchService } = setupImport([importAnalysis()]);
+  it("页面明确确认目录后创建全部章节入口并唤醒后台整理", async () => {
+    const { service, repository, importWorker } = setupImport([importAnalysis()]);
     await service.handleScriptTurn(turn(), upload);
     const results = await service.handleScriptTurn(turn(), { content: "确认拆章目录", intent: "confirm_script_chapter_map", chapterId: "chapter-2" });
 
     expect(repository.confirmAnalysisCandidate).toHaveBeenCalledWith("project-1", "analysis-ready");
     expect(repository.startImportBatch).toHaveBeenCalledWith("project-1", "map-1");
-    expect(batchService.run).toHaveBeenCalledWith(expect.objectContaining({ projectId: "project-1", batchId: "batch-1" }));
+    expect(importWorker.wake).toHaveBeenCalledWith("batch-1", undefined);
     expect(results[0]).toMatchObject({
       tool: "import_script_to_chapters",
       status: "succeeded",
-      importWorkflow: { stage: "batch_result", batchStatus: "ready_for_review", batchItems: [{ status: "pending_ready" }] },
+      importWorkflow: { stage: "batch_result", batchStatus: "queued", batchItems: [{ status: "queued" }] },
     });
   });
 
   it("存在阻断问题时，用户补充信息会生成完整新候选，不能直接确认", async () => {
-    const { service, repository, batchService, runtime } = setupImport([importAnalysis(true), importAnalysis(false)]);
+    const { service, repository, importWorker, runtime } = setupImport([importAnalysis(true), importAnalysis(false)]);
     await service.handleScriptTurn(turn(), upload);
     const revised = await service.handleScriptTurn(turn(), { content: "完整剧本.txt 是唯一文件，不存在先后顺序问题", chapterId: "chapter-2" });
 
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
     expect(repository.createAnalysisCandidate).toHaveBeenCalledTimes(2);
     expect(revised[0]).toMatchObject({ tool: "analyze_script_import", importWorkflow: { blockingIssues: [] } });
-    expect(batchService.run).not.toHaveBeenCalled();
+    expect(importWorker.wake).not.toHaveBeenCalled();
   });
 });
