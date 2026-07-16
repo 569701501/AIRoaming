@@ -19,13 +19,14 @@ source: task_plan.md、findings.md、正式适配方案
 
 ## 核心决策建议
 
-保留当前事实源、引用、版本、comic/motion、pending/confirm 和质量门骨架；新增内部 beat 覆盖计划、复杂度镜头预算、镜头用途、连续性账本、comic→motion 投影和删除检查。
+保留当前事实源、引用、版本、comic/motion、pending/confirm 和质量门骨架；内部拆成共享事实、漫画分镜 Prompt、漫剧分镜 Prompt 三套契约。漫画与漫剧分别完成媒介设计，只共享剧情锚点，不再使用 comic→motion 投影关系。
 
 ## 未执行
 
 - 未修改生产 Prompt。
 - 未修改后端质量门、Schema、页面或数据库。
 - 未调用真实模型做 V1/V2 A/B；V2 尚未进入生产实现。
+- 未升级 M1 共用镜头骨架；两轨独立镜头数量、景别和机位需要后续真实漫剧生产证据。
 
 ## 下一入口
 
