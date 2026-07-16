@@ -1651,6 +1651,17 @@ describe("Project/Chapter/Script DB-only persistence", () => {
 
     const promptTask = await tasks.create({ projectId: project.id, type: "shot_prompt_generate", target: { type: "shot", id: shotId, chapterId: scope.chapterId }, input: { chapterId: scope.chapterId, shotId } });
     expect(promptTask.input.sourceProjection).toBeTruthy();
+    expect(promptTask.input.promptSpec).toMatchObject({
+      schemaVersion: 2,
+      providerType: expect.any(String),
+      providerProfileId: expect.stringContaining("image-instruction-v1"),
+      negativePromptDelivery: "embedded_constraints",
+      positivePrompt: expect.stringContaining("主体与静态瞬间"),
+      providerPrompt: expect.stringContaining("主体与静态瞬间"),
+      sections: expect.arrayContaining([expect.objectContaining({ key: "visual" })]),
+    });
+    expect((promptTask.input.promptSpec as { providerPrompt: string }).providerPrompt)
+      .toBe((promptTask.input.promptSpec as { positivePrompt: string }).positivePrompt);
     const promptDone = await worker.runOnce("shot-worker");
     expect(promptDone).toMatchObject({ id: promptTask.id, status: "succeeded", output: { targetId: shotId } });
     expect((await prisma.generationTask.findUniqueOrThrow({ where: { id: promptTask.id } })).applicability).toBe("current");

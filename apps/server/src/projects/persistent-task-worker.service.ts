@@ -26,6 +26,7 @@ import { StoryboardVersionRepository } from "./versioning/storyboard-version.rep
 import { TaskApplicabilityGuardService } from "./versioning/task-applicability-guard.service.js";
 import { VersionTransactionRunner } from "./versioning/version-transaction-runner.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
+import { compileImagePromptForProvider } from "./image-prompt-profile.util.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
 import { detectImageMimeType, readImageDimensions } from "./image-dimensions.util.js";
@@ -745,7 +746,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       schemaVersion: 2,
       targetId: text(input.shotId, "input.shotId"),
       generationSpecDigest: text(input.generationSpecDigest, "input.generationSpecDigest"),
-      prompt: text(spec.positivePrompt, "input.promptSpec.positivePrompt"),
+      prompt: text(spec.providerPrompt ?? spec.positivePrompt, "input.promptSpec.providerPrompt"),
       negativePrompt: text(spec.negativePrompt, "input.promptSpec.negativePrompt"),
       image: object(spec.image, "input.promptSpec.image"),
       warnings: [],
@@ -787,9 +788,19 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       }
     }
     const candidates: ImageArtifact[] = [];
+    const activeProviderType = this.imageProvider.getActiveProviderType();
+    const frozenProviderType = text(spec.providerType ?? activeProviderType, "input.promptSpec.providerType");
+    if (frozenProviderType !== activeProviderType) throw new Error("IMAGE_PROVIDER_PROFILE_CHANGED");
+    const compiledPrompt = spec.providerPrompt
+      ? { prompt: text(spec.providerPrompt, "input.promptSpec.providerPrompt") }
+      : compileImagePromptForProvider({
+        providerType: activeProviderType,
+        positivePrompt: text(spec.positivePrompt, "input.promptSpec.positivePrompt"),
+        negativePrompt: text(spec.negativePrompt, "input.promptSpec.negativePrompt"),
+      });
     for (let index = 1; index <= count; index += 1) {
       const result = await this.imageProvider.generateCandidateImage({
-        prompt: text(spec.positivePrompt, "input.promptSpec.positivePrompt"),
+        prompt: compiledPrompt.prompt,
         size,
         references,
         quality: "high",

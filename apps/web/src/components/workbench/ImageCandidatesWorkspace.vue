@@ -496,7 +496,7 @@ const promptSections = computed(() => candidateGenerationSpec.value?.sections ??
 const candidateReferences = computed(() => [...(candidateGenerationSpec.value?.references ?? [])]
   .sort((left, right) => right.priority - left.priority));
 const fullPromptText = computed(() => candidateGenerationSpec.value
-  ? `${candidateGenerationSpec.value.positivePrompt}\n\nAvoid: ${candidateGenerationSpec.value.negativePrompt}`
+  ? candidateGenerationSpec.value.positivePrompt
   : "",
 );
 const isPreflightConfirmed = computed(() => {

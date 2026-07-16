@@ -23,11 +23,40 @@ export function getProjectTypeLabel(type: ProjectType): string {
   return labels[type] ?? "漫画";
 }
 
-export function buildScenePrompt(scene: { name: string; location: string; timeOfDay: string; atmosphere: string; purpose: string }): string {
-  return [scene.name, scene.location, scene.timeOfDay, scene.atmosphere, `画面用途:${scene.purpose}`]
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .join("，");
+export function buildScenePrompt(
+  scene: { name: string; location: string; timeOfDay: string; atmosphere: string; purpose: string },
+  project?: Pick<LocalProject, "artStyle" | "comicFormat">,
+): string {
+  const style = project
+    ? `${wsDomain.getArtStyleLabel(project.artStyle)}；${getComicFormatDefinition(project.comicFormat).referencePromptHint}`
+    : "production-ready comic/manhua background illustration";
+  return [
+    "Create one reusable environment reference image for a comic/manhua production pipeline.",
+    "This is a clean background asset, not a story panel and not a standalone concept-art poster.",
+    "",
+    "ENVIRONMENT IDENTITY",
+    `- Scene: ${scene.name.trim()}`,
+    `- Location: ${scene.location.trim()}`,
+    `- Narrative use: ${scene.purpose.trim()}`,
+    "",
+    "SPATIAL CONTRACT",
+    "- Establish a readable foreground, midground, and background with stable architectural relationships.",
+    "- Use one neutral wide establishing viewpoint, believable perspective, reusable landmarks, and clear entrances/exits.",
+    "- Preserve enough uncluttered space for later character placement and varied shot crops.",
+    "",
+    "LIGHTING AND ATMOSPHERE",
+    `- Time: ${scene.timeOfDay.trim()}`,
+    `- Atmosphere: ${scene.atmosphere.trim()}`,
+    "- Keep the light direction, weather cues, color temperature, and landmark visibility internally consistent.",
+    "",
+    "STYLE",
+    `- ${style}.`,
+    "- Drawn comic background language; readable shapes and production-ready detail, not photorealistic live action or 3D rendering.",
+    "",
+    "OUTPUT CONTRACT",
+    "- One environment only. No people, characters, crowds, silhouettes, portraits, vehicles as subjects, or staged action.",
+    "- No text, signs with readable lettering, numbers, UI, logo, watermark, caption, speech bubble, panel border, collage, or contact sheet.",
+  ].join("\n");
 }
 
 export function buildCharacterReferenceStyleGuide(project: Pick<LocalProject, "artStyle" | "comicFormat">): string {
@@ -65,17 +94,21 @@ export function buildCharacterReferencePrompt(
     return [
       "Create a clean final character reference sheet for a comic/manhua production pipeline using the provided preview image as the strict character identity reference.",
       "Preserve the same face, hairstyle, outfit, age, body proportions, and overall temperament from the preview image.",
-      "Drawn illustration style only. One same character, same outfit, same proportions, neutral expression, plain light background.",
-      "The single image must contain four panels: front half-body portrait, front full-body, side full-body, back full-body.",
-      "No text labels, no logo, no watermark, no extra characters, no dramatic pose changes.",
+      "IDENTITY LOCK: one same character, one same outfit, identical face, hair silhouette, body proportions, costume construction, colors, accessories, and age across every view.",
+      "Drawn illustration style only. Neutral standing pose, neutral expression, even studio-like lighting, plain light background, no perspective distortion.",
+      "LAYOUT: the single image contains exactly four clearly separated views in this order: front half-body portrait, front full-body, side full-body, back full-body.",
+      "Keep scale and baseline consistent across the three full-body views; show hands, footwear, costume layers, and recurring accessories clearly.",
+      "No text labels, measurements, color names, logo, watermark, extra characters, props hiding the body, cropped limbs, dramatic pose changes, scene background, photo, cosplay, or 3D render.",
       base,
     ].join("\n");
   }
 
   return [
     "Create a clean front preview portrait for a comic/manhua character library.",
-    "Drawn illustration style only. One character, front view, half-body portrait, clear face and costume cues, plain light background.",
-    "No text labels, no logo, no watermark, no extra characters.",
+    "IDENTITY SEED: establish one unmistakable face, hairstyle silhouette, age, body type, costume construction, colors, and recurring accessories for later consistency.",
+    "Drawn illustration style only. Exactly one character, front view, half-body portrait, neutral readable expression, even lighting, plain light background.",
+    "Keep both shoulders and the main costume silhouette visible; avoid foreshortening and avoid hands covering the face or costume cues.",
+    "No text labels, logo, watermark, extra characters, scene background, cropped face, dramatic action pose, photo, cosplay, or 3D render.",
     base,
   ].join("\n");
 }

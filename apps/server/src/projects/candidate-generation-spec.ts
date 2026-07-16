@@ -27,6 +27,21 @@ export interface CandidateGenerationSceneContext {
   atmosphere: string;
 }
 
+export interface CandidatePromptShot {
+  coreAction: string;
+  emotion: string;
+  shotType: StoryboardShot["shotType"];
+  cameraAngle: StoryboardShot["cameraAngle"];
+  comic: Pick<StoryboardShot["comic"], "panelDescription" | "composition">;
+}
+
+export interface BuildCandidatePromptContentInput {
+  artStyle: string;
+  shot: CandidatePromptShot;
+  scene: CandidateGenerationSceneContext | null;
+  characters: CandidateGenerationCharacterContext[];
+}
+
 export interface BuildCandidateGenerationSpecInput {
   projectId: string;
   chapterId: string;
@@ -101,14 +116,16 @@ export interface CandidateGenerationTaskInput extends Record<string, unknown> {
   };
 }
 
-const SYSTEM_CONSTRAINTS = [
+export const CANDIDATE_SYSTEM_CONSTRAINTS = [
   "Create exactly one clean comic illustration for one storyboard shot.",
   "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+  "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+  "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
   "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
   "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
 ] as const;
 
-const NEGATIVE_PROMPT = [
+export const CANDIDATE_NEGATIVE_PROMPT = [
   "text",
   "typography",
   "letters",
@@ -135,6 +152,38 @@ const NEGATIVE_PROMPT = [
   "3d render",
 ].join(", ");
 
+export function buildCandidatePromptContent(input: BuildCandidatePromptContentInput): {
+  positivePrompt: string;
+  negativePrompt: string;
+  sections: CandidatePromptSection[];
+  systemConstraints: string[];
+} {
+  const visual = input.shot.comic.panelDescription.trim() || input.shot.coreAction.trim();
+  const sections = compactSections([
+    { key: "visual", label: "主体与静态瞬间", value: visual },
+    { key: "action", label: "动作与情绪", value: joinNonEmpty([input.shot.coreAction, input.shot.emotion], "; ") },
+    { key: "composition", label: "构图与视觉重心", value: input.shot.comic.composition.trim() },
+    { key: "camera", label: "景别与机位", value: `${input.shot.shotType}; ${input.shot.cameraAngle}` },
+    { key: "characters", label: "角色身份与外观", value: formatCharacters(input.characters) },
+    { key: "scene", label: "环境、光线与氛围", value: formatScene(input.scene) },
+    { key: "style", label: "漫画画风", value: `${input.artStyle}; drawn comic/manhua illustration; consistent linework and controlled shading` },
+  ]);
+  const positivePrompt = [
+    "PURPOSE",
+    CANDIDATE_SYSTEM_CONSTRAINTS[0],
+    "",
+    ...sections.flatMap((section) => [section.label.toUpperCase(), section.value, ""]),
+    "OUTPUT CONTRACT",
+    ...CANDIDATE_SYSTEM_CONSTRAINTS.slice(1).map((constraint) => `- ${constraint}`),
+  ].join("\n").trim();
+  return {
+    positivePrompt,
+    negativePrompt: CANDIDATE_NEGATIVE_PROMPT,
+    sections,
+    systemConstraints: [...CANDIDATE_SYSTEM_CONSTRAINTS],
+  };
+}
+
 /**
  * 候选图最终生成规格的唯一纯函数。
  *
@@ -142,28 +191,15 @@ const NEGATIVE_PROMPT = [
  * promptDraft、motion 等字段即使存在也不会进入 provider prompt。
  */
 export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpecInput): CandidateGenerationSpec {
-  const visual = input.visualDescriptionOverride?.trim()
-    || input.shot.comic.panelDescription.trim()
-    || input.shot.coreAction.trim();
-  const sections = compactSections([
-    { key: "visual", label: "画面描述", value: visual },
-    { key: "composition", label: "构图", value: input.shot.comic.composition.trim() },
-    { key: "action", label: "动作与情绪", value: joinNonEmpty([input.shot.coreAction, input.shot.emotion], "; ") },
-    { key: "camera", label: "景别与机位", value: `${input.shot.shotType}; ${input.shot.cameraAngle}` },
-    { key: "scene", label: "当前场景", value: formatScene(input.scene) },
-    { key: "characters", label: "当前镜头角色", value: formatCharacters(input.characters) },
-    { key: "style", label: "画风", value: input.artStyle },
-  ]);
-
-  const positivePrompt = [
-    "PURPOSE",
-    SYSTEM_CONSTRAINTS[0],
-    "",
-    "OUTPUT CONTRACT",
-    ...SYSTEM_CONSTRAINTS.slice(1).map((constraint) => `- ${constraint}`),
-    "",
-    ...sections.flatMap((section) => [section.label.toUpperCase(), section.value, ""]),
-  ].join("\n").trim();
+  const promptContent = buildCandidatePromptContent({
+    artStyle: input.artStyle,
+    shot: input.visualDescriptionOverride?.trim()
+      ? { ...input.shot, comic: { ...input.shot.comic, panelDescription: input.visualDescriptionOverride.trim() } }
+      : input.shot,
+    scene: input.scene,
+    characters: input.characters,
+  });
+  const { positivePrompt, negativePrompt, sections, systemConstraints } = promptContent;
 
   const digestSource = JSON.stringify({
     schemaVersion: CANDIDATE_GENERATION_SPEC_VERSION,
@@ -173,7 +209,7 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
     chapterId: input.chapterId,
     shotId: input.shot.id,
     positivePrompt,
-    negativePrompt: NEGATIVE_PROMPT,
+    negativePrompt,
     requestedSize: input.requestedSize,
     references: input.references,
   });
@@ -186,9 +222,9 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
     chapterId: input.chapterId,
     shotId: input.shot.id,
     positivePrompt,
-    negativePrompt: NEGATIVE_PROMPT,
+    negativePrompt,
     sections,
-    systemConstraints: [...SYSTEM_CONSTRAINTS],
+    systemConstraints,
     requestedSize: input.requestedSize,
     references: input.references,
     warnings: [...new Set(input.warnings ?? [])],
@@ -226,7 +262,7 @@ export function createCandidateGenerationSpec(input: CreateCandidateGenerationSp
       id: characterId,
       name: characterName,
       appearance: storyCharacter?.visualTraits?.trim() || firstVisualSegment(projectCharacter?.appearance),
-      promptFragment: firstVisualSegment(projectCharacter?.appearance),
+      promptFragment: firstVisualSegment(projectCharacter?.promptFragment),
     });
 
     const previewAssetId = projectCharacter?.previewReferenceAssetId ?? null;

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   PreflightDocumentCodecV2,
+  StoryDocumentCodecV2,
   StoryboardDocumentCodecV2,
   buildTaskSourceProjection,
   digestCanonicalJson,
@@ -14,6 +15,9 @@ import { NewWorkGateService } from "./versioning/new-work-gate.service.js";
 import { ChapterVersionQueryRepository } from "./versioning/chapter-version-query.repository.js";
 import { createG2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import type { G2VersionTaskType, VersionScopeV1 } from "./versioning/versioning-database.types.js";
+import { buildCandidatePromptContent } from "./candidate-generation-spec.js";
+import { ImageProviderService } from "./image-provider.service.js";
+import { compileImagePromptForProvider } from "./image-prompt-profile.util.js";
 
 function text(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim() === "") throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", { field });
@@ -52,6 +56,7 @@ export class PersistentG2TaskCreateGuardService {
     @Inject(PrismaService) private readonly prismaService: PrismaService,
     @Inject(ChapterVersionQueryRepository) private readonly chapterQuery: ChapterVersionQueryRepository,
     @Inject(NewWorkGateService) private readonly newWorkGate: NewWorkGateService,
+    @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
   ) {}
 
   async prepare(input: CreateGenerationTaskRequest): Promise<CreateGenerationTaskRequest> {
@@ -106,9 +111,12 @@ export class PersistentG2TaskCreateGuardService {
     const shot = await db.shot.findFirst({ where: { id: shotId, projectId: scope.projectId, chapterId, lifecycleStatus: "active" } });
     if (!projection || !shot) throw createG2DatabaseError(409, "VERSION_SCOPE_MISMATCH");
 
+    let story: ReturnType<typeof StoryDocumentCodecV2.parse>;
     let storyboard: ReturnType<typeof StoryboardDocumentCodecV2.parse>;
     let preflightDocument: ReturnType<typeof PreflightDocumentCodecV2.parse>;
     try {
+      if (!row.currentStoryVersion) throw new Error("current story version missing");
+      story = StoryDocumentCodecV2.parse(row.currentStoryVersion.documentJson);
       storyboard = StoryboardDocumentCodecV2.parse(board.documentJson);
       preflightDocument = PreflightDocumentCodecV2.parse(preflight.documentJson);
     } catch (error) {
@@ -117,7 +125,7 @@ export class PersistentG2TaskCreateGuardService {
     const shotDocument = storyboard.shots.find((item) => item.id === shotId);
     if (!shotDocument) throw createG2DatabaseError(409, "VERSION_SCOPE_MISMATCH");
     const sourceProjection = this.buildShotProjection(scope, operation, shotId, board.id, board.documentDigest, projection.semanticDigest, preflight, preflightDocument, shotDocument);
-    const promptSpec = this.buildPromptSpec(scope, shotDocument, preflightDocument);
+    const promptSpec = await this.buildPromptSpec(scope, shotDocument, preflightDocument, story);
     const generationSpecDigest = digestCanonicalJson(promptSpec);
     const requestId = operation === "image_generate"
       ? text(input.input?.requestId ?? input.input?.idempotencyKey, "requestId")
@@ -167,17 +175,51 @@ export class PersistentG2TaskCreateGuardService {
     return buildTaskSourceProjection({ policyVersion: "g2-task-source-v1", projectId: scope.projectId, chapterId: scope.chapterId, consumerType: operation, sources });
   }
 
-  private buildPromptSpec(scope: VersionScopeV1, shot: ReturnType<typeof StoryboardDocumentCodecV2.parse>["shots"][number], document: ReturnType<typeof PreflightDocumentCodecV2.parse>): Record<string, unknown> {
-    const visual = shot.comic.panelDescription.trim() || shot.coreAction.trim();
-    const positivePrompt = [
-      "Create one clean comic illustration for one storyboard shot.",
-      `画面：${visual}`,
-      `构图：${shot.comic.composition}`,
-      `动作与情绪：${shot.coreAction}; ${shot.emotion}`,
-      `景别与机位：${shot.shotType}; ${shot.cameraAngle}`,
-      "不得出现文字、字幕、气泡、水印、分镜格或拼贴。",
-    ].filter(Boolean).join("\n");
-    const negativePrompt = "text, letters, numbers, logo, watermark, subtitle, speech bubble, multiple panels, collage, page layout, low quality, blurry";
+  private async buildPromptSpec(
+    scope: VersionScopeV1,
+    shot: ReturnType<typeof StoryboardDocumentCodecV2.parse>["shots"][number],
+    document: ReturnType<typeof PreflightDocumentCodecV2.parse>,
+    story: ReturnType<typeof StoryDocumentCodecV2.parse>,
+  ): Promise<Record<string, unknown>> {
+    const database = this.prismaService.database();
+    const projectCharacterIds = [...new Set(shot.characterIds.flatMap((token) => {
+      const storyCharacter = story.characters.find((character) => character.id === token || character.projectCharacterId === token);
+      return storyCharacter?.projectCharacterId ? [token, storyCharacter.projectCharacterId] : [token];
+    }))];
+    const projectCharacters = projectCharacterIds.length > 0
+      ? await database.character.findMany({ where: { projectId: scope.projectId, id: { in: projectCharacterIds } } })
+      : [];
+    const characters = shot.characterIds.map((token) => {
+      const storyCharacter = story.characters.find((character) => character.id === token || character.projectCharacterId === token);
+      const projectCharacter = projectCharacters.find((character) => character.id === token || character.id === storyCharacter?.projectCharacterId);
+      return {
+        id: projectCharacter?.id ?? storyCharacter?.projectCharacterId ?? storyCharacter?.id ?? token,
+        name: projectCharacter?.name ?? storyCharacter?.name ?? token,
+        appearance: storyCharacter?.visualTraits?.trim() || projectCharacter?.appearance?.trim() || "",
+        promptFragment: projectCharacter?.promptFragment?.trim() || "",
+      };
+    });
+    const storyScene = story.scenes.find((scene) => scene.id === shot.sceneId) ?? null;
+    const scene = storyScene
+      ? {
+        id: storyScene.id,
+        name: storyScene.name,
+        location: storyScene.location,
+        timeOfDay: storyScene.timeOfDay,
+        atmosphere: storyScene.atmosphere,
+      }
+      : null;
+    const content = buildCandidatePromptContent({
+      artStyle: document.styleCheck.artStyle,
+      shot,
+      scene,
+      characters,
+    });
+    const compiled = compileImagePromptForProvider({
+      providerType: this.imageProvider.getActiveProviderType(),
+      positivePrompt: content.positivePrompt,
+      negativePrompt: content.negativePrompt,
+    });
     const referenceAssets = [
       ...document.sourceSnapshot.characters
         .filter((character) => shot.characterIds.includes(character.characterId) && character.assetId)
@@ -195,8 +237,14 @@ export class PersistentG2TaskCreateGuardService {
       projectId: scope.projectId,
       chapterId: scope.chapterId,
       shotId: shot.id,
-      positivePrompt,
-      negativePrompt,
+      positivePrompt: content.positivePrompt,
+      negativePrompt: content.negativePrompt,
+      providerType: compiled.providerType,
+      providerProfileId: compiled.profileId,
+      providerPrompt: compiled.prompt,
+      negativePromptDelivery: compiled.negativePromptDelivery,
+      sections: content.sections,
+      systemConstraints: content.systemConstraints,
       image: {
         ...image,
         sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,

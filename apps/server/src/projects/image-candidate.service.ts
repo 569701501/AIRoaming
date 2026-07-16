@@ -29,6 +29,7 @@ import * as wsDomain from "./project-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
 import { createCandidateGenerationSpec } from "./candidate-generation-spec.js";
+import { compileImagePromptForProvider } from "./image-prompt-profile.util.js";
 import { CandidateReferenceResolver } from "./candidate-reference-resolver.js";
 import { getImageAspectRatioWarning, readImageDimensions } from "./image-dimensions.util.js";
 import { PrismaService } from "../persistence/prisma.service.js";
@@ -104,8 +105,12 @@ export class ImageCandidateService {
       const candidateCount = this.readCandidateCount(task);
       const generationSpec = this.readCandidateGenerationSpec(task.input.candidateGenerationSpec)
         ?? createCandidateGenerationSpec({ project, chapter, shot });
-      const fullPrompt = `${generationSpec.positivePrompt}\n\nAvoid: ${generationSpec.negativePrompt}`;
       const providerType = this.imageProvider.getActiveProviderType();
+      const compiledPrompt = compileImagePromptForProvider({
+        providerType,
+        positivePrompt: generationSpec.positivePrompt,
+        negativePrompt: generationSpec.negativePrompt,
+      });
       const size = this.toProviderSize(generationSpec, providerType);
       const referenceModeEnabled = process.env.AIROAMING_CANDIDATE_REFERENCE_MODE?.trim().toLowerCase() !== "off";
       const referenceResolution = referenceModeEnabled
@@ -129,7 +134,7 @@ export class ImageCandidateService {
         this.tasksService.progress(taskId, Math.round((index - 1) / candidateCount * 80) + 10, `generating_${index}_of_${candidateCount}`);
 
         const providerResult = await this.imageProvider.generateCandidateImage({
-          prompt: fullPrompt,
+          prompt: compiledPrompt.prompt,
           size,
           quality: "high",
           outputFormat,

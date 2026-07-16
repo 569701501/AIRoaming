@@ -1090,7 +1090,7 @@ export class CharacterReferenceService {
       });
       const task = await this.persistentTaskRepository.create({
         projectId, type: "scene_reference_generate", target: { type: "scene", id: sceneRow.id, chapterId },
-        input: { schemaVersion: 1, projectId, chapterId, sceneId: sceneRow.id, sceneKey: sceneRow.sceneKey, prompt: input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene), sourceProjection },
+        input: { schemaVersion: 1, projectId, chapterId, sceneId: sceneRow.id, sceneKey: sceneRow.sceneKey, prompt: input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene, project), sourceProjection },
         options: { concurrencyKey: "image-provider", concurrencySlots: 1, maxAttempts: 3 },
       });
       return { storyStructure, assets: project.assets, tasks: [task.item], createdCount: task.replayed ? 0 : 1 };
@@ -1146,7 +1146,7 @@ export class CharacterReferenceService {
     if (!scene) {
       throw new BadRequestException("SCENE_NOT_FOUND");
     }
-    const prompt = input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene);
+    const prompt = input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene, project);
     const size = "2560x1440";
     const generated = await this.imageProvider.generateImage({ prompt, size, quality: "high", outputFormat: "webp" });
     const relativePath = `projects/${project.id}/chapters/${chapter.slug}/scenes/${sceneId}/background.webp`;

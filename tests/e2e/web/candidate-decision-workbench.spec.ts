@@ -16,6 +16,40 @@ import {
   replaceCandidate,
 } from "../support/g4-candidate-fixture.ts";
 
+test("P23-P26：新项目候选图页面展示服务端统一的干净底图 Prompt", async ({
+  api,
+  page,
+  provider,
+  rainSmokeProject,
+}) => {
+  test.setTimeout(60_000);
+  const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
+
+  await page.goto(`/projects/${fixture.projectId}/candidates`);
+  await expect(page.getByRole("region", { name: "候选图工作台", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /干净底图 Prompt/ }).click();
+
+  const promptPanel = page.locator(".prompt-preview-panel");
+  const finalPrompt = promptPanel.locator(".prompt-full pre");
+  await expect(promptPanel).toContainText("单镜头 · 单幅 · 无文字/气泡 · 无分格/边框");
+  await expect(promptPanel).toContainText("主体与静态瞬间");
+  await expect(promptPanel).toContainText("环境、光线与氛围");
+  await expect(finalPrompt).toContainText("OUTPUT CONTRACT");
+  await expect(finalPrompt).toContainText("foreground/midground/background separation");
+  await expect(finalPrompt).toContainText("Do not create page layouts");
+  await expect(finalPrompt).not.toContainText("Avoid:");
+  await expect(finalPrompt).not.toContainText("竖滑条漫");
+
+  const providerRequests = await provider.listRequests();
+  expect(providerRequests.some((request) => request.method === "POST")).toBe(true);
+
+  const evidenceRoot = path.resolve(
+    "文档/05_执行与记录/任务记录/2026-07-16_下游提示词优化/evidence",
+  );
+  await mkdir(evidenceRoot, { recursive: true });
+  await promptPanel.screenshot({ path: path.join(evidenceRoot, "candidate_prompt_preview.png") });
+});
+
 test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历史与来源门禁", async ({
   api,
   page,

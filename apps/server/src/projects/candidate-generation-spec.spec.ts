@@ -62,6 +62,9 @@ describe("buildCandidateGenerationSpec", () => {
     expect(spec.purpose).toBe("shot_clean_plate");
     expect(spec.positivePrompt).toContain("昏暗病房内");
     expect(spec.positivePrompt).toContain("one scene, one static moment");
+    expect(spec.positivePrompt).toContain("主体与静态瞬间".toUpperCase());
+    expect(spec.positivePrompt).toContain("foreground/midground/background separation");
+    expect(spec.positivePrompt).toContain("Preserve the supplied character identity");
     expect(spec.negativePrompt).toContain("speech bubbles");
 
     for (const forbidden of [

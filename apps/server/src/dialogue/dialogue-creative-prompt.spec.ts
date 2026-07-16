@@ -217,6 +217,9 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("不能填写数据库 UUID、角色名、别名或简称");
     expect(prompt).toContain("每个 beat 至少被一个 Shot 承接");
     expect(prompt).toContain("单帧可画");
+    expect(prompt).toContain("气泡保留不遮挡脸、手、关键道具和线索的空间");
+    expect(prompt).toContain("不要把视频式平均切镜或固定 16:9 逻辑机械套进漫画");
+    expect(prompt).toContain("promptDraft：只压缩本镜头的主体身份、静态瞬间、环境、光线、情绪和构图重点");
     expect(prompt).toContain("over_shoulder");
     expect(prompt).not.toContain("over_the_shoulder");
     expect(prompt).toContain("首次生成的所有镜头都省略 id");

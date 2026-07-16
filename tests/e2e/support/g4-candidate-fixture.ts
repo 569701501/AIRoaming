@@ -56,7 +56,14 @@ export async function prepareG4CandidateFixture(
     synopsis: "雨夜空车进站。",
     direction: { logline: "异常末班车抵达。", chapterGoal: "建立悬念。", coreConflict: "等待与异常。", emotionalArc: "不安。", endingHook: "车门打开。" },
     characters: [],
-    scenes: [],
+    scenes: [{
+      id: "scene_station",
+      name: "雨夜站台",
+      location: "城郊旧站",
+      timeOfDay: "深夜",
+      atmosphere: "冷雨、空旷、异常安静",
+      purpose: "建立空车进站的悬念",
+    }],
     beats: [],
     notes: "",
   };
@@ -98,7 +105,7 @@ export async function prepareG4CandidateFixture(
     expectedChapterRowVersion: boardCreated.data.chapterRowVersion,
     initial: {
       beatId: null,
-      sceneId: null,
+      sceneId: "scene_station",
       characterIds: [],
       coreAction: "空车进站",
       emotion: "紧张",
