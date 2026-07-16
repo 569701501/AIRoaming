@@ -25,6 +25,7 @@ import {
   buildScriptOutlineFromTopicPrompt,
   buildStoryStructurePrompt,
   buildStoryboardPrompt,
+  buildStoryboardRepairPrompt,
 } from "./dialogue-prompt.util.js";
 
 function turn(): DialogueTurn {
@@ -210,19 +211,45 @@ function storyboardTurn(): DialogueTurn {
 }
 
 describe("S1 分镜 Prompt 契约", () => {
-  it("首次生成使用结构本地引用、正式枚举和固定漫画分镜方法", () => {
+  it("首次生成使用结构本地引用、正式枚举和固定双轨分镜方法", () => {
     const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成分镜"), "generate");
     expect(prompt).toContain("动作：generate");
     expect(prompt).toContain("character_01=林舟");
     expect(prompt).toContain("不能填写数据库 UUID、角色名、别名或简称");
     expect(prompt).toContain("每个 beat 至少被一个 Shot 承接");
-    expect(prompt).toContain("单帧可画");
-    expect(prompt).toContain("气泡保留不遮挡脸、手、关键道具和线索的空间");
-    expect(prompt).toContain("不要把视频式平均切镜或固定 16:9 逻辑机械套进漫画");
-    expect(prompt).toContain("promptDraft：只压缩本镜头的主体身份、静态瞬间、环境、光线、情绪和构图重点");
+    expect(prompt).toContain("静态决定性瞬间");
+    expect(prompt).toContain("预留不遮挡脸、手、关键道具和线索的空间");
+    expect(prompt).toContain("不要强制 16:9、9:16、黄金三秒、CTA、固定总时长");
+    expect(prompt).toContain("promptDraft：只压缩 comic 静态候选图所需");
     expect(prompt).toContain("over_shoulder");
     expect(prompt).not.toContain("over_the_shoulder");
     expect(prompt).toContain("首次生成的所有镜头都省略 id");
+  });
+
+  it("把共享事实、漫画 Prompt 和漫剧 Prompt 分开，并注入现有版式与画风", () => {
+    const prompt = buildStoryboardPrompt(storyboardTurn(), request("生成当前章漫画和漫剧分镜"), "generate");
+    const sharedIndex = prompt.indexOf("共享剧情事实契约");
+    const comicIndex = prompt.indexOf("漫画分镜 Prompt（独立设计 comic）");
+    const motionIndex = prompt.indexOf("漫剧分镜 Prompt（独立设计 motion");
+    const boundaryIndex = prompt.indexOf("漫画 / 漫剧双轨一致性边界");
+
+    expect(sharedIndex).toBeGreaterThan(-1);
+    expect(comicIndex).toBeGreaterThan(sharedIndex);
+    expect(motionIndex).toBeGreaterThan(comicIndex);
+    expect(boundaryIndex).toBeGreaterThan(motionIndex);
+    expect(prompt).toContain("漫画版式：vertical_scroll");
+    expect(prompt).toContain("项目画风：comic_style");
+    expect(prompt).toContain("角色外观以结构角色卡 visualTraits 为准");
+    expect(prompt).toContain("若输入上下文提供了正式角色资产描述，也必须一并遵守");
+    expect(prompt).toContain("只有 direction.endingHook 和末尾 beat 已存在钩子时");
+    expect(prompt).toContain("不得为了黄金三秒或刺激感自造线索、反转、人物或对白");
+    expect(prompt).toContain("motion 不是 comic 的动态说明或附属结果");
+    expect(prompt).toContain("motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态");
+    expect(prompt).toContain("不得逐句改写 comic.panelDescription");
+    expect(prompt).toContain("不机械复制 comic.composition");
+    expect(prompt).toContain("不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动");
+    expect(prompt).not.toContain("comic 与 motion 描述同一个剧情瞬间");
+    expect(prompt).not.toContain("motion 只能补充时间和运镜");
   });
 
   it("调整动作读取当前 pending、保留已有 ID，并要求返回完整草稿", () => {
@@ -233,6 +260,21 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("保留镜头必须沿用当前草稿 id");
     expect(prompt).toContain("必须返回完整 shots 数组");
     expect(prompt).toContain("把结尾节奏加快");
+  });
+
+  it("修复 Prompt 分别修复漫画静态画格和漫剧时间过程", () => {
+    const prompt = buildStoryboardRepairPrompt({
+      originalPrompt: "原分镜任务",
+      invalidOutput: "{bad}",
+      validationError: "invalid",
+      qualityIssues: ["STORYBOARD_MOTION_VISUAL:shots[0]:PLACEHOLDER"],
+      mode: "generate",
+    });
+    expect(prompt).toContain("comic 独立修复为一个可画的静态决定性瞬间");
+    expect(prompt).toContain("motion 独立修复为开始状态→主要动作/表演变化→结束状态");
+    expect(prompt).toContain("不要求描述同一瞬间、相同构图或相同节奏");
+    expect(prompt).toContain("promptDraft 只属于静态候选图");
+    expect(prompt).not.toContain("每个 Shot 只表达一个静态瞬间");
   });
 });
 

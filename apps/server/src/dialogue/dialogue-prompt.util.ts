@@ -478,6 +478,54 @@ export function buildStoryStructureRepairPrompt(input: {
 
 export type StoryboardPromptMode = "generate" | "revise_pending";
 
+function getStoryboardSharedNarrativePrompt(): string[] {
+  return [
+    "共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：",
+    "- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。",
+    "- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。",
+    "- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。",
+    "- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。",
+    "- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。",
+    "- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。",
+    "- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。",
+  ];
+}
+
+function getComicStoryboardPrompt(): string[] {
+  return [
+    "漫画分镜 Prompt（独立设计 comic）：",
+    "- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。",
+    "- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。",
+    "- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。",
+    "- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。",
+    "- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。",
+    "- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。",
+  ];
+}
+
+function getMotionStoryboardPrompt(): string[] {
+  return [
+    "漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：",
+    "- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。",
+    "- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。",
+    "- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。",
+    "- 内容时长：durationMs 同时容纳动作完成、台词说完、人物反应和必要停顿，不套固定 3 秒、5 秒、15 秒或平台等距分段。",
+    "- 表演与配音：frameType 匹配本镜主要功能；voiceLines 只使用正式正文对应台词，不能为成片节奏擅自改词、补词或新增说话人。",
+    "- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。",
+    "- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。",
+  ];
+}
+
+function getDualTrackStoryboardBoundaryPrompt(): string[] {
+  return [
+    "漫画 / 漫剧双轨一致性边界：",
+    "- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。",
+    "- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。",
+    "- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。",
+    "- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。",
+  ];
+}
+
 export function buildStoryboardPrompt(
   turn: DialogueTurn,
   input: SendDialogueMessageRequest,
@@ -514,15 +562,15 @@ export function buildStoryboardPrompt(
     shotType: "medium",
     cameraAngle: "eye_level",
     comic: {
-      panelDescription: "漫画画格画面描述",
-      composition: "构图（人物位置/视觉重心，不含景别机位）",
+      panelDescription: "漫画画格锁定一个静态决定性瞬间",
+      composition: "静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）",
       dialogue: "对白气泡文字，没有就空字符串",
       caption: "旁白，没有就空字符串",
       panelRhythm: "slow",
     },
     motion: {
-      visualDescription: "漫剧动态画面描述",
-      compositionDesign: "动态构图设计",
+      visualDescription: "漫剧镜头从开始状态，经主要动作或表演变化，到结束状态",
+      compositionDesign: "动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）",
       cameraMovement: "push_in",
       frameType: "atmosphere",
       durationMs: 3000,
@@ -552,9 +600,10 @@ export function buildStoryboardPrompt(
     "- 只生成当前章节分镜，不要生成整部作品分镜。",
     "- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。",
     "- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。",
-    "- 每个 Shot 必须有共同核心字段，并同时包含 comic 漫画画格表达和 motion 基础漫剧镜头表达。",
-    "- M1 可以默认一个 Shot 对应一个漫画画格和一个基础漫剧镜头，但不要在文案中声称未来永远一一对应。",
-    "- 不要生成最终图片 Prompt；promptDraft 只能是给后续候选图阶段的草稿摘要。",
+    "- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。",
+    "- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。",
+    "- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。",
+    "- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。",
     "- 不要生成候选图、TTS、字幕、视频或排版。",
     `- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：${availableCharacterRefs.join("、") || "暂无"}），不能填写数据库 UUID、角色名、别名或简称。`,
     "- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。",
@@ -567,20 +616,17 @@ export function buildStoryboardPrompt(
         "- 即使只改一个镜头，也必须返回完整 shots 数组，不能返回 patch、diff 或单个镜头。",
       ]
       : ["- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。"]),
-    `- 本章建议生成 ${targetShotRange} 个 Shot；每个剧情节拍至少一个 Shot，关键动作、反应、线索或情绪转折可拆成第二个 Shot。`,
+    `- 当前 M1 共享骨架建议生成 ${targetShotRange} 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化或空间连续无法在一个共享锚点中清楚承接时才增加第二个。`,
     "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
     "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
     "",
-    "分镜质量契约（输出前内部检查，不新增评分或诊断字段）：",
-    "- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。",
-    "- 单帧可画：一个 Shot 聚焦一个主要瞬间，不把连续多动作塞进同一画格。",
-    "- 连续性：人物、道具、空间位置、视线和动作结果前后可以衔接。",
-    "- 漫画阅读：对白不过载，信息揭示顺序清楚，关键选择、反应、线索和结尾钩子得到画面强调。",
-    "- 镜头语法：根据 beat 功能选择建立、动作、反应、细节或转场镜头；不要把视频式平均切镜或固定 16:9 逻辑机械套进漫画。",
-    "- 阅读与排版安全：composition 要给主体、视觉动线和必要留白；有对白时为后续气泡保留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。",
-    "- 视觉变化：避免连续镜头无意义地重复同一景别、机位、构图和动作描述；不要机械平均各种枚举。",
-    "- 双表达一致：comic 与 motion 描述同一个剧情瞬间，motion 只能补充时间和运镜，不能改写事实。",
-    "- promptDraft：只压缩本镜头的主体身份、静态瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。",
+    ...getStoryboardSharedNarrativePrompt(),
+    "",
+    ...getComicStoryboardPrompt(),
+    "",
+    ...getMotionStoryboardPrompt(),
+    "",
+    ...getDualTrackStoryboardBoundaryPrompt(),
     "",
     "枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：",
     "- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up",
@@ -603,6 +649,8 @@ export function buildStoryboardPrompt(
     "",
     `项目名称：${snapshot.project.name}`,
     `剧集名称：${snapshot.project.storyTitle}`,
+    `漫画版式：${snapshot.project.comicFormat ?? "未指定"}`,
+    `项目画风：${snapshot.project.artStyle?.trim() || "未指定"}`,
     `当前章节：${currentChapter?.title ?? "当前章节"}`,
     `当前章节状态：${currentChapter?.status ?? "unknown"}`,
     `当前剧情结构版本：${currentChapter?.currentStoryVersionId ?? "未确认"}`,
@@ -631,9 +679,10 @@ export function buildStoryboardRepairPrompt(input: {
     qualityFailure
       ? "上一次输出格式可读取，但未通过分镜固定质量门。只修复列出的问题，重新返回当前章节的完整分镜 JSON。"
       : "上一次输出未通过分镜 JSON、字段或引用校验。只修复格式、字段和引用，重新返回当前章节的完整分镜 JSON。",
-    "每个剧情 beat 至少一个 Shot，Shot 按 beat 叙事顺序排列；每个 Shot 只表达一个静态瞬间，并使用已有 beatId、sceneId 和角色卡 id。",
-    "所有必填文本、枚举、order、durationMs 和 voiceLines 必须合法；禁止空壳、占位和完全重复镜头。comic 与 motion 描述同一事实，漫画对白必须在 voiceLines 中保留对应台词。",
-    "promptDraft 只保留主体、静态瞬间、环境、光线、情绪和构图，不得泄漏对白原文、字幕、气泡、整页分格、模型名或 provider 参数。",
+    "每个剧情 beat 至少一个共享 Shot 锚点，Shot 按 beat 叙事顺序排列，并使用已有 beatId、sceneId 和角色卡 id；只有明确的原因/结果、揭示/反应、选择/代价或空间连续需要时才增加第二个。",
+    "comic 独立修复为一个可画的静态决定性瞬间、漫画构图、阅读节奏和气泡留白；motion 独立修复为开始状态→主要动作/表演变化→结束状态，并核对运镜用途、内容时长和尾首帧连续。",
+    "所有必填文本、枚举、order、durationMs 和 voiceLines 必须合法；禁止空壳、占位和完全重复镜头。comic 与 motion 只需来自同一剧情锚点且事实不冲突，不要求描述同一瞬间、相同构图或相同节奏；漫画正式对白必须在 voiceLines 中保留对应台词。",
+    "promptDraft 只属于静态候选图，保留 comic 所需的主体、决定性瞬间、环境、光线、情绪和构图，不得泄漏对白原文、字幕、气泡、整页分格、模型名或 provider 参数。",
     ...(input.mode === "revise_pending"
       ? ["这是调整 pending：保留未被用户要求改变的镜头含义和已有镜头 id，新增镜头省略 id；必须返回完整 shots 数组。"]
       : ["这是首次生成：所有镜头省略 id，由后端分配正式 Shot ID。"]),

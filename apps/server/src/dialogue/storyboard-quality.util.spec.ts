@@ -82,6 +82,19 @@ describe("S2 分镜输出契约与固定质量门", () => {
     expect(() => assertStoryboardQuality(value, structure())).not.toThrow();
   });
 
+  it("允许漫画锁定静态瞬间、漫剧表达同一剧情锚点的完整时间过程", () => {
+    const value = storyboard();
+    const target = value.shots[0]!;
+    target.comic.panelDescription = "林舟指尖刚触到湿车票的定格瞬间";
+    target.comic.composition = "车票位于前景，林舟的手从右上方进入，左侧保留旁白空间";
+    target.motion.visualDescription = "林舟先环顾空站台，随后弯腰拾起湿车票，最后抬头锁定即将离站的空车";
+    target.motion.compositionDesign = "人物从画面右侧进入中央，动作结束时视线指向左后方空车";
+
+    expect(target.comic.panelDescription).not.toBe(target.motion.visualDescription);
+    expect(() => assertStoryboardGenerationOutputContract(value)).not.toThrow();
+    expect(() => assertStoryboardQuality(value, structure())).not.toThrow();
+  });
+
   it("新 AI 输出缺字段、非法枚举或不连续 order 时不使用默认值掩盖", () => {
     const value = storyboard() as unknown as { notes: string; shots: Array<Record<string, unknown>> };
     value.shots[0]!.id = 123;
