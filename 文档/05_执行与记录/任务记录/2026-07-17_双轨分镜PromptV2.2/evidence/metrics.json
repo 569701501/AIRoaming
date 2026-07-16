@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "decision": "MIXED",
+  "decisionCode": "V22_STATE_BOUNDARY_BETTER_DIALOGUE_LOAD_REGRESSED",
+  "baselineCommit": "2a7dc1f",
+  "model": "self/gpt-5.5",
+  "triggerText": "请生成当前章节完整分镜，漫画和漫剧都要完整。",
+  "baseDatabaseSha256": "a72da9041095f5bba04c9fe03c8972d75d0422097725a4d6ea31dfc98ac47c76",
+  "runtime": "/Users/liyadong/.codex/runtime/airoaming-storyboard-ab-20260716-2247/v22",
+  "results": {
+    "aiCreation": {
+      "v21": {
+        "shots": 19,
+        "beats": 13,
+        "totalDurationMs": 161500,
+        "averageDurationMs": 8500,
+        "maxDurationMs": 12500,
+        "maxVoiceLinesPerShot": 3,
+        "shotsOverThreeVoiceLines": 0,
+        "shotsOverTenSeconds": 5,
+        "voiceLineCount": 31
+      },
+      "v22": {
+        "shots": 23,
+        "beats": 13,
+        "totalDurationMs": 180000,
+        "averageDurationMs": 7826,
+        "maxDurationMs": 11000,
+        "maxVoiceLinesPerShot": 9,
+        "shotsOverThreeVoiceLines": 11,
+        "shotsOverTenSeconds": 1,
+        "voiceLineCount": 61,
+        "fullScriptExactVoiceLines": 59,
+        "invalidBeatReferences": 0,
+        "invalidSceneReferences": 0,
+        "invalidCharacterReferences": 0,
+        "firstPassWithoutRepair": true
+      }
+    },
+    "scriptImport": {
+      "v21": {
+        "shots": 11,
+        "beats": 8,
+        "totalDurationMs": 64600,
+        "averageDurationMs": 5872,
+        "maxDurationMs": 9000,
+        "maxVoiceLinesPerShot": 2,
+        "shotsOverThreeVoiceLines": 0,
+        "shotsOverTenSeconds": 0,
+        "voiceLineCount": 6
+      },
+      "v22": {
+        "shots": 11,
+        "beats": 8,
+        "totalDurationMs": 59900,
+        "averageDurationMs": 5445,
+        "maxDurationMs": 9800,
+        "maxVoiceLinesPerShot": 2,
+        "shotsOverThreeVoiceLines": 0,
+        "shotsOverTenSeconds": 0,
+        "voiceLineCount": 6,
+        "fullScriptExactVoiceLines": 6,
+        "invalidBeatReferences": 0,
+        "invalidSceneReferences": 0,
+        "invalidCharacterReferences": 0,
+        "firstPassWithoutRepair": true
+      }
+    }
+  },
+  "runtimeSafety": {
+    "pendingStoryboardVersions": 2,
+    "confirmedStoryboardVersions": 0,
+    "queuedGenerationTasks": 11,
+    "paidMediaTasksRunningOrSucceeded": 0,
+    "browserConsoleWarnings": 0,
+    "browserConsoleErrors": 0
+  },
+  "caveat": "逐字命中使用完整正式正文做离线诊断；当前 Prompt 仍只注入压缩后的正文头尾摘录，不能把完整正文逐字覆盖视为现有在线硬门。"
+}
