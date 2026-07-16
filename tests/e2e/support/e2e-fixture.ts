@@ -18,7 +18,7 @@ import {
   type E2ERuntime,
 } from "./e2e-env.ts";
 
-export type E2EProviderFailureMode = "success" | "delay" | "429" | "500" | "late_success";
+export type E2EProviderFailureMode = "success" | "delay" | "429" | "500" | "late_success" | "storyboard_quality_once";
 
 export interface E2EProviderRequestAudit {
   readonly at: string;

@@ -23,10 +23,14 @@ import {
   shouldGenerateStoryboard,
   shouldRevisePendingStoryboard,
 } from "./dialogue-intent.util.js";
-import { buildStoryboardPrompt, type StoryboardPromptMode } from "./dialogue-prompt.util.js";
+import { buildStoryboardPrompt, buildStoryboardRepairPrompt, type StoryboardPromptMode } from "./dialogue-prompt.util.js";
 import { normalizeStoryboardJson, parseStoryboardJson } from "./dialogue-json.util.js";
 import { getErrorMessage } from "./dialogue-text.util.js";
 import { resolveStoryboardReferences } from "./storyboard-reference.util.js";
+import {
+  assertStoryboardQuality,
+  StoryboardQualityError,
+} from "./storyboard-quality.util.js";
 
 /**
  * 分镜工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -117,11 +121,6 @@ export class StoryboardDialogueService {
         revisionRequested ? "revise_pending" : "generate",
         signal,
       );
-      const structure = turn.snapshot.storyStructure?.structureJson;
-      if (!structure) {
-        throw new Error("当前章节没有可读取的已确认剧情结构");
-      }
-      storyboardJson = resolveStoryboardReferences(storyboardJson, structure, turn.snapshot.characters);
     } catch (error) {
       return this.createFailedToolResult(
         turn,
@@ -292,23 +291,48 @@ export class StoryboardDialogueService {
     signal?: AbortSignal,
   ): Promise<StoryboardJson> {
     const sourceText = await this.resolveFormalScriptSource(turn);
+    const structure = turn.snapshot.storyStructure?.structureJson;
+    if (!structure) throw new Error("当前章节没有可读取的已确认剧情结构");
     const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
+    const prompt = buildStoryboardPrompt(turn, {
+      ...input,
+      context: { ...input.context, sourceText },
+    }, mode);
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
-      content: buildStoryboardPrompt(turn, {
-        ...input,
-        context: { ...input.context, sourceText },
-      }, mode),
+      content: prompt,
       signal,
     });
+    const validate = (content: string): StoryboardJson => {
+      const storyboard = parseStoryboardJson(
+        content,
+        turn.snapshot.currentChapter?.id,
+        turn.snapshot.currentChapter?.title ?? "",
+        turn.snapshot.currentChapter?.currentStoryVersionId ?? undefined,
+      );
+      assertStoryboardQuality(storyboard, structure);
+      return resolveStoryboardReferences(storyboard, structure, turn.snapshot.characters);
+    };
 
-    return parseStoryboardJson(
-      response.content,
-      turn.snapshot.currentChapter?.id,
-      turn.snapshot.currentChapter?.title ?? "",
-      turn.snapshot.currentChapter?.currentStoryVersionId ?? undefined,
-    );
+    try {
+      return validate(response.content);
+    } catch (error) {
+      const issues = error instanceof StoryboardQualityError ? error.issues : undefined;
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId: openCodeSessionId,
+        model: input.model,
+        content: buildStoryboardRepairPrompt({
+          originalPrompt: prompt,
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityIssues: issues,
+          mode,
+        }),
+        signal,
+      });
+      return validate(repaired.content);
+    }
   }
 
   private async resolveFormalScriptSource(turn: DialogueTurn): Promise<string> {

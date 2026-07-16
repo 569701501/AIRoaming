@@ -9,7 +9,7 @@ import {
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 const IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-const FAILURE_MODES = new Set(["success", "delay", "429", "500", "late_success"]);
+const FAILURE_MODES = new Set(["success", "delay", "429", "500", "late_success", "storyboard_quality_once"]);
 const SCRIPT_OUTLINE_RESPONSE = `# 剧本大纲
 
 ## 一、基础信息
@@ -295,6 +295,87 @@ const STORY_STRUCTURE_RESPONSE = Object.freeze({
   ],
   notes: "后续分镜保持雨夜冷色调，并突出空驾驶座。",
 });
+const FULL_STORY_STRUCTURE_RESPONSE = Object.freeze({
+  synopsis: "林夏在雨夜站台等待末班车，异常广播后空车进站。",
+  direction: {
+    logline: "错过末班车的林夏等来一辆无人驾驶的空车。",
+    chapterGoal: "建立雨夜站台的悬疑事件。",
+    coreConflict: "林夏必须在离开和登上异常末班车之间做出选择。",
+    emotionalArc: "疲惫等待转为警觉，再转为直面未知。",
+    endingHook: "无人驾驶的末班车在林夏面前打开车门。",
+  },
+  characters: [
+    {
+      name: "林夏",
+      role: "本章视角主角",
+      level: "lead",
+      entityType: "human",
+      motivation: "寻找失踪姐姐留下的线索并阻止车辆进入隧道。",
+      relationship: "林岚的妹妹。",
+      visualTraits: "被雨淋湿的深色外套，神情疲惫而警觉。",
+      notes: "保持主角外观连续。",
+    },
+    {
+      name: "林岚的录音",
+      role: "通过录音留下警告的关键声音",
+      level: "chapter",
+      entityType: "voice",
+      motivation: "提醒林夏阻止异常车辆进入隧道。",
+      relationship: "林夏失踪的姐姐所留下的声音。",
+      visualTraits: "只以旧录音机的播放状态出现。",
+      notes: "不把录音误画成现场人物。",
+    },
+  ],
+  scenes: [
+    {
+      name: "空站台",
+      location: "城市末班公交站",
+      timeOfDay: "深夜",
+      atmosphere: "潮湿、冷清、灯光不稳",
+      purpose: "建立异常广播和无人车辆出现前的悬疑氛围。",
+    },
+    {
+      name: "无人末班车",
+      location: "异常公交车车厢",
+      timeOfDay: "深夜",
+      atmosphere: "安静、封闭、机械声清晰",
+      purpose: "让林夏发现姐姐留下的钥匙扣与录音警告。",
+    },
+  ],
+  beats: [
+    {
+      order: 1,
+      title: "独自等待",
+      summary: "林夏在雨夜站台等待迟迟未到的末班车。",
+      conflict: "末班车已经超过到站时间。",
+      characters: ["林夏"],
+      sceneName: "空站台",
+      visualFocus: "雨幕、空站台和反复查看时间的林夏。",
+      outcome: "林夏开始怀疑今晚没有末班车。",
+    },
+    {
+      order: 2,
+      title: "异常广播",
+      summary: "关闭的广播突然播报一班不存在的车辆。",
+      conflict: "广播内容与站牌信息矛盾。",
+      characters: ["林夏"],
+      sceneName: "空站台",
+      visualFocus: "闪烁的广播灯和林夏警觉的神情。",
+      outcome: "远处出现车辆灯光。",
+    },
+    {
+      order: 3,
+      title: "空车进站",
+      summary: "林夏登上无人驾驶的末班车，发现姐姐的钥匙扣并听见录音警告。",
+      conflict: "车辆已经自动驶向隧道，林夏必须立刻找到停车方法。",
+      characters: ["林夏", "林岚的录音"],
+      sceneName: "无人末班车",
+      visualFocus: "空驾驶座、红色钥匙扣、旧录音机和逼近的隧道入口。",
+      outcome: "林夏握紧钥匙扣冲向控制面板。",
+    },
+  ],
+  notes: "后续分镜保持雨夜冷色调，并突出空驾驶座。",
+});
 
 /**
  * @param {{ host: string, port: number, runId: string, runtimeDir: string, logRequests?: boolean }} options
@@ -366,7 +447,7 @@ export async function createFakeProviderServer(options) {
       if (method === "POST" && /^\/opencode\/session\/[^/]+\/message$/.test(url.pathname)) {
         const payload = await readJsonBody(request);
         return sendJson(response, 200, {
-          parts: [{ type: "text", text: deterministicOpenCodeResponse(payload) }],
+          parts: [{ type: "text", text: deterministicOpenCodeResponse(payload, failureMode) }],
         });
       }
       if (method === "GET" && url.pathname === "/opencode/event") {
@@ -461,7 +542,7 @@ function sendJson(response, status, payload) {
   response.end(body);
 }
 
-function deterministicOpenCodeResponse(payload) {
+function deterministicOpenCodeResponse(payload, failureMode) {
   const prompt = Array.isArray(payload.parts)
     ? payload.parts
       .filter((part) => part && typeof part === "object" && part.type === "text" && typeof part.text === "string")
@@ -469,7 +550,18 @@ function deterministicOpenCodeResponse(payload) {
       .join("\n")
     : "";
   if (prompt.includes("structure-story-parse")) {
-    return `\`\`\`json\n${JSON.stringify(STORY_STRUCTURE_RESPONSE, null, 2)}\n\`\`\``;
+    const structure = prompt.includes("#### 场景 2：无人末班车")
+      ? FULL_STORY_STRUCTURE_RESPONSE
+      : STORY_STRUCTURE_RESPONSE;
+    return `\`\`\`json\n${JSON.stringify(structure, null, 2)}\n\`\`\``;
+  }
+  if (prompt.includes("storyboard-shot-generate")) {
+    const storyboard = buildStoryboardResponse(prompt);
+    const shouldFailQualityOnce = failureMode === "storyboard_quality_once"
+      && !prompt.includes("上一次输出格式可读取")
+      && !prompt.includes("上一次输出未通过");
+    const response = shouldFailQualityOnce ? { ...storyboard, shots: storyboard.shots.slice(0, 1) } : storyboard;
+    return `\`\`\`json\n${JSON.stringify(response, null, 2)}\n\`\`\``;
   }
   if (prompt.includes("已有剧本路线 B2")) {
     return JSON.stringify(IMPORT_ANALYSIS_RESPONSE);
@@ -512,6 +604,91 @@ function deterministicOpenCodeResponse(payload) {
     return prompt.includes("只生成「第 2 章：封闭总站」") ? CHAPTER_TWO_SCRIPT_RESPONSE : CHAPTER_SCRIPT_RESPONSE;
   }
   return "E2E deterministic response";
+}
+
+function buildStoryboardResponse(prompt) {
+  const structure = readJsonAfterMarker(prompt, "已确认剧情结构：");
+  const scenes = Array.isArray(structure.scenes) ? structure.scenes : [];
+  const beats = Array.isArray(structure.beats) ? structure.beats : [];
+  const characters = Array.isArray(structure.characters) ? structure.characters : [];
+  const characterIdByName = new Map(characters
+    .filter((item) => item && typeof item === "object" && typeof item.name === "string" && typeof item.id === "string")
+    .map((item) => [item.name, item.id]));
+
+  return {
+    shots: beats.map((beat, index) => {
+      const scene = scenes.find((item) => item && typeof item === "object" && item.id === beat.sceneId);
+      const characterIds = Array.isArray(beat.characters)
+        ? beat.characters.map((name) => characterIdByName.get(name)).filter(Boolean)
+        : [];
+      const title = typeof beat.title === "string" ? beat.title : `剧情节拍 ${index + 1}`;
+      const summary = typeof beat.summary === "string" ? beat.summary : title;
+      const visualFocus = typeof beat.visualFocus === "string" ? beat.visualFocus : summary;
+      const location = scene && typeof scene.location === "string" ? scene.location : "当前场景";
+      return {
+        order: index + 1,
+        beatId: beat.id,
+        sceneId: beat.sceneId,
+        characterIds,
+        coreAction: summary,
+        emotion: index === beats.length - 1 ? "紧张并下定决心" : "警觉逐步加深",
+        shotType: index === 0 ? "wide" : index === beats.length - 1 ? "close_up" : "medium",
+        cameraAngle: index === beats.length - 1 ? "low_angle" : "eye_level",
+        comic: {
+          panelDescription: `${title}：${visualFocus}`,
+          composition: index === 0
+            ? `以${location}为环境主体，人物置于画面下方三分之一处并保留纵向阅读动线`
+            : `人物与${visualFocus}形成前后层次，视觉重心落在本节拍的关键动作上`,
+          dialogue: "",
+          caption: "",
+          panelRhythm: index === beats.length - 1 ? "impact" : index === 0 ? "slow" : "normal",
+        },
+        motion: {
+          visualDescription: `${title}发生时，${visualFocus}成为画面焦点`,
+          compositionDesign: `保持${location}空间连续，让主体动作从上一镜自然承接`,
+          cameraMovement: index === beats.length - 1 ? "push_in" : "static",
+          frameType: index === 0 ? "atmosphere" : index === beats.length - 1 ? "reaction" : "action",
+          durationMs: 3000,
+          durationHint: "约 3s",
+          voiceLines: [],
+        },
+        promptDraft: `${location}中呈现${title}的单一静态瞬间，冷色光线，主体清晰，竖向构图重点 ${index + 1}`,
+      };
+    }),
+    notes: "按剧情节拍顺序推进，以环境建立、异常升级和结尾反应形成递进。",
+  };
+}
+
+function readJsonAfterMarker(input, marker) {
+  const markerIndex = input.lastIndexOf(marker);
+  if (markerIndex < 0) throw new Error(`E2E_PROMPT_MARKER_MISSING:${marker}`);
+  const start = input.indexOf("{", markerIndex + marker.length);
+  if (start < 0) throw new Error(`E2E_PROMPT_JSON_MISSING:${marker}`);
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < input.length; index += 1) {
+    const character = input[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return JSON.parse(input.slice(start, index + 1));
+    }
+  }
+  throw new Error(`E2E_PROMPT_JSON_UNTERMINATED:${marker}`);
 }
 
 async function readJsonBody(request) {

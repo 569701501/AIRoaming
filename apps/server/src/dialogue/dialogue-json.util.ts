@@ -28,6 +28,7 @@ import {
   getRecordStringArray,
   normalizeInspirationSeed,
 } from "./dialogue-text.util.js";
+import { assertStoryboardGenerationOutputContract } from "./storyboard-quality.util.js";
 
 /** 从 AI 返回的文本中提取 JSON 载荷(支持代码块包裹或裸 JSON)。 */
 export function extractJsonPayload(content: string): string {
@@ -132,6 +133,7 @@ export function normalizeStoryboardShot(item: Record<string, unknown>, index: nu
 export function parseStoryboardJson(content: string, currentChapterId: string | undefined, currentChapterTitle: string, currentStoryVersionId: string | undefined): StoryboardJson {
   const jsonText = extractJsonPayload(content);
   const value = JSON.parse(jsonText) as unknown;
+  assertStoryboardGenerationOutputContract(value);
   return normalizeStoryboardJson(value, currentChapterId ?? "", currentChapterTitle, {
     sourceStoryVersionId: currentStoryVersionId,
     createdAt: new Date().toISOString(),

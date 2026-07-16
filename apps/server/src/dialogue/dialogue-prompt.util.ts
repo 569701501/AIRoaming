@@ -619,6 +619,35 @@ export function buildStoryboardPrompt(
   ].join("\n");
 }
 
+export function buildStoryboardRepairPrompt(input: {
+  originalPrompt: string;
+  invalidOutput: string;
+  validationError: string;
+  qualityIssues?: readonly string[];
+  mode: StoryboardPromptMode;
+}): string {
+  const qualityFailure = Boolean(input.qualityIssues?.length);
+  return [
+    qualityFailure
+      ? "上一次输出格式可读取，但未通过分镜固定质量门。只修复列出的问题，重新返回当前章节的完整分镜 JSON。"
+      : "上一次输出未通过分镜 JSON、字段或引用校验。只修复格式、字段和引用，重新返回当前章节的完整分镜 JSON。",
+    "每个剧情 beat 至少一个 Shot，Shot 按 beat 叙事顺序排列；每个 Shot 只表达一个静态瞬间，并使用已有 beatId、sceneId 和角色卡 id。",
+    "所有必填文本、枚举、order、durationMs 和 voiceLines 必须合法；禁止空壳、占位和完全重复镜头。comic 与 motion 描述同一事实，漫画对白必须在 voiceLines 中保留对应台词。",
+    "promptDraft 只保留主体、静态瞬间、环境、光线、情绪和构图，不得泄漏对白原文、字幕、气泡、整页分格、模型名或 provider 参数。",
+    ...(input.mode === "revise_pending"
+      ? ["这是调整 pending：保留未被用户要求改变的镜头含义和已有镜头 id，新增镜头省略 id；必须返回完整 shots 数组。"]
+      : ["这是首次生成：所有镜头省略 id，由后端分配正式 Shot ID。"]),
+    "只返回一个完整 JSON 代码块，不要解释、评分、诊断或新增字段。",
+    input.qualityIssues?.length
+      ? `固定门问题：${input.qualityIssues.join("、")}`
+      : `校验错误：${input.validationError}`,
+    "原任务与正式来源：",
+    input.originalPrompt,
+    "未通过的输出：",
+    input.invalidOutput,
+  ].join("\n\n");
+}
+
 // ---------- 灵感种子 prompt ----------
 
 function getP2OutlineQualityGatePrompt(): string[] {

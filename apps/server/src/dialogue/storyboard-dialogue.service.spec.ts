@@ -219,4 +219,54 @@ describe("StoryboardDialogueService S1", () => {
     expect(versions.confirmWorkingCopy).toHaveBeenCalledTimes(1);
     expect(projects.confirmChapterStoryboard).not.toHaveBeenCalled();
   });
+
+  it("S2 首次固定质量失败时只定向修复一次，合格后才保存 pending", async () => {
+    const invalid = aiStoryboard();
+    invalid.shots[0]!.coreAction = "待补充";
+    const repaired = aiStoryboard();
+    const source = pendingBoard("legacy-pending", "shot-existing");
+    const runtime = {
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce({ content: JSON.stringify(invalid) })
+        .mockResolvedValueOnce({ content: JSON.stringify(repaired) }),
+    };
+    const projects = {
+      getPendingChapterStoryboard: vi.fn(async () => null),
+      savePendingChapterStoryboard: vi.fn(async (_projectId, _chapterId, input) => ({
+        storyboard: { ...source, storyboardJson: input.storyboardJson },
+      })),
+    };
+    const service = new StoryboardDialogueService(projects as never, runtime as never);
+    service.setEnsureSession(async () => "session-1");
+
+    const result = await service.handleStoryboardTurn(turn(), { content: "生成分镜", intent: "generate_storyboard" });
+
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0]?.content).toContain("STORYBOARD_CORE_ACTION:shots[0]:PLACEHOLDER");
+    expect(projects.savePendingChapterStoryboard).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "needs_user_confirmation", tool: "generate_storyboard" });
+  });
+
+  it("S2 JSON 失败与后续质量失败共用一次修复预算，第二次失败不写 pending", async () => {
+    const invalidAfterRepair = aiStoryboard();
+    invalidAfterRepair.shots[0]!.promptDraft = "对白：听完再决定。16:9 分格";
+    const runtime = {
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce({ content: "{这不是合法 JSON" })
+        .mockResolvedValueOnce({ content: JSON.stringify(invalidAfterRepair) }),
+    };
+    const projects = {
+      getPendingChapterStoryboard: vi.fn(async () => null),
+      savePendingChapterStoryboard: vi.fn(),
+    };
+    const service = new StoryboardDialogueService(projects as never, runtime as never);
+    service.setEnsureSession(async () => "session-1");
+
+    const result = await service.handleStoryboardTurn(turn(), { content: "生成分镜", intent: "generate_storyboard" });
+
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0]?.content).toContain("校验错误：");
+    expect(projects.savePendingChapterStoryboard).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "failed", summary: expect.stringContaining("本次没有写入或替换待确认分镜") });
+  });
 });
