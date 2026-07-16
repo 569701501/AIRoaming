@@ -12,8 +12,9 @@ import {
   serializeScriptOutlineMarkdownV1,
   type ImportAnalysisOutputV1,
 } from "@airoaming/shared";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ScriptImportWorkerService } from "../dialogue/script-import-worker.service.js";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { ProjectsModule } from "./projects.module.js";
 import { ProjectsService } from "./projects.service.js";
@@ -200,6 +201,66 @@ describe("script workflow source repository", () => {
     expect(
       await prisma.scriptRawSourceVersion.count({ where: { projectId: project.id } }),
     ).toBe(0);
+  }, 30_000);
+
+  it("reopens the same SQLite database and restarts an interrupted import item from its chapter boundary", async () => {
+    await prepare();
+    const projects = app!.get(ProjectsService);
+    const repository = app!.get(ScriptWorkflowSourceRepository);
+    const prisma = app!.get(PrismaService).database();
+    const project = await projects.createProject({ name: "导入中断恢复", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const raw = await repository.createRawSource(project.id, {
+      inputMode: "paste",
+      contentTypeHint: "script",
+      documents: [{ name: "主稿", mediaType: "text/plain", sourceText: "第一章 旧钥匙\n\n第二章 门外来客" }],
+    });
+    const blocks = await prisma.scriptRawSourceBlock.findMany({
+      where: { rawSourceVersionId: raw.id },
+      orderBy: { globalOrder: "asc" },
+    });
+    const candidate = await repository.createAnalysisCandidate({
+      projectId: project.id,
+      rawSourceVersionId: raw.id,
+      analysis: analysis(blocks.map((item) => item.blockRef)),
+      promptPackVersion: "import-analyze/restart-test",
+    });
+    const map = await repository.confirmAnalysisCandidate(project.id, candidate.id);
+    const batch = await repository.startImportBatch(project.id, map.id);
+    const interruptedItem = batch.items[0]!;
+    const untouchedItem = batch.items[1]!;
+
+    await repository.beginImportItem(project.id, interruptedItem.id);
+    expect(await prisma.scriptImportBatchItem.findUniqueOrThrow({ where: { id: interruptedItem.id } })).toMatchObject({
+      status: "materializing",
+      attempt: 1,
+    });
+
+    await app!.close();
+    app = null;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const reopenedRepository = app.get(ScriptWorkflowSourceRepository);
+    const reopenedPrisma = app.get(PrismaService).database();
+    const processClaimedItem = vi.fn(async (input: { projectId: string; itemId: string }) => {
+      const context = await reopenedRepository.getImportItemWorkContext(input.projectId, input.itemId);
+      expect(context.item).toMatchObject({ id: interruptedItem.id, status: "materializing", attempt: 2 });
+    });
+    const worker = new ScriptImportWorkerService(
+      reopenedRepository,
+      { processClaimedItem } as never,
+    );
+
+    await worker.runOnce();
+
+    expect(processClaimedItem).toHaveBeenCalledOnce();
+    expect(await reopenedPrisma.scriptImportBatchItem.findUniqueOrThrow({ where: { id: interruptedItem.id } })).toMatchObject({
+      status: "materializing",
+      attempt: 2,
+      errorCode: null,
+    });
+    expect(await reopenedPrisma.scriptImportBatchItem.findUniqueOrThrow({ where: { id: untouchedItem.id } })).toMatchObject({
+      status: "queued",
+      attempt: 0,
+    });
   }, 30_000);
 
   it("seals AI pending to the confirmed outline card and previous formal chapter", async () => {
