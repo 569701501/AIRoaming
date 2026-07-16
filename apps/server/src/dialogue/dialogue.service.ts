@@ -361,7 +361,10 @@ export class DialogueService {
       return thread.openCodeSessionId;
     }
 
-    thread.openCodeSessionId = await this.openCodeRuntimeService.createSession(`${snapshot.project.name} · 对话框`, signal);
+    // DB hydration and page polling share this in-memory thread object. Keep the
+    // freshly-created id local until persistence succeeds so a stale hydration
+    // cannot replace the value used by the insert with null.
+    const externalSessionId = await this.openCodeRuntimeService.createSession(`${snapshot.project.name} · 对话框`, signal);
     thread.updatedAt = new Date().toISOString();
     if (this.prismaService.isDatabaseMode()) {
       const now = new Date();
@@ -370,7 +373,7 @@ export class DialogueService {
           id: `dialogue_session_${randomUUID()}`,
           threadId: thread.id,
           runtime: "opencode",
-          externalSessionId: thread.openCodeSessionId!,
+          externalSessionId,
           status: "active",
           providerId: this.openCodeRuntimeService.getDefaultModel().providerId,
           modelId: this.openCodeRuntimeService.getDefaultModel().modelId,
@@ -381,7 +384,8 @@ export class DialogueService {
         },
       }));
     }
-    return thread.openCodeSessionId;
+    thread.openCodeSessionId = externalSessionId;
+    return externalSessionId;
   }
 
   private async assertDatabaseProjectActive(projectId: string): Promise<void> {
@@ -408,6 +412,22 @@ export class DialogueService {
       db.pendingDialogueArtifact.findMany({ where: { threadId: row.id, status: "pending" }, orderBy: { createdAt: "asc" } }),
     ]);
     const existing = this.threads.get(getThreadKey(projectId, stepKey, chapterId));
+    let hydratedSessionId = session?.externalSessionId ?? null;
+    if (!hydratedSessionId && existing?.openCodeSessionId) {
+      // The first read may be stale when a session is being persisted in
+      // parallel. Revalidate the newer local id against DB instead of either
+      // erasing an active session or retaining a session already closed by
+      // interruption recovery.
+      const activeSession = await db.dialogueRuntimeSession.findFirst({
+        where: {
+          threadId: row.id,
+          externalSessionId: existing.openCodeSessionId,
+          status: "active",
+        },
+        select: { externalSessionId: true },
+      });
+      hydratedSessionId = activeSession?.externalSessionId ?? null;
+    }
     const thread: LocalDialogueThread = existing ?? {
       id: row.id,
       projectId,
@@ -420,7 +440,7 @@ export class DialogueService {
       updatedAt: row.updatedAt.toISOString(),
     };
     thread.id = row.id;
-    thread.openCodeSessionId = session?.externalSessionId ?? null;
+    thread.openCodeSessionId = hydratedSessionId;
     thread.createdAt = row.createdAt.toISOString();
     thread.updatedAt = row.updatedAt.toISOString();
     thread.messages = messages.map((message) => ({

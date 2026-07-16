@@ -1,13 +1,27 @@
 import { describe, expect, it } from "vitest";
 
-import type { SendDialogueMessageRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import {
+  SCRIPT_WORKFLOW_STAGE_IDS,
+  type ImportAnalysisOutputV1,
+  type ScriptWorkflowStageId,
+  type SendDialogueMessageRequest,
+  type WorkbenchSnapshot,
+} from "@airoaming/shared";
+import { VALID_IMPORT_ANALYSIS_OUTPUT_V1 } from "@airoaming/shared/script-workflow-test-fixtures";
 import type { AiChapterGenerationContext } from "../projects/script-workflow-source.repository.js";
+import type {
+  ImportItemWorkContext,
+  RawScriptSourceContext,
+} from "../projects/script-workflow-source.repository.js";
 import type { DialogueTurn } from "./dialogue-types.js";
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
   buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
   buildScriptFromOutlinePrompt,
+  buildScriptImportAnalysisPrompt,
+  buildScriptImportMaterializePrompt,
+  buildScriptImportVerifyPrompt,
   buildScriptOutlineFromTopicPrompt,
 } from "./dialogue-prompt.util.js";
 
@@ -25,6 +39,54 @@ function request(content: string): SendDialogueMessageRequest {
 }
 
 const digest = `sha256:${"a".repeat(64)}` as const;
+
+const SCRIPT_STAGE_SKILL_MATRIX = [
+  { stageId: "creative.ideation", skill: "script-inspiration-seeding" },
+  { stageId: "creative.outline", skill: "script-outline-drafting" },
+  { stageId: "creative.chapter-draft", skill: "script-chapter-drafting" },
+  { stageId: "creative.chapter-edit", skill: "script-chapter-editing" },
+  { stageId: "import.analyze", skill: "script-import-normalize" },
+  { stageId: "import.materialize", skill: "script-import-normalize" },
+  { stageId: "import.verify", skill: "script-import-normalize" },
+] satisfies readonly { stageId: ScriptWorkflowStageId; skill: string }[];
+
+function importSource(): RawScriptSourceContext {
+  return {
+    id: "raw-1",
+    projectId: "project",
+    sourceDigest: digest,
+    inputMode: "upload",
+    contentTypeHint: "script",
+    documents: [{ sourceRef: "source-001", order: 1, name: "完整剧本.md", mediaType: "text/markdown", sourceText: "林舟在旧屋找到钥匙。", sourceDigest: digest }],
+    blocks: [{ sourceRef: "source-001", blockRef: "block-000001", globalOrder: 1, sourceOrder: 1, locatorLabel: "第 1 段", kind: "narrative", sourceText: "林舟在旧屋找到钥匙。", sourceDigest: digest }],
+  };
+}
+
+function importWorkContext(): ImportItemWorkContext {
+  const analysis = structuredClone(VALID_IMPORT_ANALYSIS_OUTPUT_V1) as unknown as ImportAnalysisOutputV1;
+  const candidate = analysis.chapterCandidates[0]!;
+  return {
+    batchId: "batch-1",
+    batchStatus: "processing",
+    item: { id: "item-1", chapterId: "chapter-1", order: 1, status: "materializing", attempt: 1, mapItemRef: "chapter-001" },
+    chapter: { id: "chapter-1", title: "旧屋钥匙", order: 1 },
+    analysis,
+    mapItem: {
+      mapItemRef: candidate.localRef,
+      order: candidate.order,
+      title: "旧屋钥匙",
+      titleBasis: candidate.title.basis,
+      summary: "林舟在旧屋找到钥匙。",
+      sourceRanges: [{ sourceRef: "source-001", startBlockRef: "block-000001", endBlockRef: "block-000001" }],
+      boundaryMode: candidate.boundaryMode,
+      boundaryEvidence: candidate.boundaryEvidence,
+      confidence: candidate.confidence,
+      warnings: [],
+      sourceRangeDigest: digest,
+    },
+    sourceBlocks: importSource().blocks,
+  };
+}
 
 function context(): AiChapterGenerationContext {
   const first = { order: 1, title: "旧钥匙", chapterGoal: "发现钥匙", coreConflict: "不能惊动追踪者", majorTurn: "钥匙刻着父亲编号", endingHook: "门外响起暗号", nextChapterBridge: "来客现身" };
@@ -103,6 +165,49 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("章序永远不能改变");
     expect(prompt).toContain("不要把层级、清单、评分、诊断或差异说明输出给用户");
     expect(prompt).toContain("当前完整草稿");
+  });
+});
+
+describe("P6 五个公开 Skill / 七个模型阶段", () => {
+  it("七个冻结阶段全部映射到五个公开 Skill，不增加孤立 Skill", () => {
+    expect(SCRIPT_STAGE_SKILL_MATRIX.map((item) => item.stageId)).toEqual(SCRIPT_WORKFLOW_STAGE_IDS);
+    expect(new Set(SCRIPT_STAGE_SKILL_MATRIX.map((item) => item.skill))).toEqual(new Set([
+      "script-inspiration-seeding",
+      "script-outline-drafting",
+      "script-chapter-drafting",
+      "script-chapter-editing",
+      "script-import-normalize",
+    ]));
+  });
+
+  it("B2 Prompt 只做 observed 分析，并使用稳定来源引用覆盖全部原稿", () => {
+    const prompt = buildScriptImportAnalysisPrompt({
+      source: importSource(),
+      userRequest: "忠实分析并拆章",
+    });
+    expect(prompt).toContain("已有剧本路线 B2");
+    expect(prompt).toContain("outlineRole 必须是 observed");
+    expect(prompt).toContain("不得补剧情、强化钩子、调整人物弧");
+    expect(prompt).toContain('"sourceRef": "source-001"');
+    expect(prompt).toContain('"blockRef": "block-000001"');
+    expect(prompt).toContain("林舟在旧屋找到钥匙。");
+    expect(prompt).toContain("不要代码围栏、Markdown、解释或数据库 ID");
+  });
+
+  it("B4 materialize 只忠实整理确认范围，verify 只审计且不相信覆盖率或模型 ready", () => {
+    const context = importWorkContext();
+    const chapter = "# 章节剧本\n\n## 第 1 章：旧屋钥匙\n\n林舟在旧屋找到钥匙。";
+    const materializePrompt = buildScriptImportMaterializePrompt(context);
+    const verifyPrompt = buildScriptImportVerifyPrompt(context, chapter);
+
+    expect(materializePrompt).toContain("已有剧本路线 B4");
+    expect(materializePrompt).toContain("不得添加事件、对白、人物动机、结局、伏笔或原稿外信息");
+    expect(materializePrompt).toContain("第 1 章：旧屋钥匙");
+    expect(materializePrompt).toContain("林舟在旧屋找到钥匙。");
+    expect(verifyPrompt).toContain("你只能审计，不能继续改写章节正文");
+    expect(verifyPrompt).toContain("sourceCoverage 必须完整、无重叠覆盖");
+    expect(verifyPrompt).toContain("不凭印象给覆盖率数字");
+    expect(verifyPrompt).not.toContain("readyForNextStage");
   });
 });
 

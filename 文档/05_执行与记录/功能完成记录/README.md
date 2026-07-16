@@ -4,7 +4,7 @@
 doc_id: AIR-EXEC-COMPLETION-INDEX-001
 status: active
 created: 2026-05-23
-updated: 2026-05-28
+updated: 2026-07-16
 owner: AI漫游项目
 audience: human, ai-agent, developer
 source: AI漫游留痕规则
@@ -64,6 +64,7 @@ YYYY-MM-DD_<功能名>.md
 | 2026-05-29 | 灵感选择写入章节 | `2026-05-29_灵感选择写入章节.md` |
 | 2026-05-29 | 剧本标题同步 | `2026-05-29_剧本标题同步.md` |
 | 2026-07-13 | M6-A1 真实隔离验收补强 | `2026-07-13_M6-A1真实隔离验收补强.md` |
+| 2026-07-16 | 双流程 P6 总验收 | `2026-07-16_双流程P6总验收.md` |
 
 ## 3. 已归档记录
 
