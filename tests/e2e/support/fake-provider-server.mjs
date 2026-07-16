@@ -101,6 +101,10 @@ const CHAPTER_SCRIPT_RESPONSE = `# 章节剧本
 悬念：无人驾驶的车辆为什么知道林夏的名字，姐姐又为何留下警告？
 下一章引子：车辆正驶向隧道后的封闭总站，控制面板需要姐姐的钥匙扣才能解锁。
 `;
+const CHAPTER_EDIT_RESPONSE = CHAPTER_SCRIPT_RESPONSE.replace(
+  "对白：广播：林夏乘客，请在原地候车。",
+  "对白：广播：林夏乘客，末班车只等你一人，请留在原地。",
+);
 const IMPORT_CHAPTER_ONE_RESPONSE = CHAPTER_SCRIPT_RESPONSE.replace(
   "目标篇幅：约 1200 字",
   "目标篇幅：按本章确认原稿范围完整整理",
@@ -439,6 +443,9 @@ function deterministicOpenCodeResponse(payload) {
   }
   if (prompt.includes("script-outline-drafting")) {
     return SCRIPT_OUTLINE_RESPONSE;
+  }
+  if (prompt.includes("script-chapter-editing")) {
+    return CHAPTER_EDIT_RESPONSE;
   }
   if (prompt.includes("script-chapter-drafting")) {
     return CHAPTER_SCRIPT_RESPONSE;

@@ -241,7 +241,12 @@ export function shouldUpdateChapterDraft(input: SendDialogueMessageRequest, snap
   }
 
   const asksForCurrentChapter = /(这一章|这章|当前章|当前章节|本章|这段|当前草稿|剧本)/.test(content);
-  const asksForRewrite = /(改|改写|润色|重写|调整|优化|压缩|扩写|加强|写得|变得|更紧张|更刺激|节奏|对白|冲突)/.test(content);
+  const asksForAdvice = /(看看|评价|分析|建议|有什么问题|怎么改|如何改)/.test(content);
+  const explicitlyRequestsMutation = /(?:直接|请|帮我|替我|把|按).{0,12}(?:改|改写|润色|重写|调整|优化|压缩|扩写|加强|修正|补)|^(?:改|改写|润色|重写|调整|优化|压缩|扩写|加强|修正|补)/.test(content);
+  if (asksForAdvice && !explicitlyRequestsMutation) return false;
+
+  const asksForRewrite = /(改|改写|润色|重写|调整|优化|压缩|扩写|加强|修正|补.{0,4}(对白|台词)|写得|变得|更紧张|更刺激)/.test(content)
+    || /(对白|台词).{0,6}(更自然|更简洁|更有力)|节奏.{0,6}(加快|放慢|紧凑)/.test(content);
   return asksForRewrite && (asksForCurrentChapter || /润色对白|优化开场|加强冲突|节奏加快|写得更紧张/.test(content));
 }
 

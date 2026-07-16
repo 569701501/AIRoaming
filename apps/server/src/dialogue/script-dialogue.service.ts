@@ -78,6 +78,11 @@ import {
   assertP3P5ChapterDraftQuality,
   ScriptCreativeQualityError,
 } from "./script-creative-quality.util.js";
+import {
+  assertP4LayeredRevision,
+  classifyScriptRevisionLayer,
+  getScriptRevisionLayerLabel,
+} from "./script-revision-quality.util.js";
 
 /**
  * 剧本工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -1270,13 +1275,65 @@ export class ScriptDialogueService {
     signal?: AbortSignal,
   ): Promise<string> {
     const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
+    const layer = classifyScriptRevisionLayer(input.content);
+    let sourceDocument: ReturnType<typeof parseChapterScriptMarkdownV1> | null = null;
+    try {
+      sourceDocument = parseChapterScriptMarkdownV1(sourceText, { mode: "creative" });
+    } catch {
+      // Legacy or manually malformed source can still be reformatted by AI, but does not support reliable field-level P4 comparison.
+    }
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
-      content: buildChapterEditingPrompt(turn, input, sourceText),
+      content: buildChapterEditingPrompt(turn, input, sourceText, layer),
       signal,
     });
+    const expectedOrder = sourceDocument?.chapterOrder ?? turn.snapshot.currentChapter?.order ?? null;
+    const headingRule = expectedOrder
+      ? `章序必须保持为第 ${expectedOrder} 章；标题只有用户明确要求时才可改变。`
+      : "章序必须保持当前值；标题只有用户明确要求时才可改变。";
+    const validate = (content: string): string => {
+      const revised = parseChapterScriptMarkdownV1(content, { mode: "creative" });
+      if (expectedOrder !== null && revised.chapterOrder !== expectedOrder) {
+        throw new ScriptCreativeQualityError("P4", ["P4_CHAPTER_ORDER_CHANGED"]);
+      }
+      if (sourceDocument) assertP4LayeredRevision(sourceDocument, revised, layer, input.content);
+      return serializeChapterScriptMarkdownV1(revised);
+    };
 
-    return ensureChapterMarkdown(response.content, turn.snapshot.currentChapter?.title ?? "第 1 章");
+    try {
+      return validate(response.content);
+    } catch (error) {
+      const qualityFailure = error instanceof ScriptCreativeQualityError;
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId: openCodeSessionId,
+        model: input.model,
+        content: qualityFailure
+          ? [
+              `上一次输出未通过 P4 ${getScriptRevisionLayerLabel(layer)}保护。只重新执行当前层及必要下层修改，不得改变被保护内容。`,
+              `质量问题：${error.issues.join("、")}`,
+              `用户改写要求：${input.content}`,
+              headingRule,
+              getChapterScriptFormatPrompt(),
+              "保护基线：",
+              sourceText,
+              "待重写输出：",
+              response.content,
+            ].join("\n")
+          : [
+              "上一次章节改写未通过 creative.chapter-edit/1.0 格式校验。只修复格式并保留已经执行的用户修改，不得借机改变剧情事实。",
+              `当前修订层：${getScriptRevisionLayerLabel(layer)}（${layer}）`,
+              headingRule,
+              getChapterScriptFormatPrompt(),
+              `校验错误：${getErrorMessage(error)}`,
+              "保护基线：",
+              sourceText,
+              "待修复输出：",
+              response.content,
+            ].join("\n"),
+        signal,
+      });
+      return validate(repaired.content);
+    }
   }
 }

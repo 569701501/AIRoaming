@@ -25,6 +25,11 @@ import {
 } from "@airoaming/shared";
 import type { DialogueTurn } from "./dialogue-types.js";
 import { compactPromptText } from "./dialogue-text.util.js";
+import {
+  getScriptRevisionLayerContract,
+  getScriptRevisionLayerLabel,
+  type ScriptRevisionLayer,
+} from "./script-revision-quality.util.js";
 
 /** workflow 步骤中文标签(用于 prompt 上下文)。 */
 export const STEP_LABELS: Record<string, string> = {
@@ -751,7 +756,9 @@ export function buildChapterEditingPrompt(
   turn: DialogueTurn,
   input: SendDialogueMessageRequest,
   sourceText: string,
+  layer: ScriptRevisionLayer,
 ): string {
+  const layerContract = getScriptRevisionLayerContract(layer);
   return [
     "你正在为 AI漫游执行剧本阶段 skill：script-chapter-editing。",
     "任务：根据用户要求，改写当前章节草稿。",
@@ -763,7 +770,12 @@ export function buildChapterEditingPrompt(
     "- 必须保留或补齐「章节剧本」固定格式。",
     "- 不要在章节正文里输出“剧本名称”；剧本名称属于项目级标题，会在章节下拉框右侧展示。",
     "- 如果你调整了章节标题，必须同步修改 `## 第 X 章：章节标题` 这一行。",
-    "- 尊重原文核心设定，不擅自换故事方向。",
+    `- P4 当前修订层：${getScriptRevisionLayerLabel(layer)}（${layer}）。若用户一句话同时涉及多层，已按最高层处理。`,
+    `- ${layerContract[0]}`,
+    `- ${layerContract[1]}`,
+    "- 章序永远不能改变。标题、类型、主题、风格、漫画形式、目标篇幅和角色名单只有用户明确点名时才可改变。",
+    "- 先在内部列出“允许修改 / 必须保护”，再执行；不要把层级、清单、评分、诊断或差异说明输出给用户。",
+    "- 尊重当前草稿中的既有事实和剧情方向，不为了写得更顺擅自发明人物、道具、关系或事件。",
     "- 不要新增主体列表、正式场景列表、剧情节拍、分镜剧本、镜头编号或图片 Prompt。",
     "- 不要声称你直接操作本地文件；写入由后端受控工具完成。",
     "",
@@ -775,7 +787,7 @@ export function buildChapterEditingPrompt(
     `当前章节：${turn.snapshot.currentChapter?.title ?? "当前章节"}`,
     "用户改写要求：",
     input.content,
-    "当前编辑器最新草稿：",
+    "当前编辑器最新草稿（这是本轮保护基线，最终仍返回完整更新稿）：",
     sourceText,
   ].join("\n");
 }

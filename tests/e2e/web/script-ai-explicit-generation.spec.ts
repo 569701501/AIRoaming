@@ -3,7 +3,7 @@ import { expect, test } from "../support/e2e-fixture.ts";
 
 const MODEL = { providerId: "e2e", modelId: "deterministic" } as const;
 
-test("A3-A5：大纲确认不偷跑，显式生成后完整查看、采用并完成当前章", async ({
+test("A3-A5/P4：大纲确认不偷跑，显式生成、分层改写后采用并完成当前章", async ({
   api,
   page,
   provider,
@@ -74,6 +74,39 @@ test("A3-A5：大纲确认不偷跑，显式生成后完整查看、采用并完
   await expect(pendingDocument).not.toBeVisible();
   await expect(page.getByRole("button", { name: "完成本章" })).toBeEnabled();
 
+  const adoptedSnapshot = await api.get<{ snapshot: WorkbenchSnapshot }>(
+    `/projects/${projectId}/workbench?chapterId=${chapterId}`,
+  );
+  const adoptedSourceText = adoptedSnapshot.data.snapshot.currentChapter?.sourceText;
+  if (!adoptedSourceText) throw new Error("P4_ADOPTED_SOURCE_MISSING");
+  const edited = await api.post<SendDialogueMessageResponse>(
+    `/projects/${projectId}/dialogue/threads/project_story/messages`,
+    {
+      content: "只润色本章对白，不要修改结尾",
+      intent: "update_chapter_draft",
+      chapterId,
+      context: { sourceText: adoptedSourceText },
+      model: MODEL,
+    },
+  );
+  expect(edited.data.toolResults?.[0]).toMatchObject({
+    tool: "update_chapter_draft",
+    status: "succeeded",
+    currentChapterId: chapterId,
+  });
+  expect(modelMessageCount(await provider.listRequests())).toBe(3);
+
+  await page.reload();
+  await expect(pendingDocument).toBeVisible();
+  await expect(pendingDocument).toContainText("末班车只等你一人，请留在原地");
+  await expect(pendingDocument).toContainText("林夏确认异常车辆与姐姐失踪有关，并开始寻找紧急停车方法");
+  await expect(page.getByRole("button", { name: "采用草稿" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "丢弃" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "完成本章" })).toBeDisabled();
+  await page.getByRole("button", { name: "采用草稿" }).click();
+  await expect(pendingDocument).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "完成本章" })).toBeEnabled();
+
   await page.getByRole("button", { name: "完成本章" }).click();
   await expect(page.getByText("本章剧本已完成", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "进入本章剧情结构" })).toBeVisible();
@@ -92,7 +125,7 @@ test("A3-A5：大纲确认不偷跑，显式生成后完整查看、采用并完
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/script/${secondChapter.id}$`));
   await expect(page.getByLabel("待确认章节草稿全文")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "完成本章" })).toBeDisabled();
-  expect(modelMessageCount(await provider.listRequests())).toBe(2);
+  expect(modelMessageCount(await provider.listRequests())).toBe(3);
 });
 
 function modelMessageCount(requests: readonly { path: string; method: string }[]): number {

@@ -5,6 +5,7 @@ import type { AiChapterGenerationContext } from "../projects/script-workflow-sou
 import type { DialogueTurn } from "./dialogue-types.js";
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
+  buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
   buildScriptFromOutlinePrompt,
   buildScriptOutlineFromTopicPrompt,
@@ -88,6 +89,20 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain('"title": "旧钥匙"');
     expect(prompt).toContain('"title": "内鬼"');
     expect(prompt).toContain("（无；本轮只是发出生成命令）");
+  });
+
+  it("P4 把修订层和保护范围放进内部 Prompt，但不新增输出字段", () => {
+    const prompt = buildChapterEditingPrompt(
+      turn(),
+      request("只润色本章对白，不要修改结尾"),
+      "# 章节剧本\n\n## 第 2 章：门外来客\n\n当前完整草稿",
+      "scene_dialogue",
+    );
+    expect(prompt).toContain("P4 当前修订层：场景与对白修订（scene_dialogue）");
+    expect(prompt).toContain("必须保留本章方向、结尾事实、项目基础字段和角色名单");
+    expect(prompt).toContain("章序永远不能改变");
+    expect(prompt).toContain("不要把层级、清单、评分、诊断或差异说明输出给用户");
+    expect(prompt).toContain("当前完整草稿");
   });
 });
 

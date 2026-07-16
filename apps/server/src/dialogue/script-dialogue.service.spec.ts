@@ -81,6 +81,18 @@ function weakChapterMarkdown(): string {
     .replace("林舟确认身份后拉开门闩，许澄递出的名册显示暗号来自警局内鬼。", "场景结束");
 }
 
+function dialogueEditedChapterMarkdown(): string {
+  return chapterMarkdown().replace("许澄：三短一长。", "许澄：你父亲教过我——三短一长。");
+}
+
+function crossedLayerChapterMarkdown(): string {
+  return dialogueEditedChapterMarkdown().replace("许澄递出警员名册。", "林舟烧毁警员名册。");
+}
+
+function titleEditedChapterMarkdown(): string {
+  return chapterMarkdown().replace("## 第 2 章：门外来客", "## 第 2 章：暗号证人");
+}
+
 function outline(): ProjectScriptOutline {
   return { id: "outline-1", projectId: "project-1", title: "雨夜证人", sourceText: "# 剧本大纲\n完整大纲", outlinePath: "/outline.md", createdAt: "2026-07-16T00:00:00.000Z", updatedAt: "2026-07-16T00:00:00.000Z" } as ProjectScriptOutline;
 }
@@ -200,6 +212,34 @@ function setup(runtimeOutputs: string[]) {
     saveScriptOutlineFromAI: vi.fn().mockImplementation(async (_projectId: string, input: { sourceText: string }) => ({
       ...outline(),
       sourceText: input.sourceText,
+    })),
+    writeChapterDraftFromAI: vi.fn().mockImplementation(async (_projectId: string, chapterId: string, input: { sourceText: string; operation: string }) => ({
+      chapter: {
+        ...refreshed.currentChapter!,
+        id: chapterId,
+        pendingSourceText: {
+          sourceText: input.sourceText,
+          threadId: "thread-1",
+          messageId: "message-1",
+          toolCallId: "tool-edit",
+          operation: input.operation,
+          createdAt: "2026-07-16T00:00:00.000Z",
+          updatedAt: "2026-07-16T00:00:00.000Z",
+        },
+      },
+      chapters: refreshed.chapters,
+      revision: {
+        id: "revision-edit",
+        projectId: "project-1",
+        chapterId,
+        source: "ai_tool",
+        threadId: "thread-1",
+        messageId: "message-1",
+        toolCallId: "tool-edit",
+        operation: input.operation,
+        summary: "章节改写",
+        createdAt: "2026-07-16T00:00:00.000Z",
+      },
     })),
   };
   const repository = {
@@ -369,6 +409,72 @@ describe("ScriptDialogueService A4 显式生成", () => {
     expect(results[0]?.summary).toContain("P3/P5 质量门未通过");
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
     expect(repository.createAiChapterPending).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScriptDialogueService P4 分层修订", () => {
+  function editingTurn(): DialogueTurn {
+    const value = snapshot();
+    value.currentChapter = { ...value.currentChapter!, sourceText: chapterMarkdown(), pendingSourceText: null };
+    return turn(value);
+  }
+
+  it("场景对白修订越层修改结尾时只重写一次，合格后才创建 AI pending", async () => {
+    const { service, projects, runtime } = setup([crossedLayerChapterMarkdown(), dialogueEditedChapterMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      editingTurn(),
+      { content: "只润色本章对白，不要修改结尾", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: chapterMarkdown() } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "succeeded" });
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[0]?.[0].content).toContain("P4 当前修订层：场景与对白修订");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P4 场景与对白修订保护");
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("P4_UNREQUESTED_ENDING_EVENT_CHANGE");
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledTimes(1);
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledWith("project-1", "chapter-2", expect.objectContaining({ sourceText: expect.stringContaining("你父亲教过我"), operation: "update_chapter_draft" }));
+  });
+
+  it("P4 重写一次后仍越层就停止，不创建待确认草稿", async () => {
+    const { service, projects, runtime } = setup([crossedLayerChapterMarkdown(), crossedLayerChapterMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      editingTurn(),
+      { content: "只润色本章对白，不要修改结尾", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: chapterMarkdown() } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "failed" });
+    expect(results[0]?.summary).toContain("P4 质量门未通过");
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(projects.writeChapterDraftFromAI).not.toHaveBeenCalled();
+  });
+
+  it("P4 首次格式错误只使用一次格式修复，随后仍执行分层保护", async () => {
+    const { service, projects, runtime } = setup(["只返回了一小段对白", dialogueEditedChapterMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      editingTurn(),
+      { content: "只润色本章对白", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: chapterMarkdown() } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "succeeded" });
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage.mock.calls[1]?.[0].content).toContain("只修复格式并保留已经执行的用户修改");
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledTimes(1);
+  });
+
+  it("P4 明确改标题时允许标题变化，但仍保持当前章序", async () => {
+    const { service, projects, runtime } = setup([titleEditedChapterMarkdown()]);
+
+    const results = await service.handleScriptTurn(
+      editingTurn(),
+      { content: "把本章标题改为暗号证人", chapterId: "chapter-2", intent: "update_chapter_draft", context: { sourceText: chapterMarkdown() } } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "update_chapter_draft", status: "succeeded" });
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
+    expect(projects.writeChapterDraftFromAI).toHaveBeenCalledWith("project-1", "chapter-2", expect.objectContaining({ sourceText: expect.stringContaining("## 第 2 章：暗号证人") }));
   });
 });
 

@@ -6,7 +6,7 @@ import {
   type ScriptOutlineDocumentV1,
 } from "@airoaming/shared";
 
-export type ScriptCreativeQualityGate = "P1" | "P2" | "P3/P5";
+export type ScriptCreativeQualityGate = "P1" | "P2" | "P3/P5" | "P4";
 
 export class ScriptCreativeQualityError extends Error {
   readonly code = "SCRIPT_CREATIVE_QUALITY_FAILED";
