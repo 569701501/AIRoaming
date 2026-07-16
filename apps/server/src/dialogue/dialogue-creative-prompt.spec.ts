@@ -23,6 +23,7 @@ import {
   buildScriptImportMaterializePrompt,
   buildScriptImportVerifyPrompt,
   buildScriptOutlineFromTopicPrompt,
+  buildStoryStructurePrompt,
 } from "./dialogue-prompt.util.js";
 
 function turn(): DialogueTurn {
@@ -165,6 +166,34 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("章序永远不能改变");
     expect(prompt).toContain("不要把层级、清单、评分、诊断或差异说明输出给用户");
     expect(prompt).toContain("当前完整草稿");
+  });
+});
+
+describe("双流程汇合后的剧情结构 Prompt", () => {
+  it("只从正式章节提取实际结构，大纲不得补写未发生剧情", () => {
+    const prompt = buildStoryStructurePrompt({
+      ...turn(),
+      snapshot: {
+        ...turn().snapshot,
+        currentChapter: {
+          id: "chapter-1",
+          title: "拍卖夜",
+          status: "script_done",
+          currentScriptVersionId: "script-v1",
+          sourceText: "#### 场景 1：拍卖厅\n地点：旧商场\n出场人物：林夏",
+        },
+        scriptOutline: { sourceText: "大纲计划下一章炸毁地下金库。" },
+      } as WorkbenchSnapshot,
+    }, request("生成剧情结构"));
+
+    expect(prompt).toContain("正式章节正文是本阶段唯一的实际剧情事实源");
+    expect(prompt).toContain("项目级剧本大纲只能帮助理解世界观和角色名称");
+    expect(prompt).toContain("不得把大纲中尚未在本章正文发生的事件写入 synopsis、direction、characters、scenes 或 beats");
+    expect(prompt).toContain("每一个正文场景都必须且只能对应一个场景卡");
+    expect(prompt).toContain("每一个正文场景至少被一个 beat 引用");
+    expect(prompt).toContain("sceneName 必须逐字使用对应场景卡 name");
+    expect(prompt).toContain("人物名必须逐字使用 characters[].name");
+    expect(prompt).toContain("不要输出评分、检查报告或新增字段");
   });
 });
 

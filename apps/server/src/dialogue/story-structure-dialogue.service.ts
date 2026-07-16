@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
   ChapterStoryStructure,
@@ -9,6 +9,7 @@ import type {
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
 import { ProjectsService } from "../projects/projects.service.js";
+import { ScriptVersionService } from "../projects/versioning/script-version.service.js";
 import type {
   DialogueTurn,
   LocalDialogueThread,
@@ -19,10 +20,14 @@ import {
   isConfirmingStoryStructureRegeneration,
   shouldGenerateStoryStructure,
 } from "./dialogue-intent.util.js";
-import { buildStoryStructurePrompt } from "./dialogue-prompt.util.js";
+import { buildStoryStructurePrompt, buildStoryStructureRepairPrompt } from "./dialogue-prompt.util.js";
 import { parseStoryStructureJson, normalizeStoryStructureJson } from "./dialogue-json.util.js";
 import { getErrorMessage } from "./dialogue-text.util.js";
 import { getPendingStoryStructureKey } from "./dialogue-key.util.js";
+import {
+  assertStoryStructureQuality,
+  StoryStructureQualityError,
+} from "./story-structure-quality.util.js";
 
 /**
  * 剧情结构工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -42,6 +47,7 @@ export class StoryStructureDialogueService {
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
+    @Optional() @Inject(ScriptVersionService) private readonly scriptVersionService?: ScriptVersionService,
   ) {}
 
   setEnsureSession(fn: (thread: LocalDialogueThread, snapshot: WorkbenchSnapshot, signal?: AbortSignal) => Promise<string>): void {
@@ -252,19 +258,70 @@ export class StoryStructureDialogueService {
     input: SendDialogueMessageRequest,
     signal?: AbortSignal,
   ): Promise<StoryStructureJson> {
+    const sourceText = await this.resolveFormalScriptSource(turn, input);
     const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
+    const prompt = buildStoryStructurePrompt(turn, {
+      ...input,
+      context: { ...input.context, sourceText },
+    });
     const response = await this.openCodeRuntimeService.sendMessage({
       sessionId: openCodeSessionId,
       model: input.model,
-      content: buildStoryStructurePrompt(turn, input),
+      content: prompt,
       signal,
     });
+    const validate = (content: string): StoryStructureJson => {
+      const structure = parseStoryStructureJson(
+        content,
+        turn.snapshot.currentChapter?.id ?? undefined,
+        turn.snapshot.currentChapter?.title ?? "",
+        turn.snapshot.currentChapter?.currentScriptVersionId ?? undefined,
+      );
+      assertStoryStructureQuality(structure, sourceText);
+      return structure;
+    };
 
-    return parseStoryStructureJson(
-      response.content,
-      turn.snapshot.currentChapter?.id ?? undefined,
-      turn.snapshot.currentChapter?.title ?? "",
-      turn.snapshot.currentChapter?.currentScriptVersionId ?? undefined,
-    );
+    try {
+      return validate(response.content);
+    } catch (error) {
+      const repaired = await this.openCodeRuntimeService.sendMessage({
+        sessionId: openCodeSessionId,
+        model: input.model,
+        content: buildStoryStructureRepairPrompt({
+          originalPrompt: prompt,
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityIssues: error instanceof StoryStructureQualityError ? error.issues : undefined,
+        }),
+        signal,
+      });
+      return validate(repaired.content);
+    }
+  }
+
+  private async resolveFormalScriptSource(
+    turn: DialogueTurn,
+    input: SendDialogueMessageRequest,
+  ): Promise<string> {
+    const chapter = turn.snapshot.currentChapter;
+    if (turn.snapshot.versioningCapability?.mode !== "g2_db") {
+      return (input.context?.sourceText ?? chapter?.sourceText ?? turn.snapshot.story.sourceText).trim();
+    }
+    if (!chapter?.currentScriptVersionId || !this.scriptVersionService) {
+      throw new Error("当前章节没有可读取的正式剧本版本，不能生成剧情结构");
+    }
+    if (chapter.pendingSourceText) {
+      throw new Error("当前章节还有待确认的剧本草稿，请先处理草稿再生成剧情结构");
+    }
+    const scope = { projectId: turn.thread.projectId, chapterId: chapter.id };
+    const working = await this.scriptVersionService.getWorkingCopy(scope);
+    if (working.state !== "clean" || working.currentVersion?.id !== chapter.currentScriptVersionId) {
+      throw new Error("当前章节正文有未发布修改，请先完成本章再生成剧情结构");
+    }
+    const formal = await this.scriptVersionService.getHistoryDetail(scope, chapter.currentScriptVersionId);
+    if (!formal.isCurrent || formal.id !== working.currentVersion.id) {
+      throw new Error("当前正式剧本版本已经变化，请刷新后重新生成剧情结构");
+    }
+    return formal.sourceText.trim();
   }
 }
