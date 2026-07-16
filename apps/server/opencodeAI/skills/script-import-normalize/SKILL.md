@@ -44,6 +44,7 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 
 - 只输出严格 `import-analysis/1.0` JSON，不输出数据库 ID、Markdown 围栏或解释。
 - 顶层保持：`schemaVersion`、`outlineRole`、`sourceProfile`、`observedOutline`、`chapterCandidates`、`excludedRanges`、`unresolvedItems`、`globalWarnings`。
+- `excludedRanges` 没有排除内容时输出 `[]`；有内容时每项固定为 `{ sourceRange: { sourceRef, startBlockRef, endBlockRef }, category, reason }`。这里必须使用单数 `sourceRange`，禁止写成 `sourceRanges`；`category` 只能取 `front_matter/table_of_contents/character_list/author_note/duplicate/non_story` 中的一个合法值。
 - 来源引用只能使用系统提供的 `sourceRef`、`blockRef`。
 - `chapterCandidates` 按 `order` 连续排序，来源范围不得重叠、遗漏或乱序。
 - 原稿标题用 `basis=source`；保守建议标题用 `basis=suggested`。
@@ -55,6 +56,7 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 - 必须完整保留事件、对白、人物身份和顺序。
 - 允许做格式标准化、场景字段归纳和保守摘要。
 - 原稿未说明的辅助字段写“原稿未明确”。
+- 标签、录音、屏幕文字、档案内容、书信和广播等非人物口头发言必须保持原有载体，不得改写或重分类为人物对白；没有人物对白的场景写“原稿未明确”。
 - 不得新增、删除、润色、续写、压缩、重排或强化剧情。
 - 不得把观察性大纲当作正文事实补进章节。
 - 不输出角色卡、正式场景卡、剧情节拍、分镜、镜头或图片 Prompt。
@@ -63,6 +65,9 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 
 - 验证阶段只审计，不继续改写正文。
 - 用 `sourceCoverage` 逐范围证明原稿块已完整映射到输出行。
+- 可由原文直接支持的摘要、情绪走向、氛围和视觉标签属于结构化归纳，不是新增剧情；例如由“海雾压住崖城”归纳“压迫氛围”。
+- `unsupportedAdditions` 只记录原稿不存在的具体事件、动作、对白、人物关系、身份、结果或伏笔；不得把有原文证据的辅助字段标签放入该数组。
+- 辅助字段无法由原文支持且未写“原稿未明确”时，记录为 `metadataFindings` 的 `UNSUPPORTED_METADATA`。
 - 遗漏、无来源新增、顺序改变、对白或说话人改变、实体合并拆分、越界内容均为硬问题。
 - 不用模糊覆盖率数字替代来源证据。
 - 格式错误最多执行一次只修格式的重试，不得借重试改剧情。

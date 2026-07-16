@@ -100,6 +100,13 @@ const PROJECT_SCRIPT_DECISION_TOOLS = new Set<DialogueToolResult["tool"]>([
   "generate_script_outline_from_topic",
 ]);
 
+const DB_SCRIPT_PENDING_TOOLS = new Set<DialogueToolResult["tool"]>([
+  "generate_script_from_outline",
+  "generate_script_from_seed",
+  "generate_multiple_chapters",
+  "update_chapter_draft",
+]);
+
 function hasPendingProjectScriptDecision(thread: DialogueThread): boolean {
   const latest = [...thread.toolResults]
     .reverse()
@@ -1515,6 +1522,16 @@ export const useWorkbenchStore = defineStore("workbench", {
     async applyToolResultChapterUpdate(toolResult: DialogueToolResult) {
       const projectId = this.activeProjectId;
       if (!projectId) {
+        return;
+      }
+
+      if (
+        this.snapshot?.versioningCapability.mode === "g2_db"
+        && DB_SCRIPT_PENDING_TOOLS.has(toolResult.tool)
+      ) {
+        // DB 模式的右侧预览和“采用/丢弃”动作必须来自同一次运行态刷新。
+        // 只先 patch snapshot 会让 pendingSourceText 可见，但独立的 pending DTO 仍为空。
+        await this.refreshActiveProjectRuntime();
         return;
       }
 

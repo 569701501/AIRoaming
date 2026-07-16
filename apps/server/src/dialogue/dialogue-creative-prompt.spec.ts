@@ -191,6 +191,11 @@ describe("P6 五个公开 Skill / 七个模型阶段", () => {
     expect(prompt).toContain('"sourceRef": "source-001"');
     expect(prompt).toContain('"blockRef": "block-000001"');
     expect(prompt).toContain("林舟在旧屋找到钥匙。");
+    expect(prompt).toContain('"excludedRanges": [');
+    expect(prompt).toContain('"sourceRange": {');
+    expect(prompt).toContain('"category": "non_story"');
+    expect(prompt).toContain("category 只能是 front_matter、table_of_contents、character_list、author_note、duplicate、non_story 之一");
+    expect(prompt).not.toContain('"category": "front_matter|');
     expect(prompt).toContain("不要代码围栏、Markdown、解释或数据库 ID");
   });
 
@@ -202,10 +207,14 @@ describe("P6 五个公开 Skill / 七个模型阶段", () => {
 
     expect(materializePrompt).toContain("已有剧本路线 B4");
     expect(materializePrompt).toContain("不得添加事件、对白、人物动机、结局、伏笔或原稿外信息");
+    expect(materializePrompt).toContain("标签、录音、屏幕文字、档案内容");
+    expect(materializePrompt).toContain("不得改写或重分类为人物对白");
     expect(materializePrompt).toContain("第 1 章：旧屋钥匙");
     expect(materializePrompt).toContain("林舟在旧屋找到钥匙。");
     expect(verifyPrompt).toContain("你只能审计，不能继续改写章节正文");
     expect(verifyPrompt).toContain("sourceCoverage 必须完整、无重叠覆盖");
+    expect(verifyPrompt).toContain("可由原文直接支持的摘要、情绪走向、氛围或视觉标签");
+    expect(verifyPrompt).toContain("不得作为无来源新增剧情");
     expect(verifyPrompt).toContain("不凭印象给覆盖率数字");
     expect(verifyPrompt).not.toContain("readyForNextStage");
   });

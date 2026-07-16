@@ -46,25 +46,12 @@ test("A3-A5/P4/P5：大纲确认不偷跑，逐章显式生成并在改写时承
   );
   expect(beforeGeneration.data.snapshot.currentChapter?.pendingSourceText).toBeNull();
 
-  const generated = await api.post<SendDialogueMessageResponse>(
-    `/projects/${projectId}/dialogue/threads/project_story/messages`,
-    {
-      content: "生成当前章节",
-      intent: "generate_script_from_outline",
-      chapterId,
-      model: MODEL,
-    },
-  );
-  expect(generated.data.toolResults?.[0]).toMatchObject({
-    tool: "generate_script_from_outline",
-    status: "succeeded",
-    currentChapterId: chapterId,
-  });
-  expect(modelMessageCount(await provider.listRequests())).toBe(initialModelMessageCount + 2);
-
   await page.goto(`/projects/${projectId}/script/${chapterId}`);
+  await page.getByLabel("输入对话内容").fill("生成当前章节");
+  await page.getByTitle("发送").click();
   const pendingDocument = page.getByLabel("待确认章节草稿全文");
-  await expect(pendingDocument).toBeVisible();
+  await expect(pendingDocument).toBeVisible({ timeout: 30_000 });
+  expect(modelMessageCount(await provider.listRequests())).toBe(initialModelMessageCount + 2);
   await expect(pendingDocument).toContainText("#### 场景 1：空站台");
   await expect(pendingDocument).toContainText("控制面板需要姐姐的钥匙扣才能解锁");
   await expect(page.getByRole("button", { name: "采用草稿" })).toBeVisible();
@@ -72,6 +59,7 @@ test("A3-A5/P4/P5：大纲确认不偷跑，逐章显式生成并在改写时承
   await expect(page.getByRole("button", { name: "完成本章" })).toBeDisabled();
 
   await page.getByRole("button", { name: "采用草稿" }).click();
+  await expect(page.getByText("没有待确认章节草稿", { exact: true })).toHaveCount(0);
   await expect(pendingDocument).not.toBeVisible();
   await expect(page.getByRole("button", { name: "完成本章" })).toBeEnabled();
 
