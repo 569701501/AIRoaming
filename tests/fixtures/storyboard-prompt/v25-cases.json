@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "storyboard-prompt-v25-new-text-v1",
+  "cases": [
+    {
+      "caseId": "sound-trigger-basement",
+      "title": "停电后的求救暗号",
+      "targetRisk": "causal_trigger",
+      "project": {
+        "name": "回声楼梯",
+        "storyTitle": "回声楼梯",
+        "comicFormat": "vertical_scroll",
+        "artStyle": "冷色写实悬疑漫画，强明暗对比"
+      },
+      "chapter": { "id": "chapter-sound", "title": "三短一长" },
+      "scriptDocument": {
+        "chapterOrder": 1,
+        "chapterTitle": "三短一长",
+        "type": "悬疑",
+        "theme": "在恐惧中重新选择",
+        "style": "克制、紧张",
+        "comicForm": "竖向条漫",
+        "targetLength": "完整单章",
+        "logline": "停电撤离时，姜遥被地下室的求救暗号拉回失踪案。",
+        "chapterGoal": "确认地下室声音的来源",
+        "coreConflict": "继续撤离可以保命，转向地下室可能落入陷阱",
+        "emotionalArc": "急于逃离到确认希望后主动返回",
+        "endingHook": "地下室门后出现哥哥失踪当晚的手表",
+        "highlights": ["黑暗中的金属暗号", "撤离动作突然逆转", "手表秒针仍在走"],
+        "visualAtmosphere": "停电后的幽暗旧楼",
+        "colorDirection": "冷蓝黑与应急灯红光",
+        "visualMotif": "三短一长的敲击节奏",
+        "scenes": [
+          {
+            "order": 1,
+            "name": "停电走廊",
+            "location": "旧公寓一层走廊",
+            "time": "深夜",
+            "atmosphere": "黑暗、急促",
+            "characters": "姜遥",
+            "description": "配电箱爆出火花，整层楼骤然熄灭。姜遥抓起背包推开安全门。地下室管道忽然传来清楚的三短一长金属敲击声，她在门槛上停住。这个节奏与哥哥失踪前约定的求救暗号完全一致。",
+            "actions": "姜遥先迈向楼外，听见敲击后收回脚，关掉手电，转身抓住地下室门把手。",
+            "dialogue": "姜遥：三短一长……是他。",
+            "narration": "无",
+            "endingPoint": "姜遥放弃撤离，正面对着地下室门。"
+          },
+          {
+            "order": 2,
+            "name": "地下室门口",
+            "location": "旧公寓地下室入口",
+            "time": "深夜",
+            "atmosphere": "死寂、压迫",
+            "characters": "姜遥",
+            "description": "门锁已经从里面断开。姜遥推开一条缝，地面躺着哥哥失踪当晚佩戴的旧手表，秒针仍在走。",
+            "actions": "姜遥蹲下，把手表贴近胸口，再抬头望向黑暗深处。",
+            "dialogue": "无",
+            "narration": "无",
+            "endingPoint": "黑暗深处再次响起一记金属敲击。"
+          }
+        ],
+        "endingEvent": "姜遥在地下室入口找到哥哥的手表",
+        "suspense": "敲击声来自哥哥还是诱饵",
+        "nextChapterLead": "姜遥进入地下室追查声音"
+      },
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "chapter-sound",
+        "chapterTitle": "三短一长",
+        "sourceScriptVersionId": "script-sound-v1",
+        "synopsis": "停电撤离中的姜遥被哥哥的求救暗号拉回地下室。",
+        "direction": {
+          "logline": "一段声音改变撤离方向。",
+          "chapterGoal": "确认地下室声音来源",
+          "coreConflict": "安全撤离与冒险确认希望冲突",
+          "emotionalArc": "逃离到主动返回",
+          "endingHook": "失踪哥哥的手表仍在走"
+        },
+        "characters": [
+          {
+            "id": "character_01",
+            "projectCharacterId": null,
+            "name": "姜遥",
+            "role": "寻找失踪哥哥的调查者",
+            "level": "lead",
+            "entityType": "human",
+            "motivation": "找到哥哥",
+            "relationship": "与哥哥约定了求救暗号",
+            "visualTraits": "短发、深色雨衣、手持小手电",
+            "notes": "听觉敏锐"
+          }
+        ],
+        "scenes": [
+          { "id": "scene_01", "name": "停电走廊", "location": "旧公寓一层走廊", "timeOfDay": "深夜", "atmosphere": "黑暗、急促", "purpose": "用声音中断撤离" },
+          { "id": "scene_02", "name": "地下室门口", "location": "旧公寓地下室入口", "timeOfDay": "深夜", "atmosphere": "死寂、压迫", "purpose": "留下哥哥仍可能活着的证据" }
+        ],
+        "beats": [
+          { "id": "beat_01", "order": 1, "title": "停电撤离", "summary": "配电箱爆火花后整层停电，姜遥抓包推开安全门准备撤离。", "conflict": "黑暗迫使她立即离开", "characters": ["姜遥"], "sceneId": "scene_01", "visualFocus": "应急灯熄灭与打开的安全门", "outcome": "姜遥已经迈到安全门门槛。" },
+          { "id": "beat_02", "order": 2, "title": "声音截停", "summary": "地下室管道传来三短一长的金属敲击声，声音直接让姜遥停下撤离动作。", "conflict": "求救暗号可能也是陷阱", "characters": ["姜遥"], "sceneId": "scene_01", "visualFocus": "姜遥停在门槛，侧耳听向地下管道", "outcome": "敲击声成为她改变行动的必要原因，而不是普通环境音。" },
+          { "id": "beat_03", "order": 3, "title": "认出暗号", "summary": "姜遥确认节奏与哥哥约定的求救暗号完全一致。", "conflict": "希望与自保发生正面冲突", "characters": ["姜遥"], "sceneId": "scene_01", "visualFocus": "她收回跨出门槛的脚并抓住地下室门把手", "outcome": "姜遥明确放弃撤离，转身走向地下室。" },
+          { "id": "beat_04", "order": 4, "title": "仍走的手表", "summary": "姜遥在断锁门后找到哥哥失踪当晚佩戴、秒针仍走的手表。", "conflict": "证据可能是诱饵", "characters": ["姜遥"], "sceneId": "scene_02", "visualFocus": "手表秒针和姜遥贴表在胸口的手", "outcome": "姜遥重新相信哥哥仍在等待她，独自望向地下室深处。" }
+        ],
+        "notes": "声音必须作为行动逆转的因果触发，而不只是气氛。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "request": "请生成当前章节完整分镜，漫画和漫剧都要完整。",
+      "targetDimensions": [
+        { "beatId": "beat_02", "field": "summary", "label": "三短一长的声音截停撤离" },
+        { "beatId": "beat_02", "field": "outcome", "label": "声音是改变行动的必要原因" }
+      ],
+      "observationDimensions": [
+        { "beatId": "beat_04", "field": "outcome", "label": "抽象的兄妹信任状态" }
+      ]
+    },
+    {
+      "caseId": "screen-identity-archive",
+      "title": "屏幕上的 017",
+      "targetRisk": "identity_conclusion",
+      "project": {
+        "name": "零号档案",
+        "storyTitle": "零号档案",
+        "comicFormat": "paged_comic",
+        "artStyle": "现代犯罪漫画，低饱和绿灰色"
+      },
+      "chapter": { "id": "chapter-screen", "title": "017 的脸" },
+      "scriptDocument": {
+        "chapterOrder": 1,
+        "chapterTitle": "017 的脸",
+        "type": "犯罪悬疑",
+        "theme": "证据胜过猜测",
+        "style": "冷静、精确",
+        "comicForm": "分页漫画",
+        "targetLength": "完整单章",
+        "logline": "林策在旧档案机上确认匿名内线 017 就是赵妍。",
+        "chapterGoal": "查明 017 的真实身份",
+        "coreConflict": "档案室断网倒计时与巡逻逼近",
+        "emotionalArc": "怀疑到确认后果断行动",
+        "endingHook": "赵妍此刻就在审讯室",
+        "highlights": ["手机照片与旧屏幕并置", "编号与人脸完成闭环", "倒计时归零前发送坐标"],
+        "visualAtmosphere": "老旧档案室的显示器冷光",
+        "colorDirection": "绿灰屏幕光与红色警示灯",
+        "visualMotif": "编号 017",
+        "scenes": [
+          {
+            "order": 1,
+            "name": "封存档案室",
+            "location": "市局地下档案室",
+            "time": "凌晨",
+            "atmosphere": "安静、倒计时压迫",
+            "characters": "林策",
+            "description": "林策接通旧档案机，把匿名内线留下的胸牌照片放在屏幕旁。照片露出半张脸和编号 017。旧名册页面载入后，同一编号旁清楚显示赵妍的证件照与姓名。",
+            "actions": "林策先对齐照片里的缺口与屏幕胸牌，再把视线从编号移到赵妍证件照，确认两张脸的痣与耳廓完全一致。",
+            "dialogue": "林策：017 不是代号，是赵妍。",
+            "narration": "无",
+            "endingPoint": "屏幕同时显示 017、赵妍姓名和证件照。"
+          },
+          {
+            "order": 2,
+            "name": "档案室出口",
+            "location": "市局地下档案室门口",
+            "time": "凌晨",
+            "atmosphere": "巡逻逼近",
+            "characters": "林策",
+            "description": "走廊警示灯亮起，巡逻脚步逼近。林策拍下屏幕证据并把审讯室坐标发给搭档。",
+            "actions": "他合上电脑，删除本机访问记录，从侧门离开。",
+            "dialogue": "无",
+            "narration": "无",
+            "endingPoint": "搭档手机收到赵妍与审讯室坐标。"
+          }
+        ],
+        "endingEvent": "林策确认 017 是赵妍并发出坐标",
+        "suspense": "赵妍是否已经被灭口",
+        "nextChapterLead": "搭档赶往审讯室"
+      },
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "chapter-screen",
+        "chapterTitle": "017 的脸",
+        "sourceScriptVersionId": "script-screen-v1",
+        "synopsis": "林策用手机照片和旧档案屏幕完成 017 到赵妍的身份闭环。",
+        "direction": { "logline": "屏幕证据揭示匿名内线身份。", "chapterGoal": "确认 017 身份", "coreConflict": "断网与巡逻倒计时", "emotionalArc": "怀疑到确认", "endingHook": "赵妍就在审讯室" },
+        "characters": [
+          { "id": "character_01", "projectCharacterId": null, "name": "林策", "role": "内部调查员", "level": "lead", "entityType": "human", "motivation": "找到匿名内线", "relationship": "赵妍曾是他的审讯搭档", "visualTraits": "黑色夹克、细框眼镜、手持手机", "notes": "观察细节" }
+        ],
+        "scenes": [
+          { "id": "scene_01", "name": "封存档案室", "location": "市局地下档案室", "timeOfDay": "凌晨", "atmosphere": "安静、倒计时压迫", "purpose": "完成身份证据闭环" },
+          { "id": "scene_02", "name": "档案室出口", "location": "地下档案室门口", "timeOfDay": "凌晨", "atmosphere": "巡逻逼近", "purpose": "把身份结论转成救援行动" }
+        ],
+        "beats": [
+          { "id": "beat_01", "order": 1, "title": "接通旧机", "summary": "林策在断网倒计时前接通封存档案机。", "conflict": "巡逻正在接近", "characters": ["林策"], "sceneId": "scene_01", "visualFocus": "旧显示器亮起与门外红灯", "outcome": "旧名册开始载入。" },
+          { "id": "beat_02", "order": 2, "title": "并置线索", "summary": "林策把匿名内线留下的胸牌照片放在旧名册屏幕旁，两处都出现编号 017。", "conflict": "编号相同仍不足以确认身份", "characters": ["林策"], "sceneId": "scene_01", "visualFocus": "手机半脸照片与屏幕编号 017 并置", "outcome": "线索已经指向同一档案条目，但身份尚未下结论。" },
+          { "id": "beat_03", "order": 3, "title": "身份闭环", "summary": "屏幕在 017 条目旁显示赵妍的姓名与证件照，林策再比对痣和耳廓。", "conflict": "确认意味着昔日搭档就是匿名内线", "characters": ["林策"], "sceneId": "scene_01", "visualFocus": "编号、姓名、证件照与手机半脸同框", "outcome": "林策明确得出 017 就是赵妍，而不是只看到编号或相似照片。" },
+          { "id": "beat_04", "order": 4, "title": "发出坐标", "summary": "林策拍下完整屏幕证据并把赵妍所在审讯室坐标发给搭档。", "conflict": "巡逻已到门外", "characters": ["林策"], "sceneId": "scene_02", "visualFocus": "发送成功界面与林策合上的电脑", "outcome": "身份结论被转化为立即救援行动。" }
+        ],
+        "notes": "必须表现从编号线索到赵妍身份结论的跨越。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "request": "请生成当前章节完整分镜，漫画和漫剧都要完整。",
+      "targetDimensions": [
+        { "beatId": "beat_03", "field": "summary", "label": "屏幕姓名与证件照完成比对" },
+        { "beatId": "beat_03", "field": "outcome", "label": "明确得出 017 就是赵妍" }
+      ],
+      "observationDimensions": [
+        { "beatId": "beat_01", "field": "outcome", "label": "非目标的名册载入状态" }
+      ]
+    },
+    {
+      "caseId": "action-outcome-smoke-door",
+      "title": "烟道门完全弹开",
+      "targetRisk": "action_outcome",
+      "project": {
+        "name": "逆火线",
+        "storyTitle": "逆火线",
+        "comicFormat": "vertical_scroll",
+        "artStyle": "高对比灾难动作漫画，橙黑火光"
+      },
+      "chapter": { "id": "chapter-action", "title": "最后一根楔子" },
+      "scriptDocument": {
+        "chapterOrder": 1,
+        "chapterTitle": "最后一根楔子",
+        "type": "灾难动作",
+        "theme": "选择的代价",
+        "style": "紧凑、具象",
+        "comicForm": "竖向条漫",
+        "targetLength": "完整单章",
+        "logline": "陈拓冒险踢掉卡住烟道门的楔子，为孩子打开唯一出口。",
+        "chapterGoal": "在回燃前打开烟道出口",
+        "coreConflict": "踢楔子会让陈拓失去唯一立足点",
+        "emotionalArc": "犹豫到承担代价",
+        "endingHook": "门开后陈拓被困在火墙另一侧",
+        "highlights": ["鞋尖与楔子的近景", "防火门彻底弹开", "孩子撤出而陈拓留下"],
+        "visualAtmosphere": "浓烟与闪动火光",
+        "colorDirection": "橙黑与冷白应急灯",
+        "visualMotif": "松动的金属楔子",
+        "scenes": [
+          {
+            "order": 1,
+            "name": "烟道平台",
+            "location": "医院后楼烟道平台",
+            "time": "傍晚",
+            "atmosphere": "浓烟、灼热、急迫",
+            "characters": "陈拓、安宁、孩子们",
+            "description": "防火门只开了一掌宽，底部被变形金属楔子卡死。火焰逼近，孩子们无法穿过。陈拓看见踢掉楔子会失去自己脚下的支点。",
+            "actions": "陈拓把安全绳交给安宁，明确点头后用尽全力踢中楔子。楔子飞落，防火门不再受阻并彻底弹开。安宁立刻带孩子依次穿门撤出，陈拓则被回燃火墙隔在平台内侧。",
+            "dialogue": "陈拓：我踢开以后，你先带孩子走。\n安宁：我会回来。",
+            "narration": "无",
+            "endingPoint": "最后一个孩子穿过完全打开的门，陈拓留在火墙另一侧。"
+          }
+        ],
+        "endingEvent": "门完全打开，孩子撤出，陈拓被困",
+        "suspense": "安宁能否返回救出陈拓",
+        "nextChapterLead": "安宁寻找另一条回到平台的路线"
+      },
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "chapter-action",
+        "chapterTitle": "最后一根楔子",
+        "sourceScriptVersionId": "script-action-v1",
+        "synopsis": "陈拓踢掉楔子打开烟道门，以被困为代价让孩子撤出。",
+        "direction": { "logline": "一次决定性动作打开出口并制造新困境。", "chapterGoal": "打开烟道出口", "coreConflict": "救人会让自己失去退路", "emotionalArc": "犹豫到承担", "endingHook": "陈拓被火墙隔开" },
+        "characters": [
+          { "id": "character_01", "projectCharacterId": null, "name": "陈拓", "role": "消防员", "level": "lead", "entityType": "human", "motivation": "救出被困孩子", "relationship": "安宁的救援搭档", "visualTraits": "焦黑消防服、左臂受伤", "notes": "承担主要风险" },
+          { "id": "character_02", "projectCharacterId": null, "name": "安宁", "role": "急救医生", "level": "recurring", "entityType": "human", "motivation": "带孩子撤离并救回陈拓", "relationship": "陈拓的救援搭档", "visualTraits": "白色急救背心、护目镜", "notes": "负责撤离" },
+          { "id": "character_03", "projectCharacterId": null, "name": "孩子们", "role": "被困群体", "level": "extra", "entityType": "group", "motivation": "逃离火场", "relationship": "依赖救援者", "visualTraits": "三名戴湿毛巾的孩子", "notes": "群体角色" }
+        ],
+        "scenes": [
+          { "id": "scene_01", "name": "烟道平台", "location": "医院后楼烟道平台", "timeOfDay": "傍晚", "atmosphere": "浓烟、灼热、急迫", "purpose": "用动作结果完成撤离并制造代价" }
+        ],
+        "beats": [
+          { "id": "beat_01", "order": 1, "title": "出口卡死", "summary": "防火门被变形楔子卡得只剩一掌宽，孩子无法穿过。", "conflict": "火焰逼近", "characters": ["陈拓", "安宁", "孩子们"], "sceneId": "scene_01", "visualFocus": "楔子与一掌宽门缝", "outcome": "唯一出口暂时不可用。" },
+          { "id": "beat_02", "order": 2, "title": "交绳决定", "summary": "陈拓把安全绳交给安宁，决定踢楔子并让她先带孩子走。", "conflict": "失去支点会让陈拓无法撤离", "characters": ["陈拓", "安宁"], "sceneId": "scene_01", "visualFocus": "安全绳从陈拓手中交到安宁手里", "outcome": "安宁接过撤离责任，陈拓承担动作代价。" },
+          { "id": "beat_03", "order": 3, "title": "楔落门开", "summary": "陈拓一脚踢飞金属楔子，失去阻挡的防火门随即彻底弹开。", "conflict": "火墙同时向陈拓身后压来", "characters": ["陈拓", "安宁", "孩子们"], "sceneId": "scene_01", "visualFocus": "飞落楔子、完全打开的门与陈拓失去支点的脚", "outcome": "动作明确成功，出口从不可用变成完全打开，而不是只表现踢击过程。" },
+          { "id": "beat_04", "order": 4, "title": "撤出与被困", "summary": "安宁带孩子依次穿过打开的门，最后一个孩子撤出时回燃火墙隔开陈拓。", "conflict": "安宁必须继续带孩子走还是回头", "characters": ["陈拓", "安宁", "孩子们"], "sceneId": "scene_01", "visualFocus": "门外孩子、门内陈拓与中间火墙", "outcome": "孩子们获救，陈拓被困；安宁把他从搭档视为必须救回的人。" }
+        ],
+        "notes": "必须看见踢击产生楔子脱落、门完全打开和撤离条件改变。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "request": "请生成当前章节完整分镜，漫画和漫剧都要完整。",
+      "targetDimensions": [
+        { "beatId": "beat_03", "field": "summary", "label": "踢击导致楔子飞落和门弹开" },
+        { "beatId": "beat_03", "field": "outcome", "label": "出口状态从不可用变成完全打开" }
+      ],
+      "observationDimensions": [
+        { "beatId": "beat_04", "field": "outcome", "label": "抽象的搭档关系承诺" }
+      ]
+    }
+  ]
+}

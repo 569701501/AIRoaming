@@ -1,0 +1,2421 @@
+{
+  "schemaVersion": 1,
+  "mode": "model",
+  "suiteId": "storyboard-prompt-v25-new-text-v1",
+  "generatedAt": "2026-07-17T03:42:40.973Z",
+  "requestedModel": {
+    "providerId": "self",
+    "modelId": "gpt-5.5"
+  },
+  "evaluationRepeat": 2,
+  "results": [
+    {
+      "caseId": "sound-trigger-basement",
+      "title": "停电后的求救暗号",
+      "targetRisk": "causal_trigger",
+      "targetDimensions": [
+        {
+          "beatId": "beat_02",
+          "field": "summary",
+          "label": "三短一长的声音截停撤离"
+        },
+        {
+          "beatId": "beat_02",
+          "field": "outcome",
+          "label": "声音是改变行动的必要原因"
+        }
+      ],
+      "observationDimensions": [
+        {
+          "beatId": "beat_04",
+          "field": "outcome",
+          "label": "抽象的兄妹信任状态"
+        }
+      ],
+      "runs": [
+        {
+          "status": "completed",
+          "variant": "v2_3",
+          "providerId": "self",
+          "modelId": "gpt-5.5",
+          "generationAttempts": 1,
+          "repaired": false,
+          "prompt": "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。\n动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。\n\n硬性边界：\n- 只生成当前章节分镜，不要生成整部作品分镜。\n- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。\n- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。\n- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。\n- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。\n- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。\n- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。\n- 不要生成候选图、TTS、字幕、视频或排版。\n- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：character_01=姜遥），不能填写数据库 UUID、角色名、别名或简称。\n- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。\n- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。\n- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。\n- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。\n- 当前 M1 共享骨架建议生成 4-8 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。\n- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。\n- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。\n\nV2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：\n步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。\n步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。\n步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。\n步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。\n步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。\n\n共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：\n- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。\n- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。\n- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。\n- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。\n- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。\n- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。\n- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。\n\n漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：\n- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。\n- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。\n- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。\n- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。\n- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。\n- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。\n- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。\n- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。\n- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。\n- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。\n- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。\n- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。\n- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。\n\n漫画分镜 Prompt（独立设计 comic）：\n- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。\n- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。\n- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。\n- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。\n- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。\n- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。\n- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。\n\n漫画 / 漫剧双轨一致性边界：\n- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。\n- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。\n- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。\n- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。\n\n枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：\n- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up\n- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle\n- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition\n- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none\n- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition\n- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。\n- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。\n- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。\n- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。\n\nJSON 结构必须是：\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"镜头核心动作\",\n      \"emotion\": \"情绪\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"漫画画格锁定一个静态决定性瞬间\",\n        \"composition\": \"静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）\",\n        \"dialogue\": \"对白气泡文字，没有就空字符串\",\n        \"caption\": \"旁白，没有就空字符串\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"漫剧镜头从开始状态，经主要动作或表演变化，到结束状态\",\n        \"compositionDesign\": \"动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3000,\n        \"durationHint\": \"约 3s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"角色名\",\n            \"line\": \"台词内容\",\n            \"voiceStyle\": \"声音风格，如低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"给后续图片提示词生成的简短草稿，不是最终 Prompt\"\n    }\n  ],\n  \"notes\": \"分镜节奏说明\"\n}\n```\n\n项目名称：回声楼梯\n剧集名称：回声楼梯\n漫画版式：vertical_scroll\n项目画风：冷色写实悬疑漫画，强明暗对比\n当前章节：三短一长\n当前章节状态：structured\n当前剧情结构版本：script-sound-v1\n已确认剧情结构：\n{\n  \"schemaVersion\": 1,\n  \"chapterId\": \"chapter-sound\",\n  \"chapterTitle\": \"三短一长\",\n  \"sourceScriptVersionId\": \"script-sound-v1\",\n  \"synopsis\": \"停电撤离中的姜遥被哥哥的求救暗号拉回地下室。\",\n  \"direction\": {\n    \"logline\": \"一段声音改变撤离方向。\",\n    \"chapterGoal\": \"确认地下室声音来源\",\n    \"coreConflict\": \"安全撤离与冒险确认希望冲突\",\n    \"emotionalArc\": \"逃离到主动返回\",\n    \"endingHook\": \"失踪哥哥的手表仍在走\"\n  },\n  \"characters\": [\n    {\n      \"id\": \"character_01\",\n      \"projectCharacterId\": null,\n      \"name\": \"姜遥\",\n      \"role\": \"寻找失踪哥哥的调查者\",\n      \"level\": \"lead\",\n      \"entityType\": \"human\",\n      \"motivation\": \"找到哥哥\",\n      \"relationship\": \"与哥哥约定了求救暗号\",\n      \"visualTraits\": \"短发、深色雨衣、手持小手电\",\n      \"notes\": \"听觉敏锐\"\n    }\n  ],\n  \"scenes\": [\n    {\n      \"id\": \"scene_01\",\n      \"name\": \"停电走廊\",\n      \"location\": \"旧公寓一层走廊\",\n      \"timeOfDay\": \"深夜\",\n      \"atmosphere\": \"黑暗、急促\",\n      \"purpose\": \"用声音中断撤离\"\n    },\n    {\n      \"id\": \"scene_02\",\n      \"name\": \"地下室门口\",\n      \"location\": \"旧公寓地下室入口\",\n      \"timeOfDay\": \"深夜\",\n      \"atmosphere\": \"死寂、压迫\",\n      \"purpose\": \"留下哥哥仍可能活着的证据\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"id\": \"beat_01\",\n      \"order\": 1,\n      \"title\": \"停电撤离\",\n      \"summary\": \"配电箱爆火花后整层停电，姜遥抓包推开安全门准备撤离。\",\n      \"conflict\": \"黑暗迫使她立即离开\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"应急灯熄灭与打开的安全门\",\n      \"outcome\": \"姜遥已经迈到安全门门槛。\"\n    },\n    {\n      \"id\": \"beat_02\",\n      \"order\": 2,\n      \"title\": \"声音截停\",\n      \"summary\": \"地下室管道传来三短一长的金属敲击声，声音直接让姜遥停下撤离动作。\",\n      \"conflict\": \"求救暗号可能也是陷阱\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"姜遥停在门槛，侧耳听向地下管道\",\n      \"outcome\": \"敲击声成为她改变行动的必要原因，而不是普通环境音。\"\n    },\n    {\n      \"id\": \"beat_03\",\n      \"order\": 3,\n      \"title\": \"认出暗号\",\n      \"summary\": \"姜遥确认节奏与哥哥约定的求救暗号完全一致。\",\n      \"conflict\": \"希望与自保发生正面冲突\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"她收回跨出门槛的脚并抓住地下室门把手\",\n      \"outcome\": \"姜遥明确放弃撤离，转身走向地下室。\"\n    },\n    {\n      \"id\": \"beat_04\",\n      \"order\": 4,\n      \"title\": \"仍走的手表\",\n      \"summary\": \"姜遥在断锁门后找到哥哥失踪当晚佩戴、秒针仍走的手表。\",\n      \"conflict\": \"证据可能是诱饵\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_02\",\n      \"visualFocus\": \"手表秒针和姜遥贴表在胸口的手\",\n      \"outcome\": \"姜遥重新相信哥哥仍在等待她，独自望向地下室深处。\"\n    }\n  ],\n  \"notes\": \"声音必须作为行动逆转的因果触发，而不只是气氛。\",\n  \"createdAt\": \"2026-07-17T00:00:00.000Z\",\n  \"updatedAt\": \"2026-07-17T00:00:00.000Z\"\n}\n当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：\n# 章节剧本\n\n## 第 1 章：三短一长\n\n### 一、基础方向\n类型：悬疑\n主题：在恐惧中重新选择\n风格：克制、紧张\n漫画形式：竖向条漫\n目标篇幅：完整单章\n\n### 二、本章方向\n一句话梗概：停电撤离时，姜遥被地下室的求救暗号拉回失踪案。\n本章目标：确认地下室声音的来源\n核心冲突：继续撤离可以保命，转向地下室可能落入陷阱\n情绪走向：急于逃离到确认希望后主动返回\n结尾钩子：地下室门后出现哥哥失踪当晚的手表\n\n### 三、剧本亮点\n亮点 1：黑暗中的金属暗号\n亮点 2：撤离动作突然逆转\n亮点 3：手表秒针仍在走\n\n### 四、视觉基调\n画面氛围：停电后的幽暗旧楼\n色调方向：冷蓝黑与应急灯红光\n视觉记忆点：三短一长的敲击节奏\n\n### 五、剧本正文\n\n#### 场景 1：停电走廊\n地点：旧公寓一层走廊\n时间：深夜\n氛围：黑暗、急促\n出场人物：姜遥\n\n剧情描写：\n配电箱爆出火花，整层楼骤然熄灭。姜遥抓起背包推开安全门。地下室管道忽然传来清楚的三短一长金属敲击声，她在门槛上停住。这个节奏与哥哥失踪前约定的求救暗号完全一致。\n\n人物动作：\n姜遥先迈向楼外，听见敲击后收回脚，关掉手电，转身抓住地下室门把手。\n\n对白：\n姜遥：三短一长……是他。\n\n旁白：\n无\n\n场景结束点：\n姜遥放弃撤离，正面对着地下室门。\n\n#### 场景 2：地下室门口\n地点：旧公寓地下室入口\n时间：深夜\n氛围：死寂、压迫\n出场人物：姜遥\n\n剧情描写：\n门锁已经从里面断开。姜遥推开一条缝，地面躺着哥哥失踪当晚佩戴的旧手表，秒针仍在走。\n\n人物动作：\n姜遥蹲下，把手表贴近胸口，再抬头望向黑暗深处。\n\n对白：\n无\n\n旁白：\n无\n\n场景结束点：\n黑暗深处再次响起一记金属敲击。\n\n### 六、本章结尾\n结尾事件：姜遥在地下室入口找到哥哥的手表\n悬念：敲击声来自哥哥还是诱饵\n下一章引子：姜遥进入地下室追查声音\n全章正式对白/配音候选（voiceLines 唯一逐字来源）：\n[\n  {\n    \"localRef\": \"dialogue-0001\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"姜遥\",\n    \"characterRef\": \"character_01\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"三短一长……是他。\"\n  }\n]\n用户本次要求：\n请生成当前章节完整分镜，漫画和漫剧都要完整。",
+          "rawOutputs": [
+            "我会先按项目规则读取事实源和记忆文件，确认没有额外本地契约会影响输出；随后只基于你提供的结构生成一个可解析 JSON。\n\n当前任务是生成结构化分镜，不需要改业务代码；我只做必要的仓库事实源检查和会话留痕，避免把未确认信息混入正式分镜。\n\n我将创建本次会话记录，记录目标和约束；正式分镜输出仍只使用本次请求内的 confirmed structure。\n\n开始检查项目文档入口和长期记忆，确认本次生成动作是否已有固定字段或历史偏好需要遵守。\n\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"停电迫使姜遥推开安全门撤离\",\n      \"emotion\": \"急促、警觉\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"旧公寓一层走廊骤暗，安全门被推开，姜遥一脚踏在门槛上，背包贴身，手电光束切开黑暗。\",\n        \"composition\": \"姜遥位于画面右侧门槛处，打开的安全门形成向外的亮边，熄灭的应急灯和走廊黑暗压在左侧，阅读动线从熄灯处落到门口的姜遥。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"fast\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"配电箱方向的火花余光消失后，走廊陷入黑暗；姜遥抓紧背包推开安全门，身体已经迈到门槛，停在撤离即将完成的状态。\",\n        \"compositionDesign\": \"镜头保持走廊纵深，姜遥从走廊内侧向安全门移动，结束时她占据门框边缘，门外冷光与室内黑暗形成明确方向对比。\",\n        \"cameraMovement\": \"track_right\",\n        \"frameType\": \"action\",\n        \"durationMs\": 3500,\n        \"durationHint\": \"约 3.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"短发姜遥穿深色雨衣手持小手电，旧公寓深夜停电走廊，安全门打开，冷蓝黑暗与门外微光对比，急促撤离瞬间\"\n    },\n    {\n      \"order\": 2,\n      \"beatId\": \"beat_02\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"地下室管道的三短一长金属敲击声截停姜遥\",\n      \"emotion\": \"惊疑、绷紧\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥僵在安全门门槛上，脸侧向走廊深处，手电光垂低，地下管道方向被黑暗吞住。\",\n        \"composition\": \"姜遥背影和侧脸占前景，门框在右侧压出撤离方向，左侧黑暗走廊留出声音来源的空白区域，视觉重心落在她侧耳停住的姿态。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥保持迈出门槛的姿势，地下室管道传来清楚的三短一长金属敲击声；她的撤离动作中断，头慢慢转向声音传来的方向，结束时整个人停在门槛上倾听。\",\n        \"compositionDesign\": \"人物停在门框边界，声音方向位于走廊深处的暗区；镜头轻微推近姜遥的肩颈和侧脸，突出她从行动到倾听的变化。\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"reaction\",\n        \"durationMs\": 4500,\n        \"durationHint\": \"约 4.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"姜遥停在安全门门槛侧耳倾听，手电光压低，旧公寓走廊深处黑暗，地下管道方向不可见，冷色悬疑强明暗\"\n    },\n    {\n      \"order\": 3,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥认出求救暗号并收回撤离的脚\",\n      \"emotion\": \"震动、克制的希望\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥的脚从安全门外收回门槛内，手指攥紧小手电，脸上压住惊惧却露出确认后的动摇。\",\n        \"composition\": \"画面下方以收回的脚和门槛为视觉起点，阅读动线上移到攥紧手电的手，再落到姜遥被冷光切开的表情，旁侧预留少量对白空间。\",\n        \"dialogue\": \"三短一长……是他。\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥听完节奏后短暂停住，低声确认；她收回已经跨出门槛的脚，握紧手电，撤离意图被新的判断取代。\",\n        \"compositionDesign\": \"镜头从姜遥门槛处的半身保持到她收脚站稳，结束时她的身体方向不再朝向门外，而是转回走廊内侧。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"dialogue\",\n        \"durationMs\": 4000,\n        \"durationHint\": \"约 4s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"姜遥\",\n            \"line\": \"三短一长……是他。\",\n            \"voiceStyle\": \"低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"姜遥收回跨出安全门的脚，短发深色雨衣，手握小手电，冷蓝黑走廊与门槛光线，表情惊惧中确认希望\"\n    },\n    {\n      \"order\": 4,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥放弃撤离，转身抓住地下室门把手\",\n      \"emotion\": \"决绝、紧张\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"low_angle\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥正面对着地下室门，关掉的手电垂在身侧，另一只手已经抓住地下室门把手。\",\n        \"composition\": \"地下室门占据画面中央形成压迫面，姜遥站在门前略偏下方，手与门把手是视觉重心，安全门方向退到画面边缘成为被放弃的出口。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"transition\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥从门槛处转身，关掉手电，走向地下室门；她伸手抓住门把手，结束时身体正对地下室入口，撤离动作已经被完全中止。\",\n        \"compositionDesign\": \"人物从安全门边缘移动到地下室门前，镜头跟随她的转身和靠近，结束构图把姜遥和门把手固定在画面中心。\",\n        \"cameraMovement\": \"track_left\",\n        \"frameType\": \"action\",\n        \"durationMs\": 5000,\n        \"durationHint\": \"约 5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"姜遥站在旧公寓地下室门前，深色雨衣，手抓门把手，安全门退在边缘，手电关闭，冷色黑暗压迫\"\n    },\n    {\n      \"order\": 5,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥在断锁门后发现秒针仍走的旧手表\",\n      \"emotion\": \"压抑的震惊\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"high_angle\",\n      \"comic\": {\n        \"panelDescription\": \"断开的门锁旁，旧手表躺在地下室入口地面，秒针仍指在表盘上，姜遥的手停在即将触碰的位置。\",\n        \"composition\": \"旧手表位于画面下方中央，断锁和门缝构成上方压迫线，姜遥的手从画面边缘伸入但尚未遮住表盘，视觉重心集中在秒针。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"地下室门被推开一条缝，断开的门锁露出；姜遥的手电光落到地面，照出哥哥失踪当晚佩戴的旧手表，秒针仍在走，结束时她的手停在表前。\",\n        \"compositionDesign\": \"镜头从门缝和断锁向地面倾斜，光束引导视线到手表，姜遥的手进入画面边缘，结束位置保留表盘清晰可见。\",\n        \"cameraMovement\": \"tilt_down\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 4500,\n        \"durationHint\": \"约 4.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"地下室入口地面上的旧手表，秒针仍走，断开的门锁和门缝在旁，姜遥手电冷光照亮表盘，压迫死寂\"\n    },\n    {\n      \"order\": 6,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥把手表贴近胸口并望向地下室深处\",\n      \"emotion\": \"重新相信、孤身面对\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥蹲在地下室入口，把旧手表贴在胸口，抬头望向门后黑暗深处。\",\n        \"composition\": \"姜遥位于画面下半部，贴在胸口的手表是近处视觉重心，视线向上引向画面深处的黑暗入口，顶部留出压迫性的空黑。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥蹲下拿起手表，把它贴近胸口；她停顿片刻后抬头望向地下室深处，结束时独自面对黑暗，重新相信哥哥仍在等待她。\",\n        \"compositionDesign\": \"人物从地面拾表的低姿态收回到胸前，镜头保持她与地下室深处同框，结束时黑暗入口占据她视线方向。\",\n        \"cameraMovement\": \"slow_zoom\",\n        \"frameType\": \"reaction\",\n        \"durationMs\": 6000,\n        \"durationHint\": \"约 6s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"姜遥蹲在地下室入口，旧手表贴在胸口，短发深色雨衣，抬头望向黑暗深处，冷色写实悬疑强明暗\"\n    }\n  ],\n  \"notes\": \"全章按撤离、声音截停、认出暗号、主动返回、发现手表、望向深处推进；每个 beat 至少一个 Shot，beat_03 和 beat_04 因选择转向与证据反应分别拆成两个共享 Shot。\"\n}\n```"
+          ],
+          "storyboard": {
+            "schemaVersion": 1,
+            "chapterId": "chapter-sound",
+            "chapterTitle": "三短一长",
+            "sourceStoryVersionId": "script-sound-v1",
+            "shots": [
+              {
+                "id": "shot_001",
+                "order": 1,
+                "beatId": "beat_01",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "停电迫使姜遥推开安全门撤离",
+                "emotion": "急促、警觉",
+                "shotType": "wide",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "旧公寓一层走廊骤暗，安全门被推开，姜遥一脚踏在门槛上，背包贴身，手电光束切开黑暗。",
+                  "composition": "姜遥位于画面右侧门槛处，打开的安全门形成向外的亮边，熄灭的应急灯和走廊黑暗压在左侧，阅读动线从熄灯处落到门口的姜遥。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "fast"
+                },
+                "motion": {
+                  "visualDescription": "配电箱方向的火花余光消失后，走廊陷入黑暗；姜遥抓紧背包推开安全门，身体已经迈到门槛，停在撤离即将完成的状态。",
+                  "compositionDesign": "镜头保持走廊纵深，姜遥从走廊内侧向安全门移动，结束时她占据门框边缘，门外冷光与室内黑暗形成明确方向对比。",
+                  "cameraMovement": "track_right",
+                  "frameType": "action",
+                  "durationMs": 3500,
+                  "durationHint": "约 3.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "短发姜遥穿深色雨衣手持小手电，旧公寓深夜停电走廊，安全门打开，冷蓝黑暗与门外微光对比，急促撤离瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_002",
+                "order": 2,
+                "beatId": "beat_02",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "地下室管道的三短一长金属敲击声截停姜遥",
+                "emotion": "惊疑、绷紧",
+                "shotType": "medium",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "姜遥僵在安全门门槛上，脸侧向走廊深处，手电光垂低，地下管道方向被黑暗吞住。",
+                  "composition": "姜遥背影和侧脸占前景，门框在右侧压出撤离方向，左侧黑暗走廊留出声音来源的空白区域，视觉重心落在她侧耳停住的姿态。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "姜遥保持迈出门槛的姿势，地下室管道传来清楚的三短一长金属敲击声；她的撤离动作中断，头慢慢转向声音传来的方向，结束时整个人停在门槛上倾听。",
+                  "compositionDesign": "人物停在门框边界，声音方向位于走廊深处的暗区；镜头轻微推近姜遥的肩颈和侧脸，突出她从行动到倾听的变化。",
+                  "cameraMovement": "push_in",
+                  "frameType": "reaction",
+                  "durationMs": 4500,
+                  "durationHint": "约 4.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "姜遥停在安全门门槛侧耳倾听，手电光压低，旧公寓走廊深处黑暗，地下管道方向不可见，冷色悬疑强明暗",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_003",
+                "order": 3,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥认出求救暗号并收回撤离的脚",
+                "emotion": "震动、克制的希望",
+                "shotType": "close_up",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "姜遥的脚从安全门外收回门槛内，手指攥紧小手电，脸上压住惊惧却露出确认后的动摇。",
+                  "composition": "画面下方以收回的脚和门槛为视觉起点，阅读动线上移到攥紧手电的手，再落到姜遥被冷光切开的表情，旁侧预留少量对白空间。",
+                  "dialogue": "三短一长……是他。",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "姜遥听完节奏后短暂停住，低声确认；她收回已经跨出门槛的脚，握紧手电，撤离意图被新的判断取代。",
+                  "compositionDesign": "镜头从姜遥门槛处的半身保持到她收脚站稳，结束时她的身体方向不再朝向门外，而是转回走廊内侧。",
+                  "cameraMovement": "static",
+                  "frameType": "dialogue",
+                  "durationMs": 4000,
+                  "durationHint": "约 4s",
+                  "voiceLines": [
+                    {
+                      "characterId": "character_01",
+                      "name": "姜遥",
+                      "line": "三短一长……是他。",
+                      "voiceStyle": "低声、克制"
+                    }
+                  ]
+                },
+                "promptDraft": "姜遥收回跨出安全门的脚，短发深色雨衣，手握小手电，冷蓝黑走廊与门槛光线，表情惊惧中确认希望",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_004",
+                "order": 4,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥放弃撤离，转身抓住地下室门把手",
+                "emotion": "决绝、紧张",
+                "shotType": "medium",
+                "cameraAngle": "low_angle",
+                "comic": {
+                  "panelDescription": "姜遥正面对着地下室门，关掉的手电垂在身侧，另一只手已经抓住地下室门把手。",
+                  "composition": "地下室门占据画面中央形成压迫面，姜遥站在门前略偏下方，手与门把手是视觉重心，安全门方向退到画面边缘成为被放弃的出口。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "transition"
+                },
+                "motion": {
+                  "visualDescription": "姜遥从门槛处转身，关掉手电，走向地下室门；她伸手抓住门把手，结束时身体正对地下室入口，撤离动作已经被完全中止。",
+                  "compositionDesign": "人物从安全门边缘移动到地下室门前，镜头跟随她的转身和靠近，结束构图把姜遥和门把手固定在画面中心。",
+                  "cameraMovement": "track_left",
+                  "frameType": "action",
+                  "durationMs": 5000,
+                  "durationHint": "约 5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "姜遥站在旧公寓地下室门前，深色雨衣，手抓门把手，安全门退在边缘，手电关闭，冷色黑暗压迫",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_005",
+                "order": 5,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥在断锁门后发现秒针仍走的旧手表",
+                "emotion": "压抑的震惊",
+                "shotType": "close_up",
+                "cameraAngle": "high_angle",
+                "comic": {
+                  "panelDescription": "断开的门锁旁，旧手表躺在地下室入口地面，秒针仍指在表盘上，姜遥的手停在即将触碰的位置。",
+                  "composition": "旧手表位于画面下方中央，断锁和门缝构成上方压迫线，姜遥的手从画面边缘伸入但尚未遮住表盘，视觉重心集中在秒针。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "地下室门被推开一条缝，断开的门锁露出；姜遥的手电光落到地面，照出哥哥失踪当晚佩戴的旧手表，秒针仍在走，结束时她的手停在表前。",
+                  "compositionDesign": "镜头从门缝和断锁向地面倾斜，光束引导视线到手表，姜遥的手进入画面边缘，结束位置保留表盘清晰可见。",
+                  "cameraMovement": "tilt_down",
+                  "frameType": "detail",
+                  "durationMs": 4500,
+                  "durationHint": "约 4.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "地下室入口地面上的旧手表，秒针仍走，断开的门锁和门缝在旁，姜遥手电冷光照亮表盘，压迫死寂",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_006",
+                "order": 6,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥把手表贴近胸口并望向地下室深处",
+                "emotion": "重新相信、孤身面对",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "姜遥蹲在地下室入口，把旧手表贴在胸口，抬头望向门后黑暗深处。",
+                  "composition": "姜遥位于画面下半部，贴在胸口的手表是近处视觉重心，视线向上引向画面深处的黑暗入口，顶部留出压迫性的空黑。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "姜遥蹲下拿起手表，把它贴近胸口；她停顿片刻后抬头望向地下室深处，结束时独自面对黑暗，重新相信哥哥仍在等待她。",
+                  "compositionDesign": "人物从地面拾表的低姿态收回到胸前，镜头保持她与地下室深处同框，结束时黑暗入口占据她视线方向。",
+                  "cameraMovement": "slow_zoom",
+                  "frameType": "reaction",
+                  "durationMs": 6000,
+                  "durationHint": "约 6s",
+                  "voiceLines": []
+                },
+                "promptDraft": "姜遥蹲在地下室入口，旧手表贴在胸口，短发深色雨衣，抬头望向黑暗深处，冷色写实悬疑强明暗",
+                "lockedCandidateId": null,
+                "status": "draft"
+              }
+            ],
+            "notes": "全章按撤离、声音截停、认出暗号、主动返回、发现手表、望向深处推进；每个 beat 至少一个 Shot，beat_03 和 beat_04 因选择转向与证据反应分别拆成两个共享 Shot。",
+            "createdAt": "2026-07-17T03:34:46.494Z",
+            "updatedAt": "2026-07-17T03:34:46.494Z"
+          },
+          "metrics": {
+            "shotCount": 6,
+            "totalDurationMs": 27500,
+            "totalVoiceLines": 1,
+            "maxVoiceLinesPerShot": 1,
+            "shotsOverThreeVoiceLines": 0,
+            "shotsOverTenSeconds": 0
+          },
+          "evaluations": [
+            {
+              "repeatIndex": 1,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 7,
+                  "partialDimensions": 1,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "画面和漫剧均表现配电箱火花后走廊停电，姜遥抓包推开安全门并已迈到门槛。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "漫剧明确给出地下室管道三短一长敲击声，并直接截停姜遥撤离动作。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3,
+                      4
+                    ],
+                    "missingFacts": [
+                      "缺少明确说明该节奏是姜遥与哥哥约定的求救暗号且完全一致"
+                    ],
+                    "contradictions": [],
+                    "reason": "对白能让观众知道姜遥认出“三短一长”与某个重要的“他”有关，后续也转身走向地下室，但约定求救暗号关系未被直接说清。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      5,
+                      6
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头明确表现断锁门、哥哥失踪当晚佩戴且秒针仍走的旧手表，随后姜遥贴胸并独自望向地下室深处。"
+                  }
+                ]
+              }
+            },
+            {
+              "repeatIndex": 2,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 7,
+                  "partialDimensions": 1,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "配电箱火花后走廊停电，姜遥抓包推开安全门且身体已迈到门槛。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "三短一长金属敲击声清楚出现，并直接中断姜遥撤离动作使她停在门槛倾听。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3,
+                      4
+                    ],
+                    "missingFacts": [
+                      "只明确姜遥认出“三短一长……是他”，缺少该节奏是与哥哥约定的求救暗号且完全一致的直接信息。"
+                    ],
+                    "contradictions": [],
+                    "reason": "姜遥认出声音来源并收回撤离的脚，随后转身走向地下室门，但求救暗号约定关系未被完整说出。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      5,
+                      6
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "断锁门后发现哥哥失踪当晚佩戴且秒针仍走的手表，姜遥将其贴近胸口并独自望向地下室深处。"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "status": "completed",
+          "variant": "v2_5_experiment",
+          "providerId": "self",
+          "modelId": "gpt-5.5",
+          "generationAttempts": 1,
+          "repaired": false,
+          "prompt": "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。\n动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。\n\n硬性边界：\n- 只生成当前章节分镜，不要生成整部作品分镜。\n- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。\n- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。\n- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。\n- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。\n- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。\n- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。\n- 不要生成候选图、TTS、字幕、视频或排版。\n- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：character_01=姜遥），不能填写数据库 UUID、角色名、别名或简称。\n- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。\n- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。\n- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。\n- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。\n- 当前 M1 共享骨架建议生成 4-8 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。\n- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。\n- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。\n\nV2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：\n步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。\n步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。\n步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。\n步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。\n步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。\n\n共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：\n- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。\n- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。\n- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。\n- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。\n- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。\n- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。\n- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。\n\n漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：\n- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。\n- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。\n- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。\n- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。\n- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。\n- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。\n- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。\n- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。\n- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。\n- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。\n- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。\n- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。\n- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。\n\n漫画分镜 Prompt（独立设计 comic）：\n- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。\n- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。\n- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。\n- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。\n- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。\n- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。\n- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。\n\n漫画 / 漫剧双轨一致性边界：\n- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。\n- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。\n- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。\n- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。\n\nV2.5 实验：低权重定向风险扫描（正常完成 V2.3 草稿后执行；只输出最终 JSON，不输出扫描过程）：\n- 只复核三类稳定高风险事实，不遍历或重写全部 summary/outcome：①声音、屏幕变化或其他可见/可听信号是否是后续行动的必要触发原因；②正式结构是否已经从线索推进到身份、对象或地点结论，而不是只停在线索本身；③关键决定、行动结果或状态变化是否已经成为观众可见或可听的退出状态。\n- 发现上述事实承载偏弱时，优先补强承载同一 beat 的既有 Shot：可收准 coreAction、comic 的静态决定性瞬间或 motion 的唯一聚焦变化；两条轨道按各自媒介表达，但不得改变正式事实。\n- 本扫描本身零新增成本：不得因为扫描到一个风险事实就新建 Shot、增加对白、添加旁白或延长 durationMs；一个既有镜头能够清楚承载时必须原位补强。\n- 只有 V2.3 原有状态边界已经满足必要拆镜条件，且同一 Shot 确实无法清楚承接原因/结果、线索/结论或决定/结果时，才可使用该 beat 的第二个共享 Shot；不得恢复逐事实拆镜。\n- 非对白声音、屏幕文字和道具标签使用现有画面、动作、环境或 quoted_audio 能力表达，不得伪造成角色 voiceLines，也不得编造正文未提供的原文。\n- 不扫描抽象关系状态，不要输出事实清单、逐 Beat 映射、评分或诊断字段。\n\n枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：\n- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up\n- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle\n- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition\n- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none\n- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition\n- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。\n- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。\n- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。\n- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。\n\nJSON 结构必须是：\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"镜头核心动作\",\n      \"emotion\": \"情绪\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"漫画画格锁定一个静态决定性瞬间\",\n        \"composition\": \"静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）\",\n        \"dialogue\": \"对白气泡文字，没有就空字符串\",\n        \"caption\": \"旁白，没有就空字符串\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"漫剧镜头从开始状态，经主要动作或表演变化，到结束状态\",\n        \"compositionDesign\": \"动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3000,\n        \"durationHint\": \"约 3s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"角色名\",\n            \"line\": \"台词内容\",\n            \"voiceStyle\": \"声音风格，如低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"给后续图片提示词生成的简短草稿，不是最终 Prompt\"\n    }\n  ],\n  \"notes\": \"分镜节奏说明\"\n}\n```\n\n项目名称：回声楼梯\n剧集名称：回声楼梯\n漫画版式：vertical_scroll\n项目画风：冷色写实悬疑漫画，强明暗对比\n当前章节：三短一长\n当前章节状态：structured\n当前剧情结构版本：script-sound-v1\n已确认剧情结构：\n{\n  \"schemaVersion\": 1,\n  \"chapterId\": \"chapter-sound\",\n  \"chapterTitle\": \"三短一长\",\n  \"sourceScriptVersionId\": \"script-sound-v1\",\n  \"synopsis\": \"停电撤离中的姜遥被哥哥的求救暗号拉回地下室。\",\n  \"direction\": {\n    \"logline\": \"一段声音改变撤离方向。\",\n    \"chapterGoal\": \"确认地下室声音来源\",\n    \"coreConflict\": \"安全撤离与冒险确认希望冲突\",\n    \"emotionalArc\": \"逃离到主动返回\",\n    \"endingHook\": \"失踪哥哥的手表仍在走\"\n  },\n  \"characters\": [\n    {\n      \"id\": \"character_01\",\n      \"projectCharacterId\": null,\n      \"name\": \"姜遥\",\n      \"role\": \"寻找失踪哥哥的调查者\",\n      \"level\": \"lead\",\n      \"entityType\": \"human\",\n      \"motivation\": \"找到哥哥\",\n      \"relationship\": \"与哥哥约定了求救暗号\",\n      \"visualTraits\": \"短发、深色雨衣、手持小手电\",\n      \"notes\": \"听觉敏锐\"\n    }\n  ],\n  \"scenes\": [\n    {\n      \"id\": \"scene_01\",\n      \"name\": \"停电走廊\",\n      \"location\": \"旧公寓一层走廊\",\n      \"timeOfDay\": \"深夜\",\n      \"atmosphere\": \"黑暗、急促\",\n      \"purpose\": \"用声音中断撤离\"\n    },\n    {\n      \"id\": \"scene_02\",\n      \"name\": \"地下室门口\",\n      \"location\": \"旧公寓地下室入口\",\n      \"timeOfDay\": \"深夜\",\n      \"atmosphere\": \"死寂、压迫\",\n      \"purpose\": \"留下哥哥仍可能活着的证据\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"id\": \"beat_01\",\n      \"order\": 1,\n      \"title\": \"停电撤离\",\n      \"summary\": \"配电箱爆火花后整层停电，姜遥抓包推开安全门准备撤离。\",\n      \"conflict\": \"黑暗迫使她立即离开\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"应急灯熄灭与打开的安全门\",\n      \"outcome\": \"姜遥已经迈到安全门门槛。\"\n    },\n    {\n      \"id\": \"beat_02\",\n      \"order\": 2,\n      \"title\": \"声音截停\",\n      \"summary\": \"地下室管道传来三短一长的金属敲击声，声音直接让姜遥停下撤离动作。\",\n      \"conflict\": \"求救暗号可能也是陷阱\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"姜遥停在门槛，侧耳听向地下管道\",\n      \"outcome\": \"敲击声成为她改变行动的必要原因，而不是普通环境音。\"\n    },\n    {\n      \"id\": \"beat_03\",\n      \"order\": 3,\n      \"title\": \"认出暗号\",\n      \"summary\": \"姜遥确认节奏与哥哥约定的求救暗号完全一致。\",\n      \"conflict\": \"希望与自保发生正面冲突\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"她收回跨出门槛的脚并抓住地下室门把手\",\n      \"outcome\": \"姜遥明确放弃撤离，转身走向地下室。\"\n    },\n    {\n      \"id\": \"beat_04\",\n      \"order\": 4,\n      \"title\": \"仍走的手表\",\n      \"summary\": \"姜遥在断锁门后找到哥哥失踪当晚佩戴、秒针仍走的手表。\",\n      \"conflict\": \"证据可能是诱饵\",\n      \"characters\": [\n        \"姜遥\"\n      ],\n      \"sceneId\": \"scene_02\",\n      \"visualFocus\": \"手表秒针和姜遥贴表在胸口的手\",\n      \"outcome\": \"姜遥重新相信哥哥仍在等待她，独自望向地下室深处。\"\n    }\n  ],\n  \"notes\": \"声音必须作为行动逆转的因果触发，而不只是气氛。\",\n  \"createdAt\": \"2026-07-17T00:00:00.000Z\",\n  \"updatedAt\": \"2026-07-17T00:00:00.000Z\"\n}\n当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：\n# 章节剧本\n\n## 第 1 章：三短一长\n\n### 一、基础方向\n类型：悬疑\n主题：在恐惧中重新选择\n风格：克制、紧张\n漫画形式：竖向条漫\n目标篇幅：完整单章\n\n### 二、本章方向\n一句话梗概：停电撤离时，姜遥被地下室的求救暗号拉回失踪案。\n本章目标：确认地下室声音的来源\n核心冲突：继续撤离可以保命，转向地下室可能落入陷阱\n情绪走向：急于逃离到确认希望后主动返回\n结尾钩子：地下室门后出现哥哥失踪当晚的手表\n\n### 三、剧本亮点\n亮点 1：黑暗中的金属暗号\n亮点 2：撤离动作突然逆转\n亮点 3：手表秒针仍在走\n\n### 四、视觉基调\n画面氛围：停电后的幽暗旧楼\n色调方向：冷蓝黑与应急灯红光\n视觉记忆点：三短一长的敲击节奏\n\n### 五、剧本正文\n\n#### 场景 1：停电走廊\n地点：旧公寓一层走廊\n时间：深夜\n氛围：黑暗、急促\n出场人物：姜遥\n\n剧情描写：\n配电箱爆出火花，整层楼骤然熄灭。姜遥抓起背包推开安全门。地下室管道忽然传来清楚的三短一长金属敲击声，她在门槛上停住。这个节奏与哥哥失踪前约定的求救暗号完全一致。\n\n人物动作：\n姜遥先迈向楼外，听见敲击后收回脚，关掉手电，转身抓住地下室门把手。\n\n对白：\n姜遥：三短一长……是他。\n\n旁白：\n无\n\n场景结束点：\n姜遥放弃撤离，正面对着地下室门。\n\n#### 场景 2：地下室门口\n地点：旧公寓地下室入口\n时间：深夜\n氛围：死寂、压迫\n出场人物：姜遥\n\n剧情描写：\n门锁已经从里面断开。姜遥推开一条缝，地面躺着哥哥失踪当晚佩戴的旧手表，秒针仍在走。\n\n人物动作：\n姜遥蹲下，把手表贴近胸口，再抬头望向黑暗深处。\n\n对白：\n无\n\n旁白：\n无\n\n场景结束点：\n黑暗深处再次响起一记金属敲击。\n\n### 六、本章结尾\n结尾事件：姜遥在地下室入口找到哥哥的手表\n悬念：敲击声来自哥哥还是诱饵\n下一章引子：姜遥进入地下室追查声音\n全章正式对白/配音候选（voiceLines 唯一逐字来源）：\n[\n  {\n    \"localRef\": \"dialogue-0001\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"姜遥\",\n    \"characterRef\": \"character_01\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"三短一长……是他。\"\n  }\n]\n用户本次要求：\n请生成当前章节完整分镜，漫画和漫剧都要完整。",
+          "rawOutputs": [
+            "```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"配电箱爆火花后走廊停电，姜遥抓起背包推开安全门准备撤离。\",\n      \"emotion\": \"急促、警觉\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"黑暗走廊里，安全门被姜遥推开，门外冷光切进来，熄灭的应急灯和冒火花后的配电箱留在她身后。\",\n        \"composition\": \"姜遥位于画面右侧门槛前，背包贴身，打开的安全门形成竖向亮面；左后方配电箱和熄灭应急灯作为视觉回看点，顶部留出黑暗压迫感。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"fast\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"配电箱爆出最后的火花后，走廊骤然陷入黑暗；姜遥抓紧背包，迅速推开安全门，身体已经朝门外撤离，停在即将跨出的状态。\",\n        \"compositionDesign\": \"镜头从昏暗走廊内看向安全门，姜遥沿走廊方向冲到门边，门缝冷光拉出她的侧影，结束时她占据门口位置，身后走廊完全暗下。\",\n        \"cameraMovement\": \"handheld\",\n        \"frameType\": \"action\",\n        \"durationMs\": 4000,\n        \"durationHint\": \"约 4s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"短发姜遥穿深色雨衣抓着背包站在旧公寓安全门前，停电走廊、熄灭应急灯、配电箱火花余烬，冷蓝黑与门外冷光强对比，紧张撤离瞬间\"\n    },\n    {\n      \"order\": 2,\n      \"beatId\": \"beat_02\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"地下室管道传来三短一长金属敲击声，姜遥在门槛上被声音截停并转向倾听。\",\n      \"emotion\": \"惊疑、被迫停住\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥一只脚停在安全门门槛上，身体僵住，头微微偏向走廊深处的地下管道方向。\",\n        \"composition\": \"姜遥背影占画面前景，半开的安全门在一侧形成逃生方向；画面深处用黑暗管道和空走廊引导阅读视线，留出声音来源的压迫空间。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥正要跨出安全门时，地下室管道传来清楚的三短一长金属敲击声；她的动作中断，脚停在门槛，肩膀绷紧，慢慢侧耳转向声音方向。\",\n        \"compositionDesign\": \"开始保持安全门与姜遥的撤离方向，敲击声响起后画面重心从门外亮处转回黑暗走廊，姜遥停在两者之间，结束时她面向管道方向倾听。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"reaction\",\n        \"durationMs\": 5000,\n        \"durationHint\": \"约 5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"姜遥停在安全门门槛上侧耳倾听，旧公寓黑暗走廊深处地下管道方向传来金属敲击，门外冷光与走廊暗处拉扯，悬疑压迫\"\n    },\n    {\n      \"order\": 3,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥认出敲击节奏是哥哥约定的求救暗号，放弃撤离并转身抓住地下室门把手。\",\n      \"emotion\": \"震动、压抑的希望\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥的手紧紧抓住地下室门把手，另一只脚已经从安全门门槛收回。\",\n        \"composition\": \"门把手和姜遥的手作为视觉重心，画面下方带出收回的脚，背景里安全门亮缝被压到边缘；对白留白避开手和脸部表情。\",\n        \"dialogue\": \"三短一长……是他。\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥听完节奏后确认暗号，低声说出判断；她收回跨出门槛的脚，关掉手电，转身走回黑暗，手落在地下室门把手上并握紧。\",\n        \"compositionDesign\": \"开始时姜遥仍处在安全门与走廊之间，说话时镜头压近她的脸和手电光，随后光源熄灭，画面结束在她握住地下室门把手的位置。\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"dialogue\",\n        \"durationMs\": 7000,\n        \"durationHint\": \"约 7s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"姜遥\",\n            \"line\": \"三短一长……是他。\",\n            \"voiceStyle\": \"低声、克制而发颤\"\n          }\n        ]\n      },\n      \"promptDraft\": \"姜遥收回脚放弃撤离，手握地下室门把手，深色雨衣和小手电，安全门冷光被压到边缘，冷色写实悬疑，压抑希望\"\n    },\n    {\n      \"order\": 4,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥来到地下室入口，发现门锁已经从里面断开并推开门缝。\",\n      \"emotion\": \"戒备、压迫\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"high_angle\",\n      \"comic\": {\n        \"panelDescription\": \"地下室入口前，断开的门锁垂在门边，姜遥扶着门只推开一条狭窄缝隙。\",\n        \"composition\": \"断锁位于前景偏下作为第一视觉点，姜遥压低身体站在门侧，门缝黑暗向画面深处延伸，竖向阅读动线从断锁进入门内黑暗。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"transition\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥站在地下室入口前，看见门锁已经从里面断开；她放慢动作，扶住门边，将门推开一条缝，黑暗从缝隙里压出来。\",\n        \"compositionDesign\": \"镜头先落在断开的门锁，再让姜遥从一侧进入画面，手沿门边移动到推门位置，结束时门缝形成通向地下室深处的窄黑通道。\",\n        \"cameraMovement\": \"tilt_up\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 5000,\n        \"durationHint\": \"约 5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"旧公寓地下室入口，门锁从里面断开，姜遥穿深色雨衣扶门推开窄缝，死寂压迫，冷蓝黑高反差\"\n    },\n    {\n      \"order\": 5,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥发现哥哥失踪当晚佩戴的旧手表，秒针仍在走。\",\n      \"emotion\": \"震惊、重新燃起希望\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"top_down\",\n      \"comic\": {\n        \"panelDescription\": \"地面上的旧手表秒针仍在走，姜遥的手停在手表旁，尚未碰到它。\",\n        \"composition\": \"旧手表位于画面中心偏下，秒针成为最小但最亮的视觉焦点；姜遥的手从画面上方伸入，周围地面大面积留黑，突出发现瞬间。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"门缝打开后，姜遥的手电光扫到地面上的旧手表；她的动作停住，光束固定在表盘上，秒针仍在一格一格走动。\",\n        \"compositionDesign\": \"开始从门缝内的地面暗处进入，手电光移动后停在手表上，姜遥的手和膝盖进入边缘位置，结束时画面只保留表盘秒针的可见运动。\",\n        \"cameraMovement\": \"slow_zoom\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 5000,\n        \"durationHint\": \"约 5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"地下室入口地面上的旧手表，秒针仍在走，姜遥的手停在旁边，手电冷光照亮表盘，周围黑暗压迫，悬疑证据特写\"\n    },\n    {\n      \"order\": 6,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"姜遥把手表贴近胸口，重新相信哥哥仍在等待她，并独自望向地下室深处。\",\n      \"emotion\": \"压抑的确信、孤身面对黑暗\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"姜遥蹲在地下室入口，把旧手表贴在胸口，抬头望向黑暗深处。\",\n        \"composition\": \"姜遥位于画面下半部，贴在胸口的手表是人物内侧视觉重心；上方和前方大面积黑暗拉长竖向空间，视线从手表引向她抬头望去的深处。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"姜遥蹲下拾起手表，将它贴近胸口并停顿；她抬起头，看向地下室深处，黑暗中再次响起一记金属敲击，她保持独自面对深处的姿态。\",\n        \"compositionDesign\": \"开始贴近姜遥蹲下的动作，手表被带到胸口后画面稳定；随后她的视线抬向前方，镜头留在她身后和黑暗入口之间，结束时黑暗深处占据画面前方。\",\n        \"cameraMovement\": \"pull_out\",\n        \"frameType\": \"reaction\",\n        \"durationMs\": 7000,\n        \"durationHint\": \"约 7s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"姜遥蹲在地下室入口把旧手表贴近胸口，抬头望向黑暗深处，深色雨衣、短发、手电弱光，冷色写实悬疑漫画，结尾钩子\"\n    }\n  ],\n  \"notes\": \"本章按撤离、声音截停、认出暗号、地下室证据与结尾钩子推进，共 6 个共享 Shot；每个 beat 至少一个 Shot，beat_04 因断锁进入、手表揭示、贴表望向深处三个状态边界拆为三镜。\"\n}\n```"
+          ],
+          "storyboard": {
+            "schemaVersion": 1,
+            "chapterId": "chapter-sound",
+            "chapterTitle": "三短一长",
+            "sourceStoryVersionId": "script-sound-v1",
+            "shots": [
+              {
+                "id": "shot_001",
+                "order": 1,
+                "beatId": "beat_01",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "配电箱爆火花后走廊停电，姜遥抓起背包推开安全门准备撤离。",
+                "emotion": "急促、警觉",
+                "shotType": "wide",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "黑暗走廊里，安全门被姜遥推开，门外冷光切进来，熄灭的应急灯和冒火花后的配电箱留在她身后。",
+                  "composition": "姜遥位于画面右侧门槛前，背包贴身，打开的安全门形成竖向亮面；左后方配电箱和熄灭应急灯作为视觉回看点，顶部留出黑暗压迫感。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "fast"
+                },
+                "motion": {
+                  "visualDescription": "配电箱爆出最后的火花后，走廊骤然陷入黑暗；姜遥抓紧背包，迅速推开安全门，身体已经朝门外撤离，停在即将跨出的状态。",
+                  "compositionDesign": "镜头从昏暗走廊内看向安全门，姜遥沿走廊方向冲到门边，门缝冷光拉出她的侧影，结束时她占据门口位置，身后走廊完全暗下。",
+                  "cameraMovement": "handheld",
+                  "frameType": "action",
+                  "durationMs": 4000,
+                  "durationHint": "约 4s",
+                  "voiceLines": []
+                },
+                "promptDraft": "短发姜遥穿深色雨衣抓着背包站在旧公寓安全门前，停电走廊、熄灭应急灯、配电箱火花余烬，冷蓝黑与门外冷光强对比，紧张撤离瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_002",
+                "order": 2,
+                "beatId": "beat_02",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "地下室管道传来三短一长金属敲击声，姜遥在门槛上被声音截停并转向倾听。",
+                "emotion": "惊疑、被迫停住",
+                "shotType": "medium",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "姜遥一只脚停在安全门门槛上，身体僵住，头微微偏向走廊深处的地下管道方向。",
+                  "composition": "姜遥背影占画面前景，半开的安全门在一侧形成逃生方向；画面深处用黑暗管道和空走廊引导阅读视线，留出声音来源的压迫空间。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "姜遥正要跨出安全门时，地下室管道传来清楚的三短一长金属敲击声；她的动作中断，脚停在门槛，肩膀绷紧，慢慢侧耳转向声音方向。",
+                  "compositionDesign": "开始保持安全门与姜遥的撤离方向，敲击声响起后画面重心从门外亮处转回黑暗走廊，姜遥停在两者之间，结束时她面向管道方向倾听。",
+                  "cameraMovement": "static",
+                  "frameType": "reaction",
+                  "durationMs": 5000,
+                  "durationHint": "约 5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "姜遥停在安全门门槛上侧耳倾听，旧公寓黑暗走廊深处地下管道方向传来金属敲击，门外冷光与走廊暗处拉扯，悬疑压迫",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_003",
+                "order": 3,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥认出敲击节奏是哥哥约定的求救暗号，放弃撤离并转身抓住地下室门把手。",
+                "emotion": "震动、压抑的希望",
+                "shotType": "close_up",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "姜遥的手紧紧抓住地下室门把手，另一只脚已经从安全门门槛收回。",
+                  "composition": "门把手和姜遥的手作为视觉重心，画面下方带出收回的脚，背景里安全门亮缝被压到边缘；对白留白避开手和脸部表情。",
+                  "dialogue": "三短一长……是他。",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "姜遥听完节奏后确认暗号，低声说出判断；她收回跨出门槛的脚，关掉手电，转身走回黑暗，手落在地下室门把手上并握紧。",
+                  "compositionDesign": "开始时姜遥仍处在安全门与走廊之间，说话时镜头压近她的脸和手电光，随后光源熄灭，画面结束在她握住地下室门把手的位置。",
+                  "cameraMovement": "push_in",
+                  "frameType": "dialogue",
+                  "durationMs": 7000,
+                  "durationHint": "约 7s",
+                  "voiceLines": [
+                    {
+                      "characterId": "character_01",
+                      "name": "姜遥",
+                      "line": "三短一长……是他。",
+                      "voiceStyle": "低声、克制而发颤"
+                    }
+                  ]
+                },
+                "promptDraft": "姜遥收回脚放弃撤离，手握地下室门把手，深色雨衣和小手电，安全门冷光被压到边缘，冷色写实悬疑，压抑希望",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_004",
+                "order": 4,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥来到地下室入口，发现门锁已经从里面断开并推开门缝。",
+                "emotion": "戒备、压迫",
+                "shotType": "medium",
+                "cameraAngle": "high_angle",
+                "comic": {
+                  "panelDescription": "地下室入口前，断开的门锁垂在门边，姜遥扶着门只推开一条狭窄缝隙。",
+                  "composition": "断锁位于前景偏下作为第一视觉点，姜遥压低身体站在门侧，门缝黑暗向画面深处延伸，竖向阅读动线从断锁进入门内黑暗。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "transition"
+                },
+                "motion": {
+                  "visualDescription": "姜遥站在地下室入口前，看见门锁已经从里面断开；她放慢动作，扶住门边，将门推开一条缝，黑暗从缝隙里压出来。",
+                  "compositionDesign": "镜头先落在断开的门锁，再让姜遥从一侧进入画面，手沿门边移动到推门位置，结束时门缝形成通向地下室深处的窄黑通道。",
+                  "cameraMovement": "tilt_up",
+                  "frameType": "detail",
+                  "durationMs": 5000,
+                  "durationHint": "约 5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "旧公寓地下室入口，门锁从里面断开，姜遥穿深色雨衣扶门推开窄缝，死寂压迫，冷蓝黑高反差",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_005",
+                "order": 5,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥发现哥哥失踪当晚佩戴的旧手表，秒针仍在走。",
+                "emotion": "震惊、重新燃起希望",
+                "shotType": "close_up",
+                "cameraAngle": "top_down",
+                "comic": {
+                  "panelDescription": "地面上的旧手表秒针仍在走，姜遥的手停在手表旁，尚未碰到它。",
+                  "composition": "旧手表位于画面中心偏下，秒针成为最小但最亮的视觉焦点；姜遥的手从画面上方伸入，周围地面大面积留黑，突出发现瞬间。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "门缝打开后，姜遥的手电光扫到地面上的旧手表；她的动作停住，光束固定在表盘上，秒针仍在一格一格走动。",
+                  "compositionDesign": "开始从门缝内的地面暗处进入，手电光移动后停在手表上，姜遥的手和膝盖进入边缘位置，结束时画面只保留表盘秒针的可见运动。",
+                  "cameraMovement": "slow_zoom",
+                  "frameType": "detail",
+                  "durationMs": 5000,
+                  "durationHint": "约 5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "地下室入口地面上的旧手表，秒针仍在走，姜遥的手停在旁边，手电冷光照亮表盘，周围黑暗压迫，悬疑证据特写",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_006",
+                "order": 6,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "姜遥把手表贴近胸口，重新相信哥哥仍在等待她，并独自望向地下室深处。",
+                "emotion": "压抑的确信、孤身面对黑暗",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "姜遥蹲在地下室入口，把旧手表贴在胸口，抬头望向黑暗深处。",
+                  "composition": "姜遥位于画面下半部，贴在胸口的手表是人物内侧视觉重心；上方和前方大面积黑暗拉长竖向空间，视线从手表引向她抬头望去的深处。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "姜遥蹲下拾起手表，将它贴近胸口并停顿；她抬起头，看向地下室深处，黑暗中再次响起一记金属敲击，她保持独自面对深处的姿态。",
+                  "compositionDesign": "开始贴近姜遥蹲下的动作，手表被带到胸口后画面稳定；随后她的视线抬向前方，镜头留在她身后和黑暗入口之间，结束时黑暗深处占据画面前方。",
+                  "cameraMovement": "pull_out",
+                  "frameType": "reaction",
+                  "durationMs": 7000,
+                  "durationHint": "约 7s",
+                  "voiceLines": []
+                },
+                "promptDraft": "姜遥蹲在地下室入口把旧手表贴近胸口，抬头望向黑暗深处，深色雨衣、短发、手电弱光，冷色写实悬疑漫画，结尾钩子",
+                "lockedCandidateId": null,
+                "status": "draft"
+              }
+            ],
+            "notes": "本章按撤离、声音截停、认出暗号、地下室证据与结尾钩子推进，共 6 个共享 Shot；每个 beat 至少一个 Shot，beat_04 因断锁进入、手表揭示、贴表望向深处三个状态边界拆为三镜。",
+            "createdAt": "2026-07-17T03:36:20.098Z",
+            "updatedAt": "2026-07-17T03:36:20.098Z"
+          },
+          "metrics": {
+            "shotCount": 6,
+            "totalDurationMs": 33000,
+            "totalVoiceLines": 1,
+            "maxVoiceLinesPerShot": 1,
+            "shotsOverThreeVoiceLines": 0,
+            "shotsOverTenSeconds": 0
+          },
+          "evaluations": [
+            {
+              "repeatIndex": 1,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 5,
+                  "partialDimensions": 3,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "配电箱火花、走廊停电、抓包推门撤离以及停在即将跨出门槛的状态均直接呈现。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "三短一长金属敲击声清楚出现，并直接中断姜遥跨出安全门的动作，使她转向倾听。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [
+                      "缺少明确说明这是与哥哥约定的求救暗号且节奏完全一致"
+                    ],
+                    "contradictions": [],
+                    "reason": "姜遥说出“三短一长……是他”并转身回到地下室方向，但约定求救暗号的完整事实只被弱化呈现。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4,
+                      5,
+                      6
+                    ],
+                    "missingFacts": [
+                      "缺少明确说明旧手表是哥哥失踪当晚佩戴的物品",
+                      "缺少明确说明姜遥重新相信哥哥仍在等待她"
+                    ],
+                    "contradictions": [],
+                    "reason": "断锁、发现秒针仍走的旧手表、贴近胸口并望向深处均可见，但手表归属和姜遥重新相信哥哥等待她主要依靠暗示。"
+                  }
+                ]
+              }
+            },
+            {
+              "repeatIndex": 2,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 6,
+                  "partialDimensions": 2,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "配电箱火花、整层停电、抓包推安全门撤离以及停在即将跨出门槛的状态都直接可见。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "三短一长金属敲击声清楚出现，并直接中断姜遥跨出安全门的动作，使她转向倾听。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "姜遥说出“三短一长……是他”，并收回脚、转身回到黑暗、抓住地下室门把手，明确放弃撤离。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4,
+                      5,
+                      6
+                    ],
+                    "missingFacts": [
+                      "手表属于哥哥且是哥哥失踪当晚佩戴这一身份信息没有通过画面、对白或旁白直接让观众获得。",
+                      "姜遥重新相信哥哥仍在等待她这一心理结论只由贴胸口和望向深处暗示，没有被直接表达。"
+                    ],
+                    "contradictions": [],
+                    "reason": "断锁、发现秒针仍走的旧手表、贴近胸口并独自望向地下室深处可见，但手表身份和重新相信哥哥等待她的结论缺少直接证据。"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "screen-identity-archive",
+      "title": "屏幕上的 017",
+      "targetRisk": "identity_conclusion",
+      "targetDimensions": [
+        {
+          "beatId": "beat_03",
+          "field": "summary",
+          "label": "屏幕姓名与证件照完成比对"
+        },
+        {
+          "beatId": "beat_03",
+          "field": "outcome",
+          "label": "明确得出 017 就是赵妍"
+        }
+      ],
+      "observationDimensions": [
+        {
+          "beatId": "beat_01",
+          "field": "outcome",
+          "label": "非目标的名册载入状态"
+        }
+      ],
+      "runs": [
+        {
+          "status": "completed",
+          "variant": "v2_3",
+          "providerId": "self",
+          "modelId": "gpt-5.5",
+          "generationAttempts": 1,
+          "repaired": false,
+          "prompt": "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。\n动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。\n\n硬性边界：\n- 只生成当前章节分镜，不要生成整部作品分镜。\n- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。\n- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。\n- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。\n- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。\n- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。\n- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。\n- 不要生成候选图、TTS、字幕、视频或排版。\n- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：character_01=林策），不能填写数据库 UUID、角色名、别名或简称。\n- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。\n- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。\n- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。\n- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。\n- 当前 M1 共享骨架建议生成 4-8 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。\n- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。\n- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。\n\nV2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：\n步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。\n步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。\n步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。\n步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。\n步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。\n\n共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：\n- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。\n- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。\n- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。\n- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。\n- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。\n- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。\n- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。\n\n漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：\n- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。\n- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。\n- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。\n- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。\n- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。\n- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。\n- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。\n- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。\n- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。\n- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。\n- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。\n- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。\n- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。\n\n漫画分镜 Prompt（独立设计 comic）：\n- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。\n- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。\n- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。\n- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。\n- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。\n- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。\n- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。\n\n漫画 / 漫剧双轨一致性边界：\n- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。\n- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。\n- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。\n- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。\n\n枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：\n- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up\n- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle\n- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition\n- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none\n- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition\n- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。\n- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。\n- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。\n- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。\n\nJSON 结构必须是：\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"镜头核心动作\",\n      \"emotion\": \"情绪\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"漫画画格锁定一个静态决定性瞬间\",\n        \"composition\": \"静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）\",\n        \"dialogue\": \"对白气泡文字，没有就空字符串\",\n        \"caption\": \"旁白，没有就空字符串\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"漫剧镜头从开始状态，经主要动作或表演变化，到结束状态\",\n        \"compositionDesign\": \"动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3000,\n        \"durationHint\": \"约 3s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"角色名\",\n            \"line\": \"台词内容\",\n            \"voiceStyle\": \"声音风格，如低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"给后续图片提示词生成的简短草稿，不是最终 Prompt\"\n    }\n  ],\n  \"notes\": \"分镜节奏说明\"\n}\n```\n\n项目名称：零号档案\n剧集名称：零号档案\n漫画版式：paged_comic\n项目画风：现代犯罪漫画，低饱和绿灰色\n当前章节：017 的脸\n当前章节状态：structured\n当前剧情结构版本：script-screen-v1\n已确认剧情结构：\n{\n  \"schemaVersion\": 1,\n  \"chapterId\": \"chapter-screen\",\n  \"chapterTitle\": \"017 的脸\",\n  \"sourceScriptVersionId\": \"script-screen-v1\",\n  \"synopsis\": \"林策用手机照片和旧档案屏幕完成 017 到赵妍的身份闭环。\",\n  \"direction\": {\n    \"logline\": \"屏幕证据揭示匿名内线身份。\",\n    \"chapterGoal\": \"确认 017 身份\",\n    \"coreConflict\": \"断网与巡逻倒计时\",\n    \"emotionalArc\": \"怀疑到确认\",\n    \"endingHook\": \"赵妍就在审讯室\"\n  },\n  \"characters\": [\n    {\n      \"id\": \"character_01\",\n      \"projectCharacterId\": null,\n      \"name\": \"林策\",\n      \"role\": \"内部调查员\",\n      \"level\": \"lead\",\n      \"entityType\": \"human\",\n      \"motivation\": \"找到匿名内线\",\n      \"relationship\": \"赵妍曾是他的审讯搭档\",\n      \"visualTraits\": \"黑色夹克、细框眼镜、手持手机\",\n      \"notes\": \"观察细节\"\n    }\n  ],\n  \"scenes\": [\n    {\n      \"id\": \"scene_01\",\n      \"name\": \"封存档案室\",\n      \"location\": \"市局地下档案室\",\n      \"timeOfDay\": \"凌晨\",\n      \"atmosphere\": \"安静、倒计时压迫\",\n      \"purpose\": \"完成身份证据闭环\"\n    },\n    {\n      \"id\": \"scene_02\",\n      \"name\": \"档案室出口\",\n      \"location\": \"地下档案室门口\",\n      \"timeOfDay\": \"凌晨\",\n      \"atmosphere\": \"巡逻逼近\",\n      \"purpose\": \"把身份结论转成救援行动\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"id\": \"beat_01\",\n      \"order\": 1,\n      \"title\": \"接通旧机\",\n      \"summary\": \"林策在断网倒计时前接通封存档案机。\",\n      \"conflict\": \"巡逻正在接近\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"旧显示器亮起与门外红灯\",\n      \"outcome\": \"旧名册开始载入。\"\n    },\n    {\n      \"id\": \"beat_02\",\n      \"order\": 2,\n      \"title\": \"并置线索\",\n      \"summary\": \"林策把匿名内线留下的胸牌照片放在旧名册屏幕旁，两处都出现编号 017。\",\n      \"conflict\": \"编号相同仍不足以确认身份\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"手机半脸照片与屏幕编号 017 并置\",\n      \"outcome\": \"线索已经指向同一档案条目，但身份尚未下结论。\"\n    },\n    {\n      \"id\": \"beat_03\",\n      \"order\": 3,\n      \"title\": \"身份闭环\",\n      \"summary\": \"屏幕在 017 条目旁显示赵妍的姓名与证件照，林策再比对痣和耳廓。\",\n      \"conflict\": \"确认意味着昔日搭档就是匿名内线\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"编号、姓名、证件照与手机半脸同框\",\n      \"outcome\": \"林策明确得出 017 就是赵妍，而不是只看到编号或相似照片。\"\n    },\n    {\n      \"id\": \"beat_04\",\n      \"order\": 4,\n      \"title\": \"发出坐标\",\n      \"summary\": \"林策拍下完整屏幕证据并把赵妍所在审讯室坐标发给搭档。\",\n      \"conflict\": \"巡逻已到门外\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_02\",\n      \"visualFocus\": \"发送成功界面与林策合上的电脑\",\n      \"outcome\": \"身份结论被转化为立即救援行动。\"\n    }\n  ],\n  \"notes\": \"必须表现从编号线索到赵妍身份结论的跨越。\",\n  \"createdAt\": \"2026-07-17T00:00:00.000Z\",\n  \"updatedAt\": \"2026-07-17T00:00:00.000Z\"\n}\n当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：\n# 章节剧本\n\n## 第 1 章：017 的脸\n\n### 一、基础方向\n类型：犯罪悬疑\n主题：证据胜过猜测\n风格：冷静、精确\n漫画形式：分页漫画\n目标篇幅：完整单章\n\n### 二、本章方向\n一句话梗概：林策在旧档案机上确认匿名内线 017 就是赵妍。\n本章目标：查明 017 的真实身份\n核心冲突：档案室断网倒计时与巡逻逼近\n情绪走向：怀疑到确认后果断行动\n结尾钩子：赵妍此刻就在审讯室\n\n### 三、剧本亮点\n亮点 1：手机照片与旧屏幕并置\n亮点 2：编号与人脸完成闭环\n亮点 3：倒计时归零前发送坐标\n\n### 四、视觉基调\n画面氛围：老旧档案室的显示器冷光\n色调方向：绿灰屏幕光与红色警示灯\n视觉记忆点：编号 017\n\n### 五、剧本正文\n\n#### 场景 1：封存档案室\n地点：市局地下档案室\n时间：凌晨\n氛围：安静、倒计时压迫\n出场人物：林策\n\n剧情描写：\n林策接通旧档案机，把匿名内线留下的胸牌照片放在屏幕旁。照片露出半张脸和编号 017。旧名册页面载入后，同一编号旁清楚显示赵妍的证件照与姓名。\n\n人物动作：\n林策先对齐照片里的缺口与屏幕胸牌，再把视线从编号移到赵妍证件照，确认两张脸的痣与耳廓完全一致。\n\n对白：\n林策：017 不是代号，是赵妍。\n\n旁白：\n无\n\n场景结束点：\n屏幕同时显示 017、赵妍姓名和证件照。\n\n#### 场景 2：档案室出口\n地点：市局地下档案室门口\n时间：凌晨\n氛围：巡逻逼近\n出场人物：林策\n\n剧情描写：\n走廊警示灯亮起，巡逻脚步逼近。林策拍下屏幕证据并把审讯室坐标发给搭档。\n\n人物动作：\n他合上电脑，删除本机访问记录，从侧门离开。\n\n对白：\n无\n\n旁白：\n无\n\n场景结束点：\n搭档手机收到赵妍与审讯室坐标。\n\n### 六、本章结尾\n结尾事件：林策确认 017 是赵妍并发出坐标\n悬念：赵妍是否已经被灭口\n下一章引子：搭档赶往审讯室\n全章正式对白/配音候选（voiceLines 唯一逐字来源）：\n[\n  {\n    \"localRef\": \"dialogue-0001\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"林策\",\n    \"characterRef\": \"character_01\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"017 不是代号，是赵妍。\"\n  }\n]\n用户本次要求：\n请生成当前章节完整分镜，漫画和漫剧都要完整。",
+          "rawOutputs": [
+            "我会先做最小仓库上下文检查，确认项目约束后直接返回可解析的单个 JSON 代码块。\n\n{\"cmd\": \"pwd && rg --files -g 'MEMORY.md' -g 'README.md' -g 'AI上下文入口.md' -g '写作规范与留痕规则.md' /Users/liyadong/selfProject/AIRoaming/文档 | head -20\", \"workdir\": \"/Users/liyadong/selfProject/AIRoaming/apps/server\"}\n\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"林策在巡逻逼近前接通封存档案机，旧显示器开始亮起并载入名册。\",\n      \"emotion\": \"克制紧张\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"封存档案室内，林策站在旧档案机前，显示器刚刚亮起，门外红色警示灯从缝隙映进室内。\",\n        \"composition\": \"林策置于画面左侧，旧显示器作为视觉重心，门缝红光在右侧形成压迫方向，画面上方留出少量安静空间。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"镜头开始于昏暗的地下档案室，林策停在旧档案机前接通设备；显示器由暗转亮，旧名册界面开始载入，门外红灯在墙面闪过，结束时林策的注意力完全落到屏幕上。\",\n        \"compositionDesign\": \"林策从档案机旁稳定站定，身体朝向屏幕，门口红光留在画面边缘作为外部压力，结束位置保持林策与屏幕同框。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 4000,\n        \"durationHint\": \"约 4s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"地下封存档案室，黑色夹克细框眼镜的林策面对刚亮起的旧显示器，绿灰冷光与门外红色警示灯交错，安静压迫\"\n    },\n    {\n      \"order\": 2,\n      \"beatId\": \"beat_02\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"林策把手机里的胸牌半脸照片放到旧名册屏幕旁，使照片编号 017 与屏幕编号并置。\",\n      \"emotion\": \"专注怀疑\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"林策的手把手机贴近旧显示器，手机照片露出半张脸和编号 017，屏幕名册上同样出现编号 017。\",\n        \"composition\": \"林策肩背压在前景边缘，手机与屏幕并列成为阅读重心，读者视线从手机编号移向屏幕编号，人物脸部不遮挡关键线索。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"normal\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"镜头从林策已盯住屏幕开始，他抬起手中的手机，把胸牌半脸照片缓慢移到屏幕旁对齐；两个 017 同时进入清晰位置，结束时他停住手，仍未下结论。\",\n        \"compositionDesign\": \"手机由画面下方进入，与屏幕条目并排停住，林策的视线在两处编号之间移动，结束构图保留手机和屏幕的并置关系。\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 4500,\n        \"durationHint\": \"约 4.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"林策手持手机贴近旧档案屏幕，手机半脸胸牌照片与屏幕编号 017 并置，绿灰显示器冷光，悬疑比对瞬间\"\n    },\n    {\n      \"order\": 3,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"旧名册在 017 条目旁显示赵妍姓名与证件照，林策比对痣和耳廓完成身份确认。\",\n      \"emotion\": \"震动后的确认\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"屏幕上的编号 017、赵妍姓名和证件照与手机半脸照片同框，林策的指尖停在两张脸相同的痣与耳廓位置附近。\",\n        \"composition\": \"屏幕资料占据画面中心，手机照片贴在一侧形成证据闭环，林策指尖引导读者视线完成从编号到人脸的确认，留出少量对白空间不遮挡姓名和照片。\",\n        \"dialogue\": \"017 不是代号，是赵妍。\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"镜头开始于手机与屏幕并置的结束状态，旧名册完全载入，017 条目旁清楚出现赵妍姓名和证件照；林策的目光从编号移到证件照，再回到手机半脸照片的痣和耳廓，结束时他低声说出确认结论。\",\n        \"compositionDesign\": \"屏幕、手机和林策侧脸保持三点关系，林策的视线移动承担信息揭示，结束时画面停在赵妍姓名、证件照和手机半脸同时可见的位置。\",\n        \"cameraMovement\": \"slow_zoom\",\n        \"frameType\": \"dialogue\",\n        \"durationMs\": 6500,\n        \"durationHint\": \"约 6.5s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"林策\",\n            \"line\": \"017 不是代号，是赵妍。\",\n            \"voiceStyle\": \"低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"旧档案屏幕显示编号 017、赵妍姓名和证件照，旁边手机半脸照片同框，林策指尖比对痣与耳廓，冷静震动的确认瞬间\"\n    },\n    {\n      \"order\": 4,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"巡逻逼近时，林策拍下完整屏幕证据并发送赵妍所在审讯室坐标。\",\n      \"emotion\": \"果断紧迫\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"档案室出口附近，林策一手握着手机，发送成功界面亮起，另一侧电脑已被合上，走廊红色警示灯照到门口。\",\n        \"composition\": \"林策位于画面中央偏左，手机发送成功界面是第一视觉重心，合上的电脑和门口红光形成行动结果与外部压力，阅读动线从手机移向出口。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"fast\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"镜头从林策带着已确认的证据转到档案室出口开始，巡逻脚步逼近的压力体现在红光扫过门口；他拍下完整屏幕证据并发送审讯室坐标，发送成功后合上电脑，结束时身体朝向侧门准备离开。\",\n        \"compositionDesign\": \"林策从档案机方向转向出口，手机短暂停在胸前显示发送结果，电脑在动作结束时闭合，画面终点把林策、合上的电脑和侧门方向连成离开动线。\",\n        \"cameraMovement\": \"track_right\",\n        \"frameType\": \"action\",\n        \"durationMs\": 7000,\n        \"durationHint\": \"约 7s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"地下档案室门口，林策手机显示发送成功，电脑合上，红色警示灯映入走廊，巡逻逼近下的果断行动\"\n    }\n  ],\n  \"notes\": \"全章按四个已确认 beat 各设一个共享 Shot：接通旧机、并置 017、完成赵妍身份闭环、发送坐标转入救援行动。唯一正式台词只用于身份确认镜头，其余镜头以证据状态变化和行动结果承接。\"\n}\n```"
+          ],
+          "storyboard": {
+            "schemaVersion": 1,
+            "chapterId": "chapter-screen",
+            "chapterTitle": "017 的脸",
+            "sourceStoryVersionId": "script-screen-v1",
+            "shots": [
+              {
+                "id": "shot_001",
+                "order": 1,
+                "beatId": "beat_01",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "林策在巡逻逼近前接通封存档案机，旧显示器开始亮起并载入名册。",
+                "emotion": "克制紧张",
+                "shotType": "wide",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "封存档案室内，林策站在旧档案机前，显示器刚刚亮起，门外红色警示灯从缝隙映进室内。",
+                  "composition": "林策置于画面左侧，旧显示器作为视觉重心，门缝红光在右侧形成压迫方向，画面上方留出少量安静空间。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "镜头开始于昏暗的地下档案室，林策停在旧档案机前接通设备；显示器由暗转亮，旧名册界面开始载入，门外红灯在墙面闪过，结束时林策的注意力完全落到屏幕上。",
+                  "compositionDesign": "林策从档案机旁稳定站定，身体朝向屏幕，门口红光留在画面边缘作为外部压力，结束位置保持林策与屏幕同框。",
+                  "cameraMovement": "static",
+                  "frameType": "atmosphere",
+                  "durationMs": 4000,
+                  "durationHint": "约 4s",
+                  "voiceLines": []
+                },
+                "promptDraft": "地下封存档案室，黑色夹克细框眼镜的林策面对刚亮起的旧显示器，绿灰冷光与门外红色警示灯交错，安静压迫",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_002",
+                "order": 2,
+                "beatId": "beat_02",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "林策把手机里的胸牌半脸照片放到旧名册屏幕旁，使照片编号 017 与屏幕编号并置。",
+                "emotion": "专注怀疑",
+                "shotType": "medium",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "林策的手把手机贴近旧显示器，手机照片露出半张脸和编号 017，屏幕名册上同样出现编号 017。",
+                  "composition": "林策肩背压在前景边缘，手机与屏幕并列成为阅读重心，读者视线从手机编号移向屏幕编号，人物脸部不遮挡关键线索。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "normal"
+                },
+                "motion": {
+                  "visualDescription": "镜头从林策已盯住屏幕开始，他抬起手中的手机，把胸牌半脸照片缓慢移到屏幕旁对齐；两个 017 同时进入清晰位置，结束时他停住手，仍未下结论。",
+                  "compositionDesign": "手机由画面下方进入，与屏幕条目并排停住，林策的视线在两处编号之间移动，结束构图保留手机和屏幕的并置关系。",
+                  "cameraMovement": "push_in",
+                  "frameType": "detail",
+                  "durationMs": 4500,
+                  "durationHint": "约 4.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "林策手持手机贴近旧档案屏幕，手机半脸胸牌照片与屏幕编号 017 并置，绿灰显示器冷光，悬疑比对瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_003",
+                "order": 3,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "旧名册在 017 条目旁显示赵妍姓名与证件照，林策比对痣和耳廓完成身份确认。",
+                "emotion": "震动后的确认",
+                "shotType": "close_up",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "屏幕上的编号 017、赵妍姓名和证件照与手机半脸照片同框，林策的指尖停在两张脸相同的痣与耳廓位置附近。",
+                  "composition": "屏幕资料占据画面中心，手机照片贴在一侧形成证据闭环，林策指尖引导读者视线完成从编号到人脸的确认，留出少量对白空间不遮挡姓名和照片。",
+                  "dialogue": "017 不是代号，是赵妍。",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "镜头开始于手机与屏幕并置的结束状态，旧名册完全载入，017 条目旁清楚出现赵妍姓名和证件照；林策的目光从编号移到证件照，再回到手机半脸照片的痣和耳廓，结束时他低声说出确认结论。",
+                  "compositionDesign": "屏幕、手机和林策侧脸保持三点关系，林策的视线移动承担信息揭示，结束时画面停在赵妍姓名、证件照和手机半脸同时可见的位置。",
+                  "cameraMovement": "slow_zoom",
+                  "frameType": "dialogue",
+                  "durationMs": 6500,
+                  "durationHint": "约 6.5s",
+                  "voiceLines": [
+                    {
+                      "characterId": "character_01",
+                      "name": "林策",
+                      "line": "017 不是代号，是赵妍。",
+                      "voiceStyle": "低声、克制"
+                    }
+                  ]
+                },
+                "promptDraft": "旧档案屏幕显示编号 017、赵妍姓名和证件照，旁边手机半脸照片同框，林策指尖比对痣与耳廓，冷静震动的确认瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_004",
+                "order": 4,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "巡逻逼近时，林策拍下完整屏幕证据并发送赵妍所在审讯室坐标。",
+                "emotion": "果断紧迫",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "档案室出口附近，林策一手握着手机，发送成功界面亮起，另一侧电脑已被合上，走廊红色警示灯照到门口。",
+                  "composition": "林策位于画面中央偏左，手机发送成功界面是第一视觉重心，合上的电脑和门口红光形成行动结果与外部压力，阅读动线从手机移向出口。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "fast"
+                },
+                "motion": {
+                  "visualDescription": "镜头从林策带着已确认的证据转到档案室出口开始，巡逻脚步逼近的压力体现在红光扫过门口；他拍下完整屏幕证据并发送审讯室坐标，发送成功后合上电脑，结束时身体朝向侧门准备离开。",
+                  "compositionDesign": "林策从档案机方向转向出口，手机短暂停在胸前显示发送结果，电脑在动作结束时闭合，画面终点把林策、合上的电脑和侧门方向连成离开动线。",
+                  "cameraMovement": "track_right",
+                  "frameType": "action",
+                  "durationMs": 7000,
+                  "durationHint": "约 7s",
+                  "voiceLines": []
+                },
+                "promptDraft": "地下档案室门口，林策手机显示发送成功，电脑合上，红色警示灯映入走廊，巡逻逼近下的果断行动",
+                "lockedCandidateId": null,
+                "status": "draft"
+              }
+            ],
+            "notes": "全章按四个已确认 beat 各设一个共享 Shot：接通旧机、并置 017、完成赵妍身份闭环、发送坐标转入救援行动。唯一正式台词只用于身份确认镜头，其余镜头以证据状态变化和行动结果承接。",
+            "createdAt": "2026-07-17T03:37:40.993Z",
+            "updatedAt": "2026-07-17T03:37:40.993Z"
+          },
+          "metrics": {
+            "shotCount": 4,
+            "totalDurationMs": 22000,
+            "totalVoiceLines": 1,
+            "maxVoiceLinesPerShot": 1,
+            "shotsOverThreeVoiceLines": 0,
+            "shotsOverTenSeconds": 0
+          },
+          "evaluations": [
+            {
+              "repeatIndex": 1,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 4,
+                  "partialDimensions": 4,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [
+                      "缺少断网倒计时前这一关键时间压力，只表现为巡逻逼近前。"
+                    ],
+                    "contradictions": [],
+                    "reason": "镜头直接表现林策接通封存档案机、旧显示器亮起并载入名册，但没有断网倒计时信息。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [
+                      "缺少胸牌照片来自匿名内线这一来源事实。"
+                    ],
+                    "contradictions": [],
+                    "reason": "镜头清楚并置手机胸牌照片与旧名册屏幕，两个 017 同时可见，且林策未下结论。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头和对白直接显示 017 条目旁的赵妍姓名、证件照，以及林策比对痣和耳廓后确认 017 是赵妍。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4
+                    ],
+                    "missingFacts": [
+                      "缺少坐标明确发给搭档这一接收对象。",
+                      "缺少救援行动接收方或立即救援启动的明确证据。"
+                    ],
+                    "contradictions": [],
+                    "reason": "镜头表现林策拍下完整屏幕证据并发送审讯室坐标，但未明确发送给搭档，也未直接表现救援行动被启动。"
+                  }
+                ]
+              }
+            },
+            {
+              "repeatIndex": 2,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 5,
+                  "partialDimensions": 3,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [
+                      "缺少断网倒计时前这一具体时间压力，现有镜头只表现巡逻逼近。"
+                    ],
+                    "contradictions": [],
+                    "reason": "林策接通封存档案机且旧名册开始载入可见，但断网倒计时未被画面或声音证明。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [
+                      "缺少胸牌照片来自匿名内线留下这一来源事实。"
+                    ],
+                    "contradictions": [],
+                    "reason": "手机胸牌照片与旧名册屏幕并置且两处编号 017 清楚可见，镜头也停在未下结论状态。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "017 条目旁出现赵妍姓名和证件照，林策比对痣与耳廓并说出 017 是赵妍。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      4
+                    ],
+                    "missingFacts": [
+                      "缺少坐标发送给搭档这一接收对象。"
+                    ],
+                    "contradictions": [],
+                    "reason": "林策拍下完整屏幕证据并发送审讯室坐标，已把身份结论转为立即救援行动，但接收方未明确为搭档。"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "status": "completed",
+          "variant": "v2_5_experiment",
+          "providerId": "self",
+          "modelId": "gpt-5.5",
+          "generationAttempts": 1,
+          "repaired": false,
+          "prompt": "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。\n动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。\n\n硬性边界：\n- 只生成当前章节分镜，不要生成整部作品分镜。\n- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。\n- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。\n- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。\n- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。\n- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。\n- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。\n- 不要生成候选图、TTS、字幕、视频或排版。\n- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：character_01=林策），不能填写数据库 UUID、角色名、别名或简称。\n- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。\n- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。\n- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。\n- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。\n- 当前 M1 共享骨架建议生成 4-8 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。\n- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。\n- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。\n\nV2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：\n步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。\n步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。\n步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。\n步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。\n步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。\n\n共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：\n- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。\n- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。\n- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。\n- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。\n- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。\n- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。\n- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。\n\n漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：\n- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。\n- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。\n- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。\n- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。\n- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。\n- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。\n- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。\n- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。\n- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。\n- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。\n- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。\n- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。\n- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。\n\n漫画分镜 Prompt（独立设计 comic）：\n- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。\n- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。\n- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。\n- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。\n- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。\n- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。\n- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。\n\n漫画 / 漫剧双轨一致性边界：\n- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。\n- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。\n- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。\n- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。\n\nV2.5 实验：低权重定向风险扫描（正常完成 V2.3 草稿后执行；只输出最终 JSON，不输出扫描过程）：\n- 只复核三类稳定高风险事实，不遍历或重写全部 summary/outcome：①声音、屏幕变化或其他可见/可听信号是否是后续行动的必要触发原因；②正式结构是否已经从线索推进到身份、对象或地点结论，而不是只停在线索本身；③关键决定、行动结果或状态变化是否已经成为观众可见或可听的退出状态。\n- 发现上述事实承载偏弱时，优先补强承载同一 beat 的既有 Shot：可收准 coreAction、comic 的静态决定性瞬间或 motion 的唯一聚焦变化；两条轨道按各自媒介表达，但不得改变正式事实。\n- 本扫描本身零新增成本：不得因为扫描到一个风险事实就新建 Shot、增加对白、添加旁白或延长 durationMs；一个既有镜头能够清楚承载时必须原位补强。\n- 只有 V2.3 原有状态边界已经满足必要拆镜条件，且同一 Shot 确实无法清楚承接原因/结果、线索/结论或决定/结果时，才可使用该 beat 的第二个共享 Shot；不得恢复逐事实拆镜。\n- 非对白声音、屏幕文字和道具标签使用现有画面、动作、环境或 quoted_audio 能力表达，不得伪造成角色 voiceLines，也不得编造正文未提供的原文。\n- 不扫描抽象关系状态，不要输出事实清单、逐 Beat 映射、评分或诊断字段。\n\n枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：\n- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up\n- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle\n- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition\n- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none\n- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition\n- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。\n- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。\n- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。\n- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。\n\nJSON 结构必须是：\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"镜头核心动作\",\n      \"emotion\": \"情绪\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"漫画画格锁定一个静态决定性瞬间\",\n        \"composition\": \"静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）\",\n        \"dialogue\": \"对白气泡文字，没有就空字符串\",\n        \"caption\": \"旁白，没有就空字符串\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"漫剧镜头从开始状态，经主要动作或表演变化，到结束状态\",\n        \"compositionDesign\": \"动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3000,\n        \"durationHint\": \"约 3s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"角色名\",\n            \"line\": \"台词内容\",\n            \"voiceStyle\": \"声音风格，如低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"给后续图片提示词生成的简短草稿，不是最终 Prompt\"\n    }\n  ],\n  \"notes\": \"分镜节奏说明\"\n}\n```\n\n项目名称：零号档案\n剧集名称：零号档案\n漫画版式：paged_comic\n项目画风：现代犯罪漫画，低饱和绿灰色\n当前章节：017 的脸\n当前章节状态：structured\n当前剧情结构版本：script-screen-v1\n已确认剧情结构：\n{\n  \"schemaVersion\": 1,\n  \"chapterId\": \"chapter-screen\",\n  \"chapterTitle\": \"017 的脸\",\n  \"sourceScriptVersionId\": \"script-screen-v1\",\n  \"synopsis\": \"林策用手机照片和旧档案屏幕完成 017 到赵妍的身份闭环。\",\n  \"direction\": {\n    \"logline\": \"屏幕证据揭示匿名内线身份。\",\n    \"chapterGoal\": \"确认 017 身份\",\n    \"coreConflict\": \"断网与巡逻倒计时\",\n    \"emotionalArc\": \"怀疑到确认\",\n    \"endingHook\": \"赵妍就在审讯室\"\n  },\n  \"characters\": [\n    {\n      \"id\": \"character_01\",\n      \"projectCharacterId\": null,\n      \"name\": \"林策\",\n      \"role\": \"内部调查员\",\n      \"level\": \"lead\",\n      \"entityType\": \"human\",\n      \"motivation\": \"找到匿名内线\",\n      \"relationship\": \"赵妍曾是他的审讯搭档\",\n      \"visualTraits\": \"黑色夹克、细框眼镜、手持手机\",\n      \"notes\": \"观察细节\"\n    }\n  ],\n  \"scenes\": [\n    {\n      \"id\": \"scene_01\",\n      \"name\": \"封存档案室\",\n      \"location\": \"市局地下档案室\",\n      \"timeOfDay\": \"凌晨\",\n      \"atmosphere\": \"安静、倒计时压迫\",\n      \"purpose\": \"完成身份证据闭环\"\n    },\n    {\n      \"id\": \"scene_02\",\n      \"name\": \"档案室出口\",\n      \"location\": \"地下档案室门口\",\n      \"timeOfDay\": \"凌晨\",\n      \"atmosphere\": \"巡逻逼近\",\n      \"purpose\": \"把身份结论转成救援行动\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"id\": \"beat_01\",\n      \"order\": 1,\n      \"title\": \"接通旧机\",\n      \"summary\": \"林策在断网倒计时前接通封存档案机。\",\n      \"conflict\": \"巡逻正在接近\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"旧显示器亮起与门外红灯\",\n      \"outcome\": \"旧名册开始载入。\"\n    },\n    {\n      \"id\": \"beat_02\",\n      \"order\": 2,\n      \"title\": \"并置线索\",\n      \"summary\": \"林策把匿名内线留下的胸牌照片放在旧名册屏幕旁，两处都出现编号 017。\",\n      \"conflict\": \"编号相同仍不足以确认身份\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"手机半脸照片与屏幕编号 017 并置\",\n      \"outcome\": \"线索已经指向同一档案条目，但身份尚未下结论。\"\n    },\n    {\n      \"id\": \"beat_03\",\n      \"order\": 3,\n      \"title\": \"身份闭环\",\n      \"summary\": \"屏幕在 017 条目旁显示赵妍的姓名与证件照，林策再比对痣和耳廓。\",\n      \"conflict\": \"确认意味着昔日搭档就是匿名内线\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"编号、姓名、证件照与手机半脸同框\",\n      \"outcome\": \"林策明确得出 017 就是赵妍，而不是只看到编号或相似照片。\"\n    },\n    {\n      \"id\": \"beat_04\",\n      \"order\": 4,\n      \"title\": \"发出坐标\",\n      \"summary\": \"林策拍下完整屏幕证据并把赵妍所在审讯室坐标发给搭档。\",\n      \"conflict\": \"巡逻已到门外\",\n      \"characters\": [\n        \"林策\"\n      ],\n      \"sceneId\": \"scene_02\",\n      \"visualFocus\": \"发送成功界面与林策合上的电脑\",\n      \"outcome\": \"身份结论被转化为立即救援行动。\"\n    }\n  ],\n  \"notes\": \"必须表现从编号线索到赵妍身份结论的跨越。\",\n  \"createdAt\": \"2026-07-17T00:00:00.000Z\",\n  \"updatedAt\": \"2026-07-17T00:00:00.000Z\"\n}\n当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：\n# 章节剧本\n\n## 第 1 章：017 的脸\n\n### 一、基础方向\n类型：犯罪悬疑\n主题：证据胜过猜测\n风格：冷静、精确\n漫画形式：分页漫画\n目标篇幅：完整单章\n\n### 二、本章方向\n一句话梗概：林策在旧档案机上确认匿名内线 017 就是赵妍。\n本章目标：查明 017 的真实身份\n核心冲突：档案室断网倒计时与巡逻逼近\n情绪走向：怀疑到确认后果断行动\n结尾钩子：赵妍此刻就在审讯室\n\n### 三、剧本亮点\n亮点 1：手机照片与旧屏幕并置\n亮点 2：编号与人脸完成闭环\n亮点 3：倒计时归零前发送坐标\n\n### 四、视觉基调\n画面氛围：老旧档案室的显示器冷光\n色调方向：绿灰屏幕光与红色警示灯\n视觉记忆点：编号 017\n\n### 五、剧本正文\n\n#### 场景 1：封存档案室\n地点：市局地下档案室\n时间：凌晨\n氛围：安静、倒计时压迫\n出场人物：林策\n\n剧情描写：\n林策接通旧档案机，把匿名内线留下的胸牌照片放在屏幕旁。照片露出半张脸和编号 017。旧名册页面载入后，同一编号旁清楚显示赵妍的证件照与姓名。\n\n人物动作：\n林策先对齐照片里的缺口与屏幕胸牌，再把视线从编号移到赵妍证件照，确认两张脸的痣与耳廓完全一致。\n\n对白：\n林策：017 不是代号，是赵妍。\n\n旁白：\n无\n\n场景结束点：\n屏幕同时显示 017、赵妍姓名和证件照。\n\n#### 场景 2：档案室出口\n地点：市局地下档案室门口\n时间：凌晨\n氛围：巡逻逼近\n出场人物：林策\n\n剧情描写：\n走廊警示灯亮起，巡逻脚步逼近。林策拍下屏幕证据并把审讯室坐标发给搭档。\n\n人物动作：\n他合上电脑，删除本机访问记录，从侧门离开。\n\n对白：\n无\n\n旁白：\n无\n\n场景结束点：\n搭档手机收到赵妍与审讯室坐标。\n\n### 六、本章结尾\n结尾事件：林策确认 017 是赵妍并发出坐标\n悬念：赵妍是否已经被灭口\n下一章引子：搭档赶往审讯室\n全章正式对白/配音候选（voiceLines 唯一逐字来源）：\n[\n  {\n    \"localRef\": \"dialogue-0001\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"林策\",\n    \"characterRef\": \"character_01\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"017 不是代号，是赵妍。\"\n  }\n]\n用户本次要求：\n请生成当前章节完整分镜，漫画和漫剧都要完整。",
+          "rawOutputs": [
+            "我会只基于你给出的已确认 `structure.json` 生成当前章节 Shot[]，不引入聊天外事实或后续产物。\n\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"林策在巡逻逼近前接通封存档案机，旧显示器亮起并开始载入名册。\",\n      \"emotion\": \"克制紧张\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"林策站在旧档案机前，手刚离开接线位置，旧显示器泛起绿灰冷光，门外红色警示灯映在档案室边缘。\",\n        \"composition\": \"林策居画面左侧，旧显示器作为视觉重心在右侧发光；门外红光压在远处边缘，阅读动线从林策的手到亮起的屏幕再到红灯。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"林策在昏暗档案室内完成接通，旧显示器由黑转亮，名册载入界面浮现；他抬眼看向屏幕，门外红灯同步闪过，结束在旧名册开始载入的状态。\",\n        \"compositionDesign\": \"林策保持在档案机前，身体朝向屏幕；屏幕冷光逐渐照亮他的眼镜和黑色夹克，红灯从门口方向切入画面边缘，结束时林策视线固定在屏幕上。\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3500,\n        \"durationHint\": \"约 3.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"地下封存档案室，黑色夹克细框眼镜的林策接通旧档案机，绿灰显示器亮起，门外红色警示灯压迫，冷静犯罪漫画构图\"\n    },\n    {\n      \"order\": 2,\n      \"beatId\": \"beat_02\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"林策把匿名内线留下的胸牌照片放到旧名册屏幕旁，使手机半脸照片与屏幕编号 017 并置。\",\n      \"emotion\": \"专注怀疑\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"林策的手把手机贴近旧显示器，手机里半张脸和胸牌编号 017 与屏幕上的同一编号并排出现。\",\n        \"composition\": \"林策肩背形成前景遮挡，手机与屏幕并列占据画面中心；视觉重心落在两个 017 的并置关系上，边缘保留少量对白留白但不放文字。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"normal\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"林策从上一镜的屏幕前取出手机，把胸牌照片平稳移到屏幕旁；手机里的半脸和编号 017 与旧名册上的 017 对齐，结束在两处编号同框但身份仍未确认的状态。\",\n        \"compositionDesign\": \"手机从画面下方进入，与旧显示器形成左右并置；林策的视线在手机编号和屏幕编号之间短暂切换，镜头结束时两处 017 同时清楚可见。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 4000,\n        \"durationHint\": \"约 4s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"手机半脸胸牌照片与旧档案屏幕并置，两处编号 017 同框，林策手持手机，绿灰冷光，悬疑证据比对\"\n    },\n    {\n      \"order\": 3,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"旧名册在 017 条目旁显示赵妍姓名和证件照，林策比对手机半脸照片中的痣与耳廓。\",\n      \"emotion\": \"震动确认\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"屏幕上的编号 017、赵妍姓名、证件照与手机半脸照片同框，林策镜片里映出两张脸的痣和耳廓对应位置。\",\n        \"composition\": \"屏幕资料与手机照片占据中央，林策半张脸贴近画面一侧；阅读动线从编号 017 到赵妍姓名，再到两张脸的对应细节。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"旧名册从编号条目推进到完整资料显示，赵妍姓名和证件照出现在 017 旁；林策把手机半脸照片微调到同一高度，视线从编号移到证件照，再停在痣和耳廓对应处，结束在身份闭环已经可见的状态。\",\n        \"compositionDesign\": \"屏幕资料作为稳定中心，手机照片贴近屏幕右侧形成比对面；林策靠近画面边缘观察，结束时屏幕姓名、证件照、编号和手机半脸共同留在同一视觉区域。\",\n        \"cameraMovement\": \"slow_zoom\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 5500,\n        \"durationHint\": \"约 5.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"旧档案屏幕显示编号 017、赵妍姓名和证件照，手机半脸照片贴旁比对痣与耳廓，林策镜片反光，证据闭环瞬间\"\n    },\n    {\n      \"order\": 4,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"林策明确说出 017 就是赵妍，完成从编号线索到身份结论的确认。\",\n      \"emotion\": \"沉重笃定\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"林策站在屏幕冷光前，手机仍举在手中，脸上压住震动后的判断，屏幕上赵妍资料停留在他身后。\",\n        \"composition\": \"林策位于画面前景中心，屏幕资料在后方作为证据背景；对白留白放在林策侧上方，不遮挡手机、脸和屏幕姓名区域。\",\n        \"dialogue\": \"017 不是代号，是赵妍。\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"林策保持上一镜的比对姿势，慢慢放低手机，目光仍钉在赵妍资料上；他低声说出结论，结束在他已经确认 017 身份并准备行动的状态。\",\n        \"compositionDesign\": \"林策从屏幕旁的细节观察位置回到画面中心，手机下落到胸前；屏幕资料留在他身后，镜头结束时人物与证据保持同框。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"dialogue\",\n        \"durationMs\": 4200,\n        \"durationHint\": \"约 4.2s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"林策\",\n            \"line\": \"017 不是代号，是赵妍。\",\n            \"voiceStyle\": \"低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"林策在旧屏幕冷光前确认身份，手持手机，身后停留赵妍档案资料，沉重笃定，现代犯罪漫画\"\n    },\n    {\n      \"order\": 5,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"巡逻到达门外时，林策拍下完整屏幕证据并发送赵妍所在审讯室坐标。\",\n      \"emotion\": \"果断紧迫\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"林策在档案室门口附近举起手机，屏幕上显示发送成功界面，门外红色警示灯和逼近的巡逻阴影压在画面边缘。\",\n        \"composition\": \"手机发送成功界面位于画面视觉中心，林策侧身挡在档案室与出口之间；红灯与门缝阴影形成压迫边框，阅读动线从手机界面到门外威胁。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"fast\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"从林策已确认身份的状态接续，他拍下完整屏幕证据并快速完成发送；手机界面出现发送成功，门外巡逻脚步逼近的压力落到出口方向，结束在坐标已经发出的状态。\",\n        \"compositionDesign\": \"林策从档案机前转向出口附近，手机在胸前完成拍摄和发送；镜头结束时手机界面停在发送成功，门外红光占据背景一侧。\",\n        \"cameraMovement\": \"handheld\",\n        \"frameType\": \"action\",\n        \"durationMs\": 5000,\n        \"durationHint\": \"约 5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"地下档案室出口，林策手机显示发送成功，赵妍审讯室坐标已发出，红色警示灯和巡逻逼近阴影，紧迫冷色犯罪漫画\"\n    },\n    {\n      \"order\": 6,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_02\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"林策合上电脑，删除本机访问记录，从侧门离开，把身份结论转入救援行动。\",\n      \"emotion\": \"冷静撤离\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"high_angle\",\n      \"comic\": {\n        \"panelDescription\": \"林策一手合上电脑，身体转向侧门，档案室门外红光逼近，已发送成功的手机被他握在另一只手里。\",\n        \"composition\": \"画面左侧是合上的电脑与桌面，右侧是林策迈向侧门的身影；红光从主门方向压入，视觉重心从证据设备转到撤离路径。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"transition\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"林策从发送成功的手机界面收回手，合上电脑并清除本机访问痕迹，随后转向侧门离开；镜头停在他消失于侧门、巡逻仍压近主门的状态。\",\n        \"compositionDesign\": \"林策的运动路径从档案机旁斜向侧门，电脑合上后留在画面后方；红灯从相反方向逼近，结束位置保留空出的档案机和未被主门发现的撤离方向。\",\n        \"cameraMovement\": \"pan_right\",\n        \"frameType\": \"transition\",\n        \"durationMs\": 5200,\n        \"durationHint\": \"约 5.2s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"林策合上电脑并从地下档案室侧门撤离，手握已发送成功的手机，红色巡逻警示灯逼近，绿灰低饱和犯罪漫画\"\n    }\n  ],\n  \"notes\": \"本章按四个 beat 生成 6 个共享 Shot：beat_01 建立断网与巡逻压力，beat_02 并置编号线索，beat_03 拆为证据闭环与林策口头确认两个状态边界，beat_04 拆为发送坐标与撤离转场两个必要动作边界。漫画选择每个 Shot 的静态决定性瞬间，漫剧按进入状态、单一变化、退出状态展开。\"\n}\n```"
+          ],
+          "storyboard": {
+            "schemaVersion": 1,
+            "chapterId": "chapter-screen",
+            "chapterTitle": "017 的脸",
+            "sourceStoryVersionId": "script-screen-v1",
+            "shots": [
+              {
+                "id": "shot_001",
+                "order": 1,
+                "beatId": "beat_01",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "林策在巡逻逼近前接通封存档案机，旧显示器亮起并开始载入名册。",
+                "emotion": "克制紧张",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "林策站在旧档案机前，手刚离开接线位置，旧显示器泛起绿灰冷光，门外红色警示灯映在档案室边缘。",
+                  "composition": "林策居画面左侧，旧显示器作为视觉重心在右侧发光；门外红光压在远处边缘，阅读动线从林策的手到亮起的屏幕再到红灯。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "林策在昏暗档案室内完成接通，旧显示器由黑转亮，名册载入界面浮现；他抬眼看向屏幕，门外红灯同步闪过，结束在旧名册开始载入的状态。",
+                  "compositionDesign": "林策保持在档案机前，身体朝向屏幕；屏幕冷光逐渐照亮他的眼镜和黑色夹克，红灯从门口方向切入画面边缘，结束时林策视线固定在屏幕上。",
+                  "cameraMovement": "push_in",
+                  "frameType": "atmosphere",
+                  "durationMs": 3500,
+                  "durationHint": "约 3.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "地下封存档案室，黑色夹克细框眼镜的林策接通旧档案机，绿灰显示器亮起，门外红色警示灯压迫，冷静犯罪漫画构图",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_002",
+                "order": 2,
+                "beatId": "beat_02",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "林策把匿名内线留下的胸牌照片放到旧名册屏幕旁，使手机半脸照片与屏幕编号 017 并置。",
+                "emotion": "专注怀疑",
+                "shotType": "close_up",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "林策的手把手机贴近旧显示器，手机里半张脸和胸牌编号 017 与屏幕上的同一编号并排出现。",
+                  "composition": "林策肩背形成前景遮挡，手机与屏幕并列占据画面中心；视觉重心落在两个 017 的并置关系上，边缘保留少量对白留白但不放文字。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "normal"
+                },
+                "motion": {
+                  "visualDescription": "林策从上一镜的屏幕前取出手机，把胸牌照片平稳移到屏幕旁；手机里的半脸和编号 017 与旧名册上的 017 对齐，结束在两处编号同框但身份仍未确认的状态。",
+                  "compositionDesign": "手机从画面下方进入，与旧显示器形成左右并置；林策的视线在手机编号和屏幕编号之间短暂切换，镜头结束时两处 017 同时清楚可见。",
+                  "cameraMovement": "static",
+                  "frameType": "detail",
+                  "durationMs": 4000,
+                  "durationHint": "约 4s",
+                  "voiceLines": []
+                },
+                "promptDraft": "手机半脸胸牌照片与旧档案屏幕并置，两处编号 017 同框，林策手持手机，绿灰冷光，悬疑证据比对",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_003",
+                "order": 3,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "旧名册在 017 条目旁显示赵妍姓名和证件照，林策比对手机半脸照片中的痣与耳廓。",
+                "emotion": "震动确认",
+                "shotType": "close_up",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "屏幕上的编号 017、赵妍姓名、证件照与手机半脸照片同框，林策镜片里映出两张脸的痣和耳廓对应位置。",
+                  "composition": "屏幕资料与手机照片占据中央，林策半张脸贴近画面一侧；阅读动线从编号 017 到赵妍姓名，再到两张脸的对应细节。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "旧名册从编号条目推进到完整资料显示，赵妍姓名和证件照出现在 017 旁；林策把手机半脸照片微调到同一高度，视线从编号移到证件照，再停在痣和耳廓对应处，结束在身份闭环已经可见的状态。",
+                  "compositionDesign": "屏幕资料作为稳定中心，手机照片贴近屏幕右侧形成比对面；林策靠近画面边缘观察，结束时屏幕姓名、证件照、编号和手机半脸共同留在同一视觉区域。",
+                  "cameraMovement": "slow_zoom",
+                  "frameType": "detail",
+                  "durationMs": 5500,
+                  "durationHint": "约 5.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "旧档案屏幕显示编号 017、赵妍姓名和证件照，手机半脸照片贴旁比对痣与耳廓，林策镜片反光，证据闭环瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_004",
+                "order": 4,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "林策明确说出 017 就是赵妍，完成从编号线索到身份结论的确认。",
+                "emotion": "沉重笃定",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "林策站在屏幕冷光前，手机仍举在手中，脸上压住震动后的判断，屏幕上赵妍资料停留在他身后。",
+                  "composition": "林策位于画面前景中心，屏幕资料在后方作为证据背景；对白留白放在林策侧上方，不遮挡手机、脸和屏幕姓名区域。",
+                  "dialogue": "017 不是代号，是赵妍。",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "林策保持上一镜的比对姿势，慢慢放低手机，目光仍钉在赵妍资料上；他低声说出结论，结束在他已经确认 017 身份并准备行动的状态。",
+                  "compositionDesign": "林策从屏幕旁的细节观察位置回到画面中心，手机下落到胸前；屏幕资料留在他身后，镜头结束时人物与证据保持同框。",
+                  "cameraMovement": "static",
+                  "frameType": "dialogue",
+                  "durationMs": 4200,
+                  "durationHint": "约 4.2s",
+                  "voiceLines": [
+                    {
+                      "characterId": "character_01",
+                      "name": "林策",
+                      "line": "017 不是代号，是赵妍。",
+                      "voiceStyle": "低声、克制"
+                    }
+                  ]
+                },
+                "promptDraft": "林策在旧屏幕冷光前确认身份，手持手机，身后停留赵妍档案资料，沉重笃定，现代犯罪漫画",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_005",
+                "order": 5,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "巡逻到达门外时，林策拍下完整屏幕证据并发送赵妍所在审讯室坐标。",
+                "emotion": "果断紧迫",
+                "shotType": "medium",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "林策在档案室门口附近举起手机，屏幕上显示发送成功界面，门外红色警示灯和逼近的巡逻阴影压在画面边缘。",
+                  "composition": "手机发送成功界面位于画面视觉中心，林策侧身挡在档案室与出口之间；红灯与门缝阴影形成压迫边框，阅读动线从手机界面到门外威胁。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "fast"
+                },
+                "motion": {
+                  "visualDescription": "从林策已确认身份的状态接续，他拍下完整屏幕证据并快速完成发送；手机界面出现发送成功，门外巡逻脚步逼近的压力落到出口方向，结束在坐标已经发出的状态。",
+                  "compositionDesign": "林策从档案机前转向出口附近，手机在胸前完成拍摄和发送；镜头结束时手机界面停在发送成功，门外红光占据背景一侧。",
+                  "cameraMovement": "handheld",
+                  "frameType": "action",
+                  "durationMs": 5000,
+                  "durationHint": "约 5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "地下档案室出口，林策手机显示发送成功，赵妍审讯室坐标已发出，红色警示灯和巡逻逼近阴影，紧迫冷色犯罪漫画",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_006",
+                "order": 6,
+                "beatId": "beat_04",
+                "sceneId": "scene_02",
+                "characterIds": [
+                  "character_01"
+                ],
+                "coreAction": "林策合上电脑，删除本机访问记录，从侧门离开，把身份结论转入救援行动。",
+                "emotion": "冷静撤离",
+                "shotType": "wide",
+                "cameraAngle": "high_angle",
+                "comic": {
+                  "panelDescription": "林策一手合上电脑，身体转向侧门，档案室门外红光逼近，已发送成功的手机被他握在另一只手里。",
+                  "composition": "画面左侧是合上的电脑与桌面，右侧是林策迈向侧门的身影；红光从主门方向压入，视觉重心从证据设备转到撤离路径。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "transition"
+                },
+                "motion": {
+                  "visualDescription": "林策从发送成功的手机界面收回手，合上电脑并清除本机访问痕迹，随后转向侧门离开；镜头停在他消失于侧门、巡逻仍压近主门的状态。",
+                  "compositionDesign": "林策的运动路径从档案机旁斜向侧门，电脑合上后留在画面后方；红灯从相反方向逼近，结束位置保留空出的档案机和未被主门发现的撤离方向。",
+                  "cameraMovement": "pan_right",
+                  "frameType": "transition",
+                  "durationMs": 5200,
+                  "durationHint": "约 5.2s",
+                  "voiceLines": []
+                },
+                "promptDraft": "林策合上电脑并从地下档案室侧门撤离，手握已发送成功的手机，红色巡逻警示灯逼近，绿灰低饱和犯罪漫画",
+                "lockedCandidateId": null,
+                "status": "draft"
+              }
+            ],
+            "notes": "本章按四个 beat 生成 6 个共享 Shot：beat_01 建立断网与巡逻压力，beat_02 并置编号线索，beat_03 拆为证据闭环与林策口头确认两个状态边界，beat_04 拆为发送坐标与撤离转场两个必要动作边界。漫画选择每个 Shot 的静态决定性瞬间，漫剧按进入状态、单一变化、退出状态展开。",
+            "createdAt": "2026-07-17T03:39:10.785Z",
+            "updatedAt": "2026-07-17T03:39:10.785Z"
+          },
+          "metrics": {
+            "shotCount": 6,
+            "totalDurationMs": 27400,
+            "totalVoiceLines": 1,
+            "maxVoiceLinesPerShot": 1,
+            "shotsOverThreeVoiceLines": 0,
+            "shotsOverTenSeconds": 0
+          },
+          "evaluations": [
+            {
+              "repeatIndex": 1,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 6,
+                  "partialDimensions": 2,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [
+                      "缺少断网倒计时这一明确时间压力，现有证据只表现巡逻逼近前接通档案机"
+                    ],
+                    "contradictions": [],
+                    "reason": "接通封存档案机和旧名册载入已直接可见，但断网倒计时未被画面或声音明确呈现。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "手机胸牌照片与旧名册屏幕并置，两处编号 017 同框，且身份仍未确认的状态已明确呈现。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3,
+                      4
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "017 条目旁显示赵妍姓名和证件照，林策比对痣与耳廓，并直接说出 017 就是赵妍。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      5,
+                      6
+                    ],
+                    "missingFacts": [
+                      "缺少坐标明确发送给搭档这一接收对象"
+                    ],
+                    "contradictions": [],
+                    "reason": "拍下完整屏幕证据、发送赵妍所在审讯室坐标和转入救援行动已呈现，但发送对象未明确为搭档。"
+                  }
+                ]
+              }
+            },
+            {
+              "repeatIndex": 2,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 5,
+                  "partialDimensions": 3,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [
+                      "缺少断网倒计时这一时间压力，现有镜头只表现巡逻逼近和警示灯压力"
+                    ],
+                    "contradictions": [],
+                    "reason": "镜头直接表现林策接通封存档案机和旧名册开始载入，但没有断网倒计时信息。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "手机胸牌照片与旧名册屏幕并置，两处编号 017 同框，且镜头停在身份仍未确认的状态。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3,
+                      4
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "017 条目旁显示赵妍姓名和证件照，林策比对痣与耳廓，并明确说出 017 是赵妍。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "partial",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      5,
+                      6
+                    ],
+                    "missingFacts": [
+                      "缺少坐标明确发送给搭档的可见或可听证据",
+                      "缺少救援行动已经立即启动的直接证据，现有镜头只表现发送成功和林策离开"
+                    ],
+                    "contradictions": [],
+                    "reason": "镜头表现林策拍下证据并发送坐标，但接收对象和救援行动启动只被弱化或暗示。"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "action-outcome-smoke-door",
+      "title": "烟道门完全弹开",
+      "targetRisk": "action_outcome",
+      "targetDimensions": [
+        {
+          "beatId": "beat_03",
+          "field": "summary",
+          "label": "踢击导致楔子飞落和门弹开"
+        },
+        {
+          "beatId": "beat_03",
+          "field": "outcome",
+          "label": "出口状态从不可用变成完全打开"
+        }
+      ],
+      "observationDimensions": [
+        {
+          "beatId": "beat_04",
+          "field": "outcome",
+          "label": "抽象的搭档关系承诺"
+        }
+      ],
+      "runs": [
+        {
+          "status": "completed",
+          "variant": "v2_3",
+          "providerId": "self",
+          "modelId": "gpt-5.5",
+          "generationAttempts": 1,
+          "repaired": false,
+          "prompt": "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。\n动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。\n\n硬性边界：\n- 只生成当前章节分镜，不要生成整部作品分镜。\n- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。\n- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。\n- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。\n- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。\n- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。\n- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。\n- 不要生成候选图、TTS、字幕、视频或排版。\n- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：character_01=陈拓、character_02=安宁、character_03=孩子们），不能填写数据库 UUID、角色名、别名或简称。\n- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。\n- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。\n- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。\n- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。\n- 当前 M1 共享骨架建议生成 4-8 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。\n- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。\n- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。\n\nV2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：\n步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。\n步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。\n步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。\n步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。\n步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。\n\n共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：\n- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。\n- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。\n- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。\n- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。\n- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。\n- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。\n- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。\n\n漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：\n- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。\n- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。\n- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。\n- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。\n- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。\n- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。\n- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。\n- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。\n- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。\n- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。\n- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。\n- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。\n- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。\n\n漫画分镜 Prompt（独立设计 comic）：\n- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。\n- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。\n- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。\n- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。\n- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。\n- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。\n- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。\n\n漫画 / 漫剧双轨一致性边界：\n- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。\n- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。\n- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。\n- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。\n\n枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：\n- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up\n- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle\n- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition\n- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none\n- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition\n- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。\n- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。\n- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。\n- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。\n\nJSON 结构必须是：\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"镜头核心动作\",\n      \"emotion\": \"情绪\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"漫画画格锁定一个静态决定性瞬间\",\n        \"composition\": \"静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）\",\n        \"dialogue\": \"对白气泡文字，没有就空字符串\",\n        \"caption\": \"旁白，没有就空字符串\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"漫剧镜头从开始状态，经主要动作或表演变化，到结束状态\",\n        \"compositionDesign\": \"动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3000,\n        \"durationHint\": \"约 3s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"角色名\",\n            \"line\": \"台词内容\",\n            \"voiceStyle\": \"声音风格，如低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"给后续图片提示词生成的简短草稿，不是最终 Prompt\"\n    }\n  ],\n  \"notes\": \"分镜节奏说明\"\n}\n```\n\n项目名称：逆火线\n剧集名称：逆火线\n漫画版式：vertical_scroll\n项目画风：高对比灾难动作漫画，橙黑火光\n当前章节：最后一根楔子\n当前章节状态：structured\n当前剧情结构版本：script-action-v1\n已确认剧情结构：\n{\n  \"schemaVersion\": 1,\n  \"chapterId\": \"chapter-action\",\n  \"chapterTitle\": \"最后一根楔子\",\n  \"sourceScriptVersionId\": \"script-action-v1\",\n  \"synopsis\": \"陈拓踢掉楔子打开烟道门，以被困为代价让孩子撤出。\",\n  \"direction\": {\n    \"logline\": \"一次决定性动作打开出口并制造新困境。\",\n    \"chapterGoal\": \"打开烟道出口\",\n    \"coreConflict\": \"救人会让自己失去退路\",\n    \"emotionalArc\": \"犹豫到承担\",\n    \"endingHook\": \"陈拓被火墙隔开\"\n  },\n  \"characters\": [\n    {\n      \"id\": \"character_01\",\n      \"projectCharacterId\": null,\n      \"name\": \"陈拓\",\n      \"role\": \"消防员\",\n      \"level\": \"lead\",\n      \"entityType\": \"human\",\n      \"motivation\": \"救出被困孩子\",\n      \"relationship\": \"安宁的救援搭档\",\n      \"visualTraits\": \"焦黑消防服、左臂受伤\",\n      \"notes\": \"承担主要风险\"\n    },\n    {\n      \"id\": \"character_02\",\n      \"projectCharacterId\": null,\n      \"name\": \"安宁\",\n      \"role\": \"急救医生\",\n      \"level\": \"recurring\",\n      \"entityType\": \"human\",\n      \"motivation\": \"带孩子撤离并救回陈拓\",\n      \"relationship\": \"陈拓的救援搭档\",\n      \"visualTraits\": \"白色急救背心、护目镜\",\n      \"notes\": \"负责撤离\"\n    },\n    {\n      \"id\": \"character_03\",\n      \"projectCharacterId\": null,\n      \"name\": \"孩子们\",\n      \"role\": \"被困群体\",\n      \"level\": \"extra\",\n      \"entityType\": \"group\",\n      \"motivation\": \"逃离火场\",\n      \"relationship\": \"依赖救援者\",\n      \"visualTraits\": \"三名戴湿毛巾的孩子\",\n      \"notes\": \"群体角色\"\n    }\n  ],\n  \"scenes\": [\n    {\n      \"id\": \"scene_01\",\n      \"name\": \"烟道平台\",\n      \"location\": \"医院后楼烟道平台\",\n      \"timeOfDay\": \"傍晚\",\n      \"atmosphere\": \"浓烟、灼热、急迫\",\n      \"purpose\": \"用动作结果完成撤离并制造代价\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"id\": \"beat_01\",\n      \"order\": 1,\n      \"title\": \"出口卡死\",\n      \"summary\": \"防火门被变形楔子卡得只剩一掌宽，孩子无法穿过。\",\n      \"conflict\": \"火焰逼近\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\",\n        \"孩子们\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"楔子与一掌宽门缝\",\n      \"outcome\": \"唯一出口暂时不可用。\"\n    },\n    {\n      \"id\": \"beat_02\",\n      \"order\": 2,\n      \"title\": \"交绳决定\",\n      \"summary\": \"陈拓把安全绳交给安宁，决定踢楔子并让她先带孩子走。\",\n      \"conflict\": \"失去支点会让陈拓无法撤离\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"安全绳从陈拓手中交到安宁手里\",\n      \"outcome\": \"安宁接过撤离责任，陈拓承担动作代价。\"\n    },\n    {\n      \"id\": \"beat_03\",\n      \"order\": 3,\n      \"title\": \"楔落门开\",\n      \"summary\": \"陈拓一脚踢飞金属楔子，失去阻挡的防火门随即彻底弹开。\",\n      \"conflict\": \"火墙同时向陈拓身后压来\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\",\n        \"孩子们\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"飞落楔子、完全打开的门与陈拓失去支点的脚\",\n      \"outcome\": \"动作明确成功，出口从不可用变成完全打开，而不是只表现踢击过程。\"\n    },\n    {\n      \"id\": \"beat_04\",\n      \"order\": 4,\n      \"title\": \"撤出与被困\",\n      \"summary\": \"安宁带孩子依次穿过打开的门，最后一个孩子撤出时回燃火墙隔开陈拓。\",\n      \"conflict\": \"安宁必须继续带孩子走还是回头\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\",\n        \"孩子们\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"门外孩子、门内陈拓与中间火墙\",\n      \"outcome\": \"孩子们获救，陈拓被困；安宁把他从搭档视为必须救回的人。\"\n    }\n  ],\n  \"notes\": \"必须看见踢击产生楔子脱落、门完全打开和撤离条件改变。\",\n  \"createdAt\": \"2026-07-17T00:00:00.000Z\",\n  \"updatedAt\": \"2026-07-17T00:00:00.000Z\"\n}\n当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：\n# 章节剧本\n\n## 第 1 章：最后一根楔子\n\n### 一、基础方向\n类型：灾难动作\n主题：选择的代价\n风格：紧凑、具象\n漫画形式：竖向条漫\n目标篇幅：完整单章\n\n### 二、本章方向\n一句话梗概：陈拓冒险踢掉卡住烟道门的楔子，为孩子打开唯一出口。\n本章目标：在回燃前打开烟道出口\n核心冲突：踢楔子会让陈拓失去唯一立足点\n情绪走向：犹豫到承担代价\n结尾钩子：门开后陈拓被困在火墙另一侧\n\n### 三、剧本亮点\n亮点 1：鞋尖与楔子的近景\n亮点 2：防火门彻底弹开\n亮点 3：孩子撤出而陈拓留下\n\n### 四、视觉基调\n画面氛围：浓烟与闪动火光\n色调方向：橙黑与冷白应急灯\n视觉记忆点：松动的金属楔子\n\n### 五、剧本正文\n\n#### 场景 1：烟道平台\n地点：医院后楼烟道平台\n时间：傍晚\n氛围：浓烟、灼热、急迫\n出场人物：陈拓、安宁、孩子们\n\n剧情描写：\n防火门只开了一掌宽，底部被变形金属楔子卡死。火焰逼近，孩子们无法穿过。陈拓看见踢掉楔子会失去自己脚下的支点。\n\n人物动作：\n陈拓把安全绳交给安宁，明确点头后用尽全力踢中楔子。楔子飞落，防火门不再受阻并彻底弹开。安宁立刻带孩子依次穿门撤出，陈拓则被回燃火墙隔在平台内侧。\n\n对白：\n陈拓：我踢开以后，你先带孩子走。\n安宁：我会回来。\n\n旁白：\n无\n\n场景结束点：\n最后一个孩子穿过完全打开的门，陈拓留在火墙另一侧。\n\n### 六、本章结尾\n结尾事件：门完全打开，孩子撤出，陈拓被困\n悬念：安宁能否返回救出陈拓\n下一章引子：安宁寻找另一条回到平台的路线\n全章正式对白/配音候选（voiceLines 唯一逐字来源）：\n[\n  {\n    \"localRef\": \"dialogue-0001\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"陈拓\",\n    \"characterRef\": \"character_01\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"我踢开以后，你先带孩子走。\"\n  },\n  {\n    \"localRef\": \"dialogue-0002\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"安宁\",\n    \"characterRef\": \"character_02\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"我会回来。\"\n  }\n]\n用户本次要求：\n请生成当前章节完整分镜，漫画和漫剧都要完整。",
+          "rawOutputs": [
+            "我会先做最小仓库上下文检查和会话留痕，然后只返回后端可解析的 JSON 分镜。\n\n<tool_use>{\"cmd\": \"pwd && rg --files /Users/liyadong/selfProject/AIRoaming/文档 | head -80 && test -f /Users/liyadong/selfProject/AIRoaming/文档/记忆/MEMORY.md && sed -n '1,160p' /Users/liyadong/selfProject/AIRoaming/文档/记忆/MEMORY.md || true\", \"yield_time\": 1000, \"max_output\": 12000}</tool_use>\n\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"防火门被变形金属楔子卡住，门缝只剩一掌宽，孩子无法通过。\",\n      \"emotion\": \"急迫、压迫\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"low_angle\",\n      \"comic\": {\n        \"panelDescription\": \"变形金属楔子死死顶住防火门底部，门缝窄到只露出一掌宽的黑暗缝隙。\",\n        \"composition\": \"楔子和门缝占据画面下方视觉中心，火光从边缘压入，陈拓受伤的左臂和孩子们的湿毛巾轮廓在后方形成阅读压力，留白避开门缝与楔子。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"浓烟中防火门只开着一掌宽，孩子们停在门前无法穿过；火焰逼近，陈拓的视线落到卡死门底的变形楔子上，镜头停在楔子与窄门缝的状态确认。\",\n        \"compositionDesign\": \"人物被压在门内一侧，孩子们靠近安宁，陈拓前倾观察门底；镜头结束时楔子、门缝和逼近火光形成同一空间阻碍。\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 3500,\n        \"durationHint\": \"约 3.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"烟道平台浓烟火光中，变形金属楔子卡住防火门底部，一掌宽门缝，孩子们被挡在后方，橙黑高对比压迫构图\"\n    },\n    {\n      \"order\": 2,\n      \"beatId\": \"beat_02\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\"\n      ],\n      \"coreAction\": \"陈拓把安全绳交给安宁，决定踢楔子并让她先带孩子走。\",\n      \"emotion\": \"克制、决断\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"焦黑消防服的陈拓把安全绳递到戴护目镜的安宁手中，两人的手在火光前交接。\",\n        \"composition\": \"安全绳交接点放在画面中央，陈拓在左侧前景、安宁在右侧承接视线，背景门缝和浓烟压低空间，人物脸部上方保留对白留白。\",\n        \"dialogue\": \"陈拓：我踢开以后，你先带孩子走。\\n安宁：我会回来。\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"normal\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"陈拓从门底楔子前收回视线，把安全绳交到安宁手里并明确点头；安宁握紧绳子回应，撤离责任从陈拓转到她手上。\",\n        \"compositionDesign\": \"陈拓与安宁面对面站在门内侧，安全绳在两人之间形成连接线；镜头结束时安宁握住绳子，陈拓身体转向楔子方向。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"dialogue\",\n        \"durationMs\": 6500,\n        \"durationHint\": \"约 6.5s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"陈拓\",\n            \"line\": \"我踢开以后，你先带孩子走。\",\n            \"voiceStyle\": \"低声、克制\"\n          },\n          {\n            \"characterId\": \"character_02\",\n            \"name\": \"安宁\",\n            \"line\": \"我会回来。\",\n            \"voiceStyle\": \"坚定、压住焦急\"\n          }\n        ]\n      },\n      \"promptDraft\": \"陈拓焦黑消防服左臂受伤，把安全绳交给白色急救背心护目镜的安宁，烟道平台火光浓烟，交接瞬间居中\"\n    },\n    {\n      \"order\": 3,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"陈拓踢飞楔子，防火门彻底弹开，出口从不可用变成打开。\",\n      \"emotion\": \"爆发、惊险\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"low_angle\",\n      \"comic\": {\n        \"panelDescription\": \"金属楔子飞离门底，防火门彻底弹开，陈拓踢出的脚失去原本支点。\",\n        \"composition\": \"飞落楔子沿斜线引导视线到完全打开的门，陈拓的踢腿和失衡身体占据前景，安宁与孩子们在门旁形成结果见证，火墙从后方压近。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"陈拓站定后用尽全力踢中变形楔子；楔子飞落，防火门不再受阻并彻底弹开，他踢出的脚失去支点，镜头停在门完全打开的结果上。\",\n        \"compositionDesign\": \"陈拓从门底一侧发力，动作线指向飞落楔子；门板弹开后露出可通行出口，安宁和孩子们的撤离方向被打开，镜头结束在陈拓失衡与出口敞开的对比位置。\",\n        \"cameraMovement\": \"handheld\",\n        \"frameType\": \"action\",\n        \"durationMs\": 4800,\n        \"durationHint\": \"约 4.8s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"金属楔子被踢飞，防火门完全弹开，陈拓焦黑消防服失去支点，安宁和三名戴湿毛巾孩子在烟道平台火光中\"\n    },\n    {\n      \"order\": 4,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"安宁带孩子依次穿过完全打开的门撤出。\",\n      \"emotion\": \"紧张、抢救般的专注\",\n      \"shotType\": \"full\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"安宁护着三名戴湿毛巾的孩子穿过完全打开的防火门，门外空间第一次变成可达出口。\",\n        \"composition\": \"从陈拓内侧肩后看向门口，安宁和孩子们沿竖向阅读方向穿门撤出，门框形成明亮出口边界，陈拓留在画面近侧边缘保持距离感。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"fast\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"门完全打开后，安宁立刻带孩子们依次穿过门；陈拓留在平台内侧看着他们撤出，镜头停在最后一个孩子即将通过门口的撤离进程上。\",\n        \"compositionDesign\": \"安宁在门外方向引导，孩子们按顺序穿门，陈拓处在内侧后方；人物运动统一向门外推进，结束时门口空间被撤离队列占满。\",\n        \"cameraMovement\": \"track_right\",\n        \"frameType\": \"action\",\n        \"durationMs\": 5200,\n        \"durationHint\": \"约 5.2s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"完全打开的防火门前，安宁带三名戴湿毛巾孩子依次撤出，陈拓留在烟道平台内侧，橙黑火光与冷白应急光对比\"\n    },\n    {\n      \"order\": 5,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"最后一个孩子撤出时，回燃火墙隔开陈拓，安宁必须继续带孩子走还是回头。\",\n      \"emotion\": \"震动、悬念\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"最后一个孩子已经在门外，陈拓被回燃火墙隔在门内平台另一侧。\",\n        \"composition\": \"火墙横贯画面中部形成隔断，门外的安宁和孩子们在一侧，门内的陈拓在另一侧；安宁回望陈拓，读者视线被火墙切开后落到两人的距离。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"最后一个孩子穿过完全打开的门后，回燃火墙在陈拓与门口之间升起；安宁带着孩子停在门外回望，陈拓被隔在平台内侧，镜头停在双方被火墙分开的状态。\",\n        \"compositionDesign\": \"孩子们保持在门外安宁身旁，陈拓留在门内火墙之后；火墙成为中间屏障，结束画面固定在安宁回望与陈拓被困的空间关系上。\",\n        \"cameraMovement\": \"pull_out\",\n        \"frameType\": \"reaction\",\n        \"durationMs\": 5600,\n        \"durationHint\": \"约 5.6s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"门外安宁和三名孩子获救，门内陈拓被回燃火墙隔开，医院后楼烟道平台，橙黑灾难火光，高对比悬念构图\"\n    }\n  ],\n  \"notes\": \"全章按出口受阻、交绳决定、踢楔开门、孩子撤出、火墙隔开五个共享剧情锚点推进；beat_04 因撤离结果与被困钩子属于两个状态边界，拆为两个 Shot。\"\n}\n```"
+          ],
+          "storyboard": {
+            "schemaVersion": 1,
+            "chapterId": "chapter-action",
+            "chapterTitle": "最后一根楔子",
+            "sourceStoryVersionId": "script-action-v1",
+            "shots": [
+              {
+                "id": "shot_001",
+                "order": 1,
+                "beatId": "beat_01",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "防火门被变形金属楔子卡住，门缝只剩一掌宽，孩子无法通过。",
+                "emotion": "急迫、压迫",
+                "shotType": "close_up",
+                "cameraAngle": "low_angle",
+                "comic": {
+                  "panelDescription": "变形金属楔子死死顶住防火门底部，门缝窄到只露出一掌宽的黑暗缝隙。",
+                  "composition": "楔子和门缝占据画面下方视觉中心，火光从边缘压入，陈拓受伤的左臂和孩子们的湿毛巾轮廓在后方形成阅读压力，留白避开门缝与楔子。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "浓烟中防火门只开着一掌宽，孩子们停在门前无法穿过；火焰逼近，陈拓的视线落到卡死门底的变形楔子上，镜头停在楔子与窄门缝的状态确认。",
+                  "compositionDesign": "人物被压在门内一侧，孩子们靠近安宁，陈拓前倾观察门底；镜头结束时楔子、门缝和逼近火光形成同一空间阻碍。",
+                  "cameraMovement": "push_in",
+                  "frameType": "detail",
+                  "durationMs": 3500,
+                  "durationHint": "约 3.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "烟道平台浓烟火光中，变形金属楔子卡住防火门底部，一掌宽门缝，孩子们被挡在后方，橙黑高对比压迫构图",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_002",
+                "order": 2,
+                "beatId": "beat_02",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02"
+                ],
+                "coreAction": "陈拓把安全绳交给安宁，决定踢楔子并让她先带孩子走。",
+                "emotion": "克制、决断",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "焦黑消防服的陈拓把安全绳递到戴护目镜的安宁手中，两人的手在火光前交接。",
+                  "composition": "安全绳交接点放在画面中央，陈拓在左侧前景、安宁在右侧承接视线，背景门缝和浓烟压低空间，人物脸部上方保留对白留白。",
+                  "dialogue": "陈拓：我踢开以后，你先带孩子走。\n安宁：我会回来。",
+                  "caption": "",
+                  "panelRhythm": "normal"
+                },
+                "motion": {
+                  "visualDescription": "陈拓从门底楔子前收回视线，把安全绳交到安宁手里并明确点头；安宁握紧绳子回应，撤离责任从陈拓转到她手上。",
+                  "compositionDesign": "陈拓与安宁面对面站在门内侧，安全绳在两人之间形成连接线；镜头结束时安宁握住绳子，陈拓身体转向楔子方向。",
+                  "cameraMovement": "static",
+                  "frameType": "dialogue",
+                  "durationMs": 6500,
+                  "durationHint": "约 6.5s",
+                  "voiceLines": [
+                    {
+                      "characterId": "character_01",
+                      "name": "陈拓",
+                      "line": "我踢开以后，你先带孩子走。",
+                      "voiceStyle": "低声、克制"
+                    },
+                    {
+                      "characterId": "character_02",
+                      "name": "安宁",
+                      "line": "我会回来。",
+                      "voiceStyle": "坚定、压住焦急"
+                    }
+                  ]
+                },
+                "promptDraft": "陈拓焦黑消防服左臂受伤，把安全绳交给白色急救背心护目镜的安宁，烟道平台火光浓烟，交接瞬间居中",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_003",
+                "order": 3,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "陈拓踢飞楔子，防火门彻底弹开，出口从不可用变成打开。",
+                "emotion": "爆发、惊险",
+                "shotType": "wide",
+                "cameraAngle": "low_angle",
+                "comic": {
+                  "panelDescription": "金属楔子飞离门底，防火门彻底弹开，陈拓踢出的脚失去原本支点。",
+                  "composition": "飞落楔子沿斜线引导视线到完全打开的门，陈拓的踢腿和失衡身体占据前景，安宁与孩子们在门旁形成结果见证，火墙从后方压近。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "陈拓站定后用尽全力踢中变形楔子；楔子飞落，防火门不再受阻并彻底弹开，他踢出的脚失去支点，镜头停在门完全打开的结果上。",
+                  "compositionDesign": "陈拓从门底一侧发力，动作线指向飞落楔子；门板弹开后露出可通行出口，安宁和孩子们的撤离方向被打开，镜头结束在陈拓失衡与出口敞开的对比位置。",
+                  "cameraMovement": "handheld",
+                  "frameType": "action",
+                  "durationMs": 4800,
+                  "durationHint": "约 4.8s",
+                  "voiceLines": []
+                },
+                "promptDraft": "金属楔子被踢飞，防火门完全弹开，陈拓焦黑消防服失去支点，安宁和三名戴湿毛巾孩子在烟道平台火光中",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_004",
+                "order": 4,
+                "beatId": "beat_04",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "安宁带孩子依次穿过完全打开的门撤出。",
+                "emotion": "紧张、抢救般的专注",
+                "shotType": "full",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "安宁护着三名戴湿毛巾的孩子穿过完全打开的防火门，门外空间第一次变成可达出口。",
+                  "composition": "从陈拓内侧肩后看向门口，安宁和孩子们沿竖向阅读方向穿门撤出，门框形成明亮出口边界，陈拓留在画面近侧边缘保持距离感。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "fast"
+                },
+                "motion": {
+                  "visualDescription": "门完全打开后，安宁立刻带孩子们依次穿过门；陈拓留在平台内侧看着他们撤出，镜头停在最后一个孩子即将通过门口的撤离进程上。",
+                  "compositionDesign": "安宁在门外方向引导，孩子们按顺序穿门，陈拓处在内侧后方；人物运动统一向门外推进，结束时门口空间被撤离队列占满。",
+                  "cameraMovement": "track_right",
+                  "frameType": "action",
+                  "durationMs": 5200,
+                  "durationHint": "约 5.2s",
+                  "voiceLines": []
+                },
+                "promptDraft": "完全打开的防火门前，安宁带三名戴湿毛巾孩子依次撤出，陈拓留在烟道平台内侧，橙黑火光与冷白应急光对比",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_005",
+                "order": 5,
+                "beatId": "beat_04",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "最后一个孩子撤出时，回燃火墙隔开陈拓，安宁必须继续带孩子走还是回头。",
+                "emotion": "震动、悬念",
+                "shotType": "wide",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "最后一个孩子已经在门外，陈拓被回燃火墙隔在门内平台另一侧。",
+                  "composition": "火墙横贯画面中部形成隔断，门外的安宁和孩子们在一侧，门内的陈拓在另一侧；安宁回望陈拓，读者视线被火墙切开后落到两人的距离。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "最后一个孩子穿过完全打开的门后，回燃火墙在陈拓与门口之间升起；安宁带着孩子停在门外回望，陈拓被隔在平台内侧，镜头停在双方被火墙分开的状态。",
+                  "compositionDesign": "孩子们保持在门外安宁身旁，陈拓留在门内火墙之后；火墙成为中间屏障，结束画面固定在安宁回望与陈拓被困的空间关系上。",
+                  "cameraMovement": "pull_out",
+                  "frameType": "reaction",
+                  "durationMs": 5600,
+                  "durationHint": "约 5.6s",
+                  "voiceLines": []
+                },
+                "promptDraft": "门外安宁和三名孩子获救，门内陈拓被回燃火墙隔开，医院后楼烟道平台，橙黑灾难火光，高对比悬念构图",
+                "lockedCandidateId": null,
+                "status": "draft"
+              }
+            ],
+            "notes": "全章按出口受阻、交绳决定、踢楔开门、孩子撤出、火墙隔开五个共享剧情锚点推进；beat_04 因撤离结果与被困钩子属于两个状态边界，拆为两个 Shot。",
+            "createdAt": "2026-07-17T03:40:43.087Z",
+            "updatedAt": "2026-07-17T03:40:43.087Z"
+          },
+          "metrics": {
+            "shotCount": 5,
+            "totalDurationMs": 25600,
+            "totalVoiceLines": 2,
+            "maxVoiceLinesPerShot": 2,
+            "shotsOverThreeVoiceLines": 0,
+            "shotsOverTenSeconds": 0
+          },
+          "evaluations": [
+            {
+              "repeatIndex": 1,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 7,
+                  "partialDimensions": 1,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头直接呈现楔子卡住防火门、门缝仅一掌宽且孩子无法通过，足以确认唯一出口暂不可用。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "画面和对白明确表现陈拓交绳、决定踢楔子并让安宁先带孩子走，撤离责任与动作代价均已转移。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头直接表现陈拓踢飞金属楔子，防火门随即彻底弹开，并停在门完全打开的结果上。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4,
+                      5
+                    ],
+                    "missingFacts": [
+                      "缺少安宁明确把陈拓视为必须救回的人或形成救回决心的可见可听证据"
+                    ],
+                    "contradictions": [],
+                    "reason": "镜头表现安宁带孩子撤出、最后一个孩子通过后火墙隔开陈拓，但安宁对陈拓的必须救回认知只由回望弱暗示。"
+                  }
+                ]
+              }
+            },
+            {
+              "repeatIndex": 2,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 7,
+                  "partialDimensions": 1,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头直接表现楔子卡住防火门、门缝仅一掌宽且孩子无法通过，出口暂时不可用明确可见。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "陈拓交出安全绳并对白说明踢开后由安宁先带孩子走，责任转移和陈拓承担动作代价均明确。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头表现陈拓踢飞楔子、防火门不再受阻并彻底弹开，出口状态变化明确。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4,
+                      5
+                    ],
+                    "missingFacts": [
+                      "缺少安宁把陈拓从搭档视为必须救回的人的明确画面、对白、旁白或配音证据。"
+                    ],
+                    "contradictions": [],
+                    "reason": "孩子依次撤出、最后一个孩子出门后火墙隔开陈拓均明确，但安宁对陈拓的关系认知升级只表现为回望，缺少决定性表达。"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "status": "completed",
+          "variant": "v2_5_experiment",
+          "providerId": "self",
+          "modelId": "gpt-5.5",
+          "generationAttempts": 1,
+          "repaired": false,
+          "prompt": "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。\n动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。\n\n硬性边界：\n- 只生成当前章节分镜，不要生成整部作品分镜。\n- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。\n- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。\n- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。\n- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。\n- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。\n- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。\n- 不要生成候选图、TTS、字幕、视频或排版。\n- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：character_01=陈拓、character_02=安宁、character_03=孩子们），不能填写数据库 UUID、角色名、别名或简称。\n- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。\n- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。\n- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。\n- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。\n- 当前 M1 共享骨架建议生成 4-8 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。\n- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。\n- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。\n\nV2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：\n步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。\n步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。\n步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。\n步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。\n步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。\n\n共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：\n- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。\n- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。\n- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。\n- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。\n- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。\n- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。\n- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。\n\n漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：\n- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。\n- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。\n- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。\n- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。\n- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。\n- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。\n- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。\n- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。\n- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。\n- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。\n- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。\n- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。\n- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。\n\n漫画分镜 Prompt（独立设计 comic）：\n- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。\n- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。\n- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。\n- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。\n- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。\n- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。\n- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。\n\n漫画 / 漫剧双轨一致性边界：\n- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。\n- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。\n- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。\n- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。\n\nV2.5 实验：低权重定向风险扫描（正常完成 V2.3 草稿后执行；只输出最终 JSON，不输出扫描过程）：\n- 只复核三类稳定高风险事实，不遍历或重写全部 summary/outcome：①声音、屏幕变化或其他可见/可听信号是否是后续行动的必要触发原因；②正式结构是否已经从线索推进到身份、对象或地点结论，而不是只停在线索本身；③关键决定、行动结果或状态变化是否已经成为观众可见或可听的退出状态。\n- 发现上述事实承载偏弱时，优先补强承载同一 beat 的既有 Shot：可收准 coreAction、comic 的静态决定性瞬间或 motion 的唯一聚焦变化；两条轨道按各自媒介表达，但不得改变正式事实。\n- 本扫描本身零新增成本：不得因为扫描到一个风险事实就新建 Shot、增加对白、添加旁白或延长 durationMs；一个既有镜头能够清楚承载时必须原位补强。\n- 只有 V2.3 原有状态边界已经满足必要拆镜条件，且同一 Shot 确实无法清楚承接原因/结果、线索/结论或决定/结果时，才可使用该 beat 的第二个共享 Shot；不得恢复逐事实拆镜。\n- 非对白声音、屏幕文字和道具标签使用现有画面、动作、环境或 quoted_audio 能力表达，不得伪造成角色 voiceLines，也不得编造正文未提供的原文。\n- 不扫描抽象关系状态，不要输出事实清单、逐 Beat 映射、评分或诊断字段。\n\n枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：\n- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up\n- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle\n- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition\n- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none\n- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition\n- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。\n- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。\n- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。\n- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。\n\nJSON 结构必须是：\n```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\"\n      ],\n      \"coreAction\": \"镜头核心动作\",\n      \"emotion\": \"情绪\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"漫画画格锁定一个静态决定性瞬间\",\n        \"composition\": \"静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）\",\n        \"dialogue\": \"对白气泡文字，没有就空字符串\",\n        \"caption\": \"旁白，没有就空字符串\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"漫剧镜头从开始状态，经主要动作或表演变化，到结束状态\",\n        \"compositionDesign\": \"动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"atmosphere\",\n        \"durationMs\": 3000,\n        \"durationHint\": \"约 3s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"角色名\",\n            \"line\": \"台词内容\",\n            \"voiceStyle\": \"声音风格，如低声、克制\"\n          }\n        ]\n      },\n      \"promptDraft\": \"给后续图片提示词生成的简短草稿，不是最终 Prompt\"\n    }\n  ],\n  \"notes\": \"分镜节奏说明\"\n}\n```\n\n项目名称：逆火线\n剧集名称：逆火线\n漫画版式：vertical_scroll\n项目画风：高对比灾难动作漫画，橙黑火光\n当前章节：最后一根楔子\n当前章节状态：structured\n当前剧情结构版本：script-action-v1\n已确认剧情结构：\n{\n  \"schemaVersion\": 1,\n  \"chapterId\": \"chapter-action\",\n  \"chapterTitle\": \"最后一根楔子\",\n  \"sourceScriptVersionId\": \"script-action-v1\",\n  \"synopsis\": \"陈拓踢掉楔子打开烟道门，以被困为代价让孩子撤出。\",\n  \"direction\": {\n    \"logline\": \"一次决定性动作打开出口并制造新困境。\",\n    \"chapterGoal\": \"打开烟道出口\",\n    \"coreConflict\": \"救人会让自己失去退路\",\n    \"emotionalArc\": \"犹豫到承担\",\n    \"endingHook\": \"陈拓被火墙隔开\"\n  },\n  \"characters\": [\n    {\n      \"id\": \"character_01\",\n      \"projectCharacterId\": null,\n      \"name\": \"陈拓\",\n      \"role\": \"消防员\",\n      \"level\": \"lead\",\n      \"entityType\": \"human\",\n      \"motivation\": \"救出被困孩子\",\n      \"relationship\": \"安宁的救援搭档\",\n      \"visualTraits\": \"焦黑消防服、左臂受伤\",\n      \"notes\": \"承担主要风险\"\n    },\n    {\n      \"id\": \"character_02\",\n      \"projectCharacterId\": null,\n      \"name\": \"安宁\",\n      \"role\": \"急救医生\",\n      \"level\": \"recurring\",\n      \"entityType\": \"human\",\n      \"motivation\": \"带孩子撤离并救回陈拓\",\n      \"relationship\": \"陈拓的救援搭档\",\n      \"visualTraits\": \"白色急救背心、护目镜\",\n      \"notes\": \"负责撤离\"\n    },\n    {\n      \"id\": \"character_03\",\n      \"projectCharacterId\": null,\n      \"name\": \"孩子们\",\n      \"role\": \"被困群体\",\n      \"level\": \"extra\",\n      \"entityType\": \"group\",\n      \"motivation\": \"逃离火场\",\n      \"relationship\": \"依赖救援者\",\n      \"visualTraits\": \"三名戴湿毛巾的孩子\",\n      \"notes\": \"群体角色\"\n    }\n  ],\n  \"scenes\": [\n    {\n      \"id\": \"scene_01\",\n      \"name\": \"烟道平台\",\n      \"location\": \"医院后楼烟道平台\",\n      \"timeOfDay\": \"傍晚\",\n      \"atmosphere\": \"浓烟、灼热、急迫\",\n      \"purpose\": \"用动作结果完成撤离并制造代价\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"id\": \"beat_01\",\n      \"order\": 1,\n      \"title\": \"出口卡死\",\n      \"summary\": \"防火门被变形楔子卡得只剩一掌宽，孩子无法穿过。\",\n      \"conflict\": \"火焰逼近\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\",\n        \"孩子们\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"楔子与一掌宽门缝\",\n      \"outcome\": \"唯一出口暂时不可用。\"\n    },\n    {\n      \"id\": \"beat_02\",\n      \"order\": 2,\n      \"title\": \"交绳决定\",\n      \"summary\": \"陈拓把安全绳交给安宁，决定踢楔子并让她先带孩子走。\",\n      \"conflict\": \"失去支点会让陈拓无法撤离\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"安全绳从陈拓手中交到安宁手里\",\n      \"outcome\": \"安宁接过撤离责任，陈拓承担动作代价。\"\n    },\n    {\n      \"id\": \"beat_03\",\n      \"order\": 3,\n      \"title\": \"楔落门开\",\n      \"summary\": \"陈拓一脚踢飞金属楔子，失去阻挡的防火门随即彻底弹开。\",\n      \"conflict\": \"火墙同时向陈拓身后压来\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\",\n        \"孩子们\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"飞落楔子、完全打开的门与陈拓失去支点的脚\",\n      \"outcome\": \"动作明确成功，出口从不可用变成完全打开，而不是只表现踢击过程。\"\n    },\n    {\n      \"id\": \"beat_04\",\n      \"order\": 4,\n      \"title\": \"撤出与被困\",\n      \"summary\": \"安宁带孩子依次穿过打开的门，最后一个孩子撤出时回燃火墙隔开陈拓。\",\n      \"conflict\": \"安宁必须继续带孩子走还是回头\",\n      \"characters\": [\n        \"陈拓\",\n        \"安宁\",\n        \"孩子们\"\n      ],\n      \"sceneId\": \"scene_01\",\n      \"visualFocus\": \"门外孩子、门内陈拓与中间火墙\",\n      \"outcome\": \"孩子们获救，陈拓被困；安宁把他从搭档视为必须救回的人。\"\n    }\n  ],\n  \"notes\": \"必须看见踢击产生楔子脱落、门完全打开和撤离条件改变。\",\n  \"createdAt\": \"2026-07-17T00:00:00.000Z\",\n  \"updatedAt\": \"2026-07-17T00:00:00.000Z\"\n}\n当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：\n# 章节剧本\n\n## 第 1 章：最后一根楔子\n\n### 一、基础方向\n类型：灾难动作\n主题：选择的代价\n风格：紧凑、具象\n漫画形式：竖向条漫\n目标篇幅：完整单章\n\n### 二、本章方向\n一句话梗概：陈拓冒险踢掉卡住烟道门的楔子，为孩子打开唯一出口。\n本章目标：在回燃前打开烟道出口\n核心冲突：踢楔子会让陈拓失去唯一立足点\n情绪走向：犹豫到承担代价\n结尾钩子：门开后陈拓被困在火墙另一侧\n\n### 三、剧本亮点\n亮点 1：鞋尖与楔子的近景\n亮点 2：防火门彻底弹开\n亮点 3：孩子撤出而陈拓留下\n\n### 四、视觉基调\n画面氛围：浓烟与闪动火光\n色调方向：橙黑与冷白应急灯\n视觉记忆点：松动的金属楔子\n\n### 五、剧本正文\n\n#### 场景 1：烟道平台\n地点：医院后楼烟道平台\n时间：傍晚\n氛围：浓烟、灼热、急迫\n出场人物：陈拓、安宁、孩子们\n\n剧情描写：\n防火门只开了一掌宽，底部被变形金属楔子卡死。火焰逼近，孩子们无法穿过。陈拓看见踢掉楔子会失去自己脚下的支点。\n\n人物动作：\n陈拓把安全绳交给安宁，明确点头后用尽全力踢中楔子。楔子飞落，防火门不再受阻并彻底弹开。安宁立刻带孩子依次穿门撤出，陈拓则被回燃火墙隔在平台内侧。\n\n对白：\n陈拓：我踢开以后，你先带孩子走。\n安宁：我会回来。\n\n旁白：\n无\n\n场景结束点：\n最后一个孩子穿过完全打开的门，陈拓留在火墙另一侧。\n\n### 六、本章结尾\n结尾事件：门完全打开，孩子撤出，陈拓被困\n悬念：安宁能否返回救出陈拓\n下一章引子：安宁寻找另一条回到平台的路线\n全章正式对白/配音候选（voiceLines 唯一逐字来源）：\n[\n  {\n    \"localRef\": \"dialogue-0001\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"陈拓\",\n    \"characterRef\": \"character_01\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"我踢开以后，你先带孩子走。\"\n  },\n  {\n    \"localRef\": \"dialogue-0002\",\n    \"sceneRef\": \"scene_01\",\n    \"sourceSpeaker\": \"安宁\",\n    \"characterRef\": \"character_02\",\n    \"sourceKind\": \"dialogue\",\n    \"line\": \"我会回来。\"\n  }\n]\n用户本次要求：\n请生成当前章节完整分镜，漫画和漫剧都要完整。",
+          "rawOutputs": [
+            "```json\n{\n  \"shots\": [\n    {\n      \"order\": 1,\n      \"beatId\": \"beat_01\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"防火门被变形金属楔子卡住，只剩一掌宽门缝，孩子们无法穿过，火焰逼近。\",\n      \"emotion\": \"压迫、急迫\",\n      \"shotType\": \"close_up\",\n      \"cameraAngle\": \"low_angle\",\n      \"comic\": {\n        \"panelDescription\": \"变形金属楔子死死顶在防火门底部，门缝窄到只能露出一掌宽，孩子们戴着湿毛巾挤在后方不敢上前。\",\n        \"composition\": \"楔子和门缝占画面下方视觉重心，孩子们的腿和湿毛巾身影压在背景烟雾里，火光从侧后方逼近，顶部留出少量空白承接压迫感。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"slow\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"镜头从卡死的门缝和楔子开始，孩子们停在门内侧无法通过，火光在烟雾后方逼近；陈拓和安宁的注意力都落到门底，镜头停在出口暂时不可用的状态。\",\n        \"compositionDesign\": \"楔子位于前景低处，门缝形成狭窄竖线，孩子们被压在后景，陈拓和安宁处在门侧边缘，结束时所有视线集中到楔子。\",\n        \"cameraMovement\": \"push_in\",\n        \"frameType\": \"detail\",\n        \"durationMs\": 3500,\n        \"durationHint\": \"约 3.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"烟道平台浓烟火光中，变形金属楔子卡住防火门底部，一掌宽门缝，三名戴湿毛巾的孩子被挡在后方，橙黑高对比灾难动作氛围\"\n    },\n    {\n      \"order\": 2,\n      \"beatId\": \"beat_02\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\"\n      ],\n      \"coreAction\": \"陈拓把安全绳交给安宁，决定踢开楔子并让她先带孩子撤离。\",\n      \"emotion\": \"克制、决断\",\n      \"shotType\": \"medium\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"陈拓焦黑消防服的手把安全绳递到安宁戴护目镜的手中，两人的视线在浓烟里短暂相接。\",\n        \"composition\": \"安全绳交接处位于画面中央，陈拓在左侧略向门内，安宁在右侧靠近撤离方向，人物脸部和手部之间形成阅读动线，旁侧留出对白空间。\",\n        \"dialogue\": \"我踢开以后，你先带孩子走。\\n我会回来。\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"normal\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"陈拓从门边转向安宁，把安全绳交到她手里，停顿后明确点头；安宁接住绳子回应，撤离责任从陈拓手中转到安宁手中。\",\n        \"compositionDesign\": \"陈拓站在靠近楔子的一侧，安宁站在出口方向，安全绳在两人之间形成清晰连接；镜头结束时绳子已在安宁手里，陈拓身体转回门底楔子方向。\",\n        \"cameraMovement\": \"static\",\n        \"frameType\": \"dialogue\",\n        \"durationMs\": 6500,\n        \"durationHint\": \"约 6.5s\",\n        \"voiceLines\": [\n          {\n            \"characterId\": \"character_01\",\n            \"name\": \"陈拓\",\n            \"line\": \"我踢开以后，你先带孩子走。\",\n            \"voiceStyle\": \"低声、克制\"\n          },\n          {\n            \"characterId\": \"character_02\",\n            \"name\": \"安宁\",\n            \"line\": \"我会回来。\",\n            \"voiceStyle\": \"坚定、压住慌乱\"\n          }\n        ]\n      },\n      \"promptDraft\": \"焦黑消防服的陈拓将安全绳交给穿白色急救背心和护目镜的安宁，浓烟灼热烟道平台，橙黑火光与冷白应急灯交错，决断交接瞬间\"\n    },\n    {\n      \"order\": 3,\n      \"beatId\": \"beat_03\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"陈拓踢飞金属楔子，防火门彻底弹开，出口从不可用变成完全打开。\",\n      \"emotion\": \"爆发、代价迫近\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"low_angle\",\n      \"comic\": {\n        \"panelDescription\": \"金属楔子飞离门底，防火门已经完全弹开，陈拓受伤的左臂贴近身体，踢出的脚失去原本支点。\",\n        \"composition\": \"完全打开的门形成画面右侧亮口，飞落楔子斜向穿过前景，陈拓身体重心偏在左侧，安宁和孩子们在门后方形成撤离方向的视觉引导。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"陈拓从门底前稳住身体，用尽全力踢中楔子；楔子脱离并飞落，防火门不再受阻彻底弹开，陈拓踢出的脚落空，身后火墙同时压近。\",\n        \"compositionDesign\": \"镜头从陈拓脚与楔子的低位关系开始，踢击后让门向一侧弹开形成新的出口空间；结束时陈拓停在平台内侧，门口通路被清楚打开。\",\n        \"cameraMovement\": \"handheld\",\n        \"frameType\": \"action\",\n        \"durationMs\": 4500,\n        \"durationHint\": \"约 4.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"陈拓踢飞变形金属楔子，防火门完全弹开，烟道平台浓烟火墙压近，焦黑消防服和受伤左臂，楔子飞落与打开出口同框\"\n    },\n    {\n      \"order\": 4,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"安宁带孩子们依次穿过完全打开的门撤出，陈拓留在平台内侧。\",\n      \"emotion\": \"紧绷、抢时间\",\n      \"shotType\": \"full\",\n      \"cameraAngle\": \"over_shoulder\",\n      \"comic\": {\n        \"panelDescription\": \"安宁拉着一名戴湿毛巾的孩子跨过完全打开的门，另外两个孩子紧跟在门口，陈拓站在门内侧看着他们撤出。\",\n        \"composition\": \"从陈拓肩后看向打开的门，安宁和孩子们沿竖向阅读方向穿过亮口，陈拓的背影压在前景暗部，门外形成明确安全方向。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"fast\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"从门完全打开的状态开始，安宁立刻带第一个孩子穿门，后面的孩子依次跟上；陈拓留在平台内侧看着撤离完成推进，镜头停在最后一个孩子即将穿过门的状态。\",\n        \"compositionDesign\": \"陈拓保持在内侧前景，安宁沿门口向外带人移动，三个孩子按顺序经过门框；镜头结束时撤离队列几乎全部越过门线。\",\n        \"cameraMovement\": \"track_right\",\n        \"frameType\": \"action\",\n        \"durationMs\": 5500,\n        \"durationHint\": \"约 5.5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"安宁穿白色急救背心带三名戴湿毛巾的孩子依次穿过完全打开的防火门，陈拓留在烟道平台内侧，浓烟火光，紧张撤离\"\n    },\n    {\n      \"order\": 5,\n      \"beatId\": \"beat_04\",\n      \"sceneId\": \"scene_01\",\n      \"characterIds\": [\n        \"character_01\",\n        \"character_02\",\n        \"character_03\"\n      ],\n      \"coreAction\": \"最后一个孩子撤出时，回燃火墙隔开陈拓，孩子们获救而陈拓被困。\",\n      \"emotion\": \"震惊、悬念\",\n      \"shotType\": \"wide\",\n      \"cameraAngle\": \"eye_level\",\n      \"comic\": {\n        \"panelDescription\": \"最后一个孩子已经在门外，门内的陈拓被骤起火墙隔在平台内侧，安宁回头望向他。\",\n        \"composition\": \"火墙横在画面中部形成分隔，门外的安宁和孩子们在一侧，陈拓在另一侧暗红火光中，读者视线从获救孩子转向被隔开的陈拓。\",\n        \"dialogue\": \"\",\n        \"caption\": \"\",\n        \"panelRhythm\": \"impact\"\n      },\n      \"motion\": {\n        \"visualDescription\": \"最后一个孩子越过完全打开的门后，回燃火墙从门内侧升起并截断通路；安宁在门外回头，陈拓停在火墙另一侧，镜头结束在双方被隔开的状态。\",\n        \"compositionDesign\": \"孩子们停在门外低处，安宁位于门口外侧回望，陈拓被留在内侧，火墙在两人之间成为主要分隔线；镜头结束时空间关系清楚显示获救与被困并存。\",\n        \"cameraMovement\": \"pull_out\",\n        \"frameType\": \"reaction\",\n        \"durationMs\": 5000,\n        \"durationHint\": \"约 5s\",\n        \"voiceLines\": []\n      },\n      \"promptDraft\": \"最后一个孩子撤出后，回燃火墙隔开门内陈拓与门外安宁和孩子们，医院后楼烟道平台，橙黑火光，高对比灾难动作漫画悬念瞬间\"\n    }\n  ],\n  \"notes\": \"本章按出口不可用、责任交接、楔落门开、孩子撤出、陈拓被火墙隔开推进；beat_04 拆为撤离动作与被困钩子两个共享 Shot，以保留撤离结果和结尾代价的清晰状态边界。\"\n}\n```"
+          ],
+          "storyboard": {
+            "schemaVersion": 1,
+            "chapterId": "chapter-action",
+            "chapterTitle": "最后一根楔子",
+            "sourceStoryVersionId": "script-action-v1",
+            "shots": [
+              {
+                "id": "shot_001",
+                "order": 1,
+                "beatId": "beat_01",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "防火门被变形金属楔子卡住，只剩一掌宽门缝，孩子们无法穿过，火焰逼近。",
+                "emotion": "压迫、急迫",
+                "shotType": "close_up",
+                "cameraAngle": "low_angle",
+                "comic": {
+                  "panelDescription": "变形金属楔子死死顶在防火门底部，门缝窄到只能露出一掌宽，孩子们戴着湿毛巾挤在后方不敢上前。",
+                  "composition": "楔子和门缝占画面下方视觉重心，孩子们的腿和湿毛巾身影压在背景烟雾里，火光从侧后方逼近，顶部留出少量空白承接压迫感。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "slow"
+                },
+                "motion": {
+                  "visualDescription": "镜头从卡死的门缝和楔子开始，孩子们停在门内侧无法通过，火光在烟雾后方逼近；陈拓和安宁的注意力都落到门底，镜头停在出口暂时不可用的状态。",
+                  "compositionDesign": "楔子位于前景低处，门缝形成狭窄竖线，孩子们被压在后景，陈拓和安宁处在门侧边缘，结束时所有视线集中到楔子。",
+                  "cameraMovement": "push_in",
+                  "frameType": "detail",
+                  "durationMs": 3500,
+                  "durationHint": "约 3.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "烟道平台浓烟火光中，变形金属楔子卡住防火门底部，一掌宽门缝，三名戴湿毛巾的孩子被挡在后方，橙黑高对比灾难动作氛围",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_002",
+                "order": 2,
+                "beatId": "beat_02",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02"
+                ],
+                "coreAction": "陈拓把安全绳交给安宁，决定踢开楔子并让她先带孩子撤离。",
+                "emotion": "克制、决断",
+                "shotType": "medium",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "陈拓焦黑消防服的手把安全绳递到安宁戴护目镜的手中，两人的视线在浓烟里短暂相接。",
+                  "composition": "安全绳交接处位于画面中央，陈拓在左侧略向门内，安宁在右侧靠近撤离方向，人物脸部和手部之间形成阅读动线，旁侧留出对白空间。",
+                  "dialogue": "我踢开以后，你先带孩子走。\n我会回来。",
+                  "caption": "",
+                  "panelRhythm": "normal"
+                },
+                "motion": {
+                  "visualDescription": "陈拓从门边转向安宁，把安全绳交到她手里，停顿后明确点头；安宁接住绳子回应，撤离责任从陈拓手中转到安宁手中。",
+                  "compositionDesign": "陈拓站在靠近楔子的一侧，安宁站在出口方向，安全绳在两人之间形成清晰连接；镜头结束时绳子已在安宁手里，陈拓身体转回门底楔子方向。",
+                  "cameraMovement": "static",
+                  "frameType": "dialogue",
+                  "durationMs": 6500,
+                  "durationHint": "约 6.5s",
+                  "voiceLines": [
+                    {
+                      "characterId": "character_01",
+                      "name": "陈拓",
+                      "line": "我踢开以后，你先带孩子走。",
+                      "voiceStyle": "低声、克制"
+                    },
+                    {
+                      "characterId": "character_02",
+                      "name": "安宁",
+                      "line": "我会回来。",
+                      "voiceStyle": "坚定、压住慌乱"
+                    }
+                  ]
+                },
+                "promptDraft": "焦黑消防服的陈拓将安全绳交给穿白色急救背心和护目镜的安宁，浓烟灼热烟道平台，橙黑火光与冷白应急灯交错，决断交接瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_003",
+                "order": 3,
+                "beatId": "beat_03",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "陈拓踢飞金属楔子，防火门彻底弹开，出口从不可用变成完全打开。",
+                "emotion": "爆发、代价迫近",
+                "shotType": "wide",
+                "cameraAngle": "low_angle",
+                "comic": {
+                  "panelDescription": "金属楔子飞离门底，防火门已经完全弹开，陈拓受伤的左臂贴近身体，踢出的脚失去原本支点。",
+                  "composition": "完全打开的门形成画面右侧亮口，飞落楔子斜向穿过前景，陈拓身体重心偏在左侧，安宁和孩子们在门后方形成撤离方向的视觉引导。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "陈拓从门底前稳住身体，用尽全力踢中楔子；楔子脱离并飞落，防火门不再受阻彻底弹开，陈拓踢出的脚落空，身后火墙同时压近。",
+                  "compositionDesign": "镜头从陈拓脚与楔子的低位关系开始，踢击后让门向一侧弹开形成新的出口空间；结束时陈拓停在平台内侧，门口通路被清楚打开。",
+                  "cameraMovement": "handheld",
+                  "frameType": "action",
+                  "durationMs": 4500,
+                  "durationHint": "约 4.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "陈拓踢飞变形金属楔子，防火门完全弹开，烟道平台浓烟火墙压近，焦黑消防服和受伤左臂，楔子飞落与打开出口同框",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_004",
+                "order": 4,
+                "beatId": "beat_04",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "安宁带孩子们依次穿过完全打开的门撤出，陈拓留在平台内侧。",
+                "emotion": "紧绷、抢时间",
+                "shotType": "full",
+                "cameraAngle": "over_shoulder",
+                "comic": {
+                  "panelDescription": "安宁拉着一名戴湿毛巾的孩子跨过完全打开的门，另外两个孩子紧跟在门口，陈拓站在门内侧看着他们撤出。",
+                  "composition": "从陈拓肩后看向打开的门，安宁和孩子们沿竖向阅读方向穿过亮口，陈拓的背影压在前景暗部，门外形成明确安全方向。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "fast"
+                },
+                "motion": {
+                  "visualDescription": "从门完全打开的状态开始，安宁立刻带第一个孩子穿门，后面的孩子依次跟上；陈拓留在平台内侧看着撤离完成推进，镜头停在最后一个孩子即将穿过门的状态。",
+                  "compositionDesign": "陈拓保持在内侧前景，安宁沿门口向外带人移动，三个孩子按顺序经过门框；镜头结束时撤离队列几乎全部越过门线。",
+                  "cameraMovement": "track_right",
+                  "frameType": "action",
+                  "durationMs": 5500,
+                  "durationHint": "约 5.5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "安宁穿白色急救背心带三名戴湿毛巾的孩子依次穿过完全打开的防火门，陈拓留在烟道平台内侧，浓烟火光，紧张撤离",
+                "lockedCandidateId": null,
+                "status": "draft"
+              },
+              {
+                "id": "shot_005",
+                "order": 5,
+                "beatId": "beat_04",
+                "sceneId": "scene_01",
+                "characterIds": [
+                  "character_01",
+                  "character_02",
+                  "character_03"
+                ],
+                "coreAction": "最后一个孩子撤出时，回燃火墙隔开陈拓，孩子们获救而陈拓被困。",
+                "emotion": "震惊、悬念",
+                "shotType": "wide",
+                "cameraAngle": "eye_level",
+                "comic": {
+                  "panelDescription": "最后一个孩子已经在门外，门内的陈拓被骤起火墙隔在平台内侧，安宁回头望向他。",
+                  "composition": "火墙横在画面中部形成分隔，门外的安宁和孩子们在一侧，陈拓在另一侧暗红火光中，读者视线从获救孩子转向被隔开的陈拓。",
+                  "dialogue": "",
+                  "caption": "",
+                  "panelRhythm": "impact"
+                },
+                "motion": {
+                  "visualDescription": "最后一个孩子越过完全打开的门后，回燃火墙从门内侧升起并截断通路；安宁在门外回头，陈拓停在火墙另一侧，镜头结束在双方被隔开的状态。",
+                  "compositionDesign": "孩子们停在门外低处，安宁位于门口外侧回望，陈拓被留在内侧，火墙在两人之间成为主要分隔线；镜头结束时空间关系清楚显示获救与被困并存。",
+                  "cameraMovement": "pull_out",
+                  "frameType": "reaction",
+                  "durationMs": 5000,
+                  "durationHint": "约 5s",
+                  "voiceLines": []
+                },
+                "promptDraft": "最后一个孩子撤出后，回燃火墙隔开门内陈拓与门外安宁和孩子们，医院后楼烟道平台，橙黑火光，高对比灾难动作漫画悬念瞬间",
+                "lockedCandidateId": null,
+                "status": "draft"
+              }
+            ],
+            "notes": "本章按出口不可用、责任交接、楔落门开、孩子撤出、陈拓被火墙隔开推进；beat_04 拆为撤离动作与被困钩子两个共享 Shot，以保留撤离结果和结尾代价的清晰状态边界。",
+            "createdAt": "2026-07-17T03:42:08.900Z",
+            "updatedAt": "2026-07-17T03:42:08.900Z"
+          },
+          "metrics": {
+            "shotCount": 5,
+            "totalDurationMs": 25000,
+            "totalVoiceLines": 2,
+            "maxVoiceLinesPerShot": 2,
+            "shotsOverThreeVoiceLines": 0,
+            "shotsOverTenSeconds": 0
+          },
+          "evaluations": [
+            {
+              "repeatIndex": 1,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 7,
+                  "partialDimensions": 1,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "画面和动作直接呈现楔子卡门、一掌宽门缝、孩子无法通过以及出口暂时不可用。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "陈拓交出安全绳并明确说踢开后让安宁先带孩子走，安宁接绳回应，责任转移和陈拓承担踢楔动作均可见可听。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头直接表现楔子被踢飞、防火门彻底弹开，出口从卡死变为完全打开。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4,
+                      5
+                    ],
+                    "missingFacts": [
+                      "缺少安宁明确把陈拓从搭档视为必须救回之人的可见或可听证据"
+                    ],
+                    "contradictions": [],
+                    "reason": "孩子依次撤出、最后孩子门外、火墙隔开陈拓均直接呈现，但安宁只回头望向陈拓，必须救回的态度仅被弱化暗示。"
+                  }
+                ]
+              }
+            },
+            {
+              "repeatIndex": 2,
+              "status": "completed",
+              "attempts": 1,
+              "report": {
+                "schemaVersion": 1,
+                "overallStatus": "warning",
+                "summary": {
+                  "beatCount": 4,
+                  "coveredDimensions": 7,
+                  "partialDimensions": 1,
+                  "missingDimensions": 0,
+                  "contradictedDimensions": 0
+                },
+                "beats": [
+                  {
+                    "beatId": "beat_01",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      1
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头直接呈现楔子卡住防火门、门缝仅一掌宽、孩子无法通过，出口暂时不可用。"
+                  },
+                  {
+                    "beatId": "beat_02",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      2
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "陈拓交出安全绳并明确说踢开后让安宁先带孩子走，安宁接住绳子，撤离责任和动作承担关系清楚。"
+                  },
+                  {
+                    "beatId": "beat_03",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "covered",
+                    "evidenceShotOrders": [
+                      3
+                    ],
+                    "missingFacts": [],
+                    "contradictions": [],
+                    "reason": "镜头直接表现陈拓踢中楔子、楔子飞离、防火门彻底弹开，出口状态从不可用变为完全打开。"
+                  },
+                  {
+                    "beatId": "beat_04",
+                    "summaryStatus": "covered",
+                    "outcomeStatus": "partial",
+                    "evidenceShotOrders": [
+                      4,
+                      5
+                    ],
+                    "missingFacts": [
+                      "缺少安宁把陈拓从搭档视为必须救回之人的明确画面、对白、旁白或配音证据"
+                    ],
+                    "contradictions": [],
+                    "reason": "孩子依次撤出、最后一个孩子出门后火墙隔开陈拓均已呈现，但安宁必须救回陈拓的认知变化只由回头动作弱暗示。"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "decision": {
+    "suiteId": "storyboard-prompt-v25-new-text-v1",
+    "decision": "do_not_adopt",
+    "adoptable": false,
+    "improvedCases": 0,
+    "requiredImprovedCases": 2,
+    "regressedDimensions": 0,
+    "metricBreaches": 1,
+    "failedRuns": 0,
+    "cases": [
+      {
+        "caseId": "sound-trigger-basement",
+        "status": "completed",
+        "improved": false,
+        "dimensions": [
+          {
+            "beatId": "beat_02",
+            "field": "summary",
+            "label": "三短一长的声音截停撤离",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ],
+            "delta": 0
+          },
+          {
+            "beatId": "beat_02",
+            "field": "outcome",
+            "label": "声音是改变行动的必要原因",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ],
+            "delta": 0
+          }
+        ],
+        "observations": [
+          {
+            "beatId": "beat_04",
+            "field": "outcome",
+            "label": "抽象的兄妹信任状态",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "partial",
+              "partial"
+            ]
+          }
+        ],
+        "controlMetrics": {
+          "shotCount": 6,
+          "totalDurationMs": 27500,
+          "totalVoiceLines": 1,
+          "maxVoiceLinesPerShot": 1,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "experimentMetrics": {
+          "shotCount": 6,
+          "totalDurationMs": 33000,
+          "totalVoiceLines": 1,
+          "maxVoiceLinesPerShot": 1,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "limits": {
+          "shotCount": 7,
+          "totalDurationMs": 35500,
+          "maxVoiceLinesPerShot": 1,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "metricPass": true
+      },
+      {
+        "caseId": "screen-identity-archive",
+        "status": "completed",
+        "improved": false,
+        "dimensions": [
+          {
+            "beatId": "beat_03",
+            "field": "summary",
+            "label": "屏幕姓名与证件照完成比对",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ],
+            "delta": 0
+          },
+          {
+            "beatId": "beat_03",
+            "field": "outcome",
+            "label": "明确得出 017 就是赵妍",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ],
+            "delta": 0
+          }
+        ],
+        "observations": [
+          {
+            "beatId": "beat_01",
+            "field": "outcome",
+            "label": "非目标的名册载入状态",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ]
+          }
+        ],
+        "controlMetrics": {
+          "shotCount": 4,
+          "totalDurationMs": 22000,
+          "totalVoiceLines": 1,
+          "maxVoiceLinesPerShot": 1,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "experimentMetrics": {
+          "shotCount": 6,
+          "totalDurationMs": 27400,
+          "totalVoiceLines": 1,
+          "maxVoiceLinesPerShot": 1,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "limits": {
+          "shotCount": 5,
+          "totalDurationMs": 30000,
+          "maxVoiceLinesPerShot": 1,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "metricPass": false
+      },
+      {
+        "caseId": "action-outcome-smoke-door",
+        "status": "completed",
+        "improved": false,
+        "dimensions": [
+          {
+            "beatId": "beat_03",
+            "field": "summary",
+            "label": "踢击导致楔子飞落和门弹开",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ],
+            "delta": 0
+          },
+          {
+            "beatId": "beat_03",
+            "field": "outcome",
+            "label": "出口状态从不可用变成完全打开",
+            "controlStatuses": [
+              "covered",
+              "covered"
+            ],
+            "experimentStatuses": [
+              "covered",
+              "covered"
+            ],
+            "delta": 0
+          }
+        ],
+        "observations": [
+          {
+            "beatId": "beat_04",
+            "field": "outcome",
+            "label": "抽象的搭档关系承诺",
+            "controlStatuses": [
+              "partial",
+              "partial"
+            ],
+            "experimentStatuses": [
+              "partial",
+              "partial"
+            ]
+          }
+        ],
+        "controlMetrics": {
+          "shotCount": 5,
+          "totalDurationMs": 25600,
+          "totalVoiceLines": 2,
+          "maxVoiceLinesPerShot": 2,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "experimentMetrics": {
+          "shotCount": 5,
+          "totalDurationMs": 25000,
+          "totalVoiceLines": 2,
+          "maxVoiceLinesPerShot": 2,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "limits": {
+          "shotCount": 6,
+          "totalDurationMs": 33600,
+          "maxVoiceLinesPerShot": 2,
+          "shotsOverThreeVoiceLines": 0,
+          "shotsOverTenSeconds": 0
+        },
+        "metricPass": true
+      }
+    ]
+  }
+}

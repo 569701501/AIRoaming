@@ -1,0 +1,402 @@
+{
+  "schemaVersion": 1,
+  "mode": "model",
+  "corpusId": "storyboard-semantic-corpus-v1",
+  "selectedFixtureId": null,
+  "generatedAt": "2026-07-17T03:44:32.618Z",
+  "repeat": 1,
+  "requestedModel": {
+    "providerId": "self",
+    "modelId": "gpt-5.5"
+  },
+  "runs": [
+    {
+      "fixtureId": "sound-trigger-suspense",
+      "repeatIndex": 1,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "warning",
+        "summary": {
+          "beatCount": 2,
+          "coveredDimensions": 3,
+          "partialDimensions": 1,
+          "missingDimensions": 0,
+          "contradictedDimensions": 0
+        },
+        "beats": [
+          {
+            "beatId": "beat-sound-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [
+              1
+            ],
+            "missingFacts": [
+              "缺少三短一长的敲门声作为顾林转向停尸间的触发"
+            ],
+            "contradictions": [],
+            "reason": "画面和对白直接表现电源与门禁同时失效，且她转向停尸间，但现有漫画和漫剧均没有敲门声。"
+          },
+          {
+            "beatId": "beat-sound-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              2
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "镜头直接表现顾林推开停尸间门，三号柜在空置标牌下半开，并有戴婚戒的手从柜内伸出。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 4,
+        "totalDimensions": 4,
+        "agreementRate": 1,
+        "dimensionMismatches": []
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    },
+    {
+      "fixtureId": "screen-identity-thriller",
+      "repeatIndex": 1,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "warning",
+        "summary": {
+          "beatCount": 3,
+          "coveredDimensions": 5,
+          "partialDimensions": 1,
+          "missingDimensions": 0,
+          "contradictedDimensions": 0
+        },
+        "beats": [
+          {
+            "beatId": "beat-screen-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              3
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "匿名短信、陈默进入楼内照片和苏遥对白均直接呈现，并让她怀疑陈默先前说法。"
+          },
+          {
+            "beatId": "beat-screen-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [
+              4
+            ],
+            "missingFacts": [
+              "缺少苏遥认出倒影是负责案件的赵警官的可观察证据"
+            ],
+            "contradictions": [],
+            "reason": "放大照片后可见警服和017胸牌，但没有姓名、面孔或对白表明她认出赵警官。"
+          },
+          {
+            "beatId": "beat-screen-3",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              5
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "赵警官来电否认到场，且苏遥录音并将短信截图和录音文件发送给律师。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 5,
+        "totalDimensions": 6,
+        "agreementRate": 0.8333333333333334,
+        "dimensionMismatches": [
+          {
+            "beatId": "beat-screen-2",
+            "dimension": "outcome",
+            "expected": "missing",
+            "actual": "partial"
+          }
+        ]
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    },
+    {
+      "fixtureId": "dialogue-choice-family-drama",
+      "repeatIndex": 1,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "pass",
+        "summary": {
+          "beatCount": 4,
+          "coveredDimensions": 8,
+          "partialDimensions": 0,
+          "missingDimensions": 0,
+          "contradictedDimensions": 0
+        },
+        "beats": [
+          {
+            "beatId": "beat-dialogue-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              6
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "父亲直接说琴行给林夏但必须永久退出乐队，林夏把钥匙推回并明确拒绝。"
+          },
+          {
+            "beatId": "beat-dialogue-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              7
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "母亲说明三十万债务和三日首期期限，林夏拍摄吉他并说先卖琴补首期。"
+          },
+          {
+            "beatId": "beat-dialogue-3",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              8
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "阿哲展示音乐节定金合同并说明可付首期且不用卖吉他，林夏以账目全部公开为条件接受。"
+          },
+          {
+            "beatId": "beat-dialogue-4",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              9
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "四人签署三个月偿债计划，父亲把钥匙交给林夏并明确撤回退队要求。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 8,
+        "totalDimensions": 8,
+        "agreementRate": 1,
+        "dimensionMismatches": []
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    },
+    {
+      "fixtureId": "action-chase-reversal",
+      "repeatIndex": 1,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "fail",
+        "summary": {
+          "beatCount": 2,
+          "coveredDimensions": 2,
+          "partialDimensions": 0,
+          "missingDimensions": 1,
+          "contradictedDimensions": 1
+        },
+        "beats": [
+          {
+            "beatId": "beat-action-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "missing",
+            "evidenceShotOrders": [
+              10
+            ],
+            "missingFacts": [
+              "缺少追兵跳过传送带缺口并仍保持近距离追赶的可见或可听证据"
+            ],
+            "contradictions": [],
+            "reason": "镜头直接表现许澄拉下急停闸并让传送带骤停，但未表现追兵如何通过或是否继续近距离追赶。"
+          },
+          {
+            "beatId": "beat-action-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "contradicted",
+            "evidenceShotOrders": [
+              11
+            ],
+            "missingFacts": [],
+            "contradictions": [
+              "镜头明确表现追兵侧滚避开货网并继续追赶，而不是被货网压住且只有一只手伸出。"
+            ],
+            "reason": "镜头直接表现许澄割断吊绳释放货网，但结果与结构事实相反。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 4,
+        "totalDimensions": 4,
+        "agreementRate": 1,
+        "dimensionMismatches": []
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    },
+    {
+      "fixtureId": "quiet-audio-reconciliation",
+      "repeatIndex": 1,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "warning",
+        "summary": {
+          "beatCount": 3,
+          "coveredDimensions": 4,
+          "partialDimensions": 2,
+          "missingDimensions": 0,
+          "contradictedDimensions": 0
+        },
+        "beats": [
+          {
+            "beatId": "beat-emotion-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [
+              12
+            ],
+            "missingFacts": [
+              "缺少父亲清醒时一直在等她回来的明确事实，只能从“如果你回来”和最后一次清醒录音中弱暗示等待"
+            ],
+            "contradictions": [],
+            "reason": "护士交出标有父亲姓名的录音笔且录音开头呼唤周岚，但持续等待她回来的结果没有直接可见或可听见。"
+          },
+          {
+            "beatId": "beat-emotion-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [
+              13
+            ],
+            "missingFacts": [
+              "缺少周岚决定留下照顾母亲的明确事实，镜头只表现她收起辞职信"
+            ],
+            "contradictions": [],
+            "reason": "父亲录音明确为当年赶她离家道歉，周岚也收起辞职信，但留下照顾母亲的决定未被直接表达。"
+          },
+          {
+            "beatId": "beat-emotion-3",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [
+              14
+            ],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "周岚在母亲醒来前把录音笔放在床头，母亲醒后两人握手并约定一起听完父亲录音，足以表现关系转向愿意一起谈他。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 6,
+        "totalDimensions": 6,
+        "agreementRate": 1,
+        "dimensionMismatches": []
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    }
+  ],
+  "summary": {
+    "caseCount": 5,
+    "requestedRuns": 5,
+    "observedRuns": 5,
+    "completedRuns": 5,
+    "failedRuns": 0,
+    "unattemptedRuns": 0,
+    "expectedAgreement": {
+      "matchedDimensions": 27,
+      "totalDimensions": 28,
+      "rate": 0.9642857142857143
+    },
+    "repeatStability": {
+      "stableDimensions": 0,
+      "comparableDimensions": 0,
+      "rate": 0
+    },
+    "caseSummaries": [
+      {
+        "fixtureId": "sound-trigger-suspense",
+        "requestedRuns": 1,
+        "observedRuns": 1,
+        "completedRuns": 1,
+        "failedRuns": 0,
+        "expectedMatchedDimensions": 4,
+        "expectedTotalDimensions": 4,
+        "expectedAgreementRate": 1,
+        "stableDimensions": 0,
+        "comparableDimensions": 0,
+        "repeatStabilityRate": 0
+      },
+      {
+        "fixtureId": "screen-identity-thriller",
+        "requestedRuns": 1,
+        "observedRuns": 1,
+        "completedRuns": 1,
+        "failedRuns": 0,
+        "expectedMatchedDimensions": 5,
+        "expectedTotalDimensions": 6,
+        "expectedAgreementRate": 0.8333333333333334,
+        "stableDimensions": 0,
+        "comparableDimensions": 0,
+        "repeatStabilityRate": 0
+      },
+      {
+        "fixtureId": "dialogue-choice-family-drama",
+        "requestedRuns": 1,
+        "observedRuns": 1,
+        "completedRuns": 1,
+        "failedRuns": 0,
+        "expectedMatchedDimensions": 8,
+        "expectedTotalDimensions": 8,
+        "expectedAgreementRate": 1,
+        "stableDimensions": 0,
+        "comparableDimensions": 0,
+        "repeatStabilityRate": 0
+      },
+      {
+        "fixtureId": "action-chase-reversal",
+        "requestedRuns": 1,
+        "observedRuns": 1,
+        "completedRuns": 1,
+        "failedRuns": 0,
+        "expectedMatchedDimensions": 4,
+        "expectedTotalDimensions": 4,
+        "expectedAgreementRate": 1,
+        "stableDimensions": 0,
+        "comparableDimensions": 0,
+        "repeatStabilityRate": 0
+      },
+      {
+        "fixtureId": "quiet-audio-reconciliation",
+        "requestedRuns": 1,
+        "observedRuns": 1,
+        "completedRuns": 1,
+        "failedRuns": 0,
+        "expectedMatchedDimensions": 6,
+        "expectedTotalDimensions": 6,
+        "expectedAgreementRate": 1,
+        "stableDimensions": 0,
+        "comparableDimensions": 0,
+        "repeatStabilityRate": 0
+      }
+    ]
+  }
+}

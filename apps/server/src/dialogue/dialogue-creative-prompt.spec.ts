@@ -331,6 +331,32 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).not.toContain("每 3 条对白拆一镜");
   });
 
+  it("V2.5 实验只在 V2.3 草稿后扫描三类稳定高风险事实，默认生产 Prompt 不启用", () => {
+    const productionPrompt = buildStoryboardPrompt(
+      storyboardTurn(),
+      request("生成当前章节完整分镜"),
+      "generate",
+    );
+    const experimentPrompt = buildStoryboardPrompt(
+      storyboardTurn(),
+      request("生成当前章节完整分镜"),
+      "generate",
+      undefined,
+      "v2_5_experiment",
+    );
+
+    expect(productionPrompt).not.toContain("V2.5 实验：低权重定向风险扫描");
+    expect(experimentPrompt).toContain("V2.5 实验：低权重定向风险扫描");
+    expect(experimentPrompt).toContain("正常完成 V2.3 草稿后");
+    expect(experimentPrompt).toContain("声音、屏幕变化或其他可见/可听信号");
+    expect(experimentPrompt).toContain("只停在线索本身");
+    expect(experimentPrompt).toContain("关键决定、行动结果或状态变化");
+    expect(experimentPrompt).toContain("优先补强承载同一 beat 的既有 Shot");
+    expect(experimentPrompt).toContain("不得因为扫描到一个风险事实就新建 Shot");
+    expect(experimentPrompt).toContain("只有 V2.3 原有状态边界已经满足必要拆镜条件");
+    expect(experimentPrompt).toContain("不要输出事实清单、逐 Beat 映射、评分或诊断字段");
+  });
+
   it("正文摘录看不到中段台词时，仍注入完整正式对白候选表", () => {
     const sourceText = longStoryboardScript();
     expect(compactPromptText(sourceText, 6000)).not.toContain("这句只存在于被摘掉的正文中段。");

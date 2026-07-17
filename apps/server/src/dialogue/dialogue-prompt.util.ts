@@ -481,6 +481,7 @@ export function buildStoryStructureRepairPrompt(input: {
 // ---------- 分镜 prompt ----------
 
 export type StoryboardPromptMode = "generate" | "revise_pending";
+export type StoryboardPromptVariant = "v2_3" | "v2_5_experiment";
 
 function getStoryboardV23PlanningPrompt(dialogueReference: StoryboardDialogueReference): string[] {
   return [
@@ -550,11 +551,24 @@ function getDualTrackStoryboardBoundaryPrompt(): string[] {
   ];
 }
 
+function getStoryboardV25TargetedRiskPrompt(): string[] {
+  return [
+    "V2.5 实验：低权重定向风险扫描（正常完成 V2.3 草稿后执行；只输出最终 JSON，不输出扫描过程）：",
+    "- 只复核三类稳定高风险事实，不遍历或重写全部 summary/outcome：①声音、屏幕变化或其他可见/可听信号是否是后续行动的必要触发原因；②正式结构是否已经从线索推进到身份、对象或地点结论，而不是只停在线索本身；③关键决定、行动结果或状态变化是否已经成为观众可见或可听的退出状态。",
+    "- 发现上述事实承载偏弱时，优先补强承载同一 beat 的既有 Shot：可收准 coreAction、comic 的静态决定性瞬间或 motion 的唯一聚焦变化；两条轨道按各自媒介表达，但不得改变正式事实。",
+    "- 本扫描本身零新增成本：不得因为扫描到一个风险事实就新建 Shot、增加对白、添加旁白或延长 durationMs；一个既有镜头能够清楚承载时必须原位补强。",
+    "- 只有 V2.3 原有状态边界已经满足必要拆镜条件，且同一 Shot 确实无法清楚承接原因/结果、线索/结论或决定/结果时，才可使用该 beat 的第二个共享 Shot；不得恢复逐事实拆镜。",
+    "- 非对白声音、屏幕文字和道具标签使用现有画面、动作、环境或 quoted_audio 能力表达，不得伪造成角色 voiceLines，也不得编造正文未提供的原文。",
+    "- 不扫描抽象关系状态，不要输出事实清单、逐 Beat 映射、评分或诊断字段。",
+  ];
+}
+
 export function buildStoryboardPrompt(
   turn: DialogueTurn,
   input: SendDialogueMessageRequest,
   mode: StoryboardPromptMode = "generate",
   suppliedDialogueReference?: StoryboardDialogueReference,
+  variant: StoryboardPromptVariant = "v2_3",
 ): string {
   const snapshot = turn.snapshot;
   const currentChapter = snapshot.currentChapter;
@@ -662,6 +676,7 @@ export function buildStoryboardPrompt(
     "",
     ...getDualTrackStoryboardBoundaryPrompt(),
     "",
+    ...(variant === "v2_5_experiment" ? [...getStoryboardV25TargetedRiskPrompt(), ""] : []),
     "枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：",
     "- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up",
     "- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle",
