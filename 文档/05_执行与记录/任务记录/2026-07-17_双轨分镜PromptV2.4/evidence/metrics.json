@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "model": "self/gpt-5.5",
+  "input": "请生成当前章节完整分镜，漫画和漫剧都要完整。",
+  "aiCreative": {
+    "v2.3": { "shots": 18, "beats": 13, "durationSeconds": 146, "over10Seconds": 0, "voiceLines": 42, "maxVoiceLinesPerShot": 4, "over3VoiceLines": 2 },
+    "v2.4a": { "shots": 21, "beats": 13, "durationSeconds": 181.5, "over10Seconds": 4, "voiceLines": 44, "maxVoiceLinesPerShot": 5, "over3VoiceLines": 5 },
+    "v2.4b": { "shots": 25, "beats": 13, "durationSeconds": 194, "over10Seconds": 0, "voiceLines": 42, "maxVoiceLinesPerShot": 4, "over3VoiceLines": 3 }
+  },
+  "scriptImport": {
+    "v2.3": { "shots": 11, "beats": 8, "durationSeconds": 60.5, "over10Seconds": 0, "voiceLines": 6, "maxVoiceLinesPerShot": 2, "over3VoiceLines": 0 },
+    "v2.4a": { "shots": 15, "beats": 8, "durationSeconds": 79, "over10Seconds": 0, "voiceLines": 6, "maxVoiceLinesPerShot": 1, "over3VoiceLines": 0 },
+    "v2.4b": { "shots": 12, "beats": 8, "durationSeconds": 72, "over10Seconds": 0, "voiceLines": 6, "maxVoiceLinesPerShot": 2, "over3VoiceLines": 0 }
+  },
+  "identicalComicMotionDescriptions": {
+    "aiV23": 0,
+    "aiV24a": 0,
+    "aiV24b": 0,
+    "importV23": 0,
+    "importV24a": 0,
+    "importV24b": 0
+  }
+}

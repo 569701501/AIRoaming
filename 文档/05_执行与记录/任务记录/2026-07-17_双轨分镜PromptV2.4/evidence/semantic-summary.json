@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "evaluatorModel": "self/gpt-5.5",
+  "dimensionsPerBeat": ["summary", "outcome"],
+  "aiCreative": {
+    "v2.3": [
+      { "covered": 20, "partial": 6, "missing": 0, "contradicted": 0, "stablePartialBeats": ["beat_01", "beat_02", "beat_05", "beat_06"] },
+      { "covered": 20, "partial": 6, "missing": 0, "contradicted": 0, "stablePartialBeats": ["beat_01", "beat_02", "beat_05", "beat_06"] }
+    ],
+    "v2.4a": [
+      { "covered": 24, "partial": 2, "missing": 0, "contradicted": 0, "partialBeats": ["beat_05"] }
+    ],
+    "v2.4b": [
+      { "covered": 23, "partial": 3, "missing": 0, "contradicted": 0, "partialBeats": ["beat_05", "beat_13"] },
+      { "covered": 23, "partial": 3, "missing": 0, "contradicted": 0, "partialBeats": ["beat_05", "beat_13"] }
+    ]
+  },
+  "scriptImport": {
+    "v2.3": [
+      { "covered": 12, "partial": 4, "missing": 0, "contradicted": 0, "stablePartialBeats": ["beat_02", "beat_04"] },
+      { "covered": 10, "partial": 6, "missing": 0, "contradicted": 0, "stablePartialBeats": ["beat_02", "beat_04"] }
+    ],
+    "v2.4a": [
+      { "covered": 14, "partial": 2, "missing": 0, "contradicted": 0, "partialBeats": ["beat_04"] }
+    ],
+    "v2.4b": [
+      { "covered": 12, "partial": 4, "missing": 0, "contradicted": 0, "partialBeats": ["beat_02", "beat_04"] },
+      { "covered": 12, "partial": 4, "missing": 0, "contradicted": 0, "partialBeats": ["beat_02", "beat_04"] }
+    ]
+  },
+  "evaluatorContractFailure": {
+    "count": 1,
+    "code": "JSON_INVALID",
+    "behavior": "fail_closed_then_same_input_retry_succeeded"
+  }
+}
