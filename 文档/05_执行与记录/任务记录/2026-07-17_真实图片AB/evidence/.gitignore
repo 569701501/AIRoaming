@@ -1,0 +1,6 @@
+# 真实 provider 原图与内置参考图只保存在本机受控验收目录，避免把大体积媒体写进 Git 历史。
+# 脱敏 manifest/run-report/ledger、人工结论和压缩 contact sheet 继续提交。
+references/*.png
+runtime/**/*.jpg
+runtime/**/*.png
+review/*.png

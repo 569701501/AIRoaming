@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-prompt-s4-baseline-v1",
+  "planDigest": "8fc3eb6d7fbb4172982a3431cb01a3784a0986521202b40a1157d1f679caae83",
+  "maxProviderRequests": 30,
+  "createdAt": "2026-07-17T04:48:21.257Z",
+  "updatedAt": "2026-07-17T05:10:05.946Z",
+  "slots": [
+    {
+      "slotId": "openai:candidate-no-character-establishing:v1",
+      "providerType": "openai",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 1,
+      "status": "failed"
+    },
+    {
+      "slotId": "openai:candidate-no-character-establishing:v2",
+      "providerType": "openai",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 2,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-single-character-closeup:v1",
+      "providerType": "openai",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 1,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-single-character-closeup:v2",
+      "providerType": "openai",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 2,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-two-character-dialogue:v1",
+      "providerType": "openai",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 1,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-two-character-dialogue:v2",
+      "providerType": "openai",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 2,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-group-staging:v1",
+      "providerType": "openai",
+      "caseId": "candidate-group-staging",
+      "variant": 1,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-group-staging:v2",
+      "providerType": "openai",
+      "caseId": "candidate-group-staging",
+      "variant": 2,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-scene-effect:v1",
+      "providerType": "openai",
+      "caseId": "candidate-scene-effect",
+      "variant": 1,
+      "status": "skipped"
+    },
+    {
+      "slotId": "openai:candidate-scene-effect:v2",
+      "providerType": "openai",
+      "caseId": "candidate-scene-effect",
+      "variant": 2,
+      "status": "skipped"
+    },
+    {
+      "slotId": "doubao:candidate-no-character-establishing:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-no-character-establishing:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-single-character-closeup:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-single-character-closeup:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-two-character-dialogue:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-two-character-dialogue:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-group-staging:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-group-staging",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-group-staging:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-group-staging",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-scene-effect:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-scene-effect",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "doubao:candidate-scene-effect:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-scene-effect",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-no-character-establishing:v1",
+      "providerType": "grok",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-no-character-establishing:v2",
+      "providerType": "grok",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-single-character-closeup:v1",
+      "providerType": "grok",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-single-character-closeup:v2",
+      "providerType": "grok",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-two-character-dialogue:v1",
+      "providerType": "grok",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-two-character-dialogue:v2",
+      "providerType": "grok",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-group-staging:v1",
+      "providerType": "grok",
+      "caseId": "candidate-group-staging",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-group-staging:v2",
+      "providerType": "grok",
+      "caseId": "candidate-group-staging",
+      "variant": 2,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-scene-effect:v1",
+      "providerType": "grok",
+      "caseId": "candidate-scene-effect",
+      "variant": 1,
+      "status": "completed"
+    },
+    {
+      "slotId": "grok:candidate-scene-effect:v2",
+      "providerType": "grok",
+      "caseId": "candidate-scene-effect",
+      "variant": 2,
+      "status": "completed"
+    }
+  ]
+}

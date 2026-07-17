@@ -1,0 +1,883 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-prompt-s4-baseline-v1",
+  "planDigest": "8fc3eb6d7fbb4172982a3431cb01a3784a0986521202b40a1157d1f679caae83",
+  "generatedAt": "2026-07-17T05:10:05.948Z",
+  "requestPolicy": {
+    "maxProviderRequests": 30,
+    "failedRequestsConsumeSlot": true,
+    "automaticRetry": false,
+    "providerSwitchOnFailure": false,
+    "activeProviderMutated": false,
+    "formalProjectDataMutated": false
+  },
+  "providerMetadata": {
+    "openai": {
+      "providerId": "openai_image",
+      "modelId": "gpt-image-2",
+      "baseUrl": "https://sub.lydcloud.uk",
+      "credentialConfigured": true
+    },
+    "doubao": {
+      "providerId": "doubao_image",
+      "modelId": "doubao-seedream-4-5-251128",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "credentialConfigured": true
+    },
+    "grok": {
+      "providerId": "grok_image",
+      "modelId": "grok-imagine-image-quality",
+      "baseUrl": "https://sub.lydcloud.uk/v1",
+      "credentialConfigured": true
+    }
+  },
+  "ledgerSummary": {
+    "pending": 0,
+    "started": 0,
+    "completed": 20,
+    "failed": 1,
+    "skipped": 9,
+    "manual_review_required": 0
+  },
+  "issuedProviderRequestCount": 21,
+  "results": [
+    {
+      "slotId": "openai:candidate-no-character-establishing:v1",
+      "providerType": "openai",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 1,
+      "status": "failed",
+      "startedAt": "2026-07-17T04:48:26.611Z",
+      "finishedAt": "2026-07-17T04:48:28.840Z",
+      "providerRequestIssued": true,
+      "profileId": "openai-image-instruction-v1",
+      "requestedSize": {
+        "width": 1536,
+        "height": 1024
+      },
+      "providerSize": "1536x1024",
+      "requestedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "error": "IMAGE_PROVIDER_EDIT_FAILED:503"
+    },
+    {
+      "slotId": "openai:candidate-no-character-establishing:v2",
+      "providerType": "openai",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 2,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-single-character-closeup:v1",
+      "providerType": "openai",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 1,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-single-character-closeup:v2",
+      "providerType": "openai",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 2,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-two-character-dialogue:v1",
+      "providerType": "openai",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 1,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-two-character-dialogue:v2",
+      "providerType": "openai",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 2,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-group-staging:v1",
+      "providerType": "openai",
+      "caseId": "candidate-group-staging",
+      "variant": 1,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-group-staging:v2",
+      "providerType": "openai",
+      "caseId": "candidate-group-staging",
+      "variant": 2,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-scene-effect:v1",
+      "providerType": "openai",
+      "caseId": "candidate-scene-effect",
+      "variant": 1,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "openai:candidate-scene-effect:v2",
+      "providerType": "openai",
+      "caseId": "candidate-scene-effect",
+      "variant": 2,
+      "status": "skipped",
+      "finishedAt": "2026-07-17T04:48:28.841Z",
+      "providerRequestIssued": false,
+      "reason": "provider_stopped_after_failure:openai:candidate-no-character-establishing:v1"
+    },
+    {
+      "slotId": "doubao:candidate-no-character-establishing:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:48:28.864Z",
+      "finishedAt": "2026-07-17T04:49:01.713Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1536,
+        "height": 1024
+      },
+      "providerSize": "2560x1440",
+      "requestedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "generationMode": "single_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1536x1024:2560x1440"
+      ],
+      "outputFile": "doubao/candidate-no-character-establishing/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "43015cf3a5a3368a2539b33e445420ee7425af7c2caa841b8e5731e14bc86334",
+      "outputBytes": 1418885,
+      "actualDimensions": {
+        "width": 2560,
+        "height": 1440
+      }
+    },
+    {
+      "slotId": "doubao:candidate-no-character-establishing:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:49:01.719Z",
+      "finishedAt": "2026-07-17T04:49:29.609Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1536,
+        "height": 1024
+      },
+      "providerSize": "2560x1440",
+      "requestedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "generationMode": "single_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1536x1024:2560x1440"
+      ],
+      "outputFile": "doubao/candidate-no-character-establishing/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "fabf23564f0021240020ebcbb350703f1b2fa40b15f46f6c33c950d7e9a35aca",
+      "outputBytes": 1261214,
+      "actualDimensions": {
+        "width": 2560,
+        "height": 1440
+      }
+    },
+    {
+      "slotId": "doubao:candidate-single-character-closeup:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:49:29.615Z",
+      "finishedAt": "2026-07-17T04:50:04.816Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-single-character-closeup/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "f50b39c60a40fdc2e8ceb4b79f53bc4fda08093563d0202862f4f357fa73b885",
+      "outputBytes": 939582,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-single-character-closeup:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:50:04.823Z",
+      "finishedAt": "2026-07-17T04:50:46.820Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-single-character-closeup/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "0cc1d71a96b382574d0b0db4e01d74bae76dadded85796ce4bf464c621ec57d9",
+      "outputBytes": 840538,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-two-character-dialogue:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:50:46.834Z",
+      "finishedAt": "2026-07-17T04:51:28.288Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-two-character-dialogue/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "cae83f9bd6c4eb352a35ee73c707c038c57f76cf943404351cb66605e7d758ea",
+      "outputBytes": 883508,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-two-character-dialogue:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:51:28.296Z",
+      "finishedAt": "2026-07-17T04:52:21.581Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-two-character-dialogue/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "2989d8f93c4b25ffb93968c7d25079100b586978f8e26038648ee0d52eb83a8e",
+      "outputBytes": 879190,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-group-staging:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-group-staging",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:52:21.597Z",
+      "finishedAt": "2026-07-17T04:53:15.145Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_zhao_preview",
+        "asset_gao_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_zhao_preview",
+        "asset_gao_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-group-staging/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "8a82e9c43279368fcb9d5da19804b60d02bfe499f3011b6bd7c5f37a317a44a7",
+      "outputBytes": 861222,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-group-staging:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-group-staging",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:53:15.158Z",
+      "finishedAt": "2026-07-17T04:53:59.111Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_zhao_preview",
+        "asset_gao_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_zhao_preview",
+        "asset_gao_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-group-staging/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "e16c3170de0efabccd8092fb45d0629d11c6bffdcaa81bed04beee1d779fedb1",
+      "outputBytes": 880221,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-scene-effect:v1",
+      "providerType": "doubao",
+      "caseId": "candidate-scene-effect",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:53:59.119Z",
+      "finishedAt": "2026-07-17T04:54:39.566Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-scene-effect/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "8a14688292a541b2874a954a17643b5cbaccf0909309e8731758df666f8a1fac",
+      "outputBytes": 774503,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "doubao:candidate-scene-effect:v2",
+      "providerType": "doubao",
+      "caseId": "candidate-scene-effect",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:54:39.576Z",
+      "finishedAt": "2026-07-17T04:55:11.619Z",
+      "providerRequestIssued": true,
+      "profileId": "doubao-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1440x2560",
+      "requestedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "candidate_output_aspect_ratio_mismatch:1024x1536:1440x2560"
+      ],
+      "outputFile": "doubao/candidate-scene-effect/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "d932e152fc225f5bbcfa6a9a8ed18f5cc5396626c40899ed5a32c1f877ca0353",
+      "outputBytes": 794413,
+      "actualDimensions": {
+        "width": 1440,
+        "height": 2560
+      }
+    },
+    {
+      "slotId": "grok:candidate-no-character-establishing:v1",
+      "providerType": "grok",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:55:11.688Z",
+      "finishedAt": "2026-07-17T04:55:26.672Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1536,
+        "height": 1024
+      },
+      "providerSize": "1536x1024",
+      "requestedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [],
+      "generationMode": "image_generation",
+      "warnings": [
+        "grok_single_reference_omitted_for_aspect_ratio",
+        "candidate_references_omitted:grok:asset_scene_port"
+      ],
+      "outputFile": "grok/candidate-no-character-establishing/v1.png",
+      "outputMimeType": "image/png",
+      "outputSha256": "b9858338e1ced102fea2497c0cf903539caf7acd5156a8d1dbf6bc0b8b64b2d7",
+      "outputBytes": 6121743,
+      "actualDimensions": {
+        "width": 2496,
+        "height": 1664
+      }
+    },
+    {
+      "slotId": "grok:candidate-no-character-establishing:v2",
+      "providerType": "grok",
+      "caseId": "candidate-no-character-establishing",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:55:26.676Z",
+      "finishedAt": "2026-07-17T04:55:40.534Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1536,
+        "height": 1024
+      },
+      "providerSize": "1536x1024",
+      "requestedReferenceAssetIds": [
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [],
+      "generationMode": "image_generation",
+      "warnings": [
+        "grok_single_reference_omitted_for_aspect_ratio",
+        "candidate_references_omitted:grok:asset_scene_port"
+      ],
+      "outputFile": "grok/candidate-no-character-establishing/v2.png",
+      "outputMimeType": "image/png",
+      "outputSha256": "10e7186c92b54e7ccce946b5b4f19d0dfd5464e89b7ffbbd3d9e0df347247f85",
+      "outputBytes": 6207731,
+      "actualDimensions": {
+        "width": 2496,
+        "height": 1664
+      }
+    },
+    {
+      "slotId": "grok:candidate-single-character-closeup:v1",
+      "providerType": "grok",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:55:40.547Z",
+      "finishedAt": "2026-07-17T04:55:53.290Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [],
+      "outputFile": "grok/candidate-single-character-closeup/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "b29c6b15af5de76fe67b5de08dbe4f89790ab9670bdb8419ebceb3e583ef899b",
+      "outputBytes": 284928,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-single-character-closeup:v2",
+      "providerType": "grok",
+      "caseId": "candidate-single-character-closeup",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:55:53.295Z",
+      "finishedAt": "2026-07-17T04:56:05.354Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [],
+      "outputFile": "grok/candidate-single-character-closeup/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "2b01b55267cf418da03fc31b43f7fd0a69a380849001df35892f3d4bf63acf69",
+      "outputBytes": 269987,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-two-character-dialogue:v1",
+      "providerType": "grok",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:56:05.376Z",
+      "finishedAt": "2026-07-17T04:56:18.257Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [],
+      "outputFile": "grok/candidate-two-character-dialogue/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "88ec968ac3749ea39e97e7e61c9b226f4578dc1a37f8fa70d4e7a11bb1baf005",
+      "outputBytes": 302828,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-two-character-dialogue:v2",
+      "providerType": "grok",
+      "caseId": "candidate-two-character-dialogue",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:56:18.264Z",
+      "finishedAt": "2026-07-17T04:56:31.926Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [],
+      "outputFile": "grok/candidate-two-character-dialogue/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "c899c902b19287dcee3e06daddde80b40b39a7486ad310d080c17a234e1ea1b0",
+      "outputBytes": 290709,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-group-staging:v1",
+      "providerType": "grok",
+      "caseId": "candidate-group-staging",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:56:31.936Z",
+      "finishedAt": "2026-07-17T04:56:44.953Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_zhao_preview",
+        "asset_gao_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "grok_reference_limit:3",
+        "candidate_references_omitted:grok:asset_zhao_preview,asset_gao_preview"
+      ],
+      "outputFile": "grok/candidate-group-staging/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "65eea8e0d50c760a06e0fceb08536dcb4ab413856c7170fee0ae1e1e815cbaa8",
+      "outputBytes": 332519,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-group-staging:v2",
+      "providerType": "grok",
+      "caseId": "candidate-group-staging",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:56:44.958Z",
+      "finishedAt": "2026-07-17T04:56:57.021Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_zhao_preview",
+        "asset_gao_preview",
+        "asset_scene_port"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_lin_preview",
+        "asset_xu_preview",
+        "asset_scene_port"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [
+        "grok_reference_limit:3",
+        "candidate_references_omitted:grok:asset_zhao_preview,asset_gao_preview"
+      ],
+      "outputFile": "grok/candidate-group-staging/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "9d955d1f52a3d36847abbcf8690b1801b1fdb583491ad881f718a3d319a9488f",
+      "outputBytes": 281262,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-scene-effect:v1",
+      "providerType": "grok",
+      "caseId": "candidate-scene-effect",
+      "variant": 1,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:56:57.029Z",
+      "finishedAt": "2026-07-17T04:57:09.089Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [],
+      "outputFile": "grok/candidate-scene-effect/v1.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "ed8e00e227eb63fdb33fb9f8902fd2c3d54a660a09e67b4a5776af616ef271d8",
+      "outputBytes": 265523,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    },
+    {
+      "slotId": "grok:candidate-scene-effect:v2",
+      "providerType": "grok",
+      "caseId": "candidate-scene-effect",
+      "variant": 2,
+      "status": "completed",
+      "startedAt": "2026-07-17T04:57:09.094Z",
+      "finishedAt": "2026-07-17T04:57:20.544Z",
+      "providerRequestIssued": true,
+      "profileId": "grok-image-instruction-v1",
+      "requestedSize": {
+        "width": 1024,
+        "height": 1536
+      },
+      "providerSize": "1024x1536",
+      "requestedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "usedReferenceAssetIds": [
+        "asset_zhao_preview",
+        "asset_scene_archive"
+      ],
+      "generationMode": "multi_image_edit",
+      "warnings": [],
+      "outputFile": "grok/candidate-scene-effect/v2.jpg",
+      "outputMimeType": "image/jpeg",
+      "outputSha256": "fac75885a096aea4a22d380191ab1b4ec5dcb7546a22870adcc1a2ca2b1963cf",
+      "outputBytes": 231041,
+      "actualDimensions": {
+        "width": 832,
+        "height": 1248
+      }
+    }
+  ]
+}

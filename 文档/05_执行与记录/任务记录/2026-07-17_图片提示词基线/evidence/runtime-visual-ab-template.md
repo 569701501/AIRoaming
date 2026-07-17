@@ -1,6 +1,6 @@
 ---
 doc_id: AIR-EVIDENCE-IMAGE-PROMPT-RUNTIME-TEMPLATE-001
-status: not_run
+status: superseded
 created: 2026-07-17
 updated: 2026-07-17
 owner: AI漫游项目
@@ -9,6 +9,8 @@ source: image-prompt-s4-baseline-v1
 ---
 
 # S4 真实图片 A/B 验收模板
+
+> 2026-07-17 已按本模板完成真实运行。本文件保留原始验收设计；实际账本、20 张成功输出的脱敏追溯和人工结论见 `文档/05_执行与记录/任务记录/2026-07-17_真实图片AB/evidence/manual-visual-review.md`。
 
 ## 1. 运行前授权
 

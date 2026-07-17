@@ -14,6 +14,7 @@
     "storyboard:semantic:corpus": "tsx src/dialogue/storyboard-semantic-corpus.cli.ts",
     "storyboard:prompt:ab": "tsx src/dialogue/storyboard-prompt-ab.cli.ts",
     "image:prompt:baseline": "tsx src/projects/image-prompt-baseline.cli.ts",
+    "image:prompt:visual-ab": "tsx src/projects/image-prompt-visual-ab.cli.ts",
     "g1:manifest:generate": "tsx src/persistence/g1-schema-manifest.cli.ts --write",
     "g1:manifest:check": "tsx src/persistence/g1-schema-manifest.cli.ts --check",
     "g1:schema:check": "tsx src/persistence/g1-prisma-schema.cli.ts --check",
