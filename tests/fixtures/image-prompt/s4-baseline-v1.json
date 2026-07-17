@@ -1,0 +1,527 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-prompt-s4-baseline-v1",
+  "providers": ["openai", "doubao", "grok"],
+  "referenceCases": [
+    {
+      "caseId": "character-preview-linzhou",
+      "title": "林舟单角色身份预览",
+      "kind": "character_preview",
+      "project": {
+        "id": "project-reference-preview",
+        "name": "雨夜证人",
+        "storyTitle": "雨夜证人",
+        "type": "comic",
+        "genreTags": ["都市", "悬疑"],
+        "comicFormat": "vertical_scroll",
+        "artStyle": "comic_style"
+      },
+      "character": {
+        "id": "char_lin",
+        "projectId": "project-reference-preview",
+        "name": "林舟",
+        "role": "调查记者",
+        "level": "lead",
+        "entityType": "human",
+        "appearance": "二十八岁，黑色短发，窄长眼型，左眉浅疤，灰蓝长风衣，旧银色录音笔",
+        "personality": "克制、警觉",
+        "promptFragment": "灰蓝与旧银色为固定识别色"
+      },
+      "expected": {
+        "mustContain": [
+          "IDENTITY SEED",
+          "Exactly one character",
+          "front view, half-body portrait",
+          "左眉浅疤",
+          "旧银色录音笔",
+          "No text labels",
+          "not photorealism"
+        ],
+        "mustNotContain": [
+          "exactly four clearly separated views",
+          "许澄"
+        ]
+      }
+    },
+    {
+      "caseId": "character-final-linzhou",
+      "title": "林舟四视图定稿",
+      "kind": "character_final",
+      "project": {
+        "id": "project-reference-final",
+        "name": "雨夜证人",
+        "storyTitle": "雨夜证人",
+        "type": "comic",
+        "genreTags": ["都市", "悬疑"],
+        "comicFormat": "vertical_scroll",
+        "artStyle": "comic_style"
+      },
+      "character": {
+        "id": "char_lin",
+        "projectId": "project-reference-final",
+        "name": "林舟",
+        "role": "调查记者",
+        "level": "lead",
+        "entityType": "human",
+        "appearance": "二十八岁，黑色短发，窄长眼型，左眉浅疤，灰蓝长风衣，旧银色录音笔",
+        "personality": "克制、警觉",
+        "promptFragment": "灰蓝与旧银色为固定识别色"
+      },
+      "expected": {
+        "mustContain": [
+          "IDENTITY LOCK",
+          "exactly four clearly separated views",
+          "front half-body portrait",
+          "front full-body",
+          "side full-body",
+          "back full-body",
+          "same outfit",
+          "No text labels"
+        ],
+        "mustNotContain": [
+          "许澄",
+          "雨夜旧港"
+        ]
+      }
+    },
+    {
+      "caseId": "scene-reference-old-port",
+      "title": "雨夜旧港可复用场景",
+      "kind": "scene_reference",
+      "project": {
+        "id": "project-reference-scene",
+        "name": "雨夜证人",
+        "storyTitle": "雨夜证人",
+        "type": "comic",
+        "genreTags": ["都市", "悬疑"],
+        "comicFormat": "vertical_scroll",
+        "artStyle": "comic_style"
+      },
+      "scene": {
+        "name": "雨夜旧港",
+        "location": "废弃货运码头，东侧仓库与西侧闸门之间",
+        "timeOfDay": "深夜",
+        "atmosphere": "冷雨、低照度、潮湿反光、危险",
+        "purpose": "线索交接、追逐和撤离路线的稳定空间资产"
+      },
+      "expected": {
+        "mustContain": [
+          "reusable environment reference image",
+          "foreground, midground, and background",
+          "neutral wide establishing viewpoint",
+          "clear entrances/exits",
+          "No people",
+          "No text",
+          "雨夜旧港"
+        ],
+        "mustNotContain": [
+          "林舟",
+          "角色名："
+        ]
+      }
+    }
+  ],
+  "candidateContext": {
+    "project": {
+      "id": "project-s4-baseline",
+      "comicFormat": "vertical_scroll",
+      "artStyle": "comic_style",
+      "characters": [
+        {
+          "id": "char_lin",
+          "name": "林舟",
+          "appearance": "二十八岁，黑色短发，左眉浅疤，灰蓝长风衣；调查记者",
+          "promptFragment": "窄长眼型，旧银色录音笔；本章承担调查功能",
+          "previewReferenceAssetId": "asset_lin_preview",
+          "previewConfirmedAt": "2026-07-17T00:00:00.000Z",
+          "primaryReferenceAssetId": "asset_lin_final"
+        },
+        {
+          "id": "char_xu",
+          "name": "许澄",
+          "appearance": "二十六岁，栗色低马尾，米白短夹克，深绿围巾；法医助理",
+          "promptFragment": "圆框眼镜，黑色证物箱；本章承担证据功能",
+          "previewReferenceAssetId": "asset_xu_preview",
+          "previewConfirmedAt": "2026-07-17T00:00:00.000Z",
+          "primaryReferenceAssetId": "asset_xu_final"
+        },
+        {
+          "id": "char_zhao",
+          "name": "赵妍",
+          "appearance": "三十二岁，齐肩黑发，墨绿高领衫，银色细链；档案员",
+          "promptFragment": "冷白肤色，右手旧烧伤；本章承担身份谜团",
+          "previewReferenceAssetId": "asset_zhao_preview",
+          "previewConfirmedAt": "2026-07-17T00:00:00.000Z",
+          "primaryReferenceAssetId": "asset_zhao_final"
+        },
+        {
+          "id": "char_gao",
+          "name": "高远",
+          "appearance": "四十岁，寸头，深色防水工装，体格高大；港口保安",
+          "promptFragment": "左手黑色腕带；本章承担阻拦功能",
+          "previewReferenceAssetId": "asset_gao_preview",
+          "previewConfirmedAt": "2026-07-17T00:00:00.000Z",
+          "primaryReferenceAssetId": "asset_gao_final"
+        }
+      ],
+      "assets": [
+        { "id": "asset_lin_preview", "path": "characters/lin/preview.webp" },
+        { "id": "asset_lin_final", "path": "characters/lin/final.webp" },
+        { "id": "asset_xu_preview", "path": "characters/xu/preview.webp" },
+        { "id": "asset_xu_final", "path": "characters/xu/final.webp" },
+        { "id": "asset_zhao_preview", "path": "characters/zhao/preview.webp" },
+        { "id": "asset_zhao_final", "path": "characters/zhao/final.webp" },
+        { "id": "asset_gao_preview", "path": "characters/gao/preview.webp" },
+        { "id": "asset_gao_final", "path": "characters/gao/final.webp" },
+        { "id": "asset_scene_port", "path": "scenes/old-port.webp" },
+        { "id": "asset_scene_archive", "path": "scenes/archive-room.webp" }
+      ]
+    },
+    "chapter": {
+      "id": "chapter-s4-baseline",
+      "title": "第7章：雨夜编号",
+      "storyStructure": {
+        "structureJson": {
+          "characters": [
+            { "id": "story_lin", "projectCharacterId": "char_lin", "name": "林舟", "visualTraits": "二十八岁，黑色短发，左眉浅疤，灰蓝长风衣" },
+            { "id": "story_xu", "projectCharacterId": "char_xu", "name": "许澄", "visualTraits": "二十六岁，栗色低马尾，米白短夹克，深绿围巾" },
+            { "id": "story_zhao", "projectCharacterId": "char_zhao", "name": "赵妍", "visualTraits": "三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤" },
+            { "id": "story_gao", "projectCharacterId": "char_gao", "name": "高远", "visualTraits": "四十岁，寸头，深色防水工装，体格高大" }
+          ],
+          "scenes": [
+            {
+              "id": "scene_port",
+              "name": "雨夜旧港",
+              "location": "废弃货运码头",
+              "timeOfDay": "深夜",
+              "atmosphere": "冷雨、低照度、潮湿反光",
+              "referenceAssetId": "asset_scene_port"
+            },
+            {
+              "id": "scene_archive",
+              "name": "地下档案室",
+              "location": "市政旧楼负二层",
+              "timeOfDay": "凌晨",
+              "atmosphere": "冷白屏幕光、灰尘、封闭压迫",
+              "referenceAssetId": "asset_scene_archive"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "candidateCases": [
+    {
+      "caseId": "candidate-no-character-establishing",
+      "title": "无角色旧港远景",
+      "category": "no_character_establishing",
+      "comicFormat": "paged_comic",
+      "shot": {
+        "id": "shot_no_character",
+        "order": 1,
+        "beatId": "beat_01",
+        "sceneId": "scene_port",
+        "characterIds": [],
+        "coreAction": "空无一人的旧港被冷雨覆盖，东侧仓库卷帘门半开",
+        "emotion": "危险前的寂静",
+        "shotType": "establishing",
+        "cameraAngle": "high_angle",
+        "comic": {
+          "panelDescription": "俯瞰旧港，冷雨切过空码头，半开的仓库门是唯一异常视觉点。",
+          "composition": "横向全景，前景积水反光，中景空码头，背景仓库与闸门形成两端出口。",
+          "dialogue": "这里没有角色对白。",
+          "caption": "第7章：雨夜编号",
+          "panelRhythm": "slow"
+        },
+        "motion": {
+          "visualDescription": "镜头从闸门移动到仓库门。",
+          "compositionDesign": "动态横移",
+          "cameraMovement": "pan_left",
+          "frameType": "transition",
+          "durationMs": 4500,
+          "durationHint": "约4.5秒",
+          "voiceLines": []
+        },
+        "promptDraft": "旧候选：生成横向分页漫画开场格并加章节标题",
+        "lockedCandidateId": null,
+        "status": "ready_for_image"
+      },
+      "expected": {
+        "mustContain": [
+          "俯瞰旧港",
+          "one scene, one static moment",
+          "establishing; high_angle",
+          "雨夜旧港",
+          "drawn comic/manhua illustration"
+        ],
+        "mustNotContain": [
+          "这里没有角色对白",
+          "第7章：雨夜编号",
+          "镜头从闸门移动到仓库门",
+          "旧候选",
+          "paged_comic"
+        ],
+        "referenceAssetIds": ["asset_scene_port"],
+        "requestedSize": { "width": 1536, "height": 1024 },
+        "sectionKeys": ["visual", "action", "composition", "camera", "scene", "style"]
+      },
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          { "id": "clean_plate", "label": "干净单幅", "passRule": "单幅、无文字气泡、无分格边框" },
+          { "id": "environment", "label": "场景一致", "passRule": "仓库、闸门、积水与出入口关系可和场景参考对应" },
+          { "id": "empty_scene", "label": "无人建立镜头", "passRule": "画面无人物、剪影或车辆主体" }
+        ]
+      }
+    },
+    {
+      "caseId": "candidate-single-character-closeup",
+      "title": "林舟单人线索近景",
+      "category": "single_character_closeup",
+      "shot": {
+        "id": "shot_single",
+        "order": 2,
+        "beatId": "beat_02",
+        "sceneId": "scene_archive",
+        "characterIds": ["char_lin"],
+        "coreAction": "林舟停在终端前，录音笔悬在被遮蔽的屏幕编号区域旁",
+        "emotion": "警觉、确认线索",
+        "shotType": "close_up",
+        "cameraAngle": "over_shoulder",
+        "comic": {
+          "panelDescription": "林舟左眉浅疤和半侧脸位于前景，旧银色录音笔与终端编号区域形成双焦点，但屏幕不显示可读文字。",
+          "composition": "过肩近景，人物轮廓占左三分之一，录音笔和冷白屏幕光位于右侧视觉落点。",
+          "dialogue": "林舟：017不是档案号。",
+          "caption": "真正的名字藏在编号后面。",
+          "panelRhythm": "impact"
+        },
+        "motion": {
+          "visualDescription": "林舟抬起录音笔，屏幕刷新。",
+          "compositionDesign": "推近屏幕",
+          "cameraMovement": "push_in",
+          "frameType": "detail",
+          "durationMs": 3200,
+          "durationHint": "约3.2秒",
+          "voiceLines": []
+        },
+        "promptDraft": "旧候选：加入017文字特写和对白气泡",
+        "lockedCandidateId": null,
+        "status": "ready_for_image"
+      },
+      "expected": {
+        "mustContain": [
+          "林舟左眉浅疤",
+          "close_up; over_shoulder",
+          "林舟:",
+          "地下档案室",
+          "Do not render text"
+        ],
+        "mustNotContain": [
+          "017不是档案号",
+          "真正的名字藏在编号后面",
+          "林舟抬起录音笔，屏幕刷新",
+          "旧候选",
+          "vertical_scroll"
+        ],
+        "referenceAssetIds": ["asset_lin_preview", "asset_scene_archive"],
+        "requestedSize": { "width": 1024, "height": 1536 },
+        "sectionKeys": ["visual", "action", "composition", "camera", "characters", "scene", "style"]
+      },
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          { "id": "clean_plate", "label": "无字干净底图", "passRule": "屏幕不得出现可读文字、编号、UI 或气泡" },
+          { "id": "identity", "label": "单人身份一致", "passRule": "林舟脸型、左眉浅疤、发型和风衣与预览参考一致" },
+          { "id": "composition", "label": "过肩双焦点", "passRule": "半侧脸、录音笔和屏幕光的视觉关系清楚" }
+        ]
+      }
+    },
+    {
+      "caseId": "candidate-two-character-dialogue",
+      "title": "林舟许澄双人对话",
+      "category": "two_character_dialogue",
+      "shot": {
+        "id": "shot_dialogue",
+        "order": 3,
+        "beatId": "beat_03",
+        "sceneId": "scene_port",
+        "characterIds": ["char_lin", "char_xu"],
+        "coreAction": "许澄按住林舟准备回头的肩膀，两人同时看向仓库门后的影子",
+        "emotion": "克制的紧张",
+        "shotType": "medium",
+        "cameraAngle": "eye_level",
+        "comic": {
+          "panelDescription": "林舟与许澄并排停在雨棚下，许澄一手按住林舟肩膀，两人的视线共同指向画外仓库门。",
+          "composition": "双人中景，人物在左侧，右侧保留指向仓库门的负空间和视线通道。",
+          "dialogue": "许澄：别回头。",
+          "caption": "雨声盖住了第三个人的脚步。",
+          "panelRhythm": "normal"
+        },
+        "motion": {
+          "visualDescription": "许澄伸手按肩，林舟停止转身。",
+          "compositionDesign": "两人动作接力",
+          "cameraMovement": "static",
+          "frameType": "dialogue",
+          "durationMs": 3000,
+          "durationHint": "约3秒",
+          "voiceLines": []
+        },
+        "promptDraft": "旧候选：对白气泡放在右侧留白",
+        "lockedCandidateId": null,
+        "status": "ready_for_image"
+      },
+      "expected": {
+        "mustContain": [
+          "林舟与许澄并排停在雨棚下",
+          "medium; eye_level",
+          "林舟:",
+          "许澄:",
+          "intentional negative space"
+        ],
+        "mustNotContain": [
+          "别回头",
+          "雨声盖住了第三个人的脚步",
+          "许澄伸手按肩，林舟停止转身",
+          "旧候选",
+          "vertical_scroll"
+        ],
+        "referenceAssetIds": ["asset_lin_preview", "asset_xu_preview", "asset_scene_port"],
+        "requestedSize": { "width": 1024, "height": 1536 },
+        "sectionKeys": ["visual", "action", "composition", "camera", "characters", "scene", "style"]
+      },
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          { "id": "clean_plate", "label": "无气泡双人底图", "passRule": "无气泡、文字和分格，保留后续排版负空间" },
+          { "id": "identity", "label": "双人身份一致", "passRule": "林舟和许澄均与各自预览参考一致且不互相混脸换装" },
+          { "id": "staging", "label": "对话调度", "passRule": "按肩动作、共同视线和仓库方向关系清楚" }
+        ]
+      }
+    },
+    {
+      "caseId": "candidate-group-staging",
+      "title": "四人港口群像",
+      "category": "group_staging",
+      "shot": {
+        "id": "shot_group",
+        "order": 4,
+        "beatId": "beat_04",
+        "sceneId": "scene_port",
+        "characterIds": ["char_lin", "char_xu", "char_zhao", "char_gao"],
+        "coreAction": "林舟和许澄护住赵妍，高远堵住通往闸门的退路",
+        "emotion": "对峙、空间受压",
+        "shotType": "wide",
+        "cameraAngle": "low_angle",
+        "comic": {
+          "panelDescription": "四人在仓库与闸门之间形成对峙，林舟和许澄位于赵妍前侧，高远独自封住右侧出口。",
+          "composition": "低机位宽景，三人保护组形成左侧三角，高远占据右侧出口，积水反光连接双方。",
+          "dialogue": "高远：谁都别走。",
+          "caption": "出口只剩下一个。",
+          "panelRhythm": "impact"
+        },
+        "motion": {
+          "visualDescription": "高远横移封门，三人后退成防御队形。",
+          "compositionDesign": "群像调度",
+          "cameraMovement": "pull_out",
+          "frameType": "action",
+          "durationMs": 4200,
+          "durationHint": "约4.2秒",
+          "voiceLines": []
+        },
+        "promptDraft": "旧候选：四格分别展示四个人并加姓名标签",
+        "lockedCandidateId": null,
+        "status": "ready_for_image"
+      },
+      "expected": {
+        "mustContain": [
+          "四人在仓库与闸门之间形成对峙",
+          "wide; low_angle",
+          "林舟:",
+          "许澄:",
+          "赵妍:",
+          "高远:"
+        ],
+        "mustNotContain": [
+          "谁都别走",
+          "出口只剩下一个",
+          "高远横移封门",
+          "旧候选",
+          "vertical_scroll"
+        ],
+        "referenceAssetIds": ["asset_lin_preview", "asset_xu_preview", "asset_zhao_preview", "asset_gao_preview", "asset_scene_port"],
+        "requestedSize": { "width": 1024, "height": 1536 },
+        "sectionKeys": ["visual", "action", "composition", "camera", "characters", "scene", "style"]
+      },
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          { "id": "clean_plate", "label": "单幅群像", "passRule": "不是四格设定表、拼贴或带姓名标签的群像" },
+          { "id": "identity", "label": "多人身份与省略可追溯", "passRule": "实际使用参考的角色身份稳定；省略参考必须与 task warning 一致" },
+          { "id": "staging", "label": "空间站位", "passRule": "左侧保护组、右侧阻拦者和出口关系清楚" }
+        ]
+      }
+    },
+    {
+      "caseId": "candidate-scene-effect",
+      "title": "档案室屏幕熄灭特效",
+      "category": "scene_effect",
+      "shot": {
+        "id": "shot_effect",
+        "order": 5,
+        "beatId": "beat_05",
+        "sceneId": "scene_archive",
+        "characterIds": ["char_zhao"],
+        "coreAction": "赵妍拔下终端电源，冷白屏幕熄灭，只剩门缝红色警示光切过她右手烧伤",
+        "emotion": "决断、身份暴露",
+        "shotType": "medium",
+        "cameraAngle": "dutch_angle",
+        "comic": {
+          "panelDescription": "屏幕刚刚熄灭的瞬间，赵妍半身成为暗色剪影，门缝红光准确照亮右手旧烧伤和拔下的电源插头。",
+          "composition": "倾斜中景，熄灭屏幕占左侧暗面，赵妍与红光切线占右侧，插头是最亮细节。",
+          "dialogue": "赵妍：现在他们看不见我们。",
+          "caption": "编号017第一次主动切断记录。",
+          "panelRhythm": "impact"
+        },
+        "motion": {
+          "visualDescription": "屏幕熄灭，红灯亮起，赵妍转身。",
+          "compositionDesign": "明暗反转",
+          "cameraMovement": "handheld",
+          "frameType": "action",
+          "durationMs": 2600,
+          "durationHint": "约2.6秒",
+          "voiceLines": []
+        },
+        "promptDraft": "旧候选：显示017 UI和字幕",
+        "lockedCandidateId": null,
+        "status": "ready_for_image"
+      },
+      "expected": {
+        "mustContain": [
+          "屏幕刚刚熄灭的瞬间",
+          "medium; dutch_angle",
+          "赵妍:",
+          "门缝红光",
+          "Do not render text"
+        ],
+        "mustNotContain": [
+          "现在他们看不见我们",
+          "编号017第一次主动切断记录",
+          "屏幕熄灭，红灯亮起，赵妍转身",
+          "旧候选",
+          "vertical_scroll"
+        ],
+        "referenceAssetIds": ["asset_zhao_preview", "asset_scene_archive"],
+        "requestedSize": { "width": 1024, "height": 1536 },
+        "sectionKeys": ["visual", "action", "composition", "camera", "characters", "scene", "style"]
+      },
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          { "id": "clean_plate", "label": "无UI特效底图", "passRule": "屏幕无可读 UI、017、字幕或气泡" },
+          { "id": "identity", "label": "赵妍身份一致", "passRule": "发型、服装、右手烧伤与角色预览参考一致" },
+          { "id": "lighting", "label": "明暗因果", "passRule": "屏幕熄灭后的暗面与门缝红光成为唯一主光关系" }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,1581 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-prompt-s4-baseline-v1",
+  "productionBaseline": {
+    "candidateSpecVersion": 2,
+    "candidatePurpose": "shot_clean_plate",
+    "candidateProviderPromptSource": "positivePrompt",
+    "negativePromptDelivery": "embedded_constraints"
+  },
+  "referenceCases": [
+    {
+      "caseId": "character-preview-linzhou",
+      "title": "林舟单角色身份预览",
+      "kind": "character_preview",
+      "delivery": "production_reference_service_raw_prompt",
+      "prompt": "Create a clean front preview portrait for a comic/manhua character library.\nIDENTITY SEED: establish one unmistakable face, hairstyle silhouette, age, body type, costume construction, colors, and recurring accessories for later consistency.\nDrawn illustration style only. Exactly one character, front view, half-body portrait, neutral readable expression, even lighting, plain light background.\nKeep both shoulders and the main costume silhouette visible; avoid foreshortening and avoid hands covering the face or costume cues.\nNo text labels, logo, watermark, extra characters, scene background, cropped face, dramatic action pose, photo, cosplay, or 3D render.\n项目类型：漫画。This is a comic/manhua production project, not a live-action casting project.\n作品名：雨夜证人\n题材标签：都市、悬疑\n漫画形式：vertical-scroll comic reading format\n美术风格：漫画风格 / clean comic and manhua illustration\n风格硬约束：必须是绘制感漫画/条漫/漫画角色设定图，不能生成真人照片、真人演员定妆照、摄影棚肖像、电影剧照、cosplay 照片或 3D 渲染。\nStyle guide: 漫画风格 / clean comic and manhua illustration; vertical-scroll comic reading format.\nUse stylized comic linework, controlled cel shading or painterly comic shading, clean readable silhouette, and production-ready character consistency.\nEven if the story is realistic or dark, interpret realism as comic realism, not photorealism.\n角色名：林舟\n角色身份：调查记者\n外貌设定：二十八岁，黑色短发，窄长眼型，左眉浅疤，灰蓝长风衣，旧银色录音笔\n性格气质：克制、警觉\n提示词片段：灰蓝与旧银色为固定识别色",
+      "checks": [
+        {
+          "id": "contains:IDENTITY SEED",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:Exactly one character",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:front view, half-body portrait",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:左眉浅疤",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:旧银色录音笔",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:No text labels",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:not photorealism",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:exactly four clearly separated views",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:许澄",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "caseId": "character-final-linzhou",
+      "title": "林舟四视图定稿",
+      "kind": "character_final",
+      "delivery": "production_reference_service_raw_prompt",
+      "prompt": "Create a clean final character reference sheet for a comic/manhua production pipeline using the provided preview image as the strict character identity reference.\nPreserve the same face, hairstyle, outfit, age, body proportions, and overall temperament from the preview image.\nIDENTITY LOCK: one same character, one same outfit, identical face, hair silhouette, body proportions, costume construction, colors, accessories, and age across every view.\nDrawn illustration style only. Neutral standing pose, neutral expression, even studio-like lighting, plain light background, no perspective distortion.\nLAYOUT: the single image contains exactly four clearly separated views in this order: front half-body portrait, front full-body, side full-body, back full-body.\nKeep scale and baseline consistent across the three full-body views; show hands, footwear, costume layers, and recurring accessories clearly.\nNo text labels, measurements, color names, logo, watermark, extra characters, props hiding the body, cropped limbs, dramatic pose changes, scene background, photo, cosplay, or 3D render.\n项目类型：漫画。This is a comic/manhua production project, not a live-action casting project.\n作品名：雨夜证人\n题材标签：都市、悬疑\n漫画形式：vertical-scroll comic reading format\n美术风格：漫画风格 / clean comic and manhua illustration\n风格硬约束：必须是绘制感漫画/条漫/漫画角色设定图，不能生成真人照片、真人演员定妆照、摄影棚肖像、电影剧照、cosplay 照片或 3D 渲染。\nStyle guide: 漫画风格 / clean comic and manhua illustration; vertical-scroll comic reading format.\nUse stylized comic linework, controlled cel shading or painterly comic shading, clean readable silhouette, and production-ready character consistency.\nEven if the story is realistic or dark, interpret realism as comic realism, not photorealism.\n角色名：林舟\n角色身份：调查记者\n外貌设定：二十八岁，黑色短发，窄长眼型，左眉浅疤，灰蓝长风衣，旧银色录音笔\n性格气质：克制、警觉\n提示词片段：灰蓝与旧银色为固定识别色",
+      "checks": [
+        {
+          "id": "contains:IDENTITY LOCK",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:exactly four clearly separated views",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:front half-body portrait",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:front full-body",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:side full-body",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:back full-body",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:same outfit",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:No text labels",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:许澄",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:雨夜旧港",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "caseId": "scene-reference-old-port",
+      "title": "雨夜旧港可复用场景",
+      "kind": "scene_reference",
+      "delivery": "production_reference_service_raw_prompt",
+      "prompt": "Create one reusable environment reference image for a comic/manhua production pipeline.\nThis is a clean background asset, not a story panel and not a standalone concept-art poster.\n\nENVIRONMENT IDENTITY\n- Scene: 雨夜旧港\n- Location: 废弃货运码头，东侧仓库与西侧闸门之间\n- Narrative use: 线索交接、追逐和撤离路线的稳定空间资产\n\nSPATIAL CONTRACT\n- Establish a readable foreground, midground, and background with stable architectural relationships.\n- Use one neutral wide establishing viewpoint, believable perspective, reusable landmarks, and clear entrances/exits.\n- Preserve enough uncluttered space for later character placement and varied shot crops.\n\nLIGHTING AND ATMOSPHERE\n- Time: 深夜\n- Atmosphere: 冷雨、低照度、潮湿反光、危险\n- Keep the light direction, weather cues, color temperature, and landmark visibility internally consistent.\n\nSTYLE\n- 漫画风格 / clean comic and manhua illustration；vertical-scroll comic reading format.\n- Drawn comic background language; readable shapes and production-ready detail, not photorealistic live action or 3D rendering.\n\nOUTPUT CONTRACT\n- One environment only. No people, characters, crowds, silhouettes, portraits, vehicles as subjects, or staged action.\n- No text, signs with readable lettering, numbers, UI, logo, watermark, caption, speech bubble, panel border, collage, or contact sheet.",
+      "checks": [
+        {
+          "id": "contains:reusable environment reference image",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:foreground, midground, and background",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:neutral wide establishing viewpoint",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:clear entrances/exits",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:No people",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:No text",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:雨夜旧港",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:林舟",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:角色名：",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "candidateCases": [
+    {
+      "caseId": "candidate-no-character-establishing",
+      "title": "无角色旧港远景",
+      "category": "no_character_establishing",
+      "generationSpec": {
+        "schemaVersion": 2,
+        "sizePolicyVersion": "legacy_generation_default_v1",
+        "purpose": "shot_clean_plate",
+        "projectId": "project-s4-baseline",
+        "chapterId": "chapter-s4-baseline",
+        "shotId": "shot_no_character",
+        "positivePrompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n俯瞰旧港，冷雨切过空码头，半开的仓库门是唯一异常视觉点。\n\n动作与情绪\n空无一人的旧港被冷雨覆盖，东侧仓库卷帘门半开; 危险前的寂静\n\n构图与视觉重心\n横向全景，前景积水反光，中景空码头，背景仓库与闸门形成两端出口。\n\n景别与机位\nestablishing; high_angle\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+        "negativePrompt": "text, typography, letters, numbers, logo, watermark, subtitle, caption, speech bubbles, thought bubbles, sound effects, multiple panels, split screen, page layout, panel borders, gutters, collage, contact sheet, character sheet, low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+        "sections": [
+          {
+            "key": "visual",
+            "label": "主体与静态瞬间",
+            "value": "俯瞰旧港，冷雨切过空码头，半开的仓库门是唯一异常视觉点。"
+          },
+          {
+            "key": "action",
+            "label": "动作与情绪",
+            "value": "空无一人的旧港被冷雨覆盖，东侧仓库卷帘门半开; 危险前的寂静"
+          },
+          {
+            "key": "composition",
+            "label": "构图与视觉重心",
+            "value": "横向全景，前景积水反光，中景空码头，背景仓库与闸门形成两端出口。"
+          },
+          {
+            "key": "camera",
+            "label": "景别与机位",
+            "value": "establishing; high_angle"
+          },
+          {
+            "key": "scene",
+            "label": "环境、光线与氛围",
+            "value": "雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光"
+          },
+          {
+            "key": "style",
+            "label": "漫画画风",
+            "value": "comic_style; drawn comic/manhua illustration; consistent linework and controlled shading"
+          }
+        ],
+        "systemConstraints": [
+          "Create exactly one clean comic illustration for one storyboard shot.",
+          "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+          "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+          "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
+          "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
+          "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets."
+        ],
+        "requestedSize": {
+          "width": 1536,
+          "height": 1024
+        },
+        "references": [
+          {
+            "assetId": "asset_scene_port",
+            "kind": "scene_environment",
+            "entityId": "scene_port",
+            "label": "雨夜旧港",
+            "priority": 90
+          }
+        ],
+        "warnings": [],
+        "digest": "79758f97ebc0"
+      },
+      "providerProfiles": [
+        {
+          "profileId": "openai-image-instruction-v1",
+          "providerType": "openai",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n俯瞰旧港，冷雨切过空码头，半开的仓库门是唯一异常视觉点。\n\n动作与情绪\n空无一人的旧港被冷雨覆盖，东侧仓库卷帘门半开; 危险前的寂静\n\n构图与视觉重心\n横向全景，前景积水反光，中景空码头，背景仓库与闸门形成两端出口。\n\n景别与机位\nestablishing; high_angle\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "doubao-image-instruction-v1",
+          "providerType": "doubao",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n俯瞰旧港，冷雨切过空码头，半开的仓库门是唯一异常视觉点。\n\n动作与情绪\n空无一人的旧港被冷雨覆盖，东侧仓库卷帘门半开; 危险前的寂静\n\n构图与视觉重心\n横向全景，前景积水反光，中景空码头，背景仓库与闸门形成两端出口。\n\n景别与机位\nestablishing; high_angle\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "grok-image-instruction-v1",
+          "providerType": "grok",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n俯瞰旧港，冷雨切过空码头，半开的仓库门是唯一异常视觉点。\n\n动作与情绪\n空无一人的旧港被冷雨覆盖，东侧仓库卷帘门半开; 危险前的寂静\n\n构图与视觉重心\n横向全景，前景积水反光，中景空码头，背景仓库与闸门形成两端出口。\n\n景别与机位\nestablishing; high_angle\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        }
+      ],
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          {
+            "id": "clean_plate",
+            "label": "干净单幅",
+            "passRule": "单幅、无文字气泡、无分格边框"
+          },
+          {
+            "id": "environment",
+            "label": "场景一致",
+            "passRule": "仓库、闸门、积水与出入口关系可和场景参考对应"
+          },
+          {
+            "id": "empty_scene",
+            "label": "无人建立镜头",
+            "passRule": "画面无人物、剪影或车辆主体"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "contains:俯瞰旧港",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:one scene, one static moment",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:establishing; high_angle",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:雨夜旧港",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:drawn comic/manhua illustration",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:这里没有角色对白",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:第7章：雨夜编号",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:镜头从闸门移动到仓库门",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:旧候选",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:paged_comic",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "candidate_spec_version",
+          "expected": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "id": "candidate_purpose",
+          "expected": "shot_clean_plate",
+          "actual": "shot_clean_plate",
+          "passed": true
+        },
+        {
+          "id": "reference_asset_ids",
+          "expected": [
+            "asset_scene_port"
+          ],
+          "actual": [
+            "asset_scene_port"
+          ],
+          "passed": true
+        },
+        {
+          "id": "requested_size",
+          "expected": {
+            "width": 1536,
+            "height": 1024
+          },
+          "actual": {
+            "width": 1536,
+            "height": 1024
+          },
+          "passed": true
+        },
+        {
+          "id": "section_keys",
+          "expected": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "scene",
+            "style"
+          ],
+          "actual": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "scene",
+            "style"
+          ],
+          "passed": true
+        },
+        {
+          "id": "provider_profile_count",
+          "expected": 3,
+          "actual": 3,
+          "passed": true
+        },
+        {
+          "id": "provider_prompts_equal_positive_prompt",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_negative_delivery",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_prompt_no_synthetic_avoid_suffix",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "caseId": "candidate-single-character-closeup",
+      "title": "林舟单人线索近景",
+      "category": "single_character_closeup",
+      "generationSpec": {
+        "schemaVersion": 2,
+        "sizePolicyVersion": "legacy_generation_default_v1",
+        "purpose": "shot_clean_plate",
+        "projectId": "project-s4-baseline",
+        "chapterId": "chapter-s4-baseline",
+        "shotId": "shot_single",
+        "positivePrompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟左眉浅疤和半侧脸位于前景，旧银色录音笔与终端编号区域形成双焦点，但屏幕不显示可读文字。\n\n动作与情绪\n林舟停在终端前，录音笔悬在被遮蔽的屏幕编号区域旁; 警觉、确认线索\n\n构图与视觉重心\n过肩近景，人物轮廓占左三分之一，录音笔和冷白屏幕光位于右侧视觉落点。\n\n景别与机位\nclose_up; over_shoulder\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+        "negativePrompt": "text, typography, letters, numbers, logo, watermark, subtitle, caption, speech bubbles, thought bubbles, sound effects, multiple panels, split screen, page layout, panel borders, gutters, collage, contact sheet, character sheet, low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+        "sections": [
+          {
+            "key": "visual",
+            "label": "主体与静态瞬间",
+            "value": "林舟左眉浅疤和半侧脸位于前景，旧银色录音笔与终端编号区域形成双焦点，但屏幕不显示可读文字。"
+          },
+          {
+            "key": "action",
+            "label": "动作与情绪",
+            "value": "林舟停在终端前，录音笔悬在被遮蔽的屏幕编号区域旁; 警觉、确认线索"
+          },
+          {
+            "key": "composition",
+            "label": "构图与视觉重心",
+            "value": "过肩近景，人物轮廓占左三分之一，录音笔和冷白屏幕光位于右侧视觉落点。"
+          },
+          {
+            "key": "camera",
+            "label": "景别与机位",
+            "value": "close_up; over_shoulder"
+          },
+          {
+            "key": "characters",
+            "label": "角色身份与外观",
+            "value": "林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔"
+          },
+          {
+            "key": "scene",
+            "label": "环境、光线与氛围",
+            "value": "地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫"
+          },
+          {
+            "key": "style",
+            "label": "漫画画风",
+            "value": "comic_style; drawn comic/manhua illustration; consistent linework and controlled shading"
+          }
+        ],
+        "systemConstraints": [
+          "Create exactly one clean comic illustration for one storyboard shot.",
+          "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+          "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+          "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
+          "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
+          "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets."
+        ],
+        "requestedSize": {
+          "width": 1024,
+          "height": 1536
+        },
+        "references": [
+          {
+            "assetId": "asset_lin_preview",
+            "kind": "character_identity",
+            "entityId": "char_lin",
+            "label": "林舟",
+            "priority": 100
+          },
+          {
+            "assetId": "asset_scene_archive",
+            "kind": "scene_environment",
+            "entityId": "scene_archive",
+            "label": "地下档案室",
+            "priority": 90
+          }
+        ],
+        "warnings": [],
+        "digest": "83b8f3f4c092"
+      },
+      "providerProfiles": [
+        {
+          "profileId": "openai-image-instruction-v1",
+          "providerType": "openai",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟左眉浅疤和半侧脸位于前景，旧银色录音笔与终端编号区域形成双焦点，但屏幕不显示可读文字。\n\n动作与情绪\n林舟停在终端前，录音笔悬在被遮蔽的屏幕编号区域旁; 警觉、确认线索\n\n构图与视觉重心\n过肩近景，人物轮廓占左三分之一，录音笔和冷白屏幕光位于右侧视觉落点。\n\n景别与机位\nclose_up; over_shoulder\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "doubao-image-instruction-v1",
+          "providerType": "doubao",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟左眉浅疤和半侧脸位于前景，旧银色录音笔与终端编号区域形成双焦点，但屏幕不显示可读文字。\n\n动作与情绪\n林舟停在终端前，录音笔悬在被遮蔽的屏幕编号区域旁; 警觉、确认线索\n\n构图与视觉重心\n过肩近景，人物轮廓占左三分之一，录音笔和冷白屏幕光位于右侧视觉落点。\n\n景别与机位\nclose_up; over_shoulder\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "grok-image-instruction-v1",
+          "providerType": "grok",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟左眉浅疤和半侧脸位于前景，旧银色录音笔与终端编号区域形成双焦点，但屏幕不显示可读文字。\n\n动作与情绪\n林舟停在终端前，录音笔悬在被遮蔽的屏幕编号区域旁; 警觉、确认线索\n\n构图与视觉重心\n过肩近景，人物轮廓占左三分之一，录音笔和冷白屏幕光位于右侧视觉落点。\n\n景别与机位\nclose_up; over_shoulder\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        }
+      ],
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          {
+            "id": "clean_plate",
+            "label": "无字干净底图",
+            "passRule": "屏幕不得出现可读文字、编号、UI 或气泡"
+          },
+          {
+            "id": "identity",
+            "label": "单人身份一致",
+            "passRule": "林舟脸型、左眉浅疤、发型和风衣与预览参考一致"
+          },
+          {
+            "id": "composition",
+            "label": "过肩双焦点",
+            "passRule": "半侧脸、录音笔和屏幕光的视觉关系清楚"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "contains:林舟左眉浅疤",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:close_up; over_shoulder",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:林舟:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:地下档案室",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:Do not render text",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:017不是档案号",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:真正的名字藏在编号后面",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:林舟抬起录音笔，屏幕刷新",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:旧候选",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:vertical_scroll",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "candidate_spec_version",
+          "expected": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "id": "candidate_purpose",
+          "expected": "shot_clean_plate",
+          "actual": "shot_clean_plate",
+          "passed": true
+        },
+        {
+          "id": "reference_asset_ids",
+          "expected": [
+            "asset_lin_preview",
+            "asset_scene_archive"
+          ],
+          "actual": [
+            "asset_lin_preview",
+            "asset_scene_archive"
+          ],
+          "passed": true
+        },
+        {
+          "id": "requested_size",
+          "expected": {
+            "width": 1024,
+            "height": 1536
+          },
+          "actual": {
+            "width": 1024,
+            "height": 1536
+          },
+          "passed": true
+        },
+        {
+          "id": "section_keys",
+          "expected": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "actual": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "passed": true
+        },
+        {
+          "id": "provider_profile_count",
+          "expected": 3,
+          "actual": 3,
+          "passed": true
+        },
+        {
+          "id": "provider_prompts_equal_positive_prompt",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_negative_delivery",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_prompt_no_synthetic_avoid_suffix",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "caseId": "candidate-two-character-dialogue",
+      "title": "林舟许澄双人对话",
+      "category": "two_character_dialogue",
+      "generationSpec": {
+        "schemaVersion": 2,
+        "sizePolicyVersion": "legacy_generation_default_v1",
+        "purpose": "shot_clean_plate",
+        "projectId": "project-s4-baseline",
+        "chapterId": "chapter-s4-baseline",
+        "shotId": "shot_dialogue",
+        "positivePrompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟与许澄并排停在雨棚下，许澄一手按住林舟肩膀，两人的视线共同指向画外仓库门。\n\n动作与情绪\n许澄按住林舟准备回头的肩膀，两人同时看向仓库门后的影子; 克制的紧张\n\n构图与视觉重心\n双人中景，人物在左侧，右侧保留指向仓库门的负空间和视线通道。\n\n景别与机位\nmedium; eye_level\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+        "negativePrompt": "text, typography, letters, numbers, logo, watermark, subtitle, caption, speech bubbles, thought bubbles, sound effects, multiple panels, split screen, page layout, panel borders, gutters, collage, contact sheet, character sheet, low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+        "sections": [
+          {
+            "key": "visual",
+            "label": "主体与静态瞬间",
+            "value": "林舟与许澄并排停在雨棚下，许澄一手按住林舟肩膀，两人的视线共同指向画外仓库门。"
+          },
+          {
+            "key": "action",
+            "label": "动作与情绪",
+            "value": "许澄按住林舟准备回头的肩膀，两人同时看向仓库门后的影子; 克制的紧张"
+          },
+          {
+            "key": "composition",
+            "label": "构图与视觉重心",
+            "value": "双人中景，人物在左侧，右侧保留指向仓库门的负空间和视线通道。"
+          },
+          {
+            "key": "camera",
+            "label": "景别与机位",
+            "value": "medium; eye_level"
+          },
+          {
+            "key": "characters",
+            "label": "角色身份与外观",
+            "value": "林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱"
+          },
+          {
+            "key": "scene",
+            "label": "环境、光线与氛围",
+            "value": "雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光"
+          },
+          {
+            "key": "style",
+            "label": "漫画画风",
+            "value": "comic_style; drawn comic/manhua illustration; consistent linework and controlled shading"
+          }
+        ],
+        "systemConstraints": [
+          "Create exactly one clean comic illustration for one storyboard shot.",
+          "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+          "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+          "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
+          "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
+          "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets."
+        ],
+        "requestedSize": {
+          "width": 1024,
+          "height": 1536
+        },
+        "references": [
+          {
+            "assetId": "asset_lin_preview",
+            "kind": "character_identity",
+            "entityId": "char_lin",
+            "label": "林舟",
+            "priority": 100
+          },
+          {
+            "assetId": "asset_xu_preview",
+            "kind": "character_identity",
+            "entityId": "char_xu",
+            "label": "许澄",
+            "priority": 80
+          },
+          {
+            "assetId": "asset_scene_port",
+            "kind": "scene_environment",
+            "entityId": "scene_port",
+            "label": "雨夜旧港",
+            "priority": 90
+          }
+        ],
+        "warnings": [],
+        "digest": "7319960d7d74"
+      },
+      "providerProfiles": [
+        {
+          "profileId": "openai-image-instruction-v1",
+          "providerType": "openai",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟与许澄并排停在雨棚下，许澄一手按住林舟肩膀，两人的视线共同指向画外仓库门。\n\n动作与情绪\n许澄按住林舟准备回头的肩膀，两人同时看向仓库门后的影子; 克制的紧张\n\n构图与视觉重心\n双人中景，人物在左侧，右侧保留指向仓库门的负空间和视线通道。\n\n景别与机位\nmedium; eye_level\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "doubao-image-instruction-v1",
+          "providerType": "doubao",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟与许澄并排停在雨棚下，许澄一手按住林舟肩膀，两人的视线共同指向画外仓库门。\n\n动作与情绪\n许澄按住林舟准备回头的肩膀，两人同时看向仓库门后的影子; 克制的紧张\n\n构图与视觉重心\n双人中景，人物在左侧，右侧保留指向仓库门的负空间和视线通道。\n\n景别与机位\nmedium; eye_level\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "grok-image-instruction-v1",
+          "providerType": "grok",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n林舟与许澄并排停在雨棚下，许澄一手按住林舟肩膀，两人的视线共同指向画外仓库门。\n\n动作与情绪\n许澄按住林舟准备回头的肩膀，两人同时看向仓库门后的影子; 克制的紧张\n\n构图与视觉重心\n双人中景，人物在左侧，右侧保留指向仓库门的负空间和视线通道。\n\n景别与机位\nmedium; eye_level\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        }
+      ],
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          {
+            "id": "clean_plate",
+            "label": "无气泡双人底图",
+            "passRule": "无气泡、文字和分格，保留后续排版负空间"
+          },
+          {
+            "id": "identity",
+            "label": "双人身份一致",
+            "passRule": "林舟和许澄均与各自预览参考一致且不互相混脸换装"
+          },
+          {
+            "id": "staging",
+            "label": "对话调度",
+            "passRule": "按肩动作、共同视线和仓库方向关系清楚"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "contains:林舟与许澄并排停在雨棚下",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:medium; eye_level",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:林舟:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:许澄:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:intentional negative space",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:别回头",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:雨声盖住了第三个人的脚步",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:许澄伸手按肩，林舟停止转身",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:旧候选",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:vertical_scroll",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "candidate_spec_version",
+          "expected": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "id": "candidate_purpose",
+          "expected": "shot_clean_plate",
+          "actual": "shot_clean_plate",
+          "passed": true
+        },
+        {
+          "id": "reference_asset_ids",
+          "expected": [
+            "asset_lin_preview",
+            "asset_xu_preview",
+            "asset_scene_port"
+          ],
+          "actual": [
+            "asset_lin_preview",
+            "asset_xu_preview",
+            "asset_scene_port"
+          ],
+          "passed": true
+        },
+        {
+          "id": "requested_size",
+          "expected": {
+            "width": 1024,
+            "height": 1536
+          },
+          "actual": {
+            "width": 1024,
+            "height": 1536
+          },
+          "passed": true
+        },
+        {
+          "id": "section_keys",
+          "expected": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "actual": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "passed": true
+        },
+        {
+          "id": "provider_profile_count",
+          "expected": 3,
+          "actual": 3,
+          "passed": true
+        },
+        {
+          "id": "provider_prompts_equal_positive_prompt",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_negative_delivery",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_prompt_no_synthetic_avoid_suffix",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "caseId": "candidate-group-staging",
+      "title": "四人港口群像",
+      "category": "group_staging",
+      "generationSpec": {
+        "schemaVersion": 2,
+        "sizePolicyVersion": "legacy_generation_default_v1",
+        "purpose": "shot_clean_plate",
+        "projectId": "project-s4-baseline",
+        "chapterId": "chapter-s4-baseline",
+        "shotId": "shot_group",
+        "positivePrompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n四人在仓库与闸门之间形成对峙，林舟和许澄位于赵妍前侧，高远独自封住右侧出口。\n\n动作与情绪\n林舟和许澄护住赵妍，高远堵住通往闸门的退路; 对峙、空间受压\n\n构图与视觉重心\n低机位宽景，三人保护组形成左侧三角，高远占据右侧出口，积水反光连接双方。\n\n景别与机位\nwide; low_angle\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱; 赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤; 高远: 四十岁，寸头，深色防水工装，体格高大, 左手黑色腕带\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+        "negativePrompt": "text, typography, letters, numbers, logo, watermark, subtitle, caption, speech bubbles, thought bubbles, sound effects, multiple panels, split screen, page layout, panel borders, gutters, collage, contact sheet, character sheet, low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+        "sections": [
+          {
+            "key": "visual",
+            "label": "主体与静态瞬间",
+            "value": "四人在仓库与闸门之间形成对峙，林舟和许澄位于赵妍前侧，高远独自封住右侧出口。"
+          },
+          {
+            "key": "action",
+            "label": "动作与情绪",
+            "value": "林舟和许澄护住赵妍，高远堵住通往闸门的退路; 对峙、空间受压"
+          },
+          {
+            "key": "composition",
+            "label": "构图与视觉重心",
+            "value": "低机位宽景，三人保护组形成左侧三角，高远占据右侧出口，积水反光连接双方。"
+          },
+          {
+            "key": "camera",
+            "label": "景别与机位",
+            "value": "wide; low_angle"
+          },
+          {
+            "key": "characters",
+            "label": "角色身份与外观",
+            "value": "林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱; 赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤; 高远: 四十岁，寸头，深色防水工装，体格高大, 左手黑色腕带"
+          },
+          {
+            "key": "scene",
+            "label": "环境、光线与氛围",
+            "value": "雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光"
+          },
+          {
+            "key": "style",
+            "label": "漫画画风",
+            "value": "comic_style; drawn comic/manhua illustration; consistent linework and controlled shading"
+          }
+        ],
+        "systemConstraints": [
+          "Create exactly one clean comic illustration for one storyboard shot.",
+          "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+          "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+          "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
+          "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
+          "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets."
+        ],
+        "requestedSize": {
+          "width": 1024,
+          "height": 1536
+        },
+        "references": [
+          {
+            "assetId": "asset_lin_preview",
+            "kind": "character_identity",
+            "entityId": "char_lin",
+            "label": "林舟",
+            "priority": 100
+          },
+          {
+            "assetId": "asset_xu_preview",
+            "kind": "character_identity",
+            "entityId": "char_xu",
+            "label": "许澄",
+            "priority": 80
+          },
+          {
+            "assetId": "asset_zhao_preview",
+            "kind": "character_identity",
+            "entityId": "char_zhao",
+            "label": "赵妍",
+            "priority": 79
+          },
+          {
+            "assetId": "asset_gao_preview",
+            "kind": "character_identity",
+            "entityId": "char_gao",
+            "label": "高远",
+            "priority": 78
+          },
+          {
+            "assetId": "asset_scene_port",
+            "kind": "scene_environment",
+            "entityId": "scene_port",
+            "label": "雨夜旧港",
+            "priority": 90
+          }
+        ],
+        "warnings": [],
+        "digest": "92b3e0169e47"
+      },
+      "providerProfiles": [
+        {
+          "profileId": "openai-image-instruction-v1",
+          "providerType": "openai",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n四人在仓库与闸门之间形成对峙，林舟和许澄位于赵妍前侧，高远独自封住右侧出口。\n\n动作与情绪\n林舟和许澄护住赵妍，高远堵住通往闸门的退路; 对峙、空间受压\n\n构图与视觉重心\n低机位宽景，三人保护组形成左侧三角，高远占据右侧出口，积水反光连接双方。\n\n景别与机位\nwide; low_angle\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱; 赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤; 高远: 四十岁，寸头，深色防水工装，体格高大, 左手黑色腕带\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "doubao-image-instruction-v1",
+          "providerType": "doubao",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n四人在仓库与闸门之间形成对峙，林舟和许澄位于赵妍前侧，高远独自封住右侧出口。\n\n动作与情绪\n林舟和许澄护住赵妍，高远堵住通往闸门的退路; 对峙、空间受压\n\n构图与视觉重心\n低机位宽景，三人保护组形成左侧三角，高远占据右侧出口，积水反光连接双方。\n\n景别与机位\nwide; low_angle\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱; 赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤; 高远: 四十岁，寸头，深色防水工装，体格高大, 左手黑色腕带\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "grok-image-instruction-v1",
+          "providerType": "grok",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n四人在仓库与闸门之间形成对峙，林舟和许澄位于赵妍前侧，高远独自封住右侧出口。\n\n动作与情绪\n林舟和许澄护住赵妍，高远堵住通往闸门的退路; 对峙、空间受压\n\n构图与视觉重心\n低机位宽景，三人保护组形成左侧三角，高远占据右侧出口，积水反光连接双方。\n\n景别与机位\nwide; low_angle\n\n角色身份与外观\n林舟: 二十八岁，黑色短发，左眉浅疤，灰蓝长风衣, 窄长眼型，旧银色录音笔; 许澄: 二十六岁，栗色低马尾，米白短夹克，深绿围巾, 圆框眼镜，黑色证物箱; 赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤; 高远: 四十岁，寸头，深色防水工装，体格高大, 左手黑色腕带\n\n环境、光线与氛围\n雨夜旧港; 废弃货运码头; 深夜; 冷雨、低照度、潮湿反光\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        }
+      ],
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          {
+            "id": "clean_plate",
+            "label": "单幅群像",
+            "passRule": "不是四格设定表、拼贴或带姓名标签的群像"
+          },
+          {
+            "id": "identity",
+            "label": "多人身份与省略可追溯",
+            "passRule": "实际使用参考的角色身份稳定；省略参考必须与 task warning 一致"
+          },
+          {
+            "id": "staging",
+            "label": "空间站位",
+            "passRule": "左侧保护组、右侧阻拦者和出口关系清楚"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "contains:四人在仓库与闸门之间形成对峙",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:wide; low_angle",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:林舟:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:许澄:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:赵妍:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:高远:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:谁都别走",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:出口只剩下一个",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:高远横移封门",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:旧候选",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:vertical_scroll",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "candidate_spec_version",
+          "expected": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "id": "candidate_purpose",
+          "expected": "shot_clean_plate",
+          "actual": "shot_clean_plate",
+          "passed": true
+        },
+        {
+          "id": "reference_asset_ids",
+          "expected": [
+            "asset_lin_preview",
+            "asset_xu_preview",
+            "asset_zhao_preview",
+            "asset_gao_preview",
+            "asset_scene_port"
+          ],
+          "actual": [
+            "asset_lin_preview",
+            "asset_xu_preview",
+            "asset_zhao_preview",
+            "asset_gao_preview",
+            "asset_scene_port"
+          ],
+          "passed": true
+        },
+        {
+          "id": "requested_size",
+          "expected": {
+            "width": 1024,
+            "height": 1536
+          },
+          "actual": {
+            "width": 1024,
+            "height": 1536
+          },
+          "passed": true
+        },
+        {
+          "id": "section_keys",
+          "expected": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "actual": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "passed": true
+        },
+        {
+          "id": "provider_profile_count",
+          "expected": 3,
+          "actual": 3,
+          "passed": true
+        },
+        {
+          "id": "provider_prompts_equal_positive_prompt",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_negative_delivery",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_prompt_no_synthetic_avoid_suffix",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "caseId": "candidate-scene-effect",
+      "title": "档案室屏幕熄灭特效",
+      "category": "scene_effect",
+      "generationSpec": {
+        "schemaVersion": 2,
+        "sizePolicyVersion": "legacy_generation_default_v1",
+        "purpose": "shot_clean_plate",
+        "projectId": "project-s4-baseline",
+        "chapterId": "chapter-s4-baseline",
+        "shotId": "shot_effect",
+        "positivePrompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n屏幕刚刚熄灭的瞬间，赵妍半身成为暗色剪影，门缝红光准确照亮右手旧烧伤和拔下的电源插头。\n\n动作与情绪\n赵妍拔下终端电源，冷白屏幕熄灭，只剩门缝红色警示光切过她右手烧伤; 决断、身份暴露\n\n构图与视觉重心\n倾斜中景，熄灭屏幕占左侧暗面，赵妍与红光切线占右侧，插头是最亮细节。\n\n景别与机位\nmedium; dutch_angle\n\n角色身份与外观\n赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+        "negativePrompt": "text, typography, letters, numbers, logo, watermark, subtitle, caption, speech bubbles, thought bubbles, sound effects, multiple panels, split screen, page layout, panel borders, gutters, collage, contact sheet, character sheet, low quality, blurry, extra fingers, photorealistic live-action, 3d render",
+        "sections": [
+          {
+            "key": "visual",
+            "label": "主体与静态瞬间",
+            "value": "屏幕刚刚熄灭的瞬间，赵妍半身成为暗色剪影，门缝红光准确照亮右手旧烧伤和拔下的电源插头。"
+          },
+          {
+            "key": "action",
+            "label": "动作与情绪",
+            "value": "赵妍拔下终端电源，冷白屏幕熄灭，只剩门缝红色警示光切过她右手烧伤; 决断、身份暴露"
+          },
+          {
+            "key": "composition",
+            "label": "构图与视觉重心",
+            "value": "倾斜中景，熄灭屏幕占左侧暗面，赵妍与红光切线占右侧，插头是最亮细节。"
+          },
+          {
+            "key": "camera",
+            "label": "景别与机位",
+            "value": "medium; dutch_angle"
+          },
+          {
+            "key": "characters",
+            "label": "角色身份与外观",
+            "value": "赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤"
+          },
+          {
+            "key": "scene",
+            "label": "环境、光线与氛围",
+            "value": "地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫"
+          },
+          {
+            "key": "style",
+            "label": "漫画画风",
+            "value": "comic_style; drawn comic/manhua illustration; consistent linework and controlled shading"
+          }
+        ],
+        "systemConstraints": [
+          "Create exactly one clean comic illustration for one storyboard shot.",
+          "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+          "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+          "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
+          "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
+          "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets."
+        ],
+        "requestedSize": {
+          "width": 1024,
+          "height": 1536
+        },
+        "references": [
+          {
+            "assetId": "asset_zhao_preview",
+            "kind": "character_identity",
+            "entityId": "char_zhao",
+            "label": "赵妍",
+            "priority": 100
+          },
+          {
+            "assetId": "asset_scene_archive",
+            "kind": "scene_environment",
+            "entityId": "scene_archive",
+            "label": "地下档案室",
+            "priority": 90
+          }
+        ],
+        "warnings": [],
+        "digest": "219f02a522b0"
+      },
+      "providerProfiles": [
+        {
+          "profileId": "openai-image-instruction-v1",
+          "providerType": "openai",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n屏幕刚刚熄灭的瞬间，赵妍半身成为暗色剪影，门缝红光准确照亮右手旧烧伤和拔下的电源插头。\n\n动作与情绪\n赵妍拔下终端电源，冷白屏幕熄灭，只剩门缝红色警示光切过她右手烧伤; 决断、身份暴露\n\n构图与视觉重心\n倾斜中景，熄灭屏幕占左侧暗面，赵妍与红光切线占右侧，插头是最亮细节。\n\n景别与机位\nmedium; dutch_angle\n\n角色身份与外观\n赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "doubao-image-instruction-v1",
+          "providerType": "doubao",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n屏幕刚刚熄灭的瞬间，赵妍半身成为暗色剪影，门缝红光准确照亮右手旧烧伤和拔下的电源插头。\n\n动作与情绪\n赵妍拔下终端电源，冷白屏幕熄灭，只剩门缝红色警示光切过她右手烧伤; 决断、身份暴露\n\n构图与视觉重心\n倾斜中景，熄灭屏幕占左侧暗面，赵妍与红光切线占右侧，插头是最亮细节。\n\n景别与机位\nmedium; dutch_angle\n\n角色身份与外观\n赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        },
+        {
+          "profileId": "grok-image-instruction-v1",
+          "providerType": "grok",
+          "prompt": "PURPOSE\nCreate exactly one clean comic illustration for one storyboard shot.\n\n主体与静态瞬间\n屏幕刚刚熄灭的瞬间，赵妍半身成为暗色剪影，门缝红光准确照亮右手旧烧伤和拔下的电源插头。\n\n动作与情绪\n赵妍拔下终端电源，冷白屏幕熄灭，只剩门缝红色警示光切过她右手烧伤; 决断、身份暴露\n\n构图与视觉重心\n倾斜中景，熄灭屏幕占左侧暗面，赵妍与红光切线占右侧，插头是最亮细节。\n\n景别与机位\nmedium; dutch_angle\n\n角色身份与外观\n赵妍: 三十二岁，齐肩黑发，墨绿高领衫，右手旧烧伤, 冷白肤色，右手旧烧伤\n\n环境、光线与氛围\n地下档案室; 市政旧楼负二层; 凌晨; 冷白屏幕光、灰尘、封闭压迫\n\n漫画画风\ncomic_style; drawn comic/manhua illustration; consistent linework and controlled shading\n\nOUTPUT CONTRACT\n- Show one scene, one static moment, and one camera composition in a full-bleed image.\n- Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.\n- Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.\n- Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.\n- Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+          "negativePromptDelivery": "embedded_constraints"
+        }
+      ],
+      "runtimeRubric": {
+        "variantsPerProvider": 2,
+        "checks": [
+          {
+            "id": "clean_plate",
+            "label": "无UI特效底图",
+            "passRule": "屏幕无可读 UI、017、字幕或气泡"
+          },
+          {
+            "id": "identity",
+            "label": "赵妍身份一致",
+            "passRule": "发型、服装、右手烧伤与角色预览参考一致"
+          },
+          {
+            "id": "lighting",
+            "label": "明暗因果",
+            "passRule": "屏幕熄灭后的暗面与门缝红光成为唯一主光关系"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "contains:屏幕刚刚熄灭的瞬间",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:medium; dutch_angle",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:赵妍:",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:门缝红光",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "contains:Do not render text",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "excludes:现在他们看不见我们",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:编号017第一次主动切断记录",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:屏幕熄灭，红灯亮起，赵妍转身",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:旧候选",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "excludes:vertical_scroll",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        },
+        {
+          "id": "candidate_spec_version",
+          "expected": 2,
+          "actual": 2,
+          "passed": true
+        },
+        {
+          "id": "candidate_purpose",
+          "expected": "shot_clean_plate",
+          "actual": "shot_clean_plate",
+          "passed": true
+        },
+        {
+          "id": "reference_asset_ids",
+          "expected": [
+            "asset_zhao_preview",
+            "asset_scene_archive"
+          ],
+          "actual": [
+            "asset_zhao_preview",
+            "asset_scene_archive"
+          ],
+          "passed": true
+        },
+        {
+          "id": "requested_size",
+          "expected": {
+            "width": 1024,
+            "height": 1536
+          },
+          "actual": {
+            "width": 1024,
+            "height": 1536
+          },
+          "passed": true
+        },
+        {
+          "id": "section_keys",
+          "expected": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "actual": [
+            "visual",
+            "action",
+            "composition",
+            "camera",
+            "characters",
+            "scene",
+            "style"
+          ],
+          "passed": true
+        },
+        {
+          "id": "provider_profile_count",
+          "expected": 3,
+          "actual": 3,
+          "passed": true
+        },
+        {
+          "id": "provider_prompts_equal_positive_prompt",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_negative_delivery",
+          "expected": true,
+          "actual": true,
+          "passed": true
+        },
+        {
+          "id": "provider_prompt_no_synthetic_avoid_suffix",
+          "expected": false,
+          "actual": false,
+          "passed": true
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "summary": {
+    "referenceCaseCount": 3,
+    "candidateCaseCount": 5,
+    "providerProfileCount": 15,
+    "runtimeImageCountWhenAuthorized": 30,
+    "failedCaseIds": [],
+    "passed": true
+  }
+}
