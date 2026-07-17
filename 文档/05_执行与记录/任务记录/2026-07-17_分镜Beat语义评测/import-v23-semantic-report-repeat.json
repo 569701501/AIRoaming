@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "overallStatus": "warning",
+  "summary": {
+    "beatCount": 8,
+    "coveredDimensions": 10,
+    "partialDimensions": 6,
+    "missingDimensions": 0,
+    "contradictedDimensions": 0
+  },
+  "beats": [
+    {
+      "beatId": "beat_01",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        1
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "停航屏、湿透的林澈、红封条录音笔、老周锁门和否认有船均直接呈现，老周“你也没来过”与封闭环境足以形成戒备。"
+    },
+    {
+      "beatId": "beat_02",
+      "summaryStatus": "partial",
+      "outcomeStatus": "partial",
+      "evidenceShotOrders": [
+        2
+      ],
+      "missingFacts": [
+        "缺少失踪证人短信中的“蓝门仓库”线索，观众无法确认蓝色油漆与蓝门仓库发生关联。"
+      ],
+      "contradictions": [],
+      "reason": "蓝色油漆、悄悄打开录音笔和 6% 低电量可见，但蓝门仓库短信这一关联来源未呈现。"
+    },
+    {
+      "beatId": "beat_03",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        3,
+        4
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "许岚伸手入门、林澈顶门、老周按开关、录音笔落水仍亮红灯和许岚滚入厅内均直接呈现。"
+    },
+    {
+      "beatId": "beat_04",
+      "summaryStatus": "partial",
+      "outcomeStatus": "partial",
+      "evidenceShotOrders": [
+        5,
+        6
+      ],
+      "missingFacts": [
+        "缺少许岚表明自己是失踪案唯一愿意作证的会计。",
+        "缺少明确呈现林澈决定如何分散追兵。"
+      ],
+      "contradictions": [],
+      "reason": "许岚强调录音不能被拿到、追兵靠近和老周催交许岚已呈现，但许岚的证人身份与分散追兵的决定未充分呈现。"
+    },
+    {
+      "beatId": "beat_05",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        7
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "林澈藏起许岚、捡起录音笔并朝相反方向冲上栈桥，雨衣人转向追去，结果清楚可见。"
+    },
+    {
+      "beatId": "beat_06",
+      "summaryStatus": "covered",
+      "outcomeStatus": "partial",
+      "evidenceShotOrders": [
+        8
+      ],
+      "missingFacts": [
+        "缺少林澈实际播放录音并进入真相揭露的瞬间。"
+      ],
+      "contradictions": [],
+      "reason": "两名雨衣人追上、林澈举录音笔迫停对方和雨衣人的提醒均呈现，但真相揭露尚未在本 Beat 发生。"
+    },
+    {
+      "beatId": "beat_07",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        9
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "林澈按下播放键，录音中市长秘书说出渡轮名单和零点前处理干净，证据危险性与关键线索均直接可听见。"
+    },
+    {
+      "beatId": "beat_08",
+      "summaryStatus": "partial",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        10,
+        11
+      ],
+      "missingFacts": [
+        "缺少明确说明父亲是在三年前死亡。"
+      ],
+      "contradictions": [],
+      "reason": "父亲声音、不要相信穿蓝色制服的人以及老周雨衣下露出蓝色制服均呈现，但三年前死亡这一具体事实未直接给出。"
+    }
+  ]
+}

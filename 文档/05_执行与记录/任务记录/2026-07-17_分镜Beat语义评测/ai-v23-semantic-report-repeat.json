@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "overallStatus": "warning",
+  "summary": {
+    "beatCount": 13,
+    "coveredDimensions": 20,
+    "partialDimensions": 6,
+    "missingDimensions": 0,
+    "contradictedDimensions": 0
+  },
+  "beats": [
+    {
+      "beatId": "beat_01",
+      "summaryStatus": "partial",
+      "outcomeStatus": "partial",
+      "evidenceShotOrders": [
+        1
+      ],
+      "missingFacts": [
+        "summary 缺少站务电话无法联系外界的明确证据，城市灯光熄灭只表现为站台停电",
+        "outcome 缺少废弃轨道深处旧机器刹车声这一引导触发"
+      ],
+      "contradictions": [],
+      "reason": "镜头直接表现程野从检修井旁起身、主电中断、备用链路无响应和对讲机异常，但外部联系方式与刹车声证据不完整。"
+    },
+    {
+      "beatId": "beat_02",
+      "summaryStatus": "covered",
+      "outcomeStatus": "partial",
+      "evidenceShotOrders": [
+        2
+      ],
+      "missingFacts": [
+        "outcome 缺少程野已经登上旧列车并进入异常空间的明确画面或声音"
+      ],
+      "contradictions": [],
+      "reason": "镜头显示封死区域敞开和无线路色、无编号旧列车，但只到程野踏向车门。"
+    },
+    {
+      "beatId": "beat_03",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        3,
+        4
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "镜头直接表现苏弥、倒计时录音机、失忆、不能下车和倒计时结束前有人带走她。"
+    },
+    {
+      "beatId": "beat_04",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        5,
+        6
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "广播用程岚声音下达交接命令并称零点前完成，苏弥警告广播会让人消失，程野明显被姐姐声音牵动。"
+    },
+    {
+      "beatId": "beat_05",
+      "summaryStatus": "partial",
+      "outcomeStatus": "partial",
+      "evidenceShotOrders": [
+        7
+      ],
+      "missingFacts": [
+        "summary 缺少旧站、回声以及程野联想到程岚失踪前内部维修申请的明确证据",
+        "outcome 缺少岐山口旧站与程岚失踪案建立联系的明确证据"
+      ],
+      "contradictions": [],
+      "reason": "录音机给出岐山口和不要去站务中心线索，但程岚失踪案和旧站信息未被清楚呈现。"
+    },
+    {
+      "beatId": "beat_06",
+      "summaryStatus": "partial",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        8
+      ],
+      "missingFacts": [
+        "summary 缺少旧列车车门强制关闭的明确证据"
+      ],
+      "contradictions": [],
+      "reason": "广播宣布目标拒绝交接并启动封控，安全门落锁、机器人滑出，程野拉住苏弥准备撤离。"
+    },
+    {
+      "beatId": "beat_07",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        9,
+        10
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "程野用扳手卡门救苏弥，两人躲过束缚网并冲向检修门，保护行动和逃离方向都明确。"
+    },
+    {
+      "beatId": "beat_08",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        11,
+        12
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "工牌开门失败、广播以姐姐声音诱导、苏弥提出交出自己，程野砸柜取破拆杆撬门并把苏弥推进通道。"
+    },
+    {
+      "beatId": "beat_09",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        13
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "通道门外有撞击，程野处理手臂伤口，苏弥递旧票卡且无法说明身份，并补充交接会让人消失。"
+    },
+    {
+      "beatId": "beat_10",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        14,
+        15
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "广播承诺交出苏弥即可见到程岚，程野摸向锁后拒绝开门，判断姐姐不会让他推出害怕的人并带苏弥走检修通道。"
+    },
+    {
+      "beatId": "beat_11",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        16
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "镜头表现通道编号变旧、旧线路图露出半个岐字，程野随后选择右侧废弃检修区。"
+    },
+    {
+      "beatId": "beat_12",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        17
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "喇叭噪声中出现不再命令交接的程岚声音，并说别让他们知道我还在，支持真实意图与广播命令不一致。"
+    },
+    {
+      "beatId": "beat_13",
+      "summaryStatus": "covered",
+      "outcomeStatus": "covered",
+      "evidenceShotOrders": [
+        18
+      ],
+      "missingFacts": [],
+      "contradictions": [],
+      "reason": "喇叭熄灭后多个红色探照点出现，广播提示脱离交接路线、追捕升级，两人逃向废弃检修区深处。"
+    }
+  ]
+}

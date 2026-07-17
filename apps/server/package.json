@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "storyboard:semantic:evaluate": "tsx src/dialogue/storyboard-semantic-evaluation.cli.ts",
     "g1:manifest:generate": "tsx src/persistence/g1-schema-manifest.cli.ts --write",
     "g1:manifest:check": "tsx src/persistence/g1-schema-manifest.cli.ts --check",
     "g1:schema:check": "tsx src/persistence/g1-prisma-schema.cli.ts --check",
