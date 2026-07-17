@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "mode": "model",
+  "corpusId": "storyboard-semantic-corpus-v1",
+  "selectedFixtureId": "action-chase-reversal",
+  "generatedAt": "2026-07-17T02:31:48.872Z",
+  "repeat": 2,
+  "requestedModel": {
+    "providerId": "self",
+    "modelId": "gpt-5.5"
+  },
+  "runs": [
+    {
+      "fixtureId": "action-chase-reversal",
+      "repeatIndex": 1,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "fail",
+        "summary": {
+          "beatCount": 2,
+          "coveredDimensions": 2,
+          "partialDimensions": 0,
+          "missingDimensions": 1,
+          "contradictedDimensions": 1
+        },
+        "beats": [
+          {
+            "beatId": "beat-action-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "missing",
+            "evidenceShotOrders": [
+              10
+            ],
+            "missingFacts": [
+              "缺少追兵跳过传送带缺口的可见动作",
+              "缺少追兵仍保持近距离追赶的结果"
+            ],
+            "contradictions": [],
+            "reason": "镜头直接表现许澄拉下急停闸并让传送带骤停，但没有表现追兵越过缺口或继续近距离追赶。"
+          },
+          {
+            "beatId": "beat-action-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "contradicted",
+            "evidenceShotOrders": [
+              11
+            ],
+            "missingFacts": [],
+            "contradictions": [
+              "镜头表现追兵侧滚避开货网并继续追赶，与追兵被货网压住且一只手伸出的结果相反。"
+            ],
+            "reason": "镜头直接表现许澄割断吊绳释放货网，但追兵避开而非被压住。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 4,
+        "totalDimensions": 4,
+        "agreementRate": 1,
+        "dimensionMismatches": []
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    },
+    {
+      "fixtureId": "action-chase-reversal",
+      "repeatIndex": 2,
+      "status": "completed",
+      "report": {
+        "schemaVersion": 1,
+        "overallStatus": "fail",
+        "summary": {
+          "beatCount": 2,
+          "coveredDimensions": 2,
+          "partialDimensions": 0,
+          "missingDimensions": 1,
+          "contradictedDimensions": 1
+        },
+        "beats": [
+          {
+            "beatId": "beat-action-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "missing",
+            "evidenceShotOrders": [
+              10
+            ],
+            "missingFacts": [
+              "缺少追兵跳过传送带缺口并仍保持近距离追赶的可见或可听证据"
+            ],
+            "contradictions": [],
+            "reason": "镜头直接表现许澄拉下急停闸并让传送带骤停，但未表现追兵通过缺口或继续近距离追赶。"
+          },
+          {
+            "beatId": "beat-action-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "contradicted",
+            "evidenceShotOrders": [
+              11
+            ],
+            "missingFacts": [],
+            "contradictions": [
+              "镜头表现追兵侧滚避开货网并继续追赶，与追兵被货网压住且一只手从网下伸出的结果相反。"
+            ],
+            "reason": "镜头直接表现许澄割断吊绳释放货网砸向追兵，但结果明确改为追兵避开而非被压住。"
+          }
+        ]
+      },
+      "comparison": {
+        "matchedDimensions": 4,
+        "totalDimensions": 4,
+        "agreementRate": 1,
+        "dimensionMismatches": []
+      },
+      "providerId": "self",
+      "modelId": "gpt-5.5"
+    }
+  ],
+  "summary": {
+    "caseCount": 1,
+    "requestedRuns": 2,
+    "observedRuns": 2,
+    "completedRuns": 2,
+    "failedRuns": 0,
+    "unattemptedRuns": 0,
+    "expectedAgreement": {
+      "matchedDimensions": 8,
+      "totalDimensions": 8,
+      "rate": 1
+    },
+    "repeatStability": {
+      "stableDimensions": 4,
+      "comparableDimensions": 4,
+      "rate": 1
+    },
+    "caseSummaries": [
+      {
+        "fixtureId": "action-chase-reversal",
+        "requestedRuns": 2,
+        "observedRuns": 2,
+        "completedRuns": 2,
+        "failedRuns": 0,
+        "expectedMatchedDimensions": 8,
+        "expectedTotalDimensions": 8,
+        "expectedAgreementRate": 1,
+        "stableDimensions": 4,
+        "comparableDimensions": 4,
+        "repeatStabilityRate": 1
+      }
+    ]
+  }
+}

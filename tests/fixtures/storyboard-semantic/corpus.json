@@ -1,0 +1,984 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "storyboard-semantic-corpus-v1",
+  "cases": [
+    {
+      "fixtureId": "sound-trigger-suspense",
+      "genre": "悬疑惊悚",
+      "coverageTags": ["声音触发", "屏幕信息", "动作结果"],
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-sound",
+        "chapterTitle": "三号柜",
+        "sourceScriptVersionId": "script-corpus-sound",
+        "synopsis": "夜班法医在断电走廊中发现异常停尸柜。",
+        "direction": {
+          "logline": "一段规律敲击把夜班法医引向不该开启的柜门。",
+          "chapterGoal": "查明停尸间异常",
+          "coreConflict": "门禁失效且无人回应",
+          "emotionalArc": "警觉转为惊惧",
+          "endingHook": "柜中人的婚戒属于失踪者"
+        },
+        "characters": [],
+        "scenes": [
+          {
+            "id": "scene-sound-1",
+            "name": "停尸间走廊",
+            "location": "法医中心",
+            "timeOfDay": "深夜",
+            "atmosphere": "断电后的冷寂",
+            "purpose": "建立声音触发和异常发现"
+          }
+        ],
+        "beats": [
+          {
+            "id": "beat-sound-1",
+            "order": 1,
+            "title": "走廊失效",
+            "summary": "顾林确认走廊电源和门禁同时失效。",
+            "conflict": "无法判断是故障还是人为破坏",
+            "characters": [],
+            "sceneId": "scene-sound-1",
+            "visualFocus": "熄灭的顶灯与红色门禁灯",
+            "outcome": "三短一长的敲门声让她转向停尸间。"
+          },
+          {
+            "id": "beat-sound-2",
+            "order": 2,
+            "title": "三号柜半开",
+            "summary": "顾林打开停尸间，发现本应空着的三号柜半开。",
+            "conflict": "值班记录显示三号柜无人使用",
+            "characters": [],
+            "sceneId": "scene-sound-1",
+            "visualFocus": "半开的三号柜",
+            "outcome": "柜内伸出一只戴婚戒的手。"
+          }
+        ],
+        "notes": "固定评测样例：声音触发被弱化。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "storyboard": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-sound",
+        "chapterTitle": "三号柜",
+        "sourceStoryVersionId": "story-corpus-sound",
+        "shots": [
+          {
+            "id": "shot-sound-1",
+            "order": 1,
+            "beatId": "beat-sound-1",
+            "sceneId": "scene-sound-1",
+            "characterIds": [],
+            "coreAction": "顾林检查熄灭的顶灯和亮红灯的门禁后转向停尸间",
+            "emotion": "警觉",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "顾林按下墙上开关，顶灯不亮；门禁面板持续亮红灯，她随后望向停尸间门。",
+              "composition": "人物与门禁面板同框",
+              "dialogue": "电源和门禁一起坏了？",
+              "caption": "凌晨 02:17",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "顾林连续按动灯开关，再刷门禁卡；面板红灯不变。她停顿后转头看向停尸间。全段没有敲击声。",
+              "compositionDesign": "先给故障特写，再落到转头动作",
+              "cameraMovement": "slow_pan",
+              "frameType": "reaction",
+              "durationMs": 7000,
+              "durationHint": "约 7s",
+              "voiceLines": [
+                { "characterId": null, "name": "顾林", "line": "电源和门禁一起坏了？", "voiceStyle": "低声警觉" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-sound-2",
+            "order": 2,
+            "beatId": "beat-sound-2",
+            "sceneId": "scene-sound-1",
+            "characterIds": [],
+            "coreAction": "顾林推门后发现半开的三号柜，柜内伸出戴婚戒的手",
+            "emotion": "惊惧",
+            "shotType": "wide",
+            "cameraAngle": "low_angle",
+            "comic": {
+              "panelDescription": "停尸间门被推开，空置标牌下的三号柜半开，一只戴婚戒的手从缝隙滑出。",
+              "composition": "柜门纵深指向手上的婚戒",
+              "dialogue": "",
+              "caption": "三号柜：空置",
+              "panelRhythm": "impact"
+            },
+            "motion": {
+              "visualDescription": "顾林推开停尸间门，镜头掠过空置标牌停在半开的三号柜；戴婚戒的手突然从柜缝滑出。",
+              "compositionDesign": "门、标牌、柜缝和手依次揭示",
+              "cameraMovement": "push_in",
+              "frameType": "reveal",
+              "durationMs": 6500,
+              "durationHint": "约 6.5s",
+              "voiceLines": []
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          }
+        ],
+        "notes": "",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "expected": {
+        "beats": [
+          {
+            "beatId": "beat-sound-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [1],
+            "missingFacts": ["镜头没有表现三短一长的敲门声，因此顾林转向停尸间的关键触发被弱化。"],
+            "contradictions": [],
+            "reason": "电源和门禁失效均可见，但转向动作缺少结构指定的声音因果。"
+          },
+          {
+            "beatId": "beat-sound-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [2],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "半开的空置三号柜与戴婚戒的手都被直接揭示。"
+          }
+        ]
+      }
+    },
+    {
+      "fixtureId": "screen-identity-thriller",
+      "genre": "都市罪案",
+      "coverageTags": ["屏幕信息", "身份识别", "状态变化"],
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-screen",
+        "chapterTitle": "照片里的倒影",
+        "sourceScriptVersionId": "script-corpus-screen",
+        "synopsis": "匿名短信中的照片把调查者的怀疑引向办案警员。",
+        "direction": {
+          "logline": "一张门厅照片暴露了拍摄者身份。",
+          "chapterGoal": "确认匿名短信来源",
+          "coreConflict": "照片证据不完整",
+          "emotionalArc": "怀疑转为戒备",
+          "endingHook": "来电者可能就在楼内"
+        },
+        "characters": [],
+        "scenes": [
+          {
+            "id": "scene-screen-1",
+            "name": "公寓客厅",
+            "location": "苏遥家",
+            "timeOfDay": "夜晚",
+            "atmosphere": "屏幕冷光下的紧张",
+            "purpose": "通过屏幕和电话呈现证据链"
+          }
+        ],
+        "beats": [
+          {
+            "id": "beat-screen-1",
+            "order": 1,
+            "title": "匿名照片",
+            "summary": "苏遥的手机收到匿名短信，附图显示陈默刚进入楼内。",
+            "conflict": "陈默刚声称自己在城外",
+            "characters": [],
+            "sceneId": "scene-screen-1",
+            "visualFocus": "手机上的门厅照片和时间戳",
+            "outcome": "短信迫使苏遥怀疑陈默撒谎。"
+          },
+          {
+            "id": "beat-screen-2",
+            "order": 2,
+            "title": "胸牌倒影",
+            "summary": "苏遥放大照片，发现拍摄者倒影戴着警员胸牌。",
+            "conflict": "胸牌只露出编号",
+            "characters": [],
+            "sceneId": "scene-screen-1",
+            "visualFocus": "玻璃倒影中的胸牌 017",
+            "outcome": "她认出倒影是负责案件的赵警官。"
+          },
+          {
+            "id": "beat-screen-3",
+            "order": 3,
+            "title": "矛盾来电",
+            "summary": "赵警官打来电话，声称自己从未到过现场。",
+            "conflict": "来电内容与照片冲突",
+            "characters": [],
+            "sceneId": "scene-screen-1",
+            "visualFocus": "通话录音与律师联系人",
+            "outcome": "苏遥把短信和来电录音备份给律师。"
+          }
+        ],
+        "notes": "固定评测样例：屏幕事实存在，但身份结论缺失。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "storyboard": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-screen",
+        "chapterTitle": "照片里的倒影",
+        "sourceStoryVersionId": "story-corpus-screen",
+        "shots": [
+          {
+            "id": "shot-screen-1",
+            "order": 3,
+            "beatId": "beat-screen-1",
+            "sceneId": "scene-screen-1",
+            "characterIds": [],
+            "coreAction": "苏遥看到匿名短信中的陈默门厅照片",
+            "emotion": "惊疑",
+            "shotType": "close_up",
+            "cameraAngle": "top_down",
+            "comic": {
+              "panelDescription": "手机短信只有一个陌生号码和一张门厅照片；陈默的脸与 21:43 时间戳清晰可见。",
+              "composition": "手机屏幕占满画面",
+              "dialogue": "他不是说在城外吗？",
+              "caption": "匿名号码 · 21:43",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "陌生号码发来门厅照片，画面中陈默进入大楼，时间戳为 21:43；苏遥皱眉。",
+              "compositionDesign": "从短信放大到苏遥的反应",
+              "cameraMovement": "zoom_out",
+              "frameType": "information",
+              "durationMs": 6000,
+              "durationHint": "约 6s",
+              "voiceLines": [
+                { "characterId": null, "name": "苏遥", "line": "他不是说在城外吗？", "voiceStyle": "压低声音" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-screen-2",
+            "order": 4,
+            "beatId": "beat-screen-2",
+            "sceneId": "scene-screen-1",
+            "characterIds": [],
+            "coreAction": "苏遥放大玻璃倒影中的警员胸牌 017",
+            "emotion": "戒备",
+            "shotType": "extreme_close_up",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "照片被双指放大，玻璃门倒影里露出警服肩线和写着 017 的胸牌，没有出现姓名或赵警官面孔。",
+              "composition": "像素化倒影居中",
+              "dialogue": "警员？",
+              "caption": "胸牌编号 017",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "苏遥放大照片，玻璃倒影中可见警服和 017 胸牌，但没有姓名与可识别人脸。",
+              "compositionDesign": "数字 017 成为唯一身份线索",
+              "cameraMovement": "digital_zoom",
+              "frameType": "information",
+              "durationMs": 5500,
+              "durationHint": "约 5.5s",
+              "voiceLines": [
+                { "characterId": null, "name": "苏遥", "line": "警员？", "voiceStyle": "疑惑" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-screen-3",
+            "order": 5,
+            "beatId": "beat-screen-3",
+            "sceneId": "scene-screen-1",
+            "characterIds": [],
+            "coreAction": "赵警官否认到场，苏遥录音并把短信与录音发给律师",
+            "emotion": "冷静戒备",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "手机显示赵警官来电和录音红点；下一格中短信截图与录音文件一起发送给律师。",
+              "composition": "通话界面与发送界面并列",
+              "dialogue": "我今晚从没去过你那栋楼。",
+              "caption": "已发送给律师林岚",
+              "panelRhythm": "fast"
+            },
+            "motion": {
+              "visualDescription": "赵警官在电话中否认到过现场。苏遥按下录音，挂断后选择匿名短信截图和录音文件，发送给律师林岚。",
+              "compositionDesign": "录音红点转场到发送完成",
+              "cameraMovement": "static",
+              "frameType": "decision",
+              "durationMs": 9000,
+              "durationHint": "约 9s",
+              "voiceLines": [
+                { "characterId": null, "name": "赵警官", "line": "我今晚从没去过你那栋楼。", "voiceStyle": "平静" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          }
+        ],
+        "notes": "",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "expected": {
+        "beats": [
+          {
+            "beatId": "beat-screen-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [3],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "匿名短信、陈默入楼、时间戳及苏遥对陈默说法的怀疑均直接呈现。"
+          },
+          {
+            "beatId": "beat-screen-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "missing",
+            "evidenceShotOrders": [4],
+            "missingFacts": ["镜头只显示警员胸牌编号 017，没有让苏遥认出倒影属于赵警官。"],
+            "contradictions": [],
+            "reason": "警员胸牌事实完整，但决定性的具体身份识别没有发生。"
+          },
+          {
+            "beatId": "beat-screen-3",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [5],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "赵警官的否认、录音动作以及短信和录音发给律师均可见可听。"
+          }
+        ]
+      }
+    },
+    {
+      "fixtureId": "dialogue-choice-family-drama",
+      "genre": "家庭剧情",
+      "coverageTags": ["对白选择", "状态变化", "动作结果"],
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-dialogue",
+        "chapterTitle": "旧琴行",
+        "sourceScriptVersionId": "script-corpus-dialogue",
+        "synopsis": "一家人在债务与梦想之间谈成新的共同方案。",
+        "direction": {
+          "logline": "女儿拒绝以放弃乐队换取琴行，最终用透明的偿债方案重建信任。",
+          "chapterGoal": "阻止琴行被强制拍卖",
+          "coreConflict": "父亲要求女儿放弃乐队",
+          "emotionalArc": "对抗转为共同承担",
+          "endingHook": "音乐节能否如期支付定金"
+        },
+        "characters": [],
+        "scenes": [
+          {
+            "id": "scene-dialogue-1",
+            "name": "琴行后厅",
+            "location": "林家琴行",
+            "timeOfDay": "傍晚",
+            "atmosphere": "压抑后逐渐坦诚",
+            "purpose": "通过选择性对白推进家庭关系"
+          }
+        ],
+        "beats": [
+          {
+            "id": "beat-dialogue-1",
+            "order": 1,
+            "title": "交换条件",
+            "summary": "父亲提出把琴行交给林夏，条件是她永久退出乐队。",
+            "conflict": "家业与个人梦想只能选一项",
+            "characters": [],
+            "sceneId": "scene-dialogue-1",
+            "visualFocus": "琴行钥匙与演出手环",
+            "outcome": "林夏明确拒绝这项交换。"
+          },
+          {
+            "id": "beat-dialogue-2",
+            "order": 2,
+            "title": "债务真相",
+            "summary": "母亲承认琴行还欠三十万元，三天后必须支付首期。",
+            "conflict": "家庭一直隐瞒真实债务",
+            "characters": [],
+            "sceneId": "scene-dialogue-1",
+            "visualFocus": "欠款通知与林夏的吉他",
+            "outcome": "林夏决定卖掉自己的吉他支付首期。"
+          },
+          {
+            "id": "beat-dialogue-3",
+            "order": 3,
+            "title": "乐队方案",
+            "summary": "鼓手阿哲提出用音乐节定金保住吉他并支付首期。",
+            "conflict": "口头承诺曾让林夏吃过亏",
+            "characters": [],
+            "sceneId": "scene-dialogue-1",
+            "visualFocus": "定金合同",
+            "outcome": "林夏要求所有账目公开后接受方案。"
+          },
+          {
+            "id": "beat-dialogue-4",
+            "order": 4,
+            "title": "共同签字",
+            "summary": "一家人与乐队共同签下三个月偿债计划。",
+            "conflict": "每个人都要承担具体责任",
+            "characters": [],
+            "sceneId": "scene-dialogue-1",
+            "visualFocus": "四个签名与留在桌上的吉他",
+            "outcome": "父亲把琴行钥匙交给林夏，不再要求她退出乐队。"
+          }
+        ],
+        "notes": "固定评测样例：全部事实完整的正对照。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "storyboard": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-dialogue",
+        "chapterTitle": "旧琴行",
+        "sourceStoryVersionId": "story-corpus-dialogue",
+        "shots": [
+          {
+            "id": "shot-dialogue-1",
+            "order": 6,
+            "beatId": "beat-dialogue-1",
+            "sceneId": "scene-dialogue-1",
+            "characterIds": [],
+            "coreAction": "父亲用琴行钥匙要求林夏退队，林夏拒绝",
+            "emotion": "对抗",
+            "shotType": "two_shot",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "父亲把琴行钥匙推到林夏面前，林夏手腕上的乐队演出手环与钥匙同框。",
+              "composition": "钥匙与手环形成选择",
+              "dialogue": "琴行给你，但你必须永久退出乐队。\n不，我不拿梦想换钥匙。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "父亲推出钥匙并提出退队条件。林夏把钥匙推回，明确拒绝。",
+              "compositionDesign": "推钥匙与推回形成动作对答",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 8500,
+              "durationHint": "约 8.5s",
+              "voiceLines": [
+                { "characterId": null, "name": "父亲", "line": "琴行给你，但你必须永久退出乐队。", "voiceStyle": "强硬" },
+                { "characterId": null, "name": "林夏", "line": "不，我不拿梦想换钥匙。", "voiceStyle": "坚定" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-dialogue-2",
+            "order": 7,
+            "beatId": "beat-dialogue-2",
+            "sceneId": "scene-dialogue-1",
+            "characterIds": [],
+            "coreAction": "母亲说明三十万元债务与三日期限，林夏拿出吉他出售页面",
+            "emotion": "震惊后决断",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "母亲摊开写有三十万元和三日付款期限的欠款通知；林夏随后给吉他拍照并打开二手出售页面。",
+              "composition": "欠款通知、吉他和出售按钮形成因果",
+              "dialogue": "还欠三十万，三天后要付第一期。\n先卖我的琴，首期我来补。",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "母亲承认债务和期限。林夏沉默片刻，为吉他拍照并填写出售价，表示支付首期。",
+              "compositionDesign": "欠款数字转到出售页面",
+              "cameraMovement": "pan_down",
+              "frameType": "decision",
+              "durationMs": 9500,
+              "durationHint": "约 9.5s",
+              "voiceLines": [
+                { "characterId": null, "name": "母亲", "line": "还欠三十万，三天后要付第一期。", "voiceStyle": "愧疚" },
+                { "characterId": null, "name": "林夏", "line": "先卖我的琴，首期我来补。", "voiceStyle": "克制" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-dialogue-3",
+            "order": 8,
+            "beatId": "beat-dialogue-3",
+            "sceneId": "scene-dialogue-1",
+            "characterIds": [],
+            "coreAction": "阿哲展示音乐节定金合同，林夏以账目公开为条件接受",
+            "emotion": "谨慎希望",
+            "shotType": "group",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "阿哲展示写有首期金额的音乐节定金合同，林夏逐页翻看后在公开账目的附加条款旁画线。",
+              "composition": "合同位于众人中央",
+              "dialogue": "定金够付首期，吉他不用卖。\n账目全部公开，我就接受。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "阿哲递出音乐节定金合同，说明金额足以支付首期。林夏要求账目全部公开，确认写入后点头接受。",
+              "compositionDesign": "合同特写连接双方选择",
+              "cameraMovement": "push_in",
+              "frameType": "dialogue",
+              "durationMs": 9000,
+              "durationHint": "约 9s",
+              "voiceLines": [
+                { "characterId": null, "name": "阿哲", "line": "定金够付首期，吉他不用卖。", "voiceStyle": "真诚" },
+                { "characterId": null, "name": "林夏", "line": "账目全部公开，我就接受。", "voiceStyle": "审慎" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-dialogue-4",
+            "order": 9,
+            "beatId": "beat-dialogue-4",
+            "sceneId": "scene-dialogue-1",
+            "characterIds": [],
+            "coreAction": "众人签署三个月偿债计划，父亲把钥匙交给林夏并撤回退队要求",
+            "emotion": "释然",
+            "shotType": "wide",
+            "cameraAngle": "top_down",
+            "comic": {
+              "panelDescription": "三个月偿债计划上留下四个签名，吉他仍在桌边；父亲把钥匙放进林夏手心。",
+              "composition": "签名、吉他和钥匙构成新关系",
+              "dialogue": "不用退出乐队。琴行和你，都按自己的方式活。",
+              "caption": "三个月共同偿债计划",
+              "panelRhythm": "release"
+            },
+            "motion": {
+              "visualDescription": "四人依次在三个月偿债计划上签字。父亲看一眼留在桌边的吉他，把琴行钥匙交给林夏并撤回退队要求。",
+              "compositionDesign": "俯拍签名后切到交钥匙",
+              "cameraMovement": "tilt_up",
+              "frameType": "resolution",
+              "durationMs": 9000,
+              "durationHint": "约 9s",
+              "voiceLines": [
+                { "characterId": null, "name": "父亲", "line": "不用退出乐队。琴行和你，都按自己的方式活。", "voiceStyle": "缓和" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          }
+        ],
+        "notes": "",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "expected": {
+        "beats": [
+          {
+            "beatId": "beat-dialogue-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [6],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "琴行交换条件与林夏的明确拒绝都通过对白和推回钥匙直接呈现。"
+          },
+          {
+            "beatId": "beat-dialogue-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [7],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "债务金额、期限和出售吉他支付首期的决定均有可见可听证据。"
+          },
+          {
+            "beatId": "beat-dialogue-3",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [8],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "定金方案、保住吉他的作用和公开账目的接受条件全部明确。"
+          },
+          {
+            "beatId": "beat-dialogue-4",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [9],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "共同签字、交钥匙和撤回退队要求完整形成关系状态变化。"
+          }
+        ]
+      }
+    },
+    {
+      "fixtureId": "action-chase-reversal",
+      "genre": "动作追逐",
+      "coverageTags": ["动作结果", "状态变化"],
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-action",
+        "chapterTitle": "九号货仓",
+        "sourceScriptVersionId": "script-corpus-action",
+        "synopsis": "快递员利用仓库设备阻断追兵，但对方仍逼近。",
+        "direction": {
+          "logline": "两次环境反击都无法真正甩掉追兵。",
+          "chapterGoal": "带证据逃出货仓",
+          "coreConflict": "追兵速度与体能占优",
+          "emotionalArc": "短暂希望转为绝望",
+          "endingHook": "追兵可能并非普通人"
+        },
+        "characters": [],
+        "scenes": [
+          {
+            "id": "scene-action-1",
+            "name": "自动货仓",
+            "location": "九号仓",
+            "timeOfDay": "凌晨",
+            "atmosphere": "机械轰鸣与红色警报",
+            "purpose": "验证动作因果与结果状态"
+          }
+        ],
+        "beats": [
+          {
+            "id": "beat-action-1",
+            "order": 1,
+            "title": "切断传送带",
+            "summary": "许澄拉下急停闸，让高速传送带骤停以阻断追兵。",
+            "conflict": "追兵距离只剩数米",
+            "characters": [],
+            "sceneId": "scene-action-1",
+            "visualFocus": "急停闸与骤停传送带",
+            "outcome": "追兵跳过传送带缺口，仍保持近距离追赶。"
+          },
+          {
+            "id": "beat-action-2",
+            "order": 2,
+            "title": "释放货网",
+            "summary": "许澄割断吊绳，释放整张货网砸向追兵。",
+            "conflict": "这是最后一处可利用的机关",
+            "characters": [],
+            "sceneId": "scene-action-1",
+            "visualFocus": "坠落货网与追兵位置",
+            "outcome": "追兵被货网压住，但一只手仍从网下伸出。"
+          }
+        ],
+        "notes": "固定评测样例：动作结果一项缺失、一项被明确反转。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "storyboard": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-action",
+        "chapterTitle": "九号货仓",
+        "sourceStoryVersionId": "story-corpus-action",
+        "shots": [
+          {
+            "id": "shot-action-1",
+            "order": 10,
+            "beatId": "beat-action-1",
+            "sceneId": "scene-action-1",
+            "characterIds": [],
+            "coreAction": "许澄拉下急停闸，传送带骤停",
+            "emotion": "急迫",
+            "shotType": "action_wide",
+            "cameraAngle": "dutch_angle",
+            "comic": {
+              "panelDescription": "许澄扑向急停闸并拉下，满载货箱的高速传送带猛然停住；画面没有交代追兵如何通过。",
+              "composition": "急停闸和停住的货箱形成斜线",
+              "dialogue": "停下！",
+              "caption": "咔——",
+              "panelRhythm": "fast"
+            },
+            "motion": {
+              "visualDescription": "许澄拉下急停闸，高速传送带骤停，货箱向前滑动后卡住。镜头随许澄继续奔跑，没有表现追兵跨越缺口。",
+              "compositionDesign": "急停动作接传送带制动",
+              "cameraMovement": "handheld_track",
+              "frameType": "action",
+              "durationMs": 6000,
+              "durationHint": "约 6s",
+              "voiceLines": [
+                { "characterId": null, "name": "许澄", "line": "停下！", "voiceStyle": "喘息" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-action-2",
+            "order": 11,
+            "beatId": "beat-action-2",
+            "sceneId": "scene-action-1",
+            "characterIds": [],
+            "coreAction": "许澄割断吊绳释放货网，追兵侧滚避开后继续奔跑",
+            "emotion": "绝望",
+            "shotType": "action_wide",
+            "cameraAngle": "high_angle",
+            "comic": {
+              "panelDescription": "许澄割断吊绳，货网砸向追兵；追兵侧滚避开，立刻起身继续追赶，没有被压住。",
+              "composition": "坠落货网与侧滚轨迹交叉",
+              "dialogue": "",
+              "caption": "轰！",
+              "panelRhythm": "impact"
+            },
+            "motion": {
+              "visualDescription": "吊绳断裂，货网坠落。追兵在落地前侧滚避开，网砸在身后；他随即起身继续追许澄。",
+              "compositionDesign": "货网落点明确落在追兵身后",
+              "cameraMovement": "whip_pan",
+              "frameType": "action",
+              "durationMs": 6500,
+              "durationHint": "约 6.5s",
+              "voiceLines": []
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          }
+        ],
+        "notes": "",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "expected": {
+        "beats": [
+          {
+            "beatId": "beat-action-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "missing",
+            "evidenceShotOrders": [10],
+            "missingFacts": ["镜头没有表现追兵跳过传送带缺口并保持近距离追赶。"],
+            "contradictions": [],
+            "reason": "急停闸和传送带骤停完整，但追兵如何维持追赶没有证据。"
+          },
+          {
+            "beatId": "beat-action-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "contradicted",
+            "evidenceShotOrders": [11],
+            "missingFacts": [],
+            "contradictions": ["结构要求追兵被货网压住，镜头却明确表现追兵侧滚避开并继续追赶。"],
+            "reason": "释放货网的动作存在，但结果与结构事实相反。"
+          }
+        ]
+      }
+    },
+    {
+      "fixtureId": "quiet-audio-reconciliation",
+      "genre": "情感剧情",
+      "coverageTags": ["声音触发", "对白选择", "状态变化"],
+      "structure": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-emotion",
+        "chapterTitle": "录音笔",
+        "sourceScriptVersionId": "script-corpus-emotion",
+        "synopsis": "女儿从父亲遗留的录音中重新面对与母亲的关系。",
+        "direction": {
+          "logline": "一支录音笔让长期回避父亲话题的母女重新开口。",
+          "chapterGoal": "听完父亲遗言",
+          "coreConflict": "周岚害怕再次被家庭责任困住",
+          "emotionalArc": "抵触转为愿意沟通",
+          "endingHook": "录音中还有一段未播放内容"
+        },
+        "characters": [],
+        "scenes": [
+          {
+            "id": "scene-emotion-1",
+            "name": "病房",
+            "location": "市立医院",
+            "timeOfDay": "清晨",
+            "atmosphere": "安静而克制",
+            "purpose": "用声音与微动作呈现关系变化"
+          }
+        ],
+        "beats": [
+          {
+            "id": "beat-emotion-1",
+            "order": 1,
+            "title": "父亲的录音",
+            "summary": "护士把父亲留下的录音笔交给周岚。",
+            "conflict": "周岚不愿再听父亲解释",
+            "characters": [],
+            "sceneId": "scene-emotion-1",
+            "visualFocus": "录音笔和父亲标签",
+            "outcome": "周岚知道父亲清醒时一直在等她回来。"
+          },
+          {
+            "id": "beat-emotion-2",
+            "order": 2,
+            "title": "迟到的道歉",
+            "summary": "周岚听见父亲为当年赶她离家道歉。",
+            "conflict": "道歉来得太晚",
+            "characters": [],
+            "sceneId": "scene-emotion-1",
+            "visualFocus": "录音波形与未送出的辞职信",
+            "outcome": "她收起没送出的辞职信，决定留下照顾母亲。"
+          },
+          {
+            "id": "beat-emotion-3",
+            "order": 3,
+            "title": "一起听完",
+            "summary": "周岚在母亲醒来前把录音笔放在床头。",
+            "conflict": "母女多年不谈父亲",
+            "characters": [],
+            "sceneId": "scene-emotion-1",
+            "visualFocus": "床头录音笔与母女双手",
+            "outcome": "母女关系从回避父亲转为愿意一起谈他。"
+          }
+        ],
+        "notes": "固定评测样例：细腻情绪事实必须有动作或对白证据。",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "storyboard": {
+        "schemaVersion": 1,
+        "chapterId": "corpus-emotion",
+        "chapterTitle": "录音笔",
+        "sourceStoryVersionId": "story-corpus-emotion",
+        "shots": [
+          {
+            "id": "shot-emotion-1",
+            "order": 12,
+            "beatId": "beat-emotion-1",
+            "sceneId": "scene-emotion-1",
+            "characterIds": [],
+            "coreAction": "护士把标有父亲姓名的录音笔交给周岚，录音以呼唤她开头",
+            "emotion": "迟疑",
+            "shotType": "close_up",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "护士把贴着父亲姓名的录音笔放在周岚掌心，播放键亮起。",
+              "composition": "两只手与录音笔居中",
+              "dialogue": "小岚，如果你回来……",
+              "caption": "父亲最后一次清醒时录下",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "护士交出标有父亲姓名的录音笔。周岚按下播放，只听见父亲说“小岚，如果你回来”，没有提到持续等待。",
+              "compositionDesign": "手部交接后停在播放灯",
+              "cameraMovement": "slow_zoom",
+              "frameType": "emotion",
+              "durationMs": 8000,
+              "durationHint": "约 8s",
+              "voiceLines": [
+                { "characterId": null, "name": "父亲录音", "line": "小岚，如果你回来……", "voiceStyle": "虚弱" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-emotion-2",
+            "order": 13,
+            "beatId": "beat-emotion-2",
+            "sceneId": "scene-emotion-1",
+            "characterIds": [],
+            "coreAction": "周岚听见父亲道歉，把辞职信折起放进口袋",
+            "emotion": "悲伤",
+            "shotType": "medium_close_up",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "父亲道歉的录音播放时，周岚把写着辞职申请的纸折起放进口袋。",
+              "composition": "录音笔、泪光和辞职信同框",
+              "dialogue": "当年赶你走，是我错了。",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "录音中父亲为赶她离家道歉。周岚流泪，把辞职信折起收入口袋，但没有说会留下或照顾母亲。",
+              "compositionDesign": "道歉声音覆盖收信动作",
+              "cameraMovement": "static",
+              "frameType": "emotion",
+              "durationMs": 8500,
+              "durationHint": "约 8.5s",
+              "voiceLines": [
+                { "characterId": null, "name": "父亲录音", "line": "当年赶你走，是我错了。", "voiceStyle": "虚弱后悔" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          },
+          {
+            "id": "shot-emotion-3",
+            "order": 14,
+            "beatId": "beat-emotion-3",
+            "sceneId": "scene-emotion-1",
+            "characterIds": [],
+            "coreAction": "周岚把录音笔放在母亲床头，母亲醒后两人约定一起听",
+            "emotion": "缓和",
+            "shotType": "two_shot",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "周岚把录音笔放在床头。母亲醒来握住她的手，两人一起看向录音笔。",
+              "composition": "相握的手连接母女与录音笔",
+              "dialogue": "你听了吗？\n等你醒了，我们一起听完。",
+              "caption": "",
+              "panelRhythm": "release"
+            },
+            "motion": {
+              "visualDescription": "周岚把录音笔放在床头。母亲醒来询问，她握住母亲的手，提议两人一起听完父亲的录音。",
+              "compositionDesign": "录音笔转到相握的手",
+              "cameraMovement": "slow_pull_back",
+              "frameType": "resolution",
+              "durationMs": 9000,
+              "durationHint": "约 9s",
+              "voiceLines": [
+                { "characterId": null, "name": "母亲", "line": "你听了吗？", "voiceStyle": "轻声" },
+                { "characterId": null, "name": "周岚", "line": "等你醒了，我们一起听完。", "voiceStyle": "温和" }
+              ]
+            },
+            "promptDraft": "",
+            "lockedCandidateId": null,
+            "status": "draft"
+          }
+        ],
+        "notes": "",
+        "createdAt": "2026-07-17T00:00:00.000Z",
+        "updatedAt": "2026-07-17T00:00:00.000Z"
+      },
+      "expected": {
+        "beats": [
+          {
+            "beatId": "beat-emotion-1",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [12],
+            "missingFacts": ["录音只说“如果你回来”，不足以确认父亲清醒时一直在等她。"],
+            "contradictions": [],
+            "reason": "录音笔交接和父亲呼唤都存在，但持续等待这一状态只被弱暗示。"
+          },
+          {
+            "beatId": "beat-emotion-2",
+            "summaryStatus": "covered",
+            "outcomeStatus": "partial",
+            "evidenceShotOrders": [13],
+            "missingFacts": ["收起辞职信可暗示计划变化，但没有明确表现周岚决定留下照顾母亲。"],
+            "contradictions": [],
+            "reason": "父亲道歉完整，周岚的后续决定只有动作暗示，缺少决定性信息。"
+          },
+          {
+            "beatId": "beat-emotion-3",
+            "summaryStatus": "covered",
+            "outcomeStatus": "covered",
+            "evidenceShotOrders": [14],
+            "missingFacts": [],
+            "contradictions": [],
+            "reason": "床头录音笔、相握动作和一起听完的对白共同明确了母女关系转变。"
+          }
+        ]
+      }
+    }
+  ]
+}
