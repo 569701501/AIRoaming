@@ -10,6 +10,9 @@ import type {
   ImportAnalysisOutputV1,
   ScriptInspirationSeed,
   SendDialogueMessageRequest,
+  StoryboardJson,
+  StoryDocumentV2,
+  StoryStructureJson,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import type {
@@ -35,6 +38,11 @@ import {
   buildStoryboardDialogueReference,
   type StoryboardDialogueReference,
 } from "./storyboard-dialogue-reference.util.js";
+import {
+  readOpenCodeSkillJsonReference,
+  readOpenCodeSkillReference,
+  renderOpenCodePromptTemplate,
+} from "../ai-runtime/opencode-skill-asset.util.js";
 
 /** workflow 步骤中文标签(用于 prompt 上下文)。 */
 export const STEP_LABELS: Record<string, string> = {
@@ -363,98 +371,63 @@ export function buildScriptImportFormatRepairPrompt(input: {
 
 // ---------- 剧情结构 prompt ----------
 
+export interface StoryStructurePromptFacts {
+  project: {
+    name: string;
+    storyTitle: string;
+  };
+  chapter: {
+    title?: string | null;
+    status?: string | null;
+    currentScriptVersionId?: string | null;
+    sourceText?: string | null;
+  };
+  scriptOutline?: string | null;
+}
+
 export function buildStoryStructurePrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
   const snapshot = turn.snapshot;
   const currentChapter = snapshot.currentChapter;
   const sourceText = (input.context?.sourceText ?? currentChapter?.sourceText ?? snapshot.story.sourceText).trim();
+  return buildStoryStructurePromptFromFacts({
+    project: snapshot.project,
+    chapter: {
+      title: currentChapter?.title,
+      status: currentChapter?.status,
+      currentScriptVersionId: currentChapter?.currentScriptVersionId,
+      sourceText,
+    },
+    scriptOutline: snapshot.scriptOutline?.sourceText,
+  }, input.content);
+}
 
-  return [
-    "你正在为 AI漫游执行剧情结构阶段 skill：structure-story-parse。",
-    "任务：只针对当前章节生成「剧情结构」JSON，供后续分镜工作台使用。",
-    "",
-    "硬性边界：",
-    "- 只生成当前章节的剧情结构，不要生成整部作品结构。",
-    "- 剧情结构不是章节剧本正文，也不是分镜稿。",
-    "- 正式章节正文是本阶段唯一的实际剧情事实源。正文里的场景、动作、对白、旁白、场景结束点和本章结尾优先于顶部方向摘要。",
-    "- 项目级剧本大纲只能帮助理解世界观和角色名称，不能作为本章已发生事件的证据。",
-    "- 不得把大纲中尚未在本章正文发生的事件写入 synopsis、direction、characters、scenes 或 beats。不得为了符合三幕式、黄金钩子或其他理论而补写、改写正文。",
-    "- 角色卡和场景卡默认都是本章结构卡，不要声称已创建项目级角色库或场景库。",
-    "- 角色卡里的 projectCharacterId 字段由后端在确认结构时按角色名匹配项目角色库后回填，你不要输出它。",
-    "- 角色卡必须显式输出 level 和 entityType 两个字段，从以下固定值中选一个（见角色分层双维度）：",
-    "  - level(戏份重要性): lead=主角 / recurring=重要配角 / chapter=本章关键角色 / minor=小角色·功能角色 / extra=背景路人",
-    "  - entityType(存在形态): human=人类 / creature=怪物·异常体·非人生物 / group=群体角色 / voice=纯声音角色(不露脸)",
-    "  - 判断依据：主角(视角核心/第一主角)给 lead；长期出现的重要配角/反派/搭档给 recurring；本章重要但未必长期给 chapter；有台词有功能但戏份少给 minor；纯背景填充给 extra。",
-    "- characters 必须覆盖正文各场景「出场人物」中的全部人物；人物名沿用正文，不得用大纲人物替换、合并或新增。正文未明确的动机、关系和视觉特征留空字符串，不要猜测。",
-    "- scenes 必须按正文场景顺序输出；每一个正文场景都必须且只能对应一个场景卡，name、location、timeOfDay、atmosphere 分别逐字沿用正文的场景名、地点、时间和氛围。",
-    "- 剧情节拍按关键剧情事件切分，粒度要比分镜粗；不要输出镜头编号、景别、机位、构图、图片 Prompt 或 JSON 以外的 Markdown 正文。",
-    "- 每一个正文场景至少被一个 beat 引用；一个场景有多个关键变化时可以拆成多个 beat。beat 顺序必须从 1 连续递增。",
-    "- 每个 beat 的 sceneName 必须逐字使用对应场景卡 name，人物名必须逐字使用 characters[].name；不得引用不存在的场景或人物。",
-    "- 每个 beat 必须写清事件、冲突或转折、可见结果和画面重点；不得写“待补充”“无”“继续”“场景结束”等空壳内容，也不得复制同一事件充数。",
-    "- synopsis 和 direction 描述最后实际写成的内容；若顶部方向摘要与正文冲突，以正文和本章结尾为准，并在 notes 简短提醒差异。",
-    "- visualFocus 只能写轻量画面重点，不能写镜头语言。",
-    "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
-    "- 不要输出评分、检查报告或新增字段。",
-    "",
-    "JSON 结构必须是：",
-    "```json",
-    JSON.stringify({
-      synopsis: "本章剧情摘要",
-      direction: {
-        logline: "一句话梗概",
-        chapterGoal: "本章目标",
-        coreConflict: "核心冲突",
-        emotionalArc: "情绪走向",
-        endingHook: "结尾钩子",
-      },
-      characters: [
-        {
-          name: "角色名",
-          role: "本章职能",
-          level: "lead",
-          entityType: "human",
-          motivation: "本章动机",
-          relationship: "和本章其他角色的关系",
-          visualTraits: "可供后续理解的视觉特征",
-          notes: "备注",
-        },
-      ],
-      scenes: [
-        {
-          name: "场景名",
-          location: "地点",
-          timeOfDay: "时间",
-          atmosphere: "氛围",
-          purpose: "剧情作用",
-        },
-      ],
-      beats: [
-        {
-          order: 1,
-          title: "节拍标题",
-          summary: "关键事件",
-          conflict: "这一拍的冲突或转折",
-          characters: ["角色名"],
-          sceneName: "场景名",
-          visualFocus: "轻量画面重点",
-          outcome: "结果/推动",
-        },
-      ],
-      notes: "给后续分镜的结构提醒",
-    }, null, 2),
-    "```",
-    "",
-    `项目名称：${snapshot.project.name}`,
-    `剧集名称：${snapshot.project.storyTitle}`,
-    `当前章节：${currentChapter?.title ?? "当前章节"}`,
-    `当前章节状态：${currentChapter?.status ?? "unknown"}`,
-    `当前剧本版本：${currentChapter?.currentScriptVersionId ?? "未生成版本"}`,
-    "项目级剧本大纲：",
-    snapshot.scriptOutline?.sourceText?.trim() || "（暂无项目级剧本大纲）",
-    "当前章节剧本：",
-    sourceText || "（当前章节为空）",
-    "用户本次要求：",
-    input.content,
-  ].join("\n");
+/**
+ * 剧情结构 Skill 的统一事实装配入口。
+ * 对话路径和持久任务路径只能在这里注入动态事实，不在代码中维护创作规则。
+ */
+export function buildStoryStructurePromptFromFacts(
+  facts: StoryStructurePromptFacts,
+  userRequest: string,
+): string {
+  const skillName = "structure-story-parse";
+  const example = readOpenCodeSkillJsonReference<Record<string, unknown>>(
+    skillName,
+    "story-structure-example.json",
+  );
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "story-structure-prompt.md"),
+    {
+      STRUCTURE_EXAMPLE_JSON: JSON.stringify(example, null, 2),
+      PROJECT_NAME: facts.project.name,
+      STORY_TITLE: facts.project.storyTitle,
+      CHAPTER_TITLE: facts.chapter.title?.trim() || "当前章节",
+      CHAPTER_STATUS: facts.chapter.status?.trim() || "unknown",
+      SCRIPT_VERSION_ID: facts.chapter.currentScriptVersionId?.trim() || "未生成版本",
+      SCRIPT_OUTLINE: facts.scriptOutline?.trim() || "（暂无项目级剧本大纲）",
+      CHAPTER_SCRIPT: facts.chapter.sourceText?.trim() || "（当前章节为空）",
+      USER_REQUEST: userRequest.trim() || "生成当前章节剧情结构",
+    },
+  );
 }
 
 export function buildStoryStructureRepairPrompt(input: {
@@ -464,18 +437,23 @@ export function buildStoryStructureRepairPrompt(input: {
   qualityIssues?: readonly string[];
 }): string {
   const qualityFailure = Boolean(input.qualityIssues?.length);
-  return [
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(
+      "structure-story-parse",
+      qualityFailure ? "repair-quality-failure.md" : "repair-validation-failure.md",
+    ),
     qualityFailure
-      ? "上一次输出格式可解析，但未通过剧情结构固定质量门。允许重新提取整份结构，但不得改写或补写正式章节正文。"
-      : "上一次输出未通过剧情结构 JSON 解析或字段校验。只修复格式和引用，不得新增、删除或改写任何正文事实。",
-    "重新逐场核对正式章节：每个正文场景恰好一个场景卡且至少一个 beat；场景顺序、名称、地点、时间、氛围逐字保留；beat 只引用已有场景和人物，顺序从 1 连续递增。",
-    "项目大纲仍只作背景，不能补写尚未在本章正文发生的事件。只返回完整 JSON 代码块，不要解释、评分、诊断或新增字段。",
-    input.qualityIssues?.length ? `质量问题：${input.qualityIssues.join("、")}` : `校验错误：${input.validationError}`,
-    "原任务与正式来源：",
-    input.originalPrompt,
-    "未通过的输出：",
-    input.invalidOutput,
-  ].join("\n\n");
+      ? {
+        ISSUES: input.qualityIssues!.join("、"),
+        ORIGINAL_PROMPT: input.originalPrompt,
+        INVALID_OUTPUT: input.invalidOutput,
+      }
+      : {
+        VALIDATION_ERROR: input.validationError,
+        ORIGINAL_PROMPT: input.originalPrompt,
+        INVALID_OUTPUT: input.invalidOutput,
+      },
+  );
 }
 
 // ---------- 分镜 prompt ----------
@@ -483,84 +461,21 @@ export function buildStoryStructureRepairPrompt(input: {
 export type StoryboardPromptMode = "generate" | "revise_pending";
 export type StoryboardPromptVariant = "v2_3" | "v2_5_experiment";
 
-function getStoryboardV23PlanningPrompt(dialogueReference: StoryboardDialogueReference): string[] {
-  return [
-    "V2.3 内部规划顺序（必须严格按 1→5 执行；只输出最终 JSON，不输出规划过程）：",
-    dialogueReference.available
-      ? "步骤 1：正式对白/配音候选与选择。逐 beat 查看下方全章候选，只选择推进冲突、揭示、选择、关系变化或钩子所需的最少台词；候选不是必须全部使用的清单，禁止把整场对白或旁白搬入分镜。quoted_audio 只有在该声音需要实际听见时才能使用。"
-      : "步骤 1：正式对白/配音候选与选择。当前正文没有可稳定解析的全章候选；只能逐字使用正文摘录中明确可见的台词，选择推进本 beat 所需的最少台词，禁止凭记忆或常识补写。",
-    "步骤 2：对白分段。先按一次交流目标、一次选择或一次直接反应，把已选台词分成最多两段，再考虑镜头；每段默认 1～3 条有内容对白只是复核触发，不是后端硬上限。超过时先删除非必要来回，确有两个表演重心才使用第二段。",
-    "步骤 3：状态边界。为每个对白段或无对白动作定义进入状态 → 唯一聚焦变化 → 退出状态；达到退出状态就停镜，下一次独立反应、命令、障碍或行动目标进入下一段。",
-    "步骤 4：共享 Shot。按已完成的对白段和状态边界创建每 beat 一至两个共享 Shot，绑定正确 beatId、sceneId、characterIds；不要先建镜头再把剩余台词回填进去。",
-    "步骤 5：comic 静态价值。为每个共享 Shot 选择不同且必要的漫画决定性瞬间；如果新增 Shot 没有独立静态叙事价值，应收窄 motion 或合并，而不是用重复反应、换景别或空画格补位。",
-  ];
-}
-
-function getStoryboardSharedNarrativePrompt(): string[] {
-  return [
-    "共享剧情事实契约（两条轨道共同遵守；输出前内部检查，不新增评分或诊断字段）：",
-    "- 覆盖：每个 beat 至少被一个 Shot 承接，Shot 顺序符合 beat 的叙事顺序。",
-    "- 剧情锚点：先确定本 Shot 的 beat 功能、必须被看到的事实、进入状态、关键变化和退出状态，再分别完成 comic 与 motion。",
-    "- 忠实：不得新增正式结构和正文中不存在的事件、人物、道具结论、因果结果或对白事实。",
-    "- 视觉锚点：角色外观以结构角色卡 visualTraits 为准；若输入上下文提供了正式角色资产描述，也必须一并遵守。场景以 scene 卡的地点/时间/氛围为准，两条轨道都遵守项目 artStyle，不得各自改写角色、服装或场景设定。",
-    "- 状态连续：人物位置/朝向/视线、手持道具、道具状态、服装/伤势、时间/天气/光线和上一动作结果前后可衔接。",
-    "- 钩子限权：只有 direction.endingHook 和末尾 beat 已存在钩子时，才用画格或动态反应强化；不得为了黄金三秒或刺激感自造线索、反转、人物或对白。",
-    "- 镜头必要性：删除某个 Shot 后若 beat 事实、因果、情绪转折、空间连续和钩子仍完整，该 Shot 可能冗余，应合并或删除；不要为了平均枚举而拆镜。",
-  ];
-}
-
-function getComicStoryboardPrompt(): string[] {
-  return [
-    "漫画分镜 Prompt（独立设计 comic）：",
-    "- 静态决定性瞬间：comic.panelDescription 只锁定一个最有叙事价值、能被单帧画出的可见瞬间，不把连续三四个动作塞进一个画格。",
-    "- 负载拆镜保护：因 motion 动态负载增加第二个共享 Shot 时，新增 comic 也必须承载不同且必要的静态决定性瞬间；不能用重复反应、换景别或空画格填充。",
-    "- 漫画构图：comic.composition 只设计人物位置、阅读动线、视觉重心和必要留白，不填写运镜、秒数或连续动作。",
-    "- 阅读与气泡：对白不过载；有 dialogue/caption 时预留不遮挡脸、手、关键道具和线索的空间，但画面本身不生成文字或气泡。",
-    "- 画格节奏：根据建立、动作、对白、揭示、选择、后果、转场或钩子选择 panelRhythm；不要机械平均景别、机位或节奏枚举。",
-    "- 漫画连续：下一画格必须承接上一画格留下的位置、动作结果、道具和情绪状态；信息揭示顺序要让读者看得懂。",
-    "- 漫画版式：结合项目 comicFormat 处理条漫/分页漫画的阅读倾向，但本阶段不决定最终格子尺寸或整页排版。",
-  ];
-}
-
-function getMotionStoryboardPrompt(): string[] {
-  return [
-    "漫剧分镜 Prompt（独立设计 motion，参考动态分镜的时间顺序与尾首帧方法）：",
-    "- 时间过程：motion.visualDescription 写清开始状态 → 一个主要动作/表演/信息变化 → 结束状态；不得逐句改写 comic.panelDescription。",
-    "- 单镜负载：一个 motion 默认只承载一个主要动作或一次明确的信息/情绪变化；可以保留紧接该变化的必要反应，但不得再串入第二条独立动作链。",
-    "- 停镜边界：达到退出状态就停镜；不得继续串入下一个独立反应、新命令、新障碍、追逐升级或第二个行动目标。",
-    "- 新状态转换：人物改变行动目标或对象、跨越明确空间、关键道具持有者或状态改变、新信息引发新选择、新威胁源启动或转向，任一发生都要重新判断是否进入下一镜。",
-    "- 微动作例外：不要把因果不可分的微动作误拆，例如“伸手→按键→屏幕亮起”或“一句台词→对方立即的可见反应”可以留在同一聚焦变化内。",
-    "- 必要拆镜：对白分段或状态边界确有两段时，使用该 beat 的第二个共享 Shot；优先按接近/准备→冲击/结果、陈述/揭示→选择/后果、逃离动作→新障碍启动来分，不按固定秒数机械切分。",
-    "- 两镜上限：当前 M1 每个 beat 最多两个 Shot；达到两镜仍过载时，缩小每镜动作范围、只保留正式关键台词并给足时长，不得把被拆开的动作重新塞回一镜。",
-    "- 动态构图：motion.compositionDesign 设计人物调度、运动路径、空间关系和镜头结束位置，不机械复制 comic.composition。",
-    "- 运镜用途：cameraMovement 只在帮助揭示空间、人物关系、危险或情绪时使用；无叙事价值时使用 static 或 none。",
-    "- 内容时长：durationMs 只根据本镜实际保留的 voiceLines、主要动作和必要停顿估算，不为已排除台词或后续动作预留冗余；超过 10 秒只能用于一段需要不间断表演的单一对白或动作，若还有第二次状态转换必须拆镜或缩小范围。",
-    "- 表演与配音：frameType 匹配本镜主要功能；有全章候选时，voiceLines[].line 只能逐字复制下方全章正式对白候选，只允许候选编译时去掉说话人标记和成对外层引号，不得同义改写、补词、改标点或新增说话人；没有稳定候选时也只能使用正文摘录中明确可见的原句。",
-    "- 尾首帧连续：下一 motion 从上一 motion 的结束状态继续，保持人物运动方向、视线、道具、动作完成程度和空间方向，不让动作重新开始。",
-    "- 不套平台模板：不要强制 16:9、9:16、黄金三秒、CTA、固定总时长、音效或 provider 参数。",
-  ];
-}
-
-function getDualTrackStoryboardBoundaryPrompt(): string[] {
-  return [
-    "漫画 / 漫剧双轨一致性边界：",
-    "- 必须共享或不冲突：beatId、sceneId、characterIds、核心事件、因果结果、关键道具状态和正式对白来源。",
-    "- 不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动。",
-    "- motion 可以表现同一剧情锚点从进入状态到退出状态的过程，不必冻结在 comic 选择的那一帧；comic 也不能为了迁就 motion 写成连续动作说明。",
-    "- promptDraft：只压缩 comic 静态候选图所需的主体身份、决定性瞬间、环境、光线、情绪和构图重点；不得包含对白原文、字幕、气泡、整页分格、模型名、艺术家名或最终 provider 参数。",
-  ];
-}
-
-function getStoryboardV25TargetedRiskPrompt(): string[] {
-  return [
-    "V2.5 实验：低权重定向风险扫描（正常完成 V2.3 草稿后执行；只输出最终 JSON，不输出扫描过程）：",
-    "- 只复核三类稳定高风险事实，不遍历或重写全部 summary/outcome：①声音、屏幕变化或其他可见/可听信号是否是后续行动的必要触发原因；②正式结构是否已经从线索推进到身份、对象或地点结论，而不是只停在线索本身；③关键决定、行动结果或状态变化是否已经成为观众可见或可听的退出状态。",
-    "- 发现上述事实承载偏弱时，优先补强承载同一 beat 的既有 Shot：可收准 coreAction、comic 的静态决定性瞬间或 motion 的唯一聚焦变化；两条轨道按各自媒介表达，但不得改变正式事实。",
-    "- 本扫描本身零新增成本：不得因为扫描到一个风险事实就新建 Shot、增加对白、添加旁白或延长 durationMs；一个既有镜头能够清楚承载时必须原位补强。",
-    "- 只有 V2.3 原有状态边界已经满足必要拆镜条件，且同一 Shot 确实无法清楚承接原因/结果、线索/结论或决定/结果时，才可使用该 beat 的第二个共享 Shot；不得恢复逐事实拆镜。",
-    "- 非对白声音、屏幕文字和道具标签使用现有画面、动作、环境或 quoted_audio 能力表达，不得伪造成角色 voiceLines，也不得编造正文未提供的原文。",
-    "- 不扫描抽象关系状态，不要输出事实清单、逐 Beat 映射、评分或诊断字段。",
-  ];
+export interface StoryboardPromptFacts {
+  project: {
+    name: string;
+    storyTitle: string;
+    comicFormat?: string | null;
+    artStyle?: string | null;
+  };
+  chapter: {
+    title?: string | null;
+    status?: string | null;
+    currentStoryVersionId?: string | null;
+    sourceText?: string | null;
+  };
+  structure: StoryStructureJson | StoryDocumentV2 | null | undefined;
+  pendingStoryboard?: StoryboardJson | null;
 }
 
 export function buildStoryboardPrompt(
@@ -572,7 +487,32 @@ export function buildStoryboardPrompt(
 ): string {
   const snapshot = turn.snapshot;
   const currentChapter = snapshot.currentChapter;
-  const structure = snapshot.storyStructure?.structureJson;
+  return buildStoryboardPromptFromFacts({
+    project: snapshot.project,
+    chapter: {
+      title: currentChapter?.title,
+      status: currentChapter?.status,
+      currentStoryVersionId: currentChapter?.currentStoryVersionId,
+      sourceText: input.context?.sourceText?.trim() ?? currentChapter?.sourceText?.trim() ?? "",
+    },
+    structure: snapshot.storyStructure?.structureJson,
+    pendingStoryboard: snapshot.pendingStoryboard?.storyboardJson,
+  }, input.content, mode, suppliedDialogueReference, variant);
+}
+
+/**
+ * 分镜 Skill 的统一事实装配入口。
+ * 对话路径和持久任务路径都必须复用这里，避免出现第二套分镜创作方法。
+ */
+export function buildStoryboardPromptFromFacts(
+  facts: StoryboardPromptFacts,
+  userRequest: string,
+  mode: StoryboardPromptMode = "generate",
+  suppliedDialogueReference?: StoryboardDialogueReference,
+  variant: StoryboardPromptVariant = "v2_3",
+): string {
+  const currentChapter = facts.chapter;
+  const structure = facts.structure;
   const availableCharacterRefs = Array.isArray(structure?.characters)
     ? structure.characters
       .filter((card) => typeof card?.id === "string" && card.id.trim() !== "" && typeof card?.name === "string" && card.name.trim() !== "")
@@ -582,149 +522,79 @@ export function buildStoryboardPrompt(
   const targetShotRange = beatCount > 0
     ? `${beatCount}-${beatCount * 2}`
     : "8-16";
-  const chapterScriptExcerpt = compactPromptText(
-    input.context?.sourceText?.trim() ?? currentChapter?.sourceText?.trim() ?? "",
-    6000,
-  );
+  const sourceText = currentChapter.sourceText?.trim() ?? "";
+  const chapterScriptExcerpt = compactPromptText(sourceText, 6000);
   const dialogueReference = suppliedDialogueReference ?? buildStoryboardDialogueReference(
-    input.context?.sourceText?.trim() ?? currentChapter?.sourceText?.trim() ?? "",
+    sourceText,
     {
       characters: structure?.characters ?? [],
       scenes: structure?.scenes ?? [],
     },
   );
-  const pendingStoryboard = snapshot.pendingStoryboard?.storyboardJson ?? null;
+  const pendingStoryboard = facts.pendingStoryboard ?? null;
   const isRevision = mode === "revise_pending";
   const exampleCharacterRef = structure?.characters?.[0]?.id ?? "character_01";
   const exampleBeatRef = structure?.beats?.[0]?.id ?? "beat_01";
   const exampleSceneRef = structure?.scenes?.[0]?.id ?? "scene_01";
-  const shotExample: Record<string, unknown> = {
-    order: 1,
-    beatId: exampleBeatRef,
-    sceneId: exampleSceneRef,
-    characterIds: [exampleCharacterRef],
-    coreAction: "镜头核心动作",
-    emotion: "情绪",
-    shotType: "medium",
-    cameraAngle: "eye_level",
-    comic: {
-      panelDescription: "漫画画格锁定一个静态决定性瞬间",
-      composition: "静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）",
-      dialogue: "对白气泡文字，没有就空字符串",
-      caption: "旁白，没有就空字符串",
-      panelRhythm: "slow",
+  const skillName = "storyboard-shot-generate";
+  const escapeJsonString = (value: string): string => JSON.stringify(value).slice(1, -1);
+  const shotExample = renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(
+      skillName,
+      isRevision ? "shot-example-revise-pending.json" : "shot-example-generate.json",
+    ),
+    {
+      CHARACTER_REF: escapeJsonString(exampleCharacterRef),
+      BEAT_REF: escapeJsonString(exampleBeatRef),
+      SCENE_REF: escapeJsonString(exampleSceneRef),
+      EXISTING_SHOT_ID: escapeJsonString(pendingStoryboard?.shots[0]?.id ?? "existing_shot_id"),
     },
-    motion: {
-      visualDescription: "漫剧镜头从开始状态，经主要动作或表演变化，到结束状态",
-      compositionDesign: "动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）",
-      cameraMovement: "push_in",
-      frameType: "atmosphere",
-      durationMs: 3000,
-      durationHint: "约 3s",
-      voiceLines: [
-        {
-          characterId: exampleCharacterRef,
-          name: "角色名",
-          line: "台词内容",
-          voiceStyle: "声音风格，如低声、克制",
-        },
-      ],
+  );
+  const normalizedShotExample = JSON.stringify(JSON.parse(shotExample), null, 2);
+  const dialogueCandidates = dialogueReference.available
+    ? JSON.stringify(dialogueReference.candidates.map((candidate) => ({
+      localRef: candidate.localRef,
+      sceneRef: candidate.sceneRef,
+      sourceSpeaker: candidate.sourceSpeaker,
+      characterRef: candidate.characterRef,
+      sourceKind: candidate.sourceKind,
+      line: candidate.line,
+    })), null, 2)
+    : "（未提供稳定全章候选）";
+  const pendingStoryboardSection = isRevision
+    ? renderOpenCodePromptTemplate(
+      readOpenCodeSkillReference(skillName, "pending-storyboard-section.md"),
+      { PENDING_STORYBOARD_JSON: JSON.stringify(pendingStoryboard ?? {}, null, 2) },
+    )
+    : "";
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "storyboard-prompt.md"),
+    {
+      MODE_CONTRACT: readOpenCodeSkillReference(skillName, isRevision ? "mode-revise-pending.md" : "mode-generate.md"),
+      AVAILABLE_CHARACTER_REFS: availableCharacterRefs.join("、") || "暂无",
+      TARGET_SHOT_RANGE: targetShotRange,
+      DIALOGUE_SELECTION_RULE: readOpenCodeSkillReference(
+        skillName,
+        dialogueReference.available ? "dialogue-with-candidates.md" : "dialogue-without-candidates.md",
+      ),
+      EXPERIMENT_RULES: variant === "v2_5_experiment"
+        ? readOpenCodeSkillReference(skillName, "risk-v2-5.md")
+        : "",
+      SHOT_EXAMPLE_JSON: normalizedShotExample,
+      PROJECT_NAME: facts.project.name,
+      STORY_TITLE: facts.project.storyTitle,
+      COMIC_FORMAT: facts.project.comicFormat ?? "未指定",
+      ART_STYLE: facts.project.artStyle?.trim() || "未指定",
+      CHAPTER_TITLE: currentChapter.title ?? "当前章节",
+      CHAPTER_STATUS: currentChapter.status ?? "unknown",
+      STORY_VERSION_ID: currentChapter.currentStoryVersionId ?? "未确认",
+      STRUCTURE_JSON: JSON.stringify(structure ?? {}, null, 2),
+      CHAPTER_SCRIPT_EXCERPT: chapterScriptExcerpt || "（当前章节为空）",
+      DIALOGUE_CANDIDATES: dialogueCandidates,
+      PENDING_STORYBOARD_SECTION: pendingStoryboardSection,
+      USER_REQUEST: userRequest,
     },
-    promptDraft: "给后续图片提示词生成的简短草稿，不是最终 Prompt",
-  };
-  if (isRevision) {
-    shotExample.id = pendingStoryboard?.shots[0]?.id ?? "existing_shot_id";
-  }
-
-  return [
-    "你正在为 AI漫游执行分镜工作台阶段 skill：storyboard-shot-generate。",
-    isRevision
-      ? "动作：revise_pending。根据用户的明确要求调整当前待确认分镜，并返回调整后的完整 Shot[]。"
-      : "动作：generate。只针对当前章节，把已确认剧情结构拆成可编辑 Shot[]。",
-    "",
-    "硬性边界：",
-    "- 只生成当前章节分镜，不要生成整部作品分镜。",
-    "- 输入事实源是已确认的 structure.json，不读取未确认聊天内容作为正式事实。",
-    "- 不得新增结构或正式章节正文中没有发生的剧情、角色、道具结论和对白事实。",
-    "- 每个 Shot 是一个共享剧情锚点，必须有共同核心字段，并同时包含 comic 漫画分镜表达和 motion 漫剧分镜表达。",
-    "- 漫画分镜和漫剧分镜是并列媒介设计：只共享正式剧情事实，motion 不是 comic 的动态说明或附属结果。",
-    "- M1 仍用一个 Shot 承载一组 comic 和 motion，并共用 shotType、cameraAngle 和镜头数量；这是当前兼容限制，不代表两轨必须描述同一瞬间或未来永远一一对应。",
-    "- 不要生成最终图片 Prompt；promptDraft 只属于后续静态候选图阶段的草稿摘要，不是漫剧 Prompt。",
-    "- 不要生成候选图、TTS、字幕、视频或排版。",
-    `- characterIds 只能填写剧情结构角色卡 id（可用 id=名称：${availableCharacterRefs.join("、") || "暂无"}），不能填写数据库 UUID、角色名、别名或简称。`,
-    "- motion.voiceLines[].characterId 有明确说话角色时也填写同一角色卡 id；旁白或环境声音给 null。",
-    "- beatId 和 sceneId 必须逐字引用已确认结构中的现有 id，不得填写标题、场景名或自造编号。",
-    "- 新镜头不要生成数据库 id；正式 Shot ID 由后端分配。",
-    ...(isRevision
-      ? [
-        "- 当前动作只修改待确认草稿，不得把它描述成已经确认或已经进入出图准备。",
-        "- 未被用户要求改变的剧情事实和镜头含义应尽量保持；保留镜头必须沿用当前草稿 id，新增镜头省略 id。",
-        "- 即使只改一个镜头，也必须返回完整 shots 数组，不能返回 patch、diff 或单个镜头。",
-      ]
-      : ["- 首次生成的所有镜头都省略 id；后端会统一分配正式 Shot ID。"]),
-    `- 当前 M1 共享骨架建议生成 ${targetShotRange} 个 Shot；每个 beat 先分配一个主 Shot，只有原因/结果、揭示/反应、选择/代价、关系变化、空间连续或动态负载无法在一个共享锚点中清楚承接时才增加第二个。`,
-    "- 只输出一个 JSON 代码块，不要在 JSON 后追加解释。",
-    "- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。",
-    "",
-    ...getStoryboardV23PlanningPrompt(dialogueReference),
-    "",
-    ...getStoryboardSharedNarrativePrompt(),
-    "",
-    ...getMotionStoryboardPrompt(),
-    "",
-    ...getComicStoryboardPrompt(),
-    "",
-    ...getDualTrackStoryboardBoundaryPrompt(),
-    "",
-    ...(variant === "v2_5_experiment" ? [...getStoryboardV25TargetedRiskPrompt(), ""] : []),
-    "枚举字段必须从下面固定值中选一个，不要自创值（见 ADR-0007）：",
-    "- shotType(景别，共同核心): establishing / wide / full / medium / close_up / extreme_close_up",
-    "- cameraAngle(机位角度，共同核心): eye_level / high_angle / low_angle / over_shoulder / top_down / dutch_angle",
-    "- comic.panelRhythm(画格节奏): slow / normal / fast / impact / transition",
-    "- motion.cameraMovement(运镜): static / push_in / pull_out / pan_left / pan_right / tilt_up / tilt_down / track_left / track_right / slow_zoom / handheld / none",
-    "- motion.frameType(镜头类型): atmosphere / dialogue / action / reaction / detail / transition",
-    "- shotType 和 cameraAngle 放在 Shot 顶层（comic 和 motion 共用一份），不要在 comic/motion 里重复填。",
-    "- comic.composition 只写构图（人物位置、视觉重心），不要再塞景别和机位。",
-    "- motion.durationMs 给数字（毫秒，如 3000），durationHint 给人看的文本（如「约 3s」）。",
-    "- motion.voiceLines 是数组，支持一个镜头多人对话；没有台词就给空数组 []。不要再用旧的 voiceRole / line 字段。",
-    "",
-    "JSON 结构必须是：",
-    "```json",
-    JSON.stringify({
-      shots: [shotExample],
-      notes: "分镜节奏说明",
-    }, null, 2),
-    "```",
-    "",
-    `项目名称：${snapshot.project.name}`,
-    `剧集名称：${snapshot.project.storyTitle}`,
-    `漫画版式：${snapshot.project.comicFormat ?? "未指定"}`,
-    `项目画风：${snapshot.project.artStyle?.trim() || "未指定"}`,
-    `当前章节：${currentChapter?.title ?? "当前章节"}`,
-    `当前章节状态：${currentChapter?.status ?? "unknown"}`,
-    `当前剧情结构版本：${currentChapter?.currentStoryVersionId ?? "未确认"}`,
-    "已确认剧情结构：",
-    JSON.stringify(structure ?? {}, null, 2),
-    "当前章节剧本摘录（仅作动作与上下文参考，可能省略中段；正式拆分以 structure.json 为准）：",
-    chapterScriptExcerpt || "（当前章节为空）",
-    "全章正式对白/配音候选（voiceLines 唯一逐字来源）：",
-    dialogueReference.available
-      ? JSON.stringify(dialogueReference.candidates.map((candidate) => ({
-        localRef: candidate.localRef,
-        sceneRef: candidate.sceneRef,
-        sourceSpeaker: candidate.sourceSpeaker,
-        characterRef: candidate.characterRef,
-        sourceKind: candidate.sourceKind,
-        line: candidate.line,
-      })), null, 2)
-      : "（当前正式正文不是可稳定解析的固定章节 Markdown；本轮不提供全章候选，不得补写摘录外台词）",
-    ...(isRevision ? [
-      "当前待确认分镜（这是本轮允许调整的唯一草稿；必须返回调整后的完整版本）：",
-      JSON.stringify(pendingStoryboard ?? {}, null, 2),
-    ] : []),
-    "用户本次要求：",
-    input.content,
-  ].join("\n");
+  );
 }
 
 export function buildStoryboardRepairPrompt(input: {
@@ -734,108 +604,90 @@ export function buildStoryboardRepairPrompt(input: {
   qualityIssues?: readonly string[];
   mode: StoryboardPromptMode;
 }): string {
+  const skillName = "storyboard-shot-generate";
   const qualityFailure = Boolean(input.qualityIssues?.length);
-  return [
-    qualityFailure
-      ? "上一次输出格式可读取，但未通过分镜固定质量门。只修复列出的问题，重新返回当前章节的完整分镜 JSON。"
-      : "上一次输出未通过分镜 JSON、字段或引用校验。只修复格式、字段和引用，重新返回当前章节的完整分镜 JSON。",
-    "先从全章正式对白候选中删除非必要来回并完成最多两段分配，再为每段定义进入状态→唯一聚焦变化→退出状态；没有稳定候选时只能使用原任务正文摘录中明确可见的台词。每段 1～3 条只是复核触发，不是机械硬门。",
-    "每个剧情 beat 至少一个共享 Shot 锚点，Shot 按 beat 叙事顺序排列，并使用已有 beatId、sceneId 和角色卡 id；达到退出状态就停镜，新的独立反应、命令、障碍或行动目标进入第二镜；不按固定秒数机械切分。",
-    "comic 独立修复为一个可画的静态决定性瞬间、漫画构图、阅读节奏和气泡留白；因动态负载增加第二镜时，新增 comic 仍必须是不同且必要的静态决定性瞬间，不能用重复反应、换景别或空画格填充。motion 独立修复为开始状态→主要动作/表演变化→结束状态，并核对运镜用途、内容时长和尾首帧连续。",
-    "每个 motion 默认只保留一个主要动作或一次明确的信息/情绪变化；达到每 beat 两镜仍过载时缩小动作范围、保留关键台词并给足时长，不得把动作链重新塞回一镜。voiceLines[].line 必须逐字复制原任务中的全章正式对白候选，不得从未通过输出抄回改写句，也不得同义改写、补词或改标点。",
-    "所有必填文本、枚举、order、durationMs 和 voiceLines 必须合法；禁止空壳、占位和完全重复镜头。comic 与 motion 只需来自同一剧情锚点且事实不冲突，不要求描述同一瞬间、相同构图或相同节奏；漫画正式对白必须在 voiceLines 中保留对应台词。",
-    "promptDraft 只属于静态候选图，保留 comic 所需的主体、决定性瞬间、环境、光线、情绪和构图，不得泄漏对白原文、字幕、气泡、整页分格、模型名或 provider 参数。",
-    ...(input.mode === "revise_pending"
-      ? ["这是调整 pending：保留未被用户要求改变的镜头含义和已有镜头 id，新增镜头省略 id；必须返回完整 shots 数组。"]
-      : ["这是首次生成：所有镜头省略 id，由后端分配正式 Shot ID。"]),
-    "只返回一个完整 JSON 代码块，不要解释、评分、诊断或新增字段。",
-    input.qualityIssues?.length
-      ? `固定门问题：${input.qualityIssues.join("、")}`
-      : `校验错误：${input.validationError}`,
-    "原任务与正式来源：",
-    input.originalPrompt,
-    "未通过的输出：",
-    input.invalidOutput,
-  ].join("\n\n");
+  const issues = input.qualityIssues?.length ? input.qualityIssues.join("、") : input.validationError;
+  const failureIntro = renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(
+      skillName,
+      qualityFailure ? "repair-quality-failure.md" : "repair-validation-failure.md",
+    ),
+    { ISSUES: issues },
+  );
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "repair-prompt.md"),
+    {
+      FAILURE_INTRO: failureIntro,
+      REPAIR_MODE_CONTRACT: readOpenCodeSkillReference(
+        skillName,
+        input.mode === "revise_pending" ? "repair-mode-revise-pending.md" : "repair-mode-generate.md",
+      ),
+      ORIGINAL_PROMPT: input.originalPrompt,
+      INVALID_OUTPUT: input.invalidOutput,
+    },
+  );
 }
 
 // ---------- 灵感种子 prompt ----------
 
-function getP2OutlineQualityGatePrompt(): string[] {
-  return [
-    "P2 因果大纲与结局方向质量门（输出前内部检查）：",
-    "- 主角必须有可识别的外在追求、内在缺口或错误信念；把必要信息压缩进现有剧情简介、角色说明和情节概要，不新增栏目。",
-    "- 情节不能只是“然后发生什么”的事件清单；关键推进要形成自然的转折与结果关系，可用“但是/因此”或同义表达呈现。",
-    "- 阻力、代价和选择必须逐步升级；每一章都要造成状态变化，下一章衔接必须由本章结果触发。",
-    "- 结局方向必须写清主角的最终选择、结果与前期承诺如何兑现；终章的下一章衔接必须明确标记故事已经收束，不得继续悬空引向下一章。",
-    "- 质量门只用于内部检查；不要输出评分、检查报告或额外字段。未通过时先重写薄弱内容，再按固定格式输出完整大纲。",
-  ];
-}
-
 export function buildInspirationSeedsPrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
   const snapshot = turn.snapshot;
   const tags = snapshot.project.genreTags.length > 0 ? snapshot.project.genreTags.join("、") : "未设置";
-  return [
-    "你正在为 AI漫游执行剧本阶段 skill：script-inspiration-seeding。",
-    `任务：根据用户输入，为漫画项目生成 ${SCRIPT_INSPIRATION_SEED_COUNT} 个可选择的灵感种子。`,
-    buildScriptStageBoundaryContract(),
-    "",
-    "硬性规则：",
-    `- 必须生成 ${SCRIPT_INSPIRATION_SEED_COUNT} 个灵感种子，不多也不少。`,
-    "- 只生成灵感种子，不写章节正文，不声称已经更新项目文件。",
-    "- 每个方向要明显不同，能支撑后续生成第 1 章。",
-    "- 不要返回固定模板，要结合用户输入、项目名称、题材标签和当前章节状态。",
-    "- 只返回一个严格 JSON 对象，不要代码块，不要 Markdown，不要在 JSON 前后追加解释。",
-    "- JSON 顶层只能有 seeds；每个 seed 只能有约定的 6 个字段。",
-    "",
-    "P1 灵感质量门（输出前内部检查）：",
-    "- 每个候选都要能看出反差、情绪钩子、主角压力、可持续冲突发动机、鲜明视觉承诺和可兑现的结局潜力。",
-    "- 三个候选必须在主角承受的核心压力、冲突发动机和视觉前提上实质不同；只换标题、人名、题材标签或措辞不算不同。",
-    "- 将人物欲望、阻碍、风险和升级空间压缩进现有 logline、keyConflict、visualHook、firstChapterDirection，不新增字段。",
-    "- 质量门只用于内部检查；不要输出评分、诊断或额外字段。候选不合格时先重新构思，再输出完整 3 项。",
-    "",
-    "JSON 结构必须是：",
-    "{\"seeds\":[{\"title\":\"\",\"genreTags\":[\"\"],\"logline\":\"\",\"keyConflict\":\"\",\"visualHook\":\"\",\"firstChapterDirection\":\"\"}]}",
-    "",
-    `项目名称：${snapshot.project.name}`,
-    `题材标签：${tags}`,
-    `画幅：${snapshot.project.comicFormat}`,
-    `画风：${snapshot.project.artStyle}`,
-    "用户本轮输入：",
-    input.content,
-  ].join("\n");
+  const skillName = "script-inspiration-seeding";
+  const example = readOpenCodeSkillJsonReference<Record<string, unknown>>(
+    skillName,
+    "inspiration-example.json",
+  );
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "inspiration-prompt.md"),
+    {
+      SEED_COUNT: SCRIPT_INSPIRATION_SEED_COUNT,
+      SCRIPT_STAGE_BOUNDARY: buildScriptStageBoundaryContract(),
+      SEED_EXAMPLE_JSON: JSON.stringify(example),
+      PROJECT_NAME: snapshot.project.name,
+      GENRE_TAGS: tags,
+      COMIC_FORMAT: snapshot.project.comicFormat,
+      ART_STYLE: snapshot.project.artStyle,
+      USER_REQUEST: input.content,
+    },
+  );
+}
+
+export function buildInspirationSeedsRepairPrompt(input: {
+  invalidOutput: string;
+  validationError: string;
+  qualityIssues?: readonly string[];
+}): string {
+  const skillName = "script-inspiration-seeding";
+  const qualityFailure = Boolean(input.qualityIssues?.length);
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(
+      skillName,
+      qualityFailure ? "repair-quality-failure.md" : "repair-validation-failure.md",
+    ),
+    qualityFailure
+      ? {
+        SEED_COUNT: SCRIPT_INSPIRATION_SEED_COUNT,
+        ISSUES: input.qualityIssues!.join("、"),
+        INVALID_OUTPUT: input.invalidOutput,
+      }
+      : {
+        SEED_COUNT: SCRIPT_INSPIRATION_SEED_COUNT,
+        VALIDATION_ERROR: input.validationError,
+        INVALID_OUTPUT: input.invalidOutput,
+      },
+  );
 }
 
 // ---------- 剧本大纲 prompt ----------
 
 export function buildScriptOutlineFromTopicPrompt(turn: DialogueTurn, input: SendDialogueMessageRequest): string {
-  return [
-    "你正在为 AI漫游执行剧本阶段 skill：script-outline-drafting。",
-    "任务：用户已给出明确题材/方向,直接生成或重生成项目级「剧本大纲」,不需要灵感种子。",
-    buildScriptStageBoundaryContract(),
-    "",
-    "硬性规则：",
-    "- 只返回剧本大纲 Markdown 正文,不要返回 JSON,不要包代码块。",
-    "- 必须按「剧本大纲」固定格式输出,不要改名、删块或合并块。",
-    "- 剧集名称优先使用用户题材里提到的作品名或篇章名;如果没有,用一个贴合题材的标题。",
-    "- 大纲是项目级产物,用于让用户确认故事方向;不要写章节正文。",
-    "- 情节概要必须形成清晰的“但是/因此”因果推进，并明确最终结局方向，不以空泛口号代替结局。",
-    "- 剧集章数必须确定为一个正整数；如果用户给范围，要结合故事体量选定一个具体数字。",
-    "- 必须为每一章生成一张轻量章节卡；章节卡只规划目标、冲突、转折、钩子和跨章衔接，不生成详细场景与剧情节拍。",
-    "- 不要套用提示中示例的人名、剧情或设定,只参考格式。",
-    "- 不要声称你直接操作本地文件;保存由后端受控工具完成。",
-    "",
-    ...getP2OutlineQualityGatePrompt(),
-    "",
-    getScriptOutlineFormatPrompt(),
-    "",
-    `项目名称：${turn.snapshot.project.name}`,
-    `题材标签：${turn.snapshot.project.genreTags.length > 0 ? turn.snapshot.project.genreTags.join("、") : "未设置"}`,
-    `画幅：${turn.snapshot.project.comicFormat}`,
-    `画风：${turn.snapshot.project.artStyle}`,
-    "用户给定的题材/方向(直接据此生成大纲,不要偏题)：",
-    input.content,
-  ].join("\n");
+  const skillName = "script-outline-drafting";
+  const modeContract = renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "mode-topic.md"),
+    { USER_TOPIC: input.content },
+  );
+  return buildScriptOutlinePromptFromFacts(turn, modeContract);
 }
 
 export function buildScriptOutlineFromSeedPrompt(
@@ -845,44 +697,69 @@ export function buildScriptOutlineFromSeedPrompt(
   seedPrompt: string,
   previousOutline?: string,
 ): string {
-  return [
-    "你正在为 AI漫游执行剧本阶段 skill：script-outline-drafting。",
-    "任务：根据用户选中的灵感种子，生成或重生成项目级「剧本大纲」。",
-    buildScriptStageBoundaryContract(),
-    "",
-    "硬性规则：",
-    "- 只返回剧本大纲 Markdown 正文，不要返回 JSON，不要包代码块。",
-    "- 必须按「剧本大纲」固定格式输出，不要改名、删块或合并块。",
-    `- 剧集名称优先使用选中的灵感种子标题：${seed.title}`,
-    "- 大纲是项目级产物，用于让用户确认故事方向；不要写章节正文。",
-    "- 情节概要必须形成清晰的“但是/因此”因果推进，并明确最终结局方向。",
-    "- 剧集章数必须确定为一个正整数，并为每一章生成一张轻量章节卡；后续只按单个目标章节生成。",
-    "- 章节卡只规划目标、冲突、转折、钩子和跨章衔接，不生成详细场景、剧情节拍或正文。",
-    "- 不要套用用户示例里的人名、古装重生剧情、角色关系或情节，只参考格式。",
-    "- 不要声称你直接操作本地文件；保存由后端受控工具完成。",
-    "",
-    ...getP2OutlineQualityGatePrompt(),
-    "",
-    getScriptOutlineFormatPrompt(),
-    "",
-    `项目名称：${turn.snapshot.project.name}`,
-    `题材标签：${turn.snapshot.project.genreTags.length > 0 ? turn.snapshot.project.genreTags.join("、") : "未设置"}`,
-    `画幅：${turn.snapshot.project.comicFormat}`,
-    `画风：${turn.snapshot.project.artStyle}`,
-    `用户最初找灵感时说：${seedPrompt}`,
-    `用户当前要求：${input.content}`,
-    "选中的灵感种子：",
-    JSON.stringify({
-      title: seed.title,
-      genreTags: seed.genreTags,
-      logline: seed.logline,
-      keyConflict: seed.keyConflict,
-      visualHook: seed.visualHook,
-      firstChapterDirection: seed.firstChapterDirection,
-    }, null, 2),
-    previousOutline ? "上一版剧本大纲：" : "",
-    previousOutline ?? "",
-  ].filter(Boolean).join("\n");
+  const skillName = "script-outline-drafting";
+  const modeContract = renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "mode-seed.md"),
+    {
+      SEED_TITLE: seed.title,
+      SEED_PROMPT: seedPrompt,
+      USER_REQUEST: input.content,
+      SEED_JSON: JSON.stringify({
+        title: seed.title,
+        genreTags: seed.genreTags,
+        logline: seed.logline,
+        keyConflict: seed.keyConflict,
+        visualHook: seed.visualHook,
+        firstChapterDirection: seed.firstChapterDirection,
+      }, null, 2),
+      PREVIOUS_OUTLINE: previousOutline?.trim() || "（无；首次生成）",
+    },
+  );
+  return buildScriptOutlinePromptFromFacts(turn, modeContract);
+}
+
+function buildScriptOutlinePromptFromFacts(turn: DialogueTurn, modeContract: string): string {
+  const skillName = "script-outline-drafting";
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "outline-prompt.md"),
+    {
+      MODE_CONTRACT: modeContract,
+      SCRIPT_STAGE_BOUNDARY: buildScriptStageBoundaryContract(),
+      OUTLINE_FORMAT: getScriptOutlineFormatPrompt(),
+      PROJECT_NAME: turn.snapshot.project.name,
+      GENRE_TAGS: turn.snapshot.project.genreTags.length > 0
+        ? turn.snapshot.project.genreTags.join("、")
+        : "未设置",
+      COMIC_FORMAT: turn.snapshot.project.comicFormat,
+      ART_STYLE: turn.snapshot.project.artStyle,
+    },
+  );
+}
+
+export function buildScriptOutlineRepairPrompt(input: {
+  invalidOutput: string;
+  validationError: string;
+  qualityIssues?: readonly string[];
+}): string {
+  const skillName = "script-outline-drafting";
+  const qualityFailure = Boolean(input.qualityIssues?.length);
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(
+      skillName,
+      qualityFailure ? "repair-quality-failure.md" : "repair-validation-failure.md",
+    ),
+    qualityFailure
+      ? {
+        ISSUES: input.qualityIssues!.join("、"),
+        OUTLINE_FORMAT: getScriptOutlineFormatPrompt(),
+        INVALID_OUTPUT: input.invalidOutput,
+      }
+      : {
+        OUTLINE_FORMAT: getScriptOutlineFormatPrompt(),
+        VALIDATION_ERROR: input.validationError,
+        INVALID_OUTPUT: input.invalidOutput,
+      },
+  );
 }
 
 // ---------- 章节剧本 prompt ----------
@@ -896,92 +773,63 @@ export function buildScriptFromOutlinePrompt(
     .replace(/(请|帮我|现在|开始)?\s*(生成|写|起草|创作|重新生成|重写)\s*(当前章节|当前章|这一章|这章|本章|第\s*[0-9一二三四五六七八九十百千万零〇两]+\s*(?:章|话))?/g, "")
     .replace(/确认大纲[：:]?[^，。；\n]*/g, "")
     .trim();
-  return [
-    "你正在为 AI漫游执行剧本阶段 skill：script-chapter-drafting。",
-    `任务：依据密封的已确认来源，只生成「${expectedHeading}」这一章的完整章节剧本。`,
-    buildScriptStageBoundaryContract(),
-    "",
-    "硬性规则：",
-    "- 只返回章节 Markdown 正文，不要返回 JSON，不要包代码块。",
-    "- 必须按「章节剧本」固定格式输出，不要改名、删块或合并块。",
-    `- 二级标题必须精确为「## ${expectedHeading}」，章序和标题不得自行改动。`,
-    `- 项目级剧本名称是「${context.outline.title}」，只作为上下文使用，不要在章节正文里输出“剧本名称”。`,
-    `- 只生成第 ${context.chapter.order} 章，不要提前写下一章，不要输出整部大纲。`,
-    "- 来源优先级固定为：当前章节卡与项目大纲 > 上一章已确认正式正文 > 用户本轮有效补充。来源冲突时不得自行猜测或覆盖上位来源。",
-    "- P3 场景契约：在内部为每场戏确认人物想得到什么、谁或什么在阻止、压力如何升级、对白在争取或隐藏什么、转折发生在哪里，以及结束后信息/关系/位置/危险/决定发生了什么不可逆变化；不要把这些分析新增为输出字段。",
-    "- P3 场景推进：每场戏都要有有效剧情描写、人物动作和具体结束点；后一场要由前一场的结果以“因此/但是”或自然同义关系触发。没有推动剧情或人物的场景应合并或删除。",
-    "- P5 连续性：人物状态、已知信息、关键物品、地点、关系和未回收悬念必须承接上一章正式正文；第 1 章无前章检查，不得把未确认草稿或未来章节卡当成已经发生的事实。",
-    "- 当前章节卡的章节目标、核心冲突、关键转折和结尾钩子必须在正文中可观察，不得只写在顶部摘要字段。",
-    "- P3/P5 只做内部检查；不要输出评分、诊断或额外栏目。检查不通过时先重写薄弱场景，再按固定格式返回完整本章。",
-    "- 内容要能直接进入当前章节的待确认草稿。",
-    "- 「视觉基调」只是方向，不是图片 Prompt。",
-    "- 「剧本正文」里可以有场景、人物、动作和对白，但不能输出正式场景列表、剧情节拍、分镜剧本或镜头编号。",
-    "- 不要声称你直接操作本地文件；写入由后端受控工具完成。",
-    "",
-    getChapterScriptFormatPrompt(),
-    "",
-    getChapterScriptForbiddenOutputPrompt(),
-    "",
-    `项目：${context.project.name}`,
-    `题材：${context.project.genreTags.join("、") || context.outline.document.genreStyle}`,
-    `漫画形式：${context.project.comicFormat}`,
-    `画风：${context.project.artStyle}`,
-    "当前章节卡（本章直接写作合同）：",
-    JSON.stringify(context.targetCard, null, 2),
-    "前一张章节卡（只用于跨章衔接）：",
-    context.previousCard ? JSON.stringify(context.previousCard, null, 2) : "（第 1 章，无前一张章节卡）",
-    "后一张章节卡（只用于控制本章结尾，不得提前写入下一章）：",
-    context.nextCard ? JSON.stringify(context.nextCard, null, 2) : "（最终章，无后一张章节卡）",
-    "上一章已确认正式正文（必须完整承接；第 1 章为空）：",
-    context.previousScript?.sourceText ?? "（第 1 章，无上一章正文）",
-    "已确认项目级剧本大纲（项目方向与结局事实源）：",
-    context.outline.sourceText,
-    "用户本轮有效补充：",
-    userSupplement || "（无；本轮只是发出生成命令）",
-  ].join("\n");
+  const skillName = "script-chapter-drafting";
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(skillName, "chapter-draft-prompt.md"),
+    {
+      EXPECTED_HEADING: expectedHeading,
+      SCRIPT_STAGE_BOUNDARY: buildScriptStageBoundaryContract(),
+      OUTLINE_TITLE: context.outline.title,
+      CHAPTER_ORDER: context.chapter.order,
+      CHAPTER_FORMAT: getChapterScriptFormatPrompt(),
+      FORBIDDEN_OUTPUT: getChapterScriptForbiddenOutputPrompt(),
+      PROJECT_NAME: context.project.name,
+      GENRE: context.project.genreTags.join("、") || context.outline.document.genreStyle,
+      COMIC_FORMAT: context.project.comicFormat,
+      ART_STYLE: context.project.artStyle,
+      TARGET_CARD_JSON: JSON.stringify(context.targetCard, null, 2),
+      PREVIOUS_CARD_JSON: context.previousCard
+        ? JSON.stringify(context.previousCard, null, 2)
+        : "（第 1 章，无前一张章节卡）",
+      NEXT_CARD_JSON: context.nextCard
+        ? JSON.stringify(context.nextCard, null, 2)
+        : "（最终章，无后一张章节卡）",
+      PREVIOUS_SCRIPT: context.previousScript?.sourceText ?? "（第 1 章，无上一章正文）",
+      CONFIRMED_OUTLINE: context.outline.sourceText,
+      USER_SUPPLEMENT: userSupplement || "（无；本轮只是发出生成命令）",
+    },
+  );
 }
 
-export function buildScriptFromSeedPrompt(
-  turn: DialogueTurn,
-  input: SendDialogueMessageRequest,
-  seed: ScriptInspirationSeed,
-  seedPrompt: string,
-): string {
-  return [
-    "你正在为 AI漫游执行剧本阶段 skill：script-chapter-drafting。",
-    "任务：根据用户选中的灵感种子，生成第 1 章完整「章节剧本」。",
-    buildScriptStageBoundaryContract(),
-    "",
-    "硬性规则：",
-    "- 只返回章节 Markdown 正文，不要返回 JSON，不要包代码块。",
-    "- 必须按「章节剧本」固定格式输出，不要改名、删块或合并块。",
-    `- 项目级剧本名称是「${seed.title}」，只作为上下文使用，不要在章节正文里输出“剧本名称”。`,
-    "- 章节标题是本章标题，后端会把它同步为章节列表标题。",
-    "- 内容要能直接写入 `chapters/chapter-001/script.md`。",
-    "- 「视觉基调」只是方向，不是图片 Prompt。",
-    "- 「剧本正文」里可以有场景、人物、动作和对白，但不能输出正式场景列表、剧情节拍、分镜剧本或镜头编号。",
-    "- 不要声称你直接操作本地文件；写入由后端受控工具完成。",
-    "",
-    getChapterScriptFormatPrompt(),
-    "",
-    getChapterScriptForbiddenOutputPrompt(),
-    "",
-    `项目名称：${turn.snapshot.project.name}`,
-    `剧集名称：${turn.snapshot.project.storyTitle}`,
-    `用户最初找灵感时说：${seedPrompt}`,
-    `用户当前要求：${input.content}`,
-    "选中的灵感种子：",
-    JSON.stringify({
-      title: seed.title,
-      genreTags: seed.genreTags,
-      logline: seed.logline,
-      keyConflict: seed.keyConflict,
-      visualHook: seed.visualHook,
-      firstChapterDirection: seed.firstChapterDirection,
-    }, null, 2),
-    "用户本次要求：",
-    input.content,
-  ].join("\n");
+export function buildChapterDraftRepairPrompt(input: {
+  invalidOutput: string;
+  validationError: string;
+  qualityIssues?: readonly string[];
+  expectedHeading: string;
+  targetCard: AiChapterGenerationContext["targetCard"];
+}): string {
+  const skillName = "script-chapter-drafting";
+  const qualityFailure = Boolean(input.qualityIssues?.length);
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(
+      skillName,
+      qualityFailure ? "repair-quality-failure.md" : "repair-validation-failure.md",
+    ),
+    qualityFailure
+      ? {
+        ISSUES: input.qualityIssues!.join("、"),
+        TARGET_CARD_JSON: JSON.stringify(input.targetCard, null, 2),
+        EXPECTED_HEADING: input.expectedHeading,
+        CHAPTER_FORMAT: getChapterScriptFormatPrompt(),
+        INVALID_OUTPUT: input.invalidOutput,
+      }
+      : {
+        EXPECTED_HEADING: input.expectedHeading,
+        CHAPTER_FORMAT: getChapterScriptFormatPrompt(),
+        VALIDATION_ERROR: input.validationError,
+        INVALID_OUTPUT: input.invalidOutput,
+      },
+  );
 }
 
 // ---------- 章节改写 prompt ----------

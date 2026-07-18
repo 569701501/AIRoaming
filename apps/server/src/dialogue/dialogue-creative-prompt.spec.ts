@@ -18,13 +18,16 @@ import type {
 import type { DialogueTurn } from "./dialogue-types.js";
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
+  buildChapterDraftRepairPrompt,
   buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
+  buildInspirationSeedsRepairPrompt,
   buildScriptFromOutlinePrompt,
   buildScriptImportAnalysisPrompt,
   buildScriptImportMaterializePrompt,
   buildScriptImportVerifyPrompt,
   buildScriptOutlineFromTopicPrompt,
+  buildScriptOutlineRepairPrompt,
   buildStoryStructurePrompt,
   buildStoryboardPrompt,
   buildStoryboardRepairPrompt,
@@ -144,6 +147,42 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("不要输出评分、检查报告或额外字段");
   });
 
+  it("A2 格式修复与 P1 质量重写使用不同的 Skill 合同", () => {
+    const qualityPrompt = buildInspirationSeedsRepairPrompt({
+      invalidOutput: "{\"seeds\":[]}",
+      validationError: "unused",
+      qualityIssues: ["P1_CONFLICT_ENGINE_NOT_DISTINCT"],
+    });
+    const formatPrompt = buildInspirationSeedsRepairPrompt({
+      invalidOutput: "not json",
+      validationError: "CREATIVE_IDEATION_JSON_INVALID",
+    });
+
+    expect(qualityPrompt).toContain("重新生成完整 3 项");
+    expect(qualityPrompt).toContain("P1_CONFLICT_ENGINE_NOT_DISTINCT");
+    expect(qualityPrompt).toContain("允许重新设计薄弱候选");
+    expect(formatPrompt).toContain("只修复格式");
+    expect(formatPrompt).toContain("不改变三套创意的语义");
+  });
+
+  it("A3 格式修复与 P2 质量重写使用不同的 Skill 合同", () => {
+    const qualityPrompt = buildScriptOutlineRepairPrompt({
+      invalidOutput: "# 剧本大纲",
+      validationError: "unused",
+      qualityIssues: ["P2_ENDING_DIRECTION_VAGUE"],
+    });
+    const formatPrompt = buildScriptOutlineRepairPrompt({
+      invalidOutput: "# 剧本大纲",
+      validationError: "CREATIVE_OUTLINE_SECTION_MISSING",
+    });
+
+    expect(qualityPrompt).toContain("未通过 P2 因果大纲与结局方向质量门");
+    expect(qualityPrompt).toContain("P2_ENDING_DIRECTION_VAGUE");
+    expect(qualityPrompt).toContain("必须返回完整大纲");
+    expect(formatPrompt).toContain("只修复格式");
+    expect(formatPrompt).toContain("不改变故事方向、角色、章数或结局");
+  });
+
   it("A4 只生成当前章，并完整读取目标卡、相邻卡和上一章正式正文", () => {
     const prompt = buildScriptFromOutlinePrompt(request("生成当前章节"), context());
     expect(prompt).toContain("## 第 2 章：门外来客");
@@ -152,11 +191,37 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("【前章开头】林舟从旧屋地板下找到钥匙。");
     expect(prompt).toContain("【前章中段】钥匙刻着父亲编号。");
     expect(prompt).toContain("【前章结尾】门外响起三短一长的暗号。");
-    expect(prompt).toContain("不要把这些分析新增为输出字段");
+    expect(prompt).toContain("P3/P5 只做内部检查");
     expect(prompt).toContain("第 1 章无前章检查");
     expect(prompt).toContain('"title": "旧钥匙"');
     expect(prompt).toContain('"title": "内鬼"');
     expect(prompt).toContain("（无；本轮只是发出生成命令）");
+  });
+
+  it("A4 格式修复与 P3/P5 质量重写使用不同的 Skill 合同", () => {
+    const chapterContext = context();
+    const qualityPrompt = buildChapterDraftRepairPrompt({
+      invalidOutput: "# 章节剧本\n\n## 第 2 章：门外来客",
+      validationError: "unused",
+      qualityIssues: ["P3_SCENE_DESCRIPTION_MISSING"],
+      expectedHeading: "第 2 章：门外来客",
+      targetCard: chapterContext.targetCard,
+    });
+    const formatPrompt = buildChapterDraftRepairPrompt({
+      invalidOutput: "not markdown",
+      validationError: "CREATIVE_CHAPTER_SECTION_MISSING",
+      expectedHeading: "第 2 章：门外来客",
+      targetCard: chapterContext.targetCard,
+    });
+
+    expect(qualityPrompt).toContain("未通过 P3 场景契约 / P5 连续性质量门");
+    expect(qualityPrompt).toContain("P3_SCENE_DESCRIPTION_MISSING");
+    expect(qualityPrompt).toContain("重新生成完整本章");
+    expect(qualityPrompt).toContain("## 第 2 章：门外来客");
+    expect(formatPrompt).toContain("只修复格式");
+    expect(formatPrompt).toContain("不新增、删减或改写任何剧情事实");
+    expect(formatPrompt).toContain("CREATIVE_CHAPTER_SECTION_MISSING");
+    expect(formatPrompt).toContain("## 第 2 章：门外来客");
   });
 
   it("P4 把修订层和保护范围放进内部 Prompt，但不新增输出字段", () => {

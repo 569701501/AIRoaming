@@ -1,0 +1,17 @@
+{
+  "sceneStyle": "production-ready comic/manhua background illustration",
+  "appearance": "根据项目风格补全，但保持简洁稳定",
+  "personality": "符合角色身份",
+  "artStyles": {
+    "dark_realistic": "暗调漫画写实 / dark cinematic comic realism, non-photorealistic",
+    "semi_realistic": "半写实漫画 / semi-realistic comic illustration, non-photorealistic",
+    "japanese_realistic": "日系漫画写实 / Japanese manga-realistic illustration, non-photorealistic",
+    "comic_style": "漫画风格 / clean comic and manhua illustration",
+    "cyberpunk": "赛博朋克漫画 / cyberpunk comic illustration",
+    "custom": "自定义漫画美术 / custom comic illustration style"
+  },
+  "comicFormats": {
+    "vertical_scroll": "vertical-scroll comic reading format",
+    "paged_comic": "page-based comic reading format; orientation unspecified"
+  }
+}

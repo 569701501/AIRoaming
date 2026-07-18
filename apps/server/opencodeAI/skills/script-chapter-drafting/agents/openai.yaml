@@ -1,0 +1,4 @@
+interface:
+  display_name: "单章剧本起草"
+  short_description: "按已确认大纲和前章正式事实生成待确认单章剧本"
+  default_prompt: "Use $script-chapter-drafting to draft one chapter from the confirmed outline."

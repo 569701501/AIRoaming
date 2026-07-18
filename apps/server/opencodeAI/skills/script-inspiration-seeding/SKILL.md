@@ -34,24 +34,7 @@ description: 用户没有固定剧本、表达想找灵感或需要故事方向�
 | `visualHook` | 第一眼能画出来的画面钩子 |
 | `firstChapterDirection` | 第 1 章应该如何开场 |
 
-只返回一个严格 JSON 对象，不包代码块，不在 JSON 前后追加解释：
-
-```json
-{
-  "seeds": [
-    {
-      "title": "",
-      "genreTags": [],
-      "logline": "",
-      "keyConflict": "",
-      "visualHook": "",
-      "firstChapterDirection": ""
-    }
-  ]
-}
-```
-
-顶层只能有 `seeds`，`seeds` 必须恰好 3 项，每项只能包含表中 6 个字段。
+顶层只能有 `seeds`，`seeds` 必须恰好 3 项，每项只能包含表中 6 个字段。精确生产模板和结构示例分别位于 `references/inspiration-prompt.md` 与 `references/inspiration-example.json`。
 
 ## P1 灵感质量门槛
 
@@ -70,6 +53,11 @@ description: 用户没有固定剧本、表达想找灵感或需要故事方向�
 - P1 失败时，只允许针对问题代码完整重写一次 3 个候选，不能只改标题或措辞。
 - 第二次仍未通过时停止本轮，不把候选交给用户，也不写入任何项目产物。
 
+生产运行必须使用：
+
+- `references/repair-quality-failure.md`：P1 质量失败时的完整定向重写。
+- `references/repair-validation-failure.md`：严格数据契约失败时的纯格式修复。
+
 ## 禁止事项
 
 - 不写章节正文。
@@ -77,3 +65,9 @@ description: 用户没有固定剧本、表达想找灵感或需要故事方向�
 - 不声称已经更新项目文件。
 - 不输出固定模板；必须结合用户输入和项目上下文。
 - 不读取或引用当前章节正文，避免把既有正文误当成灵感约束。
+
+## 资产边界
+
+- Skill 及 `references/` 是 P1 角色、创作方法、输出语义与修复指令的事实源。
+- Shared `creative.ideation/1.0` 契约负责字段、数量和 JSON 的硬校验。
+- TypeScript 只负责注入本轮项目事实、用户输入、调用 Validator 与执行最多一次修复。

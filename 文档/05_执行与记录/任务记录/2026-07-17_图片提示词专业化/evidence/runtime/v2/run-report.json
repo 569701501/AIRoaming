@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-prompt-s4-baseline-v1",
+  "promptVersion": "v2",
+  "planDigest": "e9252b7a58f031b6aaa413850a9ea24f5b3aa041f1a975fe7557d1637d598ad2",
+  "generatedAt": "2026-07-17T07:57:28.488Z",
+  "requestPolicy": {
+    "maxProviderRequests": 30,
+    "failedRequestsConsumeSlot": true,
+    "automaticRetry": false,
+    "providerSwitchOnFailure": false,
+    "activeProviderMutated": false,
+    "formalProjectDataMutated": false
+  },
+  "evaluationPolicy": {
+    "schemaVersion": 1,
+    "providerExceptions": [
+      {
+        "providerType": "grok",
+        "caseId": "candidate-no-character-establishing",
+        "condition": "single scene reference is omitted to preserve requested aspect ratio",
+        "requiredWarning": "grok_single_reference_omitted_for_aspect_ratio",
+        "excludeFromCrossProviderChecks": [
+          "environment"
+        ],
+        "stillEvaluateChecks": [
+          "clean_plate",
+          "empty_scene"
+        ]
+      },
+      {
+        "providerType": "grok",
+        "caseId": "candidate-group-staging",
+        "condition": "five requested references are deterministically reduced to two characters plus the scene",
+        "requiredWarning": "grok_reference_limit:3",
+        "excludeFromCrossProviderChecks": [
+          "identity"
+        ],
+        "stillEvaluateChecks": [
+          "clean_plate",
+          "staging"
+        ]
+      }
+    ]
+  },
+  "promptManifest": [
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-no-character-establishing",
+      "providerType": "openai",
+      "profileId": "openai-comic-clean-plate-v2",
+      "promptSha256": "f0d584ae61b896a0b65f48fb3793a236d3cec3ebd7fb507b153dbfdb11d053d7",
+      "promptLength": 1800
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-no-character-establishing",
+      "providerType": "doubao",
+      "profileId": "doubao-seedream-comic-clean-plate-v2",
+      "promptSha256": "33eaf5ae1caaa3af5217ed94159ff4db17473b0b2b4471b8ce3f6dc93d64fe04",
+      "promptLength": 766
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-no-character-establishing",
+      "providerType": "grok",
+      "profileId": "grok-comic-clean-plate-v2",
+      "promptSha256": "267ed2f3ad05bf4ab35877ca8c24387e1dfddcfcbb39d65cec9a23a6e4354c19",
+      "promptLength": 1575
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-single-character-closeup",
+      "providerType": "openai",
+      "profileId": "openai-comic-clean-plate-v2",
+      "promptSha256": "95c6b1d447c61f7889538ee395a21481c004e035067f29a0579a19badbf74a8c",
+      "promptLength": 1919
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-single-character-closeup",
+      "providerType": "doubao",
+      "profileId": "doubao-seedream-comic-clean-plate-v2",
+      "promptSha256": "7c597d04bd5faa274d191e5017cb17a9ceee0a1fe8f98db573a28fd82f740d0f",
+      "promptLength": 893
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-single-character-closeup",
+      "providerType": "grok",
+      "profileId": "grok-comic-clean-plate-v2",
+      "promptSha256": "13954407bb9203657f17388be0d1498baa563ab64a101ccf7b7406e556053c48",
+      "promptLength": 1687
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-two-character-dialogue",
+      "providerType": "openai",
+      "profileId": "openai-comic-clean-plate-v2",
+      "promptSha256": "4b74a4ae454f2f6932c17734e7ccd8dc6687e6907abfc81540b2251dd3c1b802",
+      "promptLength": 2014
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-two-character-dialogue",
+      "providerType": "doubao",
+      "profileId": "doubao-seedream-comic-clean-plate-v2",
+      "promptSha256": "cc5c94155bc56bd511be4279758c20719ab9df9d9d9399ce3ff15111be0a4abf",
+      "promptLength": 934
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-two-character-dialogue",
+      "providerType": "grok",
+      "profileId": "grok-comic-clean-plate-v2",
+      "promptSha256": "92c5578c5274707a2f0cd014551793726e761f0b50ca5af95d8e49b5b04cbf4a",
+      "promptLength": 1782
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-group-staging",
+      "providerType": "openai",
+      "profileId": "openai-comic-clean-plate-v2",
+      "promptSha256": "b4aceec8775c3013f8eded646f2de4e4ed108e4eec7b3f63e9be1bb2514780d8",
+      "promptLength": 2085
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-group-staging",
+      "providerType": "doubao",
+      "profileId": "doubao-seedream-comic-clean-plate-v2",
+      "promptSha256": "33bb47daaabcdb7d070f7520f0665644ee2db9f570c2c1e1949ae95fee5bc2f4",
+      "promptLength": 1014
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-group-staging",
+      "providerType": "grok",
+      "profileId": "grok-comic-clean-plate-v2",
+      "promptSha256": "bc470a3e51cabcd137df7f9713ef75fed403dc87fc9a88a9419e47b0b16e89e9",
+      "promptLength": 1853
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-scene-effect",
+      "providerType": "openai",
+      "profileId": "openai-comic-clean-plate-v2",
+      "promptSha256": "8a1669b747221f00ad445ecaf6ea31f853dd8cf9a2d49722740b572e6962e82d",
+      "promptLength": 1929
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-scene-effect",
+      "providerType": "doubao",
+      "profileId": "doubao-seedream-comic-clean-plate-v2",
+      "promptSha256": "82975258f8faf4a0d7b43a8a96b9eb8e7ff4963e2441b540b06840793f87c161",
+      "promptLength": 903
+    },
+    {
+      "promptVersion": "v2",
+      "caseId": "candidate-scene-effect",
+      "providerType": "grok",
+      "profileId": "grok-comic-clean-plate-v2",
+      "promptSha256": "eac9b9012e88814c3295be846ff6d030d451ea9d80fce943ef6ae1e21cb7f8b8",
+      "promptLength": 1697
+    }
+  ],
+  "providerMetadata": {
+    "openai": {
+      "providerId": "openai_image",
+      "modelId": "gpt-image-2",
+      "baseUrl": "https://sub.lydcloud.uk",
+      "credentialConfigured": true
+    },
+    "doubao": {
+      "providerId": "doubao_image",
+      "modelId": "doubao-seedream-4-5-251128",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "credentialConfigured": true
+    },
+    "grok": {
+      "providerId": "grok_image",
+      "modelId": "grok-imagine-image-quality",
+      "baseUrl": "https://sub.lydcloud.uk/v1",
+      "credentialConfigured": true
+    }
+  },
+  "ledgerSummary": {
+    "pending": 30,
+    "started": 0,
+    "completed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "manual_review_required": 0
+  },
+  "issuedProviderRequestCount": 0,
+  "results": []
+}

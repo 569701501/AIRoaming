@@ -95,7 +95,11 @@
 遇到明确阶段任务时，优先按对应 skill 的边界执行。当前已落地：
 
 - `script-import-normalize`：用户上传或粘贴已有剧本时，先识别、校验、规划拆章，再决定是否允许写入。
-- `script-inspiration-seeding`：用户没有固定剧本时，生成 3 个候选方向，不写章节。
-- `script-outline-drafting`：用户选中灵感种子或提出大纲调整要求后，生成固定格式项目级「剧本大纲」Markdown。
-- `script-chapter-drafting`：用户确认项目级剧本大纲后，生成可写入目标章节的固定格式「章节剧本」Markdown。
+- `script-inspiration-seeding`：用户没有固定剧本时，按 P1 质量门生成 3 个候选方向；生产与一次修复均从 Skill references 读取，不写章节。
+- `script-outline-drafting`：用户选中灵感种子、直接给出题材或提出大纲调整要求后，按 P2 因果与结局规则生成固定格式项目级「剧本大纲」Markdown；严格格式由 Shared 契约校验。
+- `script-chapter-drafting`：用户确认项目级剧本大纲并明确要求生成当前章后，读取目标/相邻章节卡和必要的前章正式全文，按 P3 场景契约与 P5 连续性生成单章待确认草稿；切换章节或裸“继续”不触发，生产与一次修复均从 Skill references 读取。
 - `script-chapter-editing`：用户明确要求改写当前章节时，返回完整更新后的固定格式「章节剧本」Markdown。
+- `structure-story-parse`：用户明确要求生成当前章剧情结构时，只从精确的已确认章节剧本提取待确认的摘要、方向、角色、场景和剧情节拍。
+- `storyboard-shot-generate`：用户明确要求生成或调整当前章分镜时，从已确认剧情结构生成独立 comic / motion 双轨待确认 Shot 数组。
+- `image-reference-generate`：按正式角色或场景事实生成角色预览、四视图定稿和无人场景参考图 Prompt。
+- `image-candidate-generate`：从已确认单个漫画 Shot 生成无字、无分格的候选底图 Prompt；provider 只做投递适配。

@@ -1,0 +1,4 @@
+interface:
+  display_name: "剧情结构提取"
+  short_description: "从当前章正式剧本忠实提取角色、场景和剧情节拍结构候选"
+  default_prompt: "Use $structure-story-parse to extract the current confirmed chapter script into a story structure."

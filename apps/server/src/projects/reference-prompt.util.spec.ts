@@ -62,8 +62,20 @@ describe("P23/P24 reference prompts", () => {
     expect(prompt).toContain("reusable environment reference image");
     expect(prompt).toContain("foreground, midground, and background");
     expect(prompt).toContain("wide establishing viewpoint");
-    expect(prompt).toContain("No people");
+    expect(prompt).toContain("exactly zero people");
     expect(prompt).toContain("No text");
     expect(prompt).toContain("雨夜旧港");
+  });
+
+  it("V1 参考 Prompt 仍可单独编译，供后续同语料 A/B", () => {
+    const prompt = buildScenePrompt({
+      name: "雨夜旧港",
+      location: "废弃货运码头",
+      timeOfDay: "深夜",
+      atmosphere: "冷雨",
+      purpose: "建立空间",
+    }, project, "v1");
+    expect(prompt).toContain("This is a clean background asset");
+    expect(prompt).not.toContain("INTENDED USE");
   });
 });

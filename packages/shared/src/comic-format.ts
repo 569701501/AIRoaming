@@ -5,7 +5,6 @@ export interface ComicFormatDefinition {
   value: ComicFormat;
   label: "竖向条漫" | "分页漫画";
   description: string;
-  referencePromptHint: string;
 }
 
 export const COMIC_FORMAT_DEFINITIONS = [
@@ -13,13 +12,11 @@ export const COMIC_FORMAT_DEFINITIONS = [
     value: "vertical_scroll",
     label: "竖向条漫",
     description: "连续纵向阅读；页面规格在后续排版阶段确定。",
-    referencePromptHint: "vertical-scroll comic reading format",
   },
   {
     value: "paged_comic",
     label: "分页漫画",
     description: "按页阅读；不预设页面横竖方向。",
-    referencePromptHint: "page-based comic reading format; orientation unspecified",
   },
 ] as const satisfies readonly ComicFormatDefinition[];
 

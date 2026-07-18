@@ -1654,14 +1654,14 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(promptTask.input.promptSpec).toMatchObject({
       schemaVersion: 2,
       providerType: expect.any(String),
-      providerProfileId: expect.stringContaining("image-instruction-v1"),
+      providerProfileId: expect.stringMatching(/comic-clean-plate-v2$/),
       negativePromptDelivery: "embedded_constraints",
       positivePrompt: expect.stringContaining("主体与静态瞬间"),
-      providerPrompt: expect.stringContaining("主体与静态瞬间"),
+      providerPrompt: expect.stringContaining("雨夜门口"),
       sections: expect.arrayContaining([expect.objectContaining({ key: "visual" })]),
     });
     expect((promptTask.input.promptSpec as { providerPrompt: string }).providerPrompt)
-      .toBe((promptTask.input.promptSpec as { positivePrompt: string }).positivePrompt);
+      .not.toBe((promptTask.input.promptSpec as { positivePrompt: string }).positivePrompt);
     const promptDone = await worker.runOnce("shot-worker");
     expect(promptDone).toMatchObject({ id: promptTask.id, status: "succeeded", output: { targetId: shotId } });
     expect((await prisma.generationTask.findUniqueOrThrow({ where: { id: promptTask.id } })).applicability).toBe("current");

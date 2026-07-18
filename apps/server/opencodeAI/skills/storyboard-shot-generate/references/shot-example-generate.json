@@ -1,0 +1,39 @@
+{
+  "shots": [
+    {
+      "order": 1,
+      "beatId": "{{BEAT_REF}}",
+      "sceneId": "{{SCENE_REF}}",
+      "characterIds": ["{{CHARACTER_REF}}"],
+      "coreAction": "镜头核心动作",
+      "emotion": "情绪",
+      "shotType": "medium",
+      "cameraAngle": "eye_level",
+      "comic": {
+        "panelDescription": "漫画画格锁定一个静态决定性瞬间",
+        "composition": "静态画格构图（人物位置/阅读动线/视觉重心/气泡留白，不含景别机位）",
+        "dialogue": "对白气泡文字，没有就空字符串",
+        "caption": "旁白，没有就空字符串",
+        "panelRhythm": "slow"
+      },
+      "motion": {
+        "visualDescription": "漫剧镜头从开始状态，经主要动作或表演变化，到结束状态",
+        "compositionDesign": "动态构图（人物调度/运动路径/结束位置，不复制漫画画格文案）",
+        "cameraMovement": "push_in",
+        "frameType": "atmosphere",
+        "durationMs": 3000,
+        "durationHint": "约 3s",
+        "voiceLines": [
+          {
+            "characterId": "{{CHARACTER_REF}}",
+            "name": "角色名",
+            "line": "台词内容",
+            "voiceStyle": "声音风格，如低声、克制"
+          }
+        ]
+      },
+      "promptDraft": "给后续图片提示词生成的简短草稿，不是最终 Prompt"
+    }
+  ],
+  "notes": "分镜节奏说明"
+}

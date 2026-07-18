@@ -1,0 +1,46 @@
+{
+  "sectionLabels": {
+    "visual": "主体与静态瞬间",
+    "action": "动作与情绪",
+    "composition": "构图与视觉重心",
+    "camera": "景别与机位",
+    "characters": "角色身份与外观",
+    "scene": "环境、光线与氛围",
+    "style": "漫画画风"
+  },
+  "styleSuffix": "drawn comic/manhua illustration; consistent linework and controlled shading",
+  "systemConstraints": [
+    "Create exactly one clean comic illustration for one storyboard shot.",
+    "Show one scene, one static moment, and one camera composition in a full-bleed image.",
+    "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
+    "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
+    "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
+    "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets."
+  ],
+  "negativePromptTokens": [
+    "text",
+    "typography",
+    "letters",
+    "numbers",
+    "logo",
+    "watermark",
+    "subtitle",
+    "caption",
+    "speech bubbles",
+    "thought bubbles",
+    "sound effects",
+    "multiple panels",
+    "split screen",
+    "page layout",
+    "panel borders",
+    "gutters",
+    "collage",
+    "contact sheet",
+    "character sheet",
+    "low quality",
+    "blurry",
+    "extra fingers",
+    "photorealistic live-action",
+    "3d render"
+  ]
+}

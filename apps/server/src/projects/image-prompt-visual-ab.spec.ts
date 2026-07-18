@@ -12,11 +12,15 @@ import {
   providerSize,
   shouldStopProviderAfterFailure,
   summarizeVisualAbLedger,
+  VISUAL_AB_EVALUATION_POLICY,
 } from "./image-prompt-visual-ab.util.js";
 
-function report() {
+function report(promptVersion: "v1" | "v2" = "v1") {
   const fixture = fileURLToPath(new URL("../../../../tests/fixtures/image-prompt/s4-baseline-v1.json", import.meta.url));
-  return compileImagePromptBaseline(parseImagePromptBaselineSuite(JSON.parse(readFileSync(fixture, "utf8")) as unknown));
+  return compileImagePromptBaseline(
+    parseImagePromptBaselineSuite(JSON.parse(readFileSync(fixture, "utf8")) as unknown),
+    { promptVersion },
+  );
 }
 
 describe("image prompt visual A/B safety plan", () => {
@@ -24,14 +28,15 @@ describe("image prompt visual A/B safety plan", () => {
     const slots = buildVisualAbSlots(report());
     expect(slots).toHaveLength(30);
     expect(new Set(slots.map((slot) => slot.slotId)).size).toBe(30);
-    expect(slots[0]?.slotId).toBe("openai:candidate-no-character-establishing:v1");
-    expect(slots[9]?.slotId).toBe("openai:candidate-scene-effect:v2");
-    expect(slots[10]?.slotId).toBe("doubao:candidate-no-character-establishing:v1");
-    expect(slots[29]?.slotId).toBe("grok:candidate-scene-effect:v2");
+    expect(slots[0]?.slotId).toBe("v1:openai:candidate-no-character-establishing:v1");
+    expect(slots[9]?.slotId).toBe("v1:openai:candidate-scene-effect:v2");
+    expect(slots[10]?.slotId).toBe("v1:doubao:candidate-no-character-establishing:v1");
+    expect(slots[29]?.slotId).toBe("v1:grok:candidate-scene-effect:v2");
   });
 
   it("creates a stable pending ledger without credentials", () => {
     const ledger = createVisualAbLedger(report(), "2026-07-17T00:00:00.000Z");
+    expect(ledger).toMatchObject({ schemaVersion: 2, promptVersion: "v1" });
     expect(ledger.maxProviderRequests).toBe(30);
     expect(ledger.planDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(summarizeVisualAbLedger(ledger)).toEqual({
@@ -46,11 +51,21 @@ describe("image prompt visual A/B safety plan", () => {
     expect(JSON.stringify(ledger)).not.toContain("secretRef");
   });
 
+  it("keeps V1 and V2 in separate ledgers, slot ids, and plan digests", () => {
+    const v1 = createVisualAbLedger(report("v1"), "2026-07-17T00:00:00.000Z");
+    const v2 = createVisualAbLedger(report("v2"), "2026-07-17T00:00:00.000Z");
+    expect(v1.promptVersion).toBe("v1");
+    expect(v2.promptVersion).toBe("v2");
+    expect(v1.slots[0]?.slotId).toMatch(/^v1:/);
+    expect(v2.slots[0]?.slotId).toMatch(/^v2:/);
+    expect(v1.planDigest).not.toBe(v2.planDigest);
+  });
+
   it("matches production provider size conventions", () => {
     expect(providerSize({ width: 1536, height: 1024 }, "openai")).toBe("1536x1024");
     expect(providerSize({ width: 1024, height: 1536 }, "grok")).toBe("1024x1536");
-    expect(providerSize({ width: 1536, height: 1024 }, "doubao")).toBe("2560x1440");
-    expect(providerSize({ width: 1024, height: 1536 }, "doubao")).toBe("1440x2560");
+    expect(providerSize({ width: 1536, height: 1024 }, "doubao")).toBe("1536x1024");
+    expect(providerSize({ width: 1024, height: 1536 }, "doubao")).toBe("1024x1536");
   });
 
   it("classifies output types and provider boundary failures", () => {
@@ -60,5 +75,20 @@ describe("image prompt visual A/B safety plan", () => {
     expect(shouldStopProviderAfterFailure("IMAGE_PROVIDER_EDIT_FAILED:400")).toBe(true);
     expect(shouldStopProviderAfterFailure("fetch failed")).toBe(true);
     expect(shouldStopProviderAfterFailure("local write failed")).toBe(false);
+  });
+
+  it("freezes Grok reference-capability exceptions separately from prompt quality", () => {
+    expect(VISUAL_AB_EVALUATION_POLICY.providerExceptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        caseId: "candidate-no-character-establishing",
+        requiredWarning: "grok_single_reference_omitted_for_aspect_ratio",
+        excludeFromCrossProviderChecks: ["environment"],
+      }),
+      expect.objectContaining({
+        caseId: "candidate-group-staging",
+        requiredWarning: "grok_reference_limit:3",
+        excludeFromCrossProviderChecks: ["identity"],
+      }),
+    ]));
   });
 });

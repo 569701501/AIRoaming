@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { ImageProviderType } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
+import { compileImageReferenceGuidanceForProvider } from "./image-prompt-profile.util.js";
 
 export interface CandidateImageReferenceInput {
   assetId: string;
@@ -54,7 +55,11 @@ export class ImageProviderService {
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
           model: config.modelId,
-          prompt: this.withReferenceGuidance(input.prompt, references),
+          prompt: compileImageReferenceGuidanceForProvider({
+            providerType: "grok",
+            prompt: input.prompt,
+            references,
+          }),
           size: input.size,
           references,
         });
@@ -100,7 +105,11 @@ export class ImageProviderService {
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
         model: config.modelId,
-        prompt: this.withReferenceGuidance(input.prompt, references),
+        prompt: compileImageReferenceGuidanceForProvider({
+          providerType: "openai",
+          prompt: input.prompt,
+          references,
+        }),
         size: input.size,
         quality: input.quality ?? "high",
         outputFormat: input.outputFormat ?? "webp",
@@ -120,7 +129,11 @@ export class ImageProviderService {
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
         model: config.modelId,
-        prompt: this.withReferenceGuidance(input.prompt, references),
+        prompt: compileImageReferenceGuidanceForProvider({
+          providerType: "doubao",
+          prompt: input.prompt,
+          references,
+        }),
         size: input.size,
         references,
       });
@@ -475,7 +488,7 @@ export class ImageProviderService {
         prompt: input.prompt,
         size: input.size,
         response_format: "url",
-        watermark: true,
+        watermark: false,
         stream: false,
         sequential_image_generation: "disabled",
       }),
@@ -511,7 +524,7 @@ export class ImageProviderService {
         image: `data:${input.referenceImage.mimeType};base64,${base64Image}`,
         size: input.size,
         response_format: "url",
-        watermark: true,
+        watermark: false,
         stream: false,
       }),
     });
@@ -548,7 +561,7 @@ export class ImageProviderService {
         image: images.length === 1 ? images[0] : images,
         size: input.size,
         response_format: "url",
-        watermark: true,
+        watermark: false,
         stream: false,
         sequential_image_generation: "disabled",
       }),
@@ -618,20 +631,6 @@ export class ImageProviderService {
       const currentDistance = Math.abs(Math.log(targetRatio / current[1]));
       return currentDistance < bestDistance ? current : best;
     })[0];
-  }
-
-  private withReferenceGuidance(prompt: string, references: CandidateImageReferenceInput[]): string {
-    const guidance = references.map((reference, index) => {
-      const purpose = reference.kind === "character_identity" ? "character identity only" : "scene environment only";
-      return `Image ${index + 1}: ${reference.label}; use as ${purpose}.`;
-    });
-    return [
-      prompt,
-      "",
-      "REFERENCE GUIDANCE",
-      ...guidance,
-      "Do not copy text, borders, gutters, layout, or contact-sheet structure from any reference image.",
-    ].join("\n");
   }
 
   private selectGrokReferences(references: CandidateImageReferenceInput[]): CandidateImageReferenceInput[] {

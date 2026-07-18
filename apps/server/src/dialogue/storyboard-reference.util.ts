@@ -1,5 +1,4 @@
 import type {
-  ProjectCharacter,
   StoryboardJson,
   StoryStructureJson,
 } from "@airoaming/shared";
@@ -22,7 +21,7 @@ function normalize(value: string): string {
 export function resolveStoryboardReferences(
   input: StoryboardJson,
   structure: StoryStructureJson,
-  projectCharacters: readonly ProjectCharacter[],
+  projectCharacters: ReadonlyArray<{ id: string; name: string }>,
 ): StoryboardJson {
   const projectById = new Map(projectCharacters.map((character) => [character.id, character]));
   const projectByName = new Map(projectCharacters.map((character) => [normalize(character.name), character]));

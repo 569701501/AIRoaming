@@ -1,0 +1,4 @@
+interface:
+  display_name: "分镜生成"
+  short_description: "生成当前章节漫画与漫剧双轨分镜，并严格保持正式剧情事实"
+  default_prompt: "Use $storyboard-shot-generate to generate the current chapter storyboard."

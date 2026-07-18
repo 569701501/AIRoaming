@@ -1,0 +1,44 @@
+{
+  "synopsis": "本章剧情摘要",
+  "direction": {
+    "logline": "一句话梗概",
+    "chapterGoal": "本章目标",
+    "coreConflict": "核心冲突",
+    "emotionalArc": "情绪走向",
+    "endingHook": "结尾钩子"
+  },
+  "characters": [
+    {
+      "name": "角色名",
+      "role": "本章职能",
+      "level": "lead",
+      "entityType": "human",
+      "motivation": "本章动机",
+      "relationship": "和本章其他角色的关系",
+      "visualTraits": "可供后续理解的视觉特征",
+      "notes": "备注"
+    }
+  ],
+  "scenes": [
+    {
+      "name": "场景名",
+      "location": "地点",
+      "timeOfDay": "时间",
+      "atmosphere": "氛围",
+      "purpose": "剧情作用"
+    }
+  ],
+  "beats": [
+    {
+      "order": 1,
+      "title": "节拍标题",
+      "summary": "关键事件",
+      "conflict": "这一拍的冲突或转折",
+      "characters": ["角色名"],
+      "sceneName": "场景名",
+      "visualFocus": "轻量画面重点",
+      "outcome": "结果/推动"
+    }
+  ],
+  "notes": "给后续分镜的结构提醒"
+}

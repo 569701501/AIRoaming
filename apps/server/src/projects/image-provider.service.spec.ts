@@ -7,7 +7,7 @@ describe("ImageProviderService.generateCandidateImage", () => {
   });
 
   it("Grok 有两张镜头级引用时使用多图编辑并显式覆盖目标比例", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
       data: [{ b64_json: Buffer.from("generated-image").toString("base64") }],
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
@@ -53,6 +53,9 @@ describe("ImageProviderService.generateCandidateImage", () => {
       { type: "image_url", url: `data:image/webp;base64,${Buffer.from("character").toString("base64")}` },
       { type: "image_url", url: `data:image/webp;base64,${Buffer.from("scene").toString("base64")}` },
     ]);
+    expect(body.prompt).toContain("Image 1 (酷拉皮卡) supplies character identity only");
+    expect(body.prompt).toContain("Image 2 (海边病房) supplies scene identity only");
+    expect(body.prompt).toContain("References do not override the requested subject count");
   });
 
   it("OpenAI 用重复 image[] 提交全部镜头级引用并保留固定尺寸", async () => {
@@ -99,6 +102,8 @@ describe("ImageProviderService.generateCandidateImage", () => {
     const body = init.body as FormData;
     expect(body.get("size")).toBe("1024x1536");
     expect(body.getAll("image[]")).toHaveLength(2);
+    expect(body.get("prompt")).toContain("Image 1 (酷拉皮卡) supplies character identity only");
+    expect(body.get("prompt")).toContain("Ignore the reference background, labels, border, and contact-sheet layout");
   });
 
   it("Seedream 用 image 数组提交多引用并显式保留输出尺寸", async () => {
@@ -142,13 +147,16 @@ describe("ImageProviderService.generateCandidateImage", () => {
     expect(result.usedReferenceAssetIds).toEqual(["asset_character", "asset_scene"]);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://ark.cn-beijing.volces.com/api/v3/images/generations");
-    const body = JSON.parse(String(init.body)) as { image: string[]; size: string; sequential_image_generation: string };
+    const body = JSON.parse(String(init.body)) as { image: string[]; size: string; prompt: string; watermark: boolean; sequential_image_generation: string };
     expect(body.image).toEqual([
       `data:image/webp;base64,${Buffer.from("character").toString("base64")}`,
       `data:image/webp;base64,${Buffer.from("scene").toString("base64")}`,
     ]);
     expect(body.size).toBe("1440x2560");
+    expect(body.watermark).toBe(false);
     expect(body.sequential_image_generation).toBe("disabled");
+    expect(body.prompt).toContain("图 1（酷拉皮卡）：只提供这个角色的身份");
+    expect(body.prompt).toContain("图 2（海边病房）：只提供场景空间身份");
   });
 
   it("Seedream 超过十张引用时按优先级裁剪并记录省略资产", async () => {
@@ -274,5 +282,32 @@ describe("ImageProviderService.generateCandidateImage", () => {
       "candidate_references_omitted:grok:asset_character",
     ]);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.x.ai/v1/images/generations");
+  });
+
+  it("Seedream 文生图与单图编辑都在请求层关闭水印", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      data: [{ b64_json: Buffer.from("generated-image").toString("base64") }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new ImageProviderService({
+      getRuntimeImageProviderSettings: () => ({
+        type: "doubao",
+        apiKey: "test-key",
+        baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+        modelId: "doubao-seedream-4-5",
+      }),
+    } as never);
+
+    await service.generateImage({ prompt: "场景", size: "1536x1024" });
+    await service.editImage({
+      prompt: "角色定稿",
+      size: "1536x1024",
+      referenceImage: { buffer: Buffer.from("reference"), mimeType: "image/webp", fileName: "reference.webp" },
+    });
+
+    const firstBody = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as Record<string, unknown>;
+    const secondBody = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)) as Record<string, unknown>;
+    expect(firstBody).toMatchObject({ watermark: false, size: "1536x1024" });
+    expect(secondBody).toMatchObject({ watermark: false, size: "1536x1024" });
   });
 });

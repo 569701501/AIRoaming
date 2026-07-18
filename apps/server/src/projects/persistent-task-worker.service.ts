@@ -4,11 +4,14 @@ import {
   encodeStoryDocumentV2,
   encodeStoryboardDocumentV2,
   digestCanonicalJson,
+  StoryDocumentCodecV2,
   taskSourceProjectionDigest,
   LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type Digest,
   type GenerationTaskItem,
   type GenerationTaskType,
+  type StoryboardDocumentV2,
+  type StoryStructureJson,
   type TaskSourceProjectionV1,
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
@@ -32,6 +35,26 @@ import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.s
 import { detectImageMimeType, readImageDimensions } from "./image-dimensions.util.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
 import { LayoutPublicationWorkerService } from "./layout-publication-worker.service.js";
+import {
+  buildStoryStructurePromptFromFacts,
+  buildStoryStructureRepairPrompt,
+  buildStoryboardPromptFromFacts,
+  buildStoryboardRepairPrompt,
+} from "../dialogue/dialogue-prompt.util.js";
+import { buildStoryboardDialogueReference } from "../dialogue/storyboard-dialogue-reference.util.js";
+import { normalizeStoryboardJson, parseStoryStructureJson } from "../dialogue/dialogue-json.util.js";
+import {
+  assertStoryStructureQuality,
+  StoryStructureQualityError,
+} from "../dialogue/story-structure-quality.util.js";
+import {
+  assertStoryboardGenerationOutputContract,
+  assertStoryboardQuality,
+  StoryboardQualityError,
+} from "../dialogue/storyboard-quality.util.js";
+import { resolveStoryboardReferences } from "../dialogue/storyboard-reference.util.js";
+import { getErrorMessage } from "../dialogue/dialogue-text.util.js";
+import { toStoryDocumentV2 } from "./versioning/story-document-adapter.util.js";
 
 export interface VersionDocumentTaskOutputV2<TDocument = unknown> {
   readonly schemaVersion: 2;
@@ -676,21 +699,70 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
   }
 
   private async runStoryProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
-    const chapter = await this.prismaService.database().chapter.findUnique({ where: { id: text(context.input.chapterId, "input.chapterId") }, include: { currentScriptVersion: true } });
-    if (!chapter?.currentScriptVersion) throw new Error("SCRIPT_VERSION_MISSING");
+    const chapterId = text(context.input.chapterId, "input.chapterId");
+    const projection = object(context.input.sourceProjection, "input.sourceProjection") as unknown as TaskSourceProjectionV1;
+    const source = projection.sources.find((item) => item.sourceType === "chapter_script_version");
+    if (!source) throw new Error("SCRIPT_VERSION_SOURCE_MISSING");
+    const db = this.prismaService.database();
+    const [chapter, scriptVersion] = await Promise.all([
+      db.chapter.findUnique({
+        where: { id: chapterId },
+        include: { project: true },
+      }),
+      db.chapterScriptVersion.findFirst({
+        where: { id: source.sourceId, chapterId },
+      }),
+    ]);
+    if (!chapter) throw new Error("CHAPTER_NOT_FOUND");
+    if (!scriptVersion) throw new Error("SCRIPT_VERSION_MISSING");
+    if (scriptVersion.sourceDigest !== source.sourceDigest) throw new Error("SCRIPT_VERSION_SOURCE_DIGEST_MISMATCH");
     const instruction = typeof context.input.instruction === "string" ? context.input.instruction : "";
+    const sessionId = await this.openCode.createSession(`story_parse:${chapter.id}`);
+    const prompt = buildStoryStructurePromptFromFacts({
+      project: {
+        name: chapter.project.name,
+        storyTitle: chapter.project.storyTitle ?? chapter.project.name,
+      },
+      chapter: {
+        title: chapter.title,
+        status: chapter.milestoneStatus,
+        currentScriptVersionId: scriptVersion.id,
+        sourceText: scriptVersion.sourceText,
+      },
+      // 持久任务只使用 sourceProjection 已冻结的事实；当前任务协议尚未冻结 Outline，
+      // 因而不能在运行时读取可能已经变化的项目大纲。
+      scriptOutline: null,
+    }, instruction.trim() || "生成当前章节剧情结构");
+
+    const validate = (content: string) => {
+      const structure = parseStoryStructureJson(
+        content,
+        chapter.id,
+        chapter.title,
+        scriptVersion.id,
+      );
+      assertStoryStructureQuality(structure, scriptVersion.sourceText);
+      return toStoryDocumentV2(structure);
+    };
+
     const response = await this.openCode.sendMessage({
-      sessionId: await this.openCode.createSession(`story_parse:${chapter.id}`),
-      content: [
-        "请把下面章节剧本转换为严格的 StoryDocumentV2 JSON。只输出 JSON 对象，不要 Markdown。",
-        "必须保留 schemaVersion=2、chapterId，并为 direction、characters、scenes、beats、notes 提供完整字段。",
-        `用户补充要求：${instruction || "无"}`,
-        `chapterId=${chapter.id}`,
-        "剧本：",
-        chapter.currentScriptVersion.sourceText,
-      ].join("\n\n"),
+      sessionId,
+      content: prompt,
     });
-    return parseProviderJson(response.content);
+    try {
+      return validate(response.content);
+    } catch (error) {
+      const repaired = await this.openCode.sendMessage({
+        sessionId,
+        content: buildStoryStructureRepairPrompt({
+          originalPrompt: prompt,
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityIssues: error instanceof StoryStructureQualityError ? error.issues : undefined,
+        }),
+      });
+      return validate(repaired.content);
+    }
   }
 
   private async runCharacterReferenceProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
@@ -721,21 +793,103 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
   }
 
   private async runShotProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
-    const chapter = await this.prismaService.database().chapter.findUnique({ where: { id: text(context.input.chapterId, "input.chapterId") }, include: { currentStoryVersion: true } });
-    if (!chapter?.currentStoryVersion) throw new Error("STORY_VERSION_MISSING");
-    const instruction = typeof context.input.instruction === "string" ? context.input.instruction : "";
-    const response = await this.openCode.sendMessage({
-      sessionId: await this.openCode.createSession(`shot_generate:${chapter.id}`),
-      content: [
-        "请根据下面 StoryDocumentV2 生成严格的 StoryboardDocumentV2 JSON。只输出 JSON 对象，不要 Markdown。",
-        "如果需要使用镜头 id，只能使用已有镜头 id；无法确定时返回 shots=[]，不要捏造数据库 id。",
-        `用户补充要求：${instruction || "无"}`,
-        `chapterId=${chapter.id}`,
-        "故事结构：",
-        JSON.stringify(chapter.currentStoryVersion.documentJson),
-      ].join("\n\n"),
+    const chapter = await this.prismaService.database().chapter.findUnique({
+      where: { id: text(context.input.chapterId, "input.chapterId") },
+      include: {
+        project: true,
+        currentStoryVersion: { include: { sourceScriptVersion: true } },
+      },
     });
-    return parseProviderJson(response.content);
+    if (!chapter?.currentStoryVersion) throw new Error("STORY_VERSION_MISSING");
+    if (!chapter.currentStoryVersion.sourceScriptVersion) throw new Error("STORY_SOURCE_SCRIPT_VERSION_MISSING");
+    const story = StoryDocumentCodecV2.parse(chapter.currentStoryVersion.documentJson);
+    if (story.chapterId !== chapter.id) throw new Error("STORY_VERSION_CHAPTER_MISMATCH");
+    const sourceText = chapter.currentStoryVersion.sourceScriptVersion.sourceText.trim();
+    const structure: StoryStructureJson = {
+      schemaVersion: 1,
+      chapterId: chapter.id,
+      chapterTitle: chapter.title,
+      sourceScriptVersionId: chapter.currentStoryVersion.sourceScriptVersionId,
+      synopsis: story.synopsis,
+      direction: story.direction,
+      characters: story.characters,
+      scenes: story.scenes,
+      beats: story.beats,
+      notes: story.notes,
+      createdAt: chapter.currentStoryVersion.createdAt.toISOString(),
+      updatedAt: chapter.currentStoryVersion.updatedAt.toISOString(),
+    };
+    const dialogueReference = buildStoryboardDialogueReference(sourceText, structure);
+    const instruction = typeof context.input.instruction === "string" ? context.input.instruction : "";
+    const sessionId = await this.openCode.createSession(`shot_generate:${chapter.id}`);
+    const prompt = buildStoryboardPromptFromFacts({
+      project: {
+        name: chapter.project.name,
+        storyTitle: chapter.project.storyTitle ?? chapter.project.name,
+        comicFormat: chapter.project.comicFormat,
+        artStyle: chapter.project.artStyle,
+      },
+      chapter: {
+        title: chapter.title,
+        status: chapter.milestoneStatus,
+        currentStoryVersionId: chapter.currentStoryVersion.id,
+        sourceText,
+      },
+      structure: story,
+    }, instruction.trim() || "生成当前章节完整分镜", "generate", dialogueReference);
+
+    const validate = (content: string): StoryboardDocumentV2 => {
+      const providerOutput = parseProviderJson(content);
+      assertStoryboardGenerationOutputContract(providerOutput);
+      const storyboard = normalizeStoryboardJson(providerOutput, chapter.id, chapter.title, {
+        sourceStoryVersionId: chapter.currentStoryVersion!.id,
+      });
+      assertStoryboardQuality(storyboard, structure, dialogueReference);
+      const resolved = resolveStoryboardReferences(
+        storyboard,
+        structure,
+        story.characters.map((character) => ({ id: character.projectCharacterId, name: character.name })),
+      );
+      return {
+        schemaVersion: 2,
+        chapterId: chapter.id,
+        shots: resolved.shots.map((shot) => ({
+          id: randomUUID(),
+          order: shot.order,
+          beatId: shot.beatId,
+          sceneId: shot.sceneId,
+          characterIds: shot.characterIds,
+          coreAction: shot.coreAction,
+          emotion: shot.emotion,
+          shotType: shot.shotType,
+          cameraAngle: shot.cameraAngle,
+          comic: shot.comic,
+          motion: shot.motion,
+          promptDraft: shot.promptDraft,
+        })),
+        notes: resolved.notes,
+      };
+    };
+
+    const response = await this.openCode.sendMessage({
+      sessionId,
+      content: prompt,
+    });
+    try {
+      return validate(response.content);
+    } catch (error) {
+      const repaired = await this.openCode.sendMessage({
+        sessionId,
+        content: buildStoryboardRepairPrompt({
+          originalPrompt: prompt,
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityIssues: error instanceof StoryboardQualityError ? error.issues : undefined,
+          mode: "generate",
+        }),
+      });
+      return validate(repaired.content);
+    }
   }
 
   private async runShotPromptProvider(context: PersistentTaskHandlerContext): Promise<unknown> {

@@ -26,6 +26,7 @@ import {
   providerSize,
   shouldStopProviderAfterFailure,
   summarizeVisualAbLedger,
+  VISUAL_AB_EVALUATION_POLICY,
   visualAbPlanDigest,
   type VisualAbLedger,
   type VisualAbSlot,
@@ -55,6 +56,7 @@ interface ReferenceManifestItem {
 
 interface AttemptResult {
   slotId: string;
+  promptVersion: "v1" | "v2";
   providerType: ImageProviderType;
   caseId: string;
   variant: number;
@@ -95,6 +97,14 @@ function arg(name: string): string | undefined {
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(name);
+}
+
+function requiredPromptVersion(): "v1" | "v2" {
+  const value = arg("--prompt-version");
+  if (value !== "v1" && value !== "v2") {
+    throw new Error("VISUAL_AB_PROMPT_VERSION_REQUIRED:v1|v2");
+  }
+  return value;
 }
 
 function safeError(error: unknown): string {
@@ -154,7 +164,12 @@ async function readOrCreateLedger(
     ledger = createVisualAbLedger(report);
   }
   const expected = visualAbPlanDigest(report, createVisualAbLedger(report).slots);
-  if (ledger.schemaVersion !== 1 || ledger.suiteId !== report.suiteId || ledger.planDigest !== expected) {
+  if (
+    ledger.schemaVersion !== 2
+    || ledger.suiteId !== report.suiteId
+    || ledger.promptVersion !== report.productionBaseline.promptVersion
+    || ledger.planDigest !== expected
+  ) {
     throw new Error("VISUAL_AB_LEDGER_PLAN_MISMATCH");
   }
   const now = new Date().toISOString();
@@ -211,9 +226,20 @@ async function writeReport(
       credentialConfigured: Boolean(stored.secretRef && stored.keyFingerprint),
     }];
   }));
+  const promptManifest = report.candidateCases.flatMap((candidate) =>
+    candidate.providerProfiles.map((profile) => ({
+      promptVersion: report.productionBaseline.promptVersion,
+      caseId: candidate.caseId,
+      providerType: profile.providerType,
+      profileId: profile.profileId,
+      promptSha256: createHash("sha256").update(profile.prompt, "utf8").digest("hex"),
+      promptLength: profile.prompt.length,
+    })),
+  );
   await writeJsonAtomically(path.join(outputDir, "run-report.json"), {
     schemaVersion: 1,
     suiteId: report.suiteId,
+    promptVersion: report.productionBaseline.promptVersion,
     planDigest: ledger.planDigest,
     generatedAt: new Date().toISOString(),
     requestPolicy: {
@@ -224,6 +250,8 @@ async function writeReport(
       activeProviderMutated: false,
       formalProjectDataMutated: false,
     },
+    evaluationPolicy: VISUAL_AB_EVALUATION_POLICY,
+    promptManifest,
     providerMetadata,
     ledgerSummary: summarizeVisualAbLedger(ledger),
     issuedProviderRequestCount: results.filter((item) => item.providerRequestIssued).length,
@@ -243,6 +271,7 @@ function markRemainingProviderSlotsSkipped(
     slot.status = "skipped";
     results.push({
       slotId: slot.slotId,
+      promptVersion: slot.promptVersion,
       providerType: slot.providerType,
       caseId: slot.caseId,
       variant: slot.variant,
@@ -257,13 +286,17 @@ function markRemainingProviderSlotsSkipped(
 async function main(): Promise<void> {
   const defaultFixture = fileURLToPath(new URL("../../../../tests/fixtures/image-prompt/s4-baseline-v1.json", import.meta.url));
   const workspaceRoot = path.resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
+  const promptVersion = requiredPromptVersion();
   const defaultOutputDir = path.join(
     workspaceRoot,
-    "文档/05_执行与记录/任务记录/2026-07-17_真实图片AB/evidence/runtime",
+    `文档/05_执行与记录/任务记录/2026-07-17_图片提示词专业化/evidence/runtime/${promptVersion}`,
   );
   const fixturePath = path.resolve(arg("--fixture") ?? defaultFixture);
   const outputDir = path.resolve(arg("--output-dir") ?? defaultOutputDir);
-  const referenceDir = path.resolve(arg("--reference-dir") ?? path.join(path.dirname(outputDir), "references"));
+  const referenceDir = path.resolve(arg("--reference-dir") ?? path.join(
+    workspaceRoot,
+    "文档/05_执行与记录/任务记录/2026-07-17_真实图片AB/evidence/references",
+  ));
   const settingsPath = path.resolve(arg("--settings") ?? path.join(workspaceRoot, "workspace/settings/app-settings.json"));
   const execute = hasFlag("--execute");
   const selectedProviders = arg("--providers")?.split(",").filter(Boolean) as ImageProviderType[] | undefined;
@@ -273,7 +306,7 @@ async function main(): Promise<void> {
   }
 
   const suite = parseImagePromptBaselineSuite(JSON.parse(await readFile(fixturePath, "utf8")) as unknown);
-  const report = compileImagePromptBaseline(suite);
+  const report = compileImagePromptBaseline(suite, { promptVersion });
   if (!report.summary.passed) throw new Error("VISUAL_AB_BASELINE_NOT_PASSED");
   await mkdir(outputDir, { recursive: true });
   const referenceManifest = await prepareReferences(referenceDir, outputDir);
@@ -292,6 +325,7 @@ async function main(): Promise<void> {
     if (slot.status === "manual_review_required" && !results.some((item) => item.slotId === slot.slotId)) {
       results.push({
         slotId: slot.slotId,
+        promptVersion: slot.promptVersion,
         providerType: slot.providerType,
         caseId: slot.caseId,
         variant: slot.variant,
@@ -307,10 +341,11 @@ async function main(): Promise<void> {
   if (!execute) {
     process.stdout.write(`${JSON.stringify({
       mode: "dry-run",
+      promptVersion,
       outputDir,
       referenceCount: referenceManifest.size,
       ledgerSummary: summarizeVisualAbLedger(ledger),
-      next: "Pass --execute to issue provider requests.",
+      next: `After explicit cost authorization, pass --prompt-version ${promptVersion} --execute to issue at most 30 provider requests.`,
     }, null, 2)}\n`);
     return;
   }
@@ -350,7 +385,7 @@ async function main(): Promise<void> {
       slot.status = "started";
       ledger.updatedAt = startedAt;
       await writeJsonAtomically(ledgerPath, ledger);
-      process.stdout.write(`${JSON.stringify({ event: "request_started", slotId: slot.slotId, providerType, caseId: slot.caseId, variant: slot.variant })}\n`);
+      process.stdout.write(`${JSON.stringify({ event: "request_started", promptVersion, slotId: slot.slotId, providerType, caseId: slot.caseId, variant: slot.variant })}\n`);
       try {
         const providerResult = await service.generateCandidateImage({
           prompt: profile.prompt,
@@ -372,6 +407,7 @@ async function main(): Promise<void> {
         results = results.filter((item) => item.slotId !== slot.slotId);
         results.push({
           slotId: slot.slotId,
+          promptVersion: slot.promptVersion,
           providerType,
           caseId: slot.caseId,
           variant: slot.variant,
@@ -399,6 +435,7 @@ async function main(): Promise<void> {
         results = results.filter((item) => item.slotId !== slot.slotId);
         results.push({
           slotId: slot.slotId,
+          promptVersion: slot.promptVersion,
           providerType,
           caseId: slot.caseId,
           variant: slot.variant,
@@ -426,6 +463,7 @@ async function main(): Promise<void> {
 
   process.stdout.write(`${JSON.stringify({
     mode: "execute",
+    promptVersion,
     outputDir,
     ledgerSummary: summarizeVisualAbLedger(ledger),
     issuedProviderRequestCount: results.filter((item) => item.providerRequestIssued).length,

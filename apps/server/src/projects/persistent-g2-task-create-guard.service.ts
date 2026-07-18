@@ -219,6 +219,8 @@ export class PersistentG2TaskCreateGuardService {
       providerType: this.imageProvider.getActiveProviderType(),
       positivePrompt: content.positivePrompt,
       negativePrompt: content.negativePrompt,
+      sections: content.sections,
+      systemConstraints: content.systemConstraints,
     });
     const referenceAssets = [
       ...document.sourceSnapshot.characters

@@ -17,7 +17,7 @@ description: 用户从 3 个灵感种子中选定方向或直接给出明确题�
 
 ## 输出要求
 
-只返回 Markdown 正文，不返回 JSON，不包代码块。
+只返回 Markdown 正文，不返回 JSON，不包代码块。精确生产模板位于 `references/outline-prompt.md`，由运行层与 Shared 固定格式契约组合。
 
 固定格式：
 
@@ -78,6 +78,13 @@ description: 用户从 3 个灵感种子中选定方向或直接给出明确题�
 - P2 失败时，只允许针对问题代码完整重写一次大纲；可以调整薄弱的情节概要和章节卡语义，但必须保持用户题材、核心承诺与固定格式。
 - 第二次仍未通过时停止本轮，不保存弱大纲，也不进入用户确认。
 
+生产运行必须按来源使用：
+
+- `references/mode-topic.md`：用户直接给出题材或方向。
+- `references/mode-seed.md`：用户选中灵感种子，或在确认前要求重新生成大纲。
+- `references/repair-quality-failure.md`：P2 质量失败时的完整定向重写。
+- `references/repair-validation-failure.md`：严格 Markdown 契约失败时的纯格式修复。
+
 ## 禁止事项
 
 - 不写章节正文。
@@ -85,3 +92,9 @@ description: 用户从 3 个灵感种子中选定方向或直接给出明确题�
 - 不在章节卡中生成场景列表或剧情节拍。
 - 不把用户示例中的人名、题材、剧情或关系套用到当前项目。
 - 不声称已经直接操作本地文件；保存由 AI漫游后端受控工具完成。
+
+## 资产边界
+
+- Skill 及 `references/` 是 P2 角色、创作方法、输出语义与修复指令的事实源。
+- Shared `creative.outline/1.0` 契约负责固定 Markdown 栏目、明确章数、等量章节卡和章序的硬校验。
+- TypeScript 只负责注入模式、当前项目事实、用户输入、选中灵感、上一版大纲，并执行 Validator 和最多一次修复。

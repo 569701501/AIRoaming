@@ -13,7 +13,6 @@ import {
   SCRIPT_INSPIRATION_SEED_COUNT,
   extractChapterScriptTitle,
   getChapterScriptFormatPrompt,
-  getScriptOutlineFormatPrompt,
   parseChapterScriptMarkdownV1,
   parseScriptOutlineMarkdownV1,
   serializeChapterScriptMarkdownV1,
@@ -56,16 +55,17 @@ import {
   toScriptFromOutlineTarget,
 } from "./dialogue-intent.util.js";
 import {
+  buildChapterDraftRepairPrompt,
   buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
+  buildInspirationSeedsRepairPrompt,
   buildScriptFromOutlinePrompt,
-  buildScriptFromSeedPrompt,
   buildScriptOutlineFromSeedPrompt,
   buildScriptOutlineFromTopicPrompt,
+  buildScriptOutlineRepairPrompt,
 } from "./dialogue-prompt.util.js";
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
-  ensureChapterMarkdown,
   formatRevisionSource,
   getErrorMessage,
   summarizeDraftUpdate,
@@ -862,62 +862,6 @@ export class ScriptDialogueService {
     };
   }
 
-  private async createGenerateScriptFromSeedToolResult(
-    turn: DialogueTurn,
-    input: SendDialogueMessageRequest,
-    seed: ScriptInspirationSeed,
-    seedPrompt: string,
-    signal?: AbortSignal,
-  ): Promise<DialogueToolResult> {
-    const chapterId = turn.snapshot.currentChapter?.id ?? turn.thread.chapterId;
-    if (!chapterId) {
-      return this.createFailedToolResult(turn, "generate_script_from_seed", "当前项目还没有可写入的章节，请先创建或打开第 1 章。");
-    }
-
-    const toolCallId = randomUUID();
-    let sourceText: string;
-    try {
-      sourceText = await this.generateScriptFromSeedWithAI(turn, input, seed, seedPrompt, signal);
-    } catch (error) {
-      return this.createFailedToolResult(
-        turn,
-        "generate_script_from_seed",
-        `章节草稿生成失败：${getErrorMessage(error)}。本次没有写入章节。`,
-      );
-    }
-
-    const chapterTitle = extractChapterScriptTitle(sourceText) ?? `第 1 章：${seed.title}`;
-    const result = await this.projectsService.writeChapterDraftFromAI(turn.thread.projectId, chapterId, {
-      sourceText,
-      title: chapterTitle,
-      summary: `根据灵感种子「${seed.title}」生成 ${chapterTitle} 草稿。`,
-      threadId: turn.thread.id,
-      messageId: turn.assistantMessage.id,
-      toolCallId,
-      operation: "generate_script_from_seed",
-    });
-    const now = new Date().toISOString();
-
-    return {
-      id: randomUUID(),
-      projectId: turn.thread.projectId,
-      threadId: turn.thread.id,
-      messageId: turn.assistantMessage.id,
-      toolCallId,
-      tool: "generate_script_from_seed",
-      status: "succeeded",
-      summary: `已选择方向「${seed.title}」，并生成 ${result.chapter.title} 的草稿。草稿在右侧待确认，采用后才会覆盖正式正文。来源：${formatRevisionSource(result.revision)}`,
-      chapters: result.chapters,
-      currentChapterId: result.chapter.id,
-      currentChapter: result.chapter,
-      analysis: null,
-      inspirationSeeds: null,
-      scriptOutline: null,
-      revision: result.revision,
-      createdAt: now,
-    };
-  }
-
   // ---------- 章节草稿更新 ----------
 
   private async tryHandleChapterDraftUpdate(
@@ -1125,22 +1069,11 @@ export class ScriptDialogueService {
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId: openCodeSessionId,
         model: input.model,
-        content: qualityFailure
-          ? [
-              "上一次输出格式合法，但未通过 P1 灵感质量门。允许重新设计薄弱候选，但必须保持用户题材方向和固定六字段格式。",
-              "请根据问题代码重新生成完整 3 项；必须让主角压力、冲突发动机和视觉前提形成实质差异，不能只换标题、人名或措辞。不要输出评分、诊断、代码块或解释。",
-              "只返回严格 JSON；顶层只能有 seeds；seeds 必须恰好 3 项；每项只含 title、genreTags、logline、keyConflict、visualHook、firstChapterDirection。",
-              `质量问题：${error.issues.join("、")}`,
-              "待重写输出：",
-              response.content,
-            ].join("\n")
-          : [
-              "上一次输出未通过 creative.ideation/1.0 格式校验。只修复格式，不改变三套创意的语义。",
-              "只返回严格 JSON；顶层只能有 seeds；seeds 必须恰好 3 项；每项只含 title、genreTags、logline、keyConflict、visualHook、firstChapterDirection。不要代码块或解释。",
-              `校验错误：${getErrorMessage(error)}`,
-              "待修复输出：",
-              response.content,
-            ].join("\n"),
+        content: buildInspirationSeedsRepairPrompt({
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityIssues: qualityFailure ? error.issues : undefined,
+        }),
         signal,
       });
       return validate(repaired.content);
@@ -1216,26 +1149,13 @@ export class ScriptDialogueService {
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId: openCodeSessionId,
         model: input.model,
-        content: qualityFailure
-          ? [
-              "上一次输出格式合法，但未通过 P3 场景契约 / P5 连续性质量门。允许完整重写薄弱场景，但必须保持目标章节卡、上一章正式事实、章序标题和固定章节格式。",
-              "每场戏要有有效剧情描写、人物动作、阻力或选择、转折和可见退出变化；目标、冲突、关键转折与结尾钩子必须在正文中出现，不能只留在顶部摘要。第 2 章以后必须承接上一轮提供的完整前章正式正文。",
-              "请按问题代码重新生成完整本章；不要输出评分、诊断、代码块、额外栏目、剧情结构或分镜。",
-              `质量问题：${error.issues.join("、")}`,
-              `目标章节卡：${JSON.stringify(context.targetCard)}`,
-              `二级标题必须精确为：## ${expectedHeading}`,
-              getChapterScriptFormatPrompt(),
-              "待重写输出：",
-              response.content,
-            ].join("\n")
-          : [
-              "上一次输出未通过 creative.chapter-draft/1.0 格式校验。只修复格式，不新增、删减或改写剧情事实。",
-              `二级标题必须精确为：## ${expectedHeading}`,
-              getChapterScriptFormatPrompt(),
-              `校验错误：${getErrorMessage(error)}`,
-              "待修复输出：",
-              response.content,
-            ].join("\n"),
+        content: buildChapterDraftRepairPrompt({
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityIssues: qualityFailure ? error.issues : undefined,
+          expectedHeading,
+          targetCard: context.targetCard,
+        }),
         signal,
       });
       return validate(repaired.content);
@@ -1261,44 +1181,15 @@ export class ScriptDialogueService {
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId,
         model: input.model,
-        content: qualityFailure
-          ? [
-              "上一次输出格式合法，但未通过 P2 因果大纲与结局方向质量门。保持用户题材、核心承诺和固定大纲格式，重新写清薄弱的因果推进、章节变化或结局兑现。",
-              "允许调整情节概要和章节卡的语义内容，但不要新增栏目、详细场景、剧情节拍或章节正文。必须返回完整大纲，不要输出评分、诊断、代码块或解释。",
-              `质量问题：${error.issues.join("、")}`,
-              getScriptOutlineFormatPrompt(),
-              "待重写输出：",
-              sourceText,
-            ].join("\n")
-          : [
-              "上一次输出未通过 creative.outline/1.0 格式校验。只修复格式，不改变故事方向、角色、章数或结局。",
-              getScriptOutlineFormatPrompt(),
-              `校验错误：${getErrorMessage(error)}`,
-              "待修复输出：",
-              sourceText,
-            ].join("\n"),
+        content: buildScriptOutlineRepairPrompt({
+          invalidOutput: sourceText,
+          validationError: getErrorMessage(error),
+          qualityIssues: qualityFailure ? error.issues : undefined,
+        }),
         signal,
       });
       return normalize(repaired.content);
     }
-  }
-
-  private async generateScriptFromSeedWithAI(
-    turn: DialogueTurn,
-    input: SendDialogueMessageRequest,
-    seed: ScriptInspirationSeed,
-    seedPrompt: string,
-    signal?: AbortSignal,
-  ): Promise<string> {
-    const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
-    const response = await this.openCodeRuntimeService.sendMessage({
-      sessionId: openCodeSessionId,
-      model: input.model,
-      content: buildScriptFromSeedPrompt(turn, input, seed, seedPrompt),
-      signal,
-    });
-
-    return ensureChapterMarkdown(response.content, seed.title);
   }
 
   private async rewriteChapterDraftWithAI(

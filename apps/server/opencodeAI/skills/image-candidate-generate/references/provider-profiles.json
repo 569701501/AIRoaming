@@ -1,0 +1,157 @@
+{
+  "openai": {
+    "legacyProfileId": "openai-image-instruction-v1",
+    "profileId": "openai-comic-clean-plate-v2",
+    "namesSeparator": ", ",
+    "defaultAction": "the requested storyboard action",
+    "defaultComposition": "the requested composition",
+    "separator": "\n",
+    "fallbackTemplate": "INTENDED USE\nCreate one production-ready clean comic-panel image from the source brief below.\n\nSOURCE BRIEF\n{{SOURCE_PROMPT}}\n\nOUTPUT REQUIREMENTS\n{{OUTPUT_CONTRACT}}",
+    "blocks": [
+      { "label": "INTENDED USE", "source": "literal", "value": "Create one production-ready clean plate for exactly one comic storyboard shot. Typography and page layout will be added later." },
+      { "label": "SCENE AND BACKGROUND", "source": "scene" },
+      { "label": "SUBJECTS AND IDENTITY", "source": "characters" },
+      { "label": "KEY VISUAL MOMENT", "source": "visual" },
+      { "label": "ACTION AND EMOTION", "source": "action" },
+      { "label": "COMPOSITION AND PLACEMENT", "source": "composition" },
+      { "label": "CAMERA", "source": "camera" },
+      { "label": "STYLE", "source": "style" },
+      { "label": "SHOT-SPECIFIC CONTRACT", "source": "shotContract" },
+      { "label": "OUTPUT REQUIREMENTS", "source": "outputContract" }
+    ],
+    "outputContract": [
+      "Return one full-bleed image showing one scene, one static instant, and one camera composition.",
+      "Keep supplied character identities, costumes, props, environment landmarks, spatial relationships, and light direction consistent.",
+      "Use a clear focal subject, readable foreground/midground/background separation, and intentional negative space.",
+      "Render no text, letters, numbers, logos, watermarks, UI, subtitles, captions, speech or thought bubbles, or sound effects.",
+      "Do not create multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
+      "Use drawn comic/manhua illustration, not live-action photography, cosplay, or a 3D render."
+    ],
+    "referenceGuidance": {
+      "heading": "REFERENCE ROLES",
+      "character": "- Image {{INDEX}} ({{LABEL}}) supplies character identity only. Preserve face, facial features, hair silhouette, age, body proportions, costume construction, fixed colors, and recurring accessories. Pose, expression, camera angle, and crop may change for this shot. Ignore the reference background, labels, border, and contact-sheet layout.",
+      "scene": "- Image {{INDEX}} ({{LABEL}}) supplies scene identity only. Preserve landmarks, entrances/exits, depth relationships, materials, and key-light direction. Camera and crop may change for this shot. Do not copy people, text, borders, or layout from the reference.",
+      "closing": "References do not override the requested subject count, actor-recipient relation, placement, or decisive moment in the main brief."
+    },
+    "shotContract": {
+      "environment": [
+        "Show exactly zero people: no crowds, pedestrians, silhouettes, human reflections, portraits, or drivers presented as subjects.",
+        "Make scene landmarks, entrances and exits, foreground/midground/background depth, and key-light direction unambiguous; preserve usable staging and crop space."
+      ],
+      "single": [
+        "Show exactly one subject, {{NAMES}}; do not duplicate the subject or add bystanders.",
+        "Only {{NAMES}} performs this action: “{{ACTION}}”. Keep hands, gaze, and prop relationships faithful to it.",
+        "Match pose, expression, body crop, placement, and negative space to this composition: “{{COMPOSITION}}”."
+      ],
+      "pair": [
+        "Show exactly two distinct subjects, {{NAMES}}; show each once, never merge identities, and add no third person.",
+        "Preserve the initiator, recipient, and reaction in this action: “{{ACTION}}”. Never swap who acts and who is affected.",
+        "Preserve left/right and front/back placement, eye line, contact point, and negative space from this composition: “{{COMPOSITION}}”."
+      ],
+      "group": [
+        "Show exactly {{SUBJECT_COUNT}} distinct subjects: {{NAMES}}. Show each once; omit, duplicate, merge, or add nobody.",
+        "Preserve each subject’s identity, costume, relative position, and narrative role from this composition: “{{COMPOSITION}}”.",
+        "Preserve protection, obstruction, confrontation, or cooperation roles in this action: “{{ACTION}}”. Never exchange character duties."
+      ],
+      "shared": [
+        "Show the single clearest decisive instant only; do not combine before, during, and after states in one image.",
+        "If the shot contains light, electricity, weather, smoke, explosion, or environmental change, show one clear source, visible effect, and affected target; align the key light with that event."
+      ]
+    }
+  },
+  "doubao": {
+    "legacyProfileId": "doubao-image-instruction-v1",
+    "profileId": "doubao-seedream-comic-clean-plate-v2",
+    "namesSeparator": "、",
+    "defaultAction": "当前分镜动作",
+    "defaultComposition": "当前构图",
+    "separator": "：",
+    "fallbackTemplate": "用途：生成一张可直接用于漫画后续排版的干净单格画面。\n画面要求：{{SOURCE_PROMPT}}\n硬性成图要求：只生成一张无边框完整画面；不生成文字、数字、水印、标志、字幕、对话框、拟声词、界面、拼贴或多格漫画。",
+    "blocks": [
+      { "label": "用途", "source": "literal", "value": "生成一张漫画分镜的干净单格底图，后续再单独添加对白、字幕和页面排版。" },
+      { "label": "场景环境", "source": "scene" },
+      { "label": "人物主体", "source": "characters" },
+      { "label": "关键画面瞬间", "source": "visual" },
+      { "label": "动作与情绪", "source": "action" },
+      { "label": "构图与人物位置", "source": "composition" },
+      { "label": "景别与机位", "source": "camera" },
+      { "label": "漫画画风", "source": "style" },
+      { "label": "当前镜头合同", "source": "shotContract" },
+      { "label": "硬性成图要求", "source": "outputContract" }
+    ],
+    "outputContract": [
+      "只生成一张无边框完整画面，只呈现一个场景、一个静态瞬间和一个机位。",
+      "保持角色脸型、发型、年龄感、服装、配饰、道具，以及场景地标、空间关系和主光方向一致。",
+      "主体层级清楚，前景、中景、背景可读，并保留后续排版需要的负空间。",
+      "不生成任何文字、字母、数字、水印、标志、字幕、说明框、对话框、思考框、拟声词或界面。",
+      "不生成多格漫画、分屏、边框、网格、拼贴、九宫格、联系表或角色设定表。",
+      "必须是绘制感漫画/条漫插画，不是真人照片、Cosplay 照片或 3D 渲染。"
+    ],
+    "referenceGuidance": {
+      "heading": "参考图职责",
+      "character": "- 图 {{INDEX}}（{{LABEL}}）：只提供这个角色的身份。必须保持脸型、五官、发型、年龄感、体型、服装结构、固定配色和关键配饰；允许按当前分镜改变姿势、表情、机位和裁切；忽略参考图白底、排版、标签、边框和其他无关内容。",
+      "scene": "- 图 {{INDEX}}（{{LABEL}}）：只提供场景空间身份。必须保持地标、出入口、前后空间关系、材质和主光方向；允许按当前分镜改变机位和裁切；不要复制参考图中的人物、文字、边框或排版。",
+      "closing": "参考图只提供指定身份或空间，不改变当前 Prompt 中的人物数量、动作主客体、站位和画面时刻。"
+    },
+    "shotContract": {
+      "environment": [
+        "画面必须是零人物：不出现人群、路人、剪影、人形倒影、人物肖像或以驾驶者为主体的车辆。",
+        "场景地标、出入口、前中后景和主光方向必须清楚，并保留后续人物调度和镜头裁切空间。"
+      ],
+      "single": [
+        "画面只能出现一个指定角色：{{NAMES}}；不得复制角色或添加路人。",
+        "只有{{NAMES}}执行动作“{{ACTION}}”，手部、视线和道具关系必须准确对应。",
+        "姿态、表情、身体取景、站位和留白遵循构图“{{COMPOSITION}}”。"
+      ],
+      "pair": [
+        "画面准确出现两个不同角色：{{NAMES}}；每人只出现一次，不得合并身份或添加第三人。",
+        "保持动作“{{ACTION}}”中的发起者、承受者和反应者，不得交换谁在行动、谁被影响。",
+        "两人的左右、前后、视线轴、接触点与负空间遵循构图“{{COMPOSITION}}”。"
+      ],
+      "group": [
+        "画面准确出现 {{SUBJECT_COUNT}} 个不同角色：{{NAMES}}；每人只出现一次，不得漏人、复制、合并身份或添加路人。",
+        "逐人保持身份、服装、相对站位和叙事职责，遵循构图“{{COMPOSITION}}”。",
+        "保持动作“{{ACTION}}”中的保护、阻拦、对抗或协作关系，不得互换角色职责。"
+      ],
+      "shared": [
+        "只呈现动作最清晰的一个决定性瞬间，不在一张图中并列动作前、中、后的多个时间状态。",
+        "如果镜头包含光线、电力、天气、烟雾、爆炸或环境变化，只呈现一个明确来源、可见影响和受影响对象，主光方向与事件一致。"
+      ]
+    }
+  },
+  "grok": {
+    "legacyProfileId": "grok-image-instruction-v1",
+    "profileId": "grok-comic-clean-plate-v2",
+    "namesSeparator": ", ",
+    "defaultAction": "the requested storyboard action",
+    "defaultComposition": "the requested composition",
+    "separator": "\n",
+    "fallbackTemplate": "Generate one borderless full-frame comic illustration, not a collage or comic page.\n{{SOURCE_PROMPT}}\n{{OUTPUT_CONTRACT}}",
+    "blocks": [
+      { "label": "TASK", "source": "literal", "value": "Generate one borderless full-frame comic illustration for one shot. It is a clean plate for later lettering, not a comic page." },
+      { "label": "SCENE", "source": "scene" },
+      { "label": "SUBJECTS", "source": "characters" },
+      { "label": "VISIBLE MOMENT", "source": "visual" },
+      { "label": "ACTION", "source": "action" },
+      { "label": "PLACEMENT", "source": "composition" },
+      { "label": "CAMERA", "source": "camera" },
+      { "label": "STYLE", "source": "style" },
+      { "label": "SHOT RULES", "source": "shotContract" },
+      { "label": "HARD CONSTRAINTS", "source": "outputContract" }
+    ],
+    "outputContract": [
+      "Exactly one image, one scene, one instant, and one composition.",
+      "Keep identities, costumes, props, scene landmarks, spatial relationships, and light direction consistent.",
+      "No extra people beyond the named subjects.",
+      "No text, letters, numbers, logos, watermarks, UI, subtitles, captions, bubbles, or sound effects.",
+      "No panels, split screen, border, grid, collage, contact sheet, or character sheet.",
+      "Drawn comic/manhua illustration only; no live-action photo, cosplay, or 3D render."
+    ],
+    "shotContractSource": "openai",
+    "referenceGuidanceSource": "openai",
+    "shotRuleLabels": {
+      "environment": ["COUNT", "ENVIRONMENT", "MOMENT", "EFFECTS"],
+      "subjects": ["COUNT", "ACTION", "PLACEMENT", "MOMENT", "EFFECTS"]
+    }
+  }
+}

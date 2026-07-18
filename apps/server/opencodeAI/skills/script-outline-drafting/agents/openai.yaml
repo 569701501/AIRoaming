@@ -1,0 +1,4 @@
+interface:
+  display_name: "项目剧本大纲"
+  short_description: "按 P2 因果与结局规则生成可确认的项目大纲和章节卡"
+  default_prompt: "Use $script-outline-drafting to create a causal project outline with chapter cards."

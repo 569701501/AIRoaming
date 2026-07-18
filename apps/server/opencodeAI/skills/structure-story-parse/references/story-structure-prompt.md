@@ -1,0 +1,44 @@
+你正在为 AI漫游执行剧情结构阶段 skill：structure-story-parse。
+任务：只针对当前章节生成「剧情结构」JSON，供后续分镜工作台使用。
+
+硬性边界：
+- 只生成当前章节的剧情结构，不要生成整部作品结构。
+- 剧情结构不是章节剧本正文，也不是分镜稿。
+- 正式章节正文是本阶段唯一的实际剧情事实源。正文里的场景、动作、对白、旁白、场景结束点和本章结尾优先于顶部方向摘要。
+- 项目级剧本大纲只能帮助理解世界观和角色名称，不能作为本章已发生事件的证据。
+- 不得把大纲中尚未在本章正文发生的事件写入 synopsis、direction、characters、scenes 或 beats。不得为了符合三幕式、黄金钩子或其他理论而补写、改写正文。
+- 角色卡和场景卡默认都是本章结构卡，不要声称已创建项目级角色库或场景库。
+- 角色卡里的 projectCharacterId 字段由后端在受控应用结构时按角色名匹配项目角色库后回填，你不要输出它。
+- 角色卡必须显式输出 level 和 entityType 两个字段，从以下固定值中选一个：
+  - level（戏份重要性）：lead=主角 / recurring=重要配角 / chapter=本章关键角色 / minor=小角色·功能角色 / extra=背景路人。
+  - entityType（存在形态）：human=人类 / creature=怪物·异常体·非人生物 / group=群体角色 / voice=纯声音角色（不露脸）。
+  - 判断依据：视角核心或第一主角给 lead；长期出现的重要配角、反派或搭档给 recurring；本章重要但未必长期给 chapter；有台词有功能但戏份少给 minor；纯背景填充给 extra。
+- characters 必须覆盖正文各场景「出场人物」中的全部人物；人物名沿用正文，不得用大纲人物替换、合并或新增。正文未明确的动机、关系和视觉特征留空字符串，不要猜测。
+- scenes 必须按正文场景顺序输出；每一个正文场景都必须且只能对应一个场景卡，name、location、timeOfDay、atmosphere 分别逐字沿用正文的场景名、地点、时间和氛围。
+- 剧情节拍按关键剧情事件切分，粒度要比分镜粗；不要输出镜头编号、景别、机位、构图、图片 Prompt 或 JSON 以外的 Markdown 正文。
+- 每一个正文场景至少被一个 beat 引用；一个场景有多个关键变化时可以拆成多个 beat。beat 顺序必须从 1 连续递增。
+- 每个 beat 的 sceneName 必须逐字使用对应场景卡 name，人物名必须逐字使用 characters[].name；不得引用不存在的场景或人物。
+- 每个 beat 必须写清事件、冲突或转折、可见结果和画面重点；不得写“待补充”“无”“继续”“场景结束”等空壳内容，也不得复制同一事件充数。
+- synopsis 和 direction 描述最后实际写成的内容；若顶部方向摘要与正文冲突，以正文和本章结尾为准，并在 notes 简短提醒差异。
+- visualFocus 只能写轻量画面重点，不能写镜头语言。
+- 必须先返回一个 JSON 代码块，后端会解析这个 JSON。
+- 不要输出评分、检查报告或新增字段。
+
+JSON 结构必须是：
+```json
+{{STRUCTURE_EXAMPLE_JSON}}
+```
+
+项目名称：{{PROJECT_NAME}}
+剧集名称：{{STORY_TITLE}}
+当前章节：{{CHAPTER_TITLE}}
+当前章节状态：{{CHAPTER_STATUS}}
+当前剧本版本：{{SCRIPT_VERSION_ID}}
+项目级剧本大纲：
+{{SCRIPT_OUTLINE}}
+
+当前章节剧本：
+{{CHAPTER_SCRIPT}}
+
+用户本次要求：
+{{USER_REQUEST}}

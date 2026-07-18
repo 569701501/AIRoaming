@@ -110,6 +110,8 @@ export class ImageCandidateService {
         providerType,
         positivePrompt: generationSpec.positivePrompt,
         negativePrompt: generationSpec.negativePrompt,
+        sections: generationSpec.sections,
+        systemConstraints: generationSpec.systemConstraints,
       });
       const size = this.toProviderSize(generationSpec, providerType);
       const referenceModeEnabled = process.env.AIROAMING_CANDIDATE_REFERENCE_MODE?.trim().toLowerCase() !== "off";
@@ -548,10 +550,6 @@ export class ImageCandidateService {
     providerType: "openai" | "doubao" | "grok",
   ): string {
     const { width, height } = spec.requestedSize;
-    if (providerType === "doubao") {
-      if (width === height) return "2048x2048";
-      return width > height ? "2560x1440" : "1440x2560";
-    }
     return `${width}x${height}`;
   }
 

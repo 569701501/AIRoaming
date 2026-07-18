@@ -106,14 +106,14 @@ export function getComicFormatLabel(format: ComicFormat): string {
 
 export function getArtStyleLabel(style: ArtStyle): string {
   const labels: Record<ArtStyle, string> = {
-    dark_realistic: "暗调漫画写实 / dark cinematic comic realism, non-photorealistic",
-    semi_realistic: "半写实漫画 / semi-realistic comic illustration, non-photorealistic",
-    japanese_realistic: "日系漫画写实 / Japanese manga-realistic illustration, non-photorealistic",
-    comic_style: "漫画风格 / clean comic and manhua illustration",
-    cyberpunk: "赛博朋克漫画 / cyberpunk comic illustration",
-    custom: "自定义漫画美术 / custom comic illustration style",
+    dark_realistic: "暗调漫画写实",
+    semi_realistic: "半写实漫画",
+    japanese_realistic: "日系漫画写实",
+    comic_style: "漫画风格",
+    cyberpunk: "赛博朋克漫画",
+    custom: "自定义漫画美术",
   };
-  return labels[style] ?? "漫画风格 / clean comic and manhua illustration";
+  return labels[style] ?? "漫画风格";
 }
 
 export function toChapterListItem(chapter: LocalChapter): ChapterListItem {

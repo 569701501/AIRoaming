@@ -9,8 +9,26 @@ import {
   type ComicFormat,
   type StoryboardShot,
 } from "@airoaming/shared";
+import {
+  readOpenCodeSkillJsonReference,
+  readOpenCodeSkillReference,
+  renderOpenCodePromptTemplate,
+} from "../ai-runtime/opencode-skill-asset.util.js";
 
 export const CANDIDATE_GENERATION_PURPOSE = "shot_clean_plate" as const;
+
+export const CANDIDATE_SHOT_CONTRACT_PREFIX = "AIROAMING_SHOT_CONTRACT_V2:";
+
+export interface CandidateShotContractV2 {
+  schemaVersion: 2;
+  staging: "environment" | "single" | "pair" | "group";
+  subjectCount: number;
+  subjectNames: string[];
+  action: string;
+  composition: string;
+  decisiveMoment: true;
+  effectCausality: "conditional";
+}
 
 export interface CandidateGenerationCharacterContext {
   id: string;
@@ -116,41 +134,25 @@ export interface CandidateGenerationTaskInput extends Record<string, unknown> {
   };
 }
 
-export const CANDIDATE_SYSTEM_CONSTRAINTS = [
-  "Create exactly one clean comic illustration for one storyboard shot.",
-  "Show one scene, one static moment, and one camera composition in a full-bleed image.",
-  "Preserve the supplied character identity, environment identity, costume, props, spatial relationships, and light direction.",
-  "Use readable comic staging with a clear focal subject, foreground/midground/background separation, and intentional negative space.",
-  "Do not render text, letters, numbers, logos, watermarks, subtitles, captions, speech bubbles, thought bubbles, or sound effects.",
-  "Do not create page layouts, multiple panels, split screens, grids, borders, gutters, collages, contact sheets, or character sheets.",
-] as const;
+const IMAGE_CANDIDATE_SKILL = "image-candidate-generate";
 
-export const CANDIDATE_NEGATIVE_PROMPT = [
-  "text",
-  "typography",
-  "letters",
-  "numbers",
-  "logo",
-  "watermark",
-  "subtitle",
-  "caption",
-  "speech bubbles",
-  "thought bubbles",
-  "sound effects",
-  "multiple panels",
-  "split screen",
-  "page layout",
-  "panel borders",
-  "gutters",
-  "collage",
-  "contact sheet",
-  "character sheet",
-  "low quality",
-  "blurry",
-  "extra fingers",
-  "photorealistic live-action",
-  "3d render",
-].join(", ");
+interface CandidatePromptConfig {
+  sectionLabels: Record<CandidatePromptSection["key"], string>;
+  styleSuffix: string;
+  systemConstraints: string[];
+  negativePromptTokens: string[];
+}
+
+const CANDIDATE_PROMPT_CONFIG = readOpenCodeSkillJsonReference<CandidatePromptConfig>(
+  IMAGE_CANDIDATE_SKILL,
+  "candidate-config.json",
+);
+
+export const CANDIDATE_SYSTEM_CONSTRAINTS: readonly string[] = Object.freeze([
+  ...CANDIDATE_PROMPT_CONFIG.systemConstraints,
+]);
+
+export const CANDIDATE_NEGATIVE_PROMPT = CANDIDATE_PROMPT_CONFIG.negativePromptTokens.join(", ");
 
 export function buildCandidatePromptContent(input: BuildCandidatePromptContentInput): {
   positivePrompt: string;
@@ -160,27 +162,33 @@ export function buildCandidatePromptContent(input: BuildCandidatePromptContentIn
 } {
   const visual = input.shot.comic.panelDescription.trim() || input.shot.coreAction.trim();
   const sections = compactSections([
-    { key: "visual", label: "主体与静态瞬间", value: visual },
-    { key: "action", label: "动作与情绪", value: joinNonEmpty([input.shot.coreAction, input.shot.emotion], "; ") },
-    { key: "composition", label: "构图与视觉重心", value: input.shot.comic.composition.trim() },
-    { key: "camera", label: "景别与机位", value: `${input.shot.shotType}; ${input.shot.cameraAngle}` },
-    { key: "characters", label: "角色身份与外观", value: formatCharacters(input.characters) },
-    { key: "scene", label: "环境、光线与氛围", value: formatScene(input.scene) },
-    { key: "style", label: "漫画画风", value: `${input.artStyle}; drawn comic/manhua illustration; consistent linework and controlled shading` },
+    { key: "visual", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.visual, value: visual },
+    { key: "action", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.action, value: joinNonEmpty([input.shot.coreAction, input.shot.emotion], "; ") },
+    { key: "composition", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.composition, value: input.shot.comic.composition.trim() },
+    { key: "camera", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.camera, value: `${input.shot.shotType}; ${input.shot.cameraAngle}` },
+    { key: "characters", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.characters, value: formatCharacters(input.characters) },
+    { key: "scene", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.scene, value: formatScene(input.scene) },
+    { key: "style", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.style, value: `${input.artStyle}; ${CANDIDATE_PROMPT_CONFIG.styleSuffix}` },
   ]);
-  const positivePrompt = [
-    "PURPOSE",
-    CANDIDATE_SYSTEM_CONSTRAINTS[0],
-    "",
-    ...sections.flatMap((section) => [section.label.toUpperCase(), section.value, ""]),
-    "OUTPUT CONTRACT",
-    ...CANDIDATE_SYSTEM_CONSTRAINTS.slice(1).map((constraint) => `- ${constraint}`),
-  ].join("\n").trim();
+  const shotContract = buildCandidateShotContract(input);
+  const positivePrompt = renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(IMAGE_CANDIDATE_SKILL, "candidate-prompt.md"),
+    {
+      PURPOSE: CANDIDATE_SYSTEM_CONSTRAINTS[0] ?? "",
+      SECTIONS: sections.map((section) => `${section.label.toUpperCase()}\n${section.value}`).join("\n\n"),
+      OUTPUT_CONTRACT: CANDIDATE_SYSTEM_CONSTRAINTS.slice(1).map((constraint) => `- ${constraint}`).join("\n"),
+    },
+  );
   return {
     positivePrompt,
     negativePrompt: CANDIDATE_NEGATIVE_PROMPT,
     sections,
-    systemConstraints: [...CANDIDATE_SYSTEM_CONSTRAINTS],
+    // V1 的 positivePrompt 保持不变，便于同语料 A/B；V2 Provider Profile
+    // 读取这些镜头级语义约束，按模型习惯编译成最终投递文案。
+    systemConstraints: [
+      ...CANDIDATE_SYSTEM_CONSTRAINTS,
+      `${CANDIDATE_SHOT_CONTRACT_PREFIX}${JSON.stringify(shotContract)}`,
+    ],
   };
 }
 
@@ -210,6 +218,8 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
     shotId: input.shot.id,
     positivePrompt,
     negativePrompt,
+    sections,
+    systemConstraints,
     requestedSize: input.requestedSize,
     references: input.references,
   });
@@ -376,6 +386,70 @@ function formatCharacters(characters: CandidateGenerationCharacterContext[]): st
     })
     .filter(Boolean)
     .join("; ");
+}
+
+/**
+ * 漫画静态候选图的镜头任务模块。
+ *
+ * 不新增页面字段：人物数量来自正式分镜 characterIds，动作归属与站位来自
+ * coreAction / comic.composition。这里生成语义约束，由 V2 Provider Profile 消费；
+ * 旧 V1 positivePrompt 不读取这些字符串。
+ */
+function buildCandidateShotContract(input: BuildCandidatePromptContentInput): CandidateShotContractV2 {
+  const characters = input.characters;
+  const names = characters.map((character) => character.name.trim()).filter(Boolean);
+  const action = input.shot.coreAction.trim();
+  const composition = input.shot.comic.composition.trim();
+  const staging = characters.length === 0
+    ? "environment"
+    : characters.length === 1
+      ? "single"
+      : characters.length === 2
+        ? "pair"
+        : "group";
+  return {
+    schemaVersion: 2,
+    staging,
+    subjectCount: characters.length,
+    subjectNames: names,
+    action,
+    composition,
+    decisiveMoment: true,
+    effectCausality: "conditional",
+  };
+}
+
+export function readCandidateShotContract(systemConstraints: string[]): CandidateShotContractV2 | null {
+  const encoded = systemConstraints.find((constraint) => constraint.startsWith(CANDIDATE_SHOT_CONTRACT_PREFIX));
+  if (!encoded) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(encoded.slice(CANDIDATE_SHOT_CONTRACT_PREFIX.length));
+  } catch {
+    throw new TypeError("CANDIDATE_SHOT_CONTRACT_INVALID_JSON");
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("CANDIDATE_SHOT_CONTRACT_INVALID");
+  }
+  const contract = value as Partial<CandidateShotContractV2>;
+  const allowedStaging = new Set<CandidateShotContractV2["staging"]>(["environment", "single", "pair", "group"]);
+  if (
+    contract.schemaVersion !== 2
+    || !contract.staging
+    || !allowedStaging.has(contract.staging)
+    || !Number.isInteger(contract.subjectCount)
+    || (contract.subjectCount ?? -1) < 0
+    || !Array.isArray(contract.subjectNames)
+    || contract.subjectNames.some((name) => typeof name !== "string" || !name.trim())
+    || contract.subjectNames.length !== contract.subjectCount
+    || typeof contract.action !== "string"
+    || typeof contract.composition !== "string"
+    || contract.decisiveMoment !== true
+    || contract.effectCausality !== "conditional"
+  ) {
+    throw new TypeError("CANDIDATE_SHOT_CONTRACT_INVALID");
+  }
+  return contract as CandidateShotContractV2;
 }
 
 function joinNonEmpty(values: Array<string | null | undefined>, separator: string): string {

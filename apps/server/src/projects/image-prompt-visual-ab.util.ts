@@ -10,8 +10,31 @@ export type VisualAbSlotStatus =
   | "skipped"
   | "manual_review_required";
 
+export const VISUAL_AB_EVALUATION_POLICY = {
+  schemaVersion: 1,
+  providerExceptions: [
+    {
+      providerType: "grok",
+      caseId: "candidate-no-character-establishing",
+      condition: "single scene reference is omitted to preserve requested aspect ratio",
+      requiredWarning: "grok_single_reference_omitted_for_aspect_ratio",
+      excludeFromCrossProviderChecks: ["environment"],
+      stillEvaluateChecks: ["clean_plate", "empty_scene"],
+    },
+    {
+      providerType: "grok",
+      caseId: "candidate-group-staging",
+      condition: "five requested references are deterministically reduced to two characters plus the scene",
+      requiredWarning: "grok_reference_limit:3",
+      excludeFromCrossProviderChecks: ["identity"],
+      stillEvaluateChecks: ["clean_plate", "staging"],
+    },
+  ],
+} as const;
+
 export interface VisualAbSlot {
   slotId: string;
+  promptVersion: "v1" | "v2";
   providerType: ImageProviderType;
   caseId: string;
   variant: number;
@@ -19,8 +42,9 @@ export interface VisualAbSlot {
 }
 
 export interface VisualAbLedger {
-  schemaVersion: 1;
+  schemaVersion: 2;
   suiteId: string;
+  promptVersion: "v1" | "v2";
   planDigest: string;
   maxProviderRequests: number;
   createdAt: string;
@@ -30,13 +54,15 @@ export interface VisualAbLedger {
 
 export function buildVisualAbSlots(report: ImagePromptBaselineReport): VisualAbSlot[] {
   const slots: VisualAbSlot[] = [];
+  const promptVersion = report.productionBaseline.promptVersion;
   const providers = report.candidateCases[0]?.providerProfiles.map((profile) => profile.providerType) ?? [];
   for (const providerType of providers) {
     for (const candidate of report.candidateCases) {
       const variants = candidate.runtimeRubric.variantsPerProvider;
       for (let variant = 1; variant <= variants; variant += 1) {
         slots.push({
-          slotId: `${providerType}:${candidate.caseId}:v${variant}`,
+          slotId: `${promptVersion}:${providerType}:${candidate.caseId}:v${variant}`,
+          promptVersion,
           providerType,
           caseId: candidate.caseId,
           variant,
@@ -65,7 +91,12 @@ export function visualAbPlanDigest(report: ImagePromptBaselineReport, slots: Vis
     })),
   );
   return createHash("sha256")
-    .update(JSON.stringify({ suiteId: report.suiteId, slots: slots.map(({ slotId }) => slotId), promptDigests }), "utf8")
+    .update(JSON.stringify({
+      suiteId: report.suiteId,
+      promptVersion: report.productionBaseline.promptVersion,
+      slots: slots.map(({ slotId }) => slotId),
+      promptDigests,
+    }), "utf8")
     .digest("hex");
 }
 
@@ -75,8 +106,9 @@ export function createVisualAbLedger(
 ): VisualAbLedger {
   const slots = buildVisualAbSlots(report);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     suiteId: report.suiteId,
+    promptVersion: report.productionBaseline.promptVersion,
     planDigest: visualAbPlanDigest(report, slots),
     maxProviderRequests: slots.length,
     createdAt: now,
@@ -87,12 +119,8 @@ export function createVisualAbLedger(
 
 export function providerSize(
   requested: { width: number; height: number },
-  providerType: ImageProviderType,
+  _providerType: ImageProviderType,
 ): string {
-  if (providerType === "doubao") {
-    if (requested.width === requested.height) return "2048x2048";
-    return requested.width > requested.height ? "2560x1440" : "1440x2560";
-  }
   return `${requested.width}x${requested.height}`;
 }
 

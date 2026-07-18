@@ -1,0 +1,4 @@
+interface:
+  display_name: "角色场景参考图"
+  short_description: "生成角色身份预览、四视图定稿与无人场景参考图专业提示词"
+  default_prompt: "Use $image-reference-generate to prepare a character or scene reference prompt."

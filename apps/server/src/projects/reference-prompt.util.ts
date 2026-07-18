@@ -1,18 +1,53 @@
 import type {
+  ArtStyle,
+  ComicFormat,
   ProjectCharacter,
   ProjectCharacterReferenceKind,
   ProjectType,
   WorkbenchAsset,
 } from "@airoaming/shared";
-import { getComicFormatDefinition } from "@airoaming/shared";
+import {
+  readOpenCodeSkillJsonReference,
+  readOpenCodeSkillReference,
+  renderOpenCodePromptTemplate,
+} from "../ai-runtime/opencode-skill-asset.util.js";
 import type { LocalProject } from "./local-types.js";
-import * as wsDomain from "./project-domain.util.js";
 import * as wsCharacter from "./character-domain.util.js";
 
 /**
- * 角色/场景参考图 prompt 构造 + asset meta 解析(从 projects.service 抽出,见任务 2026-06-21_ProjectsService拆分 候选C)。
- * 参考图生成的状态编排(queue/run/confirm/delete)留 Service(依赖 tasksService/settingsService/repository)。
+ * 角色/场景参考图动态数据装配 + asset meta 解析。
+ * 稳定 Prompt 正文以 opencodeAI/skills/image-reference-generate 为唯一事实源。
+ * V1 只为真实同语料 A/B 保留；生产默认使用 V2。
  */
+
+const IMAGE_REFERENCE_SKILL = "image-reference-generate";
+
+interface ReferencePromptDefaults {
+  sceneStyle: string;
+  appearance: string;
+  personality: string;
+  artStyles: Record<ArtStyle, string>;
+  comicFormats: Record<ComicFormat, string>;
+}
+
+const REFERENCE_PROMPT_DEFAULTS = readOpenCodeSkillJsonReference<ReferencePromptDefaults>(
+  IMAGE_REFERENCE_SKILL,
+  "reference-defaults.json",
+);
+
+export type ImagePromptVersion = "v1" | "v2";
+
+function getReferenceArtStyle(style: ArtStyle): string {
+  const value = REFERENCE_PROMPT_DEFAULTS.artStyles[style]?.trim();
+  if (!value) throw new TypeError(`IMAGE_REFERENCE_ART_STYLE_MISSING:${style}`);
+  return value;
+}
+
+function getReferenceComicFormat(format: ComicFormat): string {
+  const value = REFERENCE_PROMPT_DEFAULTS.comicFormats[format]?.trim();
+  if (!value) throw new TypeError(`IMAGE_REFERENCE_COMIC_FORMAT_MISSING:${format}`);
+  return value;
+}
 
 export function getProjectTypeLabel(type: ProjectType): string {
   const labels: Record<ProjectType, string> = {
@@ -26,91 +61,65 @@ export function getProjectTypeLabel(type: ProjectType): string {
 export function buildScenePrompt(
   scene: { name: string; location: string; timeOfDay: string; atmosphere: string; purpose: string },
   project?: Pick<LocalProject, "artStyle" | "comicFormat">,
+  version: ImagePromptVersion = "v2",
 ): string {
   const style = project
-    ? `${wsDomain.getArtStyleLabel(project.artStyle)}；${getComicFormatDefinition(project.comicFormat).referencePromptHint}`
-    : "production-ready comic/manhua background illustration";
-  return [
-    "Create one reusable environment reference image for a comic/manhua production pipeline.",
-    "This is a clean background asset, not a story panel and not a standalone concept-art poster.",
-    "",
-    "ENVIRONMENT IDENTITY",
-    `- Scene: ${scene.name.trim()}`,
-    `- Location: ${scene.location.trim()}`,
-    `- Narrative use: ${scene.purpose.trim()}`,
-    "",
-    "SPATIAL CONTRACT",
-    "- Establish a readable foreground, midground, and background with stable architectural relationships.",
-    "- Use one neutral wide establishing viewpoint, believable perspective, reusable landmarks, and clear entrances/exits.",
-    "- Preserve enough uncluttered space for later character placement and varied shot crops.",
-    "",
-    "LIGHTING AND ATMOSPHERE",
-    `- Time: ${scene.timeOfDay.trim()}`,
-    `- Atmosphere: ${scene.atmosphere.trim()}`,
-    "- Keep the light direction, weather cues, color temperature, and landmark visibility internally consistent.",
-    "",
-    "STYLE",
-    `- ${style}.`,
-    "- Drawn comic background language; readable shapes and production-ready detail, not photorealistic live action or 3D rendering.",
-    "",
-    "OUTPUT CONTRACT",
-    "- One environment only. No people, characters, crowds, silhouettes, portraits, vehicles as subjects, or staged action.",
-    "- No text, signs with readable lettering, numbers, UI, logo, watermark, caption, speech bubble, panel border, collage, or contact sheet.",
-  ].join("\n");
+    ? `${getReferenceArtStyle(project.artStyle)}；${getReferenceComicFormat(project.comicFormat)}`
+    : REFERENCE_PROMPT_DEFAULTS.sceneStyle;
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(IMAGE_REFERENCE_SKILL, version === "v1" ? "scene-v1.md" : "scene-v2.md"),
+    {
+      SCENE_NAME: scene.name.trim(),
+      LOCATION: scene.location.trim(),
+      PURPOSE: scene.purpose.trim(),
+      TIME_OF_DAY: scene.timeOfDay.trim(),
+      ATMOSPHERE: scene.atmosphere.trim(),
+      STYLE: style,
+    },
+  );
 }
 
 export function buildCharacterReferenceStyleGuide(project: Pick<LocalProject, "artStyle" | "comicFormat">): string {
-  const artStyle = wsDomain.getArtStyleLabel(project.artStyle);
-  const comicFormat = getComicFormatDefinition(project.comicFormat).referencePromptHint;
-  return [
-    `Style guide: ${artStyle}; ${comicFormat}.`,
-    "Use stylized comic linework, controlled cel shading or painterly comic shading, clean readable silhouette, and production-ready character consistency.",
-    "Even if the story is realistic or dark, interpret realism as comic realism, not photorealism.",
-  ].join("\n");
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(IMAGE_REFERENCE_SKILL, "style-guide.md"),
+    {
+      ART_STYLE: getReferenceArtStyle(project.artStyle),
+      COMIC_FORMAT_HINT: getReferenceComicFormat(project.comicFormat),
+    },
+  );
 }
 
 export function buildCharacterReferencePrompt(
   project: LocalProject,
   character: ProjectCharacter,
   referenceKind: ProjectCharacterReferenceKind,
+  version: ImagePromptVersion = "v2",
 ): string {
+  const templateName = referenceKind === "final_reference"
+    ? `character-final-${version}.md`
+    : `character-preview-${version}.md`;
   const styleGuide = buildCharacterReferenceStyleGuide(project);
-  const base = [
-    `项目类型：${getProjectTypeLabel(project.type)}。This is a comic/manhua production project, not a live-action casting project.`,
-    `作品名：${project.storyTitle || project.name}`,
-    project.genreTags.length > 0 ? `题材标签：${project.genreTags.join("、")}` : "",
-    `漫画形式：${getComicFormatDefinition(project.comicFormat).referencePromptHint}`,
-    `美术风格：${wsDomain.getArtStyleLabel(project.artStyle)}`,
-    "风格硬约束：必须是绘制感漫画/条漫/漫画角色设定图，不能生成真人照片、真人演员定妆照、摄影棚肖像、电影剧照、cosplay 照片或 3D 渲染。",
-    styleGuide,
-    `角色名：${character.name}`,
-    `角色身份：${character.role || character.level}`,
-    `外貌设定：${character.appearance || "根据项目风格补全，但保持简洁稳定"}`,
-    `性格气质：${character.personality || "符合角色身份"}`,
-    character.promptFragment ? `提示词片段：${character.promptFragment}` : "",
-  ].filter(Boolean).join("\n");
-
-  if (referenceKind === "final_reference") {
-    return [
-      "Create a clean final character reference sheet for a comic/manhua production pipeline using the provided preview image as the strict character identity reference.",
-      "Preserve the same face, hairstyle, outfit, age, body proportions, and overall temperament from the preview image.",
-      "IDENTITY LOCK: one same character, one same outfit, identical face, hair silhouette, body proportions, costume construction, colors, accessories, and age across every view.",
-      "Drawn illustration style only. Neutral standing pose, neutral expression, even studio-like lighting, plain light background, no perspective distortion.",
-      "LAYOUT: the single image contains exactly four clearly separated views in this order: front half-body portrait, front full-body, side full-body, back full-body.",
-      "Keep scale and baseline consistent across the three full-body views; show hands, footwear, costume layers, and recurring accessories clearly.",
-      "No text labels, measurements, color names, logo, watermark, extra characters, props hiding the body, cropped limbs, dramatic pose changes, scene background, photo, cosplay, or 3D render.",
-      base,
-    ].join("\n");
-  }
-
-  return [
-    "Create a clean front preview portrait for a comic/manhua character library.",
-    "IDENTITY SEED: establish one unmistakable face, hairstyle silhouette, age, body type, costume construction, colors, and recurring accessories for later consistency.",
-    "Drawn illustration style only. Exactly one character, front view, half-body portrait, neutral readable expression, even lighting, plain light background.",
-    "Keep both shoulders and the main costume silhouette visible; avoid foreshortening and avoid hands covering the face or costume cues.",
-    "No text labels, logo, watermark, extra characters, scene background, cropped face, dramatic action pose, photo, cosplay, or 3D render.",
-    base,
-  ].join("\n");
+  const genreTags = project.genreTags.join("、");
+  const promptFragment = character.promptFragment?.trim() ?? "";
+  return renderOpenCodePromptTemplate(
+    readOpenCodeSkillReference(IMAGE_REFERENCE_SKILL, templateName),
+    {
+      PROJECT_TYPE: getProjectTypeLabel(project.type),
+      STORY_TITLE: project.storyTitle || project.name,
+      GENRE_TAGS_LINE: genreTags ? `- 题材标签：${genreTags}` : "",
+      GENRE_TAGS_TEXT: genreTags ? `题材标签：${genreTags}` : "",
+      COMIC_FORMAT_HINT: getReferenceComicFormat(project.comicFormat),
+      ART_STYLE: getReferenceArtStyle(project.artStyle),
+      STYLE_GUIDE: styleGuide,
+      STYLE_GUIDE_BULLETS: styleGuide.split("\n").map((line) => `- ${line}`).join("\n"),
+      CHARACTER_NAME: character.name,
+      CHARACTER_ROLE: character.role || character.level,
+      APPEARANCE: character.appearance || REFERENCE_PROMPT_DEFAULTS.appearance,
+      PERSONALITY: character.personality || REFERENCE_PROMPT_DEFAULTS.personality,
+      PROMPT_FRAGMENT_LINE: promptFragment ? `- 固定视觉特征：${promptFragment}` : "",
+      PROMPT_FRAGMENT_TEXT: promptFragment ? `提示词片段：${promptFragment}` : "",
+    },
+  );
 }
 
 export function getAssetCreatedAt(asset: WorkbenchAsset): string {

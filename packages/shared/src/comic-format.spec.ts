@@ -22,11 +22,11 @@ describe("comic format catalog", () => {
     expect(isComicFormat({})).toBe(false);
   });
 
-  it("provides one label and hint per canonical value", () => {
+  it("provides one display label and description per canonical value", () => {
     expect(getComicFormatLabel("vertical_scroll")).toBe("竖向条漫");
     expect(getComicFormatDefinition("paged_comic")).toMatchObject({
       label: "分页漫画",
-      referencePromptHint: expect.stringContaining("orientation unspecified"),
+      description: expect.stringContaining("按页阅读"),
     });
   });
 });

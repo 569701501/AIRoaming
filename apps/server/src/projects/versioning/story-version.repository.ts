@@ -26,11 +26,9 @@ import { ScriptVersionRepository } from "./script-version.repository.js";
 import { VersionTransactionRunner } from "./version-transaction-runner.service.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
 import * as wsCharacter from "../character-domain.util.js";
+import { UNRESOLVED_STORY_CHARACTER_PREFIX } from "./story-document-adapter.util.js";
 
 const STORY_SOURCE_POLICY = "story-source-v1";
-// Accepted only on the Working Copy update boundary; persisted documents are
-// rewritten with real Character.id values in the same business transaction.
-const UNRESOLVED_STORY_CHARACTER_PREFIX = "unresolved-story-character:";
 
 export interface ApplyStoryTaskResultRequest {
   readonly expectedTargetId: string;

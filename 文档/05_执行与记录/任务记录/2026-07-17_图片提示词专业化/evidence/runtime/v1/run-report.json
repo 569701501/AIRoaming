@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "image-prompt-s4-baseline-v1",
+  "promptVersion": "v1",
+  "planDigest": "a911442f8b08139e96c9a8f42ea0edf2a70a33ba0f6e6a4c8f104c3676e780af",
+  "generatedAt": "2026-07-17T07:57:28.491Z",
+  "requestPolicy": {
+    "maxProviderRequests": 30,
+    "failedRequestsConsumeSlot": true,
+    "automaticRetry": false,
+    "providerSwitchOnFailure": false,
+    "activeProviderMutated": false,
+    "formalProjectDataMutated": false
+  },
+  "evaluationPolicy": {
+    "schemaVersion": 1,
+    "providerExceptions": [
+      {
+        "providerType": "grok",
+        "caseId": "candidate-no-character-establishing",
+        "condition": "single scene reference is omitted to preserve requested aspect ratio",
+        "requiredWarning": "grok_single_reference_omitted_for_aspect_ratio",
+        "excludeFromCrossProviderChecks": [
+          "environment"
+        ],
+        "stillEvaluateChecks": [
+          "clean_plate",
+          "empty_scene"
+        ]
+      },
+      {
+        "providerType": "grok",
+        "caseId": "candidate-group-staging",
+        "condition": "five requested references are deterministically reduced to two characters plus the scene",
+        "requiredWarning": "grok_reference_limit:3",
+        "excludeFromCrossProviderChecks": [
+          "identity"
+        ],
+        "stillEvaluateChecks": [
+          "clean_plate",
+          "staging"
+        ]
+      }
+    ]
+  },
+  "promptManifest": [
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-no-character-establishing",
+      "providerType": "openai",
+      "profileId": "openai-image-instruction-v1",
+      "promptSha256": "93f4ea7349632fb2f445d3cf6633619828c529c36686b3921eb9a03847132440",
+      "promptLength": 989
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-no-character-establishing",
+      "providerType": "doubao",
+      "profileId": "doubao-image-instruction-v1",
+      "promptSha256": "93f4ea7349632fb2f445d3cf6633619828c529c36686b3921eb9a03847132440",
+      "promptLength": 989
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-no-character-establishing",
+      "providerType": "grok",
+      "profileId": "grok-image-instruction-v1",
+      "promptSha256": "93f4ea7349632fb2f445d3cf6633619828c529c36686b3921eb9a03847132440",
+      "promptLength": 989
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-single-character-closeup",
+      "providerType": "openai",
+      "profileId": "openai-image-instruction-v1",
+      "promptSha256": "96c1e911caebbc01c22ab04bc715d7968beedc0a575014c5d48107c80fbe0234",
+      "promptLength": 1061
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-single-character-closeup",
+      "providerType": "doubao",
+      "profileId": "doubao-image-instruction-v1",
+      "promptSha256": "96c1e911caebbc01c22ab04bc715d7968beedc0a575014c5d48107c80fbe0234",
+      "promptLength": 1061
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-single-character-closeup",
+      "providerType": "grok",
+      "profileId": "grok-image-instruction-v1",
+      "promptSha256": "96c1e911caebbc01c22ab04bc715d7968beedc0a575014c5d48107c80fbe0234",
+      "promptLength": 1061
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-two-character-dialogue",
+      "providerType": "openai",
+      "profileId": "openai-image-instruction-v1",
+      "promptSha256": "690230f203fc84e0b806d902c8d89b8d17d2560ccebcbaa6df291103f2650384",
+      "promptLength": 1081
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-two-character-dialogue",
+      "providerType": "doubao",
+      "profileId": "doubao-image-instruction-v1",
+      "promptSha256": "690230f203fc84e0b806d902c8d89b8d17d2560ccebcbaa6df291103f2650384",
+      "promptLength": 1081
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-two-character-dialogue",
+      "providerType": "grok",
+      "profileId": "grok-image-instruction-v1",
+      "promptSha256": "690230f203fc84e0b806d902c8d89b8d17d2560ccebcbaa6df291103f2650384",
+      "promptLength": 1081
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-group-staging",
+      "providerType": "openai",
+      "profileId": "openai-image-instruction-v1",
+      "promptSha256": "efc333ac8ec2ffe82dab4107a0a2bf9f9b971d24ff4ea7428b3445ec12f86571",
+      "promptLength": 1151
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-group-staging",
+      "providerType": "doubao",
+      "profileId": "doubao-image-instruction-v1",
+      "promptSha256": "efc333ac8ec2ffe82dab4107a0a2bf9f9b971d24ff4ea7428b3445ec12f86571",
+      "promptLength": 1151
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-group-staging",
+      "providerType": "grok",
+      "profileId": "grok-image-instruction-v1",
+      "promptSha256": "efc333ac8ec2ffe82dab4107a0a2bf9f9b971d24ff4ea7428b3445ec12f86571",
+      "promptLength": 1151
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-scene-effect",
+      "providerType": "openai",
+      "profileId": "openai-image-instruction-v1",
+      "promptSha256": "629b20c314d4fd56e4b4d6a2ba0495d2907e27f86a623dc662ccbba313fe4cf6",
+      "promptLength": 1063
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-scene-effect",
+      "providerType": "doubao",
+      "profileId": "doubao-image-instruction-v1",
+      "promptSha256": "629b20c314d4fd56e4b4d6a2ba0495d2907e27f86a623dc662ccbba313fe4cf6",
+      "promptLength": 1063
+    },
+    {
+      "promptVersion": "v1",
+      "caseId": "candidate-scene-effect",
+      "providerType": "grok",
+      "profileId": "grok-image-instruction-v1",
+      "promptSha256": "629b20c314d4fd56e4b4d6a2ba0495d2907e27f86a623dc662ccbba313fe4cf6",
+      "promptLength": 1063
+    }
+  ],
+  "providerMetadata": {
+    "openai": {
+      "providerId": "openai_image",
+      "modelId": "gpt-image-2",
+      "baseUrl": "https://sub.lydcloud.uk",
+      "credentialConfigured": true
+    },
+    "doubao": {
+      "providerId": "doubao_image",
+      "modelId": "doubao-seedream-4-5-251128",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "credentialConfigured": true
+    },
+    "grok": {
+      "providerId": "grok_image",
+      "modelId": "grok-imagine-image-quality",
+      "baseUrl": "https://sub.lydcloud.uk/v1",
+      "credentialConfigured": true
+    }
+  },
+  "ledgerSummary": {
+    "pending": 30,
+    "started": 0,
+    "completed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "manual_review_required": 0
+  },
+  "issuedProviderRequestCount": 0,
+  "results": []
+}

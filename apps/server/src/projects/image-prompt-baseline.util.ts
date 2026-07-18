@@ -11,7 +11,10 @@ import {
   createCandidateGenerationSpec,
   type CreateCandidateGenerationSpecInput,
 } from "./candidate-generation-spec.js";
-import { compileImagePromptForProvider } from "./image-prompt-profile.util.js";
+import {
+  compileImagePromptForProvider,
+  compileImagePromptForProviderV1,
+} from "./image-prompt-profile.util.js";
 import { buildCharacterReferencePrompt, buildScenePrompt } from "./reference-prompt.util.js";
 
 type ReferencePromptKind = "character_preview" | "character_final" | "scene_reference";
@@ -82,7 +85,8 @@ export interface ImagePromptBaselineReport {
   productionBaseline: {
     candidateSpecVersion: number;
     candidatePurpose: "shot_clean_plate";
-    candidateProviderPromptSource: "positivePrompt";
+    promptVersion: "v1" | "v2";
+    candidateProviderPromptSource: "positivePrompt" | "provider_profile_v2";
     negativePromptDelivery: "embedded_constraints";
   };
   referenceCases: Array<{
@@ -216,13 +220,17 @@ export function parseImagePromptBaselineSuite(value: unknown): ImagePromptBaseli
   return { schemaVersion: 1, suiteId, providers, referenceCases, candidateContext, candidateCases };
 }
 
-export function compileImagePromptBaseline(suite: ImagePromptBaselineSuite): ImagePromptBaselineReport {
+export function compileImagePromptBaseline(
+  suite: ImagePromptBaselineSuite,
+  options: { promptVersion?: "v1" | "v2" } = {},
+): ImagePromptBaselineReport {
+  const promptVersion = options.promptVersion ?? "v1";
   const referenceCases = suite.referenceCases.map((fixture) => {
     const project = fixture.project as unknown as LocalProject;
     let prompt: string;
     if (fixture.kind === "scene_reference") {
       if (!fixture.scene) throw new Error(`IMAGE_PROMPT_BASELINE_SCENE_REQUIRED:${fixture.caseId}`);
-      prompt = buildScenePrompt(fixture.scene, project);
+      prompt = buildScenePrompt(fixture.scene, project, promptVersion);
     } else {
       if (!fixture.character) throw new Error(`IMAGE_PROMPT_BASELINE_CHARACTER_REQUIRED:${fixture.caseId}`);
       const referenceKind: ProjectCharacterReferenceKind = fixture.kind === "character_final"
@@ -232,6 +240,7 @@ export function compileImagePromptBaseline(suite: ImagePromptBaselineSuite): Ima
         project,
         fixture.character as unknown as ProjectCharacter,
         referenceKind,
+        promptVersion,
       );
     }
     const checks = textChecks(prompt, fixture.expected);
@@ -255,11 +264,18 @@ export function compileImagePromptBaseline(suite: ImagePromptBaselineSuite): Ima
       chapter: suite.candidateContext.chapter,
       shot: fixture.shot,
     });
-    const providerProfiles = suite.providers.map((providerType) => compileImagePromptForProvider({
-      providerType,
-      positivePrompt: generationSpec.positivePrompt,
-      negativePrompt: generationSpec.negativePrompt,
-    }));
+    const providerProfiles = suite.providers.map((providerType) => {
+      const compile = promptVersion === "v1"
+        ? compileImagePromptForProviderV1
+        : compileImagePromptForProvider;
+      return compile({
+        providerType,
+        positivePrompt: generationSpec.positivePrompt,
+        negativePrompt: generationSpec.negativePrompt,
+        sections: generationSpec.sections,
+        systemConstraints: generationSpec.systemConstraints,
+      });
+    });
     const checks = [
       ...textChecks(generationSpec.positivePrompt, fixture.expected),
       check("candidate_spec_version", CANDIDATE_GENERATION_SPEC_VERSION, generationSpec.schemaVersion),
@@ -274,7 +290,7 @@ export function compileImagePromptBaseline(suite: ImagePromptBaselineSuite): Ima
       check("provider_profile_count", suite.providers.length, providerProfiles.length),
       check(
         "provider_prompts_equal_positive_prompt",
-        true,
+        promptVersion === "v1",
         providerProfiles.every((profile) => profile.prompt === generationSpec.positivePrompt),
       ),
       check(
@@ -309,7 +325,8 @@ export function compileImagePromptBaseline(suite: ImagePromptBaselineSuite): Ima
     productionBaseline: {
       candidateSpecVersion: CANDIDATE_GENERATION_SPEC_VERSION,
       candidatePurpose: "shot_clean_plate",
-      candidateProviderPromptSource: "positivePrompt",
+      promptVersion,
+      candidateProviderPromptSource: promptVersion === "v1" ? "positivePrompt" : "provider_profile_v2",
       negativePromptDelivery: "embedded_constraints",
     },
     referenceCases,

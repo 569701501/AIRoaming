@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-17T07:57:28.474Z",
+  "references": [
+    {
+      "assetId": "asset_lin_preview",
+      "file": "../../../../2026-07-17_真实图片AB/evidence/references/asset_lin_preview.png",
+      "mimeType": "image/png",
+      "sha256": "58405095c6d61768d90ed14a2804ccad3b3518617e03aea28c68b8a30a3714b6",
+      "dimensions": {
+        "width": 1024,
+        "height": 1536
+      }
+    },
+    {
+      "assetId": "asset_xu_preview",
+      "file": "../../../../2026-07-17_真实图片AB/evidence/references/asset_xu_preview.png",
+      "mimeType": "image/png",
+      "sha256": "00ccd75436635b1a61a4f90e36d4330d379a3ee7be1ba0b8a9e6fcbc9ac3d98d",
+      "dimensions": {
+        "width": 1024,
+        "height": 1536
+      }
+    },
+    {
+      "assetId": "asset_zhao_preview",
+      "file": "../../../../2026-07-17_真实图片AB/evidence/references/asset_zhao_preview.png",
+      "mimeType": "image/png",
+      "sha256": "2a8e0e9d3ede4ed557a72e90eef5550d383c2d9311c8074316a7c331ee2ef7c9",
+      "dimensions": {
+        "width": 1024,
+        "height": 1536
+      }
+    },
+    {
+      "assetId": "asset_gao_preview",
+      "file": "../../../../2026-07-17_真实图片AB/evidence/references/asset_gao_preview.png",
+      "mimeType": "image/png",
+      "sha256": "586e27f3586abebd256a81c89c6eb6219090b1dc0997918b2c8aee6e736aea17",
+      "dimensions": {
+        "width": 1023,
+        "height": 1537
+      }
+    },
+    {
+      "assetId": "asset_scene_port",
+      "file": "../../../../2026-07-17_真实图片AB/evidence/references/asset_scene_port.png",
+      "mimeType": "image/png",
+      "sha256": "df82ef3e82adbcbff1edbea091d3e4f0223c502214b188fc84cde80dfd7a5e0b",
+      "dimensions": {
+        "width": 1717,
+        "height": 916
+      }
+    },
+    {
+      "assetId": "asset_scene_archive",
+      "file": "../../../../2026-07-17_真实图片AB/evidence/references/asset_scene_archive.png",
+      "mimeType": "image/png",
+      "sha256": "be772c3f8b88a0bd0b87755dc877a01a820f7b71bd0b8e13441d50457c0b1afe",
+      "dimensions": {
+        "width": 1774,
+        "height": 887
+      }
+    }
+  ]
+}

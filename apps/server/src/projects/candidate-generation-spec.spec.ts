@@ -4,6 +4,7 @@ import {
   buildCandidateGenerationSpec,
   createCandidateGenerationSpec,
   createCandidateGenerationTaskInput,
+  readCandidateShotContract,
 } from "./candidate-generation-spec.js";
 
 describe("buildCandidateGenerationSpec", () => {
@@ -66,6 +67,14 @@ describe("buildCandidateGenerationSpec", () => {
     expect(spec.positivePrompt).toContain("foreground/midground/background separation");
     expect(spec.positivePrompt).toContain("Preserve the supplied character identity");
     expect(spec.negativePrompt).toContain("speech bubbles");
+    expect(readCandidateShotContract(spec.systemConstraints)).toMatchObject({
+      schemaVersion: 2,
+      staging: "pair",
+      subjectCount: 2,
+      subjectNames: ["酷拉皮卡", "奇犽"],
+      decisiveMoment: true,
+      effectCausality: "conditional",
+    });
 
     for (const forbidden of [
       "第1章：黑色念痕",

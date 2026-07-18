@@ -1,0 +1,4 @@
+interface:
+  display_name: "漫画候选图"
+  short_description: "从正式分镜生成单镜头、无字无分格的漫画候选底图提示词"
+  default_prompt: "Use $image-candidate-generate to prepare one clean comic-shot image prompt."
