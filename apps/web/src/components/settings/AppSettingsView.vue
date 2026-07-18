@@ -46,7 +46,7 @@
         <div class="field-grid">
           <label>
             <span>服务商</span>
-            <select v-model="aiForm.providerId">
+            <select v-model="aiForm.providerId" @change="onTextProviderChange">
               <option v-for="provider in providerOptions" :key="provider.providerId" :value="provider.providerId">
                 {{ provider.providerName }}
               </option>
@@ -320,6 +320,7 @@ const tabs = [
 const providerOptions = [
   { providerId: "self", providerName: "自定义 OpenAI 兼容" },
   { providerId: "aurora", providerName: "Aurora GPT 对话" },
+  { providerId: "xai", providerName: "xAI Grok 对话" },
   { providerId: "kimi", providerName: "Moonshot Kimi 对话" },
   { providerId: "deepseek", providerName: "DeepSeek 对话" },
   { providerId: "mimo", providerName: "Xiaomi MiMo 对话" },
@@ -459,6 +460,14 @@ watch(
 
 async function reload() {
   await settings.loadSettings();
+}
+
+function onTextProviderChange() {
+  if (aiForm.providerId !== "xai") {
+    return;
+  }
+  aiForm.modelId = "grok-4.5";
+  aiForm.baseUrl = "https://api.x.ai/v1";
 }
 
 async function saveAIKey() {

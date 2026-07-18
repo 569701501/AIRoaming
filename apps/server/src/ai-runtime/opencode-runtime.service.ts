@@ -32,6 +32,10 @@ interface OpenCodeEventPayload {
 interface OpenCodeProviderConfig {
   id?: string;
   name?: string;
+  npm?: string;
+  options?: {
+    baseURL?: string;
+  };
   models?: Record<string, {
     id?: string;
     name?: string;
@@ -40,6 +44,14 @@ interface OpenCodeProviderConfig {
 
 interface OpenCodeConfigResponse {
   provider?: Record<string, OpenCodeProviderConfig>;
+}
+
+interface OpenCodeRuntimeProviderBinding {
+  logicalProviderId: string;
+  runtimeProviderId: string;
+  modelId: string;
+  managedProvider: OpenCodeProviderConfig | null;
+  signature: string;
 }
 
 const TEXT_GENERATION_SESSION_PERMISSIONS = [
@@ -59,6 +71,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   private readonly host = process.env.OPENCODE_HOST ?? "127.0.0.1";
   private readonly port = Number(process.env.OPENCODE_PORT ?? 4396);
   private readonly baseUrl = process.env.OPENCODE_BASE_URL ?? `http://${this.host}:${this.port}`;
+  private readonly externalBaseUrl = Boolean(process.env.OPENCODE_BASE_URL);
   private readonly autoStart = process.env.OPENCODE_AUTO_START !== "false";
   private readonly messageTimeoutMs = Number(process.env.OPENCODE_MESSAGE_TIMEOUT_MS ?? 300000);
   private readonly defaultModel: AIRuntimeModelSelection = {
@@ -69,6 +82,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   private child: ChildProcess | null = null;
   private readyPromise: Promise<void> | null = null;
   private syncedAuthSignature: string | null = null;
+  private managedProviderSignature: string | null = null;
 
   constructor(@Inject(SettingsService) private readonly settingsService: SettingsService) {}
 
@@ -90,34 +104,38 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   async listModels(): Promise<AIRuntimeModelItem[]> {
     try {
       const config = await this.withReadyRetry(async () => {
-        await this.syncConfiguredAuth();
+        const binding = await this.ensureConfiguredProvider();
+        await this.syncConfiguredAuth(binding);
         return this.requestJson<OpenCodeConfigResponse>("/config", {
           method: "GET",
         });
       });
       const defaultModel = this.getDefaultModel();
+      const defaultBinding = this.getRuntimeProviderBinding(defaultModel);
       const providers = config.provider ?? {};
       const items = Object.entries(providers).flatMap(([providerId, provider]) => {
         const providerName = provider.name ?? provider.id ?? providerId;
+        const logicalProviderId = providerId === defaultBinding.runtimeProviderId
+          ? defaultBinding.logicalProviderId
+          : providerId;
         return Object.entries(provider.models ?? {}).map(([modelId, model]) => ({
-          providerId,
+          providerId: logicalProviderId,
           modelId,
           providerName,
           displayName: model.name ?? model.id ?? modelId,
-          default: providerId === defaultModel.providerId && modelId === defaultModel.modelId,
+          default: logicalProviderId === defaultModel.providerId && modelId === defaultModel.modelId,
         }));
       });
 
-      const hasDefaultModel = items.some((item) => item.providerId === defaultModel.providerId && item.modelId === defaultModel.modelId);
-      const normalizedItems = hasDefaultModel ? items : [this.fallbackModel(), ...items];
-      return normalizedItems.length > 0 ? normalizedItems : [this.fallbackModel()];
+      return [...new Map(items.map((item) => [`${item.providerId}\0${item.modelId}`, item])).values()];
     } catch {
-      return [this.fallbackModel()];
+      return [];
     }
   }
 
   async createSession(title: string, signal?: AbortSignal): Promise<string> {
-    const session = await this.withReadyRetry(() => {
+    const session = await this.withReadyRetry(async () => {
+      await this.ensureConfiguredProvider();
       return this.requestJson<OpenCodeSession>("/session", {
         method: "POST",
         body: JSON.stringify({
@@ -144,7 +162,8 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   }> {
     const model = input.model ?? this.getDefaultModel();
     const response = await this.withReadyRetry(async () => {
-      await this.syncConfiguredAuth();
+      const binding = await this.ensureConfiguredProvider(model);
+      await this.syncConfiguredAuth(binding);
       return this.postMessage(input.sessionId, input.content, model, input.signal);
     });
 
@@ -175,7 +194,8 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   }> {
     const model = input.model ?? this.getDefaultModel();
     await this.ensureReady();
-    await this.syncConfiguredAuth();
+    const binding = await this.ensureConfiguredProvider(model);
+    await this.syncConfiguredAuth(binding);
 
     try {
       return await this.streamMessageOnce(input.sessionId, input.content, model, handlers, input.signal);
@@ -196,14 +216,16 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       return this.readyPromise;
     }
 
-    this.readyPromise = this.waitUntilReady().catch(async (error) => {
-      if (!this.autoStart) {
-        this.readyPromise = null;
-        throw error;
-      }
-
+    if (!this.externalBaseUrl && this.autoStart) {
       this.startServer();
-      await this.waitUntilReady();
+      this.readyPromise = this.waitUntilReady();
+    } else {
+      this.readyPromise = this.waitUntilReady();
+    }
+
+    this.readyPromise = this.readyPromise.catch((error) => {
+      this.readyPromise = null;
+      throw error;
     });
 
     return this.readyPromise;
@@ -352,11 +374,12 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     model: AIRuntimeModelSelection,
     signal?: AbortSignal,
   ): Promise<OpenCodeMessageResponse> {
+    const runtimeModel = this.getRuntimeProviderBinding(model);
     return this.requestJson<OpenCodeMessageResponse>(`/session/${encodeURIComponent(sessionId)}/message`, {
       method: "POST",
       body: JSON.stringify({
         model: {
-          providerID: model.providerId,
+          providerID: runtimeModel.runtimeProviderId,
           modelID: model.modelId,
         },
         // OpenCode 1.17.x 会把消息级 tools 规则写回会话权限。
@@ -384,19 +407,27 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     const serverPort = process.env.PORT ?? "4310";
     const toolCallbackBase = process.env.AIROAMING_TOOL_CALLBACK_BASE_URL ?? `http://127.0.0.1:${serverPort}/api`;
     const toolCallbackToken = process.env.AIROAMING_TOOL_CALLBACK_TOKEN ?? "";
+    const binding = this.getRuntimeProviderBinding();
+    const managedConfigContent = this.buildManagedConfigContent(binding);
+    this.managedProviderSignature = binding.managedProvider ? binding.signature : null;
 
-    this.child = spawn("opencode", ["serve", "--port", String(this.port), "--hostname", this.host], {
+    const child = spawn("opencode", ["serve", "--port", String(this.port), "--hostname", this.host], {
       stdio: "ignore",
       detached: false,
       env: {
         ...process.env,
         AIROAMING_TOOL_CALLBACK_BASE_URL: toolCallbackBase,
         AIROAMING_TOOL_CALLBACK_TOKEN: toolCallbackToken,
+        OPENCODE_CONFIG_CONTENT: managedConfigContent,
       },
     });
-    this.child.once("exit", () => {
-      this.child = null;
-      this.readyPromise = null;
+    this.child = child;
+    child.once("exit", () => {
+      if (this.child === child) {
+        this.child = null;
+        this.readyPromise = null;
+        this.managedProviderSignature = null;
+      }
     });
   }
 
@@ -584,17 +615,130 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     return null;
   }
 
-  private fallbackModel(): AIRuntimeModelItem {
-    const defaultModel = this.getDefaultModel();
+  private getRuntimeProviderBinding(model: AIRuntimeModelSelection = this.getDefaultModel()): OpenCodeRuntimeProviderBinding {
+    const credential = this.settingsService.getRuntimeAIKeySettings();
+    const baseUrl = model.providerId === credential.providerId ? credential.baseUrl?.trim() : null;
+    const runtimeProviderId = baseUrl ? `airoaming_${model.providerId}` : model.providerId;
+    const managedProvider: OpenCodeProviderConfig | null = baseUrl
+      ? {
+          name: model.providerId,
+          npm: "@ai-sdk/openai-compatible",
+          options: {
+            baseURL: baseUrl,
+          },
+          models: {
+            [model.modelId]: {
+              name: model.modelId,
+            },
+          },
+        }
+      : null;
+    const signature = createHash("sha256")
+      .update([model.providerId, runtimeProviderId, model.modelId, baseUrl ?? ""].join("\0"))
+      .digest("hex");
     return {
-      ...defaultModel,
-      providerName: defaultModel.providerId,
-      displayName: defaultModel.modelId,
-      default: true,
+      logicalProviderId: model.providerId,
+      runtimeProviderId,
+      modelId: model.modelId,
+      managedProvider,
+      signature,
     };
   }
 
-  private async syncConfiguredAuth(): Promise<void> {
+  private buildManagedConfigContent(binding: OpenCodeRuntimeProviderBinding): string {
+    const configuredContent = process.env.OPENCODE_CONFIG_CONTENT?.trim();
+    let config: Record<string, unknown> = {};
+    if (configuredContent) {
+      try {
+        const parsed = JSON.parse(configuredContent) as unknown;
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          throw new Error("OPENCODE_CONFIG_CONTENT must be an object");
+        }
+        config = parsed as Record<string, unknown>;
+      } catch (error) {
+        throw new BadGatewayException({
+          code: "OPENCODE_CONFIG_CONTENT_INVALID",
+          message: error instanceof Error ? error.message : "OpenCode 配置不是有效 JSON",
+        });
+      }
+    }
+
+    if (!binding.managedProvider) {
+      return JSON.stringify(config);
+    }
+
+    const currentProviders = typeof config.provider === "object" && config.provider !== null && !Array.isArray(config.provider)
+      ? config.provider as Record<string, unknown>
+      : {};
+    return JSON.stringify({
+      ...config,
+      provider: {
+        ...currentProviders,
+        [binding.runtimeProviderId]: binding.managedProvider,
+      },
+    });
+  }
+
+  private async ensureConfiguredProvider(
+    model: AIRuntimeModelSelection = this.getDefaultModel(),
+  ): Promise<OpenCodeRuntimeProviderBinding> {
+    const binding = this.getRuntimeProviderBinding(model);
+    if (!binding.managedProvider) {
+      return binding;
+    }
+
+    if (this.child && this.managedProviderSignature !== binding.signature) {
+      await this.restartManagedServer();
+    }
+
+    let config = await this.requestJson<OpenCodeConfigResponse>("/config", { method: "GET" });
+    if (!this.isManagedProviderRegistered(config, binding) && this.child) {
+      await this.restartManagedServer();
+      config = await this.requestJson<OpenCodeConfigResponse>("/config", { method: "GET" });
+    }
+
+    if (!this.isManagedProviderRegistered(config, binding)) {
+      throw new BadGatewayException({
+        code: "OPENCODE_PROVIDER_NOT_REGISTERED",
+        providerId: binding.logicalProviderId,
+        modelId: binding.modelId,
+        message: `OpenCode 尚未注册 ${binding.logicalProviderId}/${binding.modelId}`,
+      });
+    }
+
+    return binding;
+  }
+
+  private isManagedProviderRegistered(
+    config: OpenCodeConfigResponse,
+    binding: OpenCodeRuntimeProviderBinding,
+  ): boolean {
+    const provider = config.provider?.[binding.runtimeProviderId];
+    return provider?.npm === "@ai-sdk/openai-compatible"
+      && provider.options?.baseURL === binding.managedProvider?.options?.baseURL
+      && Boolean(provider.models?.[binding.modelId]);
+  }
+
+  private async restartManagedServer(): Promise<void> {
+    const child = this.child;
+    if (!child) {
+      return;
+    }
+
+    this.child = null;
+    this.readyPromise = null;
+    this.syncedAuthSignature = null;
+    this.managedProviderSignature = null;
+    child.kill();
+    await Promise.race([
+      new Promise<void>((resolve) => child.once("exit", () => resolve())),
+      this.delay(3000),
+    ]);
+    this.startServer();
+    await this.waitUntilReady();
+  }
+
+  private async syncConfiguredAuth(binding: OpenCodeRuntimeProviderBinding): Promise<void> {
     const credential = this.settingsService.getRuntimeAIKeySettings();
     if (!credential.apiKey) {
       this.syncedAuthSignature = null;
@@ -602,22 +746,17 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     }
 
     const signature = createHash("sha256")
-      .update([credential.providerId, credential.baseUrl ?? "", credential.apiKey].join("\0"))
+      .update([binding.runtimeProviderId, credential.baseUrl ?? "", credential.apiKey].join("\0"))
       .digest("hex");
     if (this.syncedAuthSignature === signature) {
       return;
     }
 
-    await this.requestJson<boolean>(`/auth/${encodeURIComponent(credential.providerId)}`, {
+    await this.requestJson<boolean>(`/auth/${encodeURIComponent(binding.runtimeProviderId)}`, {
       method: "PUT",
       body: JSON.stringify({
         type: "api",
         key: credential.apiKey,
-        metadata: credential.baseUrl
-          ? {
-              baseURL: credential.baseUrl,
-            }
-          : undefined,
       }),
       timeoutMs: Number(process.env.OPENCODE_AUTH_TIMEOUT_MS ?? 5000),
     });

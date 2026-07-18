@@ -74,6 +74,7 @@ const GROK_DEFAULT_MODEL = "grok-imagine-image-quality";
 const PROVIDER_NAME_BY_ID: Record<string, string> = {
   self: "自定义 OpenAI 兼容",
   aurora: "Aurora GPT 对话",
+  xai: "xAI Grok 对话",
   kimi: "Moonshot Kimi 对话",
   deepseek: "DeepSeek 对话",
   mimo: "Xiaomi MiMo 对话",
@@ -138,11 +139,15 @@ export class SettingsService implements OnModuleInit {
   }
 
   getRuntimeAIKeySettings(): RuntimeAIKeySettings {
+    const recoveredSharedKey = this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime();
+    if (!this.runtimeAIKey && recoveredSharedKey) {
+      this.runtimeAIKey = recoveredSharedKey;
+    }
     return {
       providerId: this.settings.aiKey.providerId,
       modelId: this.settings.aiKey.modelId,
       baseUrl: this.settings.aiKey.baseUrl,
-      apiKey: this.runtimeAIKey,
+      apiKey: recoveredSharedKey,
     };
   }
 
@@ -156,6 +161,32 @@ export class SettingsService implements OnModuleInit {
       baseUrl: stored.baseUrl,
       apiKey: this.runtimeImageSecrets.get(this.credentialIdForImageProvider(active, stored.providerId))?.reveal() ?? null,
     };
+  }
+
+  private findMatchingImageCredentialForTextRuntime(): string | null {
+    const textSettings = this.settings.aiKey;
+    if (!textSettings.keyFingerprint) {
+      return null;
+    }
+
+    const imageProviders: Array<[ImageProviderType, StoredAIKeySettings]> = [
+      ["openai", this.settings.openaiImageProvider],
+      ["doubao", this.settings.doubaoImageProvider],
+      ["grok", this.settings.grokImageProvider],
+    ];
+    for (const [type, provider] of imageProviders) {
+      if (
+        provider.keyFingerprint !== textSettings.keyFingerprint
+        || provider.baseUrl !== textSettings.baseUrl
+      ) {
+        continue;
+      }
+      const secret = this.runtimeImageSecrets.get(this.credentialIdForImageProvider(type, provider.providerId));
+      if (secret) {
+        return secret.reveal();
+      }
+    }
+    return null;
   }
 
   async getSettings(): Promise<AppSettings> {
@@ -276,7 +307,11 @@ export class SettingsService implements OnModuleInit {
       providerName,
       modelId,
       baseUrl,
-      keyFingerprint: apiKey ? this.fingerprintKey(apiKey) : current.keyFingerprint,
+      keyFingerprint: apiKey
+        ? this.fingerprintKey(apiKey)
+        : shouldClearApiKey
+          ? null
+          : current.keyFingerprint,
       updatedAt: now,
     };
   }

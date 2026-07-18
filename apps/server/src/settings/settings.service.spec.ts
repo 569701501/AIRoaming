@@ -63,6 +63,83 @@ describe("D2-A1 SettingsService secret boundary", () => {
     expect((await second.getSettings()).openaiImageProvider.keyPreview).toBeNull();
   });
 
+  it("recovers a text runtime key after restart only when the Grok image credential has the same fingerprint and base URL", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-"));
+    const secretRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-secret-"));
+    roots.push(workspaceRoot, secretRoot);
+    const store = new FakeSecretStore(secretRoot);
+    const first = createService(workspaceRoot, store);
+    await first.onModuleInit();
+    await first.updateSettings({
+      aiKey: {
+        providerId: "xai",
+        modelId: "grok-4.5",
+        baseUrl: "https://proxy.example/v1",
+        apiKey: "shared-grok-runtime-key",
+      },
+      grokImageProvider: {
+        providerId: "grok_image",
+        modelId: "grok-imagine-image-quality",
+        baseUrl: "https://proxy.example/v1",
+        apiKey: "shared-grok-runtime-key",
+      },
+    });
+
+    const second = createService(workspaceRoot, store);
+    await second.onModuleInit();
+
+    expect(second.getRuntimeAIKeySettings().apiKey).toBe("shared-grok-runtime-key");
+    expect(await readFile(path.join(workspaceRoot, "settings", "app-settings.json"), "utf8"))
+      .not.toContain("shared-grok-runtime-key");
+  });
+
+  it("adds xAI Grok 4.5 as a text runtime choice without retaining another provider's key state", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-"));
+    const secretRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-secret-"));
+    roots.push(workspaceRoot, secretRoot);
+    const service = createService(workspaceRoot, new FakeSecretStore(secretRoot));
+    await service.onModuleInit();
+
+    await service.updateSettings({
+      aiKey: { providerId: "self", modelId: "gpt-5.5", apiKey: "existing-provider-key" },
+    });
+    const withoutKey = await service.updateSettings({
+      aiKey: {
+        providerId: "xai",
+        providerName: "xAI Grok 对话",
+        modelId: "grok-4.5",
+        baseUrl: "https://api.x.ai/v1",
+      },
+    });
+
+    expect(withoutKey.aiKey).toMatchObject({
+      providerId: "xai",
+      providerName: "xAI Grok 对话",
+      modelId: "grok-4.5",
+      baseUrl: "https://api.x.ai/v1",
+      configured: false,
+      keyFingerprint: null,
+    });
+    expect(service.getRuntimeAIKeySettings()).toEqual({
+      providerId: "xai",
+      modelId: "grok-4.5",
+      baseUrl: "https://api.x.ai/v1",
+      apiKey: null,
+    });
+
+    const configured = await service.updateSettings({
+      aiKey: { apiKey: "xai-runtime-key" },
+    });
+    expect(configured.aiKey).toMatchObject({
+      providerId: "xai",
+      modelId: "grok-4.5",
+      configured: true,
+    });
+    expect(service.getRuntimeAIKeySettings().apiKey).toBe("xai-runtime-key");
+    expect(await readFile(path.join(workspaceRoot, "settings", "app-settings.json"), "utf8"))
+      .not.toContain("xai-runtime-key");
+  });
+
   it("SEC-06/11 does not overwrite a legacy plaintext file when SecretStore is unavailable", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-"));
     roots.push(workspaceRoot);
