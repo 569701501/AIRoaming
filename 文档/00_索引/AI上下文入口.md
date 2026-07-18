@@ -150,6 +150,8 @@ corepack pnpm test:e2e:repeat # E2E repeat-each=3 稳定性复跑
 corepack pnpm test:all      # 类型、Vitest、E2E 聚合门禁
 ```
 
+`corepack pnpm dev` 是 DB-only 标准入口：默认读取 `~/.airoaming/data/db/airoaming.sqlite` 与 `~/.airoaming/workspace`，并在启动服务前核验数据库文件、0001～0017 migration ledger、`PersistenceState.activationState=db_only` 和 `activatedAt`。任一条件不满足即停止，不得自动新建空库或回退 `legacy_file`。旧 file runtime 只允许由正式迁移/恢复流程显式启动。
+
 当前 G1 已交付数据库基座的事实核对入口不是旧“文档完备性复核”，而是：
 
 ```text

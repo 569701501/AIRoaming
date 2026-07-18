@@ -85,6 +85,14 @@ import {
   classifyScriptRevisionLayer,
 } from "./script-revision-quality.util.js";
 
+function formatChapterGenerationContextError(error: unknown): string {
+  const message = getErrorMessage(error);
+  if (message.includes("G2_DB_MODE_REQUIRED") || message.includes("DB_PERSISTENCE_NOT_ENABLED")) {
+    return "当前服务运行实例未连接 DB-only 数据库，章节内容没有问题，也没有发起模型生成。请按 DB-only 配置重新启动服务后再试。";
+  }
+  return `当前章节暂时不能生成：${message}。请检查本章是否已有正文或待确认草稿，以及上一章是否已经完成。`;
+}
+
 /**
  * 剧本工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
  *
@@ -774,7 +782,7 @@ export class ScriptDialogueService {
       return this.createFailedToolResult(
         turn,
         "generate_script_from_outline",
-        `当前章节暂时不能生成：${getErrorMessage(error)}。请检查本章是否已有正文或待确认草稿，以及上一章是否已经完成。`,
+        formatChapterGenerationContextError(error),
       );
     }
     let sourceText: string;

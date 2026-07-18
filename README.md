@@ -18,6 +18,10 @@ corepack pnpm build
 corepack pnpm dev
 ```
 
+`pnpm dev` 只连接已经完成迁移并激活的 DB-only 本地运行实例，默认运行根为 `~/.airoaming/`。数据库缺失、迁移账本不完整或尚未激活时，启动会直接停止，不会静默回退到旧文件模式。
+
+需要覆盖运行目录时，启动前显式设置绝对路径形式的 `AIROAMING_DATA_ROOT`、`AIROAMING_WORKSPACE_ROOT` 和 `DATABASE_URL`。旧文件模式只用于受控迁移与故障恢复，不是日常开发入口。
+
 默认端口：
 
 - Web: `http://localhost:5173`

@@ -375,6 +375,21 @@ describe("ScriptDialogueService A4 显式生成", () => {
     expect(repository.createAiChapterPending).toHaveBeenCalledWith(expect.objectContaining({ chapterId: "chapter-2", outlineId: "outline-1", expectedSourceSetDigest: digest, operation: "generate_script_from_outline" }));
   });
 
+  it("DB-only 运行实例未接入时直接报告启动配置错误，不误导用户检查章节", async () => {
+    const { service, repository, runtime } = setup([]);
+    repository.getAiChapterGenerationContext.mockRejectedValueOnce(new Error("G2_DB_MODE_REQUIRED"));
+
+    const results = await service.handleScriptTurn(
+      turn(),
+      { content: "生成当前章节", chapterId: "chapter-2" } as SendDialogueMessageRequest,
+    );
+
+    expect(results[0]).toMatchObject({ tool: "generate_script_from_outline", status: "failed" });
+    expect(results[0]?.summary).toContain("服务运行实例未连接 DB-only 数据库");
+    expect(results[0]?.summary).not.toContain("上一章是否已经完成");
+    expect(runtime.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("不能在当前章节对话中指定另一个章节生成", async () => {
     const { service, repository, runtime } = setup([]);
     const results = await service.handleScriptTurn(turn(), { content: "写第 1 章", chapterId: "chapter-2" } as SendDialogueMessageRequest);

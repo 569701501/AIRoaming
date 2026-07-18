@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "local:dev": "tsx src/persistence/local-dev.cli.ts",
     "storyboard:semantic:evaluate": "tsx src/dialogue/storyboard-semantic-evaluation.cli.ts",
     "storyboard:semantic:corpus": "tsx src/dialogue/storyboard-semantic-corpus.cli.ts",
     "storyboard:prompt:ab": "tsx src/dialogue/storyboard-prompt-ab.cli.ts",
