@@ -1,0 +1,4 @@
+interface:
+  display_name: "章节剧本修订"
+  short_description: "按用户要求分层修订当前章节，并保护未授权内容和前章连续性"
+  default_prompt: "Use $script-chapter-editing to revise the current chapter within the requested revision layer."

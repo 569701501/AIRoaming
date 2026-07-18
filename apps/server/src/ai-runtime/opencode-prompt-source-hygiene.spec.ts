@@ -34,12 +34,19 @@ describe("OpenCodeAI Prompt 单一事实源", () => {
           "P3 场景推进：每场戏都要有有效剧情描写",
           "当前章节卡的章节目标、核心冲突、关键转折和结尾钩子必须在正文中可观察",
           "任务：根据用户选中的灵感种子，生成第 1 章完整「章节剧本」",
+          "先在内部列出“允许修改 / 必须保护”",
+          "尊重当前草稿中的既有事实和剧情方向",
           "正式章节正文是本阶段唯一的实际剧情事实源",
           "每一个正文场景都必须且只能对应一个场景卡",
           "上一次输出格式可解析，但未通过剧情结构固定质量门",
           "漫画画格锁定一个静态决定性瞬间",
           "漫剧镜头从开始状态",
           "给后续图片提示词生成的简短草稿",
+          "你是来源分析员，不是改编作者",
+          "标签、录音、屏幕文字、档案内容、书信或广播",
+          "你只能审计，不能继续改写章节正文",
+          "sourceCoverage 必须完整、无重叠覆盖",
+          "只修复格式、字段、引用和结构错误",
         ],
       },
       {
@@ -50,6 +57,15 @@ describe("OpenCodeAI Prompt 单一事实源", () => {
           "上一次输出格式合法，但未通过 P2 因果大纲与结局方向质量门",
           "上一次输出格式合法，但未通过 P3 场景契约 / P5 连续性质量门",
           "每场戏要有有效剧情描写、人物动作、阻力或选择",
+          "上一次输出未通过 P5 前章连续性保护",
+          "上一次章节改写未通过 creative.chapter-edit/1.0 格式校验",
+        ],
+      },
+      {
+        file: "apps/server/src/dialogue/script-revision-quality.util.ts",
+        forbidden: [
+          "只调整场景目标、阻力、节奏、潜台词、转折及其文字表达",
+          "必须保留全部剧情事实和场景结构",
         ],
       },
       {
@@ -77,15 +93,25 @@ describe("OpenCodeAI Prompt 单一事实源", () => {
       .toContain("compileImageReferenceGuidanceForProvider");
   });
 
-  it("A2/A3/A4 真实对话路径明确读取三个剧本 Skill", () => {
+  it("A2/A3/A4/A5.3 与 B2/B4 真实生产路径明确读取五个剧本 Skill", () => {
     const promptBuilder = source("apps/server/src/dialogue/dialogue-prompt.util.ts");
     const scriptService = source("apps/server/src/dialogue/script-dialogue.service.ts");
+    const importAnalysisService = source("apps/server/src/dialogue/script-import-analysis.service.ts");
+    const importBatchService = source("apps/server/src/dialogue/script-import-batch.service.ts");
 
     expect(promptBuilder).toContain('const skillName = "script-inspiration-seeding"');
     expect(promptBuilder).toContain('const skillName = "script-outline-drafting"');
     expect(promptBuilder).toContain('const skillName = "script-chapter-drafting"');
+    expect(promptBuilder).toContain('const skillName = "script-chapter-editing"');
+    expect(promptBuilder).toContain('const skillName = "script-import-normalize"');
     expect(scriptService).toContain("buildInspirationSeedsRepairPrompt");
     expect(scriptService).toContain("buildScriptOutlineRepairPrompt");
     expect(scriptService).toContain("buildChapterDraftRepairPrompt");
+    expect(scriptService).toContain("buildChapterEditingRepairPrompt");
+    expect(importAnalysisService).toContain("buildScriptImportAnalysisPrompt");
+    expect(importAnalysisService).toContain("buildScriptImportFormatRepairPrompt");
+    expect(importBatchService).toContain("buildScriptImportMaterializePrompt");
+    expect(importBatchService).toContain("buildScriptImportVerifyPrompt");
+    expect(importBatchService).toContain("buildScriptImportFormatRepairPrompt");
   });
 });

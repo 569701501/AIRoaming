@@ -11,25 +11,6 @@ const REVISION_LAYER_LABELS: Record<ScriptRevisionLayer, string> = {
   prose: "文字修订",
 };
 
-const REVISION_LAYER_CONTRACTS: Record<ScriptRevisionLayer, string[]> = {
-  continuity: [
-    "修正时间、地点、人物知识、伤势、道具、关系或已发生事实，并只联动必要的下层表达。",
-    "不得借连续性修复发明无关剧情、改变章序或改动未点名的项目基础字段和角色名单。",
-  ],
-  development: [
-    "修正剧情功能、人物推动力、因果、高潮或人物弧，并允许必要的场景、对白和文字联动。",
-    "必须保留既有连续性事实，不得改变章序或改动未点名的项目基础字段和角色名单。",
-  ],
-  scene_dialogue: [
-    "只调整场景目标、阻力、节奏、潜台词、转折及其文字表达。",
-    "必须保留本章方向、结尾事实、项目基础字段和角色名单；除非用户明确点名对应字段。",
-  ],
-  prose: [
-    "只修改句子、重复、语气、错字、标点和文字表达。",
-    "必须保留全部剧情事实和场景结构，包括场景数量、顺序、名称、地点、时间、氛围、出场人物和结束点。",
-  ],
-};
-
 const CONTINUITY_REQUEST = /(连续性|前后矛盾|设定冲突|时间线|时间不对|地点不对|人物已知|人物知道|人物不知道|伤势|受伤|道具|物品|关系错|事实错误|已发生事实|穿帮|称呼错)/;
 const DEVELOPMENT_REQUEST = /(剧情功能|剧情方向|故事方向|人物动机|角色动机|推动力|因果|高潮|核心冲突|本章目标|章节目标|人物弧|角色弧|主线|支线|伏笔|回收|结局|结尾|钩子)/;
 const SCENE_DIALOGUE_REQUEST = /(场景|对白|台词|潜台词|冲突|阻力|转折|节奏|开场|收场|戏剧|悬念)/;
@@ -48,10 +29,6 @@ export function classifyScriptRevisionLayer(instruction: string): ScriptRevision
 
 export function getScriptRevisionLayerLabel(layer: ScriptRevisionLayer): string {
   return REVISION_LAYER_LABELS[layer];
-}
-
-export function getScriptRevisionLayerContract(layer: ScriptRevisionLayer): readonly string[] {
-  return REVISION_LAYER_CONTRACTS[layer];
 }
 
 function semanticKey(value: string): string {

@@ -16,7 +16,7 @@ source: 用户明确纠偏、OpenCodeAI 目录契约、现有生产 Prompt 调�
 
 ## 2. 背景与问题
 
-P1 灵感、P2 项目大纲、A4 章节起草、剧情结构、分镜、角色/场景参考图和候选图 Prompt 曾因 OpenCodeAI 目录尚未接生产运行时，被临时写入后端 TypeScript。结果是 Skill 目录不可见、后端承担创作正文、代码和文档存在漂移风险。用户明确要求 Prompt 应位于 `apps/server/opencodeAI/skills/`。
+P1 灵感、P2 项目大纲、A4 章节起草、A5.3 章节修订、已有剧本 B2/B4、剧情结构、分镜、角色/场景参考图和候选图 Prompt 曾因 OpenCodeAI 目录尚未接生产运行时，被临时写入后端 TypeScript。结果是 Skill 目录不可见、后端承担创作正文、代码和文档存在漂移风险。用户明确要求 Prompt 应位于 `apps/server/opencodeAI/skills/`。
 
 ## 3. 决策
 
@@ -35,12 +35,14 @@ P1 灵感、P2 项目大纲、A4 章节起草、剧情结构、分镜、角色/�
 - `script-inspiration-seeding`
 - `script-outline-drafting`
 - `script-chapter-drafting`
+- `script-chapter-editing`
+- `script-import-normalize`
 - `structure-story-parse`
 - `storyboard-shot-generate`
 - `image-reference-generate`
 - `image-candidate-generate`
 
-章节修订和已有剧本导入的历史 Prompt 后续按同一原则渐进迁移，本 ADR 不要求一次完成。
+已有剧本导入保留三个独立模型阶段：B2 原稿观察分析、B4 忠实章节整理、B4 忠实度验证；不得为了复用 Skill 而合并成一个长 Prompt。
 
 ### 3.3 非目标
 
@@ -70,14 +72,14 @@ P1 灵感、P2 项目大纲、A4 章节起草、剧情结构、分镜、角色/�
 
 - 服务端发布物必须能读取 `opencodeAI/skills`。
 - 模板变量和 JSON Profile 需要严格校验。
-- 章节修订和已有剧本导入 Prompt 尚未迁移，短期仍是渐进状态。
+- 已有剧本三阶段 Prompt 已迁移；运行时仍需保留动态来源装配、严格结构校验和批处理围栏。
 
 | 影响面 | 变化 |
 | --- | --- |
 | 产品与用户流程 | 无变化 |
 | 数据模型 | 无变化 |
 | API / 任务协议 | 无变化；Prompt 来源改变 |
-| 文件与 Asset | 本 ADR 当前覆盖七个生产 Skill 及 references |
+| 文件与 Asset | 本 ADR 当前覆盖九个生产 Skill 及 references |
 | 前端 / 后端模块 | 后端新增只读 Skill 加载器，生成器改为动态填充 |
 | 测试与验收 | 增加 Skill 校验、加载、模板变量、构建产物路径和原有 Prompt 回归 |
 
@@ -98,7 +100,7 @@ P1 灵感、P2 项目大纲、A4 章节起草、剧情结构、分镜、角色/�
 
 ## 8. 验证标准
 
-- [x] 七个已接生产 Skill 的本轮新增或修改资产通过 `quick_validate.py`；既有 Skill 维持原校验结论。
+- [x] 九个已接生产 Skill 的本轮新增或修改资产通过 `quick_validate.py`；既有 Skill 维持原校验结论。
 - [x] 生产构造器真实读取 Skill reference。
 - [x] 模板变量缺失和路径越界 fail-closed。
 - [x] 分镜、参考图、候选图及 provider 离线回归通过。
@@ -109,6 +111,8 @@ P1 灵感、P2 项目大纲、A4 章节起草、剧情结构、分镜、角色/�
 - [x] A2 P1 灵感生产与一次修复读取 `script-inspiration-seeding`，仍只交付恰好 3 个六字段候选。
 - [x] A3 直接题材、选中灵感与待确认大纲重新生成读取 `script-outline-drafting`，Shared 仍负责固定 Markdown 格式和章节卡完整性。
 - [x] A4 主生成、P3/P5 质量重写和 strict format 修复读取 `script-chapter-drafting`；Shared strict parser、Server Validator、一次修复上限、显式单章触发和 A5 pending 流程不变。
+- [x] A5.3 主修订、P4/P5 质量重写和 strict format 修复读取 `script-chapter-editing`；Server 仍确定唯一最高修订层，Shared strict parser、P4/P5 Validator、一次修复和 pending 版本围栏不变。
+- [x] 已有剧本 B2 观察分析、B4 忠实整理、B4 忠实度验证和 strict format 修复读取 `script-import-normalize`；Shared strict parser、Server 长稿分层、来源与行引用、一次重试、失败隔离和逐章确认围栏不变。
 - [x] 源码防回流测试覆盖本次已迁移的稳定创作词句和相关生产接线。
 - [x] Runtime/User Review 不涉及页面变化；真实付费图片调用明确不执行。
 
@@ -121,4 +125,6 @@ P1 灵感、P2 项目大纲、A4 章节起草、剧情结构、分镜、角色/�
 - 剧情结构 Prompt 归位：`文档/05_执行与记录/任务记录/2026-07-18_剧情结构Prompt归位/`
 - P1/P2 Prompt 归位：`文档/05_执行与记录/任务记录/2026-07-18_P1P2提示词归位/`
 - A4 Prompt 归位：`文档/05_执行与记录/任务记录/2026-07-18_A4提示词归位/`
+- 章节修订 Prompt 归位：`文档/05_执行与记录/任务记录/2026-07-18_章节修订提示词归位/`
+- 已有剧本 Prompt 归位：`文档/05_执行与记录/任务记录/2026-07-18_已有剧本提示词归位/`
 - 代码：`apps/server/src/ai-runtime/opencode-skill-asset.util.ts`

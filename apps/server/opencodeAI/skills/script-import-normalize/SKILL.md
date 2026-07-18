@@ -50,6 +50,8 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 - 原稿标题用 `basis=source`；保守建议标题用 `basis=suggested`。
 - `unresolvedItems.impact` 为 `source_scope`、`source_order` 或 `boundary` 时视为阻断。
 
+B2 生产模板固定使用 `references/import-analysis-prompt.md`。短稿、长稿叶子和长稿合并共享这份观察性合同；运行层负责注入当前连续 block、相邻分段分析和动态 Schema 示例。
+
 ## 章节整理规则
 
 - 只输出固定章节剧本 Markdown，不输出 JSON、来源引用或系统状态。
@@ -61,6 +63,8 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 - 不得把观察性大纲当作正文事实补进章节。
 - 不输出角色卡、正式场景卡、剧情节拍、分镜、镜头或图片 Prompt。
 
+B4 章节整理生产模板固定使用 `references/import-materialize-prompt.md`。每次只整理一个已经确认的目录项，运行层注入该章完整来源 blocks、观察性大纲和固定章节格式。
+
 ## 忠实度验证规则
 
 - 验证阶段只审计，不继续改写正文。
@@ -71,6 +75,8 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 - 遗漏、无来源新增、顺序改变、对白或说话人改变、实体合并拆分、越界内容均为硬问题。
 - 不用模糊覆盖率数字替代来源证据。
 - 格式错误最多执行一次只修格式的重试，不得借重试改剧情。
+
+B4 忠实度验证生产模板固定使用 `references/import-verify-prompt.md`。它与章节整理是两次独立模型合同；运行层为待验证输出添加临时 `lineRef`，验证阶段不得回写正文。
 
 ## 禁止事项
 
@@ -90,3 +96,12 @@ description: 分析用户上传或粘贴的完整剧本、小说正文或分场�
 - B5：单章只有在用户明确确认后才成为正式章节版本。
 
 两条上游路线只在正式 `ChapterScriptVersion` 汇合；之后复用现有 StoryStructure、分镜和出图流程。
+
+## 失败修复与资产边界
+
+- B2 分析、B4 整理和 B4 验证首次未通过固定契约时，都使用 `references/repair-validation-failure.md`，并由运行层注入明确阶段、校验错误、原任务和无效输出。
+- 三个阶段分别最多修复一次；第二次仍失败时明确失败，不回退、跳过或把坏输出当候选。
+- Skill 及 `references/` 是来源分析角色、拆章方法、忠实整理、忠实度审计和格式修复指令的事实源。
+- Shared 负责 `import-analysis/1.0`、固定章节 Markdown 和 `import-fidelity/1.0` 的严格结构、解析和来源引用校验。
+- TypeScript 负责不可变来源、稳定 block、长稿分层、动态 Schema 示例、输出行引用、批处理状态、一次重试、失败隔离、待确认与正式版本围栏。
+- 目录确认、章节创建、用户逐章查看和“确认章节”均由产品流程与受控服务负责，不能由 Prompt 自行推进。

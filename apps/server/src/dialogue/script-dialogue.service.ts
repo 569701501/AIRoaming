@@ -12,7 +12,6 @@ import type {
 import {
   SCRIPT_INSPIRATION_SEED_COUNT,
   extractChapterScriptTitle,
-  getChapterScriptFormatPrompt,
   parseChapterScriptMarkdownV1,
   parseScriptOutlineMarkdownV1,
   serializeChapterScriptMarkdownV1,
@@ -56,6 +55,7 @@ import {
 } from "./dialogue-intent.util.js";
 import {
   buildChapterDraftRepairPrompt,
+  buildChapterEditingRepairPrompt,
   buildChapterEditingPrompt,
   buildInspirationSeedsPrompt,
   buildInspirationSeedsRepairPrompt,
@@ -83,7 +83,6 @@ import {
 import {
   assertP4LayeredRevision,
   classifyScriptRevisionLayer,
-  getScriptRevisionLayerLabel,
 } from "./script-revision-quality.util.js";
 
 /**
@@ -1236,39 +1235,17 @@ export class ScriptDialogueService {
       const repaired = await this.openCodeRuntimeService.sendMessage({
         sessionId: openCodeSessionId,
         model: input.model,
-        content: qualityFailure
-          ? [
-              error.gate === "P5"
-                ? "上一次输出未通过 P5 前章连续性保护。保留用户要求的有效修改，并恢复当前草稿原本已经承接的上一章结尾事实。"
-                : `上一次输出未通过 P4 ${getScriptRevisionLayerLabel(layer)}保护。只重新执行当前层及必要下层修改，不得改变被保护内容。`,
-              `质量问题：${error.issues.join("、")}`,
-              `用户改写要求：${input.content}`,
-              headingRule,
-              getChapterScriptFormatPrompt(),
-              "保护基线：",
-              sourceText,
-              ...(continuityContext?.previousScript ? [
-                "上一章正式正文（只读跨章事实）：",
-                continuityContext.previousScript.sourceText,
-              ] : []),
-              "待重写输出：",
-              response.content,
-            ].join("\n")
-          : [
-              "上一次章节改写未通过 creative.chapter-edit/1.0 格式校验。只修复格式并保留已经执行的用户修改，不得借机改变剧情事实。",
-              `当前修订层：${getScriptRevisionLayerLabel(layer)}（${layer}）`,
-              headingRule,
-              getChapterScriptFormatPrompt(),
-              `校验错误：${getErrorMessage(error)}`,
-              "保护基线：",
-              sourceText,
-              ...(continuityContext?.previousScript ? [
-                "上一章正式正文（只读跨章事实）：",
-                continuityContext.previousScript.sourceText,
-              ] : []),
-              "待修复输出：",
-              response.content,
-            ].join("\n"),
+        content: buildChapterEditingRepairPrompt({
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+          qualityGate: qualityFailure ? (error.gate === "P5" ? "P5" : "P4") : undefined,
+          qualityIssues: qualityFailure ? error.issues : undefined,
+          layer,
+          userInstruction: input.content,
+          headingRule,
+          sourceText,
+          previousScript: continuityContext?.previousScript ?? null,
+        }),
         signal,
       });
       return validate(repaired.content);

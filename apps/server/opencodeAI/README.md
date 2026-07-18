@@ -2,7 +2,7 @@
 
 该目录是 AI漫游自己的 OpenCode AI 资产源码层，参考 AuroraPlatformWeb 的 `apps/server/opencodeAI` 结构，但不复用 Aurora 的游戏、Phaser、沙盒闭环提示词。
 
-当前状态：该目录是 AI 角色、Skill 与 Prompt 模板的源码事实源。P1 灵感、P2 项目大纲、A4 单章起草、剧情结构、分镜、角色/场景参考图和候选图生产链已通过后端只读资产加载器直接读取本目录；“复制完整目录到 OpenCode session home”的原生模板服务仍未接入。
+当前状态：该目录是 AI 角色、Skill 与 Prompt 模板的源码事实源。P1 灵感、P2 项目大纲、A4 单章起草、A5.3 章节修订、已有剧本 B2/B4、剧情结构、分镜、角色/场景参考图和候选图生产链已通过后端只读资产加载器直接读取本目录；“复制完整目录到 OpenCode session home”的原生模板服务仍未接入。
 
 ## 目录职责
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "已有剧本忠实导入"
+  short_description: "观察分析完整原稿、确认拆章目录并忠实整理验证全部章节"
+  default_prompt: "Use $script-import-normalize to analyze and faithfully normalize an existing complete script."

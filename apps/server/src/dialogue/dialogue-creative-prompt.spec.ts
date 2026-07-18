@@ -20,10 +20,12 @@ import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
   buildChapterDraftRepairPrompt,
   buildChapterEditingPrompt,
+  buildChapterEditingRepairPrompt,
   buildInspirationSeedsPrompt,
   buildInspirationSeedsRepairPrompt,
   buildScriptFromOutlinePrompt,
   buildScriptImportAnalysisPrompt,
+  buildScriptImportFormatRepairPrompt,
   buildScriptImportMaterializePrompt,
   buildScriptImportVerifyPrompt,
   buildScriptOutlineFromTopicPrompt,
@@ -236,6 +238,40 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("章序永远不能改变");
     expect(prompt).toContain("不要把层级、清单、评分、诊断或差异说明输出给用户");
     expect(prompt).toContain("当前完整草稿");
+  });
+
+  it("章节修订按 P4、P5 和格式失败读取三种不同的 Skill 修复合同", () => {
+    const previousScript = context().previousScript;
+    const common = {
+      invalidOutput: "# 章节剧本\n\n## 第 2 章：门外来客",
+      validationError: "CREATIVE_CHAPTER_SECTION_MISSING",
+      layer: "scene_dialogue" as const,
+      userInstruction: "只润色本章对白，不要修改结尾",
+      headingRule: "章序必须保持为第 2 章；标题只有用户明确要求时才可改变。",
+      sourceText: "当前完整草稿",
+      previousScript,
+    };
+    const p4Prompt = buildChapterEditingRepairPrompt({
+      ...common,
+      qualityGate: "P4",
+      qualityIssues: ["P4_UNREQUESTED_ENDING_EVENT_CHANGE"],
+    });
+    const p5Prompt = buildChapterEditingRepairPrompt({
+      ...common,
+      qualityGate: "P5",
+      qualityIssues: ["P5_PREVIOUS_ENDING_REGRESSED"],
+    });
+    const formatPrompt = buildChapterEditingRepairPrompt(common);
+
+    expect(p4Prompt).toContain("P4 场景与对白修订保护");
+    expect(p4Prompt).toContain("P4_UNREQUESTED_ENDING_EVENT_CHANGE");
+    expect(p4Prompt).toContain("只调整场景目标、阻力、节奏、潜台词、转折及其文字表达");
+    expect(p5Prompt).toContain("P5 前章连续性保护");
+    expect(p5Prompt).toContain("P5_PREVIOUS_ENDING_REGRESSED");
+    expect(p5Prompt).toContain(previousScript!.sourceText);
+    expect(formatPrompt).toContain("只修复格式并保留已经执行的用户修改");
+    expect(formatPrompt).toContain("CREATIVE_CHAPTER_SECTION_MISSING");
+    expect(formatPrompt).toContain("当前完整草稿");
   });
 });
 
@@ -539,6 +575,23 @@ describe("P6 五个公开 Skill / 七个模型阶段", () => {
     expect(verifyPrompt).toContain("不得作为无来源新增剧情");
     expect(verifyPrompt).toContain("不凭印象给覆盖率数字");
     expect(verifyPrompt).not.toContain("readyForNextStage");
+  });
+
+  it("B2/B4 格式修复共用 Skill 合同，但保留三个独立阶段且不能改剧情事实", () => {
+    (["analysis", "materialize", "verify"] as const).forEach((stage) => {
+      const prompt = buildScriptImportFormatRepairPrompt({
+        stage,
+        validationError: `${stage.toUpperCase()}_CONTRACT_INVALID`,
+        originalPrompt: `${stage} 原任务`,
+        invalidOutput: `${stage} 无效输出`,
+      });
+
+      expect(prompt).toContain(`上一份 ${stage} 输出未通过固定契约校验`);
+      expect(prompt).toContain("只修复格式、字段、引用和结构错误");
+      expect(prompt).toContain("不新增、删除、改写或重新解释任何剧情事实");
+      expect(prompt).toContain(`${stage} 原任务`);
+      expect(prompt).toContain(`${stage} 无效输出`);
+    });
   });
 });
 
