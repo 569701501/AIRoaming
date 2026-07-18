@@ -439,7 +439,7 @@ describe("createCutoverAction", () => {
       await writeFile(path.join(source, "projects/p1/project.json"), `${JSON.stringify({ id: "p1", name: "Runner chain", type: "comic", comicFormat: "vertical_scroll", genreTags: [] })}\n`, { mode: 0o600 });
       await writeFile(path.join(source, "projects/p1/chapters/chapter-001/chapter.json"), `${JSON.stringify({ id: "p1-chapter-001", order: 1, title: "第一章", status: "draft" })}\n`, { mode: 0o600 });
       await writeFile(path.join(source, "projects/p1/chapters/chapter-001/script.md"), "runner chain\n", { mode: 0o600 });
-      await writeFile(path.join(source, "settings/app-settings.json"), `${JSON.stringify({ openaiImageProvider: { providerId: "default", apiKey: "sk-runner-chain-secret" } })}\n`, { mode: 0o600 });
+      await writeFile(path.join(source, "settings/app-settings.json"), `${JSON.stringify({ openaiImageProvider: { providerId: "default", providerName: "OpenAI Image", modelId: "gpt-image-1", baseUrl: "https://api.openai.com/v1", apiKey: "sk-runner-chain-secret" } })}\n`, { mode: 0o600 });
       await writeFile(plan.maintenanceTokenFile, "runner-token\n", { mode: 0o600 });
       const maintenance = new MaintenanceCoordinator();
       await maintenance.drain();

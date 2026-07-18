@@ -31,7 +31,7 @@ function required(name: string): string {
   return value;
 }
 
-const FINAL_FLAGS = ["--kind", "--snapshot", "--decisions", "--database-url", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root", "--credential-evidence", "--credential-expectations", "--secret-store-adapter", "--test-only-fake-secret-store", "--run-id", "--format"] as const;
+const FINAL_FLAGS = ["--kind", "--snapshot", "--decisions", "--database-url", "--report", "--workspace-root", "--data-root", "--release-root", "--secret-store-root", "--credential-evidence", "--credential-expectations", "--secret-store-adapter", "--test-only-fake-secret-store", "--rebind-verified-image-credentials", "--run-id", "--format"] as const;
 type FinalArgs = Record<(typeof FINAL_FLAGS)[number], string>;
 
 export function parseFinalArgs(args: readonly string[]): FinalArgs {
@@ -56,6 +56,8 @@ export function parseFinalArgs(args: readonly string[]): FinalArgs {
   }
   if (!values["--database-url"]!.startsWith("file:") || !path.isAbsolute(values["--database-url"]!.slice("file:".length))) throw new FinalImportError("MIGRATION_DATABASE_URL_INVALID");
   if (!values["--run-id"]!.trim()) throw new FinalImportError("MIGRATION_RUN_ID_INVALID");
+  if (values["--rebind-verified-image-credentials"] !== undefined && values["--rebind-verified-image-credentials"] !== "true") throw new FinalImportError("MIGRATION_IMPORT_ARGS_INVALID");
+  if (values["--rebind-verified-image-credentials"] === "true" && values["--credential-evidence"] === undefined) throw new FinalImportError("MIGRATION_CREDENTIAL_REBIND_REQUIRES_VERIFICATION");
   if (values["--secret-store-root"] === undefined && (values["--credential-evidence"] === undefined || values["--credential-expectations"] === undefined)) throw new FinalImportError("MIGRATION_CREDENTIAL_EVIDENCE_REQUIRED");
   if (values["--secret-store-root"] !== undefined && (values["--test-only-fake-secret-store"] !== "true" || process.env.NODE_ENV !== "test" || !path.resolve(values["--secret-store-root"]).startsWith(`${os.tmpdir()}${path.sep}`))) throw new FinalImportError("MIGRATION_SECRET_STORE_TEST_ONLY_REQUIRED");
   return values as FinalArgs;
@@ -125,7 +127,7 @@ async function main(): Promise<number> {
       const credentialEvidencePath = parsed["--credential-evidence"];
       const credentialVerifier = credentialEvidencePath ? new CutoverCredentialVerifier(new SecretStoreService()) : undefined;
       const credentialExpectations = parsed["--credential-expectations"] ? JSON.parse(await readFile(parsed["--credential-expectations"], "utf8")) as never : undefined;
-      const result = await new FinalImportOrchestrator(prisma).import({ snapshotPath: snapshot, decisionsPath: decisions, databaseUrl, workspaceRoot, dataRoot, releaseRoot, secretStoreRoot, runId, credentialVerifier, credentialEvidencePath, credentialExpectations, requiredSecretStoreAdapter: parsed["--secret-store-adapter"] as "keychain" | "fake" | undefined });
+      const result = await new FinalImportOrchestrator(prisma).import({ snapshotPath: snapshot, decisionsPath: decisions, databaseUrl, workspaceRoot, dataRoot, releaseRoot, secretStoreRoot, runId, credentialVerifier, credentialEvidencePath, credentialExpectations, requiredSecretStoreAdapter: parsed["--secret-store-adapter"] as "keychain" | "fake" | undefined, rebindVerifiedCredentialsOnReplay: parsed["--rebind-verified-image-credentials"] === "true" });
       await writePrivateJson(reportPath, result.report);
       process.stdout.write(`${JSON.stringify({ code: result.run.status === "succeeded" ? "MIGRATION_FINAL_IMPORT_OK" : "MIGRATION_FINAL_IMPORT_BLOCKED", runId: result.run.id, status: result.run.status, reportDigest: result.report.reportDigest })}\n`);
       return result.run.status === "succeeded" ? 0 : 2;

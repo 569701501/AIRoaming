@@ -43,6 +43,8 @@ import { ProjectsModule } from "../projects/projects.module.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { LayoutWorkingCopyService } from "../projects/layout-working-copy.service.js";
 import { ScriptVersionService } from "../projects/versioning/script-version.service.js";
+import { CutoverCredentialVerifier } from "./cutover-credential-verifier.js";
+import { FakeSecretStore, SecretString } from "../settings/secret-store.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -1666,6 +1668,114 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(await prisma!.database().migrationRun.count()).toBe(runCount);
   }, 120_000);
 
+  it("FIN-11 binds independently verified image credentials into final DB metadata", async () => {
+    const fixture = await createFinalFixture({ withSettings: true }, `final-fin-11-${Date.now()}`);
+    const secretStore = new FakeSecretStore(fixture.secretStoreRoot);
+    const secretMetadata = await secretStore.put({
+      credentialId: "image_openai_openai_image",
+      secret: SecretString.from("sk-final-verified-image-credential"),
+    });
+    const result = await new FinalImportOrchestrator(prisma!).import({
+      snapshotPath: fixture.snapshot.outputPath,
+      decisionsPath: fixture.decisionsPath,
+      databaseUrl: fixture.databaseUrl,
+      workspaceRoot: fixture.targetWorkspace,
+      dataRoot: fixture.dataRoot,
+      releaseRoot: repoRoot,
+      runId: fixture.runId,
+      credentialVerifier: new CutoverCredentialVerifier(secretStore),
+      credentialExpectations: [{
+        credentialId: "image_openai_openai_image",
+        expectedFingerprint: secretMetadata.fingerprint,
+        owner: "image_secret_store",
+      }],
+      credentialEvidencePath: path.join(fixture.prepared.root!, "credential-evidence.json"),
+      requiredSecretStoreAdapter: "fake",
+    });
+
+    expect(result.run.status).toBe("succeeded");
+    const provider = await prisma!.database().providerConfig.findUniqueOrThrow({ where: { providerId: "openai_image" } });
+    const credential = await prisma!.database().credentialMetadata.findUniqueOrThrow({ where: { providerConfigId: provider.id } });
+    expect(provider.enabled).toBe(true);
+    expect(credential).toMatchObject({
+      owner: "image_secret_store",
+      status: "configured",
+      configured: true,
+      fingerprint: secretMetadata.fingerprint,
+      secretRef: expect.stringMatching(/^airoaming:image:v1:[0-9a-f-]{36}$/),
+    });
+  }, 120_000);
+
+  it("FIN-12 explicitly repairs an existing final run without adding runs or rotating the opaque reference", async () => {
+    const fixture = await createFinalFixture({ withSettings: true }, `final-fin-12-${Date.now()}`);
+    await runFinalFixture(fixture);
+    const runCount = await prisma!.database().migrationRun.count();
+    const secretStore = new FakeSecretStore(fixture.secretStoreRoot);
+    const secretMetadata = await secretStore.put({
+      credentialId: "image_openai_openai_image",
+      secret: SecretString.from("sk-final-replay-image-credential"),
+    });
+    const repair = () => new FinalImportOrchestrator(prisma!).import({
+      snapshotPath: fixture.snapshot.outputPath,
+      decisionsPath: fixture.decisionsPath,
+      databaseUrl: fixture.databaseUrl,
+      workspaceRoot: fixture.targetWorkspace,
+      dataRoot: fixture.dataRoot,
+      releaseRoot: repoRoot,
+      runId: fixture.runId,
+      credentialVerifier: new CutoverCredentialVerifier(secretStore),
+      credentialExpectations: [{
+        credentialId: "image_openai_openai_image",
+        expectedFingerprint: secretMetadata.fingerprint,
+        owner: "image_secret_store",
+      }],
+      credentialEvidencePath: path.join(fixture.prepared.root!, "credential-repair-evidence.json"),
+      requiredSecretStoreAdapter: "fake",
+      rebindVerifiedCredentialsOnReplay: true,
+    });
+
+    expect((await repair()).run.status).toBe("succeeded");
+    const provider = await prisma!.database().providerConfig.findUniqueOrThrow({ where: { providerId: "openai_image" } });
+    const firstCredential = await prisma!.database().credentialMetadata.findUniqueOrThrow({ where: { providerConfigId: provider.id } });
+    expect(provider.enabled).toBe(true);
+    expect(firstCredential).toMatchObject({ status: "configured", configured: true, fingerprint: secretMetadata.fingerprint });
+    expect(firstCredential.secretRef).toMatch(/^airoaming:image:v1:[0-9a-f-]{36}$/);
+    expect(await prisma!.database().migrationRun.count()).toBe(runCount);
+
+    expect((await repair()).run.status).toBe("succeeded");
+    const secondCredential = await prisma!.database().credentialMetadata.findUniqueOrThrow({ where: { providerConfigId: provider.id } });
+    expect(secondCredential.secretRef).toBe(firstCredential.secretRef);
+    expect(await prisma!.database().migrationRun.count()).toBe(runCount);
+  }, 120_000);
+
+  it("FIN-13 fails closed when a verified expectation has no matching image provider", async () => {
+    const fixture = await createFinalFixture({ withSettings: true }, `final-fin-13-${Date.now()}`);
+    const secretStore = new FakeSecretStore(fixture.secretStoreRoot);
+    const secretMetadata = await secretStore.put({
+      credentialId: "image_openai_missing_image_provider",
+      secret: SecretString.from("sk-final-missing-provider"),
+    });
+    await expect(new FinalImportOrchestrator(prisma!).import({
+      snapshotPath: fixture.snapshot.outputPath,
+      decisionsPath: fixture.decisionsPath,
+      databaseUrl: fixture.databaseUrl,
+      workspaceRoot: fixture.targetWorkspace,
+      dataRoot: fixture.dataRoot,
+      releaseRoot: repoRoot,
+      runId: fixture.runId,
+      credentialVerifier: new CutoverCredentialVerifier(secretStore),
+      credentialExpectations: [{
+        credentialId: "image_openai_missing_image_provider",
+        expectedFingerprint: secretMetadata.fingerprint,
+        owner: "image_secret_store",
+      }],
+      credentialEvidencePath: path.join(fixture.prepared.root!, "credential-missing-target-evidence.json"),
+      requiredSecretStoreAdapter: "fake",
+    })).rejects.toMatchObject({ code: "MIGRATION_CREDENTIAL_BINDING_TARGET_MISSING" });
+    expect(await prisma!.database().providerConfig.count({ where: { runtimeKind: "image", enabled: true } })).toBe(0);
+    expect(await prisma!.database().credentialMetadata.count({ where: { configured: true } })).toBe(0);
+  }, 120_000);
+
   it("FIN-04 rejects a different decisions identity for an existing final run", async () => {
     const fixture = await createFinalFixture();
     await runFinalFixture(fixture);
@@ -1750,6 +1860,16 @@ describe("G3-M3-A2 Project/Chapter shadow importer", () => {
     expect(duplicateFailure?.code).toBe(1);
     expect(duplicateFailure?.stdout ?? "").toBe("");
     expect(duplicateFailure?.stderr ?? "").toContain("MIGRATION_IMPORT_ARGS_INVALID");
+
+    let rebindFailure: { code?: number; stdout?: string; stderr?: string } | undefined;
+    try {
+      await execFileAsync(path.join(repoRoot, "apps/server/node_modules/.bin/tsx"), [
+        "src/migration/db-import.cli.ts", "--kind", "final", "--snapshot", "/tmp/snapshot", "--decisions", "/tmp/decisions", "--database-url", "file:/tmp/final-cli.sqlite", "--report", "/tmp/final-report", "--workspace-root", "/tmp/final-workspace", "--data-root", "/tmp/final-data", "--release-root", repoRoot, "--credential-evidence", "/tmp/credential-evidence", "--credential-expectations", "/tmp/credential-expectations", "--rebind-verified-image-credentials", "false", "--run-id", "final-cli-01", "--format", "json",
+      ], { cwd: path.join(repoRoot, "apps/server"), env: { ...process.env } });
+    } catch (error) { rebindFailure = error as { code?: number; stdout?: string; stderr?: string }; }
+    expect(rebindFailure?.code).toBe(1);
+    expect(rebindFailure?.stdout ?? "").toBe("");
+    expect(rebindFailure?.stderr ?? "").toContain("MIGRATION_IMPORT_ARGS_INVALID");
   }, 30_000);
 
   it("D2-WIT-01/02/03/04/05 completes two fresh final witnesses, replay, restart and legacy isolation", async () => {

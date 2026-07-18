@@ -13,6 +13,7 @@ import { FullShadowImporter, FULL_SHADOW_SLICE_ORDER } from "./full-shadow-impor
 import { MigrationVerifyService } from "./migration-verify.service.js";
 import { createFinalImportReport, FINAL_IMPORTER_VERSION, normalizeFinalImportReport, type FinalImportReport, type FinalImportSlice } from "./final-import-report.js";
 import type { CutoverCredentialVerifier, CredentialExpectation } from "./cutover-credential-verifier.js";
+import { bindVerifiedImageCredentials } from "./verified-image-credential-binder.js";
 
 export class FinalImportError extends Error {
   constructor(readonly code: string) { super(code); }
@@ -30,6 +31,7 @@ export interface FinalImportOptions {
   credentialExpectations?: readonly CredentialExpectation[];
   credentialEvidencePath?: string;
   requiredSecretStoreAdapter?: "keychain" | "fake";
+  rebindVerifiedCredentialsOnReplay?: boolean;
   runId: string;
 }
 
@@ -120,14 +122,17 @@ export class FinalImportOrchestrator {
     if (!options.databaseUrl.startsWith("file:")) throw new FinalImportError("MIGRATION_DATABASE_URL_INVALID");
     if (process.env.DATABASE_URL !== options.databaseUrl) throw new FinalImportError("MIGRATION_DATABASE_URL_MISMATCH");
     if (!options.runId.trim()) throw new FinalImportError("MIGRATION_RUN_ID_INVALID");
+    let verifiedCredentialExpectations: readonly CredentialExpectation[] = [];
     if (options.credentialVerifier) {
       if (!options.credentialEvidencePath || !path.isAbsolute(options.credentialEvidencePath) || !options.credentialExpectations?.length) throw new FinalImportError("MIGRATION_CREDENTIAL_EVIDENCE_REQUIRED");
       await assertNoSymlinkAncestors(options.credentialEvidencePath, "MIGRATION_CREDENTIAL_EVIDENCE_INVALID");
       const verified = await options.credentialVerifier.verify({ runId: options.runId, entries: options.credentialExpectations, requiredAdapter: options.requiredSecretStoreAdapter });
       await writeJson(options.credentialEvidencePath, verified.evidence);
+      verifiedCredentialExpectations = options.credentialExpectations;
     } else {
       if (!secretStoreRoot || process.env.AIROAMING_SECRET_STORE_ADAPTER !== "fake" || path.resolve(process.env.AIROAMING_FAKE_SECRET_STORE_ROOT ?? "") !== secretStoreRoot) throw new FinalImportError("MIGRATION_SECRET_STORE_BINDING_INVALID");
     }
+    if (options.rebindVerifiedCredentialsOnReplay && verifiedCredentialExpectations.length === 0) throw new FinalImportError("MIGRATION_CREDENTIAL_REBIND_REQUIRES_VERIFICATION");
     const release = await loadReleaseSchemaIdentityV1(releaseRoot).catch(() => { throw new FinalImportError("MIGRATION_RELEASE_IDENTITY_INVALID"); });
     await assertDirectory(dataRoot, "MIGRATION_DATA_ROOT_INVALID", true);
     const snapshot = await readVerifiedSnapshot(snapshotPath);
@@ -142,6 +147,7 @@ export class FinalImportOrchestrator {
       let report: FinalImportReport;
       try { report = normalizeFinalImportReport(aggregate); }
       catch { throw new FinalImportError("MIGRATION_FINAL_REPORT_INVALID"); }
+      if (options.rebindVerifiedCredentialsOnReplay) await bindVerifiedImageCredentials(this.prisma, verifiedCredentialExpectations);
       return { run: await this.ledger.getRun(options.runId), report };
     }
     await assertEmptyDirectory(workspaceRoot, "MIGRATION_TARGET_WORKSPACE_NOT_EMPTY");
@@ -202,6 +208,7 @@ export class FinalImportOrchestrator {
         const blocked = await this.ledger.finishRun(run.id, { status: "blocked", reportDigest: report.reportDigest, counts: { aggregateReport: report, entityCounts }, verification: { ...verification, openBlockerCount: 1 }, finishedAt: new Date().toISOString() });
         return { run: blocked, report };
       }
+      if (verifiedCredentialExpectations.length > 0) await bindVerifiedImageCredentials(this.prisma, verifiedCredentialExpectations);
       const finished = await this.ledger.finishRun(run.id, { status: "succeeded", reportDigest: report.reportDigest, counts: { aggregateReport: report, entityCounts }, verification, finishedAt: new Date().toISOString() });
       return { run: finished, report };
     } catch (error) {
