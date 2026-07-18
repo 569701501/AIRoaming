@@ -38,7 +38,6 @@ P3/P5 只做内部检查；不要输出评分、诊断、场景契约清单或�
 {{FORBIDDEN_OUTPUT}}
 
 当前项目事实：
-- 项目：{{PROJECT_NAME}}
 - 题材：{{GENRE}}
 - 漫画形式：{{COMIC_FORMAT}}
 - 画风：{{ART_STYLE}}

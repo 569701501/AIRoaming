@@ -18,6 +18,7 @@ import type {
 import type { DialogueTurn } from "./dialogue-types.js";
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
+  buildPrompt,
   buildChapterDraftRepairPrompt,
   buildChapterEditingPrompt,
   buildChapterEditingRepairPrompt,
@@ -36,12 +37,16 @@ import {
 } from "./dialogue-prompt.util.js";
 import { compactPromptText } from "./dialogue-text.util.js";
 
+const MANAGEMENT_PROJECT_NAME = "管理代号-1111";
+
 function turn(): DialogueTurn {
   return {
     snapshot: {
-      project: { name: "雨夜证人", storyTitle: "雨夜证人", genreTags: ["悬疑"], comicFormat: "vertical_scroll", artStyle: "comic_style" },
+      project: { name: MANAGEMENT_PROJECT_NAME, storyTitle: "雨夜证人", genreTags: ["悬疑"], comicFormat: "vertical_scroll", artStyle: "comic_style" },
+      story: { title: "雨夜证人", sourceText: "" },
       currentChapter: { sourceText: "这段旧正文绝不能进入 A2 灵感 Prompt。" },
-    } as WorkbenchSnapshot,
+      characters: [],
+    } as unknown as WorkbenchSnapshot,
   } as DialogueTurn;
 }
 
@@ -103,7 +108,7 @@ function context(): AiChapterGenerationContext {
   const first = { order: 1, title: "旧钥匙", chapterGoal: "发现钥匙", coreConflict: "不能惊动追踪者", majorTurn: "钥匙刻着父亲编号", endingHook: "门外响起暗号", nextChapterBridge: "来客现身" };
   const second = { order: 2, title: "门外来客", chapterGoal: "确认来客身份", coreConflict: "信任会暴露藏身处", majorTurn: "来客说出父亲暗号", endingHook: "暗号指向警局内鬼", nextChapterBridge: "追查内鬼" };
   return {
-    project: { id: "project", name: "雨夜证人", storyTitle: "雨夜证人", genreTags: ["悬疑"], comicFormat: "vertical_scroll", artStyle: "comic_style" },
+    project: { id: "project", name: MANAGEMENT_PROJECT_NAME, storyTitle: "雨夜证人", genreTags: ["悬疑"], comicFormat: "vertical_scroll", artStyle: "comic_style" },
     outline: {
       id: "outline",
       title: "雨夜证人",
@@ -136,6 +141,16 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("不新增字段");
     expect(prompt).not.toContain("```json");
     expect(prompt).not.toContain("这段旧正文绝不能进入");
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
+  });
+
+  it("用户本轮明确写出同名文本时仍按用户输入交给 A2", () => {
+    const prompt = buildInspirationSeedsPrompt(
+      turn(),
+      request(`请围绕“${MANAGEMENT_PROJECT_NAME}”这个代号构思三个方向`),
+    );
+
+    expect(prompt).toContain(`请围绕“${MANAGEMENT_PROJECT_NAME}”这个代号构思三个方向`);
   });
 
   it("A3 明确四段项目大纲、具体章数、章节卡和结局方向", () => {
@@ -147,6 +162,7 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("P2 因果大纲与结局方向质量门");
     expect(prompt).toContain("终章的下一章衔接必须明确标记故事已经收束");
     expect(prompt).toContain("不要输出评分、检查报告或额外字段");
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
   });
 
   it("A2 格式修复与 P1 质量重写使用不同的 Skill 合同", () => {
@@ -198,6 +214,7 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain('"title": "旧钥匙"');
     expect(prompt).toContain('"title": "内鬼"');
     expect(prompt).toContain("（无；本轮只是发出生成命令）");
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
   });
 
   it("A4 格式修复与 P3/P5 质量重写使用不同的 Skill 合同", () => {
@@ -238,6 +255,19 @@ describe("A2-A4 创作 Prompt 契约", () => {
     expect(prompt).toContain("章序永远不能改变");
     expect(prompt).toContain("不要把层级、清单、评分、诊断或差异说明输出给用户");
     expect(prompt).toContain("当前完整草稿");
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
+  });
+
+  it("通用对话上下文不把项目管理名称交给模型", () => {
+    const prompt = buildPrompt({
+      snapshot: turn().snapshot,
+      stepKey: "project_story",
+      userContent: "帮我看看当前还缺什么",
+      recentMessages: [],
+    });
+
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
+    expect(prompt).toContain("帮我看看当前还缺什么");
   });
 
   it("章节修订按 P4、P5 和格式失败读取三种不同的 Skill 修复合同", () => {
@@ -297,6 +327,7 @@ function storyboardTurn(): DialogueTurn {
     normalizedStepKey: "storyboard",
     snapshot: {
       ...turn().snapshot,
+      project: { ...turn().snapshot.project, storyTitle: MANAGEMENT_PROJECT_NAME },
       currentChapter: { id: "chapter-1", title: "雨夜交易", status: "structured", currentStoryVersionId: "story-v1", sourceText: "林舟把录音笔推给许澄。" },
       storyStructure: {
         id: "story-v1",
@@ -371,6 +402,7 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("over_shoulder");
     expect(prompt).not.toContain("over_the_shoulder");
     expect(prompt).toContain("首次生成的所有镜头都省略 id");
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
   });
 
   it("按对白分配、状态边界、共享 Shot、漫画静态价值的顺序规划，并保留双轨独立 Prompt", () => {
@@ -504,6 +536,7 @@ describe("双流程汇合后的剧情结构 Prompt", () => {
       ...turn(),
       snapshot: {
         ...turn().snapshot,
+        project: { ...turn().snapshot.project, storyTitle: MANAGEMENT_PROJECT_NAME },
         currentChapter: {
           id: "chapter-1",
           title: "拍卖夜",
@@ -523,6 +556,7 @@ describe("双流程汇合后的剧情结构 Prompt", () => {
     expect(prompt).toContain("sceneName 必须逐字使用对应场景卡 name");
     expect(prompt).toContain("人物名必须逐字使用 characters[].name");
     expect(prompt).toContain("不要输出评分、检查报告或新增字段");
+    expect(prompt).not.toContain(MANAGEMENT_PROJECT_NAME);
   });
 });
 

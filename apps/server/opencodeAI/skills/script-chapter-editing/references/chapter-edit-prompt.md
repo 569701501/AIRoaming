@@ -28,7 +28,6 @@
 禁止输出：
 {{FORBIDDEN_OUTPUT}}
 
-项目名称：{{PROJECT_NAME}}
 当前章节：{{CURRENT_CHAPTER_TITLE}}
 
 用户改写要求：

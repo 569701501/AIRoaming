@@ -92,7 +92,6 @@ JSON 结构必须是：
 {{SHOT_EXAMPLE_JSON}}
 ```
 
-项目名称：{{PROJECT_NAME}}
 剧集名称：{{STORY_TITLE}}
 漫画版式：{{COMIC_FORMAT}}
 项目画风：{{ART_STYLE}}

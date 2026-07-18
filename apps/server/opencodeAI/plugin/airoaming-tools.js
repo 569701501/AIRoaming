@@ -168,7 +168,6 @@ export default async () => {
             const s = data?.data ?? data
             // 格式化状态摘要给 AI 看
             const lines = [
-              `项目:${s.projectName}`,
               `当前章节:${s.currentChapter ? s.currentChapter.title + "(" + s.currentChapter.status + ")" : "无"}`,
               `workflow步骤:${s.workflowStep}`,
               `分镜数量:${s.storyboardShotCount}`,

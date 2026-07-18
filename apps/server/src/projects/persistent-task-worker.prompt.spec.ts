@@ -12,7 +12,7 @@ describe("PersistentTaskWorkerService storyboard Prompt", () => {
       title: "雨夜交易",
       milestoneStatus: "story_structured",
       project: {
-        name: "追光者",
+        name: "管理代号-1111",
         storyTitle: "追光者",
         comicFormat: "vertical_scroll",
         artStyle: "comic_style",
@@ -126,6 +126,7 @@ describe("PersistentTaskWorkerService storyboard Prompt", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("漫画 / 漫剧双轨一致性边界");
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("当前剧情结构版本：story-version-1");
+    expect(sendMessage.mock.calls[0]?.[0].content).not.toContain("管理代号-1111");
     expect(result).toMatchObject({ schemaVersion: 2, chapterId: "chapter-1" });
     expect(result.shots[0]?.id).toBeTruthy();
     expect(result.shots[0]?.id).not.toBe("shot_001");
@@ -142,7 +143,7 @@ describe("PersistentTaskWorkerService story structure Prompt", () => {
       title: "雨夜交易",
       milestoneStatus: "script_done",
       project: {
-        name: "追光者",
+        name: "管理代号-1111",
         storyTitle: "追光者",
         currentScriptOutline: { sourceText: "第 1 章让林舟找到父亲留下的旧录音。" },
       },
@@ -240,6 +241,7 @@ describe("PersistentTaskWorkerService story structure Prompt", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("skill：structure-story-parse");
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("当前剧本版本：script-version-1");
+    expect(sendMessage.mock.calls[0]?.[0].content).not.toContain("管理代号-1111");
     expect(sendMessage.mock.calls[0]?.[0].content).not.toContain("StoryDocumentV2");
     expect(result).toMatchObject({ schemaVersion: 2, chapterId: "chapter-1" });
     expect(result.characters[0]).toMatchObject({

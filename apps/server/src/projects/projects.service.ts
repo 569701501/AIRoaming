@@ -294,8 +294,8 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("PROJECT_NAME_REQUIRED");
     }
 
-    const storyTitle = input.storyTitle?.trim() || input.description?.trim() || name;
-    const description = input.description?.trim() || storyTitle;
+    const storyTitle = input.storyTitle?.trim() ?? "";
+    const description = input.description?.trim() ?? "";
     const comicFormat = input.comicFormat;
     const artStyle = this.normalizeArtStyle(input.artStyle);
     const genreTags = this.normalizeGenreTags(input.genreTags);
@@ -381,10 +381,10 @@ export class ProjectsService implements OnModuleInit {
     const nextProject: LocalProject = {
       ...project,
       name: nextName,
-      storyTitle: nextStoryTitle || nextName,
+      storyTitle: nextStoryTitle,
       genreTags: input.genreTags === undefined ? project.genreTags : this.normalizeGenreTags(input.genreTags),
       artStyle: input.artStyle === undefined ? project.artStyle : this.normalizeArtStyle(input.artStyle),
-      description: nextDescription || nextStoryTitle || nextName,
+      description: nextDescription,
       sourceText: nextSourceText,
       chapters: nextChapters,
       updatedAt,

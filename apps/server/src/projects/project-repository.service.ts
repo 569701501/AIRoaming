@@ -438,11 +438,11 @@ export class ProjectRepository {
           name: project.name,
           type: project.type,
           lifecycleStatus: "active",
-          storyTitle: project.storyTitle,
+          storyTitle: project.storyTitle || null,
           genreTags: project.genreTags,
           comicFormat: this.toDatabaseComicFormat(project.comicFormat),
           artStyle: project.artStyle,
-          description: project.description,
+          description: project.description || null,
           currentChapterId: null,
           currentScriptOutlineId: null,
           rowVersion: 0,
@@ -757,11 +757,11 @@ export class ProjectRepository {
       name: row.name,
       type: wsDomain.normalizeProjectType(row.type),
       currentChapterId: currentChapter.id,
-      storyTitle: row.storyTitle ?? row.name,
+      storyTitle: row.storyTitle ?? "",
       genreTags,
       comicFormat: this.fromDatabaseComicFormat(row.comicFormat),
       artStyle: wsDomain.normalizeArtStyle(row.artStyle as ArtStyle | undefined),
-      description: row.description ?? row.storyTitle ?? row.name,
+      description: row.description ?? "",
       sourceText: currentChapter.sourceText,
       scriptOutline: outline ? this.databaseOutlineToLocal(outline) : null,
       characters: projectCharacters.map((item) => this.databaseCharacterToLocal(item, readModel.characterVisuals)),
@@ -1022,7 +1022,7 @@ export class ProjectRepository {
     const scriptOutline = await this.readProjectScriptOutline(projectDir, projectId, createdAt, updatedAt);
     const assets = await this.readProjectAssets(projectDir);
     const characters = await this.readProjectCharacters(projectDir, projectId, createdAt, updatedAt);
-    const storyTitle = parsedStoryTitle ?? wsJson.getStringField(metadata, "storyTitle", wsJson.getStringField(metadata, "name", projectId));
+    const storyTitle = parsedStoryTitle ?? wsJson.getStringField(metadata, "storyTitle", "");
     const comicFormatRead = readLegacyProjectComicFormatV1(metadata.comicFormat);
     if (comicFormatRead.status === "decision_required") {
       throw new LegacyComicFormatDecisionRequiredError({
@@ -1041,7 +1041,7 @@ export class ProjectRepository {
       genreTags: wsJson.getStringArrayField(metadata, "genreTags"),
       comicFormat: comicFormatRead.runtimeValue,
       artStyle: wsDomain.normalizeArtStyle(metadata.artStyle as ArtStyle | undefined),
-      description: wsJson.getStringField(metadata, "description", storyTitle),
+      description: wsJson.getStringField(metadata, "description", ""),
       sourceText,
       scriptOutline,
       characters,

@@ -101,11 +101,15 @@ export function buildCharacterReferencePrompt(
   const styleGuide = buildCharacterReferenceStyleGuide(project);
   const genreTags = project.genreTags.join("、");
   const promptFragment = character.promptFragment?.trim() ?? "";
+  const storyTitle = project.storyTitle.trim();
+  const promptStoryTitle = storyTitle && storyTitle !== project.name.trim()
+    ? storyTitle
+    : "（未确认）";
   return renderOpenCodePromptTemplate(
     readOpenCodeSkillReference(IMAGE_REFERENCE_SKILL, templateName),
     {
       PROJECT_TYPE: getProjectTypeLabel(project.type),
-      STORY_TITLE: project.storyTitle || project.name,
+      STORY_TITLE: promptStoryTitle,
       GENRE_TAGS_LINE: genreTags ? `- 题材标签：${genreTags}` : "",
       GENRE_TAGS_TEXT: genreTags ? `题材标签：${genreTags}` : "",
       COMIC_FORMAT_HINT: getReferenceComicFormat(project.comicFormat),

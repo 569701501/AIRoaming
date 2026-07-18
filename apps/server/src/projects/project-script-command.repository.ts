@@ -47,7 +47,7 @@ export class ProjectScriptCommandRepository {
       if (!project || project.lifecycleStatus !== "active") throw createG2DatabaseError(404, "PROJECT_NOT_FOUND");
       const data: Prisma.ProjectUpdateInput = {};
       if (patch.name !== undefined) data.name = patch.name.trim();
-      if (patch.storyTitle !== undefined) data.storyTitle = patch.storyTitle.trim() || patch.name?.trim() || project.storyTitle;
+      if (patch.storyTitle !== undefined) data.storyTitle = patch.storyTitle.trim() || null;
       if (patch.genreTags !== undefined) data.genreTags = cleanTags(patch.genreTags) ?? [];
       if (patch.artStyle !== undefined) data.artStyle = patch.artStyle.trim() || null;
       if (patch.description !== undefined) data.description = patch.description.trim() || null;
@@ -59,11 +59,11 @@ export class ProjectScriptCommandRepository {
         description: project.description,
       };
       const next = {
-        name: data.name ?? current.name,
-        storyTitle: data.storyTitle ?? current.storyTitle,
-        genreTags: data.genreTags ?? current.genreTags,
-        artStyle: data.artStyle ?? current.artStyle,
-        description: data.description ?? current.description,
+        name: patch.name === undefined ? current.name : patch.name.trim(),
+        storyTitle: patch.storyTitle === undefined ? current.storyTitle : patch.storyTitle.trim() || null,
+        genreTags: patch.genreTags === undefined ? current.genreTags : cleanTags(patch.genreTags) ?? [],
+        artStyle: patch.artStyle === undefined ? current.artStyle : patch.artStyle.trim() || null,
+        description: patch.description === undefined ? current.description : patch.description.trim() || null,
       };
       if (JSON.stringify(current) === JSON.stringify(next)) return;
       const updated = await tx.project.updateMany({ where: { id: projectId, rowVersion: project.rowVersion, lifecycleStatus: "active" }, data: { ...data, rowVersion: { increment: 1 } } });
@@ -155,7 +155,7 @@ export class ProjectScriptCommandRepository {
       if (current?.status === "draft" && current.sourceDigest === sourceDigest) return { outlineId: current.id, replayed: true };
       const last = await tx.projectScriptOutline.findFirst({ where: { projectId }, orderBy: { version: "desc" } });
       const now = new Date();
-      const title = extractScriptOutlineTitle(canonical) ?? project.storyTitle ?? project.name;
+      const title = extractScriptOutlineTitle(canonical) ?? (project.storyTitle?.trim() || "未命名故事");
       await tx.projectScriptOutline.create({ data: { id: outlineId, projectId, version: (last?.version ?? 0) + 1, status: "draft", title, sourceText: canonical, sourceDigest, createdAt: now, updatedAt: now } });
       const updated = await tx.project.updateMany({ where: { id: projectId, rowVersion: project.rowVersion }, data: { currentScriptOutlineId: outlineId, storyTitle: title, rowVersion: { increment: 1 } } });
       if (updated.count !== 1) throw createG2DatabaseError(409, "CURRENT_VERSION_CHANGED");

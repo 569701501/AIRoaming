@@ -658,7 +658,7 @@ export class ChapterScriptService {
     }
 
     const now = new Date().toISOString();
-    const title = extractScriptOutlineTitle(sourceText) ?? project.storyTitle ?? project.name;
+    const title = extractScriptOutlineTitle(sourceText) ?? (project.storyTitle || "未命名故事");
     const outline: ProjectScriptOutline = {
       id: project.scriptOutline?.id ?? "script_outline_current",
       projectId,

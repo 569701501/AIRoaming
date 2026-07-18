@@ -149,7 +149,6 @@ export function buildPrompt(input: {
 
   return [
     "你是 AI漫游的漫画创作助手，当前运行在项目工作区的左侧对话框。",
-    `当前项目：${input.snapshot.project.name}`,
     `当前步骤：${stepLabel}`,
     `当前章节：${chapterTitle}`,
     scriptBoundary,
@@ -388,8 +387,7 @@ export function buildStoryStructurePromptFromFacts(
     readOpenCodeSkillReference(skillName, "story-structure-prompt.md"),
     {
       STRUCTURE_EXAMPLE_JSON: JSON.stringify(example, null, 2),
-      PROJECT_NAME: facts.project.name,
-      STORY_TITLE: facts.project.storyTitle,
+      STORY_TITLE: storyTitleForPrompt(facts.project),
       CHAPTER_TITLE: facts.chapter.title?.trim() || "当前章节",
       CHAPTER_STATUS: facts.chapter.status?.trim() || "unknown",
       SCRIPT_VERSION_ID: facts.chapter.currentScriptVersionId?.trim() || "未生成版本",
@@ -551,8 +549,7 @@ export function buildStoryboardPromptFromFacts(
         ? readOpenCodeSkillReference(skillName, "risk-v2-5.md")
         : "",
       SHOT_EXAMPLE_JSON: normalizedShotExample,
-      PROJECT_NAME: facts.project.name,
-      STORY_TITLE: facts.project.storyTitle,
+      STORY_TITLE: storyTitleForPrompt(facts.project),
       COMIC_FORMAT: facts.project.comicFormat ?? "未指定",
       ART_STYLE: facts.project.artStyle?.trim() || "未指定",
       CHAPTER_TITLE: currentChapter.title ?? "当前章节",
@@ -565,6 +562,12 @@ export function buildStoryboardPromptFromFacts(
       USER_REQUEST: userRequest,
     },
   );
+}
+
+function storyTitleForPrompt(project: { name: string; storyTitle: string }): string {
+  const storyTitle = project.storyTitle.trim();
+  const managementName = project.name.trim();
+  return storyTitle && storyTitle !== managementName ? storyTitle : "（未确认）";
 }
 
 export function buildStoryboardRepairPrompt(input: {
@@ -614,7 +617,6 @@ export function buildInspirationSeedsPrompt(turn: DialogueTurn, input: SendDialo
       SEED_COUNT: SCRIPT_INSPIRATION_SEED_COUNT,
       SCRIPT_STAGE_BOUNDARY: buildScriptStageBoundaryContract(),
       SEED_EXAMPLE_JSON: JSON.stringify(example),
-      PROJECT_NAME: snapshot.project.name,
       GENRE_TAGS: tags,
       COMIC_FORMAT: snapshot.project.comicFormat,
       ART_STYLE: snapshot.project.artStyle,
@@ -696,7 +698,6 @@ function buildScriptOutlinePromptFromFacts(turn: DialogueTurn, modeContract: str
       MODE_CONTRACT: modeContract,
       SCRIPT_STAGE_BOUNDARY: buildScriptStageBoundaryContract(),
       OUTLINE_FORMAT: getScriptOutlineFormatPrompt(),
-      PROJECT_NAME: turn.snapshot.project.name,
       GENRE_TAGS: turn.snapshot.project.genreTags.length > 0
         ? turn.snapshot.project.genreTags.join("、")
         : "未设置",
@@ -753,7 +754,6 @@ export function buildScriptFromOutlinePrompt(
       CHAPTER_ORDER: context.chapter.order,
       CHAPTER_FORMAT: getChapterScriptFormatPrompt(),
       FORBIDDEN_OUTPUT: getChapterScriptForbiddenOutputPrompt(),
-      PROJECT_NAME: context.project.name,
       GENRE: context.project.genreTags.join("、") || context.outline.document.genreStyle,
       COMIC_FORMAT: context.project.comicFormat,
       ART_STYLE: context.project.artStyle,
@@ -825,7 +825,6 @@ export function buildChapterEditingPrompt(
       ),
       CHAPTER_FORMAT: getChapterScriptFormatPrompt(),
       FORBIDDEN_OUTPUT: getChapterScriptForbiddenOutputPrompt(),
-      PROJECT_NAME: turn.snapshot.project.name,
       CURRENT_CHAPTER_TITLE: turn.snapshot.currentChapter?.title ?? "当前章节",
       USER_INSTRUCTION: input.content,
       SOURCE_TEXT: sourceText,

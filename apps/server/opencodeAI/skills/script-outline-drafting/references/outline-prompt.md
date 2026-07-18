@@ -29,7 +29,6 @@ P2 因果大纲与结局方向质量门（输出前内部检查）：
 {{OUTLINE_FORMAT}}
 
 当前项目事实：
-- 项目名称：{{PROJECT_NAME}}
 - 题材标签：{{GENRE_TAGS}}
 - 画幅：{{COMIC_FORMAT}}
 - 画风：{{ART_STYLE}}

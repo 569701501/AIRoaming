@@ -346,6 +346,10 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(first.currentChapterId).toBe(`${first.id}_chapter_001`);
     expect(second.currentChapterId).toBe(`${second.id}_chapter_001`);
     expect(first.currentChapterId).not.toBe(second.currentChapterId);
+    expect(first.storyTitle).toBe("");
+    expect(first.description).toBe("");
+    expect(second.storyTitle).toBe("");
+    expect(second.description).toBe("");
 
     const draftText = "雨夜里，信使把最后一封信交到门前。";
     const normalizedDraftText = draftText;
@@ -396,9 +400,14 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       currentScriptVersionId: completed.scriptVersion.id,
     });
     expect(reopened.chapter.sourceText.trim()).toBe(draftText);
-    expect((await projects.listProjects()).map((project) => project.id)).toEqual(
+    const reopenedProjects = await projects.listProjects();
+    expect(reopenedProjects.map((project) => project.id)).toEqual(
       expect.arrayContaining([first.id, second.id]),
     );
+    expect(reopenedProjects.find((project) => project.id === first.id)).toMatchObject({
+      storyTitle: "",
+      description: "",
+    });
     const reopenedSecond = await projects.listChapters(second.id);
     expect(reopenedSecond.currentChapterId).toBe(`${second.id}_chapter_001`);
     expect(reopenedSecond.chapters.map((chapter) => chapter.id)).toEqual([
@@ -421,6 +430,8 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     ]);
     expect(projectRow.currentChapterId).toBe(first.currentChapterId);
     expect(projectRow.comicFormat).toBe("paged_comic");
+    expect(projectRow.storyTitle).toBeNull();
+    expect(projectRow.description).toBeNull();
     expect(chapterRow).toMatchObject({
       milestoneStatus: "script_done",
       scriptWorkingState: "clean",

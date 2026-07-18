@@ -29,7 +29,6 @@ JSON 结构必须是：
 {{STRUCTURE_EXAMPLE_JSON}}
 ```
 
-项目名称：{{PROJECT_NAME}}
 剧集名称：{{STORY_TITLE}}
 当前章节：{{CHAPTER_TITLE}}
 当前章节状态：{{CHAPTER_STATUS}}

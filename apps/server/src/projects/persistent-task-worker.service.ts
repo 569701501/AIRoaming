@@ -721,7 +721,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const prompt = buildStoryStructurePromptFromFacts({
       project: {
         name: chapter.project.name,
-        storyTitle: chapter.project.storyTitle ?? chapter.project.name,
+        storyTitle: chapter.project.storyTitle ?? "",
       },
       chapter: {
         title: chapter.title,
@@ -825,7 +825,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const prompt = buildStoryboardPromptFromFacts({
       project: {
         name: chapter.project.name,
-        storyTitle: chapter.project.storyTitle ?? chapter.project.name,
+        storyTitle: chapter.project.storyTitle ?? "",
         comicFormat: chapter.project.comicFormat,
         artStyle: chapter.project.artStyle,
       },

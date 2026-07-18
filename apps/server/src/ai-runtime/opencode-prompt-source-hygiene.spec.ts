@@ -114,4 +114,21 @@ describe("OpenCodeAI Prompt 单一事实源", () => {
     expect(importBatchService).toContain("buildScriptImportVerifyPrompt");
     expect(importBatchService).toContain("buildScriptImportFormatRepairPrompt");
   });
+
+  it("项目管理名称不会进入生产 Prompt 或 AI 状态工具输出", () => {
+    const creativePromptAssets = [
+      "apps/server/opencodeAI/skills/script-inspiration-seeding/references/inspiration-prompt.md",
+      "apps/server/opencodeAI/skills/script-outline-drafting/references/outline-prompt.md",
+      "apps/server/opencodeAI/skills/script-chapter-drafting/references/chapter-draft-prompt.md",
+      "apps/server/opencodeAI/skills/script-chapter-editing/references/chapter-edit-prompt.md",
+      "apps/server/opencodeAI/skills/structure-story-parse/references/story-structure-prompt.md",
+      "apps/server/opencodeAI/skills/storyboard-shot-generate/references/storyboard-prompt.md",
+    ];
+
+    creativePromptAssets.forEach((file) => {
+      expect(source(file), `${file} 不应读取项目管理名称`).not.toContain("{{PROJECT_NAME}}");
+    });
+    expect(source("apps/server/src/dialogue/dialogue-prompt.util.ts")).not.toContain("PROJECT_NAME:");
+    expect(source("apps/server/opencodeAI/plugin/airoaming-tools.js")).not.toContain("s.projectName");
+  });
 });

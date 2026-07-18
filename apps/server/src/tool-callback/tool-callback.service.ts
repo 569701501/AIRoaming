@@ -98,7 +98,6 @@ export class ToolCallbackService {
    * 当前章节、workflow 进度、角色图状态(哪些有图/没图)、场景图状态。
    */
   async getProjectStatus(projectId: string): Promise<{
-    projectName: string;
     currentChapter: { id: string; title: string; status: string } | null;
     characters: Array<{ id: string; name: string; level: string; hasImage: boolean; hasFinal: boolean }>;
     scenes: Array<{ id: string; name: string; hasImage: boolean }>;
@@ -119,7 +118,6 @@ export class ToolCallbackService {
       hasImage: Boolean(s.referenceAssetId),
     }));
     return {
-      projectName: snapshot.project.name,
       currentChapter: snapshot.currentChapter
         ? { id: snapshot.currentChapter.id, title: snapshot.currentChapter.title, status: snapshot.currentChapter.status }
         : null,
