@@ -121,6 +121,7 @@ export interface StoryboardDocumentV2 {
 }
 
 export type PreflightCheckStatusV2 = "ok" | "warning" | "blocked";
+export type PreflightSourcePolicyVersion = "preflight-source-v1" | "preflight-source-v2";
 export type PreflightIssueTypeV2 =
   | "missing_storyboard" | "unresolved_character" | "missing_reference"
   | "running_reference_task" | "missing_scene" | "missing_scene_reference"
@@ -169,7 +170,7 @@ export interface PreflightIssueV2 {
 
 export interface PreflightSourceSnapshotV1 {
   schemaVersion: 1;
-  policyVersion: "preflight-source-v1";
+  policyVersion: PreflightSourcePolicyVersion;
   projectId: string;
   chapterId: string;
   consumerType: "preflight_revision";
@@ -207,6 +208,5 @@ export interface PreflightDocumentV2 {
   issues: PreflightIssueV2[];
   ready: boolean;
   notes: string;
-  policyVersion: "preflight-source-v1";
+  policyVersion: PreflightSourcePolicyVersion;
 }
-

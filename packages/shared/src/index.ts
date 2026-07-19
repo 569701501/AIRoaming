@@ -1,6 +1,7 @@
 export * from "./domain.js";
 export * from "./comic-format.js";
 export * from "./candidate-lock.js";
+export * from "./character-visual-policy.js";
 export * from "./dto.js";
 export * from "./script-format.js";
 export * from "./script-workflow-contract.js";

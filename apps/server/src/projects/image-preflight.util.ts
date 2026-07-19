@@ -9,6 +9,10 @@ import type {
   ProjectCharacterLevel,
   ResolveImagePreflightCharacterRequest,
 } from "@airoaming/shared";
+import {
+  referenceKindSatisfiesRequirement,
+  requiredCharacterReferenceKind,
+} from "@airoaming/shared";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as wsCharacter from "./character-domain.util.js";
@@ -156,7 +160,6 @@ export function buildImagePreflightJson(
   const characterById = new Map(project.characters.map((character) => [character.id, character]));
   const characterByName = new Map(project.characters.map((character) => [character.name.trim().toLowerCase(), character]));
   const appearanceCounts = new Map<string, number>();
-  const dialogueCharacterIds = new Set<string>();
   const unresolvedCharacters = new Set<string>();
   const structureScenes = chapter.storyStructure?.structureJson.scenes ?? [];
   const sceneById = new Map(structureScenes.map((scene) => [scene.id, scene]));
@@ -175,18 +178,6 @@ export function buildImagePreflightJson(
 
     for (const characterId of seenInShot) {
       appearanceCounts.set(characterId, (appearanceCounts.get(characterId) ?? 0) + 1);
-    }
-
-    // 统计角色台词:从 comic.dialogue 文本(格式"角色名：台词")匹配出场角色名。
-    // 有台词的角色(chapter/minor/extra)需要定稿图;无台词的纯背景角色不需要。
-    const dialogue = shot.comic?.dialogue?.trim() ?? "";
-    if (dialogue) {
-      for (const character of project.characters) {
-        if (!seenInShot.has(character.id)) continue;
-        if (dialogue.includes(character.name.trim())) {
-          dialogueCharacterIds.add(character.id);
-        }
-      }
     }
 
     const sceneId = shot.sceneId?.trim() ?? "";
@@ -230,35 +221,43 @@ export function buildImagePreflightJson(
     if (!character) {
       continue;
     }
-    const hasDialogue = dialogueCharacterIds.has(characterId);
-    const requiredReference = wsCharacter.isRequiredPreflightReferenceCharacter(character, appearanceCount, hasDialogue);
-    const referenceReady = wsCharacter.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind);
-    const runningReferenceTask = isReferenceTaskRunning(project.id, character.id);
+    const requirement = requiredCharacterReferenceKind(character);
+    const requiredReference = requirement !== "none";
+    const availableKind = wsCharacter.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind)
+      ? "final_reference"
+      : character.previewReferenceAssetId
+        ? "preview_front"
+        : "none";
+    const referenceReady = referenceKindSatisfiesRequirement(requirement, availableKind);
+    const referenceAssetId = availableKind === "final_reference"
+      ? character.primaryReferenceAssetId
+      : availableKind === "preview_front"
+        ? character.previewReferenceAssetId
+        : null;
+    const runningReferenceTask = requirement !== "none" && isReferenceTaskRunning(project.id, character.id);
     let status: ImagePreflightCharacterCheck["status"] = "ok";
-    let note = "参考图满足当前出图要求。";
+    let note = requirement === "none" ? "纯声音角色无需图片。" : "参考图满足当前出图要求。";
     if (runningReferenceTask) {
       status = "blocked";
-      note = "角色定稿图任务正在生成，完成后再确认出图准备。";
+      note = "角色视觉参考任务正在生成，完成后再确认出图准备。";
       issues.push({
         type: "running_reference_task",
         status: "blocked",
-        message: `「${character.name}」的角色定稿图任务仍在生成中。`,
+        message: `「${character.name}」的角色视觉参考任务仍在生成中。`,
         relatedName: character.name,
         relatedCharacterId: character.id,
       });
-    } else if (requiredReference && !referenceReady) {
+    } else if (!referenceReady) {
       status = "blocked";
-      note = "该角色在本章需要定稿图。";
+      const referenceLabel = requirement === "final_reference" ? "定稿图" : "视觉参考图";
+      note = `该主体在剧情结构阶段要求${referenceLabel}。`;
       issues.push({
         type: "missing_reference",
         status: "blocked",
-        message: `「${character.name}」缺少可用角色定稿图。`,
+        message: `「${character.name}」缺少可用${referenceLabel}。`,
         relatedName: character.name,
         relatedCharacterId: character.id,
       });
-    } else if (!requiredReference && !referenceReady) {
-      status = "warning";
-      note = "当前按临时/轻量角色处理，可用文字描述进入候选图。";
     }
 
     characterChecks.push({
@@ -268,7 +267,7 @@ export function buildImagePreflightJson(
       appearanceCount,
       requiredReference,
       referenceReady,
-      referenceAssetId: referenceReady ? character.primaryReferenceAssetId : null,
+      referenceAssetId: referenceReady ? referenceAssetId : null,
       status,
       note,
     });

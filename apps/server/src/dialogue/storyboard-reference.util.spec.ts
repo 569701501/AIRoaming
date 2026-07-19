@@ -14,6 +14,7 @@ const structure = {
 const projectCharacters = [
   { id: "char-lin", name: "林舟" },
   { id: "char-xu", name: "许澄" },
+  { id: "char-outsider", name: "结构外角色" },
 ] as ProjectCharacter[];
 
 function storyboard(): StoryboardJson {
@@ -69,5 +70,12 @@ describe("S1 分镜引用映射", () => {
       expect((error as Error).message).toContain("sceneId");
       expect((error as Error).message).toContain("未绑定角色");
     }
+  });
+
+  it("项目角色库已有、但当前剧情结构未登记的角色仍不能进入分镜", () => {
+    const invalid = storyboard();
+    invalid.shots[0]!.characterIds = ["char-outsider"];
+    expect(() => resolveStoryboardReferences(invalid, structure, projectCharacters)).toThrow(StoryboardReferenceError);
+    expect(() => resolveStoryboardReferences(invalid, structure, projectCharacters)).toThrow("结构外角色");
   });
 });

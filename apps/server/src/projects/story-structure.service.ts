@@ -11,6 +11,7 @@ import {
   type StoryStructureCharacterCard,
   type StoryStructureJson,
   type UpdateChapterStoryStructureRequest,
+  requiredCharacterReferenceKind,
 } from "@airoaming/shared";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
@@ -233,6 +234,10 @@ export class StoryStructureService {
       wsCharacter.normalizeCharacterNameKey(character.name),
       character,
     ]));
+    const existingByIdentity = new Map(project.characters.map((character) => [
+      `${character.entityType}:${wsCharacter.normalizeCharacterIdentityKey(character.name, character.entityType)}`,
+      character,
+    ]));
     const nextCharacters = [...project.characters];
     // 结构角色卡浅拷贝,用于回填 projectCharacterId(见 ADR-0006)
     const nextCards = structureJson.characters.map((card) => ({ ...card }));
@@ -248,7 +253,13 @@ export class StoryStructureService {
       const key = wsCharacter.normalizeCharacterNameKey(name);
       const description = this.buildStoryStructureCharacterPrompt(card);
       const inferredLevel = this.resolveCardLevel(card, name, description, index);
-      const existing = existingByName.get(key);
+      const cardEntityType = this.resolveCardEntityType(card);
+      const identityKey = `${cardEntityType}:${wsCharacter.normalizeCharacterIdentityKey(name, cardEntityType)}`;
+      // group 优先按保守身份匹配，使旧项目中的群体别名在再次确认结构时
+      // 回收到同一个项目角色；其他主体仍然优先精确名称。
+      const existing = cardEntityType === "group"
+        ? existingByIdentity.get(identityKey) ?? existingByName.get(key)
+        : existingByName.get(key) ?? existingByIdentity.get(identityKey);
 
       if (existing) {
         // 回填项目角色 id,独立于角色库是否有变更:
@@ -256,21 +267,21 @@ export class StoryStructureService {
         nextCards[index].projectCharacterId = existing.id;
 
         const level = this.characterRef.resolveMoreImportantCharacterLevel(existing.level, inferredLevel);
-        const primary = this.characterRef.resolvePrimaryReferenceForLevel(existing, level);
+        const nextEntityType = typeof card.entityType === "string"
+          ? wsCharacter.normalizeEntityType(card.entityType)
+          : existing.entityType;
+        const primary = this.characterRef.resolvePrimaryReferenceForLevel({ ...existing, entityType: nextEntityType }, level);
         const nextRole = existing.role || card.role.trim() || wsCharacter.getDefaultRoleForLevel(level);
         const nextStatus = this.characterRef.resolveCharacterStatusForReference(
           level,
           primary.primaryReferenceAssetId,
           existing.status === "in_use",
           primary.primaryReferenceKind,
+          nextEntityType,
         );
         const nextAppearance = existing.appearance || description;
         const nextPersonality = existing.personality || card.motivation.trim();
         const nextPromptFragment = existing.promptFragment || description;
-        // entityType: AI 显式输出就用 AI 的(走 normalizeEntityType 校验),AI 没给(含旧数据 null)保留 existing。
-        const nextEntityType = typeof card.entityType === "string"
-          ? wsCharacter.normalizeEntityType(card.entityType)
-          : existing.entityType;
         const hasChanges = existing.role !== nextRole
           || existing.level !== level
           || existing.status !== nextStatus
@@ -302,6 +313,7 @@ export class StoryStructureService {
         if (characterIndex >= 0) {
           nextCharacters[characterIndex] = nextCharacter;
           existingByName.set(key, nextCharacter);
+          existingByIdentity.set(`${nextEntityType}:${wsCharacter.normalizeCharacterIdentityKey(nextCharacter.name, nextEntityType)}`, nextCharacter);
           charactersChanged = true;
         }
         return;
@@ -313,8 +325,8 @@ export class StoryStructureService {
         name,
         role: card.role.trim() || wsCharacter.getDefaultRoleForLevel(inferredLevel),
         level: inferredLevel,
-        entityType: this.resolveCardEntityType(card),
-        status: inferredLevel === "lead" || inferredLevel === "recurring" ? "needs_reference" : "draft",
+        entityType: cardEntityType,
+        status: requiredCharacterReferenceKind({ level: inferredLevel, entityType: cardEntityType }) === "final_reference" ? "needs_reference" : "draft",
         appearance: description,
         personality: card.motivation.trim(),
         promptFragment: description,
@@ -322,7 +334,7 @@ export class StoryStructureService {
         previewReferenceAssetId: null,
         previewConfirmedAt: null,
         primaryReferenceAssetId: null,
-        primaryReferenceKind: wsCharacter.defaultReferenceKindForLevel(inferredLevel),
+        primaryReferenceKind: requiredCharacterReferenceKind({ level: inferredLevel, entityType: cardEntityType }),
         visualVersion: 0,
         source: "story_structure",
         createdAt: now,
@@ -331,6 +343,7 @@ export class StoryStructureService {
       };
       nextCharacters.push(character);
       existingByName.set(key, character);
+      existingByIdentity.set(identityKey, character);
       nextCards[index].projectCharacterId = character.id;
       charactersChanged = true;
     });

@@ -31,6 +31,8 @@ import {
   type WorkbenchAsset,
   buildTaskSourceProjection,
   digestCanonicalJson,
+  referenceKindSatisfiesRequirement,
+  requiredCharacterReferenceKind,
 } from "@airoaming/shared";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import { CHARACTER_LEVEL_ORDER } from "./project-domain.util.js";
@@ -122,17 +124,25 @@ export class CharacterReferenceService {
     if (required.length === 0) {
       return false;
     }
-    return required.every((character) =>
-      (character.status === "finalized" || character.status === "in_use")
-      && Boolean(character.primaryReferenceAssetId)
-      && character.primaryReferenceKind === "final_reference",
-    );
+    return required.every((character) => {
+      const requirement = requiredCharacterReferenceKind(character);
+      const available = character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference"
+        ? "final_reference"
+        : character.previewReferenceAssetId
+          ? "preview_front"
+          : "none";
+      return referenceKindSatisfiesRequirement(requirement, available);
+    });
   }
 
   resolvePrimaryReferenceForLevel(
     character: ProjectCharacter,
     level: ProjectCharacterLevel,
   ): Pick<ProjectCharacter, "primaryReferenceAssetId" | "primaryReferenceKind" | "finalizedAt"> {
+    const requirement = requiredCharacterReferenceKind({ level, entityType: character.entityType });
+    if (requirement === "none") {
+      return { primaryReferenceAssetId: null, primaryReferenceKind: "none", finalizedAt: null };
+    }
     if (wsCharacter.isPrimaryReferenceCompatible(character.primaryReferenceAssetId, character.primaryReferenceKind)) {
       return {
         primaryReferenceAssetId: character.primaryReferenceAssetId,
@@ -142,7 +152,7 @@ export class CharacterReferenceService {
     }
     return {
       primaryReferenceAssetId: null,
-      primaryReferenceKind: this.defaultReferenceKindForLevel(level),
+      primaryReferenceKind: requirement,
       finalizedAt: null,
     };
   }
@@ -152,6 +162,7 @@ export class CharacterReferenceService {
     primaryReferenceAssetId: string | null,
     inUse: boolean,
     primaryReferenceKind = this.defaultReferenceKindForLevel(level),
+    entityType: ProjectCharacterEntityType = "human",
   ): ProjectCharacterStatus {
     if (inUse) {
       return "in_use";
@@ -159,7 +170,7 @@ export class CharacterReferenceService {
     if (wsCharacter.isPrimaryReferenceCompatible(primaryReferenceAssetId, primaryReferenceKind)) {
       return "finalized";
     }
-    if (level === "lead" || level === "recurring") {
+    if (requiredCharacterReferenceKind({ level, entityType }) === "final_reference") {
       return "needs_reference";
     }
     return "draft";
@@ -169,13 +180,16 @@ export class CharacterReferenceService {
     character: ProjectCharacter,
     requested: ProjectCharacterReferenceKind | undefined,
   ): ProjectCharacterReferenceKind {
-    const fallback = this.defaultReferenceKindForLevel(character.level);
+    const fallback = requiredCharacterReferenceKind(character);
     const normalized = requested ? this.normalizeCharacterReferenceKind(requested) : fallback;
+    if (fallback === "none") {
+      return "none";
+    }
     if (normalized === "preview_front") {
       return "preview_front";
     }
-    if (normalized === "final_reference" && character.level === "extra") {
-      return "none";
+    if (normalized === "final_reference") {
+      return fallback === "final_reference" ? "final_reference" : "none";
     }
     return normalized === "none" ? fallback : normalized;
   }
@@ -232,7 +246,19 @@ export class CharacterReferenceService {
         fileName: path.basename(asset.path),
       };
     } catch (error) {
-      if (error instanceof NotFoundException || (error as { message?: string })?.message === "NOT_FOUND") {
+      const fileMissing = (error as { code?: string })?.code === "ENOENT";
+      if (fileMissing && this.isDatabaseMode()) {
+        await this.prismaService.runBusinessTransaction((tx) => tx.asset.updateMany({
+          where: { id: asset.id, projectId: project.id, status: "ready" },
+          data: { status: "missing", updatedAt: new Date() },
+        }));
+        this.logger.warn(`Marked missing project asset after file lookup failed: ${asset.id}`);
+      }
+      if (
+        error instanceof NotFoundException
+        || (error as { message?: string })?.message === "NOT_FOUND"
+        || fileMissing
+      ) {
         throw new NotFoundException("PROJECT_ASSET_FILE_NOT_FOUND");
       }
       throw error;
@@ -434,7 +460,7 @@ export class CharacterReferenceService {
       name: nextName,
       role: input.role === undefined ? character.role : input.role.trim(),
       level: nextLevel,
-      status: this.resolveCharacterStatusForReference(nextLevel, nextReference.primaryReferenceAssetId, false, nextReference.primaryReferenceKind),
+      status: this.resolveCharacterStatusForReference(nextLevel, nextReference.primaryReferenceAssetId, false, nextReference.primaryReferenceKind, character.entityType),
       appearance: input.appearance === undefined ? character.appearance : input.appearance.trim(),
       personality: input.personality === undefined ? character.personality : input.personality.trim(),
       promptFragment: input.promptFragment === undefined ? character.promptFragment : input.promptFragment.trim(),
@@ -725,9 +751,10 @@ export class CharacterReferenceService {
         hasCompatiblePrimaryReference ? character.primaryReferenceAssetId : null,
         false,
         hasCompatiblePrimaryReference ? character.primaryReferenceKind : referenceKind,
+        character.entityType,
       ),
       primaryReferenceAssetId: hasCompatiblePrimaryReference ? character.primaryReferenceAssetId : null,
-      primaryReferenceKind: hasCompatiblePrimaryReference ? character.primaryReferenceKind : this.defaultReferenceKindForLevel(character.level),
+      primaryReferenceKind: hasCompatiblePrimaryReference ? character.primaryReferenceKind : requiredCharacterReferenceKind(character),
       referenceAssetIds: [...new Set([...character.referenceAssetIds, asset.id])],
       visualVersion: nextVisualVersion,
       finalizedAt: hasCompatiblePrimaryReference ? character.finalizedAt : null,
@@ -750,7 +777,7 @@ export class CharacterReferenceService {
       const referenceKind = this.normalizeRequestedReferenceKind(character, input.referenceKind);
       if (referenceKind === "none") throw new BadRequestException("CHARACTER_REFERENCE_NOT_REQUIRED");
       const sourceProjection = buildTaskSourceProjection({
-        policyVersion: "character-reference-source-v1",
+        policyVersion: "character-reference-source-v2",
         projectId,
         chapterId: null,
         consumerType: "character_reference_generate",
@@ -830,7 +857,8 @@ export class CharacterReferenceService {
       await this.prismaService.runBusinessTransaction(async (tx) => tx.character.update({ where: { id: characterId }, data: { previewVisualId: visual.id, rowVersion: { increment: 1 }, updatedAt: new Date() } }));
       const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
       const nextCharacter = this.findProjectCharacter(refreshed, characterId);
-      const task = nextCharacter.level !== "extra" ? await this.queueCharacterReference(projectId, characterId, { referenceKind: "final_reference" }) : null;
+      const shouldFinalize = requiredCharacterReferenceKind(nextCharacter) === "final_reference";
+      const task = shouldFinalize ? await this.queueCharacterReference(projectId, characterId, { referenceKind: "final_reference" }) : null;
       return { ...this.toProjectCharactersResponse(refreshed), character: nextCharacter, tasks: task?.tasks ?? [] };
     }
     const project = await this.projectStore.getReadyProject(projectId);
@@ -849,7 +877,7 @@ export class CharacterReferenceService {
       throw new BadRequestException("CHARACTER_PREVIEW_KIND_MISMATCH");
     }
     const now = new Date().toISOString();
-    const shouldFinalize = character.level !== "extra";
+    const shouldFinalize = requiredCharacterReferenceKind(character) === "final_reference";
     const nextCharacter: ProjectCharacter = {
       ...character,
       previewReferenceAssetId: asset.id,
@@ -970,6 +998,7 @@ export class CharacterReferenceService {
           nextPrimaryVisualId ? character.primaryVisualId : null,
           false,
           nextPrimaryKind,
+          wsCharacter.normalizeEntityType(character.entityType),
         );
         await tx.character.update({
           where: { id: character.id },
@@ -1043,7 +1072,7 @@ export class CharacterReferenceService {
     }
     const now = new Date().toISOString();
     const nextPrimaryReferenceAssetId = character.primaryReferenceAssetId === assetId ? null : character.primaryReferenceAssetId;
-    const nextPrimaryReferenceKind = nextPrimaryReferenceAssetId ? character.primaryReferenceKind : this.defaultReferenceKindForLevel(character.level);
+    const nextPrimaryReferenceKind = nextPrimaryReferenceAssetId ? character.primaryReferenceKind : requiredCharacterReferenceKind(character);
     const nextCharacter: ProjectCharacter = {
       ...character,
       referenceAssetIds: character.referenceAssetIds.filter((item) => item !== asset.id),
@@ -1052,7 +1081,7 @@ export class CharacterReferenceService {
       primaryReferenceAssetId: nextPrimaryReferenceAssetId,
       primaryReferenceKind: nextPrimaryReferenceKind,
       finalizedAt: nextPrimaryReferenceAssetId ? character.finalizedAt : null,
-      status: this.resolveCharacterStatusForReference(character.level, nextPrimaryReferenceAssetId, false, nextPrimaryReferenceKind),
+      status: this.resolveCharacterStatusForReference(character.level, nextPrimaryReferenceAssetId, false, nextPrimaryReferenceKind, character.entityType),
       updatedAt: now,
     };
     const nextProject = this.withUpdatedProjectCharacter({ ...project, assets: project.assets.filter((item) => item.id !== asset.id) }, nextCharacter, now);
@@ -1074,6 +1103,7 @@ export class CharacterReferenceService {
   // ====== 场景参考图 ======
 
   async queueSceneReference(projectId: string, chapterId: string, sceneId: string, input: GenerateSceneReferenceRequest = {}): Promise<QueueSceneReferenceResponse> {
+    const requestId = input.requestId?.trim() || randomUUID();
     if (this.isDatabaseMode()) {
       const project = await this.repository.refreshProjectFromDatabase(projectId);
       const chapter = project.chapters.find((item) => item.id === chapterId);
@@ -1084,13 +1114,23 @@ export class CharacterReferenceService {
       const sceneRow = await this.prismaService.database().chapterScene.findFirst({ where: { id: sceneId, projectId, chapterId } })
         ?? await this.prismaService.database().chapterScene.findFirst({ where: { sceneKey: sceneId, projectId, chapterId } });
       if (!sceneRow) throw new NotFoundException("SCENE_DB_NOT_FOUND");
+      const activeTask = (await this.persistentTaskRepository.list(projectId)).find((task) =>
+        task.type === "scene_reference_generate"
+        && task.target?.type === "scene"
+        && task.target.id === sceneRow.id
+        && task.target.chapterId === chapterId
+        && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
+      );
+      if (activeTask) {
+        return { storyStructure, assets: project.assets, tasks: [activeTask], createdCount: 0 };
+      }
       const sourceProjection = buildTaskSourceProjection({
         policyVersion: "scene-reference-source-v1", projectId, chapterId, consumerType: "scene_reference_generate",
         sources: [{ role: "scene", sourceType: "chapter_scene", sourceId: sceneRow.id, sourceDigest: digestCanonicalJson({ id: sceneRow.id, projectId, chapterId, sceneKey: sceneRow.sceneKey, updatedAt: sceneRow.updatedAt.toISOString() }) }],
       });
       const task = await this.persistentTaskRepository.create({
         projectId, type: "scene_reference_generate", target: { type: "scene", id: sceneRow.id, chapterId },
-        input: { schemaVersion: 1, projectId, chapterId, sceneId: sceneRow.id, sceneKey: sceneRow.sceneKey, prompt: input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene, project), sourceProjection },
+        input: { schemaVersion: 1, requestId, projectId, chapterId, sceneId: sceneRow.id, sceneKey: sceneRow.sceneKey, prompt: input.prompt?.trim() || referencePromptUtil.buildScenePrompt(scene, project), sourceProjection },
         options: { concurrencyKey: "image-provider", concurrencySlots: 1, maxAttempts: 3 },
       });
       return { storyStructure, assets: project.assets, tasks: [task.item], createdCount: task.replayed ? 0 : 1 };
@@ -1122,7 +1162,7 @@ export class CharacterReferenceService {
         projectId: project.id,
         type: "scene_reference_generate",
         target: { type: "scene", id: sceneId, chapterId },
-        input: { sceneId, chapterId, sceneName: scene.name, prompt: input.prompt ?? "", size: input.size ?? "" },
+        input: { requestId, sceneId, chapterId, sceneName: scene.name, prompt: input.prompt ?? "", size: input.size ?? "" },
         options: { provider: this.toProviderMetaId(settings.type) },
       });
       this.enqueueSceneReferenceTaskRun(task.id, project.id, chapterId, sceneId, input);

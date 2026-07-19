@@ -36,11 +36,6 @@ export function resolveStoryboardReferences(
     characterTokenToProjectId.set(normalize(card.name), projectCharacter.id);
     characterTokenToProjectId.set(projectCharacter.id, projectCharacter.id);
   }
-  for (const character of projectCharacters) {
-    characterTokenToProjectId.set(character.id, character.id);
-    characterTokenToProjectId.set(normalize(character.name), character.id);
-  }
-
   const beatIds = new Set(structure.beats.map((beat) => beat.id));
   const sceneIds = new Set(structure.scenes.map((scene) => scene.id));
   const issues: string[] = [];
@@ -49,7 +44,10 @@ export function resolveStoryboardReferences(
     const resolved = characterTokenToProjectId.get(value)
       ?? characterTokenToProjectId.get(normalize(value));
     if (!resolved) {
-      issues.push(`${path} 引用了未绑定角色「${token}」`);
+      const outside = projectById.get(value) ?? projectByName.get(normalize(value));
+      issues.push(outside
+        ? `${path} 引用了当前剧情结构未登记角色「${outside.name}」`
+        : `${path} 引用了未绑定角色「${token}」`);
       return null;
     }
     return resolved;

@@ -279,7 +279,9 @@ async function regenerateCharacterReference(payload: {
 }
 
 async function generateSceneReference(payload: { chapterId: string; sceneId: string }) {
-  await workbench.generateSceneReference(payload.chapterId, payload.sceneId, {});
+  await workbench.generateSceneReference(payload.chapterId, payload.sceneId, {
+    requestId: crypto.randomUUID(),
+  });
 }
 
 async function deleteCharacterReference(payload: { characterId: string; assetId: string }) {

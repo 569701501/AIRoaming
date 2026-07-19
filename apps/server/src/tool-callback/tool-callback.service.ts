@@ -77,9 +77,11 @@ export class ToolCallbackService {
     projectId: string;
     chapterId: string;
     sceneId: string;
+    requestId?: string;
     prompt?: string;
   }): Promise<QueueSceneReferenceResponse> {
     return this.run("tool-callback.generate-scene-image", () => this.projectsService.queueSceneReference(input.projectId, input.chapterId, input.sceneId, {
+      requestId: input.requestId,
       prompt: input.prompt,
     }));
   }

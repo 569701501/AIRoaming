@@ -68,7 +68,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AlertCircle, ArrowRight, CheckCircle2, ListChecks, Lock, UsersRound } from "lucide-vue-next";
-import { getComicFormatLabel as getSharedComicFormatLabel } from "@airoaming/shared";
+import {
+  getComicFormatLabel as getSharedComicFormatLabel,
+  referenceKindSatisfiesRequirement,
+  requiredCharacterReferenceKind,
+} from "@airoaming/shared";
 import type { ChapterListItem, GenerationTaskItem, ProjectCharacter, WorkbenchShot, WorkbenchSnapshot } from "@airoaming/shared";
 
 type NextActionAction = "characters" | "confirm" | "candidates" | "wait" | "structure";
@@ -101,9 +105,10 @@ const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
 const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const currentChapterTitle = computed(() => currentChapter.value?.title ?? "当前章节");
+const preflightWorkflowStep = computed(() => props.snapshot.workflow.steps.find((item) => item.key === "image_preflight"));
 const versioningStatus = computed(() => {
   if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
-  const step = props.snapshot.workflow.steps.find((item) => item.key === "image_preflight");
+  const step = preflightWorkflowStep.value;
   return {
     label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "预览/Revision",
     freshness: step?.freshness ?? null,
@@ -163,16 +168,23 @@ const appearanceCounts = computed(() => {
 
 const characterChecks = computed(() => matchedCharacters.value.map((character) => {
   const appearanceCount = appearanceCounts.value.get(character.id) ?? 0;
-  const required = isRequiredReferenceCharacter(character, appearanceCount);
+  const requirement = requiredCharacterReferenceKind(character);
+  const required = requirement !== "none";
   const running = isReferenceTaskActive(character);
-  const ready = hasFinalReference(character);
+  const ready = referenceKindSatisfiesRequirement(requirement, getAvailableReferenceKind(character));
   const hasPreview = hasPreviewReference(character);
-  // 区分待锁定角色卡在哪一步,引导用户去剧情结构页执行下一步动作。
+  const previewConfirmed = Boolean(character.previewReferenceAssetId);
   let nextStep = "";
   if (!ready && !running && required) {
-    nextStep = hasPreview
-      ? "已有角色图，在剧情结构页点「定稿」生成三视图"
-      : "还没有角色图，在剧情结构页先生成角色图";
+    if (!hasPreview) {
+      nextStep = "还没有视觉参考，在剧情结构页先生成";
+    } else if (requirement === "preview_front") {
+      nextStep = "已有单张参考，在剧情结构页点「采用参考」";
+    } else if (!previewConfirmed) {
+      nextStep = "已有角色图，在剧情结构页点「定稿」";
+    } else {
+      nextStep = "预览已确认，在剧情结构页完成三视图定稿";
+    }
   }
   return {
     character,
@@ -181,7 +193,7 @@ const characterChecks = computed(() => matchedCharacters.value.map((character) =
     ready,
     running,
     state: ready ? "ready" : running ? "running" : required ? "missing" : "optional",
-    label: ready ? "已锁定" : running ? "锁定中" : required ? "待锁定" : "可直接出图",
+    label: ready ? "已就绪" : running ? "准备中" : required ? "待补齐" : "无需图片",
     nextStep,
   };
 }));
@@ -233,7 +245,8 @@ const isPreflightConfirmed = computed(() => {
     && preflight.chapterId === currentChapterId.value
     && preflight.preflightJson.ready
     && preflight.sourceStoryboardId === storyboard.id
-    && preflight.sourceStoryboardUpdatedAt === storyboard.updatedAt,
+    && preflight.sourceStoryboardUpdatedAt === storyboard.updatedAt
+    && (props.snapshot.versioningCapability.mode !== "g2_db" || preflightWorkflowStep.value?.freshness === "current"),
   );
 });
 
@@ -303,13 +316,13 @@ const checklist = computed<ChecklistItem[]>(() => [
   },
   {
     key: "references",
-    title: "角色锁定",
+    title: "角色素材",
     status: missingRequiredReferences.value.length === 0 && runningReferenceTasks.value.length === 0 ? "ok" : "warn",
     description: missingRequiredReferences.value.length > 0
-      ? `还有 ${missingRequiredReferences.value.length} 个本章出镜角色需要锁定形象。`
+      ? `还有 ${missingRequiredReferences.value.length} 个本章出镜主体缺少既定视觉素材。`
       : runningReferenceTasks.value.length > 0
-        ? `还有 ${runningReferenceTasks.value.length} 个角色正在生成图。`
-        : "本章需要稳定形象的角色已经锁定。",
+        ? `还有 ${runningReferenceTasks.value.length} 个主体正在准备视觉参考。`
+        : "本章出镜主体都已满足剧情结构阶段确定的素材要求。",
     action: missingRequiredReferences.value.length > 0 ? "structure" : null,
     actionLabel: missingRequiredReferences.value.length > 0 ? "去剧情结构" : null,
     hint: missingRequiredReferences.value.length > 0
@@ -415,8 +428,15 @@ function hasFinalReference(character: ProjectCharacter) {
   return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
 }
 
+function getAvailableReferenceKind(character: ProjectCharacter) {
+  if (hasFinalReference(character)) return "final_reference" as const;
+  if (character.previewReferenceAssetId) return "preview_front" as const;
+  return "none" as const;
+}
+
 /** 角色是否已生成预览图(preview_front)资产。用于区分待锁定角色卡在"缺角色图"还是"缺定稿"。 */
 function hasPreviewReference(character: ProjectCharacter): boolean {
+  if (character.previewReferenceAssetId) return true;
   if (!character.referenceAssetIds || character.referenceAssetIds.length === 0) {
     return false;
   }
@@ -434,23 +454,15 @@ function hasPreviewReference(character: ProjectCharacter): boolean {
   });
 }
 
-function isRequiredReferenceCharacter(character: ProjectCharacter, appearanceCount: number) {
-  // lead / recurring 必锁(不论本章出镜几次);
-  // chapter / minor / extra 按本章出镜次数判断:出镜 ≥2 次才要求定稿,只出镜 1 次的路人不强制。
-  // 与后端 character-domain.util.ts 口径一致。
-  if (character.level === "lead" || character.level === "recurring") {
-    return true;
-  }
-  return appearanceCount > 1;
-}
-
 function isReferenceTaskActive(character: ProjectCharacter) {
+  const requirement = requiredCharacterReferenceKind(character);
+  if (requirement === "none") return false;
   return props.tasks.some((task) =>
     task.projectId === props.snapshot.project.id
     && task.type === "character_reference_generate"
     && task.target?.type === "character"
     && task.target.id === character.id
-    && task.input.referenceKind === "final_reference"
+    && (task.input.referenceKind === "preview_front" || (requirement === "final_reference" && task.input.referenceKind === "final_reference"))
     && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
   );
 }

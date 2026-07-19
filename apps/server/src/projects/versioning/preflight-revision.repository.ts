@@ -56,7 +56,7 @@ export class PreflightRevisionRepository {
       const created = await tx.preflightRevision.create({
         data: {
           id: randomUUID(), projectId: scope.projectId, chapterId: scope.chapterId, version: (previous?.version ?? 0) + 1,
-          status: "confirmed", sourceStoryboardVersionId: current.sourceStoryboardVersionId, sourcePolicyVersion: "preflight-source-v1",
+          status: "confirmed", sourceStoryboardVersionId: current.sourceStoryboardVersionId, sourcePolicyVersion: "preflight-source-v2",
           sourceDigest: current.sourceDigest, documentJson: encoded.value as unknown as Prisma.InputJsonValue, schemaVersion: 2,
           documentDigest: encoded.digest, ready: true, createdAt: now, confirmedAt: now,
         },

@@ -240,7 +240,7 @@ export function parseStoryboardDocumentV2(input: unknown, context: StoryboardRef
 function parsePreflightSourceSnapshot(value: unknown, path: string): PreflightSourceSnapshotV1 {
   const row = exact(value, ["schemaVersion", "policyVersion", "projectId", "chapterId", "consumerType", "storyboard", "style", "characters", "scenes"], path);
   if (row.schemaVersion !== 1) invalid(`${path}.schemaVersion`, "expected 1");
-  if (row.policyVersion !== "preflight-source-v1") invalid(`${path}.policyVersion`, "unsupported policy");
+  if (row.policyVersion !== "preflight-source-v1" && row.policyVersion !== "preflight-source-v2") invalid(`${path}.policyVersion`, "unsupported policy");
   if (row.consumerType !== "preflight_revision") invalid(`${path}.consumerType`, "expected preflight_revision");
   const storyboard = exact(row.storyboard, ["id", "digest"], `${path}.storyboard`);
   const style = exact(row.style, ["comicFormat", "artStyle", "styleDigest"], `${path}.style`);
@@ -258,7 +258,7 @@ function parsePreflightSourceSnapshot(value: unknown, path: string): PreflightSo
     return value;
   });
   uniqueIds(characters.map((item) => item.characterId), `${path}.characters`); uniqueIds(scenes.map((item) => item.chapterSceneId), `${path}.scenes`);
-  return { schemaVersion: 1, policyVersion: "preflight-source-v1", projectId: string(row.projectId, `${path}.projectId`), chapterId: string(row.chapterId, `${path}.chapterId`), consumerType: "preflight_revision", storyboard: { id: string(storyboard.id, `${path}.storyboard.id`), digest: digest(storyboard.digest, `${path}.storyboard.digest`) }, style: { comicFormat: enumeration(style.comicFormat, ["vertical_scroll", "paged_comic"], `${path}.style.comicFormat`), artStyle: string(style.artStyle, `${path}.style.artStyle`), styleDigest: digest(style.styleDigest, `${path}.style.styleDigest`) }, characters: characters.sort((a, b) => a.characterId.localeCompare(b.characterId)), scenes: scenes.sort((a, b) => a.chapterSceneId.localeCompare(b.chapterSceneId) || a.sceneKey.localeCompare(b.sceneKey)) };
+  return { schemaVersion: 1, policyVersion: row.policyVersion, projectId: string(row.projectId, `${path}.projectId`), chapterId: string(row.chapterId, `${path}.chapterId`), consumerType: "preflight_revision", storyboard: { id: string(storyboard.id, `${path}.storyboard.id`), digest: digest(storyboard.digest, `${path}.storyboard.digest`) }, style: { comicFormat: enumeration(style.comicFormat, ["vertical_scroll", "paged_comic"], `${path}.style.comicFormat`), artStyle: string(style.artStyle, `${path}.style.artStyle`), styleDigest: digest(style.styleDigest, `${path}.style.styleDigest`) }, characters: characters.sort((a, b) => a.characterId.localeCompare(b.characterId)), scenes: scenes.sort((a, b) => a.chapterSceneId.localeCompare(b.chapterSceneId) || a.sceneKey.localeCompare(b.sceneKey)) };
 }
 
 function parseCharacterCheck(value: unknown, path: string): PreflightCharacterCheckV2 {
@@ -284,19 +284,20 @@ function parseIssue(value: unknown, path: string): PreflightDocumentV2["issues"]
 export function parsePreflightDocumentV2(input: unknown): PreflightDocumentV2 {
   const row = exact(inputValue(input), ["schemaVersion", "chapterId", "sourceSnapshot", "shotCount", "characterChecks", "sceneChecks", "styleCheck", "issues", "ready", "notes", "policyVersion"], "preflight");
   if (row.schemaVersion !== 2) invalid("preflight.schemaVersion", "expected 2");
-  if (row.policyVersion !== "preflight-source-v1") invalid("preflight.policyVersion", "unsupported policy");
+  if (row.policyVersion !== "preflight-source-v1" && row.policyVersion !== "preflight-source-v2") invalid("preflight.policyVersion", "unsupported policy");
   if (!Array.isArray(row.characterChecks) || !Array.isArray(row.sceneChecks) || !Array.isArray(row.issues)) invalid("preflight", "checks/issues must be arrays");
   const characterChecks = row.characterChecks.map((item, index) => parseCharacterCheck(item, `preflight.characterChecks[${index}]`));
   const sceneChecks = row.sceneChecks.map((item, index) => parseSceneCheck(item, `preflight.sceneChecks[${index}]`));
   uniqueIds(characterChecks.map((item) => item.characterId), "preflight.characterChecks"); uniqueIds(sceneChecks.map((item) => item.sceneId), "preflight.sceneChecks");
   const chapterId = string(row.chapterId, "preflight.chapterId");
   const sourceSnapshot = parsePreflightSourceSnapshot(row.sourceSnapshot, "preflight.sourceSnapshot");
+  if (sourceSnapshot.policyVersion !== row.policyVersion) invalid("preflight.policyVersion", "must match sourceSnapshot.policyVersion");
   if (sourceSnapshot.chapterId !== chapterId) invalid("preflight.sourceSnapshot.chapterId", "must match preflight.chapterId");
   const issues = row.issues.map((item, index) => parseIssue(item, `preflight.issues[${index}]`));
   const ready = boolean(row.ready, "preflight.ready");
   if (ready && issues.some((issue) => issue.status === "blocked")) invalid("preflight.ready", "cannot be true while a blocked issue exists");
   if (ready && sourceSnapshot.characters.some((character) => character.required && character.visualId === null)) invalid("preflight.sourceSnapshot.characters", "required character must have a visual/asset when ready");
-  return { schemaVersion: 2, chapterId, sourceSnapshot, shotCount: integer(row.shotCount, "preflight.shotCount"), characterChecks, sceneChecks, styleCheck: parseStyleCheck(row.styleCheck, "preflight.styleCheck"), issues, ready, notes: string(row.notes, "preflight.notes", true), policyVersion: "preflight-source-v1" };
+  return { schemaVersion: 2, chapterId, sourceSnapshot, shotCount: integer(row.shotCount, "preflight.shotCount"), characterChecks, sceneChecks, styleCheck: parseStyleCheck(row.styleCheck, "preflight.styleCheck"), issues, ready, notes: string(row.notes, "preflight.notes", true), policyVersion: row.policyVersion };
 }
 
 function encode<T>(value: T, schemaVersion: number): EncodedDocument<T> {

@@ -95,9 +95,19 @@ export function buildCharacterReferencePrompt(
   referenceKind: ProjectCharacterReferenceKind,
   version: ImagePromptVersion = "v2",
 ): string {
+  if (referenceKind === "none" || character.entityType === "voice") {
+    throw new TypeError("CHARACTER_REFERENCE_NOT_REQUIRED");
+  }
+  if (referenceKind === "final_reference" && character.entityType !== "human") {
+    throw new TypeError("CHARACTER_FINAL_REFERENCE_HUMAN_ONLY");
+  }
   const templateName = referenceKind === "final_reference"
     ? `character-final-${version}.md`
-    : `character-preview-${version}.md`;
+    : version === "v2" && character.entityType === "creature"
+      ? "creature-preview-v2.md"
+      : version === "v2" && character.entityType === "group"
+        ? "group-preview-v2.md"
+        : `character-preview-${version}.md`;
   const styleGuide = buildCharacterReferenceStyleGuide(project);
   const genreTags = project.genreTags.join("、");
   const promptFragment = character.promptFragment?.trim() ?? "";

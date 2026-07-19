@@ -9,6 +9,7 @@ import type {
   VersionMutationResult,
   VersionHistoryCopyRequest,
 } from "@airoaming/shared";
+import { requiredCharacterReferenceKind } from "@airoaming/shared";
 import { createG2DatabaseError, G2DatabaseError } from "./g2-database-error.mapper.js";
 import { StoryVersionRepository } from "./story-version.repository.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
@@ -69,7 +70,12 @@ export class StoryVersionService {
       const byId = new Map(library.characters.map((character) => [character.id, character]));
       for (const card of document.characters) {
         const character = byId.get(card.projectCharacterId);
-        if (!character || character.previewReferenceAssetId || character.status === "in_use") continue;
+        if (
+          !character
+          || requiredCharacterReferenceKind(character) === "none"
+          || character.previewReferenceAssetId
+          || character.status === "in_use"
+        ) continue;
         await this.characterReference.queueCharacterReference(projectId, character.id, { referenceKind: "preview_front" });
       }
     } catch (error) {

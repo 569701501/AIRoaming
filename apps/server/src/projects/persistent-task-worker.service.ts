@@ -426,7 +426,11 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const db = this.prismaService.database();
     const scene = await db.chapterScene.findFirst({ where: { id: output.sceneId, projectId: claim.item.projectId, chapterId: output.chapterId } });
     if (!scene) throw new Error("SCENE_DB_NOT_FOUND");
-    const relativePath = `projects/${claim.item.projectId}/chapters/${output.chapterId}/scenes/${scene.sceneKey}/background.webp`;
+    // 每次重生成必须写入独立路径。若复用 scene/background.webp，后续 DB
+    // 唯一约束失败时的清理会误删当前仍在使用的旧场景图。
+    const assetId = randomUUID();
+    const visualId = randomUUID();
+    const relativePath = `projects/${claim.item.projectId}/chapters/${output.chapterId}/scenes/${scene.sceneKey}/visuals/${assetId}/background.webp`;
     const absolutePath = this.workspacePath.resolveVirtualPath(`/workspace/${relativePath}`);
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, output.buffer);
@@ -442,8 +446,6 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
         if (persisted.sourceDigest !== sourceDigest) throw new TypeError("TASK_SOURCE_DIGEST_MISMATCH");
         const latest = await tx.sceneVisual.findFirst({ where: { chapterSceneId: scene.id }, orderBy: { version: "desc" }, select: { version: true } });
         const version = (latest?.version ?? 0) + 1;
-        const assetId = randomUUID();
-        const visualId = randomUUID();
         const now = new Date();
         const metadata = { schemaVersion: 1, taskId: claim.item.id, sceneId: scene.id, chapterId: output.chapterId, sourceDigest, warnings: output.warnings };
         await tx.asset.create({ data: { id: assetId, projectId: claim.item.projectId, chapterId: output.chapterId, type: "image", role: "scene_reference", mimeType: output.mimeType, storageKey: relativePath, status: "staged", sha256: null, bytes: null, width: null, height: null, durationMs: null, sourceTaskId: claim.item.id, metadataJson: metadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(metadata), createdAt: now, updatedAt: now } });

@@ -5,6 +5,7 @@ import type {
   ProjectCharacterReferenceKind,
   ProjectCharacterStatus,
 } from "@airoaming/shared";
+import { characterVisualIdentityKey, requiredCharacterReferenceKind } from "@airoaming/shared";
 
 /**
  * 角色 normalize 与常量(从 projects.service 抽出,供 ProjectRepository / Service 共用)。
@@ -64,6 +65,19 @@ export function normalizeCharacterNameKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
+/**
+ * 用于结构角色映射的保守身份键。
+ *
+ * 只有已被结构明确标为 group 的主体才去掉少量群体描述后缀，避免
+ * “商队众人 / 商队多人”被建成两份素材；human/creature/voice 继续精确匹配。
+ */
+export function normalizeCharacterIdentityKey(
+  name: string,
+  entityType: ProjectCharacterEntityType,
+): string {
+  return characterVisualIdentityKey(name, entityType);
+}
+
 export function getDefaultRoleForLevel(level: ProjectCharacterLevel): string {
   if (level === "lead") {
     return "主角";
@@ -80,15 +94,15 @@ export function getDefaultRoleForLevel(level: ProjectCharacterLevel): string {
   return "本章关键角色";
 }
 
-export function isRequiredPreflightReferenceCharacter(character: { level: ProjectCharacterLevel }, appearanceCount: number, _hasDialogue = false): boolean {
-  // 主角 / 常驻:不论本章出镜几次,必须锁定定稿图(final_reference)。
-  if (character.level === "lead" || character.level === "recurring") {
-    return true;
-  }
-  // chapter / minor / extra:按本章实际出镜次数判断 —— 出镜 ≥2 次(反复出现)的角色需要稳定形象,
-  // 只出镜 1 次的路人当背景处理,不强制定稿(默认只需 preview_front 预览图)。
-  // 这保证"是否要定稿图"由剧情内容(出镜次数)驱动,而非 level 一刀切。
-  return appearanceCount > 1;
+export function isRequiredPreflightReferenceCharacter(
+  character: { level: ProjectCharacterLevel; entityType?: ProjectCharacterEntityType },
+  _appearanceCount = 0,
+  _hasDialogue = false,
+): boolean {
+  return requiredCharacterReferenceKind({
+    level: character.level,
+    entityType: character.entityType ?? "human",
+  }) !== "none";
 }
 
 export function isPrimaryReferenceCompatible(

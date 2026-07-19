@@ -12,14 +12,14 @@ function artifact(id: string, sourceId: string | null, sourceDigest: typeof d1 |
 
 function baseInput(): ChapterVersionGraphInput {
   const snapshot = {
-    schemaVersion: 1 as const, policyVersion: "preflight-source-v1" as const, projectId: "project_001", chapterId: "chapter_001", consumerType: "preflight_revision" as const,
+    schemaVersion: 1 as const, policyVersion: "preflight-source-v2" as const, projectId: "project_001", chapterId: "chapter_001", consumerType: "preflight_revision" as const,
     storyboard: { id: "board_001", digest: d1 }, style: { comicFormat: "vertical_scroll" as const, artStyle: "comic_style", styleDigest: d1 },
     characters: [], scenes: [],
   };
   const script = { id: "script_001", projectId: "project_001", chapterId: "chapter_001", status: "confirmed" as const, sourceDigest: d1 };
   const story = artifact("story_001", script.id, script.sourceDigest, "story-source-v1");
   const board = artifact("board_001", story.id, story.documentDigest!, "storyboard-source-v1");
-  const preflight = artifact("preflight_001", board.id, sourceSnapshotDigest(snapshot), "preflight-source-v1");
+  const preflight = artifact("preflight_001", board.id, sourceSnapshotDigest(snapshot), "preflight-source-v2");
   return {
     chapter: { id: "chapter_001", projectId: "project_001", rowVersion: 8, milestoneStatus: "storyboard_done", scriptWorkingText: "正文", scriptWorkingDigest: d1, currentScriptVersionId: script.id, currentStoryVersionId: story.id, pendingStoryVersionId: null, currentStoryboardVersionId: board.id, pendingStoryboardVersionId: null, currentPreflightRevisionId: preflight.id },
     currentScript: script, currentStory: story, pendingStory: null, currentStoryboard: board, pendingStoryboard: null, currentPreflight: preflight, currentPreflightSourceSnapshot: snapshot, historyCounts: { script: 1, story: 1, storyboard: 1, preflight: 1 },
@@ -105,5 +105,17 @@ describe("ChapterProductionState resolver", () => {
     const state = resolveChapterProductionState(input);
     expect(state.story.freshness).toBe("stale");
     expect(state.story.reasonCodes).toContain("SOURCE_POLICY_UNSUPPORTED");
+  });
+
+  it("keeps a readable v1 preflight historical but marks it stale under v2", () => {
+    const input = baseInput();
+    input.currentPreflight = { ...input.currentPreflight!, sourcePolicyVersion: "preflight-source-v1" };
+    input.currentPreflightSourceSnapshot = {
+      ...input.currentPreflightSourceSnapshot!,
+      policyVersion: "preflight-source-v1",
+    };
+    const state = resolveChapterProductionState(input);
+    expect(state.preflight.freshness).toBe("stale");
+    expect(state.preflight.reasonCodes).toContain("SOURCE_POLICY_UNSUPPORTED");
   });
 });

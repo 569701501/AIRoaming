@@ -65,6 +65,10 @@ type DatabaseProject = Prisma.ProjectGetPayload<{
   include: typeof DB_PROJECT_INCLUDE;
 }>;
 
+type DatabaseChapterScene = Prisma.ChapterSceneGetPayload<{
+  include: { currentVisual: true };
+}>;
+
 type DatabaseReadModel = {
   outlines: Prisma.ProjectScriptOutlineGetPayload<{}>[];
   pendings: Prisma.ChapterScriptPendingGetPayload<{}>[];
@@ -74,6 +78,7 @@ type DatabaseReadModel = {
   preflights: Prisma.PreflightRevisionGetPayload<{}>[];
   characters: Prisma.CharacterGetPayload<{}>[];
   characterVisuals: Prisma.CharacterVisualGetPayload<{}>[];
+  chapterScenes: DatabaseChapterScene[];
   assets: Prisma.AssetGetPayload<{}>[];
   candidates: Prisma.CandidateGetPayload<{}>[];
   shots: Prisma.ShotGetPayload<{}>[];
@@ -657,10 +662,10 @@ export class ProjectRepository {
 
   private async loadDatabaseReadModel(projectIds: string[], chapterIds: string[]): Promise<DatabaseReadModel> {
     if (projectIds.length === 0) {
-      return { outlines: [], pendings: [], revisions: [], stories: [], storyboards: [], preflights: [], characters: [], characterVisuals: [], assets: [], candidates: [], shots: [], locks: [], layouts: [] };
+      return { outlines: [], pendings: [], revisions: [], stories: [], storyboards: [], preflights: [], characters: [], characterVisuals: [], chapterScenes: [], assets: [], candidates: [], shots: [], locks: [], layouts: [] };
     }
     const database = this.database();
-    const [outlines, pendings, revisions, stories, storyboards, preflights, characters, characterVisuals, assets, candidates, shots, locks, layouts] = await Promise.all([
+    const [outlines, pendings, revisions, stories, storyboards, preflights, characters, characterVisuals, chapterScenes, assets, candidates, shots, locks, layouts] = await Promise.all([
       database.projectScriptOutline.findMany({ where: { projectId: { in: projectIds } } }),
       database.chapterScriptPending.findMany({ where: { chapterId: { in: chapterIds } } }),
       database.chapterScriptRevision.findMany({ where: { chapterId: { in: chapterIds } }, orderBy: { createdAt: "desc" } }),
@@ -669,13 +674,14 @@ export class ProjectRepository {
       database.preflightRevision.findMany({ where: { projectId: { in: projectIds } } }),
       database.character.findMany({ where: { projectId: { in: projectIds } } }),
       database.characterVisual.findMany({ where: { character: { projectId: { in: projectIds } } } }),
+      database.chapterScene.findMany({ where: { chapterId: { in: chapterIds } }, include: { currentVisual: true } }),
       database.asset.findMany({ where: { projectId: { in: projectIds } } }),
       database.candidate.findMany({ where: { projectId: { in: projectIds } } }),
       database.shot.findMany({ where: { projectId: { in: projectIds } } }),
       database.candidateLockRevision.findMany({ where: { projectId: { in: projectIds } } }),
       database.layoutWorkingCopy.findMany({ where: { projectId: { in: projectIds } } }),
     ]);
-    return { outlines, pendings, revisions, stories, storyboards, preflights, characters, characterVisuals, assets, candidates, shots, locks, layouts };
+    return { outlines, pendings, revisions, stories, storyboards, preflights, characters, characterVisuals, chapterScenes, assets, candidates, shots, locks, layouts };
   }
 
   private databaseProjectToLocal(row: DatabaseProject, readModel: DatabaseReadModel): LocalProject {
@@ -713,6 +719,7 @@ export class ProjectRepository {
         const chapterCandidates = readModel.candidates.filter((item) => item.chapterId === chapter.id);
         const chapterShots = readModel.shots.filter((item) => item.chapterId === chapter.id);
         const chapterLocks = readModel.locks.filter((item) => item.chapterId === chapter.id);
+        const chapterScenes = readModel.chapterScenes.filter((item) => item.chapterId === chapter.id);
         return {
           id: chapter.id,
           projectId: chapter.projectId,
@@ -724,7 +731,7 @@ export class ProjectRepository {
           currentStoryVersionId: chapter.currentStoryVersionId,
           sourceText: chapter.scriptWorkingText,
           summary: chapter.summary ?? "",
-          storyStructure: currentStory ? this.databaseStoryToLocal(currentStory, chapter) : null,
+          storyStructure: currentStory ? this.databaseStoryToLocal(currentStory, chapter, chapterScenes) : null,
           storyboard: currentStoryboard ? this.databaseStoryboardToLocal(currentStoryboard, chapter, chapterShots, chapterLocks, readModel.candidates) : null,
           pendingStoryboard: pendingStoryboard ? this.databaseStoryboardToLocal(pendingStoryboard, chapter, chapterShots, chapterLocks, readModel.candidates) : null,
           pendingSourceText: pending ? this.databasePendingSourceToLocal(pending) : null,
@@ -789,8 +796,14 @@ export class ProjectRepository {
   private databaseStoryToLocal(
     row: Prisma.StoryVersionGetPayload<{}>,
     chapter: DatabaseProject["chaptersByProject"][number],
+    chapterScenes: DatabaseChapterScene[],
   ): ChapterStoryStructure {
     const document = this.jsonRecord(row.documentJson) as Partial<StoryDocumentV2>;
+    const currentSceneAssetIds = new Map(
+      chapterScenes
+        .filter((scene) => scene.currentVisual)
+        .map((scene) => [scene.sceneKey, scene.currentVisual!.assetId] as const),
+    );
     const structureJson = {
       schemaVersion: 1 as const,
       chapterId: chapter.id,
@@ -799,7 +812,12 @@ export class ProjectRepository {
       synopsis: typeof document.synopsis === "string" ? document.synopsis : "",
       direction: document.direction ?? { logline: "", chapterGoal: "", coreConflict: "", emotionalArc: "", endingHook: "" },
       characters: Array.isArray(document.characters) ? document.characters.map((item) => ({ ...item, level: item.level ?? "extra", entityType: item.entityType ?? "human" })) : [],
-      scenes: Array.isArray(document.scenes) ? document.scenes : [],
+      scenes: Array.isArray(document.scenes)
+        ? document.scenes.map((scene) => ({
+            ...scene,
+            referenceAssetId: currentSceneAssetIds.get(scene.id) ?? null,
+          }))
+        : [],
       beats: Array.isArray(document.beats) ? document.beats : [],
       notes: typeof document.notes === "string" ? document.notes : "",
       createdAt: row.createdAt.toISOString(),

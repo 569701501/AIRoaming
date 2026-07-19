@@ -4,10 +4,14 @@ import {
   buildPreflightSourceSnapshot,
   digestCanonicalJson,
   encodePreflightDocumentV2,
+  referenceKindSatisfiesRequirement,
+  requiredCharacterReferenceKind,
   sourceSnapshotDigest,
   type Digest,
   type PreflightDocumentV2,
   type PreflightSourceSnapshotV1,
+  type ProjectCharacterEntityType,
+  type ProjectCharacterReferenceKind,
   type StoryboardDocumentV2,
   StoryboardDocumentCodecV2,
 } from "@airoaming/shared";
@@ -30,13 +34,19 @@ function level(value: string): "lead" | "recurring" | "chapter" | "minor" | "ext
   return value === "lead" || value === "recurring" || value === "chapter" || value === "minor" ? value : "extra";
 }
 
+function entityType(value: string): ProjectCharacterEntityType {
+  return value === "creature" || value === "group" || value === "voice" ? value : "human";
+}
+
+function referenceKind(value: string): ProjectCharacterReferenceKind {
+  if (value === "turnaround_4view" || value === "final_reference") return "final_reference";
+  if (value === "single_front" || value === "preview_front") return "preview_front";
+  return "none";
+}
+
 function comicFormat(value: string): "vertical_scroll" | "paged_comic" {
   if (value === "vertical_scroll" || value === "paged_comic") return value;
   throw createG2DatabaseError(500, "PROJECT_COMIC_FORMAT_CORRUPTED");
-}
-
-function requiredReference(value: string, appearanceCount: number): boolean {
-  return value === "lead" || value === "recurring" || appearanceCount > 1;
 }
 
 function parseStoryboard(row: NonNullable<ChapterVersionQueryRow["currentStoryboardVersion"]>): StoryboardDocumentV2 {
@@ -74,8 +84,11 @@ export class SourceSnapshotBuilderService {
       reader.character.findMany({
         where: { projectId: row.projectId },
         select: {
-          id: true, name: true, level: true, appearance: true, personality: true, promptFragment: true,
-          primaryVisualId: true, primaryVisual: { include: { asset: { select: { id: true, sha256: true, status: true } } } },
+          id: true, name: true, level: true, entityType: true, appearance: true, personality: true, promptFragment: true,
+          previewVisualId: true,
+          previewVisual: { include: { asset: { select: { id: true, sha256: true, status: true } } } },
+          primaryVisualId: true,
+          primaryVisual: { include: { asset: { select: { id: true, sha256: true, status: true } } } },
           rowVersion: true,
         },
       }),
@@ -110,29 +123,48 @@ export class SourceSnapshotBuilderService {
         sourceCharacters.push({ characterId, required: true, generationInputDigest: digestCanonicalJson({ characterId, unresolved: true }), visualId: null, assetId: null, assetSha256: null });
         continue;
       }
-      const required = requiredReference(character.level, appearanceCount);
-      const visual = character.primaryVisual && character.primaryVisual.asset.status === "ready" && validAssetSha(character.primaryVisual.asset.sha256) ? character.primaryVisual : null;
-      const assetSha256 = visual ? validAssetSha(visual.asset.sha256) : null;
-      const referenceReady = visual !== null && assetSha256 !== null;
       const characterLevel = level(character.level);
+      const characterEntityType = entityType(character.entityType);
+      const requirement = requiredCharacterReferenceKind({ level: characterLevel, entityType: characterEntityType });
+      const required = requirement !== "none";
+      const readyVisual = (visual: typeof character.primaryVisual) => visual
+        && visual.asset.status === "ready"
+        && validAssetSha(visual.asset.sha256)
+        ? visual
+        : null;
+      const readyPrimaryVisual = readyVisual(character.primaryVisual);
+      const readyPreviewVisual = readyVisual(character.previewVisual);
+      const finalVisual = readyPrimaryVisual && referenceKind(readyPrimaryVisual.kind) === "final_reference"
+        ? readyPrimaryVisual
+        : null;
+      const previewVisual = readyPreviewVisual && referenceKind(readyPreviewVisual.kind) === "preview_front"
+        ? readyPreviewVisual
+        : null;
+      const visual = requirement === "final_reference"
+        ? finalVisual
+        : requirement === "preview_front"
+          ? finalVisual ?? previewVisual
+          : null;
+      const assetSha256 = visual ? validAssetSha(visual.asset.sha256) : null;
+      const availableKind = visual ? referenceKind(visual.kind) : "none";
+      const referenceReady = requirement === "none"
+        || (visual !== null && assetSha256 !== null && referenceKindSatisfiesRequirement(requirement, availableKind));
       let status: "ok" | "warning" | "blocked" = "ok";
-      let note = "参考图满足当前出图要求。";
-      if (required && !referenceReady) {
+      let note = requirement === "none" ? "纯声音角色无需图片。" : "参考图满足当前出图要求。";
+      if (!referenceReady) {
         status = "blocked";
-        note = "该角色在本章需要可用定稿图。";
-        issues.push({ type: "missing_reference", status: "blocked", message: `角色「${character.name}」缺少可用定稿图。`, relatedName: character.name, relatedCharacterId: character.id, relatedSceneId: null, relatedShotId: null });
-      } else if (!required && !referenceReady) {
-        status = "warning";
-        note = "该角色按单次/轻量出镜处理，可用文字描述继续。";
+        const referenceLabel = requirement === "final_reference" ? "定稿图" : "视觉参考图";
+        note = `该主体在剧情结构阶段要求可用${referenceLabel}。`;
+        issues.push({ type: "missing_reference", status: "blocked", message: `角色「${character.name}」缺少可用${referenceLabel}。`, relatedName: character.name, relatedCharacterId: character.id, relatedSceneId: null, relatedShotId: null });
       }
-      characterChecks.push({ characterId: character.id, name: character.name, level: characterLevel, appearanceCount, requiredReference: required, referenceReady, referenceAssetId: referenceReady ? visual?.id ?? null : null, status, note });
+      characterChecks.push({ characterId: character.id, name: character.name, level: characterLevel, appearanceCount, requiredReference: required, referenceReady, referenceAssetId: visual?.asset.id ?? null, status, note });
       sourceCharacters.push({
         characterId: character.id,
         required,
-        generationInputDigest: digestCanonicalJson({ id: character.id, name: character.name, level: character.level, appearance: character.appearance, personality: character.personality, promptFragment: character.promptFragment, rowVersion: character.rowVersion }),
-        visualId: referenceReady ? visual?.id ?? null : null,
-        assetId: referenceReady ? visual?.asset.id ?? null : null,
-        assetSha256,
+        generationInputDigest: digestCanonicalJson({ id: character.id, name: character.name, level: characterLevel, entityType: characterEntityType, requiredReferenceKind: requirement, appearance: character.appearance, personality: character.personality, promptFragment: character.promptFragment, rowVersion: character.rowVersion }),
+        visualId: visual?.id ?? null,
+        assetId: visual?.asset.id ?? null,
+        assetSha256: visual ? assetSha256 : null,
       });
     }
 
@@ -150,7 +182,7 @@ export class SourceSnapshotBuilderService {
       const assetSha256 = visual ? validAssetSha(visual.asset.sha256) : null;
       const referenceReady = visual !== null && assetSha256 !== null;
       if (!referenceReady) issues.push({ type: "missing_scene_reference", status: "warning", message: `场景「${scene.sceneKey}」暂无参考图，候选图仍可使用文字描述。`, relatedName: scene.sceneKey, relatedCharacterId: null, relatedSceneId: scene.id, relatedShotId: null });
-      sceneChecks.push({ sceneId: scene.id, name: scene.sceneKey, shotCount, referenceAssetId: referenceReady ? visual?.id ?? null : null, referenceReady, status: referenceReady ? "ok" : "warning", note: referenceReady ? "场景已绑定参考图。" : "场景参考图缺失，不阻塞出图。" });
+      sceneChecks.push({ sceneId: scene.id, name: scene.sceneKey, shotCount, referenceAssetId: referenceReady ? visual?.asset.id ?? null : null, referenceReady, status: referenceReady ? "ok" : "warning", note: referenceReady ? "场景已绑定参考图。" : "场景参考图缺失，不阻塞出图。" });
       sourceScenes.push({ chapterSceneId: scene.id, sceneKey: scene.sceneKey, visualId: referenceReady ? visual?.id ?? null : null, assetId: referenceReady ? visual?.asset.id ?? null : null, assetSha256 });
     }
 
@@ -162,7 +194,7 @@ export class SourceSnapshotBuilderService {
     if (styleStatus === "warning") issues.push({ type: "missing_style_context", status: "warning", message: styleCheck.note, relatedName: null, relatedCharacterId: null, relatedSceneId: null, relatedShotId: null });
 
     const sourceSnapshot = buildPreflightSourceSnapshot({
-      policyVersion: "preflight-source-v1", projectId: row.projectId, chapterId: row.id, consumerType: "preflight_revision",
+      policyVersion: "preflight-source-v2", projectId: row.projectId, chapterId: row.id, consumerType: "preflight_revision",
       storyboard: { id: row.currentStoryboardVersion.id, digest: digest(row.currentStoryboardVersion.documentDigest) },
       style: { comicFormat: normalizedFormat, artStyle, styleDigest }, characters: sourceCharacters, scenes: sourceScenes,
     });
@@ -170,7 +202,7 @@ export class SourceSnapshotBuilderService {
       schemaVersion: 2, chapterId: row.id, sourceSnapshot, shotCount: storyboard.shots.length,
       characterChecks: characterChecks.sort((left, right) => right.appearanceCount - left.appearanceCount || left.name.localeCompare(right.name)),
       sceneChecks: sceneChecks.sort((left, right) => right.shotCount - left.shotCount || left.name.localeCompare(right.name)), styleCheck,
-      issues, ready: !issues.some((issue) => issue.status === "blocked"), notes, policyVersion: "preflight-source-v1",
+      issues, ready: !issues.some((issue) => issue.status === "blocked"), notes, policyVersion: "preflight-source-v2",
     }).value;
     return { chapter: row, document, sourceSnapshot, sourceDigest: sourceSnapshotDigest(sourceSnapshot), sourceStoryboardVersionId: row.currentStoryboardVersion.id };
   }

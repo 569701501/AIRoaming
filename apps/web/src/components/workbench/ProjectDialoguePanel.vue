@@ -43,7 +43,7 @@
                   v-for="toolResult in getMessageToolResults(message)"
                   :key="toolResult.id"
                   class="tool-event-card"
-                  :class="[`is-${toolResult.status}`, { 'is-skill': isSkillTool(toolResult) }]"
+                  :class="[getToolEventStatusClass(toolResult), { 'is-skill': isSkillTool(toolResult) }]"
                 >
                   <details class="tool-event-details">
                     <summary class="tool-event-trigger">
@@ -162,7 +162,7 @@
                         <span class="tool-detail-label">剧情结构</span>
                         <pre class="script-outline-preview">{{ formatStoryStructurePreview(toolResult.storyStructure.structureJson) }}</pre>
                         <button
-                          v-if="toolResult.status === 'needs_user_confirmation'"
+                          v-if="isToolResultConfirmationActionable(toolResult)"
                           class="tool-confirm-btn"
                           type="button"
                           :disabled="dialogueSending"
@@ -178,7 +178,7 @@
                         <span class="tool-detail-label">分镜预览</span>
                         <pre class="script-outline-preview">{{ formatStoryboardPreview(toolResult.storyboard.storyboardJson) }}</pre>
                         <button
-                          v-if="toolResult.status === 'needs_user_confirmation'"
+                          v-if="isToolResultConfirmationActionable(toolResult)"
                           class="tool-confirm-btn"
                           type="button"
                           :disabled="dialogueSending"
@@ -640,7 +640,40 @@ function getToolDisplayName(result: DialogueToolResult) {
   return toolDisplayNames[result.tool] ?? result.tool;
 }
 
+function isResolvedPreviewResult(result: DialogueToolResult) {
+  if (result.status !== "needs_user_confirmation") {
+    return false;
+  }
+
+  if (result.tool === "generate_story_structure" && result.storyStructure) {
+    const step = props.snapshot.workflow.steps.find((item) => item.key === "story_structure");
+    return Boolean(step && step.status !== "needs_confirmation");
+  }
+
+  if (result.tool === "generate_storyboard" && result.storyboard) {
+    if (props.snapshot.pendingStoryboard) {
+      return props.snapshot.pendingStoryboard.id !== result.storyboard.id;
+    }
+    const step = props.snapshot.workflow.steps.find((item) => item.key === "storyboard");
+    return Boolean(step && step.status !== "needs_confirmation");
+  }
+
+  return false;
+}
+
+function isToolResultConfirmationActionable(result: DialogueToolResult) {
+  return result.status === "needs_user_confirmation" && !isResolvedPreviewResult(result);
+}
+
+function getToolEventStatusClass(result: DialogueToolResult) {
+  return isResolvedPreviewResult(result) ? "is-succeeded" : `is-${result.status}`;
+}
+
 function getToolEventSummary(result: DialogueToolResult) {
+  if (isResolvedPreviewResult(result)) {
+    return "该预览已处理，当前状态以右侧工作区为准。";
+  }
+
   if (result.status === "failed") {
     return "执行失败，详细原因见最终回复。";
   }
@@ -734,6 +767,10 @@ function formatStoryboardPreview(storyboard: StoryboardJson) {
 }
 
 function getToolStatusLabel(result: DialogueToolResult) {
+  if (isResolvedPreviewResult(result)) {
+    return "已处理";
+  }
+
   if (result.status === "succeeded") {
     return "完成";
   }
@@ -746,7 +783,7 @@ function getToolStatusLabel(result: DialogueToolResult) {
 }
 
 function getToolStatusIcon(result: DialogueToolResult) {
-  if (result.status === "succeeded") {
+  if (result.status === "succeeded" || isResolvedPreviewResult(result)) {
     return CheckCircle2;
   }
 
@@ -754,7 +791,7 @@ function getToolStatusIcon(result: DialogueToolResult) {
 }
 
 function getToolStatusClass(result: DialogueToolResult) {
-  if (result.status === "succeeded") {
+  if (result.status === "succeeded" || isResolvedPreviewResult(result)) {
     return "is-success";
   }
 

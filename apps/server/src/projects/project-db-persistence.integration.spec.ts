@@ -728,6 +728,12 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       mimeType: "image/png",
       fileName: "imported.webp",
     });
+    await rm(workspace.resolveVirtualPath(`/workspace/${storageKey}`));
+    await expect(app.get(ProjectsService).getProjectAssetFile(project.id, assetId)).rejects.toMatchObject({
+      message: "PROJECT_ASSET_FILE_NOT_FOUND",
+      status: 404,
+    });
+    expect(await prisma.asset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({ status: "missing" });
   }, 20_000);
 
   it("P4-CHAR-05: keeps a late character visual historical when identity source changed after queue", async () => {
@@ -880,11 +886,62 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.chapterScene.findUniqueOrThrow({ where: { id: scene.id } })).currentVisualId).toBe(visual.id);
   }, 20_000);
 
+  it("P4-SCENE-REGEN-01: keeps the current scene image intact while promoting a regenerated visual", async () => {
+    const { deployed, workspaceRoot } = await prepareDatabase();
+    expect(deployed.code).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const tasks = app.get(PersistentTaskRepository);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "P4 场景重生成", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const chapter = await prisma.chapter.findFirstOrThrow({ where: { projectId: project.id } });
+    const scene = await prisma.chapterScene.create({ data: { id: randomUUID(), projectId: project.id, chapterId: chapter.id, sceneKey: "scene-regen" } });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("scene_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+
+    const createTask = async (prompt: string) => {
+      const currentScene = await prisma.chapterScene.findUniqueOrThrow({ where: { id: scene.id } });
+      const sourceProjection = buildTaskSourceProjection({
+        policyVersion: "scene-reference-source-v1",
+        projectId: project.id,
+        chapterId: chapter.id,
+        consumerType: "scene_reference_generate",
+        sources: [{
+          role: "scene",
+          sourceType: "chapter_scene",
+          sourceId: currentScene.id,
+          sourceDigest: digestCanonicalJson({ id: currentScene.id, projectId: project.id, chapterId: chapter.id, sceneKey: currentScene.sceneKey, updatedAt: currentScene.updatedAt.toISOString() }),
+        }],
+      });
+      return tasks.create({ projectId: project.id, type: "scene_reference_generate", target: { type: "scene", id: scene.id, chapterId: chapter.id }, input: { schemaVersion: 1, projectId: project.id, chapterId: chapter.id, sceneId: scene.id, prompt, sourceProjection } });
+    };
+
+    const firstTask = await createTask("第一版场景");
+    expect(await worker.runOnce("scene-regen-worker-1")).toMatchObject({ id: firstTask.item.id, status: "succeeded" });
+    const firstAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: firstTask.item.id } });
+    await expect(readFile(path.join(workspaceRoot, firstAsset.storageKey))).resolves.toEqual(png);
+
+    const secondTask = await createTask("第二版场景");
+    expect(await worker.runOnce("scene-regen-worker-2")).toMatchObject({ id: secondTask.item.id, status: "succeeded" });
+    const secondAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: secondTask.item.id } });
+    expect(secondAsset.storageKey).not.toBe(firstAsset.storageKey);
+    await expect(readFile(path.join(workspaceRoot, firstAsset.storageKey))).resolves.toEqual(png);
+    await expect(readFile(path.join(workspaceRoot, secondAsset.storageKey))).resolves.toEqual(png);
+    const visuals = await prisma.sceneVisual.findMany({ where: { chapterSceneId: scene.id }, orderBy: { version: "asc" } });
+    expect(visuals.map((item) => ({ version: item.version, assetId: item.assetId }))).toEqual([
+      { version: 1, assetId: firstAsset.id },
+      { version: 2, assetId: secondAsset.id },
+    ]);
+    expect((await prisma.chapterScene.findUniqueOrThrow({ where: { id: scene.id } })).currentVisualId).toBe(visuals[1]!.id);
+  }, 20_000);
+
   it("P4-SCENE-01: queues a DB scene reference with chapter-scene source freeze and replay", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code).toBe(0);
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
     const projects = app.get(ProjectsService);
+    const worker = app.get(PersistentTaskWorkerService);
     const prisma = app.get(PrismaService).database();
     const scripts = app.get(ScriptVersionRepository);
     const stories = app.get(StoryVersionRepository);
@@ -924,15 +981,44 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     });
     expect(storyConfirmed.value.current?.id).toBe(storyCreated.value.pending!.id);
     const scene = await prisma.chapterScene.findFirstOrThrow({ where: { projectId: project.id, chapterId: chapter.id, sceneKey: "scene-1" } });
-    const queued = await projects.queueSceneReference(project.id, chapter.id, "scene-1", { prompt: "固定场景提示词" });
+    const firstRequestId = randomUUID();
+    const queued = await projects.queueSceneReference(project.id, chapter.id, "scene-1", { requestId: firstRequestId, prompt: "固定场景提示词" });
     expect(queued.createdCount).toBe(1);
     expect(queued.tasks[0]).toMatchObject({ type: "scene_reference_generate", target: { type: "scene", id: scene.id, chapterId: chapter.id }, status: "queued" });
     const task = await prisma.generationTask.findUniqueOrThrow({ where: { id: queued.tasks[0]!.id }, include: { generationTaskSourcesByTask: true } });
     expect(task.sourceSetSealedAt).not.toBeNull();
     expect(task.generationTaskSourcesByTask[0]).toMatchObject({ sourceType: "chapter_scene", sourceId: scene.id, role: "scene" });
-    const replay = await projects.queueSceneReference(project.id, chapter.id, "scene-1", { prompt: "固定场景提示词" });
+    const activeReplay = await projects.queueSceneReference(project.id, chapter.id, "scene-1", {
+      requestId: randomUUID(),
+      prompt: "固定场景提示词",
+    });
+    expect(activeReplay.createdCount).toBe(0);
+    expect(activeReplay.tasks[0]!.id).toBe(queued.tasks[0]!.id);
+    const replay = await projects.queueSceneReference(project.id, chapter.id, "scene-1", { requestId: firstRequestId, prompt: "固定场景提示词" });
     expect(replay.createdCount).toBe(0);
     expect(replay.tasks[0]!.id).toBe(queued.tasks[0]!.id);
+
+    worker.setHandler("scene_reference_generate", async () => {
+      throw new Error("TEST_TERMINAL_FAILURE");
+    });
+    await expect(worker.runOnce("scene-projection-failure-worker")).resolves.toMatchObject({
+      id: queued.tasks[0]!.id,
+      status: "failed",
+    });
+    const regenerated = await projects.queueSceneReference(project.id, chapter.id, "scene-1", {
+      requestId: randomUUID(),
+      prompt: "固定场景提示词",
+    });
+    expect(regenerated.createdCount).toBe(1);
+    expect(regenerated.tasks[0]).toMatchObject({ status: "queued", target: { type: "scene", id: scene.id, chapterId: chapter.id } });
+    expect(regenerated.tasks[0]!.id).not.toBe(queued.tasks[0]!.id);
+
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
+    worker.setHandler("scene_reference_generate", async () => ({ buffer: png, mimeType: "image/png" }));
+    await worker.runOnce("scene-projection-worker");
+    const asset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: regenerated.tasks[0]!.id } });
+    const snapshot = await projects.getWorkbenchSnapshot(project.id, chapter.id);
+    expect(snapshot.storyStructure?.structureJson.scenes[0]?.referenceAssetId).toBe(asset.id);
   }, 20_000);
 
   it("fails closed when an active DB project has no current chapter", async () => {
@@ -1411,11 +1497,12 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const boardConfirmed = await boards.confirmWorkingCopy(scope, { pendingVersionId: boardCreated.value.pending!.id, expectedPendingDocumentDigest: boardCreated.value.pending!.documentDigest, expectedPendingRowVersion: 0, expectedCurrentVersionId: null, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedSourceDigest: storyConfirmed.value.current.documentDigest, expectedChapterRowVersion: boardCreated.chapterRowVersion });
 
     const preview = await preflight.getPreview(scope, "首次确认");
-    expect(preview.preview).toMatchObject({ schemaVersion: 2, chapterId: scope.chapterId, ready: true, shotCount: 0, issues: [], notes: "首次确认" });
+    expect(preview.preview).toMatchObject({ schemaVersion: 2, policyVersion: "preflight-source-v2", chapterId: scope.chapterId, ready: true, shotCount: 0, issues: [], notes: "首次确认" });
     expect(preview.sourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
     const confirmed = await preflight.confirm(scope, { expectedSourceStoryboardVersionId: boardConfirmed.value.current.id, expectedSourceDigest: preview.sourceDigest, expectedChapterRowVersion: preview.chapterRowVersion, notes: "首次确认" });
     expect(confirmed).toMatchObject({ replayed: false, preflight: { lifecycle: "confirmed", sourceStoryboardVersionId: boardConfirmed.value.current.id, sourceDigest: preview.sourceDigest, document: { ready: true, notes: "首次确认" } }, chapterRowVersion: preview.chapterRowVersion + 1 });
     const storedPreflight = await app.get(PrismaService).database().preflightRevision.findUniqueOrThrow({ where: { id: confirmed.preflight.id } });
+    expect(storedPreflight.sourcePolicyVersion).toBe("preflight-source-v2");
     expect(() => encodePreflightDocumentV2(storedPreflight.documentJson)).not.toThrow();
     const replay = await preflight.confirm(scope, { expectedSourceStoryboardVersionId: boardConfirmed.value.current.id, expectedSourceDigest: preview.sourceDigest, expectedChapterRowVersion: preview.chapterRowVersion, notes: "首次确认" });
     expect(replay.replayed).toBe(true);

@@ -4,24 +4,30 @@
  * 这些函数只读参数,不依赖 store 状态。供 store 的 apply* action 和 preflight UI 共用。
  * 见前端大文件拆分轮次1。
  */
-import type { ProjectCharacter, WorkbenchSnapshot } from "@airoaming/shared";
+import {
+  referenceKindSatisfiesRequirement,
+  requiredCharacterReferenceKind,
+  type ProjectCharacter,
+  type ProjectCharacterReferenceKind,
+  type WorkbenchSnapshot,
+} from "@airoaming/shared";
 
-/** 项目角色库是否就绪:主角和常驻角色全部已定稿(final_reference)。 */
+/** 项目角色库是否就绪：主角和常驻角色满足各自 entityType 的素材合同。 */
 export function isProjectCharacterLibraryReady(characters: ProjectCharacter[]): boolean {
   const required = characters.filter((character) => character.level === "lead" || character.level === "recurring");
-  return required.length > 0 && required.every((character) =>
-    (character.status === "finalized" || character.status === "in_use")
-    && Boolean(character.primaryReferenceAssetId)
-    && character.primaryReferenceKind === "final_reference",
-  );
+  return required.length > 0 && required.every(hasRequiredReference);
 }
 
-/** 本章出图准备是否就绪:preflight.ready + 分镜一致 + 镜头角色全部有定稿图。 */
+/** 本章出图准备是否就绪：preflight.ready + 分镜一致 + 出镜主体满足各自视觉素材合同。 */
 export function isChapterImagePreflightReady(snapshot: WorkbenchSnapshot): boolean {
   const imagePreflight = snapshot.imagePreflight;
   const storyboard = snapshot.storyboard;
   if (!imagePreflight?.preflightJson.ready || !storyboard) {
     return false;
+  }
+  if (snapshot.versioningCapability.mode === "g2_db") {
+    const step = snapshot.workflow.steps.find((item) => item.key === "image_preflight");
+    if (step?.freshness !== "current") return false;
   }
   if (
     imagePreflight.sourceStoryboardId !== storyboard.id
@@ -58,7 +64,7 @@ export function isChapterImagePreflightReady(snapshot: WorkbenchSnapshot): boole
     if (!character) {
       return false;
     }
-    if (isRequiredPreflightReferenceCharacter(character, count) && !hasFinalReference(character)) {
+    if (isRequiredPreflightReferenceCharacter(character, count) && !hasRequiredReference(character)) {
       return false;
     }
   }
@@ -78,13 +84,21 @@ export function hasFinalReference(character: ProjectCharacter) {
   return Boolean(character.primaryReferenceAssetId && character.primaryReferenceKind === "final_reference");
 }
 
-/** 角色是否需要出图准备阶段锁定定稿图(final_reference):
- *  - lead / recurring 必锁(不论本章出镜几次);
- *  - chapter / minor / extra 按本章出镜次数判断:出镜 ≥2 次(appearanceCount > 1)才要求定稿,只出镜 1 次的路人不强制。
- *  与后端 character-domain.util.ts 口径一致。 */
-export function isRequiredPreflightReferenceCharacter(character: ProjectCharacter, appearanceCount: number) {
-  if (character.level === "lead" || character.level === "recurring") {
-    return true;
-  }
-  return appearanceCount > 1;
+export function getAvailableCharacterReferenceKind(character: ProjectCharacter): ProjectCharacterReferenceKind {
+  if (hasFinalReference(character)) return "final_reference";
+  if (character.previewReferenceAssetId) return "preview_front";
+  return "none";
+}
+
+/** 当前角色是否满足剧情结构阶段已经确定的素材合同。 */
+export function hasRequiredReference(character: ProjectCharacter): boolean {
+  return referenceKindSatisfiesRequirement(
+    requiredCharacterReferenceKind(character),
+    getAvailableCharacterReferenceKind(character),
+  );
+}
+
+/** appearanceCount 仅为兼容旧调用签名和 UI 展示，不再改变素材类型。 */
+export function isRequiredPreflightReferenceCharacter(character: ProjectCharacter, _appearanceCount = 0) {
+  return requiredCharacterReferenceKind(character) !== "none";
 }

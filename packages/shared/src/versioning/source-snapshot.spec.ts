@@ -41,4 +41,16 @@ describe("SourceSnapshot", () => {
     expect(snapshot.scenes.map((item) => item.chapterSceneId)).toEqual(["scene_a", "scene_b"]);
     expect(() => buildPreflightSourceSnapshot({ ...snapshot, characters: [{ ...snapshot.characters[0], assetId: null }] })).toThrow(/all null or all filled/);
   });
+
+  it("reads both historical v1 and current v2 preflight policies without rewriting them", () => {
+    for (const policyVersion of ["preflight-source-v1", "preflight-source-v2"] as const) {
+      const snapshot = buildPreflightSourceSnapshot({
+        policyVersion, projectId: "p", chapterId: "c", consumerType: "preflight_revision",
+        storyboard: { id: "board", digest },
+        style: { comicFormat: "vertical_scroll", artStyle: "comic_style", styleDigest: digest },
+        characters: [], scenes: [],
+      });
+      expect(snapshot.policyVersion).toBe(policyVersion);
+    }
+  });
 });

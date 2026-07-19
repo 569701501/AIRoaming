@@ -155,6 +155,16 @@ test.describe("W1 DB-only Web/API gate", () => {
       expectedPendingRowVersion: boardCreated.data.value.pending?.rowVersion ?? 0,
       expectedChapterRowVersion: boardCreated.data.chapterRowVersion,
     });
+
+    await page.goto(`/projects/${projectId}/structure`);
+    const pendingStoryboardStage = page.getByRole("button", { name: "3 分镜工作台", exact: true });
+    await expect(pendingStoryboardStage).toBeVisible();
+    await expect(pendingStoryboardStage).toBeEnabled();
+    await pendingStoryboardStage.click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/storyboard$`));
+    await expect(page.getByRole("region", { name: "分镜工作台", exact: true })).toBeVisible();
+    await expect(page.getByText("待确认预览", { exact: true })).toBeVisible();
+
     await api.post(`/projects/${projectId}/chapters/${chapterId}/storyboard/working-copy/confirm`, {
       pendingVersionId: boardUpdated.data.value.pending?.id,
       expectedPendingDocumentDigest: digestCanonicalJson(boardDoc),
@@ -288,6 +298,7 @@ test.describe("W1 DB-only Web/API gate", () => {
     await page.getByRole("button", { name: "确认结构", exact: true }).click();
     await expect(page.getByTestId("story-db-versioning-status")).toContainText("current");
     await expect(page.getByRole("button", { name: "3 分镜工作台", exact: true })).toBeEnabled();
+    await expect(page.getByText("该预览已处理，当前状态以右侧工作区为准。", { exact: true })).toBeVisible();
 
     const confirmed = await api.get<{ snapshot: { characters: Array<{ id: string; name: string }>; storyStructure: { structureJson: { characters: Array<{ projectCharacterId?: string | null }> } } | null } }>(`/projects/${projectId}/workbench`);
     const character = confirmed.data.snapshot.characters.find((item) => item.name === "林夏");

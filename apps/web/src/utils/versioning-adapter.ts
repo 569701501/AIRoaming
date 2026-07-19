@@ -6,6 +6,7 @@ import type {
   StoryboardJson,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
+import { characterVisualIdentityKey } from "@airoaming/shared";
 
 // Request-only token. The DB repository resolves it to a real Character.id
 // before the StoryVersion pending document is persisted.
@@ -14,22 +15,34 @@ const UNRESOLVED_STORY_CHARACTER_PREFIX = "unresolved-story-character:";
 /** Convert the legacy-shaped workbench editor value to the strict G2 document. */
 export function toStoryDocumentV2(input: StoryStructureJson, snapshot: WorkbenchSnapshot): StoryDocumentV2 {
   const byName = new Map(snapshot.characters.map((character) => [normalize(character.name), character]));
+  const byId = new Map(snapshot.characters.map((character) => [character.id, character]));
+  const byVisualIdentity = new Map<string, ProjectCharacter>();
+  snapshot.characters.forEach((character) => {
+    const key = `${character.entityType}:${characterVisualIdentityKey(character.name, character.entityType)}`;
+    if (!byVisualIdentity.has(key)) byVisualIdentity.set(key, character);
+  });
   const structureCharacterIdByToken = new Map<string, string>();
   input.characters.forEach((character) => {
     structureCharacterIdByToken.set(character.id, character.id);
     structureCharacterIdByToken.set(normalize(character.name), character.id);
   });
   const characters = input.characters.map((character) => {
-    const projectCharacter = character.projectCharacterId
-      ? snapshot.characters.find((item) => item.id === character.projectCharacterId)
-      : byName.get(normalize(character.name));
+    const entityType = character.entityType ?? "human";
+    const identityKey = `${entityType}:${characterVisualIdentityKey(character.name, entityType)}`;
+    const projectCharacter = entityType === "group"
+      ? byVisualIdentity.get(identityKey)
+        ?? (character.projectCharacterId ? byId.get(character.projectCharacterId) : undefined)
+        ?? byName.get(normalize(character.name))
+      : character.projectCharacterId
+        ? byId.get(character.projectCharacterId)
+        : byName.get(normalize(character.name));
     return {
       id: character.id,
       projectCharacterId: projectCharacter?.id ?? `${UNRESOLVED_STORY_CHARACTER_PREFIX}${encodeURIComponent(normalize(character.name))}`,
       name: character.name,
       role: character.role,
       level: character.level ?? "extra",
-      entityType: character.entityType ?? "human",
+      entityType,
       motivation: character.motivation,
       relationship: character.relationship,
       visualTraits: character.visualTraits,

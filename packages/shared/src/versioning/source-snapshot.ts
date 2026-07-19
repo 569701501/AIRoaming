@@ -79,7 +79,9 @@ function validateAssetTriple(value: { visualId: string | null; assetId: string |
 }
 
 export function buildPreflightSourceSnapshot(input: PreflightSourceSnapshotInput): PreflightSourceSnapshotV1 {
-  if (input.policyVersion !== "preflight-source-v1") throw new TypeError("unsupported preflight source policy");
+  if (input.policyVersion !== "preflight-source-v1" && input.policyVersion !== "preflight-source-v2") {
+    throw new TypeError("unsupported preflight source policy");
+  }
   if (input.consumerType !== "preflight_revision") throw new TypeError("consumerType must be preflight_revision");
   const characters = input.characters.map((item, index) => {
     const character = { ...item, characterId: nonEmpty(item.characterId, `characters[${index}].characterId`), generationInputDigest: validDigest(item.generationInputDigest, `characters[${index}].generationInputDigest`) };
@@ -90,7 +92,7 @@ export function buildPreflightSourceSnapshot(input: PreflightSourceSnapshotInput
     validateAssetTriple(scene, `scenes[${index}]`); return scene;
   }).sort((a, b) => compareUtf8(a.chapterSceneId, b.chapterSceneId) || compareUtf8(a.sceneKey, b.sceneKey));
   return {
-    schemaVersion: 1, policyVersion: "preflight-source-v1", projectId: nonEmpty(input.projectId, "projectId"), chapterId: nonEmpty(input.chapterId, "chapterId"), consumerType: "preflight_revision",
+    schemaVersion: 1, policyVersion: input.policyVersion, projectId: nonEmpty(input.projectId, "projectId"), chapterId: nonEmpty(input.chapterId, "chapterId"), consumerType: "preflight_revision",
     storyboard: { id: nonEmpty(input.storyboard.id, "storyboard.id"), digest: validDigest(input.storyboard.digest, "storyboard.digest") },
     style: { comicFormat: input.style.comicFormat, artStyle: nonEmpty(input.style.artStyle, "style.artStyle"), styleDigest: validDigest(input.style.styleDigest, "style.styleDigest") },
     characters, scenes,

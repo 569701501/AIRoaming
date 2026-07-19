@@ -31,7 +31,7 @@
               <div v-else class="image-placeholder" :class="{ 'is-active': isReferenceTaskActive(character, 'preview_front') }">
                 <LoaderCircle v-if="isReferenceTaskActive(character, 'preview_front')" :size="22" />
                 <ImagePlus v-else :size="22" />
-                <strong>{{ isReferenceTaskActive(character, 'preview_front') ? '生成中' : '待生成' }}</strong>
+                <strong>{{ isReferenceTaskActive(character, 'preview_front') ? '生成中' : requiresAnyImage(character) ? '待生成' : '无需图片' }}</strong>
               </div>
 
               <!-- 顶部叠加:名字 + 层级 -->
@@ -53,7 +53,7 @@
               </button>
 
               <!-- 锁定标记:已定稿后角色图不可改 -->
-              <span v-if="isFinalized(character)" class="lock-badge" title="角色图已锁定"><Lock :size="13" /></span>
+              <span v-if="isFinalized(character) || isPreviewRequirementSatisfied(character)" class="lock-badge" title="角色参考已确认"><Lock :size="13" /></span>
 
               <!-- 底部叠加:操作按钮 -->
               <div v-if="!isFullyLocked(character)" class="overlay-actions">
@@ -75,7 +75,7 @@
                   @click="finalizePreview(character)"
                 >
                   <CheckCircle2 :size="14" />
-                  <span>定稿</span>
+                  <span>{{ requiresFinalReference(character) ? '定稿' : '采用参考' }}</span>
                 </button>
                 <button
                   v-if="canConfirmFinalReference(character)"
@@ -93,7 +93,7 @@
 
           <!-- 三视图(定稿图)区 -->
           <div class="frame-slot">
-            <div class="image-frame">
+            <div v-if="requiresFinalReference(character)" class="image-frame">
               <button
                 v-if="getReferenceAsset(character, 'final_reference')"
                 class="image-preview"
@@ -109,6 +109,13 @@
                 <strong>{{ isReferenceTaskActive(character, 'final_reference') ? '生成中' : '未生成' }}</strong>
               </div>
               <span class="frame-tag">三视图</span>
+            </div>
+            <div v-else class="image-frame">
+              <div class="image-placeholder">
+                <Lock :size="20" />
+                <strong>{{ requiresAnyImage(character) ? '无需三视图' : '纯声音主体' }}</strong>
+              </div>
+              <span class="frame-tag">{{ requiresAnyImage(character) ? '单张参考' : '无需图片' }}</span>
             </div>
           </div>
         </div>
@@ -227,6 +234,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { CheckCircle2, ImagePlus, LoaderCircle, Lock, Pencil, RotateCw, Trash2, UserRound, X, ZoomIn } from "lucide-vue-next";
+import { requiredCharacterReferenceKind } from "@airoaming/shared";
 import type {
   GenerationTaskItem,
   ProjectCharacter,
@@ -280,36 +288,17 @@ const deleteTarget = ref<{ character: ProjectCharacter; asset: WorkbenchAsset } 
 
 const assets = computed(() => props.snapshot.assets ?? []);
 
-/** 统计本章分镜中每个角色的出镜次数(按 shot 去重,每个 shot 只计一次)。
- *  用于判断 chapter/minor/extra 角色是否需要定稿图:出镜 ≥2 次才需要稳定形象。
- *  与出图准备 ImagePreflightWorkspace / workbench-preflight.ts 口径一致。 */
-const appearanceCounts = computed(() => {
-  const counts = new Map<string, number>();
-  const shots = props.snapshot.shots ?? [];
-  const characters = props.snapshot.characters ?? [];
-  const charByName = new Map(characters.map((c) => [c.name.trim().toLowerCase(), c]));
-  for (const shot of shots) {
-    const seenInShot = new Set<string>();
-    for (const token of (shot.characterIds ?? [])
-      .map((item) => item.trim())
-      .filter((item) => item && !/^(无|无人|旁白|环境|背景)$/i.test(item))) {
-      const char = characters.find((c) => c.id === token) ?? charByName.get(token.toLowerCase());
-      if (char) {
-        seenInShot.add(char.id);
-      }
-    }
-    for (const characterId of seenInShot) {
-      counts.set(characterId, (counts.get(characterId) ?? 0) + 1);
-    }
-  }
-  return counts;
-});
-
-/** 角色是否需要定稿图:主角/常驻必锁(不论出镜几次);其余按本章出镜次数判断,出镜 ≥2 次才需要。
- *  与出图准备 ImagePreflightWorkspace / workbench-preflight.ts 口径一致。 */
 function requiresFinalReference(character: ProjectCharacter): boolean {
-  if (character.level === "lead" || character.level === "recurring") return true;
-  return (appearanceCounts.value.get(character.id) ?? 0) > 1;
+  return requiredCharacterReferenceKind(character) === "final_reference";
+}
+
+function requiresAnyImage(character: ProjectCharacter): boolean {
+  return requiredCharacterReferenceKind(character) !== "none";
+}
+
+function isPreviewRequirementSatisfied(character: ProjectCharacter): boolean {
+  return requiredCharacterReferenceKind(character) === "preview_front"
+    && Boolean(character.previewReferenceAssetId);
 }
 
 function getReferenceAssets(character: ProjectCharacter, referenceKind: ReferenceKind): WorkbenchAsset[] {
@@ -409,7 +398,10 @@ function isPendingFinalize(character: ProjectCharacter) {
   if (isLocked(character) || isFullyLocked(character)) {
     return false;
   }
-  return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
+  const preview = getReferenceAsset(character, "preview_front");
+  if (!preview) return false;
+  if (requiresFinalReference(character)) return !getReferenceAsset(character, "final_reference");
+  return requiresAnyImage(character) && character.previewReferenceAssetId !== preview.id;
 }
 
 /** 状态 D(已定稿):primary 已锁定到三视图(final_reference)才算定稿;有定稿图资产但没锁定 primary 不算,仍可操作。 */
@@ -421,6 +413,9 @@ function canGenerateReference(character: ProjectCharacter, referenceKind: Refere
   if (isLocked(character) || isReferenceTaskActive(character, referenceKind)) {
     return false;
   }
+  if (!requiresAnyImage(character)) {
+    return false;
+  }
   if (referenceKind === "final_reference" && (!getReferenceAsset(character, "preview_front") || !requiresFinalReference(character))) {
     return false;
   }
@@ -428,6 +423,7 @@ function canGenerateReference(character: ProjectCharacter, referenceKind: Refere
 }
 
 function canConfirmFinalReference(character: ProjectCharacter) {
+  if (!requiresFinalReference(character)) return false;
   const asset = getReferenceAsset(character, "final_reference");
   return Boolean(asset && character.primaryReferenceAssetId !== asset.id && !isLocked(character));
 }
@@ -439,12 +435,17 @@ function confirmFinalReference(character: ProjectCharacter) {
   }
 }
 
-/** 状态 B 可定稿:有预览图、无三视图、需要定稿(主角/常驻或有台词)、非锁定、无活跃任务 → 显示"定稿"主按钮 */
+/** 预览图确认：final 合同继续生成三视图；preview 合同到此即满足。 */
 function canFinalizePreview(character: ProjectCharacter) {
-  if (isLocked(character) || isFullyLocked(character) || !requiresFinalReference(character)) {
+  if (isLocked(character) || isFullyLocked(character) || !requiresAnyImage(character)) {
     return false;
   }
-  return Boolean(getReferenceAsset(character, "preview_front")) && !getReferenceAsset(character, "final_reference");
+  const preview = getReferenceAsset(character, "preview_front");
+  if (!preview) return false;
+  if (requiredCharacterReferenceKind(character) === "preview_front") {
+    return character.previewReferenceAssetId !== preview.id;
+  }
+  return !getReferenceAsset(character, "final_reference");
 }
 
 /** 定稿:锁定当前预览图 + 后端自动触发三视图生成 */
@@ -504,9 +505,10 @@ function getCardStateLabel(character: ProjectCharacter) {
   }
   const previewAsset = getReferenceAsset(character, "preview_front");
   if (previewAsset) {
-    return requiresFinalReference(character) ? "待生成定稿" : "已有角色图";
+    if (requiresFinalReference(character)) return "待生成定稿";
+    return character.previewReferenceAssetId === previewAsset.id ? "参考已采用" : "参考待采用";
   }
-  return "待生成角色图";
+  return requiresAnyImage(character) ? "待生成角色图" : "无需图片";
 }
 
 function openPreviewFor(character: ProjectCharacter, referenceKind: ReferenceKind) {

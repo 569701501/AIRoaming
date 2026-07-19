@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import {
   DocumentValidationError,
+  StoryDocumentCodecV2,
   StoryboardDocumentCodecV2,
   digestCanonicalJson,
   encodeStoryboardDocumentV2,
@@ -310,6 +311,20 @@ export class StoryboardVersionRepository {
     const foundCharacters = new Set(characters.map((character) => character.id));
     const unresolved = characterIds.filter((id) => !foundCharacters.has(id));
     if (unresolved.length) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", { entityIds: unresolved });
+    if (!chapter.currentStoryVersion) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+    let sourceCharacterIds: Set<string>;
+    try {
+      sourceCharacterIds = new Set(StoryDocumentCodecV2.parse(chapter.currentStoryVersion.documentJson).characters.map((item) => item.projectCharacterId));
+    } catch (error) {
+      throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", error);
+    }
+    const outsideCurrentStructure = characterIds.filter((id) => !sourceCharacterIds.has(id));
+    if (outsideCurrentStructure.length) {
+      throw createG2DatabaseError(422, "SOURCE_UNRESOLVED", {
+        entityIds: outsideCurrentStructure,
+        reason: "STORYBOARD_CHARACTER_OUTSIDE_CURRENT_STORY_STRUCTURE",
+      });
+    }
   }
   private async rebuildProjections(tx: Prisma.TransactionClient, storyboardVersionId: string, document: StoryboardDocumentV2, chapter: ChapterVersionQueryRow): Promise<void> {
     await tx.storyboardShotCharacter.deleteMany({ where: { storyboardShotProjection: { storyboardVersionId } } });

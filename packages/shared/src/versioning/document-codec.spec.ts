@@ -76,7 +76,14 @@ describe("G2 V2 document codecs", () => {
     expect(encodeStoryboardDocumentV2(storyboard).digest).toMatch(/^sha256:/);
     expect(() => encodeStoryboardDocumentV2({ ...storyboard, shots: [{ ...shot, order: 2 }] })).toThrow(/contiguous/);
     expect(encodePreflightDocumentV2(preflight).digest).toMatch(/^sha256:/);
+    const currentPreflight = {
+      ...preflight,
+      policyVersion: "preflight-source-v2",
+      sourceSnapshot: { ...preflight.sourceSnapshot, policyVersion: "preflight-source-v2" },
+    };
+    expect(encodePreflightDocumentV2(currentPreflight).value.policyVersion).toBe("preflight-source-v2");
     expect(() => encodePreflightDocumentV2({ ...preflight, sourceSnapshot: { ...preflight.sourceSnapshot, policyVersion: "old" } })).toThrow(/unsupported/);
+    expect(() => encodePreflightDocumentV2({ ...preflight, policyVersion: "preflight-source-v2" })).toThrow(/must match/);
   });
 
   it("normalizes script bytes deterministically and rejects invalid UTF-8/empty publish", () => {
@@ -89,4 +96,3 @@ describe("G2 V2 document codecs", () => {
     expect(encodeScriptTextV1(" \n ", { allowEmpty: true }).canonical).toBe("");
   });
 });
-

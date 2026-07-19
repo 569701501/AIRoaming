@@ -86,9 +86,21 @@ export class StoryStructureDialogueService {
 
     const pendingKey = getPendingStoryStructureKey(turn.thread.projectId, turn.thread.chapterId);
     const pending = this.pendingStoryStructures.get(pendingKey);
-    if (pending && (input.intent === "confirm_story_structure" || isConfirmingStoryStructure(input.content))) {
+    const isConfirming = input.intent === "confirm_story_structure" || isConfirmingStoryStructure(input.content);
+    if (pending && isConfirming) {
       this.pendingStoryStructures.delete(pendingKey);
       return this.createConfirmStoryStructureToolResult(turn, pending.storyStructure);
+    }
+
+    if (!pending && isConfirming) {
+      if (turn.snapshot.storyStructure?.status === "structured") {
+        return this.createAlreadyConfirmedStoryStructureToolResult(turn, turn.snapshot.storyStructure);
+      }
+      return this.createFailedToolResult(
+        turn,
+        "confirm_story_structure",
+        "当前没有待确认的剧情结构。请先生成剧情结构预览，再进行确认。",
+      );
     }
 
     if (!shouldGenerateStoryStructure(input)) {
@@ -176,6 +188,29 @@ export class StoryStructureDialogueService {
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,
       storyStructure: result.storyStructure,
+      revision: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private createAlreadyConfirmedStoryStructureToolResult(
+    turn: DialogueTurn,
+    storyStructure: ChapterStoryStructure,
+  ): DialogueToolResult {
+    const chapter = turn.snapshot.currentChapter;
+    return {
+      id: randomUUID(),
+      projectId: turn.thread.projectId,
+      threadId: turn.thread.id,
+      messageId: turn.assistantMessage.id,
+      toolCallId: randomUUID(),
+      tool: "confirm_story_structure",
+      status: "succeeded",
+      summary: `「${chapter?.title ?? storyStructure.structureJson.chapterTitle}」的剧情结构已经确认，无需重复生成。现在可以进入分镜工作台。`,
+      chapters: turn.snapshot.chapters ?? [],
+      currentChapterId: chapter?.id ?? storyStructure.chapterId,
+      currentChapter: chapter ?? null,
+      storyStructure,
       revision: null,
       createdAt: new Date().toISOString(),
     };

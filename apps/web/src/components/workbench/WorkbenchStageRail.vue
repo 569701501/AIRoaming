@@ -36,7 +36,10 @@ defineEmits<{
 }>();
 
 function canSelectStage(stage: WorkbenchStage) {
-  return stage.status === "done" || stage.status === "active";
+  return stage.status === "done"
+    || stage.status === "active"
+    || stage.status === "needs_confirmation"
+    || stage.status === "needs_update";
 }
 </script>
 
@@ -114,6 +117,20 @@ function canSelectStage(stage: WorkbenchStage) {
   border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
+/* needs_confirmation = 有待确认工作副本，必须可见并可进入处理 */
+.is-needs_confirmation:not(.is-current) .stage-num {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+/* needs_update = 上游来源已变化，保留历史并允许进入返修 */
+.is-needs_update:not(.is-current) .stage-num {
+  background: rgba(249, 115, 22, 0.14);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.35);
+}
+
 /* waiting/blocked = 灰底 */
 .is-waiting .stage-num,
 .is-blocked .stage-num {
@@ -141,6 +158,14 @@ function canSelectStage(stage: WorkbenchStage) {
 
 .is-active:not(.is-current):not(.is-done) .stage-label {
   color: #94a3b8;
+}
+
+.is-needs_confirmation:not(.is-current) .stage-label {
+  color: #fbbf24;
+}
+
+.is-needs_update:not(.is-current) .stage-label {
+  color: #fb923c;
 }
 
 .is-waiting .stage-label,

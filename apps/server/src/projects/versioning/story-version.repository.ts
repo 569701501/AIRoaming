@@ -6,6 +6,7 @@ import {
   StoryDocumentCodecV2,
   digestCanonicalJson,
   encodeStoryDocumentV2,
+  requiredCharacterReferenceKind,
   type Digest,
   type CreateStoryWorkingCopyRequest,
   type DiscardStoryWorkingCopyRequest,
@@ -414,17 +415,28 @@ export class StoryVersionRepository {
 
   private async resolveCharacters(tx: Prisma.TransactionClient, projectId: string, document: StoryDocumentV2): Promise<StoryDocumentV2> {
     if (document.characters.length === 0) return document;
-    const rows = await tx.character.findMany({ where: { projectId } });
+    const rows = await tx.character.findMany({ where: { projectId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
     const byId = new Map(rows.map((row) => [row.id, row]));
     const byName = new Map(rows.map((row) => [row.normalizedName, row]));
+    const byIdentity = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const rowEntityType = wsCharacter.normalizeEntityType(row.entityType);
+      const identity = `${rowEntityType}:${wsCharacter.normalizeCharacterIdentityKey(row.name, rowEntityType)}`;
+      if (!byIdentity.has(identity)) byIdentity.set(identity, row);
+    }
     const characters = [] as StoryDocumentV2["characters"];
 
     for (const character of document.characters) {
       const normalizedName = wsCharacter.normalizeCharacterNameKey(character.name);
+      const identityKey = `${character.entityType}:${wsCharacter.normalizeCharacterIdentityKey(character.name, character.entityType)}`;
       const isUnresolved = character.projectCharacterId.startsWith(UNRESOLVED_STORY_CHARACTER_PREFIX);
-      let resolved = isUnresolved
-        ? byName.get(normalizedName)
-        : byId.get(character.projectCharacterId);
+      // group 旧数据可能已经把“商队众人 / 商队多人”建成两个 Character。
+      // 重新确认结构时始终优先使用保守身份键，让旧项目也逐步收敛到一份素材身份。
+      let resolved = character.entityType === "group"
+        ? byIdentity.get(identityKey) ?? (isUnresolved ? byName.get(normalizedName) : byId.get(character.projectCharacterId))
+        : isUnresolved
+          ? byName.get(normalizedName) ?? byIdentity.get(identityKey)
+          : byId.get(character.projectCharacterId);
 
       if (!resolved && isUnresolved) {
         const id = `char_${randomUUID()}`;
@@ -437,7 +449,7 @@ export class StoryVersionRepository {
             role: character.role.trim() || wsCharacter.getDefaultRoleForLevel(character.level),
             level: character.level,
             entityType: character.entityType,
-            status: character.level === "lead" || character.level === "recurring" ? "needs_reference" : "draft",
+            status: requiredCharacterReferenceKind(character) === "final_reference" ? "needs_reference" : "draft",
             appearance: character.visualTraits.trim() || character.notes.trim(),
             personality: character.motivation.trim(),
             promptFragment: character.visualTraits.trim(),
@@ -446,6 +458,7 @@ export class StoryVersionRepository {
         });
         byId.set(resolved.id, resolved);
         byName.set(resolved.normalizedName, resolved);
+        byIdentity.set(identityKey, resolved);
       }
 
       if (!resolved) {

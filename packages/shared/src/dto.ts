@@ -663,7 +663,7 @@ export type ProjectCharacterReferenceKind = "preview_front" | "final_reference" 
 /**
  * 角色存在形态(见 task 2026-06-21_角色分层双维度)。
  * human:人类角色(默认,现有生图正常走);creature:怪物/异常体;group:群体角色;voice:纯声音角色。
- * 第一批只 human 走通生图,creature/group/voice 占位 fallback 到 human prompt。
+ * human 使用人物预览/定稿；creature 与 group 使用各自单张视觉参考；voice 不生成图片。
  */
 export type ProjectCharacterEntityType = "human" | "creature" | "group" | "voice";
 
@@ -753,6 +753,8 @@ export interface QueueCharacterReferenceResponse extends ProjectCharactersRespon
 
 /** 场景背景图生成请求(章节级,纯文生图) */
 export interface GenerateSceneReferenceRequest {
+  /** 一次用户生成操作的唯一编号；同一编号可安全重放，不同编号必须创建新任务。 */
+  requestId?: string;
   prompt?: string;
   size?: string;
 }

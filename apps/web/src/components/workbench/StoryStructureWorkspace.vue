@@ -197,7 +197,7 @@
                   type="button"
                   @click="openScenePreview(scene)"
                 >
-                  <img :src="getSceneAssetUrl(scene)!" :alt="`${scene.name} 场景图`" />
+                  <img :src="getSceneAssetUrl(scene)!" :alt="`${scene.name} 场景图`" @error="markSceneImageFailed(scene)" />
                   <span class="scene-image-overlay"><ZoomIn :size="14" /> 查看</span>
                 </button>
                 <button
@@ -215,6 +215,13 @@
               <div v-else-if="isSceneTaskActive(scene)" class="scene-image-pending">
                 <LoaderCircle :size="18" />
                 <span>生成中</span>
+              </div>
+              <div v-else-if="hasBoundSceneAsset(scene)" class="scene-image-missing">
+                <AlertTriangle :size="18" />
+                <span>场景图文件缺失</span>
+                <button type="button" :disabled="loading" @click="requestSceneReference(scene)">
+                  重新生成
+                </button>
               </div>
               <button
                 v-else
@@ -272,8 +279,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
+import { AlertTriangle, CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
 import type { ChapterListItem, ChapterStoryStructure, DialogueThread, GenerationTaskItem, StoryStructureJson, StoryStructureSceneCard, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import { characterVisualIdentityKey } from "@airoaming/shared";
 import { api } from "../../services/api";
 import CharacterImageList from "./CharacterImageList.vue";
 import EditableField from "./EditableField.vue";
@@ -301,6 +309,7 @@ const emit = defineEmits<{
 const editingKey = ref<string | null>(null);
 const editingValue = ref("");
 const activeScenePreview = ref<{ url: string; name: string } | null>(null);
+const failedSceneAssetIds = ref<Set<string>>(new Set());
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -343,6 +352,18 @@ const versioningStatus = computed(() => {
   };
 });
 const projectCharacterByName = computed(() => new Map(props.snapshot.characters.map((character) => [normalizeCharacterKey(character.name), character])));
+const projectCharacterById = computed(() => new Map(props.snapshot.characters.map((character) => [character.id, character])));
+const projectCharacterByVisualIdentity = computed(() => {
+  const result = new Map<string, WorkbenchSnapshot["characters"][number]>();
+  props.snapshot.characters.forEach((character) => {
+    const key = `${character.entityType}:${characterVisualIdentityKey(character.name, character.entityType)}`;
+    const current = result.get(key);
+    if (!current || characterVisualReadiness(character) > characterVisualReadiness(current)) {
+      result.set(key, character);
+    }
+  });
+  return result;
+});
 /** 主角色/常驻角色:无条件展示(项目角色库已有),自动带入 */
 const mainCharacters = computed(() =>
   props.snapshot.characters.filter((character) => character.level === "lead" || character.level === "recurring"),
@@ -352,13 +373,26 @@ const chapterCharacters = computed(() => {
   const mainIds = new Set(mainCharacters.value.map((character) => character.id));
   const matched = new Map<string, WorkbenchSnapshot["characters"][number]>();
   structureJson.value.characters.forEach((character) => {
-    const projectCharacter = projectCharacterByName.value.get(normalizeCharacterKey(character.name));
+    const entityType = character.entityType ?? "human";
+    const identityKey = `${entityType}:${characterVisualIdentityKey(character.name, entityType)}`;
+    const projectCharacter = entityType === "group"
+      ? projectCharacterByVisualIdentity.value.get(identityKey)
+        ?? projectCharacterById.value.get(character.projectCharacterId ?? "")
+        ?? projectCharacterByName.value.get(normalizeCharacterKey(character.name))
+      : projectCharacterById.value.get(character.projectCharacterId ?? "")
+        ?? projectCharacterByName.value.get(normalizeCharacterKey(character.name));
     if (projectCharacter && !mainIds.has(projectCharacter.id)) {
-      matched.set(projectCharacter.id, projectCharacter);
+      matched.set(identityKey, projectCharacter);
     }
   });
   return [...matched.values()];
 });
+
+function characterVisualReadiness(character: WorkbenchSnapshot["characters"][number]): number {
+  if (character.primaryReferenceAssetId) return 2;
+  if (character.previewReferenceAssetId) return 1;
+  return 0;
+}
 
 function selectChapter(event: Event) {
   const chapterId = (event.target as HTMLSelectElement).value;
@@ -424,11 +458,28 @@ function getBeatSceneName(sceneId: string | null) {
 
 /** 场景背景图 URL:从 snapshot.assets 按 scene.referenceAssetId 取 */
 function getSceneAssetUrl(scene: StoryStructureSceneCard): string | null {
-  if (!scene.referenceAssetId) {
+  if (!scene.referenceAssetId || failedSceneAssetIds.value.has(scene.referenceAssetId)) {
     return null;
   }
   const asset = props.snapshot.assets?.find((item) => item.id === scene.referenceAssetId);
   return asset ? api.projectAssetFileUrl(props.snapshot.project.id, asset.id) : null;
+}
+
+function hasBoundSceneAsset(scene: StoryStructureSceneCard): boolean {
+  return Boolean(
+    scene.referenceAssetId
+    && props.snapshot.assets?.some((item) => item.id === scene.referenceAssetId),
+  );
+}
+
+function markSceneImageFailed(scene: StoryStructureSceneCard) {
+  if (!scene.referenceAssetId) {
+    return;
+  }
+  failedSceneAssetIds.value = new Set([...failedSceneAssetIds.value, scene.referenceAssetId]);
+  if (activeScenePreview.value?.url === api.projectAssetFileUrl(props.snapshot.project.id, scene.referenceAssetId)) {
+    activeScenePreview.value = null;
+  }
 }
 
 /** 该场景是否有活跃的生成任务 */
@@ -437,7 +488,9 @@ function isSceneTaskActive(scene: StoryStructureSceneCard): boolean {
     task.projectId === props.snapshot.project.id
     && task.type === "scene_reference_generate"
     && task.target?.type === "scene"
-    && task.target.id === scene.id
+    // DB 任务的 target.id 是 chapter_scenes.id，而剧情结构里的 scene.id
+    // 是稳定 sceneKey；优先用任务输入中的 sceneKey 关联，兼容旧任务再回退 target.id。
+    && (task.input.sceneKey === scene.id || task.target.id === scene.id)
     && (task.status === "queued" || task.status === "running" || task.status === "retrying"),
   );
 }
@@ -947,6 +1000,35 @@ html[data-theme="light"] .entity-item {
 
 .scene-image-pending svg {
   animation: spin 1.2s linear infinite;
+}
+
+.scene-image-missing {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed rgba(251, 146, 60, 0.45);
+  border-radius: 8px;
+  background: rgba(124, 45, 18, 0.12);
+  color: #fdba74;
+  padding: 16px;
+  font-size: 12px;
+  font-weight: 800;
+  aspect-ratio: 16 / 9;
+}
+
+.scene-image-missing button {
+  border: 1px solid rgba(251, 146, 60, 0.42);
+  border-radius: 7px;
+  background: rgba(124, 45, 18, 0.24);
+  color: inherit;
+  padding: 6px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.scene-image-missing button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .scene-generate-btn {

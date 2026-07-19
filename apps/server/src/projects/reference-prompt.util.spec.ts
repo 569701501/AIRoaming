@@ -53,6 +53,46 @@ describe("P23/P24 reference prompts", () => {
     expect(prompt).toContain("same outfit");
   });
 
+  it("非人生物使用完整轮廓参考，不套人物半身和四视图", () => {
+    const prompt = buildCharacterReferencePrompt(project, {
+      name: "红心棺",
+      role: "追猎异常体",
+      level: "chapter",
+      entityType: "creature",
+      appearance: "棺形甲壳，中央红色心脏纹路",
+      personality: "无声逼近",
+      promptFragment: "六条节肢",
+    } as never, "preview_front");
+    expect(prompt).toContain("CREATURE IDENTITY LOCK");
+    expect(prompt).toContain("Exactly one non-human creature");
+    expect(prompt).toContain("full silhouette");
+    expect(prompt).not.toContain("half-body portrait");
+  });
+
+  it("群体使用一份群体参考，不擅自新增命名角色", () => {
+    const prompt = buildCharacterReferencePrompt(project, {
+      name: "商队众人",
+      role: "受困商队",
+      level: "chapter",
+      entityType: "group",
+      appearance: "统一灰褐斗篷和货运护具",
+      personality: "疲惫戒备",
+      promptFragment: "三至五名代表成员",
+    } as never, "preview_front");
+    expect(prompt).toContain("GROUP IDENTITY LOCK");
+    expect(prompt).toContain("One coherent group unit");
+    expect(prompt).toContain("Do not invent new named characters");
+    expect(prompt).not.toContain("Exactly one character");
+  });
+
+  it("纯声音主体拒绝编译图片 Prompt", () => {
+    expect(() => buildCharacterReferencePrompt(project, {
+      name: "船舱广播",
+      level: "chapter",
+      entityType: "voice",
+    } as never, "preview_front")).toThrow("CHARACTER_REFERENCE_NOT_REQUIRED");
+  });
+
   it("场景参考图是无人无字、空间稳定的可复用背景", () => {
     const prompt = buildScenePrompt({
       name: "雨夜旧港",

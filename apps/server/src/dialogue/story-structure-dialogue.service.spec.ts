@@ -99,7 +99,7 @@ describe("StoryStructureDialogueService 质量修复预算", () => {
     expect(result?.storyStructure?.structureJson.scenes).toHaveLength(2);
   });
 
-  it("第二次仍不合格时失败且不留下可确认 pending", async () => {
+  it("第二次仍不合格时失败且后续确认会明确提示没有 pending", async () => {
     const runtime = { sendMessage: vi.fn().mockResolvedValue({ content: invalidStructure() }) };
     const service = new StoryStructureDialogueService({} as never, runtime as never);
     service.setEnsureSession(async () => "session-1");
@@ -116,6 +116,39 @@ describe("StoryStructureDialogueService 质量修复预算", () => {
 
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ status: "failed", tool: "generate_story_structure" });
-    expect(confirmation).toBeNull();
+    expect(confirmation).toMatchObject({
+      status: "failed",
+      tool: "confirm_story_structure",
+      summary: expect.stringContaining("没有待确认"),
+    });
+  });
+
+  it("正式剧情结构已经存在时重复确认保持幂等并引导进入分镜", async () => {
+    const runtime = { sendMessage: vi.fn() };
+    const service = new StoryStructureDialogueService({} as never, runtime as never);
+    service.setEnsureSession(async () => "session-1");
+    const currentTurn = turn();
+    currentTurn.snapshot.currentChapter = {
+      ...currentTurn.snapshot.currentChapter!,
+      status: "structured",
+    };
+    currentTurn.snapshot.storyStructure = {
+      id: "story-v1",
+      status: "structured",
+      structureJson: buildValidStoryStructure(),
+    } as never;
+
+    const result = await service.handleStoryStructureTurn(currentTurn, {
+      content: "确认采用当前剧情结构",
+      intent: "confirm_story_structure",
+    });
+
+    expect(runtime.sendMessage).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      tool: "confirm_story_structure",
+      status: "succeeded",
+      summary: expect.stringContaining("已经确认"),
+    });
+    expect(result?.summary).toContain("分镜工作台");
   });
 });
