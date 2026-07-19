@@ -63,6 +63,13 @@ export interface ChapterVersionGraphInput {
   pendingStoryboard: VersionGraphArtifact | null;
   currentPreflight: VersionGraphArtifact | null;
   currentPreflightSourceSnapshot: PreflightSourceSnapshotV1 | null;
+  /**
+   * The source snapshot rebuilt from the current DB projections at read time.
+   * `undefined` keeps the legacy resolver behaviour for mutation responses that
+   * do not have a live reader; `null` means the caller tried but could not
+   * resolve the current inputs.
+   */
+  livePreflightSourceSnapshot?: PreflightSourceSnapshotV1 | null;
   historyCounts: Record<string, number>;
 }
 
@@ -177,13 +184,62 @@ function resolveScript(input: ChapterVersionGraphInput): ScriptVersionNodeState 
   return node;
 }
 
-function expectedPreflightSource(input: ChapterVersionGraphInput): { id: string; digest: Digest } | null {
+interface PreflightSourceResolution {
+  expectedSource: { id: string; digest: Digest } | null;
+  reasonCodes: FreshnessReasonCode[];
+}
+
+function sameCanonicalValue(left: unknown, right: unknown): boolean {
+  return digestCanonicalJson(left) === digestCanonicalJson(right);
+}
+
+function snapshotMatchesScope(
+  snapshot: PreflightSourceSnapshotV1,
+  chapter: ChapterVersionGraphChapter,
+): boolean {
+  return snapshot.schemaVersion === 1
+    && snapshot.policyVersion === "preflight-source-v2"
+    && snapshot.consumerType === "preflight_revision"
+    && snapshot.projectId === chapter.projectId
+    && snapshot.chapterId === chapter.id;
+}
+
+function resolvePreflightSource(input: ChapterVersionGraphInput): PreflightSourceResolution {
   const storyboard = input.currentStoryboard;
-  const snapshot = input.currentPreflightSourceSnapshot;
-  if (storyboard === null || snapshot === null) return null;
-  if (snapshot.storyboard.id !== storyboard.id || snapshot.storyboard.digest !== storyboard.documentDigest) return null;
-  if (input.currentPreflight?.sourceDigest !== sourceSnapshotDigest(snapshot)) return null;
-  return { id: storyboard.id, digest: sourceSnapshotDigest(snapshot) };
+  const stored = input.currentPreflightSourceSnapshot;
+  if (storyboard === null || stored === null) {
+    return { expectedSource: null, reasonCodes: ["PREFLIGHT_SOURCE_UNRESOLVED"] };
+  }
+  if (!snapshotMatchesScope(stored, input.chapter)) {
+    return { expectedSource: null, reasonCodes: ["PREFLIGHT_SOURCE_UNRESOLVED"] };
+  }
+  if (stored.storyboard.id !== storyboard.id || stored.storyboard.digest !== storyboard.documentDigest) {
+    return { expectedSource: null, reasonCodes: ["PREFLIGHT_SOURCE_STORYBOARD_CHANGED"] };
+  }
+  const storedDigest = sourceSnapshotDigest(stored);
+  if (input.currentPreflight?.sourceDigest !== storedDigest) {
+    return { expectedSource: null, reasonCodes: ["PREFLIGHT_SOURCE_UNRESOLVED"] };
+  }
+
+  const live = input.livePreflightSourceSnapshot;
+  if (live === undefined) {
+    return { expectedSource: { id: storyboard.id, digest: storedDigest }, reasonCodes: [] };
+  }
+  if (live === null || !snapshotMatchesScope(live, input.chapter)) {
+    return { expectedSource: null, reasonCodes: ["PREFLIGHT_SOURCE_UNRESOLVED"] };
+  }
+  if (live.storyboard.id !== storyboard.id || live.storyboard.digest !== storyboard.documentDigest) {
+    return { expectedSource: null, reasonCodes: ["PREFLIGHT_SOURCE_STORYBOARD_CHANGED"] };
+  }
+
+  const reasonCodes: FreshnessReasonCode[] = [];
+  if (!sameCanonicalValue(stored.storyboard, live.storyboard)) reasonCodes.push("PREFLIGHT_SOURCE_STORYBOARD_CHANGED");
+  if (!sameCanonicalValue(stored.characters, live.characters)) reasonCodes.push("PREFLIGHT_CHARACTER_INPUT_CHANGED");
+  if (!sameCanonicalValue(stored.scenes, live.scenes)) reasonCodes.push("PREFLIGHT_SCENE_INPUT_CHANGED");
+  if (!sameCanonicalValue(stored.style, live.style)) reasonCodes.push("PREFLIGHT_STYLE_INPUT_CHANGED");
+  const liveDigest = sourceSnapshotDigest(live);
+  if (reasonCodes.length === 0 && liveDigest !== storedDigest) reasonCodes.push("PREFLIGHT_SOURCE_UNRESOLVED");
+  return { expectedSource: { id: storyboard.id, digest: liveDigest }, reasonCodes: uniqueReasons(reasonCodes) };
 }
 
 export function resolveChapterProductionState(input: ChapterVersionGraphInput, generatedAt = new Date().toISOString()): ChapterProductionState {
@@ -191,12 +247,12 @@ export function resolveChapterProductionState(input: ChapterVersionGraphInput, g
   const scriptUpstream: ArtifactFreshness | null = script.freshness === null ? null : script.freshness === "current" && script.workingState === "clean" && !script.hasScriptPending ? "current" : "stale";
   const story = resolveDerivedNode({ chapter: input.chapter, current: input.currentStory, pending: input.pendingStory, currentVersionId: input.chapter.currentStoryVersionId, pendingVersionId: input.chapter.pendingStoryVersionId, sourcePolicyVersion: "story-source-v1", expectedSource: script.currentVersionId !== null && input.currentScript !== null ? { id: input.currentScript.id, digest: input.currentScript.sourceDigest } : null, missingReason: "STORY_VERSION_MISSING", pendingReason: "STORY_PENDING_CONFIRMATION", changedReason: "STORY_SOURCE_SCRIPT_CHANGED", unresolvedReason: "STORY_SOURCE_UNRESOLVED", upstreamFreshness: scriptUpstream, historyKey: "story", historyCounts: input.historyCounts });
   const storyboard = resolveDerivedNode({ chapter: input.chapter, current: input.currentStoryboard, pending: input.pendingStoryboard, currentVersionId: input.chapter.currentStoryboardVersionId, pendingVersionId: input.chapter.pendingStoryboardVersionId, sourcePolicyVersion: "storyboard-source-v1", expectedSource: story.freshness === "current" && input.currentStory?.documentDigest !== null && input.currentStory?.documentDigest !== undefined ? { id: input.currentStory.id, digest: input.currentStory.documentDigest } as { id: string; digest: Digest } : null, missingReason: "STORYBOARD_VERSION_MISSING", pendingReason: "STORYBOARD_PENDING_CONFIRMATION", changedReason: "STORYBOARD_SOURCE_STORY_CHANGED", unresolvedReason: "STORYBOARD_SOURCE_UNRESOLVED", upstreamFreshness: story.freshness, historyKey: "storyboard", historyCounts: input.historyCounts });
-  const preflightExpected = expectedPreflightSource(input);
-  const preflightSourceChanged = input.currentPreflightSourceSnapshot !== null
-    && input.currentStoryboard !== null
-    && (input.currentPreflightSourceSnapshot.storyboard.id !== input.currentStoryboard.id || input.currentPreflightSourceSnapshot.storyboard.digest !== input.currentStoryboard.documentDigest);
-  const preflightUnresolvedReason: FreshnessReasonCode = preflightSourceChanged ? "PREFLIGHT_SOURCE_STORYBOARD_CHANGED" : "PREFLIGHT_SOURCE_UNRESOLVED";
-  const preflight = resolveDerivedNode({ chapter: input.chapter, current: input.currentPreflight, pending: null, currentVersionId: input.chapter.currentPreflightRevisionId, pendingVersionId: null, sourcePolicyVersion: "preflight-source-v2", expectedSource: storyboard.freshness === "current" ? preflightExpected : null, missingReason: "PREFLIGHT_MISSING", pendingReason: "PREFLIGHT_MISSING", changedReason: preflightSourceChanged ? "PREFLIGHT_SOURCE_STORYBOARD_CHANGED" : "PREFLIGHT_SOURCE_UNRESOLVED", unresolvedReason: preflightUnresolvedReason, upstreamFreshness: storyboard.freshness, historyKey: "preflight", historyCounts: input.historyCounts });
+  const preflightSource = resolvePreflightSource(input);
+  const preflightSourceReason = preflightSource.reasonCodes[0] ?? "PREFLIGHT_SOURCE_UNRESOLVED";
+  const preflight = resolveDerivedNode({ chapter: input.chapter, current: input.currentPreflight, pending: null, currentVersionId: input.chapter.currentPreflightRevisionId, pendingVersionId: null, sourcePolicyVersion: "preflight-source-v2", expectedSource: storyboard.freshness === "current" ? preflightSource.expectedSource : null, missingReason: "PREFLIGHT_MISSING", pendingReason: "PREFLIGHT_MISSING", changedReason: preflightSourceReason, unresolvedReason: preflightSourceReason, upstreamFreshness: storyboard.freshness, historyKey: "preflight", historyCounts: input.historyCounts });
+  if (preflight.freshness === "stale" && preflight.reasonCodes.includes(preflightSourceReason)) {
+    preflight.reasonCodes = uniqueReasons([...preflight.reasonCodes, ...preflightSource.reasonCodes]);
+  }
   const earliestAttentionStep = script.freshness !== "current" || script.workingState !== "clean" || script.hasScriptPending ? "project_story" : story.freshness !== "current" ? "story_structure" : storyboard.freshness !== "current" ? "storyboard" : preflight.freshness !== "current" ? "image_preflight" : "image_preflight";
   return { schemaVersion: 1, projectId: input.chapter.projectId, chapterId: input.chapter.id, chapterRowVersion: input.chapter.rowVersion, milestoneStatus: input.chapter.milestoneStatus, script, story, storyboard, preflight, earliestAttentionStep, generatedAt };
 }

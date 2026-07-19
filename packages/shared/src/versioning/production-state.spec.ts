@@ -36,6 +36,71 @@ describe("ChapterProductionState resolver", () => {
     expect(state.earliestAttentionStep).toBe("image_preflight");
   });
 
+  it("marks preflight stale when the live scene visual input changes", () => {
+    const input = baseInput();
+    const liveInput = {
+      ...input,
+      livePreflightSourceSnapshot: {
+        ...input.currentPreflightSourceSnapshot!,
+        scenes: [
+          {
+            chapterSceneId: "chapter_scene_001",
+            sceneKey: "scene_001",
+            visualId: "scene_visual_002",
+            assetId: "asset_002",
+            assetSha256: d2,
+          },
+        ],
+      },
+    };
+
+    const state = resolveChapterProductionState(liveInput);
+
+    expect(state.story.freshness).toBe("current");
+    expect(state.storyboard.freshness).toBe("current");
+    expect(state.preflight.freshness).toBe("stale");
+    expect(state.preflight.reasonCodes).toContain("PREFLIGHT_SCENE_INPUT_CHANGED");
+  });
+
+  it("classifies live character and style changes with dedicated preflight reasons", () => {
+    const characterInput = baseInput();
+    const characterState = resolveChapterProductionState({
+      ...characterInput,
+      livePreflightSourceSnapshot: {
+        ...characterInput.currentPreflightSourceSnapshot!,
+        characters: [{
+          characterId: "character_001",
+          required: true,
+          generationInputDigest: d2,
+          visualId: null,
+          assetId: null,
+          assetSha256: null,
+        }],
+      },
+    });
+    expect(characterState.preflight).toMatchObject({
+      freshness: "stale",
+      reasonCodes: ["PREFLIGHT_CHARACTER_INPUT_CHANGED"],
+    });
+
+    const styleInput = baseInput();
+    const styleState = resolveChapterProductionState({
+      ...styleInput,
+      livePreflightSourceSnapshot: {
+        ...styleInput.currentPreflightSourceSnapshot!,
+        style: {
+          ...styleInput.currentPreflightSourceSnapshot!.style,
+          artStyle: "watercolor",
+          styleDigest: d2,
+        },
+      },
+    });
+    expect(styleState.preflight).toMatchObject({
+      freshness: "stale",
+      reasonCodes: ["PREFLIGHT_STYLE_INPUT_CHANGED"],
+    });
+  });
+
   it("surfaces pending before current and does not erase the current id", () => {
     const input = baseInput();
     const pending = artifact("story_pending_002", "script_001", d1, "story-source-v1", "pending_confirmation");

@@ -10,12 +10,12 @@ import type {
 } from "@airoaming/shared";
 import { PROJECT_WORKFLOW_SCHEMA_VERSION, PROJECT_WORKFLOW_STEPS } from "@airoaming/shared";
 import { PrismaService } from "../../persistence/prisma.service.js";
-import type { PrismaClient } from "@prisma/client";
 import { createG2DatabaseError } from "./g2-database-error.mapper.js";
 import { ChapterVersionQueryRepository, type ChapterVersionQueryRow } from "./chapter-version-query.repository.js";
 import { ScriptVersionRepository } from "./script-version.repository.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
 import { CandidateSourceQueryService } from "../candidate-source-query.service.js";
+import { SourceSnapshotBuilderService, type SourceSnapshotBuilderReader } from "./source-snapshot-builder.service.js";
 
 type VersionNode = ChapterProductionState["script"] | ChapterProductionState["story"] | ChapterProductionState["storyboard"] | ChapterProductionState["preflight"];
 
@@ -40,13 +40,14 @@ export class ChapterProductionQueryService {
     @Inject(ChapterVersionQueryRepository) private readonly chapterQuery: ChapterVersionQueryRepository,
     @Inject(ScriptVersionRepository) private readonly scriptRepository: ScriptVersionRepository,
     @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
+    @Inject(SourceSnapshotBuilderService) private readonly sourceSnapshotBuilder: SourceSnapshotBuilderService,
   ) {}
 
   async get(scope: VersionScopeV1): Promise<GetChapterProductionStateResponse> {
     this.assertDatabaseMode();
     const row = await this.chapterQuery.findByScope(scope);
     if (!row) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
-    const baseProductionState = this.scriptRepository.toProductionState(row);
+    const baseProductionState = await this.resolveProductionState(scope, row, this.prismaService.database());
     const productionState = row.currentStoryboardVersionId
       ? { ...baseProductionState, candidateSources: await this.candidateSources.get(scope) }
       : baseProductionState;
@@ -54,11 +55,22 @@ export class ChapterProductionQueryService {
   }
 
   /** Shared read path for NewWorkGate; caller supplies a transaction reader when needed. */
-  async readScoped(scope: VersionScopeV1, reader: Pick<PrismaClient, "chapter"> = this.prismaService.database()): Promise<{ row: ChapterVersionQueryRow; productionState: ChapterProductionState }> {
+  async readScoped(scope: VersionScopeV1, reader: SourceSnapshotBuilderReader = this.prismaService.database()): Promise<{ row: ChapterVersionQueryRow; productionState: ChapterProductionState }> {
     this.assertDatabaseMode();
     const row = await this.chapterQuery.findByScope(scope, reader);
     if (!row) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND");
-    return { row, productionState: this.scriptRepository.toProductionState(row) };
+    return { row, productionState: await this.resolveProductionState(scope, row, reader) };
+  }
+
+  private async resolveProductionState(
+    scope: VersionScopeV1,
+    row: ChapterVersionQueryRow,
+    reader: SourceSnapshotBuilderReader,
+  ): Promise<ChapterProductionState> {
+    const storedState = this.scriptRepository.toProductionState(row);
+    if (!row.currentPreflightRevisionId || storedState.storyboard.freshness !== "current") return storedState;
+    const live = await this.sourceSnapshotBuilder.build(scope, "", reader);
+    return this.scriptRepository.toProductionState(row, live.sourceSnapshot);
   }
 
   private assertDatabaseMode(): void {

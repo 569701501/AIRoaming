@@ -6,6 +6,7 @@ import { createG2DatabaseError } from "./g2-database-error.mapper.js";
 import { PrismaService } from "../../persistence/prisma.service.js";
 import { ChapterProductionQueryService } from "./chapter-production-query.service.js";
 import type { VersionScopeV1 } from "./versioning-database.types.js";
+import type { SourceSnapshotBuilderReader } from "./source-snapshot-builder.service.js";
 
 export interface NewWorkGateInput {
   readonly expectedTargetId?: string;
@@ -22,7 +23,7 @@ export interface NewWorkGateResult {
   readonly productionState: ChapterProductionState;
 }
 
-export type GateReader = Pick<PrismaClient, "chapter" | "shot">;
+export type GateReader = SourceSnapshotBuilderReader & Pick<PrismaClient, "shot">;
 
 function unique(values: readonly FreshnessReasonCode[]): FreshnessReasonCode[] { return [...new Set(values)]; }
 

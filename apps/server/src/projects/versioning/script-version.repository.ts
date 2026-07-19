@@ -553,7 +553,10 @@ export class ScriptVersionRepository {
     };
   }
 
-  public toProductionState(row: ChapterVersionQueryRow): ChapterProductionState {
+  public toProductionState(
+    row: ChapterVersionQueryRow,
+    livePreflightSourceSnapshot?: PreflightSourceSnapshotV1 | null,
+  ): ChapterProductionState {
     const artifact = (item: { id: string; projectId: string; chapterId: string; status: string; sourceScriptVersionId?: string | null; sourceStoryVersionId?: string | null; sourceDigest: string | null; documentDigest: string | null; sourcePolicyVersion: string | null } | null) => item ? {
       id: item.id,
       projectId: item.projectId,
@@ -598,6 +601,7 @@ export class ScriptVersionRepository {
       pendingStoryboard: artifact(row.pendingStoryboardVersion),
       currentPreflight: row.currentPreflightRevision ? { id: row.currentPreflightRevision.id, projectId: row.projectId, chapterId: row.id, status: row.currentPreflightRevision.status as "confirmed" | "archived" | "pending_confirmation", sourceId: row.currentPreflightRevision.sourceStoryboardVersionId, sourceDigest: digest(row.currentPreflightRevision.sourceDigest), documentDigest: digest(row.currentPreflightRevision.documentDigest), sourcePolicyVersion: row.currentPreflightRevision.sourcePolicyVersion } : null,
       currentPreflightSourceSnapshot: preflightSnapshot,
+      livePreflightSourceSnapshot,
       historyCounts: { script: row.chapterScriptVersionsByChapter.length, story: row.storyVersionsByChapter.length, storyboard: row.storyboardVersionsByChapter.length, preflight: row.preflightRevisionsByChapter.length },
     };
     return resolveChapterProductionState(input);

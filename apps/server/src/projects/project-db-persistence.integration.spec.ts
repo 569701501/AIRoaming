@@ -1519,6 +1519,192 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(stale.workflow.steps.find((step) => step.key === "image_preflight")).toMatchObject({ status: "needs_update", attention: "source_updated" });
   }, 30_000);
 
+  it("marks Preflight stale after a scene visual replacement and blocks image task creation before persistence", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const projects = app.get(ProjectsService);
+    const scripts = app.get(ScriptVersionRepository);
+    const stories = app.get(StoryVersionRepository);
+    const boards = app.get(StoryboardVersionRepository);
+    const preflight = app.get(PreflightRevisionService);
+    const productionQuery = app.get(ChapterProductionQueryService);
+    const tasks = app.get(TasksService);
+    const prisma = app.get(PrismaService).database();
+    const project = await projects.createProject({ name: "Preflight 场景图替换门禁", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
+    const scope = { projectId: project.id, chapterId: project.currentChapterId! };
+    const chapter = await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } });
+
+    const working = await scripts.updateWorkingCopy(scope, {
+      sourceText: "雨夜码头上，主角推开仓库门。",
+      expectedChapterRowVersion: chapter.rowVersion,
+    });
+    const published = await scripts.publish(scope, {
+      expectedCurrentScriptVersionId: null,
+      expectedWorkingDigest: working.value.digest,
+      expectedChapterRowVersion: working.value.chapterRowVersion,
+      createNextChapter: false,
+    });
+    const story = await stories.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: published.scriptVersion.id,
+      expectedChapterRowVersion: published.workingCopy.chapterRowVersion,
+    });
+    const sceneKey = "scene-rainy-dock";
+    const storyUpdated = await stories.updateWorkingCopy(scope, {
+      pendingVersionId: story.value.pending!.id,
+      document: {
+        schemaVersion: 2,
+        chapterId: scope.chapterId,
+        synopsis: "主角抵达雨夜码头。",
+        direction: { logline: "", chapterGoal: "", coreConflict: "", emotionalArc: "", endingHook: "" },
+        characters: [],
+        scenes: [{ id: sceneKey, name: "雨夜码头", location: "旧码头", timeOfDay: "深夜", atmosphere: "压迫", purpose: "建立行动地点" }],
+        beats: [],
+        notes: "",
+      },
+      expectedPendingRowVersion: 0,
+      expectedChapterRowVersion: story.chapterRowVersion,
+    });
+    const storyConfirmed = await stories.confirmWorkingCopy(scope, {
+      pendingVersionId: story.value.pending!.id,
+      expectedPendingDocumentDigest: storyUpdated.value.pending!.documentDigest,
+      expectedPendingRowVersion: storyUpdated.value.pending!.rowVersion ?? 0,
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: published.scriptVersion.id,
+      expectedSourceDigest: published.scriptVersion.sourceDigest,
+      expectedChapterRowVersion: storyUpdated.chapterRowVersion,
+    });
+    const board = await boards.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceStoryVersionId: storyConfirmed.value.current.id,
+      expectedChapterRowVersion: storyConfirmed.chapterRowVersion,
+    });
+    const shot = await boards.createPendingShot(scope, {
+      pendingVersionId: board.value.pending!.id,
+      requestId: randomUUID(),
+      afterShotId: null,
+      expectedPendingRowVersion: 0,
+      expectedChapterRowVersion: board.chapterRowVersion,
+      initial: {
+        beatId: null,
+        sceneId: sceneKey,
+        characterIds: [],
+        coreAction: "主角推开仓库门",
+        emotion: "紧张",
+        shotType: "wide",
+        cameraAngle: "eye_level",
+        comic: { panelDescription: "雨夜码头与仓库门", composition: "远景", dialogue: "", caption: "", panelRhythm: "slow" },
+        motion: { visualDescription: "雨幕中推门", compositionDesign: "仓库居中", cameraMovement: "push_in", frameType: "atmosphere", durationMs: 0, durationHint: "", voiceLines: [] },
+        promptDraft: "",
+      },
+    });
+    const boardConfirmed = await boards.confirmWorkingCopy(scope, {
+      pendingVersionId: board.value.pending!.id,
+      expectedPendingDocumentDigest: shot.workingCopy.pending!.documentDigest,
+      expectedPendingRowVersion: shot.workingCopy.pending!.rowVersion ?? 0,
+      expectedCurrentVersionId: null,
+      expectedSourceStoryVersionId: storyConfirmed.value.current.id,
+      expectedSourceDigest: storyConfirmed.value.current.documentDigest,
+      expectedChapterRowVersion: shot.workingCopy.productionState.chapterRowVersion,
+    });
+    const chapterScene = await prisma.chapterScene.findFirstOrThrow({ where: { chapterId: scope.chapterId, sceneKey } });
+    const createReadySceneVisual = async (version: number, label: string) => {
+      const assetId = randomUUID();
+      const visualId = randomUUID();
+      const metadata = { label, version };
+      const sha256 = `sha256:${createHash("sha256").update(label).digest("hex")}`;
+      await prisma.asset.create({
+        data: {
+          id: assetId,
+          projectId: project.id,
+          chapterId: scope.chapterId,
+          type: "image",
+          role: "scene_reference",
+          mimeType: "image/png",
+          storageKey: `tests/${project.id}/${assetId}.png`,
+          status: "staged",
+          sha256: null,
+          bytes: null,
+          width: null,
+          height: null,
+          durationMs: null,
+          sourceTaskId: null,
+          metadataJson: metadata,
+          metadataSchemaVersion: 1,
+          metadataDigest: digestCanonicalJson(metadata),
+          readyAt: null,
+          failedAt: null,
+          deletingAt: null,
+        },
+      });
+      const asset = await prisma.asset.update({
+        where: { id: assetId },
+        data: { status: "ready", sha256, bytes: label.length, width: 1, height: 1, readyAt: new Date() },
+      });
+      const visual = await prisma.sceneVisual.create({
+        data: { id: visualId, chapterSceneId: chapterScene.id, assetId, sourceTaskId: null, version },
+      });
+      await prisma.chapterScene.update({ where: { id: chapterScene.id }, data: { currentVisualId: visual.id } });
+      return { asset, visual };
+    };
+
+    const original = await createReadySceneVisual(1, "original-scene-reference");
+    const preview = await preflight.getPreview(scope, "场景图替换前");
+    expect(preview.preview.sceneChecks[0]).toMatchObject({ referenceAssetId: original.asset.id, referenceReady: true });
+    const confirmed = await preflight.confirm(scope, {
+      expectedSourceStoryboardVersionId: boardConfirmed.value.current.id,
+      expectedSourceDigest: preview.sourceDigest,
+      expectedChapterRowVersion: preview.chapterRowVersion,
+      notes: "场景图替换前",
+    });
+    expect((await productionQuery.get(scope)).productionState.preflight.freshness).toBe("current");
+
+    await prisma.asset.update({ where: { id: original.asset.id }, data: { status: "missing" } });
+    const replacement = await createReadySceneVisual(2, "replacement-scene-reference");
+    const stale = await productionQuery.get(scope);
+    expect(stale.productionState.storyboard.freshness).toBe("current");
+    expect(stale.productionState.preflight).toMatchObject({ freshness: "stale", reasonCodes: expect.arrayContaining(["PREFLIGHT_SCENE_INPUT_CHANGED"]) });
+    expect(stale.workflow.steps.find((step) => step.key === "image_preflight")).toMatchObject({ status: "needs_update", canStartTask: true });
+    expect(stale.workflow.steps.find((step) => step.key === "image_candidates")).toMatchObject({ canStartTask: false });
+
+    const imageTaskCount = await prisma.generationTask.count({ where: { type: "image_generate" } });
+    await expect(tasks.create({
+      projectId: project.id,
+      type: "image_generate",
+      target: { type: "shot", id: shot.shotId, chapterId: scope.chapterId },
+      input: { chapterId: scope.chapterId, shotId: shot.shotId, requestId: randomUUID(), candidateCount: 1 },
+    })).rejects.toMatchObject({
+      status: 409,
+      code: "UPSTREAM_WORK_NOT_CONFIRMED",
+      details: { reasonCodes: expect.arrayContaining(["PREFLIGHT_SCENE_INPUT_CHANGED"]) },
+    });
+    expect(await prisma.generationTask.count({ where: { type: "image_generate" } })).toBe(imageTaskCount);
+
+    const replacementPreview = await preflight.getPreview(scope, "场景图替换后");
+    expect(replacementPreview.sourceDigest).not.toBe(preview.sourceDigest);
+    expect(replacementPreview.preview.sceneChecks[0]).toMatchObject({ referenceAssetId: replacement.asset.id, referenceReady: true });
+    await preflight.confirm(scope, {
+      expectedSourceStoryboardVersionId: boardConfirmed.value.current.id,
+      expectedSourceDigest: replacementPreview.sourceDigest,
+      expectedChapterRowVersion: replacementPreview.chapterRowVersion,
+      notes: "场景图替换后",
+    });
+    expect((await productionQuery.get(scope)).productionState.preflight.freshness).toBe("current");
+    const queued = await tasks.create({
+      projectId: project.id,
+      type: "image_generate",
+      target: { type: "shot", id: shot.shotId, chapterId: scope.chapterId },
+      input: { chapterId: scope.chapterId, shotId: shot.shotId, requestId: randomUUID(), candidateCount: 1 },
+    });
+    expect(queued).toMatchObject({ status: "queued", type: "image_generate" });
+    expect(await prisma.generationTask.count({ where: { type: "image_generate" } })).toBe(imageTaskCount + 1);
+    expect((queued.input.promptSpec as { referenceAssets: Array<{ assetId: string }> }).referenceAssets).toContainEqual(expect.objectContaining({ assetId: replacement.asset.id }));
+    expect(confirmed.preflight.sourceDigest).toBe(preview.sourceDigest);
+  }, 30_000);
+
   it("persists task source projection, claim fencing, retry, finish and expired-lease recovery", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
