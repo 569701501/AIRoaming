@@ -11,23 +11,23 @@ export type VisualAbSlotStatus =
   | "manual_review_required";
 
 export const VISUAL_AB_EVALUATION_POLICY = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   providerExceptions: [
     {
       providerType: "grok",
       caseId: "candidate-no-character-establishing",
-      condition: "single scene reference is omitted to preserve requested aspect ratio",
-      requiredWarning: "grok_single_reference_omitted_for_aspect_ratio",
-      excludeFromCrossProviderChecks: ["environment"],
-      stillEvaluateChecks: ["clean_plate", "empty_scene"],
+      condition: "single scene reference is used; output aspect ratio follows the source image",
+      requiredWarning: "grok_single_reference_output_aspect_ratio_follows_input",
+      excludeFromCrossProviderChecks: ["requested_aspect_ratio"],
+      stillEvaluateChecks: ["environment", "clean_plate", "empty_scene"],
     },
     {
       providerType: "grok",
       caseId: "candidate-group-staging",
-      condition: "five requested references are deterministically reduced to two characters plus the scene",
-      requiredWarning: "grok_reference_limit:3",
-      excludeFromCrossProviderChecks: ["identity"],
-      stillEvaluateChecks: ["clean_plate", "staging"],
+      condition: "four character references are deterministically packed into one cast identity board while the scene stays independent",
+      requiredWarning: "candidate_references_packed:grok:cast_identity_board:4",
+      excludeFromCrossProviderChecks: [],
+      stillEvaluateChecks: ["identity", "environment", "clean_plate", "staging"],
     },
   ],
 } as const;

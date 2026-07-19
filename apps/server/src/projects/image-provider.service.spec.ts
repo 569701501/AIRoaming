@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ImageProviderService } from "./image-provider.service.js";
 
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
+const ONE_PIXEL_PNG_DATA_URI = `data:image/png;base64,${ONE_PIXEL_PNG.toString("base64")}`;
+
 describe("ImageProviderService.generateCandidateImage", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -28,17 +34,19 @@ describe("ImageProviderService.generateCandidateImage", () => {
           assetId: "asset_character",
           kind: "character_identity",
           label: "酷拉皮卡",
-          buffer: Buffer.from("character"),
-          mimeType: "image/webp",
-          fileName: "kurapika.webp",
+          buffer: ONE_PIXEL_PNG,
+          mimeType: "image/png",
+          fileName: "kurapika.png",
+          sourceReferenceKind: "preview_front",
         },
         {
           assetId: "asset_scene",
           kind: "scene_environment",
           label: "海边病房",
-          buffer: Buffer.from("scene"),
-          mimeType: "image/webp",
-          fileName: "ward.webp",
+          buffer: ONE_PIXEL_PNG,
+          mimeType: "image/png",
+          fileName: "ward.png",
+          sourceReferenceKind: "scene_background",
         },
       ],
     });
@@ -50,8 +58,8 @@ describe("ImageProviderService.generateCandidateImage", () => {
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body.aspect_ratio).toBe("2:3");
     expect(body.images).toEqual([
-      { type: "image_url", url: `data:image/webp;base64,${Buffer.from("character").toString("base64")}` },
-      { type: "image_url", url: `data:image/webp;base64,${Buffer.from("scene").toString("base64")}` },
+      { type: "image_url", url: ONE_PIXEL_PNG_DATA_URI },
+      { type: "image_url", url: ONE_PIXEL_PNG_DATA_URI },
     ]);
     expect(body.prompt).toContain("Image 1 (酷拉皮卡) supplies character identity only");
     expect(body.prompt).toContain("Image 2 (海边病房) supplies scene identity only");
@@ -80,17 +88,19 @@ describe("ImageProviderService.generateCandidateImage", () => {
           assetId: "asset_character",
           kind: "character_identity",
           label: "酷拉皮卡",
-          buffer: Buffer.from("character"),
-          mimeType: "image/webp",
-          fileName: "kurapika.webp",
+          buffer: ONE_PIXEL_PNG,
+          mimeType: "image/png",
+          fileName: "kurapika.png",
+          sourceReferenceKind: "preview_front",
         },
         {
           assetId: "asset_scene",
           kind: "scene_environment",
           label: "海边病房",
-          buffer: Buffer.from("scene"),
-          mimeType: "image/webp",
-          fileName: "ward.webp",
+          buffer: ONE_PIXEL_PNG,
+          mimeType: "image/png",
+          fileName: "ward.png",
+          sourceReferenceKind: "scene_background",
         },
       ],
     });
@@ -128,17 +138,19 @@ describe("ImageProviderService.generateCandidateImage", () => {
           assetId: "asset_character",
           kind: "character_identity",
           label: "酷拉皮卡",
-          buffer: Buffer.from("character"),
-          mimeType: "image/webp",
-          fileName: "kurapika.webp",
+          buffer: ONE_PIXEL_PNG,
+          mimeType: "image/png",
+          fileName: "kurapika.png",
+          sourceReferenceKind: "preview_front",
         },
         {
           assetId: "asset_scene",
           kind: "scene_environment",
           label: "海边病房",
-          buffer: Buffer.from("scene"),
-          mimeType: "image/webp",
-          fileName: "ward.webp",
+          buffer: ONE_PIXEL_PNG,
+          mimeType: "image/png",
+          fileName: "ward.png",
+          sourceReferenceKind: "scene_background",
         },
       ],
     });
@@ -149,8 +161,8 @@ describe("ImageProviderService.generateCandidateImage", () => {
     expect(url).toBe("https://ark.cn-beijing.volces.com/api/v3/images/generations");
     const body = JSON.parse(String(init.body)) as { image: string[]; size: string; prompt: string; watermark: boolean; sequential_image_generation: string };
     expect(body.image).toEqual([
-      `data:image/webp;base64,${Buffer.from("character").toString("base64")}`,
-      `data:image/webp;base64,${Buffer.from("scene").toString("base64")}`,
+      ONE_PIXEL_PNG_DATA_URI,
+      ONE_PIXEL_PNG_DATA_URI,
     ]);
     expect(body.size).toBe("1440x2560");
     expect(body.watermark).toBe(false);
@@ -159,7 +171,7 @@ describe("ImageProviderService.generateCandidateImage", () => {
     expect(body.prompt).toContain("图 2（海边病房）：只提供场景空间身份");
   });
 
-  it("Seedream 超过十张引用时按优先级裁剪并记录省略资产", async () => {
+  it("Seedream 超过十张引用时把全部角色编成身份板而不省略资产", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{ b64_json: Buffer.from("generated-image").toString("base64") }],
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -178,18 +190,20 @@ describe("ImageProviderService.generateCandidateImage", () => {
         kind: "character_identity" as const,
         label: "低优先级背景角色",
         priority: 0,
-        buffer: Buffer.from("low"),
-        mimeType: "image/webp",
-        fileName: "low.webp",
+        buffer: ONE_PIXEL_PNG,
+        mimeType: "image/png",
+        fileName: "low.png",
+        sourceReferenceKind: "preview_front" as const,
       },
       ...Array.from({ length: 10 }, (_, index) => ({
         assetId: `character_${index + 1}`,
         kind: "character_identity" as const,
         label: `角色 ${index + 1}`,
         priority: 100 - index,
-        buffer: Buffer.from(`character_${index + 1}`),
-        mimeType: "image/webp",
-        fileName: `character_${index + 1}.webp`,
+        buffer: ONE_PIXEL_PNG,
+        mimeType: "image/png",
+        fileName: `character_${index + 1}.png`,
+        sourceReferenceKind: "preview_front" as const,
       })),
     ];
 
@@ -199,15 +213,21 @@ describe("ImageProviderService.generateCandidateImage", () => {
       references,
     });
 
-    expect(result.usedReferenceAssetIds).toHaveLength(10);
-    expect(result.usedReferenceAssetIds).not.toContain("character_low_priority");
+    expect(result.usedReferenceAssetIds).toHaveLength(11);
+    expect(result.usedReferenceAssetIds).toContain("character_low_priority");
+    expect(result.referencePlan.strategy).toBe("cast_identity_board");
+    expect(result.referencePlan.omittedRequired).toEqual([]);
     expect(result.warnings).toEqual([
-      "doubao_reference_limit:10",
-      "candidate_references_omitted:doubao:character_low_priority",
+      "candidate_references_packed:doubao:cast_identity_board:11",
+      "candidate_cast_identity_board_visual_quality_unverified:11",
     ]);
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as { image: string; prompt: string };
+    expect(typeof body.image).toBe("string");
+    expect(body.image).toMatch(/^data:image\/webp;base64,/);
+    expect(body.prompt).toContain("这是多人角色身份板");
   });
 
-  it("Grok 超过三张引用时按显式优先级保留两个主体和当前场景，并记录省略资产", async () => {
+  it("Grok 三个角色加场景时发送身份板加场景并保留全部来源覆盖", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{ b64_json: Buffer.from("generated-image").toString("base64") }],
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -225,30 +245,53 @@ describe("ImageProviderService.generateCandidateImage", () => {
       kind,
       label: assetId,
       priority,
-      buffer: Buffer.from(assetId),
-      mimeType: "image/webp",
-      fileName: `${assetId}.webp`,
+      buffer: ONE_PIXEL_PNG,
+      mimeType: "image/png",
+      fileName: `${assetId}.png`,
+      sourceReferenceKind: kind === "character_identity" ? "preview_front" as const : "scene_background" as const,
     });
 
     const result = await service.generateCandidateImage({
       prompt: "one clean illustration",
       size: "1024x1536",
       references: [
+        reference("character_primary", "character_identity", 100),
+        reference("character_supporting", "character_identity", 80),
         reference("character_background", "character_identity", 10),
         reference("scene_1", "scene_environment", 90),
-        reference("character_supporting", "character_identity", 80),
-        reference("character_primary", "character_identity", 100),
       ],
     });
 
-    expect(result.usedReferenceAssetIds).toEqual(["character_primary", "character_supporting", "scene_1"]);
-    expect(result.warnings).toEqual([
-      "grok_reference_limit:3",
-      "candidate_references_omitted:grok:character_background",
+    expect(result.usedReferenceAssetIds).toEqual([
+      "character_primary",
+      "character_supporting",
+      "character_background",
+      "scene_1",
     ]);
+    expect(result.referencePlan).toMatchObject({
+      strategy: "cast_identity_board",
+      omittedRequired: [],
+      slots: [
+        { order: 1, role: "cast_identity_board", covers: ["character_primary", "character_supporting", "character_background"] },
+        { order: 2, role: "scene_environment", covers: ["scene_1"] },
+      ],
+    });
+    expect(result.warnings).toEqual([
+      "candidate_references_packed:grok:cast_identity_board:3",
+      "candidate_cast_identity_board_visual_quality_unverified:3",
+    ]);
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {
+      images: Array<{ url: string }>;
+      prompt: string;
+    };
+    expect(body.images).toHaveLength(2);
+    expect(body.images[0]?.url).toMatch(/^data:image\/webp;base64,/);
+    expect(body.images[1]?.url).toBe(ONE_PIXEL_PNG_DATA_URI);
+    expect(body.prompt).toContain("is a cast identity board");
+    expect(body.prompt).toContain("Image 2 (scene_1) supplies scene identity only");
   });
 
-  it("Grok 只有一张引用时降级纯文生图以避免继承参考图比例", async () => {
+  it("Grok 只有一张引用时使用单图编辑且不再省略必需参考", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{ b64_json: Buffer.from("generated-image").toString("base64") }],
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -269,19 +312,24 @@ describe("ImageProviderService.generateCandidateImage", () => {
         assetId: "asset_character",
         kind: "character_identity",
         label: "酷拉皮卡",
-        buffer: Buffer.from("character"),
-        mimeType: "image/webp",
-        fileName: "kurapika.webp",
+        buffer: ONE_PIXEL_PNG,
+        mimeType: "image/png",
+        fileName: "kurapika.png",
+        sourceReferenceKind: "preview_front",
       }],
     });
 
-    expect(result.generationMode).toBe("image_generation");
-    expect(result.usedReferenceAssetIds).toEqual([]);
-    expect(result.warnings).toEqual([
-      "grok_single_reference_omitted_for_aspect_ratio",
-      "candidate_references_omitted:grok:asset_character",
-    ]);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.x.ai/v1/images/generations");
+    expect(result.generationMode).toBe("single_image_edit");
+    expect(result.usedReferenceAssetIds).toEqual(["asset_character"]);
+    expect(result.referencePlan.omittedRequired).toEqual([]);
+    expect(result.warnings).toEqual(["grok_single_reference_output_aspect_ratio_follows_input"]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.x.ai/v1/images/edits");
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {
+      image: { type: string; url: string };
+      prompt: string;
+    };
+    expect(body.image).toEqual({ type: "image_url", url: ONE_PIXEL_PNG_DATA_URI });
+    expect(body.prompt).toContain("Image 1 (酷拉皮卡) supplies character identity only");
   });
 
   it("Seedream 文生图与单图编辑都在请求层关闭水印", async () => {

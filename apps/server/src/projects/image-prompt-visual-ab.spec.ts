@@ -77,17 +77,19 @@ describe("image prompt visual A/B safety plan", () => {
     expect(shouldStopProviderAfterFailure("local write failed")).toBe(false);
   });
 
-  it("freezes Grok reference-capability exceptions separately from prompt quality", () => {
+  it("freezes Grok reference-plan limitations separately from prompt quality", () => {
     expect(VISUAL_AB_EVALUATION_POLICY.providerExceptions).toEqual(expect.arrayContaining([
       expect.objectContaining({
         caseId: "candidate-no-character-establishing",
-        requiredWarning: "grok_single_reference_omitted_for_aspect_ratio",
-        excludeFromCrossProviderChecks: ["environment"],
+        requiredWarning: "grok_single_reference_output_aspect_ratio_follows_input",
+        excludeFromCrossProviderChecks: ["requested_aspect_ratio"],
+        stillEvaluateChecks: ["environment", "clean_plate", "empty_scene"],
       }),
       expect.objectContaining({
         caseId: "candidate-group-staging",
-        requiredWarning: "grok_reference_limit:3",
-        excludeFromCrossProviderChecks: ["identity"],
+        requiredWarning: "candidate_references_packed:grok:cast_identity_board:4",
+        excludeFromCrossProviderChecks: [],
+        stillEvaluateChecks: ["identity", "environment", "clean_plate", "staging"],
       }),
     ]));
   });

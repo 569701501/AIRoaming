@@ -70,6 +70,33 @@ describe("候选图生成契约端到端", () => {
       buffer: ONE_PIXEL_PNG,
       generationMode: "multi_image_edit",
       usedReferenceAssetIds: [CHARACTER_PREVIEW_ASSET_ID, SCENE_ASSET_ID],
+      referencePlan: {
+        schemaVersion: 1,
+        compilerVersion: "candidate_reference_plan_v1",
+        providerType: "grok",
+        strategy: "direct",
+        inputReferenceAssetIds: [CHARACTER_PREVIEW_ASSET_ID, SCENE_ASSET_ID],
+        usedReferenceAssetIds: [CHARACTER_PREVIEW_ASSET_ID, SCENE_ASSET_ID],
+        slots: [
+          {
+            order: 1,
+            role: "direct_identity",
+            providerReferenceId: CHARACTER_PREVIEW_ASSET_ID,
+            label: "角色",
+            covers: [CHARACTER_PREVIEW_ASSET_ID],
+          },
+          {
+            order: 2,
+            role: "scene_environment",
+            providerReferenceId: SCENE_ASSET_ID,
+            label: "场景",
+            covers: [SCENE_ASSET_ID],
+          },
+        ],
+        omittedRequired: [],
+        compositionCoverage: "prompt_only",
+        warnings: [],
+      },
       warnings: [],
     });
 
@@ -111,6 +138,11 @@ describe("候选图生成契约端到端", () => {
       requestedSize: { width: 1024, height: 1536 },
       actualSize: { width: 1, height: 1 },
       referenceAssetIds: [CHARACTER_PREVIEW_ASSET_ID, SCENE_ASSET_ID],
+      referencePlan: {
+        strategy: "direct",
+        omittedRequired: [],
+        compositionCoverage: "prompt_only",
+      },
     });
 
     expect(task.output?.warnings).toContain("candidate_output_aspect_ratio_mismatch:1024x1536:1x1");

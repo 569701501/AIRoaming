@@ -30,6 +30,7 @@
     "referenceGuidance": {
       "heading": "REFERENCE ROLES",
       "character": "- Image {{INDEX}} ({{LABEL}}) supplies character identity only. Preserve face, facial features, hair silhouette, age, body proportions, costume construction, fixed colors, and recurring accessories. Pose, expression, camera angle, and crop may change for this shot. Ignore the reference background, labels, border, and contact-sheet layout.",
+      "castIdentityBoard": "- Image {{INDEX}} ({{LABEL}}) is a cast identity board. It supplies all listed character identities in left-to-right, top-to-bottom order. Keep every listed person distinct and show each exactly once with the correct face, hair, body proportions, costume, fixed colors, and recurring accessories. Use the cells only as identity samples; ignore their neutral background, spacing, crop, and board arrangement, and never reproduce a grid or contact sheet.",
       "scene": "- Image {{INDEX}} ({{LABEL}}) supplies scene identity only. Preserve landmarks, entrances/exits, depth relationships, materials, and key-light direction. Camera and crop may change for this shot. Do not copy people, text, borders, or layout from the reference.",
       "closing": "References do not override the requested subject count, actor-recipient relation, placement, or decisive moment in the main brief."
     },
@@ -90,6 +91,7 @@
     "referenceGuidance": {
       "heading": "参考图职责",
       "character": "- 图 {{INDEX}}（{{LABEL}}）：只提供这个角色的身份。必须保持脸型、五官、发型、年龄感、体型、服装结构、固定配色和关键配饰；允许按当前分镜改变姿势、表情、机位和裁切；忽略参考图白底、排版、标签、边框和其他无关内容。",
+      "castIdentityBoard": "- 图 {{INDEX}}（{{LABEL}}）：这是多人角色身份板，按从左到右、从上到下提供所列全部角色的身份。每个角色必须彼此区分且在成图中只出现一次，保持各自脸型、五官、发型、体型、服装、固定配色和关键配饰；身份板单元只用于认人，忽略其中性背景、间距、裁切和排列，不得复制成网格、联系表或拼贴。",
       "scene": "- 图 {{INDEX}}（{{LABEL}}）：只提供场景空间身份。必须保持地标、出入口、前后空间关系、材质和主光方向；允许按当前分镜改变机位和裁切；不要复制参考图中的人物、文字、边框或排版。",
       "closing": "参考图只提供指定身份或空间，不改变当前 Prompt 中的人物数量、动作主客体、站位和画面时刻。"
     },

@@ -17,7 +17,7 @@ describe("CandidateReferenceResolver", () => {
     }
   });
 
-  it("只按 spec 顺序读取镜头级引用并报告缺失文件", async () => {
+  it("只按 spec 顺序读取镜头级引用并标记单人预览与场景来源", async () => {
     root = await mkdtemp(path.join(tmpdir(), "airoaming-candidate-refs-"));
     process.env.AIROAMING_WORKSPACE_ROOT = root;
     const files = {
@@ -46,7 +46,6 @@ describe("CandidateReferenceResolver", () => {
       references: [
         { assetId: "asset_character", kind: "character_identity", entityId: "char_001", label: "酷拉皮卡", priority: 100 },
         { assetId: "asset_scene", kind: "scene_environment", entityId: "scene_001", label: "海边病房", priority: 90 },
-        { assetId: "asset_missing", kind: "character_identity", entityId: "char_404", label: "缺失角色", priority: 80 },
       ],
       warnings: [],
       digest: "digest_001",
@@ -58,13 +57,45 @@ describe("CandidateReferenceResolver", () => {
         { id: "asset_unrelated", path: files.unrelated },
         { id: "asset_character", path: files.character },
         { id: "asset_scene", path: files.scene },
-        { id: "asset_missing", path: "projects/project_001/missing.webp" },
       ],
     }, spec);
 
     expect(result.references.map((reference) => reference.assetId)).toEqual(["asset_character", "asset_scene"]);
     expect(result.references.map((reference) => reference.buffer.toString())).toEqual(["character", "scene"]);
     expect(result.references.map((reference) => reference.mimeType)).toEqual(["image/webp", "image/png"]);
-    expect(result.warnings).toEqual(["candidate_reference_unreadable:asset_missing"]);
+    expect(result.references.map((reference) => reference.sourceReferenceKind)).toEqual(["preview_front", "scene_background"]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("冻结的必需引用文件不可读时失败而不是静默降级", async () => {
+    root = await mkdtemp(path.join(tmpdir(), "airoaming-candidate-refs-"));
+    process.env.AIROAMING_WORKSPACE_ROOT = root;
+    const resolver = new CandidateReferenceResolver(new WorkspacePathService());
+    const spec = {
+      schemaVersion: 2,
+      sizePolicyVersion: "legacy_generation_default_v1",
+      purpose: "shot_clean_plate",
+      projectId: "project_001",
+      chapterId: "chapter_001",
+      shotId: "shot_015",
+      positivePrompt: "one clean illustration",
+      negativePrompt: "text",
+      sections: [],
+      systemConstraints: [],
+      requestedSize: { width: 1024, height: 1536 },
+      references: [{
+        assetId: "asset_missing",
+        kind: "character_identity",
+        entityId: "char_404",
+        label: "缺失角色",
+        priority: 80,
+      }],
+      warnings: [],
+      digest: "digest_missing",
+    } satisfies CandidateGenerationSpec;
+
+    await expect(resolver.resolve({
+      assets: [{ id: "asset_missing", path: "projects/project_001/missing.webp" }],
+    }, spec)).rejects.toThrow("CANDIDATE_REQUIRED_REFERENCE_UNREADABLE:asset_missing");
   });
 });

@@ -29,6 +29,11 @@ import { StoryboardVersionRepository } from "./versioning/storyboard-version.rep
 import { TaskApplicabilityGuardService } from "./versioning/task-applicability-guard.service.js";
 import { VersionTransactionRunner } from "./versioning/version-transaction-runner.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
+import {
+  parseCandidateReferencePlanEvidence,
+  type CandidateImageReferenceInput,
+  type CandidateReferencePlanEvidence,
+} from "./candidate-reference-plan.js";
 import { compileImagePromptForProvider } from "./image-prompt-profile.util.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { MaintenanceCoordinator } from "../maintenance/maintenance-coordinator.service.js";
@@ -78,6 +83,9 @@ interface ImageArtifact {
   readonly width: number;
   readonly height: number;
   readonly warnings?: readonly string[];
+  readonly referencePlan?: CandidateReferencePlanEvidence;
+  readonly generationMode?: "image_generation" | "single_image_edit" | "multi_image_edit";
+  readonly requestedSize?: { readonly width: number; readonly height: number };
 }
 
 interface NormalizedImageArtifact extends ImageArtifact {
@@ -118,6 +126,7 @@ interface CharacterReferenceTaskOutput {
   readonly sha256: `sha256:${string}`;
   readonly bytes: number;
   readonly warnings: readonly string[];
+  readonly sourceVisualId?: string;
 }
 interface SceneReferenceTaskOutput {
   readonly schemaVersion: 1;
@@ -392,19 +401,34 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
         const source = sourceProjection.sources.find((item) => item.sourceType === "character");
         const currentDigest = digestCanonicalJson({ id: character.id, name: character.name, role: character.role, level: character.level, entityType: character.entityType, appearance: character.appearance, personality: character.personality, promptFragment: character.promptFragment, rowVersion: character.rowVersion });
         const applicability = source?.sourceDigest === currentDigest ? "current" : "historical";
+        const sourceVisual = output.referenceKind === "final_reference" && output.sourceVisualId
+          ? await tx.characterVisual.findFirst({
+            where: { id: output.sourceVisualId, characterId: output.characterId },
+            include: { asset: { select: { status: true } } },
+          })
+          : null;
+        if (output.referenceKind === "final_reference" && output.sourceVisualId && (
+          !sourceVisual
+          || (sourceVisual.kind !== "preview_front" && sourceVisual.kind !== "single_front")
+          || sourceVisual.status !== "available"
+          || sourceVisual.asset.status !== "ready"
+        )) {
+          throw new Error("CHARACTER_FINAL_SOURCE_VISUAL_INVALID");
+        }
+        const finalSourceVisualId = sourceVisual?.id ?? null;
         const now = new Date();
-        const metadata = { schemaVersion: 1, taskId: claim.item.id, characterId: output.characterId, referenceKind: output.referenceKind, sourceDigest, generationSpecDigest: output.generationSpecDigest, warnings: output.warnings };
+        const metadata = { schemaVersion: 1, taskId: claim.item.id, characterId: output.characterId, referenceKind: output.referenceKind, sourceVisualId: finalSourceVisualId, sourceDigest, generationSpecDigest: output.generationSpecDigest, warnings: output.warnings };
         const assetId = randomUUID();
         const visualId = randomUUID();
         const version = await this.nextCharacterVisualVersion(output.characterId, tx) + 1;
         const storageKey = this.characterReferenceStorageKey(claim.item.projectId, output.characterId, output.referenceKind, version);
         await tx.asset.create({ data: { id: assetId, projectId: claim.item.projectId, chapterId: null, type: "image", role: "character_reference", mimeType: output.mimeType, storageKey, status: "staged", sha256: null, bytes: null, width: null, height: null, durationMs: null, sourceTaskId: claim.item.id, metadataJson: metadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(metadata), createdAt: now, updatedAt: now } });
         await tx.asset.update({ where: { id: assetId }, data: { status: "ready", sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, readyAt: now } });
-        await tx.characterVisual.create({ data: { id: visualId, characterId: output.characterId, assetId, kind: output.referenceKind, version, sourceVisualId: null, status: "available", createdAt: now, confirmedAt: output.referenceKind === "final_reference" ? now : null } });
+        await tx.characterVisual.create({ data: { id: visualId, characterId: output.characterId, assetId, kind: output.referenceKind, version, sourceVisualId: finalSourceVisualId, status: "available", createdAt: now, confirmedAt: output.referenceKind === "final_reference" ? now : null } });
         if (applicability === "current" && output.referenceKind === "preview_front") {
           await tx.character.update({ where: { id: output.characterId }, data: { previewVisualId: visualId, rowVersion: { increment: 1 } } });
         }
-        const finished = await this.tasks.finishInTransaction(tx, { taskId: claim.item.id, claimToken: claim.claimToken, outcome: "succeeded", output: { schemaVersion: 1, characterId: output.characterId, referenceKind: output.referenceKind, assetId, visualId, storageKey, sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, warnings: output.warnings }, applicability });
+        const finished = await this.tasks.finishInTransaction(tx, { taskId: claim.item.id, claimToken: claim.claimToken, outcome: "succeeded", output: { schemaVersion: 1, characterId: output.characterId, referenceKind: output.referenceKind, sourceVisualId: finalSourceVisualId, assetId, visualId, storageKey, sha256: output.sha256, bytes: output.bytes, width: output.width, height: output.height, warnings: output.warnings }, applicability });
         return { finished, storageKey };
       });
       if (result.storageKey !== relativePath) {
@@ -529,6 +553,9 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       sha256: `sha256:${createHash("sha256").update(buffer).digest("hex")}`,
       bytes: buffer.length,
       warnings,
+      ...(referenceKind === "final_reference" && typeof candidate.sourceVisualId === "string" && candidate.sourceVisualId.trim()
+        ? { sourceVisualId: candidate.sourceVisualId }
+        : {}),
     };
   }
 
@@ -576,12 +603,26 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       if (!mimeType) throw new TypeError(`providerOutput.candidates[${index}].buffer must be PNG, JPEG or WebP`);
       const dimensions = readImageDimensions(buffer) ?? { width: integer(requestedImage.width, "input.promptSpec.image.width"), height: integer(requestedImage.height, "input.promptSpec.image.height") };
       const sha256 = `sha256:${createHash("sha256").update(buffer).digest("hex")}` as `sha256:${string}`;
+      const referencePlan = value.referencePlan === undefined
+        ? undefined
+        : parseCandidateReferencePlanEvidence(value.referencePlan);
+      const generationMode = value.generationMode === "image_generation"
+        || value.generationMode === "single_image_edit"
+        || value.generationMode === "multi_image_edit"
+        ? value.generationMode
+        : undefined;
       return {
         index: itemIndex, buffer, mimeType, width: dimensions.width, height: dimensions.height,
         warnings: [
           ...(Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === "string") : []),
           ...(declaredMimeType === mimeType ? [] : [`candidate_output_mime_normalized:${declaredMimeType}:${mimeType}`]),
         ],
+        ...(referencePlan ? { referencePlan } : {}),
+        ...(generationMode ? { generationMode } : {}),
+        requestedSize: {
+          width: integer(requestedImage.width, "input.promptSpec.image.width"),
+          height: integer(requestedImage.height, "input.promptSpec.image.height"),
+        },
         candidateId: randomUUID(), assetId: randomUUID(), storageKey: `projects/${projectId}/chapters/${text(input.chapterId, "input.chapterId")}/shots/${targetId}/candidates/${randomUUID()}.${mimeType.includes("png") ? "png" : mimeType.includes("jpeg") ? "jpg" : "webp"}`,
         sha256, bytes: buffer.length,
       };
@@ -606,6 +647,11 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
         height: candidate.height,
         sha256: candidate.sha256,
         bytes: candidate.bytes,
+        warnings: candidate.warnings ?? [],
+        referencePlan: candidate.referencePlan ?? null,
+        generationMode: candidate.generationMode ?? null,
+        requestedSize: candidate.requestedSize ?? null,
+        actualSize: { width: candidate.width, height: candidate.height },
       })),
       warnings: output.warnings,
     };
@@ -643,12 +689,21 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const now = new Date();
     for (const candidate of output.candidates) {
       const metadata = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         taskId: claim.item.id,
         shotId: output.targetId,
         sourceDigest,
         generationSpecDigest: output.generationSpecDigest,
-        requestId: input.requestId ?? null,
+        requestId: typeof input.requestId === "string" ? input.requestId : null,
+        referenceAssetIds: candidate.referencePlan?.usedReferenceAssetIds ?? [],
+        referencePlan: candidate.referencePlan
+          ? JSON.parse(JSON.stringify(candidate.referencePlan)) as Prisma.InputJsonValue
+          : null,
+        warnings: [...(candidate.warnings ?? [])],
+        providerType: candidate.referencePlan?.providerType ?? null,
+        generationMode: candidate.generationMode ?? null,
+        requestedSize: candidate.requestedSize ?? null,
+        actualSize: { width: candidate.width, height: candidate.height },
       };
       const metadataDigest = digestCanonicalJson(metadata);
       await tx.asset.create({
@@ -667,7 +722,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
           height: null,
           sourceTaskId: claim.item.id,
           metadataJson: metadata,
-          metadataSchemaVersion: 1,
+          metadataSchemaVersion: 2,
           metadataDigest,
           createdAt: now,
           updatedAt: now,
@@ -785,7 +840,14 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     } else {
       buffer = await this.imageProvider.generateImage({ prompt, size, quality: input.quality === "low" || input.quality === "medium" || input.quality === "high" ? input.quality : "high", outputFormat: "webp" });
     }
-    return { buffer, mimeType: "image/webp", warnings: [] };
+    return {
+      buffer,
+      mimeType: "image/webp",
+      warnings: [],
+      ...(referenceKind === "final_reference" && character.previewVisual
+        ? { sourceVisualId: character.previewVisual.id }
+        : {}),
+    };
   }
 
   private async runSceneReferenceProvider(context: PersistentTaskHandlerContext): Promise<unknown> {
@@ -918,28 +980,41 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const height = integer(image.height, "input.promptSpec.image.height");
     const count = integer(input.candidateCount, "input.candidateCount");
     const size = `${width}x${height}`;
-    const references: Array<{ assetId: string; kind: "character_identity" | "scene_environment"; label: string; priority: number; buffer: Buffer; mimeType: string; fileName: string }> = [];
+    const references: CandidateImageReferenceInput[] = [];
     const referenceRows = Array.isArray(spec.referenceAssets) ? spec.referenceAssets : [];
     const assetIds = referenceRows.map((row) => object(row, "input.promptSpec.referenceAssets[]")).map((row) => text(row.assetId, "reference.assetId"));
     if (assetIds.length > 0) {
-      const assets = await this.prismaService.database().asset.findMany({ where: { id: { in: assetIds }, projectId: context.task.item.projectId, status: "ready" } });
+      const assets = await this.prismaService.database().asset.findMany({
+        where: { id: { in: assetIds }, projectId: context.task.item.projectId, status: "ready" },
+        include: { characterVisualByAsset: { select: { kind: true } } },
+      });
       for (const [index, row] of referenceRows.entries()) {
         const reference = object(row, `input.promptSpec.referenceAssets[${index}]`);
         const asset = assets.find((candidate) => candidate.id === reference.assetId);
-        if (!asset) continue;
+        if (!asset) {
+          throw new Error(`CANDIDATE_REQUIRED_REFERENCE_ASSET_MISSING:${text(reference.assetId, "reference.assetId")}`);
+        }
         try {
           references.push({
             assetId: asset.id,
             kind: reference.kind === "scene_environment" ? "scene_environment" : "character_identity",
             label: typeof reference.label === "string" ? reference.label : asset.id,
-            priority: 100 - index,
+            priority: typeof reference.priority === "number" && Number.isFinite(reference.priority)
+              ? reference.priority
+              : 100 - index,
             buffer: await readFile(this.workspacePath.resolveVirtualPath(`/workspace/${asset.storageKey}`)),
             mimeType: asset.mimeType,
             fileName: path.basename(asset.storageKey),
+            sourceReferenceKind: reference.kind === "scene_environment"
+              ? "scene_background"
+              : reference.sourceReferenceKind === "final_reference"
+                || asset.characterVisualByAsset?.kind === "final_reference"
+                || asset.characterVisualByAsset?.kind === "turnaround_4view"
+                ? "final_reference"
+                : "preview_front",
           });
         } catch {
-          // Missing files are not allowed to become a silent current source;
-          // the DB source projection still records the expected visual.
+          throw new Error(`CANDIDATE_REQUIRED_REFERENCE_UNREADABLE:${asset.id}`);
         }
       }
     }
@@ -963,7 +1038,17 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
         outputFormat: "webp",
       });
       const dimensions = readImageDimensions(result.buffer) ?? { width, height };
-      candidates.push({ index, buffer: result.buffer, mimeType: "image/webp", width: dimensions.width, height: dimensions.height, warnings: result.warnings });
+      candidates.push({
+        index,
+        buffer: result.buffer,
+        mimeType: "image/webp",
+        width: dimensions.width,
+        height: dimensions.height,
+        warnings: result.warnings,
+        referencePlan: result.referencePlan,
+        generationMode: result.generationMode,
+        requestedSize: { width, height },
+      });
     }
     return { schemaVersion: 2, targetId: text(input.shotId, "input.shotId"), generationSpecDigest: text(input.generationSpecDigest, "input.generationSpecDigest"), candidates, warnings: [] };
   }

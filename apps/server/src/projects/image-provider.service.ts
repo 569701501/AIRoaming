@@ -1,22 +1,21 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { ImageProviderType } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
+import {
+  compileCandidateReferencePlan,
+  type CandidateImageReferenceInput,
+  type CandidateProviderImageReferenceInput,
+  type CandidateReferencePlanEvidence,
+} from "./candidate-reference-plan.js";
 import { compileImageReferenceGuidanceForProvider } from "./image-prompt-profile.util.js";
 
-export interface CandidateImageReferenceInput {
-  assetId: string;
-  kind: "character_identity" | "scene_environment";
-  label: string;
-  priority?: number;
-  buffer: Buffer;
-  mimeType: string;
-  fileName: string;
-}
+export type { CandidateImageReferenceInput } from "./candidate-reference-plan.js";
 
 export interface CandidateImageProviderResult {
   buffer: Buffer;
   generationMode: "image_generation" | "single_image_edit" | "multi_image_edit";
   usedReferenceAssetIds: string[];
+  referencePlan: CandidateReferencePlanEvidence;
   warnings: string[];
 }
 
@@ -48,9 +47,13 @@ export class ImageProviderService {
     outputFormat?: "webp" | "png" | "jpeg";
   }): Promise<CandidateImageProviderResult> {
     const config = this.resolveProviderConfig();
+    const compiledReferences = await compileCandidateReferencePlan({
+      providerType: config.type,
+      references: input.references,
+    });
+    const references = compiledReferences.references;
     if (config.type === "grok") {
-      if (input.references.length >= 2) {
-        const references = this.selectGrokReferences(input.references);
+      if (references.length >= 2) {
         const buffer = await this.requestGrokMultiImageEdit({
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
@@ -63,19 +66,37 @@ export class ImageProviderService {
           size: input.size,
           references,
         });
-        const omitted = input.references.filter((reference) =>
-          !references.some((selected) => selected.assetId === reference.assetId),
-        );
         return {
           buffer,
           generationMode: "multi_image_edit",
-          usedReferenceAssetIds: references.map((reference) => reference.assetId),
-          warnings: omitted.length > 0
-            ? [
-              "grok_reference_limit:3",
-              `candidate_references_omitted:grok:${omitted.map((reference) => reference.assetId).join(",")}`,
-            ]
-            : [],
+          usedReferenceAssetIds: compiledReferences.evidence.usedReferenceAssetIds,
+          referencePlan: compiledReferences.evidence,
+          warnings: compiledReferences.warnings,
+        };
+      }
+
+      if (references.length === 1) {
+        const reference = references[0]!;
+        const buffer = await this.requestGrokImageEdit({
+          apiKey: config.apiKey,
+          baseUrl: config.baseUrl,
+          model: config.modelId,
+          prompt: compileImageReferenceGuidanceForProvider({
+            providerType: "grok",
+            prompt: input.prompt,
+            references,
+          }),
+          referenceImage: reference,
+        });
+        return {
+          buffer,
+          generationMode: "single_image_edit",
+          usedReferenceAssetIds: compiledReferences.evidence.usedReferenceAssetIds,
+          referencePlan: compiledReferences.evidence,
+          warnings: [
+            ...compiledReferences.warnings,
+            "grok_single_reference_output_aspect_ratio_follows_input",
+          ],
         };
       }
 
@@ -90,17 +111,12 @@ export class ImageProviderService {
         buffer,
         generationMode: "image_generation",
         usedReferenceAssetIds: [],
-        warnings: input.references.length === 1
-          ? [
-            "grok_single_reference_omitted_for_aspect_ratio",
-            `candidate_references_omitted:grok:${input.references[0]!.assetId}`,
-          ]
-          : [],
+        referencePlan: compiledReferences.evidence,
+        warnings: compiledReferences.warnings,
       };
     }
 
-    if (config.type === "openai" && input.references.length > 0) {
-      const references = this.selectReferencesByPriority(input.references, 16);
+    if (config.type === "openai" && references.length > 0) {
       const buffer = await this.requestOpenAiCandidateEdit({
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
@@ -118,13 +134,13 @@ export class ImageProviderService {
       return {
         buffer,
         generationMode: references.length > 1 ? "multi_image_edit" : "single_image_edit",
-        usedReferenceAssetIds: references.map((reference) => reference.assetId),
-        warnings: this.buildReferenceLimitWarnings("openai", 16, input.references, references),
+        usedReferenceAssetIds: compiledReferences.evidence.usedReferenceAssetIds,
+        referencePlan: compiledReferences.evidence,
+        warnings: compiledReferences.warnings,
       };
     }
 
-    if (config.type === "doubao" && input.references.length > 0) {
-      const references = this.selectReferencesByPriority(input.references, 10);
+    if (config.type === "doubao" && references.length > 0) {
       const buffer = await this.requestDoubaoCandidateEdit({
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
@@ -140,8 +156,9 @@ export class ImageProviderService {
       return {
         buffer,
         generationMode: references.length > 1 ? "multi_image_edit" : "single_image_edit",
-        usedReferenceAssetIds: references.map((reference) => reference.assetId),
-        warnings: this.buildReferenceLimitWarnings("doubao", 10, input.references, references),
+        usedReferenceAssetIds: compiledReferences.evidence.usedReferenceAssetIds,
+        referencePlan: compiledReferences.evidence,
+        warnings: compiledReferences.warnings,
       };
     }
 
@@ -154,7 +171,8 @@ export class ImageProviderService {
       }),
       generationMode: "image_generation",
       usedReferenceAssetIds: [],
-      warnings: input.references.length > 0 ? [`${config.type}_candidate_references_not_enabled`] : [],
+      referencePlan: compiledReferences.evidence,
+      warnings: compiledReferences.warnings,
     };
   }
 
@@ -332,7 +350,7 @@ export class ImageProviderService {
     model: string;
     prompt: string;
     size: string;
-    references: CandidateImageReferenceInput[];
+    references: CandidateProviderImageReferenceInput[];
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/edits`;
     const response = await this.fetchWithTimeout(url, {
@@ -442,7 +460,7 @@ export class ImageProviderService {
     size: string;
     quality: "auto" | "low" | "medium" | "high";
     outputFormat: "webp" | "png" | "jpeg";
-    references: CandidateImageReferenceInput[];
+    references: CandidateProviderImageReferenceInput[];
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/edits`;
     const form = new FormData();
@@ -543,7 +561,7 @@ export class ImageProviderService {
     model: string;
     prompt: string;
     size: string;
-    references: CandidateImageReferenceInput[];
+    references: CandidateProviderImageReferenceInput[];
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
     const images = input.references.map((reference) =>
@@ -631,55 +649,6 @@ export class ImageProviderService {
       const currentDistance = Math.abs(Math.log(targetRatio / current[1]));
       return currentDistance < bestDistance ? current : best;
     })[0];
-  }
-
-  private selectGrokReferences(references: CandidateImageReferenceInput[]): CandidateImageReferenceInput[] {
-    if (references.length <= 3) {
-      return references;
-    }
-    const byPriority = (left: CandidateImageReferenceInput, right: CandidateImageReferenceInput) =>
-      (right.priority ?? 0) - (left.priority ?? 0);
-    const scene = references
-      .filter((reference) => reference.kind === "scene_environment")
-      .sort(byPriority)[0];
-    if (!scene) {
-      return [...references].sort(byPriority).slice(0, 3);
-    }
-    const characters = references
-      .filter((reference) => reference.kind === "character_identity")
-      .sort(byPriority)
-      .slice(0, 2);
-    return [...characters, scene].slice(0, 3);
-  }
-
-  private selectReferencesByPriority(
-    references: CandidateImageReferenceInput[],
-    limit: number,
-  ): CandidateImageReferenceInput[] {
-    if (references.length <= limit) {
-      return references;
-    }
-    return [...references]
-      .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0))
-      .slice(0, limit);
-  }
-
-  private buildReferenceLimitWarnings(
-    provider: "openai" | "doubao",
-    limit: number,
-    requested: CandidateImageReferenceInput[],
-    selected: CandidateImageReferenceInput[],
-  ): string[] {
-    const omitted = requested.filter((reference) =>
-      !selected.some((item) => item.assetId === reference.assetId),
-    );
-    if (omitted.length === 0) {
-      return [];
-    }
-    return [
-      `${provider}_reference_limit:${limit}`,
-      `candidate_references_omitted:${provider}:${omitted.map((reference) => reference.assetId).join(",")}`,
-    ];
   }
 
   /** fetch 带超时(默认 300 秒,适配出图长耗时)。 */

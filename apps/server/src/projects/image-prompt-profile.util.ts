@@ -34,7 +34,7 @@ export interface CompileImageReferenceGuidanceInput {
   providerType: ImageProviderType;
   prompt: string;
   references: ReadonlyArray<{
-    kind: "character_identity" | "scene_environment";
+    kind: "character_identity" | "cast_identity_board" | "scene_environment";
     label: string;
   }>;
 }
@@ -61,6 +61,7 @@ interface ProviderProfileConfig {
   referenceGuidance?: {
     heading: string;
     character: string;
+    castIdentityBoard: string;
     scene: string;
     closing: string;
   };
@@ -141,10 +142,14 @@ export function compileImageReferenceGuidanceForProvider(
       `IMAGE_PROVIDER_REFERENCE_GUIDANCE_MISSING:${profile.referenceGuidanceSource ?? input.providerType}`,
     );
   }
-  const rows = input.references.map((reference, index) => renderOpenCodePromptTemplate(
-    reference.kind === "character_identity" ? guidance.character : guidance.scene,
-    { INDEX: index + 1, LABEL: reference.label },
-  ));
+  const rows = input.references.map((reference, index) => {
+    const template = reference.kind === "character_identity"
+      ? guidance.character
+      : reference.kind === "cast_identity_board"
+        ? guidance.castIdentityBoard
+        : guidance.scene;
+    return renderOpenCodePromptTemplate(template, { INDEX: index + 1, LABEL: reference.label });
+  });
   return [prompt, "", guidance.heading, ...rows, guidance.closing].join("\n");
 }
 

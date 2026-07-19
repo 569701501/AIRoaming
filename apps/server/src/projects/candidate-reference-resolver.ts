@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import type { CandidateGenerationSpec } from "@airoaming/shared";
@@ -25,8 +25,7 @@ export class CandidateReferenceResolver {
     for (const requested of spec.references) {
       const asset = assetsById.get(requested.assetId);
       if (!asset?.path) {
-        warnings.push(`candidate_reference_asset_missing:${requested.assetId}`);
-        continue;
+        throw new BadRequestException(`CANDIDATE_REQUIRED_REFERENCE_ASSET_MISSING:${requested.assetId}`);
       }
       try {
         const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${asset.path}`);
@@ -38,9 +37,10 @@ export class CandidateReferenceResolver {
           buffer: await readFile(absolutePath),
           mimeType: this.getMimeType(absolutePath),
           fileName: path.basename(absolutePath),
+          sourceReferenceKind: requested.kind === "character_identity" ? "preview_front" : "scene_background",
         });
       } catch {
-        warnings.push(`candidate_reference_unreadable:${requested.assetId}`);
+        throw new BadRequestException(`CANDIDATE_REQUIRED_REFERENCE_UNREADABLE:${requested.assetId}`);
       }
     }
 

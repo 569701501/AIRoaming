@@ -44,6 +44,17 @@ function targetChapter(input: CreateGenerationTaskRequest): string {
 
 function digest(value: string): Digest { return value as Digest; }
 
+function validDigest(value: string | null | undefined): value is Digest {
+  return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value);
+}
+
+type TaskSourceInput = { role: string; sourceType: string; sourceId: string; sourceDigest: Digest };
+
+interface CandidatePromptSpecBuildResult {
+  promptSpec: Record<string, unknown>;
+  additionalSources: TaskSourceInput[];
+}
+
 /**
  * DB-mode task creation is deliberately server-owned.  The caller may request
  * a target and an instruction, but it cannot supply a stale source projection
@@ -124,8 +135,20 @@ export class PersistentG2TaskCreateGuardService {
     }
     const shotDocument = storyboard.shots.find((item) => item.id === shotId);
     if (!shotDocument) throw createG2DatabaseError(409, "VERSION_SCOPE_MISMATCH");
-    const sourceProjection = this.buildShotProjection(scope, operation, shotId, board.id, board.documentDigest, projection.semanticDigest, preflight, preflightDocument, shotDocument);
-    const promptSpec = await this.buildPromptSpec(scope, shotDocument, preflightDocument, story);
+    const promptBuild = await this.buildPromptSpec(scope, shotDocument, preflightDocument, story);
+    const sourceProjection = this.buildShotProjection(
+      scope,
+      operation,
+      shotId,
+      board.id,
+      board.documentDigest,
+      projection.semanticDigest,
+      preflight,
+      preflightDocument,
+      shotDocument,
+      promptBuild.additionalSources,
+    );
+    const promptSpec = promptBuild.promptSpec;
     const generationSpecDigest = digestCanonicalJson(promptSpec);
     const requestId = operation === "image_generate"
       ? text(input.input?.requestId ?? input.input?.idempotencyKey, "requestId")
@@ -160,8 +183,9 @@ export class PersistentG2TaskCreateGuardService {
     preflight: { id: string; sourceDigest: string },
     document: ReturnType<typeof PreflightDocumentCodecV2.parse>,
     shot: ReturnType<typeof StoryboardDocumentCodecV2.parse>["shots"][number],
+    additionalSources: readonly TaskSourceInput[] = [],
   ): TaskSourceProjectionV1 {
-    const sources: Array<{ role: string; sourceType: string; sourceId: string; sourceDigest: Digest }> = [
+    const sources: TaskSourceInput[] = [
       { role: "storyboard", sourceType: "storyboard_version", sourceId: storyboardId, sourceDigest: digest(storyboardDigest) },
       { role: "shot", sourceType: "shot", sourceId: shotId, sourceDigest: digest(shotDigest) },
       { role: "preflight", sourceType: "preflight_revision", sourceId: preflight.id, sourceDigest: digest(preflight.sourceDigest) },
@@ -172,6 +196,7 @@ export class PersistentG2TaskCreateGuardService {
     for (const scene of document.sourceSnapshot.scenes) {
       if (scene.sceneKey === shot.sceneId && scene.visualId && scene.assetSha256) sources.push({ role: "scene_visual", sourceType: "scene_visual", sourceId: scene.visualId, sourceDigest: scene.assetSha256 });
     }
+    sources.push(...additionalSources);
     return buildTaskSourceProjection({ policyVersion: "g2-task-source-v1", projectId: scope.projectId, chapterId: scope.chapterId, consumerType: operation, sources });
   }
 
@@ -180,18 +205,53 @@ export class PersistentG2TaskCreateGuardService {
     shot: ReturnType<typeof StoryboardDocumentCodecV2.parse>["shots"][number],
     document: ReturnType<typeof PreflightDocumentCodecV2.parse>,
     story: ReturnType<typeof StoryDocumentCodecV2.parse>,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<CandidatePromptSpecBuildResult> {
     const database = this.prismaService.database();
     const projectCharacterIds = [...new Set(shot.characterIds.flatMap((token) => {
       const storyCharacter = story.characters.find((character) => character.id === token || character.projectCharacterId === token);
       return storyCharacter?.projectCharacterId ? [token, storyCharacter.projectCharacterId] : [token];
     }))];
-    const projectCharacters = projectCharacterIds.length > 0
-      ? await database.character.findMany({ where: { projectId: scope.projectId, id: { in: projectCharacterIds } } })
-      : [];
+    const frozenCharacterVisualIds = document.sourceSnapshot.characters
+      .map((character) => character.visualId)
+      .filter((visualId): visualId is string => Boolean(visualId));
+    const [projectCharacters, frozenCharacterVisuals] = await Promise.all([
+      projectCharacterIds.length > 0
+        ? database.character.findMany({
+          where: { projectId: scope.projectId, id: { in: projectCharacterIds } },
+        })
+        : Promise.resolve([]),
+      frozenCharacterVisualIds.length > 0
+        ? database.characterVisual.findMany({
+          where: {
+            OR: [
+              { id: { in: frozenCharacterVisualIds } },
+              {
+                characterId: { in: projectCharacterIds },
+                kind: { in: ["preview_front", "single_front"] },
+                status: "available",
+              },
+            ],
+          },
+          include: {
+            asset: { select: { id: true, status: true, sha256: true } },
+            sourceVisual: {
+              include: {
+                asset: { select: { id: true, status: true, sha256: true } },
+              },
+            },
+          },
+        })
+        : Promise.resolve([]),
+    ]);
+    const projectCharacterForToken = (token: string) => {
+      const storyCharacter = story.characters.find((character) => character.id === token || character.projectCharacterId === token);
+      return projectCharacters.find((character) =>
+        character.id === token || character.id === storyCharacter?.projectCharacterId,
+      );
+    };
     const characters = shot.characterIds.map((token) => {
       const storyCharacter = story.characters.find((character) => character.id === token || character.projectCharacterId === token);
-      const projectCharacter = projectCharacters.find((character) => character.id === token || character.id === storyCharacter?.projectCharacterId);
+      const projectCharacter = projectCharacterForToken(token);
       return {
         id: projectCharacter?.id ?? storyCharacter?.projectCharacterId ?? storyCharacter?.id ?? token,
         name: projectCharacter?.name ?? storyCharacter?.name ?? token,
@@ -222,36 +282,124 @@ export class PersistentG2TaskCreateGuardService {
       sections: content.sections,
       systemConstraints: content.systemConstraints,
     });
+    const additionalSources: TaskSourceInput[] = [];
+    const additionalSourceIds = new Set<string>();
     const referenceAssets = [
-      ...document.sourceSnapshot.characters
-        .filter((character) => shot.characterIds.includes(character.characterId) && character.assetId)
-        .map((character) => ({ assetId: character.assetId!, kind: "character_identity", label: character.characterId })),
+      ...shot.characterIds.flatMap((token, index) => {
+        const character = characters[index];
+        const projectCharacter = projectCharacterForToken(token);
+        const source = document.sourceSnapshot.characters.find((candidate) =>
+          candidate.characterId === token || candidate.characterId === character?.id,
+        );
+        if (!source?.assetId) return [];
+        const visual = frozenCharacterVisuals.find((candidate) => candidate.id === source.visualId);
+        if (!visual) {
+          throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED", {
+            reasonCodes: ["CHARACTER_VISUAL_SOURCE_MISSING"],
+            characterId: character?.id ?? token,
+          });
+        }
+        const identityCharacterId = character?.id ?? token;
+        if (visual.characterId !== identityCharacterId) {
+          throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED", {
+            reasonCodes: ["CHARACTER_VISUAL_SOURCE_MISMATCH"],
+            characterId: identityCharacterId,
+          });
+        }
+        const finalReference = visual.kind === "final_reference" || visual.kind === "turnaround_4view";
+        const lineagePreview = finalReference && visual.sourceVisualId
+          ? visual.sourceVisual
+          : null;
+        if (finalReference && visual.sourceVisualId && (
+          !lineagePreview
+          || lineagePreview.characterId !== identityCharacterId
+          || (lineagePreview.kind !== "preview_front" && lineagePreview.kind !== "single_front")
+          || lineagePreview.asset.status !== "ready"
+          || !validDigest(lineagePreview.asset.sha256)
+        )) {
+          throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED", {
+            reasonCodes: ["CHARACTER_IDENTITY_LINEAGE_INVALID"],
+            characterId: identityCharacterId,
+          });
+        }
+        const legacyPreviewCandidates = finalReference && !visual.sourceVisualId
+          ? frozenCharacterVisuals.filter((candidate) =>
+            candidate.characterId === identityCharacterId
+            && (candidate.kind === "preview_front" || candidate.kind === "single_front")
+            && candidate.status === "available"
+            && candidate.version < visual.version
+            && candidate.asset.status === "ready"
+            && validDigest(candidate.asset.sha256),
+          )
+          : [];
+        if (legacyPreviewCandidates.length > 1) {
+          throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED", {
+            reasonCodes: ["CHARACTER_IDENTITY_LINEAGE_AMBIGUOUS"],
+            characterId: identityCharacterId,
+          });
+        }
+        const readyPreview = lineagePreview ?? legacyPreviewCandidates[0] ?? null;
+        if (finalReference && !readyPreview) {
+          throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED", {
+            reasonCodes: ["CHARACTER_IDENTITY_ANCHOR_MISSING"],
+            characterId: identityCharacterId,
+          });
+        }
+        const identityAssetId = finalReference ? readyPreview!.asset.id : source.assetId;
+        if (finalReference
+          && readyPreview!.id !== source.visualId
+          && !additionalSourceIds.has(readyPreview!.id)) {
+          additionalSourceIds.add(readyPreview!.id);
+          additionalSources.push({
+            role: "character_identity_visual",
+            sourceType: "character_visual",
+            sourceId: readyPreview!.id,
+            sourceDigest: readyPreview!.asset.sha256 as Digest,
+          });
+        }
+        return [{
+          assetId: identityAssetId,
+          kind: "character_identity",
+          label: character?.name ?? token,
+          priority: index === 0 ? 100 : Math.max(1, 81 - index),
+          sourceReferenceKind: "preview_front",
+        }];
+      }),
       ...document.sourceSnapshot.scenes
         .filter((scene) => scene.sceneKey === shot.sceneId && scene.assetId)
-        .map((scene) => ({ assetId: scene.assetId!, kind: "scene_environment", label: scene.sceneKey })),
+        .map((scene) => ({
+          assetId: scene.assetId!,
+          kind: "scene_environment",
+          label: storyScene?.name ?? scene.sceneKey,
+          priority: 90,
+          sourceReferenceKind: "scene_background",
+        })),
     ];
     const image = document.styleCheck.comicFormat === "paged_comic"
       ? { width: 1536, height: 1024 }
       : { width: 1024, height: 1536 };
     return {
-      schemaVersion: 2,
-      sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
-      projectId: scope.projectId,
-      chapterId: scope.chapterId,
-      shotId: shot.id,
-      positivePrompt: content.positivePrompt,
-      negativePrompt: content.negativePrompt,
-      providerType: compiled.providerType,
-      providerProfileId: compiled.profileId,
-      providerPrompt: compiled.prompt,
-      negativePromptDelivery: compiled.negativePromptDelivery,
-      sections: content.sections,
-      systemConstraints: content.systemConstraints,
-      image: {
-        ...image,
+      promptSpec: {
+        schemaVersion: 2,
         sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
+        projectId: scope.projectId,
+        chapterId: scope.chapterId,
+        shotId: shot.id,
+        positivePrompt: content.positivePrompt,
+        negativePrompt: content.negativePrompt,
+        providerType: compiled.providerType,
+        providerProfileId: compiled.profileId,
+        providerPrompt: compiled.prompt,
+        negativePromptDelivery: compiled.negativePromptDelivery,
+        sections: content.sections,
+        systemConstraints: content.systemConstraints,
+        image: {
+          ...image,
+          sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
+        },
+        referenceAssets,
       },
-      referenceAssets,
+      additionalSources,
     };
   }
 }

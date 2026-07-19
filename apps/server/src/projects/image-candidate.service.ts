@@ -186,6 +186,7 @@ export class ImageCandidateService {
             requestedProviderSize: size,
             actualSize,
             referenceAssetIds: providerResult.usedReferenceAssetIds,
+            referencePlan: providerResult.referencePlan,
             referenceWarnings: [...generationWarnings, ...providerResult.warnings],
             warnings: [...candidateWarnings],
             createdAt: now,
@@ -219,6 +220,7 @@ export class ImageCandidateService {
           requestedSize: generationSpec.requestedSize,
           actualSize,
           referenceAssetIds: providerResult.usedReferenceAssetIds,
+          referencePlan: providerResult.referencePlan,
         });
 
         const chapterCandidates = [...(nextChapter.candidates ?? []), candidate];

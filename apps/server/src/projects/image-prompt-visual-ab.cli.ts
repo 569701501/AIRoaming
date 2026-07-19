@@ -206,6 +206,7 @@ async function loadReferences(
       buffer: await readFile(filePath),
       mimeType: item.mimeType,
       fileName: path.basename(filePath),
+      sourceReferenceKind: reference.kind === "character_identity" ? "preview_front" : "scene_background",
     };
   }));
 }
