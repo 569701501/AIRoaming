@@ -620,8 +620,15 @@ export class ProjectsController {
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
     @Param("shotId") shotId: string,
+    @Query("visualDescription") visualDescription?: string,
+    @Query("action") action?: string,
+    @Query("composition") composition?: string,
   ) {
-    return ok(await this.projectsService.getCandidateGenerationPreview(projectId, chapterId, shotId));
+    return ok(await this.projectsService.getCandidateGenerationPreview(projectId, chapterId, shotId, {
+      ...(visualDescription?.trim() ? { visualDescription: visualDescription.trim() } : {}),
+      ...(action?.trim() ? { action: action.trim() } : {}),
+      ...(composition?.trim() ? { composition: composition.trim() } : {}),
+    }));
   }
 
   @Post(":projectId/chapters/:chapterId/images/complete")

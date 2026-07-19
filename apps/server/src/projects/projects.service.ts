@@ -56,6 +56,7 @@ import {
   type CompleteChapterResponse,
   type CompleteChapterImagesResponse,
   type CandidateGenerationPreviewResponse,
+  type CandidatePromptOverrides,
   type CreateGenerationTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectResponse,
@@ -141,6 +142,7 @@ import {
   createCandidateGenerationSpec,
   createCandidateGenerationTaskInput,
 } from "./candidate-generation-spec.js";
+import { hasBlockingCandidateVisualIssues } from "./candidate-visual-quality.util.js";
 
 const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
@@ -703,15 +705,22 @@ export class ProjectsService implements OnModuleInit {
       if (!shot) {
         throw new BadRequestException("GENERATION_TASK_SHOT_NOT_IN_CONFIRMED_STORYBOARD");
       }
-      const visualDescriptionOverride = typeof input.input?.visualDescriptionOverride === "string"
-        ? input.input.visualDescriptionOverride
-        : null;
+      const promptOverrides = this.getCandidatePromptOverrides(
+        input.input?.promptOverrides,
+        input.input?.visualDescriptionOverride,
+      );
       const spec = createCandidateGenerationSpec({
         project,
         chapter,
         shot,
-        visualDescriptionOverride,
+        promptOverrides,
       });
+      if (hasBlockingCandidateVisualIssues(spec.visualIssues ?? [])) {
+        throw new BadRequestException({
+          code: "CANDIDATE_VISUAL_DESCRIPTION_BLOCKED",
+          issues: spec.visualIssues?.filter((issue) => issue.severity === "blocking") ?? [],
+        });
+      }
 
       return {
         ...input,
@@ -775,6 +784,7 @@ export class ProjectsService implements OnModuleInit {
     projectId: string,
     chapterId: string,
     shotId: string,
+    promptOverrides?: CandidatePromptOverrides,
   ): Promise<CandidateGenerationPreviewResponse> {
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
@@ -783,8 +793,40 @@ export class ProjectsService implements OnModuleInit {
       throw new BadRequestException("GENERATION_TASK_SHOT_NOT_IN_CONFIRMED_STORYBOARD");
     }
     return {
-      spec: createCandidateGenerationSpec({ project, chapter, shot }),
+      spec: createCandidateGenerationSpec({
+        project,
+        chapter,
+        shot,
+        promptOverrides: this.getCandidatePromptOverrides(promptOverrides),
+      }),
     };
+  }
+
+  private getCandidatePromptOverrides(value: unknown, legacyVisualDescription?: unknown): CandidatePromptOverrides {
+    const result: CandidatePromptOverrides = {};
+    if (value !== undefined && value !== null) {
+      if (typeof value !== "object" || Array.isArray(value)) throw new BadRequestException("CANDIDATE_PROMPT_OVERRIDES_INVALID");
+      const row = value as Record<string, unknown>;
+      const allowed = ["visualDescription", "action", "composition"] as const;
+      if (Object.keys(row).some((key) => !allowed.includes(key as typeof allowed[number]))) {
+        throw new BadRequestException("CANDIDATE_PROMPT_OVERRIDES_INVALID");
+      }
+      for (const key of allowed) {
+        const raw = row[key];
+        if (raw === undefined || raw === null) continue;
+        if (typeof raw !== "string" || !raw.trim() || raw.trim().length > 1_200) {
+          throw new BadRequestException(`CANDIDATE_PROMPT_OVERRIDE_INVALID:${key}`);
+        }
+        result[key] = raw.trim();
+      }
+    }
+    if (!result.visualDescription && legacyVisualDescription !== undefined && legacyVisualDescription !== null) {
+      if (typeof legacyVisualDescription !== "string" || !legacyVisualDescription.trim() || legacyVisualDescription.trim().length > 1_200) {
+        throw new BadRequestException("CANDIDATE_PROMPT_OVERRIDE_INVALID:visualDescription");
+      }
+      result.visualDescription = legacyVisualDescription.trim();
+    }
+    return result;
   }
 
   async savePendingChapterStoryboard(projectId: string,

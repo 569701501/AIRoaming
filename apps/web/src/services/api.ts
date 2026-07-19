@@ -26,6 +26,7 @@ import type {
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
   CandidateGenerationPreviewResponse,
+  CandidatePromptOverrides,
   CandidateLockCommitResponse,
   CandidateLockHistoryPage,
   CandidateLockImpactPreviewResponse,
@@ -657,9 +658,21 @@ export const api = {
       method: "POST",
     },
   ),
-  candidateGenerationPreview: (projectId: string, chapterId: string, shotId: string) => request<CandidateGenerationPreviewResponse>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-generation-preview`,
-  ),
+  candidateGenerationPreview: (
+    projectId: string,
+    chapterId: string,
+    shotId: string,
+    promptOverrides?: CandidatePromptOverrides,
+  ) => {
+    const query = new URLSearchParams();
+    if (promptOverrides?.visualDescription?.trim()) query.set("visualDescription", promptOverrides.visualDescription.trim());
+    if (promptOverrides?.action?.trim()) query.set("action", promptOverrides.action.trim());
+    if (promptOverrides?.composition?.trim()) query.set("composition", promptOverrides.composition.trim());
+    const suffix = query.size > 0 ? `?${query.toString()}` : "";
+    return request<CandidateGenerationPreviewResponse>(
+      `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/shots/${encodeURIComponent(shotId)}/candidate-generation-preview${suffix}`,
+    );
+  },
   getLayoutWorkingCopy: (projectId: string, chapterId: string) => request<LayoutWorkingCopyResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
   ),

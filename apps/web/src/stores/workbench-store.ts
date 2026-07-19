@@ -6,6 +6,7 @@ import {
   type ChapterImagePreflight,
   type ChapterListItem,
   type ChapterStoryboard,
+  type CandidatePromptOverrides,
   type CompleteChapterResponse,
   type CompleteChapterRequest,
   type GenerateCharacterReferenceRequest,
@@ -1032,7 +1033,11 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async generateImageCandidates(shotId: string, candidateCount: number): Promise<GenerationTaskItem | null> {
+    async generateImageCandidates(
+      shotId: string,
+      candidateCount: number,
+      promptOverrides?: CandidatePromptOverrides,
+    ): Promise<GenerationTaskItem | null> {
       this.loading = true;
       this.error = null;
       try {
@@ -1066,6 +1071,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             shotId: shot.id,
             requestId: crypto.randomUUID(),
             candidateCount,
+            ...(promptOverrides ? { promptOverrides } : {}),
           },
           options: {
             candidateCount,
@@ -1083,9 +1089,48 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
+    async optimizeShotPrompt(
+      shotId: string,
+      promptOverrides: CandidatePromptOverrides,
+    ): Promise<GenerationTaskItem | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        const snapshot = this.snapshot;
+        if (!projectId || !snapshot) throw new Error("请先进入项目");
+        const chapterId = getCurrentChapterId(snapshot);
+        if (!chapterId) throw new Error("请先打开一个章节");
+        const shot = snapshot.shots.find((item) => item.id === shotId);
+        if (!shot) throw new Error("未找到当前镜头");
+        const result = await api.createTask({
+          projectId,
+          type: "shot_prompt_generate",
+          target: { type: "shot", id: shot.id, chapterId },
+          input: {
+            chapterId,
+            shotId: shot.id,
+            promptOverrides,
+            instruction: "把当前画面、动作和构图整理成一个清楚、自然、可直接入画的决定性瞬间。",
+          },
+          options: { provider: "default" },
+        });
+        this.mergeTasks([result.task]);
+        this.dialogueNotice = `已为镜头 ${shot.order} 创建画面描述优化任务；完成后由你决定是否采用。`;
+        return result.task;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "画面描述优化任务创建失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
     /** 批量生成本章所有未锁定镜头的候选图(每镜默认1张,已锁跳过)。
      *  复用现有 createTask + 后端串行队列,无需新后端 API。 */
-    async generateAllUnlockedShots(candidateCount = 1): Promise<number> {
+    async generateAllUnlockedShots(
+      candidateCount = 1,
+      promptOverridesByShot: Record<string, CandidatePromptOverrides> = {},
+    ): Promise<number> {
       this.loading = true;
       this.error = null;
       try {
@@ -1103,6 +1148,34 @@ export const useWorkbenchStore = defineStore("workbench", {
           this.dialogueNotice = "本章镜头已全部锁定,无需批量生成。";
           return 0;
         }
+
+        const incompleteShot = unlocked.find((shot) => {
+          const overrides = promptOverridesByShot[shot.id];
+          return !overrides?.visualDescription?.trim()
+            || !overrides.action?.trim()
+            || !overrides.composition?.trim();
+        });
+        if (incompleteShot) {
+          throw new Error(`镜头 ${incompleteShot.order} 的画面、动作或构图还没填写完整`);
+        }
+
+        const previews = await Promise.all(unlocked.map(async (shot) => ({
+          shot,
+          preview: await api.candidateGenerationPreview(
+            projectId,
+            chapterId,
+            shot.id,
+            promptOverridesByShot[shot.id],
+          ),
+        })));
+        const blockedPreview = previews.find(({ preview }) =>
+          preview.spec.visualIssues?.some((issue) => issue.severity === "blocking"),
+        );
+        if (blockedPreview) {
+          const issue = blockedPreview.preview.spec.visualIssues?.find((item) => item.severity === "blocking");
+          throw new Error(`镜头 ${blockedPreview.shot.order} 暂不能生成：${issue?.message ?? "请先修改画面描述"}`);
+        }
+
         let created = 0;
         for (const shot of unlocked) {
           const result = await api.createTask({
@@ -1114,6 +1187,9 @@ export const useWorkbenchStore = defineStore("workbench", {
               shotId: shot.id,
               requestId: crypto.randomUUID(),
               candidateCount,
+              ...(promptOverridesByShot[shot.id]
+                ? { promptOverrides: promptOverridesByShot[shot.id] }
+                : {}),
             },
             options: { candidateCount, provider: "default" },
           });

@@ -120,7 +120,8 @@
         :tasks="tasks"
         @select-chapter="$emit('selectChapter', $event)"
         @generate-candidates="$emit('generateImageCandidates', $event)"
-        @generate-all-unlocked="$emit('generateAllUnlocked')"
+        @optimize-prompt="$emit('optimizeShotPrompt', $event)"
+        @generate-all-unlocked="$emit('generateAllUnlocked', $event)"
         @candidate-changed="$emit('candidateChanged')"
         @complete-images="$emit('completeImages')"
         @go-preflight="$emit('selectStep', 'image_preflight')"
@@ -154,7 +155,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { AIRuntimeModelItem, AIRuntimeModelSelection, CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -216,8 +217,9 @@ const emit = defineEmits<{
   updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   confirmImagePreflight: [chapterId: string];
-  generateImageCandidates: [payload: { shotId: string; candidateCount: number }];
-  generateAllUnlocked: [];
+  generateImageCandidates: [payload: { shotId: string; candidateCount: number; promptOverrides: CandidatePromptOverrides }];
+  optimizeShotPrompt: [payload: { shotId: string; promptOverrides: CandidatePromptOverrides }];
+  generateAllUnlocked: [payload: { promptOverridesByShot: Record<string, CandidatePromptOverrides> }];
   candidateChanged: [];
   completeImages: [];
   exportPackage: [];

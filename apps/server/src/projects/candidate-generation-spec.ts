@@ -4,9 +4,11 @@ import {
   LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type CandidateGenerationReference,
   type CandidateGenerationSpec,
+  type CandidatePromptOverrides,
   type CandidatePromptSection,
   type ArtStyle,
   type ComicFormat,
+  type ProjectCharacterEntityType,
   type StoryboardShot,
 } from "@airoaming/shared";
 import {
@@ -14,6 +16,10 @@ import {
   readOpenCodeSkillReference,
   renderOpenCodePromptTemplate,
 } from "../ai-runtime/opencode-skill-asset.util.js";
+import {
+  extractCollectiveCountHint,
+  findCandidateVisualIssues,
+} from "./candidate-visual-quality.util.js";
 
 export const CANDIDATE_GENERATION_PURPOSE = "shot_clean_plate" as const;
 
@@ -21,9 +27,11 @@ export const CANDIDATE_SHOT_CONTRACT_PREFIX = "AIROAMING_SHOT_CONTRACT_V2:";
 
 export interface CandidateShotContractV2 {
   schemaVersion: 2;
-  staging: "environment" | "single" | "pair" | "group";
+  staging: "environment" | "single" | "pair" | "group" | "collective";
   subjectCount: number;
   subjectNames: string[];
+  collectiveSubjectNames?: string[];
+  groupCountHint?: string | null;
   action: string;
   composition: string;
   decisiveMoment: true;
@@ -33,6 +41,7 @@ export interface CandidateShotContractV2 {
 export interface CandidateGenerationCharacterContext {
   id: string;
   name: string;
+  entityType?: ProjectCharacterEntityType | null;
   appearance: string;
   promptFragment: string;
 }
@@ -73,6 +82,8 @@ export interface BuildCandidateGenerationSpecInput {
   characters: CandidateGenerationCharacterContext[];
   references: CandidateGenerationReference[];
   requestedSize: { width: number; height: number };
+  promptOverrides?: CandidatePromptOverrides | null;
+  /** @deprecated 仅供旧调用方兼容，新路径使用 promptOverrides.visualDescription。 */
   visualDescriptionOverride?: string | null;
   warnings?: string[];
 }
@@ -87,6 +98,7 @@ export interface CreateCandidateGenerationSpecInput {
       name: string;
       appearance: string;
       promptFragment: string;
+      entityType?: ProjectCharacterEntityType | null;
       previewReferenceAssetId: string | null;
       previewConfirmedAt: string | null;
       primaryReferenceAssetId: string | null;
@@ -103,6 +115,7 @@ export interface CreateCandidateGenerationSpecInput {
           projectCharacterId: string | null;
           name: string;
           visualTraits: string;
+          entityType?: ProjectCharacterEntityType | null;
         }>;
         scenes: Array<{
           id: string;
@@ -116,6 +129,8 @@ export interface CreateCandidateGenerationSpecInput {
     } | null;
   };
   shot: StoryboardShot;
+  promptOverrides?: CandidatePromptOverrides | null;
+  /** @deprecated 仅供旧调用方兼容。 */
   visualDescriptionOverride?: string | null;
 }
 
@@ -159,6 +174,7 @@ export function buildCandidatePromptContent(input: BuildCandidatePromptContentIn
   negativePrompt: string;
   sections: CandidatePromptSection[];
   systemConstraints: string[];
+  visualIssues: ReturnType<typeof findCandidateVisualIssues>;
 } {
   const visual = input.shot.comic.panelDescription.trim() || input.shot.coreAction.trim();
   const sections = compactSections([
@@ -171,6 +187,15 @@ export function buildCandidatePromptContent(input: BuildCandidatePromptContentIn
     { key: "style", label: CANDIDATE_PROMPT_CONFIG.sectionLabels.style, value: `${input.artStyle}; ${CANDIDATE_PROMPT_CONFIG.styleSuffix}` },
   ]);
   const shotContract = buildCandidateShotContract(input);
+  const visualIssues = findCandidateVisualIssues({
+    visualDescription: input.shot.comic.panelDescription,
+    action: input.shot.coreAction,
+    composition: input.shot.comic.composition,
+    characters: input.characters.map((character) => ({
+      name: character.name,
+      entityType: character.entityType ?? "human",
+    })),
+  });
   const positivePrompt = renderOpenCodePromptTemplate(
     readOpenCodeSkillReference(IMAGE_CANDIDATE_SKILL, "candidate-prompt.md"),
     {
@@ -189,6 +214,7 @@ export function buildCandidatePromptContent(input: BuildCandidatePromptContentIn
       ...CANDIDATE_SYSTEM_CONSTRAINTS,
       `${CANDIDATE_SHOT_CONTRACT_PREFIX}${JSON.stringify(shotContract)}`,
     ],
+    visualIssues,
   };
 }
 
@@ -199,15 +225,15 @@ export function buildCandidatePromptContent(input: BuildCandidatePromptContentIn
  * promptDraft、motion 等字段即使存在也不会进入 provider prompt。
  */
 export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpecInput): CandidateGenerationSpec {
+  const promptOverrides = normalizePromptOverrides(input.promptOverrides, input.visualDescriptionOverride);
+  const effectiveShot = applyPromptOverrides(input.shot, promptOverrides);
   const promptContent = buildCandidatePromptContent({
     artStyle: input.artStyle,
-    shot: input.visualDescriptionOverride?.trim()
-      ? { ...input.shot, comic: { ...input.shot.comic, panelDescription: input.visualDescriptionOverride.trim() } }
-      : input.shot,
+    shot: effectiveShot,
     scene: input.scene,
     characters: input.characters,
   });
-  const { positivePrompt, negativePrompt, sections, systemConstraints } = promptContent;
+  const { positivePrompt, negativePrompt, sections, systemConstraints, visualIssues } = promptContent;
 
   const digestSource = JSON.stringify({
     schemaVersion: CANDIDATE_GENERATION_SPEC_VERSION,
@@ -222,6 +248,7 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
     systemConstraints,
     requestedSize: input.requestedSize,
     references: input.references,
+    visualIssues,
   });
 
   return {
@@ -237,6 +264,7 @@ export function buildCandidateGenerationSpec(input: BuildCandidateGenerationSpec
     systemConstraints,
     requestedSize: input.requestedSize,
     references: input.references,
+    visualIssues,
     warnings: [...new Set(input.warnings ?? [])],
     digest: createHash("sha1").update(digestSource).digest("hex").slice(0, 12),
   };
@@ -271,7 +299,8 @@ export function createCandidateGenerationSpec(input: CreateCandidateGenerationSp
     characters.push({
       id: characterId,
       name: characterName,
-      appearance: storyCharacter?.visualTraits?.trim() || firstVisualSegment(projectCharacter?.appearance),
+      entityType: storyCharacter?.entityType ?? projectCharacter?.entityType ?? "human",
+      appearance: firstVisualSegment(projectCharacter?.appearance) || firstVisualSegment(storyCharacter?.visualTraits),
       promptFragment: firstVisualSegment(projectCharacter?.promptFragment),
     });
 
@@ -322,6 +351,7 @@ export function createCandidateGenerationSpec(input: CreateCandidateGenerationSp
     characters: dedupeById(characters),
     references: dedupeReferences(references),
     requestedSize: getLegacyGenerationDefaultSize(input.project.comicFormat).requestedSize,
+    promptOverrides: input.promptOverrides,
     visualDescriptionOverride: input.visualDescriptionOverride,
     warnings,
   });
@@ -398,9 +428,15 @@ function formatCharacters(characters: CandidateGenerationCharacterContext[]): st
 function buildCandidateShotContract(input: BuildCandidatePromptContentInput): CandidateShotContractV2 {
   const characters = input.characters;
   const names = characters.map((character) => character.name.trim()).filter(Boolean);
+  const collectiveSubjectNames = characters
+    .filter((character) => character.entityType === "group")
+    .map((character) => character.name.trim())
+    .filter(Boolean);
   const action = input.shot.coreAction.trim();
   const composition = input.shot.comic.composition.trim();
-  const staging = characters.length === 0
+  const staging = collectiveSubjectNames.length > 0
+    ? "collective"
+    : characters.length === 0
     ? "environment"
     : characters.length === 1
       ? "single"
@@ -412,6 +448,10 @@ function buildCandidateShotContract(input: BuildCandidatePromptContentInput): Ca
     staging,
     subjectCount: characters.length,
     subjectNames: names,
+    collectiveSubjectNames,
+    groupCountHint: collectiveSubjectNames.length > 0
+      ? extractCollectiveCountHint([input.shot.comic.panelDescription, action, composition].join("\n"))
+      : null,
     action,
     composition,
     decisiveMoment: true,
@@ -432,7 +472,7 @@ export function readCandidateShotContract(systemConstraints: string[]): Candidat
     throw new TypeError("CANDIDATE_SHOT_CONTRACT_INVALID");
   }
   const contract = value as Partial<CandidateShotContractV2>;
-  const allowedStaging = new Set<CandidateShotContractV2["staging"]>(["environment", "single", "pair", "group"]);
+  const allowedStaging = new Set<CandidateShotContractV2["staging"]>(["environment", "single", "pair", "group", "collective"]);
   if (
     contract.schemaVersion !== 2
     || !contract.staging
@@ -441,7 +481,12 @@ export function readCandidateShotContract(systemConstraints: string[]): Candidat
     || (contract.subjectCount ?? -1) < 0
     || !Array.isArray(contract.subjectNames)
     || contract.subjectNames.some((name) => typeof name !== "string" || !name.trim())
-    || contract.subjectNames.length !== contract.subjectCount
+    || (contract.staging !== "collective" && contract.subjectNames.length !== contract.subjectCount)
+    || (contract.collectiveSubjectNames !== undefined && (
+      !Array.isArray(contract.collectiveSubjectNames)
+      || contract.collectiveSubjectNames.some((name) => typeof name !== "string" || !name.trim())
+    ))
+    || (contract.groupCountHint !== undefined && contract.groupCountHint !== null && typeof contract.groupCountHint !== "string")
     || typeof contract.action !== "string"
     || typeof contract.composition !== "string"
     || contract.decisiveMoment !== true
@@ -462,6 +507,32 @@ function joinUnique(values: Array<string | null | undefined>, separator: string)
 
 function firstVisualSegment(value: string | null | undefined): string {
   return (value ?? "").split(/[；;\n]/, 1)[0]?.trim().slice(0, 200) ?? "";
+}
+
+function normalizePromptOverrides(
+  value: CandidatePromptOverrides | null | undefined,
+  legacyVisualDescription: string | null | undefined,
+): CandidatePromptOverrides {
+  const normalized: CandidatePromptOverrides = {};
+  const visualDescription = value?.visualDescription?.trim() || legacyVisualDescription?.trim();
+  const action = value?.action?.trim();
+  const composition = value?.composition?.trim();
+  if (visualDescription) normalized.visualDescription = visualDescription;
+  if (action) normalized.action = action;
+  if (composition) normalized.composition = composition;
+  return normalized;
+}
+
+function applyPromptOverrides(shot: StoryboardShot, overrides: CandidatePromptOverrides): StoryboardShot {
+  return {
+    ...shot,
+    coreAction: overrides.action ?? shot.coreAction,
+    comic: {
+      ...shot.comic,
+      panelDescription: overrides.visualDescription ?? shot.comic.panelDescription,
+      composition: overrides.composition ?? shot.comic.composition,
+    },
+  };
 }
 
 function dedupeById(characters: CandidateGenerationCharacterContext[]): CandidateGenerationCharacterContext[] {

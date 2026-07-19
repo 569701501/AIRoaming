@@ -54,6 +54,11 @@
         "Preserve each subject’s identity, costume, relative position, and narrative role from this composition: “{{COMPOSITION}}”.",
         "Preserve protection, obstruction, confrontation, or cooperation roles in this action: “{{ACTION}}”. Never exchange character duties."
       ],
+      "collective": [
+        "Show every named individual and the collective subject(s) {{COLLECTIVE_NAMES}} as separate roles. The collective population is {{GROUP_COUNT_HINT}}; never collapse a crowd or team into one person.",
+        "Preserve each named identity, the collective group’s relative placement, and all foreground/background roles from this composition: “{{COMPOSITION}}”.",
+        "Preserve protection, obstruction, confrontation, or cooperation roles in this action: “{{ACTION}}”. Never exchange character duties."
+      ],
       "shared": [
         "Show the single clearest decisive instant only; do not combine before, during, and after states in one image.",
         "If the shot contains light, electricity, weather, smoke, explosion, or environmental change, show one clear source, visible effect, and affected target; align the key light with that event."
@@ -113,6 +118,11 @@
       "group": [
         "画面准确出现 {{SUBJECT_COUNT}} 个不同角色：{{NAMES}}；每人只出现一次，不得漏人、复制、合并身份或添加路人。",
         "逐人保持身份、服装、相对站位和叙事职责，遵循构图“{{COMPOSITION}}”。",
+        "保持动作“{{ACTION}}”中的保护、阻拦、对抗或协作关系，不得互换角色职责。"
+      ],
+      "collective": [
+        "指定单人角色与群体角色{{COLLECTIVE_NAMES}}必须作为不同主体出现；群体规模为{{GROUP_COUNT_HINT}}，不得把一群人缩成一个人。",
+        "保持每个具名角色的身份、群体的相对站位以及前景/后景职责，遵循构图“{{COMPOSITION}}”。",
         "保持动作“{{ACTION}}”中的保护、阻拦、对抗或协作关系，不得互换角色职责。"
       ],
       "shared": [

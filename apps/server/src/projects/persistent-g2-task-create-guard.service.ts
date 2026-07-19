@@ -7,6 +7,9 @@ import {
   digestCanonicalJson,
   LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
   type CreateGenerationTaskRequest,
+  type CandidatePromptOverrides,
+  type CandidateVisualIssue,
+  type ProjectCharacterEntityType,
   type Digest,
   type TaskSourceProjectionV1,
 } from "@airoaming/shared";
@@ -16,6 +19,7 @@ import { ChapterVersionQueryRepository } from "./versioning/chapter-version-quer
 import { createG2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import type { G2VersionTaskType, VersionScopeV1 } from "./versioning/versioning-database.types.js";
 import { buildCandidatePromptContent } from "./candidate-generation-spec.js";
+import { hasBlockingCandidateVisualIssues } from "./candidate-visual-quality.util.js";
 import { ImageProviderService } from "./image-provider.service.js";
 import { compileImagePromptForProvider } from "./image-prompt-profile.util.js";
 
@@ -53,6 +57,39 @@ type TaskSourceInput = { role: string; sourceType: string; sourceId: string; sou
 interface CandidatePromptSpecBuildResult {
   promptSpec: Record<string, unknown>;
   additionalSources: TaskSourceInput[];
+  visualIssues: CandidateVisualIssue[];
+}
+
+const MAX_PROMPT_OVERRIDE_LENGTH = 1_200;
+
+function promptOverrides(value: unknown, legacyVisualDescription: unknown): CandidatePromptOverrides {
+  const result: CandidatePromptOverrides = {};
+  if (value !== undefined && value !== null) {
+    if (typeof value !== "object" || Array.isArray(value)) {
+      throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", { field: "promptOverrides" });
+    }
+    const row = value as Record<string, unknown>;
+    const allowed = new Set(["visualDescription", "action", "composition"]);
+    const unknown = Object.keys(row).filter((key) => !allowed.has(key));
+    if (unknown.length > 0) {
+      throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", { field: `promptOverrides.${unknown[0]}` });
+    }
+    for (const key of allowed) {
+      const raw = row[key];
+      if (raw === undefined || raw === null) continue;
+      if (typeof raw !== "string" || !raw.trim() || raw.trim().length > MAX_PROMPT_OVERRIDE_LENGTH) {
+        throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", { field: `promptOverrides.${key}` });
+      }
+      result[key as keyof CandidatePromptOverrides] = raw.trim();
+    }
+  }
+  if (!result.visualDescription && legacyVisualDescription !== undefined && legacyVisualDescription !== null) {
+    if (typeof legacyVisualDescription !== "string" || !legacyVisualDescription.trim() || legacyVisualDescription.trim().length > MAX_PROMPT_OVERRIDE_LENGTH) {
+      throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", { field: "visualDescriptionOverride" });
+    }
+    result.visualDescription = legacyVisualDescription.trim();
+  }
+  return result;
 }
 
 /**
@@ -135,7 +172,13 @@ export class PersistentG2TaskCreateGuardService {
     }
     const shotDocument = storyboard.shots.find((item) => item.id === shotId);
     if (!shotDocument) throw createG2DatabaseError(409, "VERSION_SCOPE_MISMATCH");
-    const promptBuild = await this.buildPromptSpec(scope, shotDocument, preflightDocument, story);
+    const effectivePromptOverrides = promptOverrides(input.input?.promptOverrides, input.input?.visualDescriptionOverride);
+    const promptBuild = await this.buildPromptSpec(scope, shotDocument, preflightDocument, story, effectivePromptOverrides);
+    if (operation === "image_generate" && hasBlockingCandidateVisualIssues(promptBuild.visualIssues)) {
+      throw createG2DatabaseError(422, "CANDIDATE_VISUAL_DESCRIPTION_BLOCKED", {
+        issues: promptBuild.visualIssues.filter((issue) => issue.severity === "blocking"),
+      });
+    }
     const sourceProjection = this.buildShotProjection(
       scope,
       operation,
@@ -162,6 +205,9 @@ export class PersistentG2TaskCreateGuardService {
       generationSpecDigest,
       candidateCount,
       sourceProjection,
+      ...(operation === "shot_prompt_generate" && optionalText(input.input?.instruction)
+        ? { instruction: optionalText(input.input?.instruction) }
+        : {}),
       ...(requestId ? { requestId } : {}),
     };
     return {
@@ -205,6 +251,7 @@ export class PersistentG2TaskCreateGuardService {
     shot: ReturnType<typeof StoryboardDocumentCodecV2.parse>["shots"][number],
     document: ReturnType<typeof PreflightDocumentCodecV2.parse>,
     story: ReturnType<typeof StoryDocumentCodecV2.parse>,
+    overrides: CandidatePromptOverrides = {},
   ): Promise<CandidatePromptSpecBuildResult> {
     const database = this.prismaService.database();
     const projectCharacterIds = [...new Set(shot.characterIds.flatMap((token) => {
@@ -255,10 +302,20 @@ export class PersistentG2TaskCreateGuardService {
       return {
         id: projectCharacter?.id ?? storyCharacter?.projectCharacterId ?? storyCharacter?.id ?? token,
         name: projectCharacter?.name ?? storyCharacter?.name ?? token,
-        appearance: storyCharacter?.visualTraits?.trim() || projectCharacter?.appearance?.trim() || "",
+        entityType: (storyCharacter?.entityType ?? projectCharacter?.entityType ?? "human") as ProjectCharacterEntityType,
+        appearance: projectCharacter?.appearance?.trim() || storyCharacter?.visualTraits?.trim() || "",
         promptFragment: projectCharacter?.promptFragment?.trim() || "",
       };
     });
+    const effectiveShot = {
+      ...shot,
+      coreAction: overrides.action ?? shot.coreAction,
+      comic: {
+        ...shot.comic,
+        panelDescription: overrides.visualDescription ?? shot.comic.panelDescription,
+        composition: overrides.composition ?? shot.comic.composition,
+      },
+    };
     const storyScene = story.scenes.find((scene) => scene.id === shot.sceneId) ?? null;
     const scene = storyScene
       ? {
@@ -271,7 +328,7 @@ export class PersistentG2TaskCreateGuardService {
       : null;
     const content = buildCandidatePromptContent({
       artStyle: document.styleCheck.artStyle,
-      shot,
+      shot: effectiveShot,
       scene,
       characters,
     });
@@ -393,6 +450,14 @@ export class PersistentG2TaskCreateGuardService {
         negativePromptDelivery: compiled.negativePromptDelivery,
         sections: content.sections,
         systemConstraints: content.systemConstraints,
+        visualIssues: content.visualIssues,
+        visualContext: {
+          characters: characters.map((character) => ({
+            name: character.name,
+            entityType: character.entityType,
+          })),
+          scene,
+        },
         image: {
           ...image,
           sizePolicyVersion: LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION,
@@ -400,6 +465,7 @@ export class PersistentG2TaskCreateGuardService {
         referenceAssets,
       },
       additionalSources,
+      visualIssues: content.visualIssues,
     };
   }
 }

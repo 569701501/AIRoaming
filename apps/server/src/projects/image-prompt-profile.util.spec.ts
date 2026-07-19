@@ -81,6 +81,41 @@ describe("image provider prompt profiles", () => {
     expect(result.negativePromptDelivery).toBe("embedded_constraints");
   });
 
+  it("群体角色使用数量提示，不把整群人当成一个人", () => {
+    const collectiveContract = [
+      systemConstraints[0]!,
+      `${CANDIDATE_SHOT_CONTRACT_PREFIX}${JSON.stringify({
+        schemaVersion: 2,
+        staging: "collective",
+        subjectCount: 2,
+        subjectNames: ["阿肃", "商队众人"],
+        collectiveSubjectNames: ["商队众人"],
+        groupCountHint: "十余名",
+        action: "阿肃挡在商队众人前方",
+        composition: "阿肃在前景，商队众人在后景",
+        decisiveMoment: true,
+        effectCausality: "conditional",
+      })}`,
+    ];
+    const openai = compileImagePromptForProvider({
+      providerType: "openai",
+      positivePrompt: "legacy source prompt",
+      negativePrompt: "text",
+      sections,
+      systemConstraints: collectiveContract,
+    });
+    const doubao = compileImagePromptForProvider({
+      providerType: "doubao",
+      positivePrompt: "legacy source prompt",
+      negativePrompt: "text",
+      sections,
+      systemConstraints: collectiveContract,
+    });
+    expect(openai.prompt).toContain("collective population is 十余名");
+    expect(openai.prompt).toContain("never collapse a crowd or team into one person");
+    expect(doubao.prompt).toContain("群体规模为十余名");
+  });
+
   it("从 Skill Profile 编译 provider 参考图职责", () => {
     const openai = compileImageReferenceGuidanceForProvider({
       providerType: "openai",

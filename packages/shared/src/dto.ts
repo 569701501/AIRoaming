@@ -1146,7 +1146,7 @@ export interface CandidateGenerationReference {
   kind: CandidateGenerationReferenceKind;
   entityId: string;
   label: string;
-  /** 数值越大越优先；同 provider 超过引用上限时用于确定性裁剪。 */
+  /** 数值越大越优先；用于稳定排序和后续焦点策略，必需引用不得据此删除。 */
   priority: number;
 }
 
@@ -1154,6 +1154,32 @@ export interface CandidatePromptSection {
   key: "visual" | "composition" | "action" | "camera" | "scene" | "characters" | "style";
   label: string;
   value: string;
+}
+
+export interface CandidatePromptOverrides {
+  visualDescription?: string;
+  action?: string;
+  composition?: string;
+}
+
+export type CandidateVisualIssueSeverity = "warning" | "blocking";
+export type CandidateVisualIssueField = "visual" | "action" | "composition" | "characters";
+export type CandidateVisualIssueCode =
+  | "VISUAL_DESCRIPTION_MISSING"
+  | "VISUAL_TEXT_CONFLICT"
+  | "VISUAL_MULTIPLE_LOCATIONS"
+  | "VISUAL_MULTIPLE_MOMENTS"
+  | "VISUAL_NON_VISUAL_INFORMATION"
+  | "VISUAL_SUBJECT_COUNT_CONFLICT"
+  | "VISUAL_GROUP_COUNT_MISSING"
+  | "VISUAL_ACTOR_RELATION_UNCLEAR"
+  | "VISUAL_IDENTITY_SHEET_LANGUAGE";
+
+export interface CandidateVisualIssue {
+  code: CandidateVisualIssueCode;
+  severity: CandidateVisualIssueSeverity;
+  field: CandidateVisualIssueField;
+  message: string;
 }
 
 export interface CandidateGenerationSpec {
@@ -1169,6 +1195,8 @@ export interface CandidateGenerationSpec {
   systemConstraints: string[];
   requestedSize: { width: number; height: number };
   references: CandidateGenerationReference[];
+  /** V2 后向兼容扩展；旧任务可以没有该字段。 */
+  visualIssues?: CandidateVisualIssue[];
   warnings: string[];
   digest: string;
 }

@@ -134,6 +134,88 @@ describe("PersistentTaskWorkerService storyboard Prompt", () => {
   });
 });
 
+describe("PersistentTaskWorkerService shot prompt optimization", () => {
+  it("shot_prompt_generate 调用窄 Skill，格式或单帧质量失败时只修复一次", async () => {
+    const createSession = vi.fn().mockResolvedValue("session-shot-prompt");
+    const sendMessage = vi.fn()
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          visualDescription: "林舟先撑门，随后苏弥跑到车厢另一端。",
+          action: "两人行动。",
+          composition: "两人居中。",
+          mustShow: [],
+          warnings: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          visualDescription: "林舟和苏弥同时按住即将合拢的旧车门，雨水凝在两人的肩头。",
+          action: "林舟在门外用右手撑门，苏弥从门内抓住他的左腕。",
+          composition: "林舟位于左前景，苏弥位于右中景，交握的手位于视觉中心。",
+          mustShow: ["两人同时入画", "交握的手"],
+          warnings: [],
+        }),
+      });
+    const service = new PersistentTaskWorkerService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { createSession, sendMessage } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const runShotPromptProvider = (service as unknown as {
+      runShotPromptProvider(context: PersistentTaskHandlerContext): Promise<Record<string, unknown>>;
+    }).runShotPromptProvider.bind(service);
+    const input = {
+      chapterId: "chapter-1",
+      shotId: "shot-1",
+      generationSpecDigest: `sha256:${"a".repeat(64)}`,
+      instruction: "把多人动作关系写清楚",
+      promptSpec: {
+        schemaVersion: 2,
+        sizePolicyVersion: "legacy_generation_default_v1",
+        shotId: "shot-1",
+        positivePrompt: "provider-neutral prompt",
+        providerPrompt: "provider-specific prompt",
+        negativePrompt: "text, logo",
+        image: { width: 1024, height: 1536, sizePolicyVersion: "legacy_generation_default_v1" },
+        sections: [
+          { key: "visual", label: "画面", value: "两人撑门" },
+          { key: "action", label: "动作", value: "他们互动" },
+        ],
+        systemConstraints: ["one scene, one static moment"],
+        visualIssues: [{ code: "VISUAL_ACTOR_RELATION_UNCLEAR", severity: "warning", field: "action", message: "多人关系不清" }],
+        visualContext: {
+          characters: [
+            { name: "林舟", entityType: "human" },
+            { name: "苏弥", entityType: "human" },
+          ],
+        },
+      },
+    };
+
+    const result = await runShotPromptProvider({ task: {} as never, input });
+
+    expect(createSession).toHaveBeenCalledWith("shot_prompt_generate:shot-1");
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]?.[0].content).toContain("结果只供用户选择采用");
+    expect(sendMessage.mock.calls[0]?.[0].content).toContain("把多人动作关系写清楚");
+    expect(sendMessage.mock.calls[1]?.[0].content).toContain("VISUAL_MULTIPLE_MOMENTS");
+    expect(result).toMatchObject({
+      targetId: "shot-1",
+      visualDescription: expect.stringContaining("同时按住"),
+      action: expect.stringContaining("苏弥从门内"),
+      composition: expect.stringContaining("视觉中心"),
+      visualIssues: [],
+    });
+  });
+});
+
 describe("PersistentTaskWorkerService story structure Prompt", () => {
   it("story_parse 复用剧情结构 Skill，并由后端补本地 ID 和待解析角色引用", async () => {
     const sourceDigest = `sha256:${"a".repeat(64)}`;

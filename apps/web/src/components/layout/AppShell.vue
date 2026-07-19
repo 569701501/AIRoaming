@@ -47,6 +47,7 @@
           @confirm-storyboard="confirmStoryboard"
           @confirm-image-preflight="confirmImagePreflight"
           @generate-image-candidates="generateImageCandidates"
+          @optimize-shot-prompt="optimizeShotPrompt"
           @generate-all-unlocked="generateAllUnlocked"
           @candidate-changed="refreshCandidateState"
           @complete-images="completeImages"
@@ -96,7 +97,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CompleteChapterRequest, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
+import type { AIRuntimeModelSelection, CandidatePromptOverrides, CompleteChapterRequest, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -312,12 +313,16 @@ async function confirmImagePreflight(chapterId: string) {
   await workbench.confirmImagePreflight(chapterId);
 }
 
-async function generateImageCandidates(payload: { shotId: string; candidateCount: number }) {
-  await workbench.generateImageCandidates(payload.shotId, payload.candidateCount);
+async function generateImageCandidates(payload: { shotId: string; candidateCount: number; promptOverrides: CandidatePromptOverrides }) {
+  await workbench.generateImageCandidates(payload.shotId, payload.candidateCount, payload.promptOverrides);
 }
 
-async function generateAllUnlocked() {
-  await workbench.generateAllUnlockedShots(1);
+async function optimizeShotPrompt(payload: { shotId: string; promptOverrides: CandidatePromptOverrides }) {
+  await workbench.optimizeShotPrompt(payload.shotId, payload.promptOverrides);
+}
+
+async function generateAllUnlocked(payload: { promptOverridesByShot: Record<string, CandidatePromptOverrides> }) {
+  await workbench.generateAllUnlockedShots(1, payload.promptOverridesByShot);
 }
 
 async function refreshCandidateState() {

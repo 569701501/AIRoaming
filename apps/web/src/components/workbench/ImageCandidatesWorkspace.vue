@@ -25,9 +25,9 @@
         <button
           class="secondary-action"
           type="button"
-          :disabled="!isPreflightConfirmed || loading || unlockedShotCount === 0"
-          :title="unlockedShotCount === 0 ? '本章镜头已全部锁定' : `为 ${unlockedShotCount} 个未锁定镜头各生成 1 张`"
-          @click="$emit('generateAllUnlocked')"
+          :disabled="!isPreflightConfirmed || loading || unlockedShotCount === 0 || hasIncompleteBatchPromptDraft"
+          :title="batchGenerationTitle"
+          @click="generateAllUnlockedShots"
         >
           <Layers :size="15" />
           <span>批量生成{{ unlockedShotCount > 0 ? `(${unlockedShotCount})` : "" }}</span>
@@ -102,6 +102,7 @@
               class="generate-btn"
               type="button"
               :disabled="!canGenerateSelected || loading"
+              :title="generationBlockedReason"
               @click="generateSelectedShot"
             >
               <Wand2 :size="16" />
@@ -141,15 +142,82 @@
           >加载更早记录</button>
         </section>
 
+        <section class="visual-editor-panel" aria-label="候选图画面描述编辑">
+          <header class="visual-editor-heading">
+            <div>
+              <span>本次候选图描述</span>
+              <strong>先把这一帧说清楚，再生成图片</strong>
+              <small>这里只影响本次候选图，不会改正式分镜。</small>
+            </div>
+            <div class="visual-editor-actions">
+              <button type="button" class="secondary-action compact" :disabled="loading || !hasPromptDraftChanges" @click="resetPromptDraft">
+                恢复正式分镜
+              </button>
+              <button
+                type="button"
+                class="secondary-action compact"
+                :disabled="loading || !isDatabaseCandidateMode || promptOptimizationRunning || hasIncompletePromptDraft"
+                :title="isDatabaseCandidateMode ? '' : '当前旧兼容模式暂不支持 AI 优化描述'"
+                @click="optimizePromptDraft"
+              >
+                <Loader2 v-if="promptOptimizationRunning" :size="14" class="is-spinning" />
+                <Wand2 v-else :size="14" />
+                {{ promptOptimizationRunning ? "正在优化" : "AI 优化描述" }}
+              </button>
+            </div>
+          </header>
+
+          <div class="visual-editor-fields">
+            <label class="visual-editor-primary">
+              <span>画面：这一帧看见什么</span>
+              <textarea v-model="visualDescriptionDraft" rows="3" maxlength="1200" placeholder="写一个地点、一个时刻里肉眼能看见的主体与环境。"></textarea>
+            </label>
+            <label>
+              <span>动作：谁对谁 / 什么做什么</span>
+              <textarea v-model="actionDraft" rows="3" maxlength="1200" placeholder="多人时逐一写清名字、动作对象、承受或视线关系。"></textarea>
+            </label>
+            <label>
+              <span>构图：人物放哪里、重点看哪里</span>
+              <textarea v-model="compositionDraft" rows="3" maxlength="1200" placeholder="只写前中后景、左右位置、遮挡和视觉中心。"></textarea>
+            </label>
+          </div>
+
+          <div v-if="candidateVisualIssues.length > 0" class="visual-issue-list" aria-label="画面描述问题">
+            <p v-for="issue in candidateVisualIssues" :key="issue.code" :class="`is-${issue.severity}`">
+              <AlertCircle :size="15" />
+              <span>{{ issue.message }}</span>
+            </p>
+          </div>
+
+          <div v-if="latestPromptSuggestion" class="prompt-suggestion-card">
+            <div class="prompt-suggestion-heading">
+              <div>
+                <span>AI 优化建议</span>
+                <small>这是建议稿，尚未采用，也没有改正式分镜。</small>
+              </div>
+              <button type="button" class="primary-action compact" :disabled="loading" @click="adoptPromptSuggestion">
+                采用优化结果
+              </button>
+            </div>
+            <dl>
+              <div><dt>画面</dt><dd>{{ latestPromptSuggestion.visualDescription }}</dd></div>
+              <div><dt>动作</dt><dd>{{ latestPromptSuggestion.action }}</dd></div>
+              <div><dt>构图</dt><dd>{{ latestPromptSuggestion.composition }}</dd></div>
+            </dl>
+            <ul v-if="latestPromptSuggestion.mustShow.length > 0">
+              <li v-for="item in latestPromptSuggestion.mustShow" :key="item">必须保留：{{ item }}</li>
+            </ul>
+            <p v-for="warning in latestPromptSuggestion.optimizationWarnings" :key="warning.message" class="suggestion-warning">
+              {{ warning.message }}
+            </p>
+          </div>
+
+          <p v-else-if="latestPromptOptimizationTask?.status === 'failed'" class="prompt-optimization-error">
+            优化失败：{{ latestPromptOptimizationTask.error?.message ?? "请稍后重试" }}
+          </p>
+        </section>
+
         <div class="shot-context-grid">
-          <article>
-            <span>画面描述</span>
-            <p>{{ selectedShot.comic.panelDescription || selectedShot.promptDraft || "暂无画面描述" }}</p>
-          </article>
-          <article>
-            <span>构图</span>
-            <p>{{ selectedShot.comic.composition || selectedShot.motion.compositionDesign || "暂无构图说明" }}</p>
-          </article>
           <article>
             <span>角色</span>
             <p>{{ selectedShot.characters.length > 0 ? selectedShot.characters.join("、") : "无明确角色" }}</p>
@@ -430,6 +498,8 @@ import type {
   CandidateLockIntent,
   CandidateStatus,
   CandidateGenerationSpec,
+  CandidatePromptOverrides,
+  CandidateVisualIssue,
   ChapterListItem,
   GenerationTaskItem,
   GenerationTaskStatus,
@@ -446,8 +516,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   selectChapter: [chapterId: string];
-  generateCandidates: [payload: { shotId: string; candidateCount: number }];
-  generateAllUnlocked: [];
+  generateCandidates: [payload: { shotId: string; candidateCount: number; promptOverrides: CandidatePromptOverrides }];
+  optimizePrompt: [payload: { shotId: string; promptOverrides: CandidatePromptOverrides }];
+  generateAllUnlocked: [payload: { promptOverridesByShot: Record<string, CandidatePromptOverrides> }];
   candidateChanged: [];
   completeImages: [];
   goPreflight: [];
@@ -471,6 +542,26 @@ const historyLoading = ref(false);
 const historyItems = ref<CandidateLockRevisionDto[]>([]);
 const historyNextBeforeRevision = ref<number | null>(null);
 let promptPreviewRequestId = 0;
+let promptPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+
+interface ShotPromptDraft {
+  visualDescription: string;
+  action: string;
+  composition: string;
+  sourceVisualDescription: string;
+  sourceAction: string;
+  sourceComposition: string;
+}
+
+interface PromptOptimizationSuggestion {
+  visualDescription: string;
+  action: string;
+  composition: string;
+  mustShow: string[];
+  optimizationWarnings: Array<{ code: "SOURCE_CONFLICT"; message: string }>;
+}
+
+const promptDrafts = ref<Record<string, ShotPromptDraft>>({});
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const currentChapter = computed(() => props.snapshot.currentChapter);
@@ -499,6 +590,38 @@ const fullPromptText = computed(() => candidateGenerationSpec.value
   ? candidateGenerationSpec.value.positivePrompt
   : "",
 );
+const selectedPromptDraft = computed(() => {
+  const shot = selectedShot.value;
+  return shot ? promptDrafts.value[shot.id] ?? createPromptDraft(shot) : null;
+});
+const visualDescriptionDraft = computed({
+  get: () => selectedPromptDraft.value?.visualDescription ?? "",
+  set: (value: string) => updateSelectedPromptDraft({ visualDescription: value }),
+});
+const actionDraft = computed({
+  get: () => selectedPromptDraft.value?.action ?? "",
+  set: (value: string) => updateSelectedPromptDraft({ action: value }),
+});
+const compositionDraft = computed({
+  get: () => selectedPromptDraft.value?.composition ?? "",
+  set: (value: string) => updateSelectedPromptDraft({ composition: value }),
+});
+const selectedPromptOverrides = computed<CandidatePromptOverrides>(() => ({
+  visualDescription: visualDescriptionDraft.value.trim(),
+  action: actionDraft.value.trim(),
+  composition: compositionDraft.value.trim(),
+}));
+const hasIncompletePromptDraft = computed(() => !visualDescriptionDraft.value.trim() || !actionDraft.value.trim() || !compositionDraft.value.trim());
+const hasPromptDraftChanges = computed(() => {
+  const draft = selectedPromptDraft.value;
+  return Boolean(draft && (
+    draft.visualDescription !== draft.sourceVisualDescription
+    || draft.action !== draft.sourceAction
+    || draft.composition !== draft.sourceComposition
+  ));
+});
+const candidateVisualIssues = computed<CandidateVisualIssue[]>(() => candidateGenerationSpec.value?.visualIssues ?? []);
+const hasBlockingVisualIssues = computed(() => candidateVisualIssues.value.some((issue) => issue.severity === "blocking"));
 const isPreflightConfirmed = computed(() => {
   if (isDatabaseCandidateMode.value) {
     return props.snapshot.candidateSources?.chapterId === currentChapterId.value
@@ -520,10 +643,33 @@ const canGenerateSelected = computed(() => Boolean(
   && isPreflightConfirmed.value
   && currentChapter.value?.status !== "images_done"
   && currentChapter.value?.status !== "layout_done"
-  && currentChapter.value?.status !== "exported",
+  && currentChapter.value?.status !== "exported"
+  && candidateGenerationSpec.value
+  && !promptPreviewLoading.value
+  && !hasIncompletePromptDraft.value
+  && !hasBlockingVisualIssues.value
 ));
+const generationBlockedReason = computed(() => {
+  if (hasIncompletePromptDraft.value) return "请先把画面、动作和构图填写完整";
+  const blocking = candidateVisualIssues.value.find((issue) => issue.severity === "blocking");
+  if (blocking) return blocking.message;
+  if (promptPreviewLoading.value) return "正在检查画面描述";
+  if (promptPreviewError.value) return promptPreviewError.value;
+  return "";
+});
 const lockedShotCount = computed(() => shots.value.filter((shot) => Boolean(shot.lockedCandidateId)).length);
 const unlockedShotCount = computed(() => shots.value.filter((shot) => !shot.lockedCandidateId).length);
+const hasIncompleteBatchPromptDraft = computed(() => shots.value
+  .filter((shot) => !shot.lockedCandidateId)
+  .some((shot) => {
+    const draft = promptDrafts.value[shot.id] ?? createPromptDraft(shot);
+    return !draft.visualDescription.trim() || !draft.action.trim() || !draft.composition.trim();
+  }));
+const batchGenerationTitle = computed(() => {
+  if (unlockedShotCount.value === 0) return "本章镜头已全部锁定";
+  if (hasIncompleteBatchPromptDraft.value) return "请先把所有未锁定镜头的画面、动作和构图填写完整";
+  return `为 ${unlockedShotCount.value} 个未锁定镜头各生成 1 张`;
+});
 const canCompleteChapter = computed(() =>
   isPreflightConfirmed.value
   && shots.value.length > 0
@@ -535,6 +681,27 @@ const chapterImageTasks = computed(() => props.tasks.filter((task) =>
   && task.type === "image_generate"
   && getTaskChapterId(task) === currentChapterId.value,
 ));
+const chapterPromptOptimizationTasks = computed(() => props.tasks.filter((task) =>
+  task.projectId === props.snapshot.project.id
+  && task.type === "shot_prompt_generate"
+  && getTaskChapterId(task) === currentChapterId.value,
+));
+const selectedPromptOptimizationTasks = computed(() => {
+  const shotId = selectedShot.value?.id;
+  if (!shotId) return [];
+  return chapterPromptOptimizationTasks.value
+    .filter((task) => getTaskShotId(task) === shotId && isPromptTaskCurrent(task))
+    .slice()
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+});
+const latestPromptOptimizationTask = computed(() => selectedPromptOptimizationTasks.value[0] ?? null);
+const promptOptimizationRunning = computed(() => selectedPromptOptimizationTasks.value.some((task) =>
+  task.status === "queued" || task.status === "running" || task.status === "retrying",
+));
+const latestPromptSuggestion = computed<PromptOptimizationSuggestion | null>(() => {
+  const task = latestPromptOptimizationTask.value;
+  return task?.status === "succeeded" ? readPromptSuggestion(task.output) : null;
+});
 const selectedShotTasks = computed(() => {
   const shotId = selectedShot.value?.id;
   if (!shotId) {
@@ -623,9 +790,96 @@ watch(
   { immediate: true },
 );
 
+function createPromptDraft(shot: WorkbenchSnapshot["shots"][number]): ShotPromptDraft {
+  const visualDescription = shot.comic.panelDescription || shot.promptDraft || "";
+  const action = shot.coreAction || "";
+  const composition = shot.comic.composition || shot.motion.compositionDesign || "";
+  return {
+    visualDescription,
+    action,
+    composition,
+    sourceVisualDescription: visualDescription,
+    sourceAction: action,
+    sourceComposition: composition,
+  };
+}
+
+function syncPromptDrafts(nextShots: WorkbenchSnapshot["shots"]): void {
+  const activeIds = new Set(nextShots.map((shot) => shot.id));
+  const next: Record<string, ShotPromptDraft> = {};
+  for (const shot of nextShots) {
+    const current = promptDrafts.value[shot.id];
+    const untouched = current
+      && current.visualDescription === current.sourceVisualDescription
+      && current.action === current.sourceAction
+      && current.composition === current.sourceComposition;
+    next[shot.id] = !current || untouched ? createPromptDraft(shot) : current;
+  }
+  for (const shotId of Object.keys(promptDrafts.value)) {
+    if (!activeIds.has(shotId)) delete promptDrafts.value[shotId];
+  }
+  promptDrafts.value = next;
+}
+
+function updateSelectedPromptDraft(patch: Partial<Pick<ShotPromptDraft, "visualDescription" | "action" | "composition">>): void {
+  const shot = selectedShot.value;
+  if (!shot) return;
+  const current = promptDrafts.value[shot.id] ?? createPromptDraft(shot);
+  promptDrafts.value = {
+    ...promptDrafts.value,
+    [shot.id]: { ...current, ...patch },
+  };
+}
+
+function resetPromptDraft(): void {
+  const shot = selectedShot.value;
+  if (!shot) return;
+  promptDrafts.value = { ...promptDrafts.value, [shot.id]: createPromptDraft(shot) };
+  candidateNotice.value = "已恢复为正式分镜里的画面描述。";
+}
+
+function optimizePromptDraft(): void {
+  const shot = selectedShot.value;
+  if (!shot || hasIncompletePromptDraft.value || promptOptimizationRunning.value) return;
+  emit("optimizePrompt", { shotId: shot.id, promptOverrides: selectedPromptOverrides.value });
+}
+
+function adoptPromptSuggestion(): void {
+  const suggestion = latestPromptSuggestion.value;
+  if (!suggestion) return;
+  updateSelectedPromptDraft({
+    visualDescription: suggestion.visualDescription,
+    action: suggestion.action,
+    composition: suggestion.composition,
+  });
+  candidateNotice.value = "已把优化建议放入本次候选图描述；正式分镜没有改动。";
+}
+
+function readPromptSuggestion(output: Record<string, unknown> | null): PromptOptimizationSuggestion | null {
+  if (!output) return null;
+  const visualDescription = typeof output.visualDescription === "string" ? output.visualDescription.trim() : "";
+  const action = typeof output.action === "string" ? output.action.trim() : "";
+  const composition = typeof output.composition === "string" ? output.composition.trim() : "";
+  if (!visualDescription || !action || !composition) return null;
+  const mustShow = Array.isArray(output.mustShow)
+    ? output.mustShow.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
+    : [];
+  const optimizationWarnings = Array.isArray(output.optimizationWarnings)
+    ? output.optimizationWarnings.flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const row = item as Record<string, unknown>;
+      return row.code === "SOURCE_CONFLICT" && typeof row.message === "string" && row.message.trim()
+        ? [{ code: "SOURCE_CONFLICT" as const, message: row.message.trim() }]
+        : [];
+    })
+    : [];
+  return { visualDescription, action, composition, mustShow, optimizationWarnings };
+}
+
 watch(
   shots,
   (nextShots) => {
+    syncPromptDrafts(nextShots);
     if (!selectedShotId.value || !nextShots.some((shot) => shot.id === selectedShotId.value)) {
       selectedShotId.value = nextShots[0]?.id ?? null;
     }
@@ -634,30 +888,47 @@ watch(
 );
 
 watch(
-  () => [props.snapshot.project.id, currentChapterId.value, selectedShot.value?.id ?? null] as const,
-  async ([projectId, chapterId, shotId]) => {
+  () => [
+    props.snapshot.project.id,
+    currentChapterId.value,
+    selectedShot.value?.id ?? null,
+    visualDescriptionDraft.value,
+    actionDraft.value,
+    compositionDraft.value,
+  ] as const,
+  ([projectId, chapterId, shotId, visualDescription, action, composition], _previous, onCleanup) => {
     const requestId = ++promptPreviewRequestId;
     candidateGenerationSpec.value = null;
     promptPreviewError.value = null;
-    if (!chapterId || !shotId) {
+    if (promptPreviewTimer) clearTimeout(promptPreviewTimer);
+    if (!chapterId || !shotId || !visualDescription.trim() || !action.trim() || !composition.trim()) {
       promptPreviewLoading.value = false;
       return;
     }
     promptPreviewLoading.value = true;
-    try {
-      const result = await api.candidateGenerationPreview(projectId, chapterId, shotId);
-      if (requestId === promptPreviewRequestId) {
-        candidateGenerationSpec.value = result.spec;
+    promptPreviewTimer = setTimeout(async () => {
+      try {
+        const result = await api.candidateGenerationPreview(projectId, chapterId, shotId, {
+          visualDescription: visualDescription.trim(),
+          action: action.trim(),
+          composition: composition.trim(),
+        });
+        if (requestId === promptPreviewRequestId) {
+          candidateGenerationSpec.value = result.spec;
+        }
+      } catch (error) {
+        if (requestId === promptPreviewRequestId) {
+          promptPreviewError.value = error instanceof Error ? error.message : "生成规格读取失败";
+        }
+      } finally {
+        if (requestId === promptPreviewRequestId) {
+          promptPreviewLoading.value = false;
+        }
       }
-    } catch (error) {
-      if (requestId === promptPreviewRequestId) {
-        promptPreviewError.value = error instanceof Error ? error.message : "生成规格读取失败";
-      }
-    } finally {
-      if (requestId === promptPreviewRequestId) {
-        promptPreviewLoading.value = false;
-      }
-    }
+    }, 280);
+    onCleanup(() => {
+      if (promptPreviewTimer) clearTimeout(promptPreviewTimer);
+    });
   },
   { immediate: true },
 );
@@ -686,7 +957,21 @@ function generateSelectedShot() {
   emit("generateCandidates", {
     shotId: selectedShot.value.id,
     candidateCount: candidateCount.value,
+    promptOverrides: selectedPromptOverrides.value,
   });
+}
+
+function generateAllUnlockedShots(): void {
+  const promptOverridesByShot: Record<string, CandidatePromptOverrides> = {};
+  for (const shot of shots.value.filter((item) => !item.lockedCandidateId)) {
+    const draft = promptDrafts.value[shot.id] ?? createPromptDraft(shot);
+    promptOverridesByShot[shot.id] = {
+      visualDescription: draft.visualDescription.trim(),
+      action: draft.action.trim(),
+      composition: draft.composition.trim(),
+    };
+  }
+  emit("generateAllUnlocked", { promptOverridesByShot });
 }
 
 function toggleBatch(taskId: string) {
@@ -973,6 +1258,40 @@ function getTaskChapterId(task: GenerationTaskItem): string | null {
 function getTaskShotId(task: GenerationTaskItem): string | null {
   const value = task.input.shotId ?? (task.target?.type === "shot" ? task.target.id : null);
   return typeof value === "string" ? value : null;
+}
+
+function isPromptTaskCurrent(task: GenerationTaskItem): boolean {
+  if (!isDatabaseCandidateMode.value) return true;
+  const currentStoryboardId = props.snapshot.storyboard?.id;
+  const currentPreflightId = props.snapshot.imagePreflight?.id;
+  const projection = task.input.sourceProjection;
+  if (!currentStoryboardId || !currentPreflightId || !projection || typeof projection !== "object" || Array.isArray(projection)) return false;
+  const sources = (projection as Record<string, unknown>).sources;
+  if (!Array.isArray(sources)) return false;
+  const rows = sources.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item));
+  const sourcesAreCurrent = rows.some((row) => row.sourceType === "storyboard_version" && row.sourceId === currentStoryboardId)
+    && rows.some((row) => row.sourceType === "preflight_revision" && row.sourceId === currentPreflightId);
+  return sourcesAreCurrent && promptTaskMatchesCurrentDraft(task);
+}
+
+function promptTaskMatchesCurrentDraft(task: GenerationTaskItem): boolean {
+  const shotId = getTaskShotId(task);
+  const shot = shots.value.find((item) => item.id === shotId);
+  const promptSpec = task.input.promptSpec;
+  if (!shot || !promptSpec || typeof promptSpec !== "object" || Array.isArray(promptSpec)) return false;
+  const rawSections = (promptSpec as Record<string, unknown>).sections;
+  if (!Array.isArray(rawSections)) return false;
+  const sectionValues = new Map<string, string>();
+  for (const item of rawSections) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    if (typeof row.key === "string" && typeof row.value === "string") sectionValues.set(row.key, row.value.trim());
+  }
+  const draft = promptDrafts.value[shot.id] ?? createPromptDraft(shot);
+  const actionSection = sectionValues.get("action") ?? "";
+  return sectionValues.get("visual") === draft.visualDescription.trim()
+    && sectionValues.get("composition") === draft.composition.trim()
+    && (actionSection === draft.action.trim() || actionSection.startsWith(`${draft.action.trim()}; `));
 }
 
 function getTaskStatusLabel(status: GenerationTaskStatus): string {
@@ -1404,6 +1723,176 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 14px;
+}
+
+.visual-editor-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(34, 199, 169, 0.24);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 16px;
+}
+
+.visual-editor-heading,
+.prompt-suggestion-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.visual-editor-heading > div:first-child,
+.prompt-suggestion-heading > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.visual-editor-heading span,
+.prompt-suggestion-heading span {
+  color: #8df0dc;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.visual-editor-heading strong {
+  color: #f8fbff;
+  font-size: 15px;
+}
+
+.visual-editor-heading small,
+.prompt-suggestion-heading small {
+  color: #8a98b8;
+  font-size: 11px;
+}
+
+.visual-editor-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.visual-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.visual-editor-primary {
+  grid-column: 1 / -1;
+}
+
+.visual-editor-fields label {
+  display: grid;
+  gap: 7px;
+}
+
+.visual-editor-fields label > span {
+  color: #aebbd3;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.visual-editor-fields textarea {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.5);
+  color: #e8eefc;
+  padding: 10px 11px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.visual-editor-fields textarea:focus {
+  outline: 2px solid rgba(34, 199, 169, 0.22);
+  border-color: rgba(34, 199, 169, 0.5);
+}
+
+.visual-issue-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.visual-issue-list p {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.visual-issue-list p.is-blocking {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.11);
+}
+
+.visual-issue-list svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.prompt-suggestion-card {
+  margin-top: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.32);
+  border-radius: 9px;
+  background: rgba(76, 29, 149, 0.12);
+  padding: 13px;
+}
+
+.prompt-suggestion-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+}
+
+.prompt-suggestion-card dl > div {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.prompt-suggestion-card dt {
+  color: #a78bfa;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.prompt-suggestion-card dd {
+  margin: 0;
+  color: #dbe7ff;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.prompt-suggestion-card ul {
+  margin: 10px 0 0 18px;
+  padding: 0;
+  color: #aebbd3;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.suggestion-warning,
+.prompt-optimization-error {
+  margin: 10px 0 0;
+  color: #fbbf24;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.prompt-optimization-error {
+  color: #fca5a5;
 }
 
 .shot-context-grid article {

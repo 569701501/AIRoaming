@@ -24,6 +24,7 @@ export interface G4CandidateFixture {
 export async function prepareG4CandidateFixture(
   api: E2EApiClient,
   project: ProjectListItem,
+  options: { generateCandidates?: boolean } = {},
 ): Promise<G4CandidateFixture> {
   const projectId = project.id;
   const chapterId = project.currentChapterId!;
@@ -134,6 +135,10 @@ export async function prepareG4CandidateFixture(
     expectedChapterRowVersion: preflight.data.chapterRowVersion,
     notes: preflight.data.preview.notes,
   });
+
+  if (options.generateCandidates === false) {
+    return { projectId, chapterId, shotId: shotCreated.data.shotId, candidateIds: [] };
+  }
 
   const task = await api.post<{ task: GenerationTaskItem }>("/tasks", {
     projectId,

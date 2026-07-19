@@ -121,6 +121,18 @@ export class SevenStageFixture {
           buffer: ONE_PIXEL_PNG,
           generationMode: "image_generation",
           usedReferenceAssetIds: [],
+          referencePlan: {
+            schemaVersion: 1,
+            compilerVersion: "candidate_reference_plan_v1",
+            providerType: "grok",
+            strategy: "none",
+            inputReferenceAssetIds: [],
+            usedReferenceAssetIds: [],
+            slots: [],
+            omittedRequired: [],
+            compositionCoverage: "prompt_only",
+            warnings: [],
+          },
           warnings: [],
         }),
       ];

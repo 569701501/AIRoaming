@@ -162,4 +162,21 @@ describe("S2 分镜输出契约与固定质量门", () => {
       "STORYBOARD_PROMPT_DRAFT_FORBIDDEN:shots[0]",
     ]));
   });
+
+  it("阻断静态画格里的多地点、多时刻、不可见信息、文字要求和设定图语言", () => {
+    const value = storyboard();
+    const target = value.shots[0]!;
+    target.coreAction = "林舟先拾起车票，随后跑进车厢";
+    target.comic.panelDescription = "林舟在站台听见钟声后切到车厢，画面显示字幕和编号，人物按三视图展示";
+    target.comic.composition = "镜头用 3 秒从人物推进到车票";
+
+    expect(issuesOf(() => assertStoryboardQuality(value, structure()))).toEqual(expect.arrayContaining([
+      "STORYBOARD_PANEL_TEXT_CONFLICT:shots[0]",
+      "STORYBOARD_PANEL_MULTIPLE_LOCATIONS:shots[0]",
+      "STORYBOARD_PANEL_MULTIPLE_MOMENTS:shots[0]",
+      "STORYBOARD_PANEL_NON_VISUAL:shots[0]",
+      "STORYBOARD_PANEL_IDENTITY_SHEET_LANGUAGE:shots[0]",
+      "STORYBOARD_COMPOSITION_MOTION_LANGUAGE:shots[0]",
+    ]));
+  });
 });

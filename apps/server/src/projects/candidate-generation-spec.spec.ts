@@ -75,6 +75,9 @@ describe("buildCandidateGenerationSpec", () => {
       decisiveMoment: true,
       effectCausality: "conditional",
     });
+    expect(spec.visualIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "VISUAL_SUBJECT_COUNT_CONFLICT", severity: "blocking" }),
+    ]));
 
     for (const forbidden of [
       "第1章：黑色念痕",
@@ -165,7 +168,7 @@ describe("buildCandidateGenerationSpec", () => {
                 id: "story_char_kurapika",
                 projectCharacterId: "project_char_kurapika",
                 name: "酷拉皮卡",
-                visualTraits: "金色短发",
+                visualTraits: "本章改穿红色斗篷并负责判断真相",
               },
               {
                 id: "story_char_killua",
@@ -202,6 +205,8 @@ describe("buildCandidateGenerationSpec", () => {
       { assetId: "asset_ward", priority: 90 },
     ]);
     expect(spec.positivePrompt).toContain("酷拉皮卡");
+    expect(spec.positivePrompt).toContain("金色短发，黑色西装");
+    expect(spec.positivePrompt).not.toContain("红色斗篷");
     expect(spec.positivePrompt).not.toContain("本章承担悬疑判断功能");
     expect(spec.positivePrompt).not.toContain("奇犽");
     expect(spec.references.map((reference) => reference.assetId)).not.toContain("asset_kurapika_four_panel_final");
@@ -275,4 +280,67 @@ describe("buildCandidateGenerationSpec", () => {
     expect(taskInput).not.toHaveProperty("referenceAssetIds");
     expect(taskInput).not.toHaveProperty("preflightCharacterReferenceAssetIds");
   });
+
+  it("只把用户确认的画面、动作和构图覆盖写入候选图规格，不改原分镜", () => {
+    const sourceShot = shotForOverrides();
+    const spec = buildCandidateGenerationSpec({
+      projectId: "project_hunter",
+      chapterId: "chapter_001",
+      chapterTitle: "章节标题",
+      comicFormat: "vertical_scroll",
+      artStyle: "dark_realistic",
+      shot: sourceShot,
+      scene: null,
+      characters: [
+        { id: "char_1", name: "林舟", entityType: "human", appearance: "灰色风衣", promptFragment: "" },
+        { id: "char_2", name: "苏弥", entityType: "human", appearance: "黑色短发", promptFragment: "" },
+      ],
+      references: [],
+      requestedSize: { width: 1024, height: 1536 },
+      promptOverrides: {
+        visualDescription: "林舟和苏弥同时按住即将合拢的车门，雨水停在两人肩头。",
+        action: "林舟用右手撑门，苏弥从门内抓住他的左腕。",
+        composition: "林舟位于左前景，苏弥位于右中景，交握的手形成视觉中心。",
+      },
+    });
+
+    expect(spec.sections.find((section) => section.key === "visual")?.value).toContain("同时按住");
+    expect(spec.sections.find((section) => section.key === "action")?.value).toContain("苏弥从门内抓住");
+    expect(spec.sections.find((section) => section.key === "composition")?.value).toContain("交握的手");
+    expect(spec.visualIssues).toEqual([]);
+    expect(sourceShot.comic.panelDescription).toBe("原始画面");
+  });
 });
+
+function shotForOverrides(): StoryboardShot {
+  return {
+    id: "shot_override",
+    order: 1,
+    beatId: null,
+    sceneId: null,
+    characterIds: ["char_1", "char_2"],
+    coreAction: "原始动作",
+    emotion: "紧张",
+    shotType: "medium",
+    cameraAngle: "eye_level",
+    comic: {
+      panelDescription: "原始画面",
+      composition: "原始构图",
+      dialogue: "",
+      caption: "",
+      panelRhythm: "impact",
+    },
+    motion: {
+      visualDescription: "原始动态",
+      compositionDesign: "原始动态构图",
+      cameraMovement: "static",
+      frameType: "action",
+      durationMs: 2000,
+      durationHint: "约 2s",
+      voiceLines: [],
+    },
+    promptDraft: "原始草稿",
+    lockedCandidateId: null,
+    status: "ready_for_image",
+  };
+}

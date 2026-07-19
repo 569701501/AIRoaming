@@ -13,6 +13,8 @@ import {
   type StoryboardDocumentV2,
   type StoryStructureJson,
   type TaskSourceProjectionV1,
+  type CandidateVisualIssue,
+  type ProjectCharacterEntityType,
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
 import { PrismaService } from "../persistence/prisma.service.js";
@@ -60,6 +62,12 @@ import {
 import { resolveStoryboardReferences } from "../dialogue/storyboard-reference.util.js";
 import { getErrorMessage } from "../dialogue/dialogue-text.util.js";
 import { toStoryDocumentV2 } from "./versioning/story-document-adapter.util.js";
+import {
+  buildShotPromptOptimizationPrompt,
+  buildShotPromptOptimizationRepairPrompt,
+  parseShotPromptOptimizationOutput,
+  type ShotPromptOptimizationWarning,
+} from "./shot-prompt-optimize.util.js";
 
 export interface VersionDocumentTaskOutputV2<TDocument = unknown> {
   readonly schemaVersion: 2;
@@ -103,6 +111,12 @@ interface ShotPromptTaskOutput {
   readonly prompt: string;
   readonly negativePrompt: string;
   readonly image: { readonly width: number; readonly height: number };
+  readonly visualDescription: string;
+  readonly action: string;
+  readonly composition: string;
+  readonly mustShow: readonly string[];
+  readonly visualIssues: readonly CandidateVisualIssue[];
+  readonly optimizationWarnings: readonly ShotPromptOptimizationWarning[];
   readonly warnings: readonly string[];
 }
 
@@ -578,9 +592,37 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const width = integer(image.width, "providerOutput.image.width");
     const height = integer(image.height, "providerOutput.image.height");
     if (width < 1 || height < 1) throw new TypeError("providerOutput.image dimensions must be positive");
-    const warnings = candidate.warnings;
-    if (warnings !== undefined && (!Array.isArray(warnings) || warnings.some((warning) => typeof warning !== "string"))) throw new TypeError("providerOutput.warnings must be string[]");
-    return { schemaVersion: 2, targetId, generationSpecDigest: text(input.generationSpecDigest, "input.generationSpecDigest") as Digest, prompt, negativePrompt, image: { width, height }, warnings: (warnings as string[] | undefined) ?? [] };
+    const visualDescription = text(candidate.visualDescription, "providerOutput.visualDescription");
+    const action = text(candidate.action, "providerOutput.action");
+    const composition = text(candidate.composition, "providerOutput.composition");
+    const mustShow = candidate.mustShow;
+    if (!Array.isArray(mustShow) || mustShow.some((item) => typeof item !== "string" || !item.trim())) {
+      throw new TypeError("providerOutput.mustShow must be string[]");
+    }
+    const visualIssues = candidate.visualIssues;
+    if (!Array.isArray(visualIssues)) throw new TypeError("providerOutput.visualIssues must be an array");
+    const optimizationWarnings = candidate.warnings;
+    if (!Array.isArray(optimizationWarnings) || optimizationWarnings.some((warning) => {
+      if (!warning || typeof warning !== "object" || Array.isArray(warning)) return true;
+      const row = warning as Record<string, unknown>;
+      return row.code !== "SOURCE_CONFLICT" || typeof row.message !== "string" || !row.message.trim();
+    })) throw new TypeError("providerOutput.warnings must contain optimization warnings");
+    const typedWarnings = optimizationWarnings as unknown as ShotPromptOptimizationWarning[];
+    return {
+      schemaVersion: 2,
+      targetId,
+      generationSpecDigest: text(input.generationSpecDigest, "input.generationSpecDigest") as Digest,
+      prompt,
+      negativePrompt,
+      image: { width, height },
+      visualDescription,
+      action,
+      composition,
+      mustShow: (mustShow as string[]).map((item) => item.trim()),
+      visualIssues: visualIssues as CandidateVisualIssue[],
+      optimizationWarnings: typedWarnings,
+      warnings: typedWarnings.map((warning) => warning.message),
+    };
   }
 
   private normalizeImageOutput(targetId: string, raw: unknown, input: Record<string, unknown>, projectId: string): ImageTaskOutput {
@@ -960,6 +1002,38 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     const input = context.input;
     const spec = object(input.promptSpec, "input.promptSpec");
     assertGenerationPromptSpecV2(spec);
+    const visualContext = object(spec.visualContext ?? {}, "input.promptSpec.visualContext");
+    const characterRows = Array.isArray(visualContext.characters) ? visualContext.characters : [];
+    const characters = characterRows.map((value, index) => {
+      const row = object(value, `input.promptSpec.visualContext.characters[${index}]`);
+      return {
+        name: text(row.name, `input.promptSpec.visualContext.characters[${index}].name`),
+        entityType: (typeof row.entityType === "string" ? row.entityType : "human") as ProjectCharacterEntityType,
+      };
+    });
+    const inputIssues = Array.isArray(spec.visualIssues) ? spec.visualIssues as CandidateVisualIssue[] : [];
+    const prompt = buildShotPromptOptimizationPrompt({
+      promptSpec: spec,
+      visualIssues: inputIssues,
+      instruction: typeof input.instruction === "string" ? input.instruction : null,
+    });
+    const sessionId = await this.openCode.createSession(`shot_prompt_generate:${text(input.shotId, "input.shotId")}`);
+    const validate = (content: string) => parseShotPromptOptimizationOutput(content, characters);
+    const response = await this.openCode.sendMessage({ sessionId, content: prompt });
+    let optimized;
+    try {
+      optimized = validate(response.content);
+    } catch (error) {
+      const repaired = await this.openCode.sendMessage({
+        sessionId,
+        content: buildShotPromptOptimizationRepairPrompt({
+          originalPrompt: prompt,
+          invalidOutput: response.content,
+          validationError: getErrorMessage(error),
+        }),
+      });
+      optimized = validate(repaired.content);
+    }
     return {
       schemaVersion: 2,
       targetId: text(input.shotId, "input.shotId"),
@@ -967,7 +1041,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       prompt: text(spec.providerPrompt ?? spec.positivePrompt, "input.promptSpec.providerPrompt"),
       negativePrompt: text(spec.negativePrompt, "input.promptSpec.negativePrompt"),
       image: object(spec.image, "input.promptSpec.image"),
-      warnings: [],
+      ...optimized,
     };
   }
 

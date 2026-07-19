@@ -555,6 +555,21 @@ function deterministicOpenCodeResponse(payload, failureMode) {
       : STORY_STRUCTURE_RESPONSE;
     return `\`\`\`json\n${JSON.stringify(structure, null, 2)}\n\`\`\``;
   }
+  if (prompt.includes("shot-prompt-optimize")) {
+    const facts = readJsonAfterMarker(prompt, "当前冻结镜头输入：");
+    const sections = Array.isArray(facts.sections) ? facts.sections : [];
+    const sectionValue = (key, fallback) => {
+      const row = sections.find((item) => item && typeof item === "object" && item.key === key);
+      return row && typeof row.value === "string" && row.value.trim() ? row.value.trim() : fallback;
+    };
+    return JSON.stringify({
+      visualDescription: `单帧可见：${sectionValue("visual", "当前镜头主体停在决定性瞬间")}`,
+      action: sectionValue("action", "主体动作对象与承受关系清楚"),
+      composition: sectionValue("composition", "主体位于中景，关键动作落在视觉中心"),
+      mustShow: ["单一地点", "单一决定性瞬间"],
+      warnings: [],
+    });
+  }
   if (prompt.includes("storyboard-shot-generate")) {
     const storyboard = buildStoryboardResponse(prompt);
     const shouldFailQualityOnce = failureMode === "storyboard_quality_once"

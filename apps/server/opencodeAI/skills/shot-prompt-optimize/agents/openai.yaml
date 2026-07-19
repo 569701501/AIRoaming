@@ -1,0 +1,4 @@
+interface:
+  display_name: "镜头画面优化"
+  short_description: "把单个正式镜头整理为可选择采用的清晰单帧画面建议"
+  default_prompt: "Use $shot-prompt-optimize to optimize one shot visual description without changing formal storyboard facts."

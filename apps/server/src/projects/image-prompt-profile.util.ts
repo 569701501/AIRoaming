@@ -180,6 +180,8 @@ function compileShotContract(
   }
   const variables = {
     NAMES: contract.subjectNames.join(sourceProfile.namesSeparator),
+    COLLECTIVE_NAMES: (contract.collectiveSubjectNames ?? []).join(sourceProfile.namesSeparator),
+    GROUP_COUNT_HINT: contract.groupCountHint ?? "unspecified",
     ACTION: contract.action || sourceProfile.defaultAction,
     COMPOSITION: contract.composition || sourceProfile.defaultComposition,
     SUBJECT_COUNT: contract.subjectCount,

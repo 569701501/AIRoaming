@@ -1714,6 +1714,18 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const boards = app.get(StoryboardVersionRepository);
     const preflight = app.get(PreflightRevisionService);
     const worker = app.get(PersistentTaskWorkerService);
+    const promptRuntime = app.get(OpenCodeRuntimeService);
+    promptRuntime.createSession = async () => "shot-prompt-test-session";
+    promptRuntime.sendMessage = async () => ({
+      content: JSON.stringify({
+        visualDescription: "雨夜门口，一扇旧门停在刚被推开的瞬间，雨水沿门框滑落。",
+        action: "旧门向内开启，门把停在画面中央。",
+        composition: "门框占据中景，门把位于视觉中心，门外雨幕形成背景。",
+        mustShow: ["刚被推开的旧门", "门外雨幕"],
+        warnings: [],
+      }),
+      model: { providerId: "fake", modelId: "test-shot-prompt-model" },
+    });
     const decisions = app.get(CandidateDecisionService);
     const repository = app.get(PersistentTaskRepository);
     const prisma = app.get(PrismaService).database();
@@ -1747,7 +1759,20 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const preflightConfirmed = await preflight.confirm(scope, { expectedSourceStoryboardVersionId: boardConfirmed.value.current.id, expectedSourceDigest: preview.sourceDigest, expectedChapterRowVersion: preview.chapterRowVersion, notes: "shot tasks" });
     const shotId = shot.shotId;
 
-    const promptTask = await tasks.create({ projectId: project.id, type: "shot_prompt_generate", target: { type: "shot", id: shotId, chapterId: scope.chapterId }, input: { chapterId: scope.chapterId, shotId } });
+    const promptTask = await tasks.create({
+      projectId: project.id,
+      type: "shot_prompt_generate",
+      target: { type: "shot", id: shotId, chapterId: scope.chapterId },
+      input: {
+        chapterId: scope.chapterId,
+        shotId,
+        promptOverrides: {
+          visualDescription: "雨夜门口，一扇旧门停在刚被推开的瞬间。",
+          action: "旧门向内开启。",
+          composition: "门框占据中景，门把位于视觉中心。",
+        },
+      },
+    });
     expect(promptTask.input.sourceProjection).toBeTruthy();
     expect(promptTask.input.promptSpec).toMatchObject({
       schemaVersion: 2,
@@ -1757,12 +1782,37 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       positivePrompt: expect.stringContaining("主体与静态瞬间"),
       providerPrompt: expect.stringContaining("雨夜门口"),
       sections: expect.arrayContaining([expect.objectContaining({ key: "visual" })]),
+      visualIssues: [],
     });
     expect((promptTask.input.promptSpec as { providerPrompt: string }).providerPrompt)
       .not.toBe((promptTask.input.promptSpec as { positivePrompt: string }).positivePrompt);
     const promptDone = await worker.runOnce("shot-worker");
-    expect(promptDone).toMatchObject({ id: promptTask.id, status: "succeeded", output: { targetId: shotId } });
+    expect(promptDone).toMatchObject({
+      id: promptTask.id,
+      status: "succeeded",
+      output: { targetId: shotId, visualDescription: expect.stringContaining("雨夜门口") },
+    });
     expect((await prisma.generationTask.findUniqueOrThrow({ where: { id: promptTask.id } })).applicability).toBe("current");
+
+    await expect(tasks.create({
+      projectId: project.id,
+      type: "image_generate",
+      target: { type: "shot", id: shotId, chapterId: scope.chapterId },
+      input: {
+        chapterId: scope.chapterId,
+        shotId,
+        requestId: randomUUID(),
+        candidateCount: 1,
+        promptOverrides: {
+          visualDescription: "先在门口开门，随后切到走廊显示字幕。",
+          action: "先开门，然后走进走廊。",
+          composition: "人物居中。",
+        },
+      },
+    })).rejects.toMatchObject({
+      code: "CANDIDATE_VISUAL_DESCRIPTION_BLOCKED",
+      status: 422,
+    });
 
     const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082", "hex");
     worker.setHandler("image_generate", async () => ({ candidates: [{ index: 1, buffer: png, mimeType: "image/png" }] }));

@@ -21,6 +21,8 @@ describe("OpenCode Skill production assets", () => {
       "candidate-config.json",
     );
     expect(config.systemConstraints).toContain("Create exactly one clean comic illustration for one storyboard shot.");
+    expect(readOpenCodeSkillReference("shot-prompt-optimize", "optimize-prompt.md"))
+      .toContain("结果只供用户选择采用");
   });
 
   it("严格渲染模板并拒绝缺失变量", () => {
