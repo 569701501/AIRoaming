@@ -1700,6 +1700,135 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await prisma.storyboardVersion.findUniqueOrThrow({ where: { id: boardId } })).rowVersion).toBe(1);
   }, 30_000);
 
+  it("候选图工作台镜头必须保持正式分镜顺序而不是 Shot ID 顺序", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+
+    const projects = app.get(ProjectsService);
+    const scripts = app.get(ScriptVersionRepository);
+    const stories = app.get(StoryVersionRepository);
+    const boards = app.get(StoryboardVersionRepository);
+    const project = await projects.createProject({
+      name: "候选图镜头顺序回归",
+      type: "comic",
+      comicFormat: "vertical_scroll",
+      artStyle: "comic_style",
+    });
+    const scope = { projectId: project.id, chapterId: project.currentChapterId! };
+    const chapter = await app.get(PrismaService).database().chapter.findUniqueOrThrow({
+      where: { id: scope.chapterId },
+    });
+    const scriptText = "镜头一先开门，镜头二再看向走廊。";
+    const working = await scripts.updateWorkingCopy(scope, {
+      sourceText: scriptText,
+      expectedChapterRowVersion: chapter.rowVersion,
+    });
+    const published = await scripts.publish(scope, {
+      expectedCurrentScriptVersionId: null,
+      expectedWorkingDigest: working.value.digest,
+      expectedChapterRowVersion: working.value.chapterRowVersion,
+      createNextChapter: false,
+    });
+    const story = await stories.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: published.scriptVersion.id,
+      expectedChapterRowVersion: published.workingCopy.chapterRowVersion,
+    });
+    const storyDocument: StoryDocumentV2 = {
+      schemaVersion: 2,
+      chapterId: scope.chapterId,
+      synopsis: "两镜连续动作。",
+      direction: { logline: "", chapterGoal: "", coreConflict: "", emotionalArc: "", endingHook: "" },
+      characters: [],
+      scenes: [],
+      beats: [],
+      notes: "",
+    };
+    const storyUpdated = await stories.updateWorkingCopy(scope, {
+      pendingVersionId: story.value.pending!.id,
+      document: storyDocument,
+      expectedPendingRowVersion: 0,
+      expectedChapterRowVersion: story.chapterRowVersion,
+    });
+    const storyConfirmed = await stories.confirmWorkingCopy(scope, {
+      pendingVersionId: story.value.pending!.id,
+      expectedPendingDocumentDigest: storyUpdated.value.pending!.documentDigest,
+      expectedPendingRowVersion: storyUpdated.value.pending!.rowVersion ?? 0,
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: published.scriptVersion.id,
+      expectedSourceDigest: published.scriptVersion.sourceDigest,
+      expectedChapterRowVersion: storyUpdated.chapterRowVersion,
+    });
+    const board = await boards.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceStoryVersionId: storyConfirmed.value.current.id,
+      expectedChapterRowVersion: storyConfirmed.chapterRowVersion,
+    });
+    const createShot = async (
+      action: string,
+      afterShotId: string | null,
+      expectedPendingRowVersion: number,
+      expectedChapterRowVersion: number,
+    ) => boards.createPendingShot(scope, {
+      pendingVersionId: board.value.pending!.id,
+      requestId: randomUUID(),
+      afterShotId,
+      expectedPendingRowVersion,
+      expectedChapterRowVersion,
+      initial: {
+        beatId: null,
+        sceneId: null,
+        characterIds: [],
+        coreAction: action,
+        emotion: "平静",
+        shotType: "medium",
+        cameraAngle: "eye_level",
+        comic: { panelDescription: action, composition: "中景", dialogue: "", caption: "", panelRhythm: "normal" },
+        motion: { visualDescription: action, compositionDesign: "居中", cameraMovement: "static", frameType: "action", durationMs: 0, durationHint: "", voiceLines: [] },
+        promptDraft: "",
+      },
+    });
+    const firstShot = await createShot("先开门", null, 0, board.chapterRowVersion);
+    const secondShot = await createShot(
+      "再看向走廊",
+      firstShot.shotId,
+      firstShot.workingCopy.pending!.rowVersion ?? 0,
+      firstShot.workingCopy.productionState.chapterRowVersion,
+    );
+    const formalShotIds = [firstShot.shotId, secondShot.shotId]
+      .sort((left, right) => right.localeCompare(left));
+    const shotsById = new Map(secondShot.workingCopy.document!.shots.map((shot) => [shot.id, shot]));
+    const reordered = await boards.updateWorkingCopy(scope, {
+      pendingVersionId: board.value.pending!.id,
+      document: {
+        ...secondShot.workingCopy.document!,
+        shots: formalShotIds.map((shotId, index) => ({
+          ...shotsById.get(shotId)!,
+          order: index + 1,
+        })),
+      },
+      expectedPendingRowVersion: secondShot.workingCopy.pending!.rowVersion ?? 0,
+      expectedChapterRowVersion: secondShot.workingCopy.productionState.chapterRowVersion,
+    });
+    await boards.confirmWorkingCopy(scope, {
+      pendingVersionId: board.value.pending!.id,
+      expectedPendingDocumentDigest: reordered.value.pending!.documentDigest,
+      expectedPendingRowVersion: reordered.value.pending!.rowVersion ?? 0,
+      expectedCurrentVersionId: null,
+      expectedSourceStoryVersionId: storyConfirmed.value.current.id,
+      expectedSourceDigest: storyConfirmed.value.current.documentDigest,
+      expectedChapterRowVersion: reordered.chapterRowVersion,
+    });
+
+    const snapshot = await projects.getWorkbenchSnapshot(project.id, scope.chapterId);
+    expect(snapshot.storyboard?.storyboardJson.shots.map((shot) => shot.id)).toEqual(formalShotIds);
+    expect(snapshot.shots.map((shot) => shot.id)).toEqual(formalShotIds);
+    expect(snapshot.shots.map((shot) => shot.order)).toEqual([1, 2]);
+  }, 30_000);
+
   it("P6/G4-D: keeps formal layout/publication sources gated across replacement, late task, new candidate, and restart", async () => {
     const { deployed, workspaceRoot } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);

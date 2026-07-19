@@ -142,12 +142,14 @@ export class CandidateLockRepository {
         } satisfies DecisionContext;
       });
       const decisionByShot = new Map(contexts.map((context) => [context.shot.id, context.currentDecision]));
+      const shots = await Promise.all(contexts.map((context) => this.toWorkbenchShot(
+        tx,
+        context,
+        candidateRows.filter((candidate) => candidate.shotId === context.shot.id),
+      )));
+      shots.sort((left, right) => left.order - right.order);
       return {
-        shots: await Promise.all(contexts.map((context) => this.toWorkbenchShot(
-          tx,
-          context,
-          candidateRows.filter((candidate) => candidate.shotId === context.shot.id),
-        ))),
+        shots,
         candidates: candidateRows.map((candidate) => this.toWorkbenchCandidate(
           candidate,
           decisionByShot.get(candidate.shotId) ?? this.toCurrentDecision(null),
