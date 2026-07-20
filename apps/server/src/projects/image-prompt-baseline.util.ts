@@ -118,7 +118,7 @@ export interface ImagePromptBaselineReport {
   };
 }
 
-const PROVIDERS = new Set<ImageProviderType>(["openai", "doubao", "grok"]);
+const PROVIDERS = new Set<ImageProviderType>(["openai", "doubao", "grok", "runware"]);
 const REFERENCE_KINDS = new Set<ReferencePromptKind>([
   "character_preview",
   "character_final",

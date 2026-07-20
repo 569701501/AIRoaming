@@ -549,7 +549,7 @@ export class ImageCandidateService {
 
   private toProviderSize(
     spec: CandidateGenerationSpec,
-    providerType: "openai" | "doubao" | "grok",
+    providerType: "openai" | "doubao" | "grok" | "runware",
   ): string {
     const { width, height } = spec.requestedSize;
     return `${width}x${height}`;
@@ -559,9 +559,10 @@ export class ImageCandidateService {
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }
 
-  private toProviderMetaId(providerType: "openai" | "doubao" | "grok"): string {
+  private toProviderMetaId(providerType: "openai" | "doubao" | "grok" | "runware"): string {
     if (providerType === "doubao") return "doubao_image";
     if (providerType === "grok") return "grok_image";
+    if (providerType === "runware") return "runware_image";
     return "openai_image";
   }
 

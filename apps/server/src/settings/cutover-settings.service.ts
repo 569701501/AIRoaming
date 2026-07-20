@@ -14,6 +14,7 @@ const IMAGE_PROVIDERS = [
   ["openai", "openaiImageProvider"],
   ["doubao", "doubaoImageProvider"],
   ["grok", "grokImageProvider"],
+  ["runware", "runwareImageProvider"],
 ] as const;
 
 export type CutoverSettingsStartState = "already_sanitized" | "legacy_plaintext_requires_two_phase";

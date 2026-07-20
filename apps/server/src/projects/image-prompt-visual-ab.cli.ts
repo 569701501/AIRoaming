@@ -44,6 +44,7 @@ interface StoredSettings {
   openaiImageProvider: StoredProviderSettings;
   doubaoImageProvider: StoredProviderSettings;
   grokImageProvider: StoredProviderSettings;
+  runwareImageProvider: StoredProviderSettings;
 }
 
 interface ReferenceManifestItem {
@@ -80,7 +81,7 @@ interface AttemptResult {
   reason?: string;
 }
 
-const PROVIDERS: ImageProviderType[] = ["openai", "doubao", "grok"];
+const PROVIDERS: ImageProviderType[] = ["openai", "doubao", "grok", "runware"];
 const REFERENCE_ASSET_IDS = [
   "asset_lin_preview",
   "asset_xu_preview",
@@ -115,7 +116,8 @@ function safeError(error: unknown): string {
 function storedProvider(settings: StoredSettings, providerType: ImageProviderType): StoredProviderSettings {
   if (providerType === "openai") return settings.openaiImageProvider;
   if (providerType === "doubao") return settings.doubaoImageProvider;
-  return settings.grokImageProvider;
+  if (providerType === "grok") return settings.grokImageProvider;
+  return settings.runwareImageProvider;
 }
 
 function credentialId(providerType: ImageProviderType, providerId: string): string {

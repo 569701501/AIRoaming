@@ -85,26 +85,80 @@ export interface SecretCommandExecutor {
   run(file: string, args: readonly string[], options?: { secretInput?: SecretString }): Promise<SecretCommandResult>;
 }
 
+const SECURITY_PASSWORD_EXPECT_SCRIPT = String.raw`
+log_user 0
+set timeout 15
+set secret_channel [open "/dev/fd/3" r]
+fconfigure $secret_channel -translation binary
+set secret [read $secret_channel]
+close $secret_channel
+set command [split $env(AIROAMING_EXPECT_COMMAND) "\x1f"]
+spawn -noecho {*}$command
+set prompt_count 0
+expect {
+  -re {(password data|retype password) for new item:} {
+    incr prompt_count
+    if {$prompt_count > 2} { exit 125 }
+    send -- "$secret\r"
+    exp_continue
+  }
+  timeout { exit 124 }
+  eof {}
+}
+set result [wait]
+exit [lindex $result 3]
+`;
+
 class ProcessSecretCommandExecutor implements SecretCommandExecutor {
   run(file: string, args: readonly string[], options: { secretInput?: SecretString } = {}): Promise<SecretCommandResult> {
+    if (options.secretInput) {
+      return this.runWithSecretPrompt(file, args, options.secretInput);
+    }
+    return this.runProcess(file, args);
+  }
+
+  private runProcess(file: string, args: readonly string[]): Promise<SecretCommandResult> {
     return new Promise((resolve) => {
       const child = spawn(file, [...args], { stdio: ["pipe", "pipe", "pipe"] });
       let stdout = "";
       let stderr = "";
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => { stdout += chunk; });
-      child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+      child.stdout!.setEncoding("utf8");
+      child.stderr!.setEncoding("utf8");
+      child.stdout!.on("data", (chunk: string) => { stdout += chunk; });
+      child.stderr!.on("data", (chunk: string) => { stderr += chunk; });
       child.once("error", () => resolve({ code: 1, stdout: "", stderr: "" }));
       child.once("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
-      if (options.secretInput) {
-        // In a non-TTY child, macOS security(1) asks for the new generic
-        // password twice (password + confirmation). Both lines are written
-        // through stdin; the secret never enters argv/stdout/stderr.
-        const secret = options.secretInput.reveal();
-        child.stdin.end(`${secret}\n${secret}\n`, "utf8");
+      child.stdin.end();
+    });
+  }
+
+  private runWithSecretPrompt(file: string, args: readonly string[], secret: SecretString): Promise<SecretCommandResult> {
+    return new Promise((resolve) => {
+      // security(1) deliberately reads its final `-w` prompt from a TTY, not
+      // ordinary stdin. Expect provides that TTY while fd 3 carries the
+      // secret out-of-band; the secret never enters argv/stdout/stderr.
+      const command = [file, ...args];
+      if (command.some((value) => value.includes("\x1f"))) {
+        resolve({ code: 1, stdout: "", stderr: "" });
+        return;
+      }
+      const child = spawn("/usr/bin/expect", ["-c", SECURITY_PASSWORD_EXPECT_SCRIPT], {
+        stdio: ["ignore", "pipe", "pipe", "pipe"],
+        env: { ...process.env, AIROAMING_EXPECT_COMMAND: command.join("\x1f") },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout!.setEncoding("utf8");
+      child.stderr!.setEncoding("utf8");
+      child.stdout!.on("data", (chunk: string) => { stdout += chunk; });
+      child.stderr!.on("data", (chunk: string) => { stderr += chunk; });
+      child.once("error", () => resolve({ code: 1, stdout: "", stderr: "" }));
+      child.once("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+      const secretPipe = child.stdio[3];
+      if (secretPipe && "end" in secretPipe) {
+        secretPipe.end(secret.reveal(), "utf8");
       } else {
-        child.stdin.end();
+        child.kill();
       }
     });
   }
@@ -132,8 +186,8 @@ export class MacOSKeychainSecretStore implements SecretStore {
       this.service,
       "-U",
       // macOS security(1) documents that -w must be the final option to
-      // prompt for the password on stdin. Keep the secret out of argv and
-      // keep all non-secret flags before the prompt option.
+      // prompt for the password. The executor answers through a private TTY
+      // while keeping the secret out of argv/stdout/stderr.
       "-w",
     ], { secretInput: input.secret });
     if (result.code !== 0) throw new SecretStoreError("SECRET_STORE_OPERATION_FAILED");

@@ -32,6 +32,8 @@ export const VISUAL_AB_EVALUATION_POLICY = {
   ],
 } as const;
 
+export const VISUAL_AB_MAX_PROVIDER_REQUESTS = 40;
+
 export interface VisualAbSlot {
   slotId: string;
   promptVersion: "v1" | "v2";
@@ -71,7 +73,7 @@ export function buildVisualAbSlots(report: ImagePromptBaselineReport): VisualAbS
       }
     }
   }
-  if (slots.length !== report.summary.runtimeImageCountWhenAuthorized || slots.length !== 30) {
+  if (slots.length !== report.summary.runtimeImageCountWhenAuthorized || slots.length !== VISUAL_AB_MAX_PROVIDER_REQUESTS) {
     throw new Error(`VISUAL_AB_REQUEST_BUDGET_MISMATCH:${slots.length}`);
   }
   if (new Set(slots.map((slot) => slot.slotId)).size !== slots.length) {

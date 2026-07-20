@@ -165,5 +165,40 @@
       "environment": ["COUNT", "ENVIRONMENT", "MOMENT", "EFFECTS"],
       "subjects": ["COUNT", "ACTION", "PLACEMENT", "MOMENT", "EFFECTS"]
     }
+  },
+  "runware": {
+    "legacyProfileId": "runware-image-instruction-v1",
+    "profileId": "runware-flux-comic-clean-plate-v2",
+    "namesSeparator": ", ",
+    "defaultAction": "the requested storyboard action",
+    "defaultComposition": "the requested composition",
+    "separator": "\n",
+    "fallbackTemplate": "Generate one clean borderless comic shot with the FLUX pipeline.\n\nSOURCE BRIEF\n{{SOURCE_PROMPT}}\n\nHARD CONSTRAINTS\n{{OUTPUT_CONTRACT}}",
+    "blocks": [
+      { "label": "FLUX TASK", "source": "literal", "value": "Generate one production-ready clean plate for exactly one comic storyboard shot. Lettering and page layout will be added later." },
+      { "label": "SCENE", "source": "scene" },
+      { "label": "IDENTITY", "source": "characters" },
+      { "label": "VISIBLE MOMENT", "source": "visual" },
+      { "label": "ACTION", "source": "action" },
+      { "label": "COMPOSITION", "source": "composition" },
+      { "label": "CAMERA", "source": "camera" },
+      { "label": "STYLE", "source": "style" },
+      { "label": "SHOT RULES", "source": "shotContract" },
+      { "label": "HARD CONSTRAINTS", "source": "outputContract" }
+    ],
+    "outputContract": [
+      "Return exactly one full-frame image with one scene, one static instant, and one camera composition.",
+      "Keep supplied character identities, costumes, props, environment landmarks, spatial relationships, and light direction consistent.",
+      "Keep the focal subject and foreground, midground, background separation readable, with intentional negative space.",
+      "Render no text, letters, numbers, logos, watermarks, UI, subtitles, captions, bubbles, or sound effects.",
+      "Do not create panels, split screens, borders, grids, collages, contact sheets, or character sheets.",
+      "Use drawn comic/manhua illustration, not live-action photography, cosplay, or a 3D render."
+    ],
+    "shotContractSource": "openai",
+    "referenceGuidanceSource": "openai",
+    "shotRuleLabels": {
+      "environment": ["COUNT", "ENVIRONMENT", "MOMENT", "EFFECTS"],
+      "subjects": ["COUNT", "ACTION", "PLACEMENT", "MOMENT", "EFFECTS"]
+    }
   }
 }

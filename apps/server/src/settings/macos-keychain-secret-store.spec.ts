@@ -93,7 +93,7 @@ describe("D2-A1-2 macOS Keychain SecretStore", () => {
     expect(put?.args.at(-1)).toBe("-w");
   });
 
-  it("RCUT-SEC-11 keeps -w last so macOS security reads the secret from stdin", async () => {
+  it("RCUT-SEC-11 keeps -w last so macOS security prompts for the secret", async () => {
     const executor = new FakeSecurityExecutor();
     const store = new MacOSKeychainSecretStore(executor, "test-service", "darwin");
     await store.put({ credentialId: "image_openai", secret: SecretString.from("stdin-only-secret") });

@@ -15,12 +15,12 @@ async function compileV2() {
 }
 
 describe("专业图片 Prompt V2 离线编译", () => {
-  it("同一组五类镜头为三家 Provider 生成 15 份不再直通的 V2 Profile", async () => {
+  it("同一组五类镜头为四家 Provider 生成 20 份不再直通的 V2 Profile", async () => {
     const report = await compileV2();
     expect(report.summary).toMatchObject({
       referenceCaseCount: 3,
       candidateCaseCount: 5,
-      providerProfileCount: 15,
+      providerProfileCount: 20,
       failedCaseIds: [],
       passed: true,
     });
@@ -30,7 +30,7 @@ describe("专业图片 Prompt V2 离线编译", () => {
     });
 
     for (const candidate of report.candidateCases) {
-      expect(new Set(candidate.providerProfiles.map((profile) => profile.prompt)).size).toBe(3);
+      expect(new Set(candidate.providerProfiles.map((profile) => profile.prompt)).size).toBe(4);
       expect(candidate.providerProfiles.every((profile) => profile.profileId.endsWith("v2"))).toBe(true);
       expect(candidate.providerProfiles.every((profile) => profile.prompt !== candidate.generationSpec.positivePrompt)).toBe(true);
       expect(candidate.providerProfiles.every((profile) => profile.prompt.length >= 500 && profile.prompt.length <= 5_000)).toBe(true);

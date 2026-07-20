@@ -45,6 +45,7 @@ const PROVIDER_KEYS = [
   { key: "openaiImageProvider", runtimeKind: "image", imageType: "openai" },
   { key: "doubaoImageProvider", runtimeKind: "image", imageType: "doubao" },
   { key: "grokImageProvider", runtimeKind: "image", imageType: "grok" },
+  { key: "runwareImageProvider", runtimeKind: "image", imageType: "runware" },
 ] as const;
 
 function object(value: unknown, code: string): Record<string, unknown> { if (!value || typeof value !== "object" || Array.isArray(value)) throw new ProviderShadowImportError(code); return value as Record<string, unknown>; }

@@ -34,7 +34,7 @@ description: 当前章节已确认分镜并通过出图准备后，根据一个�
 - 领域字段、输出合同和负向词： [references/candidate-config.json](references/candidate-config.json)
 - OpenAI、豆包、Grok 的单 Prompt 传输包装与参考图职责： [references/provider-profiles.json](references/provider-profiles.json)
 
-三个 provider profile 只改变语言、标题和单字符串投递格式，共享同一镜头事实、人物数量、动作归属、构图和禁止项，不是三套创作方法。
+四个 provider profile 只改变语言、标题和单字符串投递格式，共享同一镜头事实、人物数量、动作归属、构图和禁止项，不是四套创作方法。Runware 的无参考草稿默认走 FLUX.1 Schnell，参考增强由网关切换到 FLUX.1 Dev + IP-Adapter。
 
 以上 reference 是生产 Prompt 事实源。后端只负责填充 `{{PLACEHOLDER}}`、选择 provider profile、绑定参考图、创建任务和保存版本。
 

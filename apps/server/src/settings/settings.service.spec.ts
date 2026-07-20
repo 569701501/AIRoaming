@@ -63,6 +63,47 @@ describe("D2-A1 SettingsService secret boundary", () => {
     expect((await second.getSettings()).openaiImageProvider.keyPreview).toBeNull();
   });
 
+  it("Runware 密钥只进入 SecretStore，重启后仍可安全切换和读取", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-"));
+    const secretRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-secret-"));
+    roots.push(workspaceRoot, secretRoot);
+    const store = new FakeSecretStore(secretRoot);
+    const first = createService(workspaceRoot, store);
+    await first.onModuleInit();
+    const saved = await first.updateSettings({
+      runwareImageProvider: { apiKey: "runware-secret-sentinel" },
+      activeImageProvider: "runware",
+    });
+
+    expect(saved).toMatchObject({
+      activeImageProvider: "runware",
+      runwareImageProvider: {
+        providerId: "runware_image",
+        modelId: "runware:100@1",
+        baseUrl: "https://api.runware.ai/v1",
+        configured: true,
+        keyPreview: null,
+      },
+    });
+    const persisted = await readFile(path.join(workspaceRoot, "settings", "app-settings.json"), "utf8");
+    expect(persisted).not.toContain("runware-secret-sentinel");
+    expect(persisted).toContain("runwareImageProvider");
+
+    const second = createService(workspaceRoot, store);
+    await second.onModuleInit();
+    expect(second.getRuntimeImageProviderSettings()).toMatchObject({
+      type: "runware",
+      providerId: "runware_image",
+      modelId: "runware:100@1",
+      baseUrl: "https://api.runware.ai/v1",
+      apiKey: "runware-secret-sentinel",
+    });
+    expect((await second.getSettings()).runwareImageProvider).toMatchObject({
+      configured: true,
+      keyPreview: null,
+    });
+  });
+
   it("recovers a text runtime key after restart only when the Grok image credential has the same fingerprint and base URL", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-"));
     const secretRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-settings-secret-"));

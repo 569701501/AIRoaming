@@ -24,23 +24,25 @@ function report(promptVersion: "v1" | "v2" = "v1") {
 }
 
 describe("image prompt visual A/B safety plan", () => {
-  it("freezes exactly 30 unique slots in provider/case/variant order", () => {
+  it("freezes exactly 40 unique slots in provider/case/variant order", () => {
     const slots = buildVisualAbSlots(report());
-    expect(slots).toHaveLength(30);
-    expect(new Set(slots.map((slot) => slot.slotId)).size).toBe(30);
+    expect(slots).toHaveLength(40);
+    expect(new Set(slots.map((slot) => slot.slotId)).size).toBe(40);
     expect(slots[0]?.slotId).toBe("v1:openai:candidate-no-character-establishing:v1");
     expect(slots[9]?.slotId).toBe("v1:openai:candidate-scene-effect:v2");
     expect(slots[10]?.slotId).toBe("v1:doubao:candidate-no-character-establishing:v1");
     expect(slots[29]?.slotId).toBe("v1:grok:candidate-scene-effect:v2");
+    expect(slots[30]?.slotId).toBe("v1:runware:candidate-no-character-establishing:v1");
+    expect(slots[39]?.slotId).toBe("v1:runware:candidate-scene-effect:v2");
   });
 
   it("creates a stable pending ledger without credentials", () => {
     const ledger = createVisualAbLedger(report(), "2026-07-17T00:00:00.000Z");
     expect(ledger).toMatchObject({ schemaVersion: 2, promptVersion: "v1" });
-    expect(ledger.maxProviderRequests).toBe(30);
+    expect(ledger.maxProviderRequests).toBe(40);
     expect(ledger.planDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(summarizeVisualAbLedger(ledger)).toEqual({
-      pending: 30,
+      pending: 40,
       started: 0,
       completed: 0,
       failed: 0,
@@ -66,6 +68,7 @@ describe("image prompt visual A/B safety plan", () => {
     expect(providerSize({ width: 1024, height: 1536 }, "grok")).toBe("1024x1536");
     expect(providerSize({ width: 1536, height: 1024 }, "doubao")).toBe("1536x1024");
     expect(providerSize({ width: 1024, height: 1536 }, "doubao")).toBe("1024x1536");
+    expect(providerSize({ width: 1536, height: 1024 }, "runware")).toBe("1536x1024");
   });
 
   it("classifies output types and provider boundary failures", () => {

@@ -4,7 +4,7 @@
 doc_id: AIR-PRODUCT-CURRENT-UI-IA-001
 status: active
 created: 2026-05-23
-updated: 2026-07-19
+updated: 2026-07-20
 owner: AI漫游项目
 audience: human, ai-agent, developer
 source: 核心用户流程、功能清单与页面链路、当前 UI 结论
@@ -191,5 +191,5 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 | 排版导出 | current/completed_g5 | DB-only Working Copy、画格/图片/模板/裁切、受控字体、横竖排富文本、气泡、来源返修、不可变 LayoutRevision、固定 RenderScene、`layout_publication`、手机只读、AI pending 与 legacy cutover 均已完成 |
 | 章节工作流 | current/partial | 已实现章节列表、`/projects/:projectId/script/:chapterId`、章节级保存与完成；AI 创作仅在大纲存在下一章卡时增加入口，切换不生成、用户明确提出后才生成且要求前章正式；已有剧本在目录确认后一次创建全部入口并逐章直接确认。角色库待处理只提示不阻塞剧情结构；手动新建、重命名、删除和下游失效提示仍未实现 |
 | 对话过程展示 | current | 已参考 AuroraPlatformWeb 的 reasoning/tool 展示模式：消息区独立滚动，长正文局部滚动，AI 思考、技能调用和工具结果以紧凑过程卡片展示 |
-| 设置 | current | 文本模型 key 交给本机 OpenCode，图片模型 key 由后端 SecretStore 保存；前端只展示配置状态、来源和 fingerprint，不回显明文；外观支持深色、浅色和跟随系统 |
+| 设置 | current | 文本模型 key 交给本机 OpenCode，图片模型 key 由后端 SecretStore 保存；图片生成可切换 OpenAI、豆包、Grok、Runware，Runware 页面说明 Schnell 草稿 / FLUX.2 Dev 精修 / FLUX.1 Dev + IP-Adapter 多参考管线；前端只展示配置状态、来源和 fingerprint，不回显明文；外观支持深色、浅色和跟随系统 |
 | 素材库、通知、团队 | deferred | 不进入当前主路径 |

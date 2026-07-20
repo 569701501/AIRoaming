@@ -42,8 +42,8 @@ describe("image provider prompt profiles", () => {
     expect(result.prompt).toBe("Create one clean comic illustration. Do not render text or bubbles.");
   });
 
-  it("V2 为三家 Provider 编译不同的专业制作简报", () => {
-    const profiles = (["openai", "doubao", "grok"] as const).map((providerType) => compileImagePromptForProvider({
+  it("V2 为四家 Provider 编译不同的专业制作简报", () => {
+    const profiles = (["openai", "doubao", "grok", "runware"] as const).map((providerType) => compileImagePromptForProvider({
       providerType,
       positivePrompt: "legacy source prompt",
       negativePrompt: "text, speech bubbles, watermark",
@@ -51,7 +51,7 @@ describe("image provider prompt profiles", () => {
       systemConstraints,
     }));
 
-    expect(new Set(profiles.map((profile) => profile.prompt)).size).toBe(3);
+    expect(new Set(profiles.map((profile) => profile.prompt)).size).toBe(4);
     expect(profiles[0]).toMatchObject({ profileId: "openai-comic-clean-plate-v2", negativePromptDelivery: "embedded_constraints" });
     expect(profiles[0]?.prompt).toContain("INTENDED USE");
     expect(profiles[0]?.prompt).toContain("ACTION AND EMOTION");
@@ -61,10 +61,13 @@ describe("image provider prompt profiles", () => {
     expect(profiles[2]).toMatchObject({ profileId: "grok-comic-clean-plate-v2", negativePromptDelivery: "embedded_constraints" });
     expect(profiles[2]?.prompt).toContain("one borderless full-frame comic illustration");
     expect(profiles[2]?.prompt).toContain("No extra people beyond the named subjects");
+    expect(profiles[3]).toMatchObject({ profileId: "runware-flux-comic-clean-plate-v2", negativePromptDelivery: "embedded_constraints" });
+    expect(profiles[3]?.prompt).toContain("FLUX TASK");
     expect(profiles[0]?.prompt).toContain("Show exactly two distinct subjects");
     expect(profiles[0]?.prompt).not.toContain("人物数量：");
     expect(profiles[1]?.prompt).toContain("画面准确出现两个不同角色");
     expect(profiles[2]?.prompt).toContain("COUNT: Show exactly two distinct subjects");
+    expect(profiles[3]?.prompt).toContain("COUNT: Show exactly two distinct subjects");
     expect(profiles[2]?.prompt).not.toContain("人物数量：");
     expect(profiles.every((profile) => !profile.prompt.includes("Avoid:"))).toBe(true);
   });

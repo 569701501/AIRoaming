@@ -1247,9 +1247,10 @@ export class CharacterReferenceService {
     }
   }
 
-  private toProviderMetaId(providerType: "openai" | "doubao" | "grok"): string {
+  private toProviderMetaId(providerType: "openai" | "doubao" | "grok" | "runware"): string {
     if (providerType === "doubao") return "doubao_image";
     if (providerType === "grok") return "grok_image";
+    if (providerType === "runware") return "runware_image";
     return "openai_image";
   }
 }

@@ -25,12 +25,12 @@ describe("S4 图片 Prompt 离线固定基线", () => {
     expect(report.referenceCases.every((item) => item.passed)).toBe(true);
   });
 
-  it("五类候选镜头通过同一生产规格并编译三个 provider profile", async () => {
+  it("五类候选镜头通过同一生产规格并编译四个 provider profile", async () => {
     const report = await compileFixture();
     expect(report.summary).toMatchObject({
       candidateCaseCount: 5,
-      providerProfileCount: 15,
-      runtimeImageCountWhenAuthorized: 30,
+      providerProfileCount: 20,
+      runtimeImageCountWhenAuthorized: 40,
       failedCaseIds: [],
       passed: true,
     });

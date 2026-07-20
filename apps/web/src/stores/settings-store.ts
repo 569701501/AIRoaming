@@ -141,6 +141,23 @@ export const useSettingsStore = defineStore("settings", {
         this.saving = false;
       }
     },
+    async saveRunwareImageProvider(input: UpdateImageProviderSettingsRequest) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.updateSettings({ runwareImageProvider: input });
+        applyAppearance(this.settings.appearance.theme);
+        this.notice = input.clearApiKey ? "Runware 图片密钥已清除" : "Runware 图片设置已保存";
+        this.noticeScope = "image-provider";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "Runware 图片设置保存失败";
+      } finally {
+        this.saving = false;
+      }
+    },
     async switchImageProvider(type: ImageProviderType) {
       this.saving = true;
       this.error = null;
@@ -153,6 +170,8 @@ export const useSettingsStore = defineStore("settings", {
           ? "已切换到豆包图片生成"
           : type === "grok"
             ? "已切换到 Grok 图片生成"
+            : type === "runware"
+              ? "已切换到 Runware 图片生成"
             : "已切换到 OpenAI 图片生成";
         this.noticeScope = "image-provider";
       } catch (error) {

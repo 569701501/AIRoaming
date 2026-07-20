@@ -115,6 +115,7 @@
             <option value="openai">OpenAI 图片生成</option>
             <option value="doubao">豆包图片生成</option>
             <option value="grok">Grok 图片生成</option>
+            <option value="runware">Runware 图片生成（低成本）</option>
           </select>
         </label>
 
@@ -198,6 +199,52 @@
             <button class="primary-action" type="submit" :disabled="settings.saving">
               <Save :size="16" />
               <span>{{ settings.saving ? "保存中" : "保存 Grok 设置" }}</span>
+            </button>
+          </div>
+        </form>
+
+        <form v-else-if="settings.settings?.activeImageProvider === 'runware'" class="provider-form" @submit.prevent="saveRunwareProvider">
+          <div class="provider-form-head">
+            <strong>Runware 图片生成</strong>
+            <span class="status-pill" :class="{ 'is-ready': runwareImageProviderStatus.configured }">
+              {{ runwareImageProviderStatus.configured ? "已配置" : "未配置" }}
+            </span>
+          </div>
+          <div class="provider-note">
+            <strong>低成本管线</strong>
+            <span>无参考图默认用 FLUX.1 Schnell；挑中草稿后用 FLUX.2 Dev 精修；多角色/场景参考自动改用 FLUX.1 Dev + IP-Adapter。</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              <span>服务商</span>
+              <input v-model.trim="runwareImageForm.providerName" autocomplete="off" placeholder="Runware 图片生成" />
+            </label>
+            <label>
+              <span>草稿模型（无参考图）</span>
+              <input v-model.trim="runwareImageForm.modelId" autocomplete="off" placeholder="runware:100@1" />
+            </label>
+            <label class="is-wide">
+              <span>API 地址</span>
+              <input v-model.trim="runwareImageForm.baseUrl" autocomplete="off" placeholder="https://api.runware.ai/v1" />
+            </label>
+            <label class="is-wide">
+              <span>API Key</span>
+              <input
+                v-model.trim="runwareImageForm.apiKey"
+                autocomplete="new-password"
+                placeholder="留空则保留当前密钥"
+                type="password"
+              />
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button class="secondary-action" type="button" :disabled="settings.saving || !runwareImageProviderStatus.configured" @click="clearRunwareProvider">
+              <Trash2 :size="16" />
+              <span>清除密钥</span>
+            </button>
+            <button class="primary-action" type="submit" :disabled="settings.saving">
+              <Save :size="16" />
+              <span>{{ settings.saving ? "保存中" : "保存 Runware 设置" }}</span>
             </button>
           </div>
         </form>
@@ -310,6 +357,13 @@ const grokImageForm = reactive({
   baseUrl: "https://api.x.ai/v1",
   apiKey: "",
 });
+const runwareImageForm = reactive({
+  providerId: "runware_image",
+  providerName: "Runware 图片生成",
+  modelId: "runware:100@1",
+  baseUrl: "https://api.runware.ai/v1",
+  apiKey: "",
+});
 
 const tabs = [
   { key: "ai-key", label: "AI 密钥", icon: KeyRound },
@@ -379,6 +433,16 @@ const grokImageProviderStatus = computed(() => settings.settings?.grokImageProvi
   keyFingerprint: null,
   updatedAt: null,
 });
+const runwareImageProviderStatus = computed(() => settings.settings?.runwareImageProvider ?? {
+  providerId: "runware_image",
+  providerName: "Runware 图片生成",
+  modelId: "runware:100@1",
+  baseUrl: "https://api.runware.ai/v1",
+  configured: false,
+  keyPreview: null,
+  keyFingerprint: null,
+  updatedAt: null,
+});
 /** 当前生效 provider 的状态(用于顶部标题徽章) */
 const activeImageProviderStatus = computed(() => {
   if (settings.settings?.activeImageProvider === "doubao") {
@@ -386,6 +450,9 @@ const activeImageProviderStatus = computed(() => {
   }
   if (settings.settings?.activeImageProvider === "grok") {
     return grokImageProviderStatus.value;
+  }
+  if (settings.settings?.activeImageProvider === "runware") {
+    return runwareImageProviderStatus.value;
   }
   return openaiImageProviderStatus.value;
 });
@@ -446,6 +513,21 @@ watch(
     grokImageForm.modelId = provider.modelId;
     grokImageForm.baseUrl = provider.baseUrl ?? "";
     grokImageForm.apiKey = "";
+  },
+  { immediate: true },
+);
+
+watch(
+  () => settings.settings?.runwareImageProvider,
+  (provider) => {
+    if (!provider) {
+      return;
+    }
+    runwareImageForm.providerId = provider.providerId;
+    runwareImageForm.providerName = provider.providerName;
+    runwareImageForm.modelId = provider.modelId;
+    runwareImageForm.baseUrl = provider.baseUrl ?? "";
+    runwareImageForm.apiKey = "";
   },
   { immediate: true },
 );
@@ -558,6 +640,28 @@ async function clearGrokProvider() {
   grokImageForm.apiKey = "";
 }
 
+async function saveRunwareProvider() {
+  await settings.saveRunwareImageProvider({
+    providerId: runwareImageForm.providerId,
+    providerName: runwareImageForm.providerName,
+    modelId: runwareImageForm.modelId,
+    baseUrl: runwareImageForm.baseUrl || null,
+    apiKey: runwareImageForm.apiKey || undefined,
+  });
+  runwareImageForm.apiKey = "";
+}
+
+async function clearRunwareProvider() {
+  await settings.saveRunwareImageProvider({
+    providerId: runwareImageForm.providerId,
+    providerName: runwareImageForm.providerName,
+    modelId: runwareImageForm.modelId,
+    baseUrl: runwareImageForm.baseUrl || null,
+    clearApiKey: true,
+  });
+  runwareImageForm.apiKey = "";
+}
+
 async function onSwitchProvider(event: Event) {
   const value = (event.target as HTMLSelectElement).value as ImageProviderType;
   await settings.switchImageProvider(value);
@@ -630,6 +734,23 @@ function formatTime(value: string): string {
   color: #f8fbff;
   font-size: 15px;
   font-weight: 900;
+}
+
+.provider-note {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(124, 227, 206, 0.2);
+  border-radius: 8px;
+  background: rgba(124, 227, 206, 0.06);
+  padding: 11px 12px;
+  color: #aeb8cf;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.provider-note strong {
+  color: #7ce3ce;
+  font-size: 12px;
 }
 
 .settings-nav-btn {

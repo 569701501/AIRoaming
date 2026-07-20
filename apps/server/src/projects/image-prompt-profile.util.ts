@@ -98,7 +98,7 @@ export function compileImagePromptForProviderV1(input: CompileImagePromptInput):
 /**
  * V2 图片 Provider 编译器。
  *
- * 领域创作语义与三家单 Prompt 投递 Profile 全部来自
+ * 领域创作语义与各家单 Prompt 投递 Profile 全部来自
  * opencodeAI/skills/image-candidate-generate；代码只选择 Profile、填充动态事实。
  */
 export function compileImagePromptForProvider(input: CompileImagePromptInput): CompiledImagePrompt {

@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import type { ImageProviderType } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
 import {
@@ -10,6 +11,16 @@ import {
 import { compileImageReferenceGuidanceForProvider } from "./image-prompt-profile.util.js";
 
 export type { CandidateImageReferenceInput } from "./candidate-reference-plan.js";
+
+type GrokImageResolution = "1k" | "2k";
+
+const DEFAULT_GROK_IMAGE_RESOLUTION: GrokImageResolution = "1k";
+const RUNWARE_EDIT_MODEL = "runware:400@1";
+const RUNWARE_REFERENCE_MODEL = "runware:101@1";
+const RUNWARE_FLUX_IP_ADAPTER = "runware:56@1";
+const RUNWARE_IP_ADAPTER_WEIGHT = 0.65;
+const RUNWARE_EDIT_STEPS = 28;
+const RUNWARE_REFERENCE_STEPS = 24;
 
 export interface CandidateImageProviderResult {
   buffer: Buffer;
@@ -52,6 +63,34 @@ export class ImageProviderService {
       references: input.references,
     });
     const references = compiledReferences.references;
+    if (config.type === "runware") {
+      const buffer = await this.requestRunwareImage({
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        model: references.length > 0 ? RUNWARE_REFERENCE_MODEL : config.modelId,
+        prompt: references.length > 0
+          ? compileImageReferenceGuidanceForProvider({
+            providerType: "runware",
+            prompt: input.prompt,
+            references,
+          })
+          : input.prompt,
+        size: input.size,
+        outputFormat: input.outputFormat ?? "webp",
+        references: references.length > 0 ? references : undefined,
+      });
+      return {
+        buffer,
+        generationMode: references.length > 1
+          ? "multi_image_edit"
+          : references.length === 1
+            ? "single_image_edit"
+            : "image_generation",
+        usedReferenceAssetIds: compiledReferences.evidence.usedReferenceAssetIds,
+        referencePlan: compiledReferences.evidence,
+        warnings: compiledReferences.warnings,
+      };
+    }
     if (config.type === "grok") {
       if (references.length >= 2) {
         const buffer = await this.requestGrokMultiImageEdit({
@@ -64,6 +103,7 @@ export class ImageProviderService {
             references,
           }),
           size: input.size,
+          resolution: config.grokResolution,
           references,
         });
         return {
@@ -86,6 +126,7 @@ export class ImageProviderService {
             prompt: input.prompt,
             references,
           }),
+          resolution: config.grokResolution,
           referenceImage: reference,
         });
         return {
@@ -106,6 +147,7 @@ export class ImageProviderService {
         model: config.modelId,
         prompt: input.prompt,
         size: input.size,
+        resolution: config.grokResolution,
       });
       return {
         buffer,
@@ -200,6 +242,17 @@ export class ImageProviderService {
         model: config.modelId,
         prompt: input.prompt,
         size: input.size,
+        resolution: config.grokResolution,
+      });
+    }
+    if (config.type === "runware") {
+      return this.requestRunwareImage({
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        model: config.modelId,
+        prompt: input.prompt,
+        size: input.size,
+        outputFormat: input.outputFormat ?? "webp",
       });
     }
     return this.requestOpenAiImage({
@@ -238,7 +291,19 @@ export class ImageProviderService {
         baseUrl: config.baseUrl,
         model: config.modelId,
         prompt: input.prompt,
+        resolution: config.grokResolution,
         referenceImage: input.referenceImage,
+      });
+    }
+    if (config.type === "runware") {
+      return this.requestRunwareImage({
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        model: RUNWARE_EDIT_MODEL,
+        prompt: input.prompt,
+        size: input.size,
+        outputFormat: input.outputFormat ?? "webp",
+        editReferenceImage: input.referenceImage,
       });
     }
     return this.requestOpenAiImageEdit({
@@ -259,6 +324,7 @@ export class ImageProviderService {
     apiKey: string;
     baseUrl: string;
     modelId: string;
+    grokResolution: GrokImageResolution;
   } {
     const settings = this.settingsService.getRuntimeImageProviderSettings();
     const apiKey = settings.apiKey?.trim();
@@ -273,10 +339,77 @@ export class ImageProviderService {
       apiKey,
       baseUrl,
       modelId: settings.modelId,
+      grokResolution: settings.type === "grok"
+        ? this.resolveGrokImageResolution()
+        : DEFAULT_GROK_IMAGE_RESOLUTION,
     };
   }
 
+  private resolveGrokImageResolution(): GrokImageResolution {
+    const configured = process.env.GROK_IMAGE_RESOLUTION?.trim().toLowerCase();
+    if (!configured) return DEFAULT_GROK_IMAGE_RESOLUTION;
+    if (configured === "1k" || configured === "2k") return configured;
+    throw new BadRequestException("IMAGE_PROVIDER_GROK_RESOLUTION_INVALID");
+  }
+
   // ====== 以下为 provider 具体 HTTP 实现(从 ProjectsService 迁移,逻辑体逐字一致) ======
+
+  /** Runware 统一 imageInference：Schnell 草稿、seedImage 单图调整、Dev + IP-Adapter 多参考。 */
+  private async requestRunwareImage(input: {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    prompt: string;
+    size: string;
+    outputFormat: "webp" | "png" | "jpeg";
+    editReferenceImage?: { buffer: Buffer; mimeType: string; fileName: string };
+    references?: CandidateProviderImageReferenceInput[];
+  }): Promise<Buffer> {
+    const { width, height } = this.toRunwareDimensions(input.size, input.model);
+    const editReferenceImage = input.editReferenceImage
+      ? `data:${input.editReferenceImage.mimeType};base64,${input.editReferenceImage.buffer.toString("base64")}`
+      : undefined;
+    const references = input.references?.map((reference) =>
+      `data:${reference.mimeType};base64,${reference.buffer.toString("base64")}`,
+    );
+    const task = {
+      taskType: "imageInference",
+      taskUUID: randomUUID(),
+      model: input.model,
+      positivePrompt: input.prompt,
+      width,
+      height,
+      numberResults: 1,
+      outputType: "base64Data",
+      outputFormat: input.outputFormat === "jpeg" ? "JPG" : input.outputFormat.toUpperCase(),
+      ...(input.model === "runware:100@1" ? { steps: 4 } : {}),
+      ...(editReferenceImage ? {
+        referenceImages: [editReferenceImage],
+        steps: RUNWARE_EDIT_STEPS,
+        CFGScale: 4,
+      } : {}),
+      ...(references && references.length > 0 ? {
+        steps: RUNWARE_REFERENCE_STEPS,
+        ipAdapters: [{
+          model: RUNWARE_FLUX_IP_ADAPTER,
+          guideImages: references,
+          weight: RUNWARE_IP_ADAPTER_WEIGHT,
+        }],
+      } : {}),
+    };
+    const response = await this.fetchWithTimeout(input.baseUrl.replace(/\/+$/, ""), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify([task]),
+    });
+    if (!response.ok) {
+      throw new BadRequestException(`IMAGE_PROVIDER_RUNWARE_FAILED:${response.status}`);
+    }
+    return this.downloadRunwareImageResponse(response);
+  }
 
   /** Grok Imagine 文生图(JSON)。xAI 官方接口支持 OpenAI 兼容 /images/generations,但使用 aspect_ratio/resolution 而不是 OpenAI size。 */
   private async requestGrokImage(input: {
@@ -285,6 +418,7 @@ export class ImageProviderService {
     model: string;
     prompt: string;
     size: string;
+    resolution: GrokImageResolution;
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/generations`;
     const response = await this.fetchWithTimeout(url, {
@@ -299,7 +433,7 @@ export class ImageProviderService {
         n: 1,
         response_format: "b64_json",
         aspect_ratio: this.toGrokAspectRatio(input.size),
-        resolution: "2k",
+        resolution: input.resolution,
       }),
     });
 
@@ -316,6 +450,7 @@ export class ImageProviderService {
     baseUrl: string;
     model: string;
     prompt: string;
+    resolution: GrokImageResolution;
     referenceImage: { buffer: Buffer; mimeType: string; fileName: string };
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/edits`;
@@ -329,6 +464,7 @@ export class ImageProviderService {
       body: JSON.stringify({
         model: input.model,
         prompt: input.prompt,
+        resolution: input.resolution,
         image: {
           url: `data:${input.referenceImage.mimeType};base64,${base64Image}`,
           type: "image_url",
@@ -350,6 +486,7 @@ export class ImageProviderService {
     model: string;
     prompt: string;
     size: string;
+    resolution: GrokImageResolution;
     references: CandidateProviderImageReferenceInput[];
   }): Promise<Buffer> {
     const url = `${input.baseUrl.replace(/\/+$/, "")}/images/edits`;
@@ -367,6 +504,7 @@ export class ImageProviderService {
           url: `data:${reference.mimeType};base64,${reference.buffer.toString("base64")}`,
         })),
         aspect_ratio: this.toGrokAspectRatio(input.size),
+        resolution: input.resolution,
       }),
     });
     if (!response.ok) {
@@ -595,6 +733,36 @@ export class ImageProviderService {
     return this.downloadOpenAiCompatibleImageResponse(response);
   }
 
+  private async downloadRunwareImageResponse(response: Response): Promise<Buffer> {
+    const data = await response.json() as {
+      data?: Array<{ imageBase64Data?: string; imageDataURI?: string; imageURL?: string }>;
+      errors?: Array<{ code?: string | number }>;
+    };
+    const errorCode = data.errors?.[0]?.code;
+    if (errorCode !== undefined) {
+      const safeCode = String(errorCode).replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80) || "UNKNOWN";
+      throw new BadRequestException(`IMAGE_PROVIDER_RUNWARE_FAILED:${safeCode}`);
+    }
+    const first = data.data?.[0];
+    if (first?.imageBase64Data) {
+      return Buffer.from(first.imageBase64Data, "base64");
+    }
+    if (first?.imageDataURI) {
+      const separator = first.imageDataURI.indexOf(",");
+      if (separator > 0) {
+        return Buffer.from(first.imageDataURI.slice(separator + 1), "base64");
+      }
+    }
+    if (first?.imageURL) {
+      const imageResponse = await this.fetchWithTimeout(first.imageURL);
+      if (!imageResponse.ok) {
+        throw new BadRequestException(`IMAGE_PROVIDER_RUNWARE_URL_FAILED:${imageResponse.status}`);
+      }
+      return Buffer.from(await imageResponse.arrayBuffer());
+    }
+    throw new BadRequestException("IMAGE_PROVIDER_RUNWARE_EMPTY_RESPONSE");
+  }
+
   /** OpenAI/Grok/豆包响应统一处理:取 data[0].b64_json 或 url 下载成 Buffer。 */
   private async downloadOpenAiCompatibleImageResponse(
     response: Response,
@@ -649,6 +817,23 @@ export class ImageProviderService {
       const currentDistance = Math.abs(Math.log(targetRatio / current[1]));
       return currentDistance < bestDistance ? current : best;
     })[0];
+  }
+
+  private toRunwareDimensions(size: string, model: string): { width: number; height: number } {
+    const match = /^(\d+)x(\d+)$/i.exec(size.trim());
+    if (!match) {
+      throw new BadRequestException("IMAGE_PROVIDER_RUNWARE_SIZE_INVALID");
+    }
+    const step = model === RUNWARE_EDIT_MODEL ? 16 : 64;
+    const minimum = model === RUNWARE_EDIT_MODEL ? 512 : 128;
+    const normalize = (value: string): number => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new BadRequestException("IMAGE_PROVIDER_RUNWARE_SIZE_INVALID");
+      }
+      return Math.min(2048, Math.max(minimum, Math.round(parsed / step) * step));
+    };
+    return { width: normalize(match[1]!), height: normalize(match[2]!) };
   }
 
   /** fetch 带超时(默认 300 秒,适配出图长耗时)。 */

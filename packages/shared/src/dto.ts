@@ -78,14 +78,15 @@ export interface AppImageProviderSettings {
   updatedAt: string | null;
 }
 
-/** 图片生成 provider 类型:OpenAI 协议 / 豆包协议 / Grok Imagine */
-export type ImageProviderType = "openai" | "doubao" | "grok";
+/** 图片生成 provider 类型:OpenAI 协议 / 豆包协议 / Grok Imagine / Runware */
+export type ImageProviderType = "openai" | "doubao" | "grok" | "runware";
 
 export interface AppSettings {
   aiKey: AppAIKeySettings;
   openaiImageProvider: AppImageProviderSettings;
   doubaoImageProvider: AppImageProviderSettings;
   grokImageProvider: AppImageProviderSettings;
+  runwareImageProvider: AppImageProviderSettings;
   activeImageProvider: ImageProviderType;
   appearance: AppAppearanceSettings;
   settingsPath: "/workspace/settings/app-settings.json";
@@ -119,6 +120,7 @@ export interface UpdateAppSettingsRequest {
   openaiImageProvider?: UpdateImageProviderSettingsRequest;
   doubaoImageProvider?: UpdateImageProviderSettingsRequest;
   grokImageProvider?: UpdateImageProviderSettingsRequest;
+  runwareImageProvider?: UpdateImageProviderSettingsRequest;
   activeImageProvider?: ImageProviderType;
   appearance?: UpdateAppearanceSettingsRequest;
 }

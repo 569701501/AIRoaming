@@ -1,0 +1,17 @@
+{
+  "provider": {
+    "xai": {
+      "name": "xAI Grok 对话",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://sub.lydcloud.uk/v1",
+        "setCacheKey": true
+      },
+      "models": {
+        "grok-4.5": {
+          "name": "grok-4.5"
+        }
+      }
+    }
+  }
+}

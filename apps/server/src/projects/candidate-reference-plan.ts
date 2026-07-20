@@ -72,6 +72,7 @@ const PROVIDER_REFERENCE_LIMITS: Record<ImageProviderType, number> = {
   grok: 3,
   openai: 16,
   doubao: 10,
+  runware: 10,
 };
 
 interface PreparedSourceReference {
@@ -194,7 +195,7 @@ export function parseCandidateReferencePlanEvidence(value: unknown): CandidateRe
   if (value.schemaVersion !== 1 || value.compilerVersion !== CANDIDATE_REFERENCE_PLAN_COMPILER_VERSION) {
     throw new TypeError("providerOutput.referencePlan version is unsupported");
   }
-  if (value.providerType !== "openai" && value.providerType !== "doubao" && value.providerType !== "grok") {
+  if (value.providerType !== "openai" && value.providerType !== "doubao" && value.providerType !== "grok" && value.providerType !== "runware") {
     throw new TypeError("providerOutput.referencePlan.providerType is unsupported");
   }
   if (value.strategy !== "none" && value.strategy !== "direct" && value.strategy !== "cast_identity_board") {

@@ -43,6 +43,7 @@ interface StoredAppSettings {
   openaiImageProvider: StoredAIKeySettings;
   doubaoImageProvider: StoredAIKeySettings;
   grokImageProvider: StoredAIKeySettings;
+  runwareImageProvider: StoredAIKeySettings;
   activeImageProvider: ImageProviderType;
   appearance: AppAppearanceSettings;
   updatedAt: string;
@@ -71,6 +72,9 @@ const DOUBAO_DEFAULT_MODEL = "doubao-seedream-4-5-251128";
 /** Grok Imagine 默认配置(选 Grok 时预填,中转可在设置页覆盖) */
 const GROK_DEFAULT_BASE_URL = "https://api.x.ai/v1";
 const GROK_DEFAULT_MODEL = "grok-imagine-image-quality";
+/** Runware REST 任务入口；Schnell 用作低成本无参考草稿模型。 */
+const RUNWARE_DEFAULT_BASE_URL = "https://api.runware.ai/v1";
+const RUNWARE_DEFAULT_MODEL = "runware:100@1";
 const PROVIDER_NAME_BY_ID: Record<string, string> = {
   self: "自定义 OpenAI 兼容",
   aurora: "Aurora GPT 对话",
@@ -82,6 +86,7 @@ const PROVIDER_NAME_BY_ID: Record<string, string> = {
   openai_image: "OpenAI 图片生成",
   doubao_image: "豆包图片生成",
   grok_image: "Grok 图片生成",
+  runware_image: "Runware 图片生成",
 };
 
 export interface AtomicSettingsFileOps {
@@ -173,6 +178,7 @@ export class SettingsService implements OnModuleInit {
       ["openai", this.settings.openaiImageProvider],
       ["doubao", this.settings.doubaoImageProvider],
       ["grok", this.settings.grokImageProvider],
+      ["runware", this.settings.runwareImageProvider],
     ];
     for (const [type, provider] of imageProviders) {
       if (
@@ -216,6 +222,9 @@ export class SettingsService implements OnModuleInit {
       }
       if (input.grokImageProvider) {
         next.grokImageProvider = await this.updateImageProviderSettings("grok", current.grokImageProvider, input.grokImageProvider, now);
+      }
+      if (input.runwareImageProvider) {
+        next.runwareImageProvider = await this.updateImageProviderSettings("runware", current.runwareImageProvider, input.runwareImageProvider, now);
       }
 
       await this.writeSettings(next);
@@ -372,6 +381,7 @@ export class SettingsService implements OnModuleInit {
       ["openai", settings.openaiImageProvider],
       ["doubao", settings.doubaoImageProvider],
       ["grok", settings.grokImageProvider],
+      ["runware", settings.runwareImageProvider],
     ];
     for (const [type, provider] of imageProviders) {
       const credentialId = this.credentialIdForImageProvider(type, provider.providerId);
@@ -415,6 +425,7 @@ export class SettingsService implements OnModuleInit {
       openaiImageProvider: strip(settings.openaiImageProvider),
       doubaoImageProvider: strip(settings.doubaoImageProvider),
       grokImageProvider: strip(settings.grokImageProvider),
+      runwareImageProvider: strip(settings.runwareImageProvider),
     };
   }
 
@@ -451,7 +462,13 @@ export class SettingsService implements OnModuleInit {
     const textProvider = providers.find((provider) => provider.id === preference.defaultTextProviderId)
       ?? providers.find((provider) => provider.runtimeKind === "text");
     const imageProvider = (type: ImageProviderType) => {
-      const providerId = type === "openai" ? "openai_image" : type === "doubao" ? "doubao_image" : "grok_image";
+      const providerId = type === "openai"
+        ? "openai_image"
+        : type === "doubao"
+          ? "doubao_image"
+          : type === "grok"
+            ? "grok_image"
+            : "runware_image";
       return providers.find((provider) => provider.providerId === providerId)
         ?? providers.find((provider) => provider.runtimeKind === "image" && provider.providerId.includes(type));
     };
@@ -468,13 +485,20 @@ export class SettingsService implements OnModuleInit {
       : fallback;
     const defaults = this.defaultSettings();
     const activeProviderId = providers.find((provider) => provider.id === preference.activeImageProviderId)?.providerId ?? "openai_image";
-    const activeImageProvider: ImageProviderType = activeProviderId.includes("doubao") ? "doubao" : activeProviderId.includes("grok") ? "grok" : "openai";
+    const activeImageProvider: ImageProviderType = activeProviderId.includes("doubao")
+      ? "doubao"
+      : activeProviderId.includes("grok")
+        ? "grok"
+        : activeProviderId.includes("runware")
+          ? "runware"
+          : "openai";
     const settings: StoredAppSettings = {
       version: 1,
       aiKey: toStored(textProvider, defaults.aiKey),
       openaiImageProvider: toStored(imageProvider("openai"), defaults.openaiImageProvider),
       doubaoImageProvider: toStored(imageProvider("doubao"), defaults.doubaoImageProvider),
       grokImageProvider: toStored(imageProvider("grok"), defaults.grokImageProvider),
+      runwareImageProvider: toStored(imageProvider("runware"), defaults.runwareImageProvider),
       activeImageProvider,
       appearance: { theme: preference.theme as AppAppearanceSettings["theme"] },
       updatedAt: preference.updatedAt.toISOString(),
@@ -490,6 +514,7 @@ export class SettingsService implements OnModuleInit {
       { type: "image" as const, settings: settings.openaiImageProvider, owner: "image_secret_store" as const },
       { type: "image" as const, settings: settings.doubaoImageProvider, owner: "image_secret_store" as const },
       { type: "image" as const, settings: settings.grokImageProvider, owner: "image_secret_store" as const },
+      { type: "image" as const, settings: settings.runwareImageProvider, owner: "image_secret_store" as const },
     ];
     await this.prismaService!.runBusinessTransaction(async (tx) => {
       const ids = new Map<string, string>();
@@ -553,15 +578,18 @@ export class SettingsService implements OnModuleInit {
     const openaiSource = (input.openaiImageProvider ?? (legacyImageProvider && !input.openaiImageProvider ? legacyImageProvider : defaults.openaiImageProvider)) as StoredAIKeySettings;
     const doubaoSource = (input.doubaoImageProvider ?? defaults.doubaoImageProvider) as StoredAIKeySettings;
     const grokSource = (input.grokImageProvider ?? defaults.grokImageProvider) as StoredAIKeySettings;
+    const runwareSource = (input.runwareImageProvider ?? defaults.runwareImageProvider) as StoredAIKeySettings;
 
     const providerId = this.normalizeProviderId(aiKey.providerId ?? defaults.aiKey.providerId);
     const openaiProviderId = this.normalizeProviderId(openaiSource.providerId ?? defaults.openaiImageProvider.providerId);
     const doubaoProviderId = this.normalizeProviderId(doubaoSource.providerId ?? defaults.doubaoImageProvider.providerId);
     const grokProviderId = this.normalizeProviderId(grokSource.providerId ?? defaults.grokImageProvider.providerId);
+    const runwareProviderId = this.normalizeProviderId(runwareSource.providerId ?? defaults.runwareImageProvider.providerId);
     const apiKey = typeof aiKey.apiKey === "string" && aiKey.apiKey.trim() ? aiKey.apiKey.trim() : null;
     const openaiApiKey = typeof openaiSource.apiKey === "string" && openaiSource.apiKey.trim() ? openaiSource.apiKey.trim() : null;
     const doubaoApiKey = typeof doubaoSource.apiKey === "string" && doubaoSource.apiKey.trim() ? doubaoSource.apiKey.trim() : null;
     const grokApiKey = typeof grokSource.apiKey === "string" && grokSource.apiKey.trim() ? grokSource.apiKey.trim() : null;
+    const runwareApiKey = typeof runwareSource.apiKey === "string" && runwareSource.apiKey.trim() ? runwareSource.apiKey.trim() : null;
     const theme = input.appearance?.theme && APPEARANCE_THEMES.includes(input.appearance.theme)
       ? input.appearance.theme
       : defaults.appearance.theme;
@@ -617,6 +645,19 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: grokApiKey ? this.fingerprintKey(grokApiKey) : grokSource.keyFingerprint ?? null,
         updatedAt: typeof grokSource.updatedAt === "string" ? grokSource.updatedAt : null,
       },
+      runwareImageProvider: {
+        providerId: runwareProviderId,
+        providerName: this.normalizeProviderName(
+          runwareSource.providerName ?? this.resolveProviderName(runwareProviderId),
+          runwareProviderId,
+        ),
+        modelId: this.normalizeModelId(runwareSource.modelId ?? defaults.runwareImageProvider.modelId),
+        baseUrl: this.normalizeBaseUrl(runwareSource.baseUrl ?? defaults.runwareImageProvider.baseUrl),
+        apiKey: runwareApiKey,
+        secretRef: typeof runwareSource.secretRef === "string" ? runwareSource.secretRef : null,
+        keyFingerprint: runwareApiKey ? this.fingerprintKey(runwareApiKey) : runwareSource.keyFingerprint ?? null,
+        updatedAt: typeof runwareSource.updatedAt === "string" ? runwareSource.updatedAt : null,
+      },
       activeImageProvider,
       appearance: { theme },
       updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : defaults.updatedAt,
@@ -634,6 +675,10 @@ export class SettingsService implements OnModuleInit {
     const grokImageModelId = process.env.GROK_IMAGE_MODEL_ID?.trim() || GROK_DEFAULT_MODEL;
     const grokImageBaseUrl = process.env.GROK_IMAGE_BASE_URL?.trim() || process.env.XAI_IMAGE_BASE_URL?.trim() || GROK_DEFAULT_BASE_URL;
     const grokImageApiKey = process.env.GROK_IMAGE_API_KEY?.trim() || process.env.XAI_API_KEY?.trim() || null;
+    const runwareImageProviderId = process.env.RUNWARE_IMAGE_PROVIDER_ID?.trim() || "runware_image";
+    const runwareImageModelId = process.env.RUNWARE_IMAGE_MODEL_ID?.trim() || RUNWARE_DEFAULT_MODEL;
+    const runwareImageBaseUrl = process.env.RUNWARE_IMAGE_BASE_URL?.trim() || RUNWARE_DEFAULT_BASE_URL;
+    const runwareImageApiKey = process.env.RUNWARE_IMAGE_API_KEY?.trim() || null;
     const now = new Date().toISOString();
 
     return {
@@ -677,6 +722,16 @@ export class SettingsService implements OnModuleInit {
         keyFingerprint: grokImageApiKey ? this.fingerprintKey(grokImageApiKey) : null,
         updatedAt: grokImageApiKey || grokImageBaseUrl ? now : null,
       },
+      runwareImageProvider: {
+        providerId: runwareImageProviderId,
+        providerName: this.resolveProviderName(runwareImageProviderId),
+        modelId: runwareImageModelId,
+        baseUrl: this.normalizeBaseUrl(runwareImageBaseUrl),
+        apiKey: runwareImageApiKey,
+        secretRef: null,
+        keyFingerprint: runwareImageApiKey ? this.fingerprintKey(runwareImageApiKey) : null,
+        updatedAt: runwareImageApiKey ? now : null,
+      },
       activeImageProvider: "openai",
       appearance: {
         theme: "dark",
@@ -691,6 +746,7 @@ export class SettingsService implements OnModuleInit {
       openaiImageProvider: this.toPublicImageProvider(settings.openaiImageProvider),
       doubaoImageProvider: this.toPublicImageProvider(settings.doubaoImageProvider),
       grokImageProvider: this.toPublicImageProvider(settings.grokImageProvider),
+      runwareImageProvider: this.toPublicImageProvider(settings.runwareImageProvider),
       activeImageProvider: settings.activeImageProvider,
       appearance: settings.appearance,
       settingsPath: SETTINGS_VIRTUAL_PATH,
@@ -733,7 +789,7 @@ export class SettingsService implements OnModuleInit {
   }
 
   private normalizeImageProviderType(value: unknown): ImageProviderType {
-    return value === "doubao" || value === "grok" ? value : "openai";
+    return value === "doubao" || value === "grok" || value === "runware" ? value : "openai";
   }
 
   private getStoredImageProvider(settings: StoredAppSettings, type: ImageProviderType): StoredAIKeySettings {
@@ -742,6 +798,9 @@ export class SettingsService implements OnModuleInit {
     }
     if (type === "grok") {
       return settings.grokImageProvider;
+    }
+    if (type === "runware") {
+      return settings.runwareImageProvider;
     }
     return settings.openaiImageProvider;
   }
