@@ -570,6 +570,9 @@ function deterministicOpenCodeResponse(payload, failureMode) {
       warnings: [],
     });
   }
+  if (prompt.includes("storyboard-shot-generate 的第二阶段")) {
+    return `\`\`\`json\n${JSON.stringify(buildStoryboardVisualBriefResponse(prompt), null, 2)}\n\`\`\``;
+  }
   if (prompt.includes("storyboard-shot-generate")) {
     const storyboard = buildStoryboardResponse(prompt);
     const shouldFailQualityOnce = failureMode === "storyboard_quality_once"
@@ -621,20 +624,70 @@ function deterministicOpenCodeResponse(payload, failureMode) {
   return "E2E deterministic response";
 }
 
+function buildStoryboardVisualBriefResponse(prompt) {
+  const structure = readJsonAfterMarker(prompt, "已确认结构中的角色、场景和节拍事实：");
+  const storyboard = readJsonAfterMarker(prompt, "已通过质量门、不得改动结构的分镜骨架：");
+  const characters = Array.isArray(structure.characters) ? structure.characters : [];
+  const scenes = Array.isArray(structure.scenes) ? structure.scenes : [];
+  const characterById = new Map();
+  for (const character of characters) {
+    if (!character || typeof character !== "object" || typeof character.name !== "string") continue;
+    if (typeof character.id === "string") characterById.set(character.id, character);
+    if (typeof character.projectCharacterId === "string") characterById.set(character.projectCharacterId, character);
+  }
+  const sceneById = new Map(scenes
+    .filter((scene) => scene && typeof scene === "object" && typeof scene.id === "string")
+    .map((scene) => [scene.id, scene]));
+  const shots = Array.isArray(storyboard.shots) ? storyboard.shots : [];
+  return {
+    shots: shots.map((shot, index) => {
+      const current = shot && typeof shot.current === "object" && shot.current ? shot.current : {};
+      const boundCharacters = Array.isArray(shot.characterIds)
+        ? shot.characterIds.map((id) => characterById.get(id)).filter(Boolean)
+        : [];
+      const visibleNames = boundCharacters
+        .filter((character) => character.entityType !== "voice")
+        .map((character) => character.name);
+      const subject = visibleNames.join("、") || "本镜主体";
+      const scene = sceneById.get(shot.sceneId);
+      const location = scene && typeof scene.location === "string" ? scene.location : "当前场景";
+      const visual = typeof current.visualDescription === "string" && current.visualDescription.trim()
+        ? current.visualDescription.trim()
+        : "主体与关键环境关系清楚可见";
+      const composition = typeof current.composition === "string" && current.composition.trim()
+        ? current.composition.trim()
+        : "主体位于画面视觉中心";
+      return {
+        order: Number.isInteger(shot.order) ? shot.order : index + 1,
+        visualDescription: `${location}中，${subject}完整入画，${visual}；人物姿态、关键物件与环境空间处在同一个决定性瞬间。`,
+        action: `${subject}面向本镜已经给出的可见焦点，双手、身体朝向和视线关系清楚，动作对象保持在同一画面内。`,
+        composition: `${composition}；前景、中景与背景层次明确，视觉重心集中在${subject}和本镜关键物件上。`,
+        promptDraft: `${location}，${subject}，${visual}，${composition}，冷色漫画氛围，主体清楚，单一决定性瞬间。`,
+      };
+    }),
+  };
+}
+
 function buildStoryboardResponse(prompt) {
   const structure = readJsonAfterMarker(prompt, "已确认剧情结构：");
   const scenes = Array.isArray(structure.scenes) ? structure.scenes : [];
   const beats = Array.isArray(structure.beats) ? structure.beats : [];
   const characters = Array.isArray(structure.characters) ? structure.characters : [];
-  const characterIdByName = new Map(characters
-    .filter((item) => item && typeof item === "object" && typeof item.name === "string" && typeof item.id === "string")
-    .map((item) => [item.name, item.id]));
+  const characterIdByToken = new Map();
+  for (const character of characters) {
+    if (!character || typeof character !== "object" || typeof character.id !== "string") continue;
+    characterIdByToken.set(character.id, character.id);
+    if (typeof character.name === "string") characterIdByToken.set(character.name, character.id);
+    if (typeof character.projectCharacterId === "string") {
+      characterIdByToken.set(character.projectCharacterId, character.id);
+    }
+  }
 
   return {
     shots: beats.map((beat, index) => {
       const scene = scenes.find((item) => item && typeof item === "object" && item.id === beat.sceneId);
       const characterIds = Array.isArray(beat.characters)
-        ? beat.characters.map((name) => characterIdByName.get(name)).filter(Boolean)
+        ? beat.characters.map((token) => characterIdByToken.get(token)).filter(Boolean)
         : [];
       const title = typeof beat.title === "string" ? beat.title : `剧情节拍 ${index + 1}`;
       const summary = typeof beat.summary === "string" ? beat.summary : title;
@@ -645,7 +698,7 @@ function buildStoryboardResponse(prompt) {
         beatId: beat.id,
         sceneId: beat.sceneId,
         characterIds,
-        coreAction: summary,
+        coreAction: visualFocus,
         emotion: index === beats.length - 1 ? "紧张并下定决心" : "警觉逐步加深",
         shotType: index === 0 ? "wide" : index === beats.length - 1 ? "close_up" : "medium",
         cameraAngle: index === beats.length - 1 ? "low_angle" : "eye_level",

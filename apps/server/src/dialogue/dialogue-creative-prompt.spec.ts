@@ -442,6 +442,8 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("新增 comic 也必须承载不同且必要的静态决定性瞬间");
     expect(prompt).toContain("voiceLines[].line 只能逐字复制下方全章正式对白候选");
     expect(prompt).toContain("不得同义改写、补词、改标点");
+    expect(prompt).toContain("结构或正文把字迹、屏幕数字、标牌内容写成视觉重点时");
+    expect(prompt).toContain("画面字段只保留非文字的可见信号和人物反应");
     expect(prompt).toContain("不要求相同：决定性瞬间、画面描述、构图重点、阅读节奏、时间展开、人物表演和镜头运动");
     expect(prompt).not.toContain("comic 与 motion 描述同一个剧情瞬间");
     expect(prompt).not.toContain("motion 只能补充时间和运镜");
@@ -524,6 +526,9 @@ describe("S1 分镜 Prompt 契约", () => {
     expect(prompt).toContain("达到退出状态就停镜");
     expect(prompt).toContain("新增 comic 仍必须是不同且必要的静态决定性瞬间");
     expect(prompt).toContain("voiceLines[].line 必须逐字复制原任务中的全章正式对白候选");
+    expect(prompt).toContain("STORYBOARD_PANEL_TEXT_CONFLICT");
+    expect(prompt).toContain("STORYBOARD_VOICE_LINE_NOT_IN_FORMAL_SCRIPT");
+    expect(prompt).toContain("不要沿用失败输出里自行去掉或加上的表演提示、引号和标点");
     expect(prompt).toContain("不要求描述同一瞬间、相同构图或相同节奏");
     expect(prompt).toContain("promptDraft 只属于静态候选图");
     expect(prompt).not.toContain("每个 Shot 只表达一个静态瞬间");

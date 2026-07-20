@@ -172,11 +172,43 @@
       <p>左侧说“生成分镜”，这里会先显示待确认镜头卡。</p>
     </div>
   </section>
+
+  <Teleport to="body">
+    <div v-if="confirmImpactOpen" class="storyboard-confirm-backdrop" @click.self="closeConfirmImpact">
+      <section class="storyboard-confirm-modal" role="dialog" aria-modal="true" aria-label="确认新分镜影响">
+        <header>
+          <div>
+            <span>切换正式分镜</span>
+            <h2>确认采用这版新分镜？</h2>
+          </div>
+          <button type="button" aria-label="关闭分镜确认" :disabled="loading" @click="closeConfirmImpact"><X :size="20" /></button>
+        </header>
+        <p>确认后，这版待确认分镜会成为当前正式分镜。已有制作成果不会删除，但不能继续冒充新分镜的当前结果。</p>
+        <div class="storyboard-impact-grid">
+          <div><span>已确认出图准备</span><strong>{{ snapshot.imagePreflight ? "1 份" : "无" }}</strong></div>
+          <div><span>已有候选图</span><strong>{{ downstreamCandidateCount }} 张</strong></div>
+          <div><span>当前定稿图</span><strong>{{ downstreamLockCount }} 张</strong></div>
+          <div><span>排版 / 导出</span><strong>{{ downstreamLayoutExportCount }} 份</strong></div>
+        </div>
+        <p class="storyboard-impact-warning">
+          <AlertTriangle :size="17" />
+          <span>旧候选图、排版和导出会保留为历史；出图准备将显示“来源已更新”，需要重新确认后才能生成新候选图。</span>
+        </p>
+        <footer>
+          <button class="secondary-action" type="button" :disabled="loading" @click="closeConfirmImpact">继续使用旧分镜</button>
+          <button class="primary-action" type="button" :disabled="loading" @click="commitPendingStoryboard">
+            <CheckCircle2 :size="15" />
+            <span>确认切换到新分镜</span>
+          </button>
+        </footer>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { CheckCircle2, GripVertical, Image as ImageIcon, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
+import { AlertTriangle, CheckCircle2, GripVertical, Image as ImageIcon, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2, X } from "lucide-vue-next";
 import type { ChapterListItem, ChapterStoryboard, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchCandidate, WorkbenchSnapshot } from "@airoaming/shared";
 import { api } from "../../services/api";
 import EditableField from "./EditableField.vue";
@@ -210,6 +242,7 @@ const workingSourceKey = ref("");
 const expandedShots = ref<Set<string>>(new Set());
 const dragIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
+const confirmImpactOpen = ref(false);
 
 const chapters = computed(() => props.snapshot.chapters ?? []);
 
@@ -274,6 +307,18 @@ const pendingStoryboard = computed(() => {
 });
 const activeStoryboard = computed(() => pendingStoryboard.value ?? formalStoryboard.value);
 const hasStoryboard = computed(() => Boolean(pendingStoryboard.value || formalStoryboard.value));
+const downstreamCandidateCount = computed(() => props.snapshot.candidates.filter((candidate) => !candidate.chapterId || candidate.chapterId === currentChapterId.value).length);
+const downstreamLockCount = computed(() => props.snapshot.candidateSources?.candidateLockSet.entries.length
+  ?? props.snapshot.shots.filter((shot) => Boolean(shot.lockedCandidateId)).length);
+const downstreamLayoutExportCount = computed(() => Number(Boolean(props.snapshot.candidateSources?.currentLayout ?? props.snapshot.chapterLayout))
+  + Number(Boolean(props.snapshot.candidateSources?.currentExport)));
+const hasDownstreamImpact = computed(() => Boolean(
+  formalStoryboard.value
+  && (props.snapshot.imagePreflight
+    || downstreamCandidateCount.value > 0
+    || downstreamLockCount.value > 0
+    || downstreamLayoutExportCount.value > 0),
+));
 const canGenerate = computed(() => Boolean(currentChapter.value && props.snapshot.storyStructure && currentChapter.value.status !== "draft" && currentChapter.value.status !== "script_done"));
 const versioningStatus = computed(() => {
   if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
@@ -315,19 +360,30 @@ function requestGenerate() {
   }
 
   const regenerate = chapter.status !== "structured" || Boolean(formalStoryboard.value);
-  if (regenerate && !window.confirm("重新生成分镜会影响候选图、排版和轻漫剧镜头字段，确认继续吗？")) {
-    return;
-  }
-
   emit("generateStoryboard", { chapterId: chapter.id, regenerate });
 }
 
 function confirmPendingStoryboard() {
+  if (hasDownstreamImpact.value) {
+    confirmImpactOpen.value = true;
+    return;
+  }
+  commitPendingStoryboard();
+}
+
+function closeConfirmImpact() {
+  if (!props.loading) {
+    confirmImpactOpen.value = false;
+  }
+}
+
+function commitPendingStoryboard() {
   const pending = pendingStoryboard.value;
   if (!pending || !workingJson.value) {
     return;
   }
 
+  confirmImpactOpen.value = false;
   emit("confirmStoryboard", {
     chapterId: pending.chapterId,
     storyboardJson: workingJson.value,
@@ -1577,6 +1633,138 @@ html[data-theme="light"] .storyboard-empty p {
   .chapter-picker select {
     width: 100%;
     max-width: none;
+  }
+}
+
+.storyboard-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.storyboard-confirm-modal {
+  width: min(620px, 100%);
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 18px;
+  background: #111827;
+  padding: 22px;
+  color: #e2e8f0;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+}
+
+.storyboard-confirm-modal header,
+.storyboard-confirm-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.storyboard-confirm-modal header span {
+  color: #a78bfa;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.storyboard-confirm-modal h2,
+.storyboard-confirm-modal p {
+  margin: 0;
+}
+
+.storyboard-confirm-modal h2 {
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+.storyboard-confirm-modal header > button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.storyboard-impact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.storyboard-impact-grid > div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.06);
+  padding: 12px 14px;
+}
+
+.storyboard-impact-grid span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.storyboard-impact-grid strong {
+  color: #f8fafc;
+  font-size: 17px;
+}
+
+.storyboard-impact-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  padding: 12px 14px;
+  color: #fcd34d;
+  line-height: 1.65;
+}
+
+.storyboard-impact-warning svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.storyboard-confirm-modal footer {
+  justify-content: flex-end;
+}
+
+html[data-theme="light"] .storyboard-confirm-modal {
+  border-color: rgba(100, 116, 139, 0.18);
+  background: #ffffff;
+  color: #334155;
+}
+
+html[data-theme="light"] .storyboard-impact-grid > div {
+  border-color: rgba(100, 116, 139, 0.12);
+  background: #f8fafc;
+}
+
+html[data-theme="light"] .storyboard-impact-grid strong {
+  color: #0f172a;
+}
+
+@media (max-width: 640px) {
+  .storyboard-impact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .storyboard-confirm-modal footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
   }
 }
 </style>

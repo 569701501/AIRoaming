@@ -32,6 +32,7 @@ import {
   assertStoryboardQuality,
   StoryboardQualityError,
 } from "./storyboard-quality.util.js";
+import { enrichStoryboardVisualBrief } from "./storyboard-visual-brief.util.js";
 
 /**
  * 分镜工具链对话编排(从 DialogueService 抽出,见任务 2026-07-02_DialogueService拆分)。
@@ -227,7 +228,7 @@ export class StoryboardDialogueService {
       status: "needs_user_confirmation",
       summary: [
         `已${revised ? "调整" : "生成"}「${storyboard.storyboardJson.chapterTitle}」的分镜预览，共 ${storyboard.storyboardJson.shots.length} 镜，右侧可查看。`,
-        "每个镜头包含漫画画格字段和基础漫剧镜头字段。",
+        "每个镜头包含漫画画格字段、基础漫剧镜头字段，并已自动整理本次候选图的详细单帧说明。",
         "这还是待确认预览；确认后才会形成正式分镜版本，也才能进入出图准备。",
       ].join("\n"),
       chapters: [],
@@ -317,8 +318,9 @@ export class StoryboardDialogueService {
       return resolveStoryboardReferences(storyboard, structure, turn.snapshot.characters);
     };
 
+    let storyboard: StoryboardJson;
     try {
-      return validate(response.content);
+      storyboard = validate(response.content);
     } catch (error) {
       const issues = error instanceof StoryboardQualityError ? error.issues : undefined;
       const repaired = await this.openCodeRuntimeService.sendMessage({
@@ -333,8 +335,25 @@ export class StoryboardDialogueService {
         }),
         signal,
       });
-      return validate(repaired.content);
+      storyboard = validate(repaired.content);
     }
+
+    return enrichStoryboardVisualBrief({
+      storyboard,
+      structure,
+      comicFormat: turn.snapshot.project.comicFormat,
+      artStyle: turn.snapshot.project.artStyle,
+      send: async (content) => {
+        const result = await this.openCodeRuntimeService.sendMessage({
+          sessionId: openCodeSessionId,
+          model: input.model,
+          content,
+          signal,
+        });
+        return result.content;
+      },
+      validate: (enriched) => assertStoryboardQuality(enriched, structure, dialogueReference),
+    });
   }
 
   private async resolveFormalScriptSource(turn: DialogueTurn): Promise<string> {

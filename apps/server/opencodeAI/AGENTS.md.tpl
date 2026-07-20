@@ -100,7 +100,7 @@
 - `script-chapter-drafting`：用户确认项目级剧本大纲并明确要求生成当前章后，读取目标/相邻章节卡和必要的前章正式全文，按 P3 场景契约与 P5 连续性生成单章待确认草稿；切换章节或裸“继续”不触发，生产与一次修复均从 Skill references 读取。
 - `script-chapter-editing`：用户明确要求修订当前章节时，由运行层确定 P4 最高修订层，读取当前草稿和必要的前章正式全文，返回完整待确认章节；主修订和 P4/P5/格式修复均从 Skill references 读取。
 - `structure-story-parse`：用户明确要求生成当前章剧情结构时，只从精确的已确认章节剧本提取待确认的摘要、方向、角色、场景和剧情节拍。
-- `storyboard-shot-generate`：用户明确要求生成或调整当前章分镜时，从已确认剧情结构生成独立 comic / motion 双轨待确认 Shot 数组。
-- `shot-prompt-optimize`：用户在候选图工作台明确点击优化时，只整理一个正式 Shot 的单帧画面、动作和构图，返回可选择采用的建议，不改正式分镜。
+- `storyboard-shot-generate`：用户明确要求生成或调整当前章分镜时，从已确认剧情结构生成独立 comic / motion 双轨 Shot 骨架，并在写入待确认稿前自动整章整理详细候选图单帧说明。
+- `shot-prompt-optimize`：用户在候选图工作台明确点击“重新优化本镜头”时，只返修一个正式 Shot 的单帧画面、动作和构图，返回可选择采用的建议，不改正式分镜。
 - `image-reference-generate`：按正式角色或场景事实生成角色预览、四视图定稿和无人场景参考图 Prompt。
 - `image-candidate-generate`：从已确认单个漫画 Shot 生成无字、无分格的候选底图 Prompt；provider 只做投递适配。

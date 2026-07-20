@@ -1507,7 +1507,12 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const replay = await preflight.confirm(scope, { expectedSourceStoryboardVersionId: boardConfirmed.value.current.id, expectedSourceDigest: preview.sourceDigest, expectedChapterRowVersion: preview.chapterRowVersion, notes: "首次确认" });
     expect(replay.replayed).toBe(true);
 
-    const nextBoard = await boards.createWorkingCopy(scope, { mode: "clone_current", expectedCurrentVersionId: boardConfirmed.value.current.id, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedChapterRowVersion: confirmed.chapterRowVersion });
+    const completedImagesMilestone = await app.get(PrismaService).database().chapter.update({
+      where: { id: scope.chapterId },
+      data: { milestoneStatus: "images_done", rowVersion: { increment: 1 } },
+      select: { rowVersion: true },
+    });
+    const nextBoard = await boards.createWorkingCopy(scope, { mode: "clone_current", expectedCurrentVersionId: boardConfirmed.value.current.id, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedChapterRowVersion: completedImagesMilestone.rowVersion });
     const nextBoardConfirmed = await boards.confirmWorkingCopy(scope, { pendingVersionId: nextBoard.value.pending!.id, expectedPendingDocumentDigest: nextBoard.value.pending!.documentDigest, expectedPendingRowVersion: 0, expectedCurrentVersionId: boardConfirmed.value.current.id, expectedSourceStoryVersionId: storyConfirmed.value.current.id, expectedSourceDigest: storyConfirmed.value.current.documentDigest, expectedChapterRowVersion: nextBoard.chapterRowVersion });
     expect(nextBoardConfirmed.value.current.id).not.toBe(boardConfirmed.value.current.id);
     const persistedChain = await app.get(PrismaService).database().chapter.findUniqueOrThrow({ where: { id: scope.chapterId }, include: { currentPreflightRevision: true, currentStoryboardVersion: true } });
@@ -1515,6 +1520,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(persistedSnapshot?.storyboard.id).toBe(boardConfirmed.value.current.id);
     expect(persistedChain.currentPreflightRevision?.sourceDigest).toBe(preview.sourceDigest);
     const stale = await productionQuery.get(scope);
+    expect(stale.productionState.milestoneStatus).toBe("images_done");
     expect(stale.productionState.preflight).toMatchObject({ freshness: "stale", reasonCodes: ["PREFLIGHT_SOURCE_STORYBOARD_CHANGED"] });
     expect(stale.workflow.steps.find((step) => step.key === "image_preflight")).toMatchObject({ status: "needs_update", attention: "source_updated" });
   }, 30_000);
@@ -1999,7 +2005,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       expectedPendingRowVersion: secondShot.workingCopy.pending!.rowVersion ?? 0,
       expectedChapterRowVersion: secondShot.workingCopy.productionState.chapterRowVersion,
     });
-    await boards.confirmWorkingCopy(scope, {
+    const boardConfirmed = await boards.confirmWorkingCopy(scope, {
       pendingVersionId: board.value.pending!.id,
       expectedPendingDocumentDigest: reordered.value.pending!.documentDigest,
       expectedPendingRowVersion: reordered.value.pending!.rowVersion ?? 0,
@@ -2013,6 +2019,37 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(snapshot.storyboard?.storyboardJson.shots.map((shot) => shot.id)).toEqual(formalShotIds);
     expect(snapshot.shots.map((shot) => shot.id)).toEqual(formalShotIds);
     expect(snapshot.shots.map((shot) => shot.order)).toEqual([1, 2]);
+
+    const replacement = await boards.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: boardConfirmed.value.current.id,
+      expectedSourceStoryVersionId: storyConfirmed.value.current.id,
+      expectedChapterRowVersion: boardConfirmed.chapterRowVersion,
+    });
+    const replacementShot = await boards.createPendingShot(scope, {
+      pendingVersionId: replacement.value.pending!.id,
+      requestId: randomUUID(),
+      afterShotId: null,
+      expectedPendingRowVersion: replacement.value.pending!.rowVersion ?? 0,
+      expectedChapterRowVersion: replacement.chapterRowVersion,
+      initial: {
+        beatId: null,
+        sceneId: null,
+        characterIds: [],
+        coreAction: "新待确认镜头",
+        emotion: "紧张",
+        shotType: "medium",
+        cameraAngle: "eye_level",
+        comic: { panelDescription: "新待确认镜头", composition: "居中", dialogue: "", caption: "", panelRhythm: "normal" },
+        motion: { visualDescription: "新待确认镜头", compositionDesign: "居中", cameraMovement: "static", frameType: "action", durationMs: 0, durationHint: "", voiceLines: [] },
+        promptDraft: "",
+      },
+    });
+
+    const snapshotWithPending = await projects.getWorkbenchSnapshot(project.id, scope.chapterId);
+    expect(snapshotWithPending.pendingStoryboard?.storyboardJson.shots.map((shot) => shot.id))
+      .toEqual([replacementShot.shotId]);
+    expect(snapshotWithPending.shots.map((shot) => shot.id)).toEqual(formalShotIds);
   }, 30_000);
 
   it("P6/G4-D: keeps formal layout/publication sources gated across replacement, late task, new candidate, and restart", async () => {

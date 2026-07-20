@@ -310,6 +310,37 @@ describe("buildCandidateGenerationSpec", () => {
     expect(spec.visualIssues).toEqual([]);
     expect(sourceShot.comic.panelDescription).toBe("原始画面");
   });
+
+  it("把绑定群体名前的中性范围编译进候选图合同", () => {
+    const sourceShot = shotForOverrides();
+    sourceShot.characterIds = ["char_group"];
+    const spec = buildCandidateGenerationSpec({
+      projectId: "project_hunter",
+      chapterId: "chapter_001",
+      chapterTitle: "章节标题",
+      comicFormat: "vertical_scroll",
+      artStyle: "dark_realistic",
+      shot: sourceShot,
+      scene: null,
+      characters: [
+        { id: "char_group", name: "商队众人", entityType: "group", appearance: "商队护卫群体", promptFragment: "" },
+      ],
+      references: [],
+      requestedSize: { width: 1024, height: 1536 },
+      promptOverrides: {
+        visualDescription: "一群商队众人紧挨着围在避难舱观察窗外，每个人的身形都保持分离。",
+        action: "商队众人共同将枪口压向观察窗，前排与后排的动作关系清楚。",
+        composition: "商队众人的轮廓分布在窗外中后景，观察窗占据画面中心。",
+      },
+    });
+
+    expect(readCandidateShotContract(spec.systemConstraints)).toMatchObject({
+      staging: "collective",
+      collectiveSubjectNames: ["商队众人"],
+      groupCountHint: "一群",
+    });
+    expect((spec.visualIssues ?? []).map((item) => item.code)).not.toContain("VISUAL_GROUP_COUNT_MISSING");
+  });
 });
 
 function shotForOverrides(): StoryboardShot {

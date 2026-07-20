@@ -23,6 +23,16 @@ describe("OpenCode Skill production assets", () => {
     expect(config.systemConstraints).toContain("Create exactly one clean comic illustration for one storyboard shot.");
     expect(readOpenCodeSkillReference("shot-prompt-optimize", "optimize-prompt.md"))
       .toContain("结果只供用户选择采用");
+    expect(readOpenCodeSkillReference("storyboard-shot-generate", "visual-brief-prompt.md"))
+      .toContain("第二阶段");
+    const visualBriefExample = readOpenCodeSkillJsonReference<{
+      shots: Array<{ visualDescription: string }>;
+    }>(
+      "storyboard-shot-generate",
+      "visual-brief-example.json",
+    );
+    expect(visualBriefExample.shots).toHaveLength(1);
+    expect(visualBriefExample.shots[0]?.visualDescription).toContain("两人");
   });
 
   it("严格渲染模板并拒绝缺失变量", () => {

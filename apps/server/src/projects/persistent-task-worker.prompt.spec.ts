@@ -70,8 +70,9 @@ describe("PersistentTaskWorkerService storyboard Prompt", () => {
       },
     });
     const createSession = vi.fn().mockResolvedValue("session-1");
-    const sendMessage = vi.fn().mockResolvedValue({
-      content: JSON.stringify({
+    const sendMessage = vi.fn()
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
         shots: [{
           order: 1,
           beatId: "beat_01",
@@ -100,8 +101,19 @@ describe("PersistentTaskWorkerService storyboard Prompt", () => {
           promptDraft: "雨夜旧港仓库，黑发风衣青年护住发亮录音机并警觉回望入口",
         }],
         notes: "用入口负空间维持追兵逼近的压力。",
-      }),
-    });
+        }),
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          shots: [{
+            order: 1,
+            visualDescription: "雨夜旧港仓库内，林舟站在左侧立柱旁，将发亮的录音机护在胸前，身体朝向仓库入口，警觉的目光落在门外斜入的雨幕上。",
+            action: "林舟双手收紧录音机并贴近胸口，肩膀转向仓库入口，视线固定在门外的动静方向。",
+            composition: "林舟位于左中景，右侧仓库入口形成大块压迫性负空间，录音机的亮点成为人物区域的视觉中心。",
+            promptDraft: "雨夜旧港仓库内，黑色短发、深色风衣的林舟护住发亮录音机并警觉望向入口，冷雨斜入，右侧负空间强化压迫感。",
+          }],
+        }),
+      });
     const service = new PersistentTaskWorkerService(
       { database: () => ({ chapter: { findUnique } }) } as never,
       {} as never,
@@ -123,14 +135,17 @@ describe("PersistentTaskWorkerService storyboard Prompt", () => {
       input: { chapterId: "chapter-1", instruction: "生成当前章节分镜" },
     });
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("漫画 / 漫剧双轨一致性边界");
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("当前剧情结构版本：story-version-1");
     expect(sendMessage.mock.calls[0]?.[0].content).not.toContain("管理代号-1111");
+    expect(sendMessage.mock.calls[1]?.[0].content).toContain("第二阶段");
+    expect(sendMessage.mock.calls[1]?.[0].content).not.toContain("管理代号-1111");
     expect(result).toMatchObject({ schemaVersion: 2, chapterId: "chapter-1" });
     expect(result.shots[0]?.id).toBeTruthy();
     expect(result.shots[0]?.id).not.toBe("shot_001");
     expect(result.shots[0]?.characterIds).toEqual(["project-character-lin"]);
+    expect(result.shots[0]?.comic.panelDescription).toContain("林舟站在左侧立柱旁");
   });
 });
 

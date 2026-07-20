@@ -1,6 +1,6 @@
 ---
 name: storyboard-shot-generate
-description: 用户在分镜阶段明确要求生成当前章分镜或调整当前待确认分镜时，读取已确认剧情结构和绑定的正式章节正文，生成同时包含独立 comic 与 motion 表达的完整待确认 Shot 数组；禁止自动确认、生成图片或编造剧情事实。
+description: 用户在分镜阶段明确要求生成当前章分镜或调整当前待确认分镜时，读取已确认剧情结构和绑定的正式章节正文，先生成同时包含独立 comic 与 motion 表达的完整 Shot 骨架，再自动整理可直接进入候选图工作台的单帧画面说明；禁止自动确认、生成图片或编造剧情事实。
 ---
 
 # storyboard-shot-generate
@@ -37,6 +37,9 @@ description: 用户在分镜阶段明确要求生成当前章分镜或调整当�
 - `revise_pending` 的当前草稿区：读取 [references/pending-storyboard-section.md](references/pending-storyboard-section.md)。
 - 仅在明确运行 `v2_5_experiment` 时追加 [references/risk-v2-5.md](references/risk-v2-5.md)。
 - 固定门失败后的唯一修复：读取 [references/repair-prompt.md](references/repair-prompt.md)，并按动作追加对应 repair mode 文件。
+- Shot 骨架通过固定门后，自动读取 [references/visual-brief-prompt.md](references/visual-brief-prompt.md)，按整章一次调用整理候选图画面说明。
+- 候选图画面说明固定门失败后的唯一修复：读取 [references/visual-brief-repair-prompt.md](references/visual-brief-repair-prompt.md)。
+- 候选图画面说明输出示例：读取 [references/visual-brief-example.json](references/visual-brief-example.json)。
 
 这些 reference 是生产 Prompt 事实源。后端只能填充 `{{PLACEHOLDER}}`、校验输出和保存版本，不得在代码中另存一份同义创作规则。
 
@@ -46,6 +49,7 @@ description: 用户在分镜阶段明确要求生成当前章分镜或调整当�
 - 顶层为 `{ "shots": Shot[], "notes": string }`。
 - 每个 Shot 同时包含共同核心、`comic` 和 `motion`。
 - AI 使用剧情结构本地引用；数据库 ID 由后端映射和分配。
+- 后端在写入 pending 前自动完成整章候选图画面说明整理；该阶段只能覆盖 `coreAction`、`comic.panelDescription`、`comic.composition` 和 `promptDraft`。
 - 输出只进入 pending；用户确认后才形成正式 `StoryboardVersion`。
 
 ## 禁止事项
@@ -56,4 +60,5 @@ description: 用户在分镜阶段明确要求生成当前章分镜或调整当�
 - 不改写正式剧情、对白或角色身份。
 - 不输出数据库 UUID、评分、诊断过程或额外字段。
 - 不绕过后端固定质量门和用户确认。
+- 不为每个 Shot 创建独立提示词任务，不保存部分镜头的中间整理结果。
 - 不读取或使用项目管理名称；作品名称只有已确认 `storyTitle` 才可作为辅助上下文。

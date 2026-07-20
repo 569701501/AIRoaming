@@ -65,6 +65,18 @@ function aiStoryboard(id?: string): StoryboardJson {
   };
 }
 
+function aiVisualBrief(): Record<string, unknown> {
+  return {
+    shots: [{
+      order: 1,
+      visualDescription: "雨夜旧办公室内，林舟坐在木桌左侧，右手停在桌面中央的录音笔旁，警惕的目光越过道具投向对面，冷色窗光压住室内气氛。",
+      action: "林舟用右手把录音笔稳稳推到桌面中央，手指仍贴着外壳，视线保持在对面的回应方向。",
+      composition: "林舟位于左前景，桌面斜线把视线引向中央录音笔，右侧保留对峙对象所在的干净空间。",
+      promptDraft: "雨夜旧办公室内，林舟在冷色窗光中把录音笔推到木桌中央，神情警惕克制，过肩视角聚焦手与录音笔。",
+    }],
+  };
+}
+
 function pendingBoard(id = "board-pending", shotId = "db-shot-1"): ChapterStoryboard {
   const storyboardJson = aiStoryboard(shotId);
   storyboardJson.shots[0]!.characterIds = ["char-lin"];
@@ -147,7 +159,11 @@ function working(input: { pending?: boolean; rowVersion?: number; shotId?: strin
 
 describe("StoryboardDialogueService S1", () => {
   it("DB 首次生成把角色卡引用和临时镜头号转换为正式 Working Copy", async () => {
-    const runtime = { sendMessage: vi.fn(async () => ({ content: JSON.stringify({ shots: aiStoryboard().shots.map(({ id: _id, ...shot }) => shot), notes: "结尾留停顿" }) })) };
+    const runtime = {
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce({ content: JSON.stringify({ shots: aiStoryboard().shots.map(({ id: _id, ...shot }) => shot), notes: "结尾留停顿" }) })
+        .mockResolvedValueOnce({ content: JSON.stringify(aiVisualBrief()) }),
+    };
     const empty = working();
     const created = working({ pending: true, rowVersion: 0 });
     const withShot = working({ pending: true, rowVersion: 1, shotId: "db-shot-1" });
@@ -179,17 +195,26 @@ describe("StoryboardDialogueService S1", () => {
     }));
     expect(versions.updateWorkingCopy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       document: expect.objectContaining({
-        shots: [expect.objectContaining({ id: "db-shot-1", characterIds: ["char-lin"] })],
+        shots: [expect.objectContaining({
+          id: "db-shot-1",
+          characterIds: ["char-lin"],
+          comic: expect.objectContaining({ panelDescription: expect.stringContaining("林舟坐在木桌左侧") }),
+        })],
       }),
     }));
     expect(runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("character_01=林舟") }));
+    expect(runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("候选图工作台") }));
   });
 
   it("调整命令只修订当前 pending，并把完整草稿交回同一保存路径", async () => {
     const source = pendingBoard("legacy-pending", "shot-existing");
     const response = aiStoryboard("shot-existing");
     response.notes = "节奏已加快";
-    const runtime = { sendMessage: vi.fn(async () => ({ content: JSON.stringify(response) })) };
+    const runtime = {
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce({ content: JSON.stringify(response) })
+        .mockResolvedValueOnce({ content: JSON.stringify(aiVisualBrief()) }),
+    };
     const projects = {
       getPendingChapterStoryboard: vi.fn(async () => source),
       savePendingChapterStoryboard: vi.fn(async () => ({ storyboard: { ...source, storyboardJson: response } })),
@@ -256,7 +281,8 @@ describe("StoryboardDialogueService S1", () => {
     const runtime = {
       sendMessage: vi.fn()
         .mockResolvedValueOnce({ content: JSON.stringify(invalid) })
-        .mockResolvedValueOnce({ content: JSON.stringify(repaired) }),
+        .mockResolvedValueOnce({ content: JSON.stringify(repaired) })
+        .mockResolvedValueOnce({ content: JSON.stringify(aiVisualBrief()) }),
     };
     const projects = {
       getPendingChapterStoryboard: vi.fn(async () => null),
@@ -269,7 +295,7 @@ describe("StoryboardDialogueService S1", () => {
 
     const result = await service.handleStoryboardTurn(turn(), { content: "生成分镜", intent: "generate_storyboard" });
 
-    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(3);
     expect(runtime.sendMessage.mock.calls[1]?.[0]?.content).toContain("STORYBOARD_CORE_ACTION:shots[0]:PLACEHOLDER");
     expect(projects.savePendingChapterStoryboard).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: "needs_user_confirmation", tool: "generate_storyboard" });
@@ -298,6 +324,34 @@ describe("StoryboardDialogueService S1", () => {
     expect(result).toMatchObject({ status: "failed", summary: expect.stringContaining("本次没有写入或替换待确认分镜") });
   });
 
+  it("候选图详细说明返修后仍不合格时，整份分镜不写 pending", async () => {
+    const invalidBrief = {
+      shots: [{ order: 1, visualDescription: "太短", action: "太短", composition: "太短", promptDraft: "太短" }],
+    };
+    const runtime = {
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce({ content: JSON.stringify(aiStoryboard()) })
+        .mockResolvedValueOnce({ content: JSON.stringify(invalidBrief) })
+        .mockResolvedValueOnce({ content: JSON.stringify(invalidBrief) }),
+    };
+    const projects = {
+      getPendingChapterStoryboard: vi.fn(async () => null),
+      savePendingChapterStoryboard: vi.fn(),
+    };
+    const service = new StoryboardDialogueService(projects as never, runtime as never);
+    service.setEnsureSession(async () => "session-1");
+
+    const result = await service.handleStoryboardTurn(turn(), { content: "生成分镜", intent: "generate_storyboard" });
+
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(3);
+    expect(runtime.sendMessage.mock.calls[2]?.[0]?.content).toContain("VISUAL_BRIEF_TEXT_TOO_SHORT");
+    expect(projects.savePendingChapterStoryboard).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      status: "failed",
+      summary: expect.stringContaining("本次没有写入或替换待确认分镜"),
+    });
+  });
+
   it("V2.3 正式正文对白被改写时进入同一次修复，逐字恢复后才保存 pending", async () => {
     const invalid = aiStoryboard();
     invalid.shots[0]!.comic.dialogue = "林舟：听完之后再决定。";
@@ -307,7 +361,8 @@ describe("StoryboardDialogueService S1", () => {
     const runtime = {
       sendMessage: vi.fn()
         .mockResolvedValueOnce({ content: JSON.stringify(invalid) })
-        .mockResolvedValueOnce({ content: JSON.stringify(repaired) }),
+        .mockResolvedValueOnce({ content: JSON.stringify(repaired) })
+        .mockResolvedValueOnce({ content: JSON.stringify(aiVisualBrief()) }),
     };
     const projects = {
       getPendingChapterStoryboard: vi.fn(async () => null),
@@ -320,7 +375,7 @@ describe("StoryboardDialogueService S1", () => {
 
     const result = await service.handleStoryboardTurn(sourceTurn, { content: "生成分镜", intent: "generate_storyboard" });
 
-    expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(3);
     expect(runtime.sendMessage.mock.calls[1]?.[0]?.content).toContain("STORYBOARD_VOICE_LINE_NOT_IN_FORMAL_SCRIPT:shots[0].motion.voiceLines[0]");
     expect(projects.savePendingChapterStoryboard).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: "needs_user_confirmation", tool: "generate_storyboard" });

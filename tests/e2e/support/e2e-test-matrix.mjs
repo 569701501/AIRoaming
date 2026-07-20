@@ -24,6 +24,7 @@ export const E2E_TEST_MATRIX = Object.freeze([
       "tests/e2e/web/script-ai-explicit-generation.spec.ts",
       "tests/e2e/web/script-import-existing-flow.spec.ts",
       "tests/e2e/web/storyboard-quality-gate.spec.ts",
+      "tests/e2e/web/storyboard-revision-impact.spec.ts",
     ]),
   }),
 ]);

@@ -38,6 +38,18 @@ function stripOuterQuotes(value: string): string {
   return result;
 }
 
+function stripLeadingPerformanceDirections(value: string): string {
+  let result = value.trim();
+  while (result) {
+    const match = result.match(/^(?:（[^）\r\n]+）|\([^)\r\n]+\))\s*/u);
+    if (!match) break;
+    const spokenText = result.slice(match[0].length).trim();
+    if (!spokenText) break;
+    result = spokenText;
+  }
+  return result;
+}
+
 function resolveCharacterRef(
   sourceSpeaker: string,
   characters: StoryStructureJson["characters"],
@@ -94,7 +106,7 @@ export function buildStoryboardDialogueReference(
       const match = sourceLine.match(/^(.+?)[：:]\s*(.+)$/u);
       if (!match) return;
       const sourceSpeaker = match[1]?.trim() ?? "";
-      const line = stripOuterQuotes(match[2] ?? "");
+      const line = stripOuterQuotes(stripLeadingPerformanceDirections(match[2] ?? ""));
       if (!sourceSpeaker || !line) return;
       appendCandidate({
         sourceSpeaker,

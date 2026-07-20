@@ -218,9 +218,9 @@ export const useWorkbenchStore = defineStore("workbench", {
     clearCreateProjectError() {
       this.createProjectErrorCode = null;
     },
-    async refreshAfterVersionConflict() {
+    async refreshAfterVersionConflict(notice?: string) {
       await this.refreshActiveProjectRuntime();
-      this.dialogueNotice = "服务器版本已变化，已刷新状态；请保留当前编辑内容并重新确认。";
+      this.dialogueNotice = notice ?? "服务器版本已变化，已刷新状态；请保留当前编辑内容并重新确认。";
     },
     async createProject(input: CreateProjectRequest): Promise<ProjectListItem | null> {
       this.creatingProject = true;
@@ -847,13 +847,17 @@ export const useWorkbenchStore = defineStore("workbench", {
             expectedPendingRowVersion: working.pending?.rowVersion ?? 0,
             expectedChapterRowVersion: chapterRowVersion,
           });
+          const pending = updated.value.pending;
+          if (!pending?.sourceId || !pending.sourceDigest) {
+            throw new Error("待确认分镜缺少已冻结的剧情结构来源，请重新生成分镜");
+          }
           await api.confirmStoryboardWorkingCopy(projectId, chapterId, {
-            pendingVersionId: updated.value.pending?.id ?? working.pending?.id ?? "",
-            expectedPendingDocumentDigest: digestCanonicalJson(document),
-            expectedPendingRowVersion: updated.value.pending?.rowVersion ?? 0,
-            expectedCurrentVersionId: working.current?.id ?? null,
-            expectedSourceStoryVersionId: story.id,
-            expectedSourceDigest: digestCanonicalJson(toStoryDocumentV2(story.structureJson, this.snapshot)),
+            pendingVersionId: pending.id,
+            expectedPendingDocumentDigest: pending.documentDigest,
+            expectedPendingRowVersion: pending.rowVersion ?? 0,
+            expectedCurrentVersionId: updated.value.current?.id ?? null,
+            expectedSourceStoryVersionId: pending.sourceId,
+            expectedSourceDigest: pending.sourceDigest,
             expectedChapterRowVersion: updated.chapterRowVersion,
           });
           await this.refreshActiveProjectRuntime();
@@ -866,9 +870,13 @@ export const useWorkbenchStore = defineStore("workbench", {
         return result.storyboard;
       } catch (error) {
         if (this.snapshot?.versioningCapability.mode === "g2_db" && error instanceof ApiClientError && error.status === 409) {
-          await this.refreshAfterVersionConflict();
+          await this.refreshAfterVersionConflict(error.code === "UPSTREAM_SOURCE_STALE"
+            ? "这份分镜所依据的剧情结构已经更新；当前草稿已保留，请基于最新剧情结构重新生成后再确认。"
+            : undefined);
         }
-        this.error = error instanceof Error ? error.message : "确认分镜失败";
+        this.error = error instanceof ApiClientError && error.code === "UPSTREAM_SOURCE_STALE"
+          ? "当前分镜基于旧的剧情结构，不能直接确认。"
+          : error instanceof Error ? error.message : "确认分镜失败";
         return null;
       } finally {
         this.loading = false;

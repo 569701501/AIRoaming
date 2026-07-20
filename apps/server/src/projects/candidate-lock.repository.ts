@@ -116,9 +116,16 @@ export class CandidateLockRepository {
     this.assertDatabaseMode();
     return this.prismaService.runReadTransaction(async (tx) => {
       const chapter = await this.requireChapter(tx, scope);
+      const currentDocument = StoryboardDocumentCodecV2.parse(chapter.currentStoryboardVersion.documentJson);
+      const currentShotIds = currentDocument.shots.map((shot) => shot.id);
       const [shotRows, candidateRows] = await Promise.all([
         tx.shot.findMany({
-          where: { projectId: scope.projectId, chapterId: scope.chapterId, lifecycleStatus: "active" },
+          where: {
+            projectId: scope.projectId,
+            chapterId: scope.chapterId,
+            lifecycleStatus: "active",
+            id: { in: currentShotIds },
+          },
           include: { currentCandidateLockRevision: true },
           orderBy: { id: "asc" },
         }),

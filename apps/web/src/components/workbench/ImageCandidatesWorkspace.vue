@@ -146,8 +146,8 @@
           <header class="visual-editor-heading">
             <div>
               <span>本次候选图描述</span>
-              <strong>先把这一帧说清楚，再生成图片</strong>
-              <small>这里只影响本次候选图，不会改正式分镜。</small>
+              <strong>生成分镜时已自动整理，可继续微调</strong>
+              <small>这里展示的是本镜头的详细单帧说明；手动修改只影响本次候选图，不会改正式分镜。</small>
             </div>
             <div class="visual-editor-actions">
               <button type="button" class="secondary-action compact" :disabled="loading || !hasPromptDraftChanges" @click="resetPromptDraft">
@@ -157,12 +157,12 @@
                 type="button"
                 class="secondary-action compact"
                 :disabled="loading || !isDatabaseCandidateMode || promptOptimizationRunning || hasIncompletePromptDraft"
-                :title="isDatabaseCandidateMode ? '' : '当前旧兼容模式暂不支持 AI 优化描述'"
+                :title="isDatabaseCandidateMode ? '' : '当前旧兼容模式暂不支持重新优化本镜头'"
                 @click="optimizePromptDraft"
               >
                 <Loader2 v-if="promptOptimizationRunning" :size="14" class="is-spinning" />
                 <Wand2 v-else :size="14" />
-                {{ promptOptimizationRunning ? "正在优化" : "AI 优化描述" }}
+                {{ promptOptimizationRunning ? "正在重新优化" : "重新优化本镜头" }}
               </button>
             </div>
           </header>
@@ -192,11 +192,11 @@
           <div v-if="latestPromptSuggestion" class="prompt-suggestion-card">
             <div class="prompt-suggestion-heading">
               <div>
-                <span>AI 优化建议</span>
-                <small>这是建议稿，尚未采用，也没有改正式分镜。</small>
+                <span>本镜头重新优化建议</span>
+                <small>这是可选返修稿，尚未采用，也不会改正式分镜。</small>
               </div>
               <button type="button" class="primary-action compact" :disabled="loading" @click="adoptPromptSuggestion">
-                采用优化结果
+                采用返修结果
               </button>
             </div>
             <dl>
@@ -213,7 +213,7 @@
           </div>
 
           <p v-else-if="latestPromptOptimizationTask?.status === 'failed'" class="prompt-optimization-error">
-            优化失败：{{ latestPromptOptimizationTask.error?.message ?? "请稍后重试" }}
+            重新优化失败：{{ latestPromptOptimizationTask.error?.message ?? "请稍后重试" }}
           </p>
         </section>
 
@@ -852,7 +852,7 @@ function adoptPromptSuggestion(): void {
     action: suggestion.action,
     composition: suggestion.composition,
   });
-  candidateNotice.value = "已把优化建议放入本次候选图描述；正式分镜没有改动。";
+  candidateNotice.value = "已把返修建议放入本次候选图描述；正式分镜没有改动。";
 }
 
 function readPromptSuggestion(output: Record<string, unknown> | null): PromptOptimizationSuggestion | null {

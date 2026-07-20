@@ -68,14 +68,20 @@ test("S2：新项目分镜首次未过固定质量门时只修复一次，并只
   await expect(page.getByText("待确认预览", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/· 3 镜$/)).toBeVisible();
   await expect(page.getByRole("button", { name: "确认分镜" })).toBeVisible();
-  expect(modelMessageCount(await provider.listRequests())).toBe(beforeStoryboard + 2);
+  expect(modelMessageCount(await provider.listRequests())).toBe(beforeStoryboard + 3);
 
   const pending = await api.get<{ snapshot: WorkbenchSnapshot }>(
     `/projects/${projectId}/workbench?chapterId=${chapterId}`,
   );
   expect(pending.data.snapshot.pendingStoryboard).toMatchObject({
     status: "pending_confirmation",
-    storyboardJson: { shots: [{ order: 1 }, { order: 2 }, { order: 3 }] },
+    storyboardJson: {
+      shots: [
+        { order: 1, comic: { panelDescription: expect.stringContaining("决定性瞬间") } },
+        { order: 2, comic: { panelDescription: expect.stringContaining("决定性瞬间") } },
+        { order: 3, comic: { panelDescription: expect.stringContaining("决定性瞬间") } },
+      ],
+    },
   });
   expect(pending.data.snapshot.storyboard).toBeNull();
   expect(pending.data.snapshot.currentChapter?.status).toBe("structured");

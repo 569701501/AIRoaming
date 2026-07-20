@@ -30,6 +30,21 @@ import { VersionTransactionRunner } from "./version-transaction-runner.service.j
 import type { VersionScopeV1 } from "./versioning-database.types.js";
 
 const BOARD_SOURCE_POLICY = "storyboard-source-v1";
+const STORYBOARD_MILESTONE_RANK: Readonly<Record<string, number>> = {
+  draft: 0,
+  script_done: 1,
+  structured: 2,
+  storyboard_done: 3,
+  images_done: 4,
+  layout_done: 5,
+  exported: 6,
+};
+
+function milestoneAfterStoryboardConfirmation(current: string): string {
+  return (STORYBOARD_MILESTONE_RANK[current] ?? 0) >= STORYBOARD_MILESTONE_RANK.storyboard_done
+    ? current
+    : "storyboard_done";
+}
 
 export interface ApplyStoryboardTaskResultRequest {
   readonly expectedTargetId: string;
@@ -214,7 +229,12 @@ export class StoryboardVersionRepository {
       for (const shotId of currentIds) if (!nextIds.has(shotId)) await tx.shot.updateMany({ where: { id: shotId, chapterId: chapter.id, projectId: chapter.projectId, lifecycleStatus: "active" }, data: { lifecycleStatus: "retired", retiredAt } });
       const result = await tx.storyboardVersion.updateMany({ where: { id: pending.id, chapterId: chapter.id, rowVersion: request.expectedPendingRowVersion, status: "pending_confirmation" }, data: { status: "confirmed", confirmedAt: new Date(), rowVersion: { increment: 1 } } });
       if (result.count !== 1) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
-      await this.updateChapterCas(tx, scope, request.expectedChapterRowVersion, { currentStoryboardVersionId: pending.id, pendingStoryboardVersionId: null, milestoneStatus: "storyboard_done", rowVersion: { increment: 1 } });
+      await this.updateChapterCas(tx, scope, request.expectedChapterRowVersion, {
+        currentStoryboardVersionId: pending.id,
+        pendingStoryboardVersionId: null,
+        milestoneStatus: milestoneAfterStoryboardConfirmation(chapter.milestoneStatus),
+        rowVersion: { increment: 1 },
+      });
       const updated = await this.readChapter(scope, tx);
       if (!updated.currentStoryboardVersion) throw createG2DatabaseError(500, "G2_DATABASE_CONTRACT_VIOLATION");
       return this.mutation(updated, { current: summary(updated.currentStoryboardVersion, updated.currentStoryboardVersionId), document: parseDocument(updated.currentStoryboardVersion) }, false);
@@ -289,8 +309,16 @@ export class StoryboardVersionRepository {
   private async run<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> { try { return await this.transactionRunner.run(operation); } catch (error) { if (error instanceof G2DatabaseError) throw error; throw new G2DatabaseError(mapG2DatabaseError(error)); } }
   private async readChapter(scope: VersionScopeV1, reader: Pick<Prisma.TransactionClient, "chapter">): Promise<ChapterVersionQueryRow> { const row = await this.chapterQuery.findByScope(scope, reader); if (!row) throw createG2DatabaseError(404, "CHAPTER_NOT_FOUND"); return row; }
   private assertSourceGate(chapter: ChapterVersionQueryRow, expectedStoryId: string, expectedDigest?: Digest): void {
-    if (!chapter.currentStoryVersion || chapter.currentStoryVersionId !== expectedStoryId || chapter.currentStoryVersion.status !== "confirmed" || chapter.pendingStoryVersionId !== null || chapter.scriptWorkingState !== "clean" || chapter.chapterScriptPendingByChapter) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
-    if (expectedDigest !== undefined && chapter.currentStoryVersion.documentDigest !== expectedDigest) throw createG2DatabaseError(409, "UPSTREAM_SOURCE_STALE");
+    if (!chapter.currentStoryVersion || chapter.currentStoryVersion.status !== "confirmed" || chapter.pendingStoryVersionId !== null || chapter.scriptWorkingState !== "clean" || chapter.chapterScriptPendingByChapter) throw createG2DatabaseError(409, "UPSTREAM_WORK_NOT_CONFIRMED");
+    if (chapter.currentStoryVersionId !== expectedStoryId
+      || (expectedDigest !== undefined && chapter.currentStoryVersion.documentDigest !== expectedDigest)) {
+      throw createG2DatabaseError(409, "UPSTREAM_SOURCE_STALE", {
+        expectedSourceStoryVersionId: expectedStoryId,
+        expectedSourceDigest: expectedDigest ?? null,
+        actualSourceStoryVersionId: chapter.currentStoryVersion.id,
+        actualSourceDigest: chapter.currentStoryVersion.documentDigest,
+      });
+    }
   }
   private toWorkingCopy(row: ChapterVersionQueryRow): StoryboardWorkingCopyDto {
     const pending = row.pendingStoryboardVersion; const current = row.currentStoryboardVersion; const documentRow = pending ?? current;

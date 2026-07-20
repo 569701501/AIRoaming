@@ -450,7 +450,10 @@ function buildCandidateShotContract(input: BuildCandidatePromptContentInput): Ca
     subjectNames: names,
     collectiveSubjectNames,
     groupCountHint: collectiveSubjectNames.length > 0
-      ? extractCollectiveCountHint([input.shot.comic.panelDescription, action, composition].join("\n"))
+      ? extractCollectiveCountHint(
+        [input.shot.comic.panelDescription, action, composition].join("\n"),
+        collectiveSubjectNames,
+      )
       : null,
     action,
     composition,

@@ -128,6 +128,18 @@ describe("V2.3 正式对白候选", () => {
     expect(reference.candidates[0]?.line).toBe("先听完，再决定。");
   });
 
+  it("去掉冒号后的行首表演提示，只把可配音原句编译成逐字候选", () => {
+    const reference = buildStoryboardDialogueReference(formalScript([
+      "林舟：（压低声音）「先听完。」",
+      "林舟：(停顿后)“再决定。”",
+    ].join("\n\n")), structure());
+
+    expect(reference.candidates.map((candidate) => candidate.line)).toEqual([
+      "先听完。",
+      "再决定。",
+    ]);
+  });
+
   it("纳入旁白和动作或结束点中有明确声音证据的引号文本", () => {
     const source = formalScript().replace(
       "旁白：\n无\n\n场景结束点：\n录音灯亮起。",

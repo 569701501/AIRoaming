@@ -95,6 +95,23 @@ describe("S2 分镜输出契约与固定质量门", () => {
     expect(() => assertStoryboardQuality(value, structure())).not.toThrow();
   });
 
+  it("允许构图用箭头表达同一画面的阅读动线，但仍阻断内容或构图中的地点切换", () => {
+    const readingFlow = storyboard();
+    readingFlow.shots[0]!.comic.composition = "阅读动线由前景湿车票→林舟指尖→背景空车，三个视觉点仍处于同一站台画面";
+    expect(issuesOf(() => assertStoryboardQuality(readingFlow, structure())))
+      .not.toContain("STORYBOARD_PANEL_MULTIPLE_LOCATIONS:shots[0]");
+
+    const contentTransition = storyboard();
+    contentTransition.shots[0]!.comic.panelDescription = "林舟在旧站拾起湿车票→进入末班空车";
+    expect(issuesOf(() => assertStoryboardQuality(contentTransition, structure())))
+      .toContain("STORYBOARD_PANEL_MULTIPLE_LOCATIONS:shots[0]");
+
+    const compositionTransition = storyboard();
+    compositionTransition.shots[0]!.comic.composition = "前景先保留旧站，随后镜头切到末班空车内部";
+    expect(issuesOf(() => assertStoryboardQuality(compositionTransition, structure())))
+      .toContain("STORYBOARD_PANEL_MULTIPLE_LOCATIONS:shots[0]");
+  });
+
   it("新 AI 输出缺字段、非法枚举或不连续 order 时不使用默认值掩盖", () => {
     const value = storyboard() as unknown as { notes: string; shots: Array<Record<string, unknown>> };
     value.shots[0]!.id = 123;
@@ -161,6 +178,13 @@ describe("S2 分镜输出契约与固定质量门", () => {
       "STORYBOARD_DIALOGUE_MOTION_MISMATCH:shots[0]",
       "STORYBOARD_PROMPT_DRAFT_FORBIDDEN:shots[0]",
     ]));
+  });
+
+  it("把画格中要求浮现字迹视为文字污染", () => {
+    const value = storyboard();
+    value.shots[0]!.comic.panelDescription = "林舟蹲在湿车票旁，票面浮现一行陌生字迹";
+    expect(issuesOf(() => assertStoryboardQuality(value, structure())))
+      .toContain("STORYBOARD_PANEL_TEXT_CONFLICT:shots[0]");
   });
 
   it("阻断静态画格里的多地点、多时刻、不可见信息、文字要求和设定图语言", () => {

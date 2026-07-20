@@ -12,6 +12,11 @@ comic 独立修复为一个可画的静态决定性瞬间、漫画构图、阅�
 
 promptDraft 只属于静态候选图，保留 comic 所需的主体、决定性瞬间、环境、光线、情绪和构图，不得泄漏对白原文、字幕、气泡、整页分格、模型名或 provider 参数。
 
+固定问题代码按下面方式处理：
+
+- `STORYBOARD_PANEL_TEXT_CONFLICT`：从 coreAction、comic.panelDescription、comic.composition 和 promptDraft 删除生成可读字迹、文字、数字、字幕或气泡的要求；保留同一剧情事实时，只写原任务已有的非文字信号、道具状态和人物可见反应，准确台词或旁白只进入对应语义字段。
+- `STORYBOARD_VOICE_LINE_NOT_IN_FORMAL_SCRIPT`：从原任务的“全章正式对白/配音候选”逐字选择完整 `line`，没有适合本镜的候选就删除该 voiceLine 并相应调整 frameType/comic.dialogue；不要沿用失败输出里自行去掉或加上的表演提示、引号和标点。
+
 {{REPAIR_MODE_CONTRACT}}
 
 只返回一个完整 JSON 代码块，不要解释、评分、诊断或新增字段。

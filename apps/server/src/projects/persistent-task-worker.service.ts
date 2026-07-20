@@ -11,6 +11,7 @@ import {
   type GenerationTaskItem,
   type GenerationTaskType,
   type StoryboardDocumentV2,
+  type StoryboardJson,
   type StoryStructureJson,
   type TaskSourceProjectionV1,
   type CandidateVisualIssue,
@@ -61,6 +62,7 @@ import {
 } from "../dialogue/storyboard-quality.util.js";
 import { resolveStoryboardReferences } from "../dialogue/storyboard-reference.util.js";
 import { getErrorMessage } from "../dialogue/dialogue-text.util.js";
+import { enrichStoryboardVisualBrief } from "../dialogue/storyboard-visual-brief.util.js";
 import { toStoryDocumentV2 } from "./versioning/story-document-adapter.util.js";
 import {
   buildShotPromptOptimizationPrompt,
@@ -944,7 +946,7 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       structure: story,
     }, instruction.trim() || "生成当前章节完整分镜", "generate", dialogueReference);
 
-    const validate = (content: string): StoryboardDocumentV2 => {
+    const validate = (content: string): StoryboardJson => {
       const providerOutput = parseProviderJson(content);
       assertStoryboardGenerationOutputContract(providerOutput);
       const storyboard = normalizeStoryboardJson(providerOutput, chapter.id, chapter.title, {
@@ -956,33 +958,16 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
         structure,
         story.characters.map((character) => ({ id: character.projectCharacterId, name: character.name })),
       );
-      return {
-        schemaVersion: 2,
-        chapterId: chapter.id,
-        shots: resolved.shots.map((shot) => ({
-          id: randomUUID(),
-          order: shot.order,
-          beatId: shot.beatId,
-          sceneId: shot.sceneId,
-          characterIds: shot.characterIds,
-          coreAction: shot.coreAction,
-          emotion: shot.emotion,
-          shotType: shot.shotType,
-          cameraAngle: shot.cameraAngle,
-          comic: shot.comic,
-          motion: shot.motion,
-          promptDraft: shot.promptDraft,
-        })),
-        notes: resolved.notes,
-      };
+      return resolved;
     };
 
     const response = await this.openCode.sendMessage({
       sessionId,
       content: prompt,
     });
+    let storyboard: StoryboardJson;
     try {
-      return validate(response.content);
+      storyboard = validate(response.content);
     } catch (error) {
       const repaired = await this.openCode.sendMessage({
         sessionId,
@@ -994,8 +979,37 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
           mode: "generate",
         }),
       });
-      return validate(repaired.content);
+      storyboard = validate(repaired.content);
     }
+
+    const enriched = await enrichStoryboardVisualBrief({
+      storyboard,
+      structure,
+      comicFormat: chapter.project.comicFormat,
+      artStyle: chapter.project.artStyle,
+      send: async (content) => (await this.openCode.sendMessage({ sessionId, content })).content,
+      validate: (value) => assertStoryboardQuality(value, structure, dialogueReference),
+    });
+
+    return {
+      schemaVersion: 2,
+      chapterId: chapter.id,
+      shots: enriched.shots.map((shot) => ({
+        id: randomUUID(),
+        order: shot.order,
+        beatId: shot.beatId,
+        sceneId: shot.sceneId,
+        characterIds: shot.characterIds,
+        coreAction: shot.coreAction,
+        emotion: shot.emotion,
+        shotType: shot.shotType,
+        cameraAngle: shot.cameraAngle,
+        comic: shot.comic,
+        motion: shot.motion,
+        promptDraft: shot.promptDraft,
+      })),
+      notes: enriched.notes,
+    } satisfies StoryboardDocumentV2;
   }
 
   private async runShotPromptProvider(context: PersistentTaskHandlerContext): Promise<unknown> {

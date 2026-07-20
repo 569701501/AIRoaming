@@ -25,6 +25,7 @@ test("binds DB-only specs to a DB child environment and file specs to file mode"
   assert.deepEqual(db.testFiles, [
     "tests/e2e/api/g2-db-web-gate.spec.ts",
     "tests/e2e/web/candidate-decision-workbench.spec.ts",
+    "tests/e2e/web/candidate-prompt-workbench.spec.ts",
     "tests/e2e/web/layout-editor-m4.spec.ts",
     "tests/e2e/web/layout-editor-m5.spec.ts",
     "tests/e2e/web/layout-editor-m6.spec.ts",
@@ -33,6 +34,7 @@ test("binds DB-only specs to a DB child environment and file specs to file mode"
     "tests/e2e/web/script-ai-explicit-generation.spec.ts",
     "tests/e2e/web/script-import-existing-flow.spec.ts",
     "tests/e2e/web/storyboard-quality-gate.spec.ts",
+    "tests/e2e/web/storyboard-revision-impact.spec.ts",
   ]);
   assert.equal(createE2EModeEnvironment(db, {}).AIROAMING_E2E_PERSISTENCE_MODE, "db");
   assert.equal(createE2EModeEnvironment(file, {}).AIROAMING_E2E_PERSISTENCE_MODE, "file");

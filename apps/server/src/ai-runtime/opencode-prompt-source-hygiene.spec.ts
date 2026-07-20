@@ -123,6 +123,7 @@ describe("OpenCodeAI Prompt 单一事实源", () => {
       "apps/server/opencodeAI/skills/script-chapter-editing/references/chapter-edit-prompt.md",
       "apps/server/opencodeAI/skills/structure-story-parse/references/story-structure-prompt.md",
       "apps/server/opencodeAI/skills/storyboard-shot-generate/references/storyboard-prompt.md",
+      "apps/server/opencodeAI/skills/storyboard-shot-generate/references/visual-brief-prompt.md",
       "apps/server/opencodeAI/skills/shot-prompt-optimize/references/optimize-prompt.md",
     ];
 
