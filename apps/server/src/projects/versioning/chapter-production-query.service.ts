@@ -116,10 +116,11 @@ export class ChapterProductionQueryService {
     const stepIndex = STEP_ORDER.get(definition.key) ?? 0;
     const nodeKey = NODE_BY_STEP[definition.key];
     const node = nodeKey ? state[nodeKey] as VersionNode : null;
-    const milestoneReached = this.milestoneReached(definition.key, state.milestoneStatus);
-    const status = this.resolveStatus(definition.key, stepIndex, currentIndex, node, milestoneReached, state);
+    const currentExportKind = row.currentExportRevision?.kind ?? null;
+    const milestoneReached = this.milestoneReached(definition.key, state.milestoneStatus, currentExportKind);
+    const status = this.resolveStatus(definition.key, stepIndex, currentIndex, node, milestoneReached, state, currentExportKind);
     const reasonCodes = node?.reasonCodes ?? [];
-    const sourceProjection = this.sourceProjection(definition.key, state);
+    const sourceProjection = this.sourceProjection(definition.key, state, currentExportKind);
     return {
       key: definition.key,
       label: definition.label,
@@ -145,8 +146,9 @@ export class ChapterProductionQueryService {
     node: VersionNode | null,
     milestoneReached: boolean,
     state: ChapterProductionState,
+    currentExportKind: string | null,
   ): ProjectWorkflowStep["status"] {
-    const sourceStatus = this.sourceStatus(key, state);
+    const sourceStatus = this.sourceStatus(key, state, currentExportKind);
     if (sourceStatus) return sourceStatus;
     if (node?.pendingVersionId !== null && node?.pendingVersionId !== undefined) return "needs_confirmation";
     if (node && node.freshness === "stale") return "needs_update";
@@ -157,7 +159,8 @@ export class ChapterProductionQueryService {
     return "waiting";
   }
 
-  private milestoneReached(key: ProjectWorkflowStepKey, milestone: ChapterProductionState["milestoneStatus"]): boolean {
+  private milestoneReached(key: ProjectWorkflowStepKey, milestone: ChapterProductionState["milestoneStatus"], currentExportKind: string | null): boolean {
+    if (key === "asset_package") return currentExportKind === "asset_package";
     const rank = MILESTONE_ORDER.get(milestone) ?? 0;
     const required = key === "project_story" ? 1 : key === "story_structure" ? 2 : key === "storyboard" ? 3 : key === "image_preflight" ? 4 : key === "image_candidates" ? 5 : key === "layout_export" ? 6 : 7;
     return rank >= required;
@@ -183,6 +186,7 @@ export class ChapterProductionQueryService {
   private sourceStatus(
     key: ProjectWorkflowStepKey,
     state: ChapterProductionState,
+    currentExportKind: string | null,
   ): ProjectWorkflowStep["status"] | null {
     const sources = state.candidateSources;
     if (!sources) return null;
@@ -203,7 +207,7 @@ export class ChapterProductionQueryService {
       if (!sources.currentExport) return milestone >= 6 ? "blocked" : null;
       if (sources.currentExport.source.sourceResolution === "stale") return "needs_update";
       if (sources.currentExport.source.sourceResolution === "unresolved") return "blocked";
-      if (milestone >= 6) return "done";
+      if (currentExportKind === "asset_package") return "done";
     }
     return null;
   }
@@ -211,6 +215,7 @@ export class ChapterProductionQueryService {
   private sourceProjection(
     key: ProjectWorkflowStepKey,
     state: ChapterProductionState,
+    currentExportKind: string | null,
   ): { currentArtifactId: string | null; freshness: ArtifactFreshness | null } {
     const sources = state.candidateSources;
     if (!sources) return { currentArtifactId: null, freshness: null };
@@ -230,6 +235,7 @@ export class ChapterProductionQueryService {
       };
     }
     if (key === "asset_package") {
+      if (currentExportKind !== "asset_package") return { currentArtifactId: null, freshness: null };
       return {
         currentArtifactId: sources.currentExport?.id ?? null,
         freshness: sources.currentExport?.source.artifactFreshness ?? null,

@@ -12,6 +12,7 @@ export const CHAPTER_VERSION_QUERY_INCLUDE = {
   currentStoryboardVersion: true,
   pendingStoryboardVersion: true,
   currentPreflightRevision: true,
+  currentExportRevision: true,
   chapterScriptVersionsByChapter: { orderBy: { version: "desc" } },
   storyVersionsByChapter: { orderBy: { version: "desc" } },
   storyboardVersionsByChapter: { orderBy: { version: "desc" } },

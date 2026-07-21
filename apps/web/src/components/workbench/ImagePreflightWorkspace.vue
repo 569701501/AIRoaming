@@ -239,14 +239,16 @@ const scenesWithoutReference = computed(() => {
 const isPreflightConfirmed = computed(() => {
   const preflight = props.snapshot.imagePreflight;
   const storyboard = props.snapshot.storyboard;
+  const isDatabaseMode = props.snapshot.versioningCapability.mode === "g2_db";
   return Boolean(
     preflight
     && storyboard
     && preflight.chapterId === currentChapterId.value
     && preflight.preflightJson.ready
     && preflight.sourceStoryboardId === storyboard.id
-    && preflight.sourceStoryboardUpdatedAt === storyboard.updatedAt
-    && (props.snapshot.versioningCapability.mode !== "g2_db" || preflightWorkflowStep.value?.freshness === "current"),
+    && (isDatabaseMode
+      ? preflightWorkflowStep.value?.freshness === "current"
+      : preflight.sourceStoryboardUpdatedAt === storyboard.updatedAt),
   );
 });
 

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { ImageProviderType } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
@@ -16,11 +16,7 @@ type GrokImageResolution = "1k" | "2k";
 
 const DEFAULT_GROK_IMAGE_RESOLUTION: GrokImageResolution = "1k";
 const RUNWARE_EDIT_MODEL = "runware:400@1";
-const RUNWARE_REFERENCE_MODEL = "runware:101@1";
-const RUNWARE_FLUX_IP_ADAPTER = "runware:56@1";
-const RUNWARE_IP_ADAPTER_WEIGHT = 0.65;
 const RUNWARE_EDIT_STEPS = 28;
-const RUNWARE_REFERENCE_STEPS = 24;
 
 export interface CandidateImageProviderResult {
   buffer: Buffer;
@@ -42,6 +38,8 @@ export interface CandidateImageProviderResult {
  */
 @Injectable()
 export class ImageProviderService {
+  private readonly logger = new Logger(ImageProviderService.name);
+
   constructor(@Inject(SettingsService) private readonly settingsService: SettingsService) {}
 
   /** 返回当前激活的 provider 类型,供调用方按 provider 决定 size 等差异参数。 */
@@ -64,17 +62,18 @@ export class ImageProviderService {
     });
     const references = compiledReferences.references;
     if (config.type === "runware") {
+      const providerPrompt = references.length > 0
+        ? compileImageReferenceGuidanceForProvider({
+          providerType: "runware",
+          prompt: input.prompt,
+          references,
+        })
+        : input.prompt;
       const buffer = await this.requestRunwareImage({
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
-        model: references.length > 0 ? RUNWARE_REFERENCE_MODEL : config.modelId,
-        prompt: references.length > 0
-          ? compileImageReferenceGuidanceForProvider({
-            providerType: "runware",
-            prompt: input.prompt,
-            references,
-          })
-          : input.prompt,
+        model: references.length > 0 ? RUNWARE_EDIT_MODEL : config.modelId,
+        prompt: providerPrompt,
         size: input.size,
         outputFormat: input.outputFormat ?? "webp",
         references: references.length > 0 ? references : undefined,
@@ -354,7 +353,7 @@ export class ImageProviderService {
 
   // ====== 以下为 provider 具体 HTTP 实现(从 ProjectsService 迁移,逻辑体逐字一致) ======
 
-  /** Runware 统一 imageInference：Schnell 草稿、seedImage 单图调整、Dev + IP-Adapter 多参考。 */
+  /** Runware 统一 imageInference：Schnell 草稿、FLUX.2 Dev 原生单图/多参考编辑。 */
   private async requestRunwareImage(input: {
     apiKey: string;
     baseUrl: string;
@@ -372,6 +371,11 @@ export class ImageProviderService {
     const references = input.references?.map((reference) =>
       `data:${reference.mimeType};base64,${reference.buffer.toString("base64")}`,
     );
+    const referenceImages = editReferenceImage
+      ? [editReferenceImage]
+      : references && references.length > 0
+        ? references
+        : undefined;
     const task = {
       taskType: "imageInference",
       taskUUID: randomUUID(),
@@ -383,18 +387,10 @@ export class ImageProviderService {
       outputType: "base64Data",
       outputFormat: input.outputFormat === "jpeg" ? "JPG" : input.outputFormat.toUpperCase(),
       ...(input.model === "runware:100@1" ? { steps: 4 } : {}),
-      ...(editReferenceImage ? {
-        referenceImages: [editReferenceImage],
+      ...(referenceImages ? {
+        inputs: { referenceImages },
         steps: RUNWARE_EDIT_STEPS,
         CFGScale: 4,
-      } : {}),
-      ...(references && references.length > 0 ? {
-        steps: RUNWARE_REFERENCE_STEPS,
-        ipAdapters: [{
-          model: RUNWARE_FLUX_IP_ADAPTER,
-          guideImages: references,
-          weight: RUNWARE_IP_ADAPTER_WEIGHT,
-        }],
       } : {}),
     };
     const response = await this.fetchWithTimeout(input.baseUrl.replace(/\/+$/, ""), {
@@ -406,9 +402,48 @@ export class ImageProviderService {
       body: JSON.stringify([task]),
     });
     if (!response.ok) {
-      throw new BadRequestException(`IMAGE_PROVIDER_RUNWARE_FAILED:${response.status}`);
+      await this.throwRunwareHttpError(response);
     }
     return this.downloadRunwareImageResponse(response);
+  }
+
+  private async throwRunwareHttpError(response: Response): Promise<never> {
+    let providerError: {
+      code?: string | number;
+      message?: string;
+      parameter?: string;
+      taskUUID?: string;
+    } | undefined;
+    try {
+      const body = await response.json() as {
+        errors?: Array<{
+          code?: string | number;
+          message?: string;
+          parameter?: string;
+          taskUUID?: string;
+        }>;
+      };
+      providerError = body.errors?.[0];
+    } catch {
+      // 非 JSON 错误页仍回退到 HTTP 状态码，避免解析异常掩盖 provider 失败。
+    }
+
+    const safeFragment = (value: unknown, fallback: string, maxLength = 80): string =>
+      String(value ?? "").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, maxLength) || fallback;
+    const safeCode = safeFragment(providerError?.code, "UNKNOWN");
+    const safeParameter = safeFragment(providerError?.parameter, "unknownParameter", 120);
+    const safeTaskUUID = safeFragment(providerError?.taskUUID, "unknownTask", 80);
+    const safeMessage = String(providerError?.message ?? "")
+      .replace(/[\r\n\t]+/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .slice(0, 500);
+    this.logger.warn(
+      `Runware request failed status=${response.status} code=${safeCode} parameter=${safeParameter} taskUUID=${safeTaskUUID}`
+      + (safeMessage ? ` message=${safeMessage}` : ""),
+    );
+    throw new BadRequestException(
+      `IMAGE_PROVIDER_RUNWARE_FAILED:${response.status}:${safeCode}:${safeParameter}`,
+    );
   }
 
   /** Grok Imagine 文生图(JSON)。xAI 官方接口支持 OpenAI 兼容 /images/generations,但使用 aspect_ratio/resolution 而不是 OpenAI size。 */

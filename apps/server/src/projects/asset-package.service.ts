@@ -9,7 +9,7 @@ import type {
   ExportAssetPackageResponse,
   WorkbenchAsset,
 } from "@airoaming/shared";
-import { canonicalizeJson, digestCanonicalJson } from "@airoaming/shared";
+import { digestCanonicalJson } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import type { LocalChapter, LocalProject } from "./local-types.js";
 import { ProjectRepository } from "./project-repository.service.js";
@@ -254,27 +254,166 @@ export class AssetPackageService {
     if (!layoutRevision?.bindingSetSealedAt) throw new BadRequestException("LAYOUT_REVISION_NOT_SEALED");
     const bindings = await db.layoutSourceBinding.findMany({ where: { layoutRevisionId: layoutRevision.id }, orderBy: { order: "asc" } });
     const sourceAssets = await db.asset.findMany({ where: { id: { in: bindings.flatMap((binding) => binding.assetId ? [binding.assetId] : []) }, projectId, status: "ready" } });
-    if (sourceAssets.length !== bindings.length) throw new BadRequestException("PACKAGE_SOURCE_ASSET_MISSING");
+    const sourceAssetById = new Map(sourceAssets.map((asset) => [asset.id, asset]));
+    if (bindings.some((binding) => !binding.assetId || !sourceAssetById.has(binding.assetId))) throw new BadRequestException("PACKAGE_SOURCE_ASSET_MISSING");
+    const [script, story, storyboard, preflight, candidates, shots, characters, publication] = await Promise.all([
+      chapter.currentScriptVersionId ? db.chapterScriptVersion.findFirst({ where: { id: chapter.currentScriptVersionId, chapterId: chapter.id } }) : null,
+      chapter.currentStoryVersionId ? db.storyVersion.findFirst({ where: { id: chapter.currentStoryVersionId, projectId, chapterId: chapter.id } }) : null,
+      chapter.currentStoryboardVersionId ? db.storyboardVersion.findFirst({ where: { id: chapter.currentStoryboardVersionId, projectId, chapterId: chapter.id } }) : null,
+      chapter.currentPreflightRevisionId ? db.preflightRevision.findFirst({ where: { id: chapter.currentPreflightRevisionId, projectId, chapterId: chapter.id } }) : null,
+      db.candidate.findMany({ where: { projectId, chapterId: chapter.id }, include: { asset: true }, orderBy: [{ shotId: "asc" }, { index: "asc" }] }),
+      db.shot.findMany({ where: { projectId, chapterId: chapter.id, lifecycleStatus: "active" }, include: { currentCandidateLockRevision: true }, orderBy: { createdAt: "asc" } }),
+      db.character.findMany({
+        where: { projectId },
+        include: {
+          previewVisual: { include: { asset: true } },
+          primaryVisual: { include: { asset: true } },
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+      db.exportRevision.findFirst({
+        where: {
+          projectId,
+          chapterId: chapter.id,
+          kind: "layout_publication",
+          status: "ready",
+          completionApplicability: "current",
+          layoutRevisionId: layoutRevision.id,
+          sourceLockSetDigest: layoutRevision.sourceLockSetDigest,
+        },
+        include: { exportArtifactsByExportRevision: { include: { asset: true }, orderBy: [{ role: "asc" }, { order: "asc" }] } },
+        orderBy: [{ readyAt: "desc" }, { revision: "desc" }],
+      }),
+    ]);
+    if (!script || !story || !storyboard || !preflight) throw new BadRequestException("PACKAGE_FORMAL_SOURCE_MISSING");
+    if (!publication || publication.exportArtifactsByExportRevision.length === 0) throw new BadRequestException("PACKAGE_PUBLICATION_MISSING");
     const packageId = `pkg_${randomUUID().slice(0, 8)}`;
     const packageRelativeDir = `projects/${projectId}/exports/packages/${packageId}`;
     const packageAbsDir = this.workspacePathService.resolveVirtualPath(`/workspace/${packageRelativeDir}`);
     await mkdir(packageAbsDir, { recursive: true });
     const files: AssetPackageManifestFile[] = [];
-    const layoutPath = `chapters/${chapter.slug}/layout/layout.json`;
-    const layoutTarget = path.join(packageAbsDir, layoutPath);
-    await mkdir(path.dirname(layoutTarget), { recursive: true });
-    // DB-only 后直接从 sealed LayoutRevision 投影规范 JSON，禁止回读已关闭的 legacy export/layout.json。
-    await this.atomicWrite(layoutTarget, `${canonicalizeJson(layoutRevision.documentJson)}\n`);
-    files.push({ path: layoutPath, type: "json", chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
-    for (const binding of bindings) {
-      const asset = sourceAssets.find((item) => item.id === binding.assetId)!;
-      const ext = path.extname(asset.storageKey) || ".bin";
-      const targetRelative = `chapters/${chapter.slug}/locked/${binding.shotId ?? binding.elementId}${ext}`;
+    const addJson = async (targetRelative: string, value: unknown, meta: Omit<AssetPackageManifestFile, "path" | "type">) => {
       const target = path.join(packageAbsDir, targetRelative);
       await mkdir(path.dirname(target), { recursive: true });
-      try { await copyFile(this.workspacePathService.resolveVirtualPath(`/workspace/${asset.storageKey}`), target); } catch { throw new BadRequestException("PACKAGE_SOURCE_ASSET_MISSING"); }
-      files.push({ path: targetRelative, type: asset.mimeType.split("/")[1] ?? "file", chapterId: chapter.id, shotId: binding.shotId, candidateId: binding.candidateId, assetId: asset.id });
+      await this.atomicWrite(target, `${JSON.stringify(value, null, 2)}\n`);
+      files.push({ path: targetRelative, type: "json", ...meta });
+    };
+    const copyAsset = async (asset: { id: string; storageKey: string; mimeType: string }, targetRelative: string, meta: Omit<AssetPackageManifestFile, "path" | "type" | "assetId">) => {
+      const target = path.join(packageAbsDir, targetRelative);
+      await mkdir(path.dirname(target), { recursive: true });
+      try {
+        await copyFile(this.workspacePathService.resolveVirtualPath(`/workspace/${asset.storageKey}`), target);
+      } catch {
+        throw new BadRequestException("PACKAGE_SOURCE_ASSET_MISSING");
+      }
+      files.push({ path: targetRelative, type: asset.mimeType.startsWith("image/") ? "image" : asset.mimeType, assetId: asset.id, ...meta });
+    };
+    const chapterRoot = `chapters/${chapter.slug}`;
+    const scriptPath = `${chapterRoot}/script.md`;
+    await mkdir(path.dirname(path.join(packageAbsDir, scriptPath)), { recursive: true });
+    await this.atomicWrite(path.join(packageAbsDir, scriptPath), script.sourceText.endsWith("\n") ? script.sourceText : `${script.sourceText}\n`);
+    files.push({ path: scriptPath, type: "markdown", chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    await addJson(`${chapterRoot}/structure.json`, story.documentJson, { chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    await addJson(`${chapterRoot}/storyboard.json`, storyboard.documentJson, { chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    await addJson(`${chapterRoot}/preflight.json`, preflight.documentJson, { chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    const currentLockByShot = new Map(shots.map((shot) => [shot.id, shot.currentCandidateLockRevision]));
+    await addJson(`${chapterRoot}/candidates.json`, {
+      schemaVersion: 1,
+      projectId,
+      chapterId: chapter.id,
+      storyboardVersionId: storyboard.id,
+      candidates: candidates.map((candidate) => ({
+        id: candidate.id,
+        shotId: candidate.shotId,
+        index: candidate.index,
+        status: candidate.status,
+        label: candidate.label,
+        notes: candidate.notes,
+        score: candidate.score,
+        promptDigest: candidate.promptDigest,
+        generationPurpose: candidate.generationPurpose,
+        generationSpecVersion: candidate.generationSpecVersion,
+        generationSpecDigest: candidate.generationSpecDigest,
+        asset: {
+          id: candidate.asset.id,
+          storageKey: candidate.asset.storageKey,
+          mimeType: candidate.asset.mimeType,
+          sha256: candidate.asset.sha256,
+          bytes: candidate.asset.bytes,
+          width: candidate.asset.width,
+          height: candidate.asset.height,
+        },
+        isCurrentFinal: currentLockByShot.get(candidate.shotId)?.candidateId === candidate.id,
+        createdAt: candidate.createdAt.toISOString(),
+      })),
+      currentDecisions: shots.map((shot) => ({
+        shotId: shot.id,
+        lockRevisionId: shot.currentCandidateLockRevisionId,
+        candidateId: shot.currentCandidateLockRevision?.candidateId ?? null,
+        action: shot.currentCandidateLockRevision?.action ?? null,
+        revision: shot.currentCandidateLockRevision?.revision ?? null,
+      })),
+    }, { chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    const layoutPath = `chapters/${chapter.slug}/layout/layout.json`;
+    // DB-only 后直接从 sealed LayoutRevision 投影规范 JSON，禁止回读已关闭的 legacy export/layout.json。
+    await addJson(layoutPath, layoutRevision.documentJson, { chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    const copiedLockedSources = new Set<string>();
+    for (const binding of bindings) {
+      const lockedSourceKey = binding.candidateId ?? binding.assetId!;
+      if (copiedLockedSources.has(lockedSourceKey)) continue;
+      copiedLockedSources.add(lockedSourceKey);
+      const asset = sourceAssetById.get(binding.assetId!)!;
+      const ext = path.extname(asset.storageKey) || ".bin";
+      const targetRelative = `chapters/${chapter.slug}/locked/${binding.shotId ?? binding.elementId}${ext}`;
+      await copyAsset(asset, targetRelative, { chapterId: chapter.id, shotId: binding.shotId, candidateId: binding.candidateId });
     }
+    await addJson(`${chapterRoot}/exports/publication.json`, {
+      schemaVersion: 1,
+      exportRevisionId: publication.id,
+      layoutRevisionId: publication.layoutRevisionId,
+      sourceLockSetDigest: publication.sourceLockSetDigest,
+      rendererVersion: publication.rendererVersion,
+      manifest: publication.manifestJson,
+      manifestDigest: publication.manifestDigest,
+      readyAt: publication.readyAt?.toISOString() ?? null,
+    }, { chapterId: chapter.id, shotId: null, candidateId: null, assetId: null });
+    for (const artifact of publication.exportArtifactsByExportRevision) {
+      if (artifact.asset.status !== "ready") throw new BadRequestException("PACKAGE_PUBLICATION_ASSET_MISSING");
+      const fileName = path.basename(artifact.asset.storageKey) || `${artifact.role}-${artifact.order}`;
+      await copyAsset(artifact.asset, `${chapterRoot}/exports/${fileName}`, { chapterId: chapter.id, shotId: null, candidateId: null });
+    }
+    await addJson("shared/characters.json", {
+      schemaVersion: 1,
+      projectId,
+      characters: characters.map((character) => ({
+        id: character.id,
+        name: character.name,
+        role: character.role,
+        level: character.level,
+        entityType: character.entityType,
+        status: character.status,
+        appearance: character.appearance,
+        personality: character.personality,
+        promptFragment: character.promptFragment,
+        source: character.source,
+        previewVisual: character.previewVisual ? {
+          id: character.previewVisual.id,
+          kind: character.previewVisual.kind,
+          assetId: character.previewVisual.assetId,
+          storageKey: character.previewVisual.asset.storageKey,
+          sha256: character.previewVisual.asset.sha256,
+        } : null,
+        primaryVisual: character.primaryVisual ? {
+          id: character.primaryVisual.id,
+          kind: character.primaryVisual.kind,
+          assetId: character.primaryVisual.assetId,
+          storageKey: character.primaryVisual.asset.storageKey,
+          sha256: character.primaryVisual.asset.sha256,
+        } : null,
+        createdAt: character.createdAt.toISOString(),
+        updatedAt: character.updatedAt.toISOString(),
+      })),
+    }, { chapterId: null, shotId: null, candidateId: null, assetId: null });
     const now = new Date();
     const manifest: AssetPackageManifest = { schemaVersion: 1, packageId, projectId, chapterIds: [chapter.id], createdAt: now.toISOString(), files: [{ path: "manifest.json", type: "json", chapterId: null, shotId: null, candidateId: null, assetId: null }, ...files] };
     await this.atomicWrite(path.join(packageAbsDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -289,7 +428,8 @@ export class AssetPackageService {
       }
       const latest = await tx.exportRevision.findFirst({ where: { projectId, scopeKey: `chapter:${chapter.id}`, kind: "asset_package" }, orderBy: { revision: "desc" } });
       const profile = { schemaVersion: 1, packageId };
-      await tx.asset.create({ data: { id: packageAssetId, projectId, chapterId: chapter.id, type: "archive", role: "asset_package", mimeType: "application/json", storageKey: packageRelativeDir, status: "staged", sha256: manifestDigest, bytes: Buffer.byteLength(JSON.stringify(manifest), "utf8"), width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: { kind: "asset_package", packageId, legacyPath: packageRelativeDir }, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson({ kind: "asset_package", packageId, legacyPath: packageRelativeDir }), createdAt: now, updatedAt: now, readyAt: null, failedAt: null, deletingAt: null } });
+      const packageMetadata = { kind: "asset_package", packageId, fileCount: manifest.files.length, createdAt: now.toISOString(), legacyName: `${chapter.title} 素材包`, legacyPath: packageRelativeDir };
+      await tx.asset.create({ data: { id: packageAssetId, projectId, chapterId: chapter.id, type: "archive", role: "asset_package", mimeType: "application/json", storageKey: packageRelativeDir, status: "staged", sha256: manifestDigest, bytes: Buffer.byteLength(JSON.stringify(manifest), "utf8"), width: null, height: null, durationMs: null, sourceTaskId: null, metadataJson: packageMetadata, metadataSchemaVersion: 1, metadataDigest: digestCanonicalJson(packageMetadata), createdAt: now, updatedAt: now, readyAt: null, failedAt: null, deletingAt: null } });
       await tx.asset.update({ where: { id: packageAssetId }, data: { status: "ready", readyAt: now } });
       await tx.exportRevision.create({ data: { id: exportRevisionId, projectId, chapterId: chapter.id, scopeKey: `chapter:${chapter.id}`, revision: (latest?.revision ?? 0) + 1, kind: "asset_package", status: "queued", taskId: null, layoutRevisionId: layoutRevision.id, sourceLockSetDigest: layoutRevision.sourceLockSetDigest, profileJson: profile as Prisma.InputJsonValue, profileSchemaVersion: 1, profileDigest: digestCanonicalJson(profile), preflightDigest: null, rendererVersion: "db-package-v1", manifestJson: manifest as unknown as Prisma.InputJsonValue, manifestSchemaVersion: 1, manifestDigest, completionApplicability: null, origin: "runtime", createdAt: now, readyAt: null, failedAt: null, cancelledAt: null } });
       await tx.exportArtifact.create({ data: { id: `package_artifact_${packageId}`, exportRevisionId, assetId: packageAssetId, role: "asset_package", order: 1 } });

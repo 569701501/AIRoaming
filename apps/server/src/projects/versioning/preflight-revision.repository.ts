@@ -37,12 +37,17 @@ export class PreflightRevisionRepository {
     return this.run(async (tx) => {
       const current = await this.snapshotBuilder.build(scope, request.notes?.trim() ?? "", tx);
       const existing = current.chapter.currentPreflightRevision;
+      const encoded = encodePreflightDocumentV2(current.document);
       if (
         existing &&
-        current.chapter.rowVersion === request.expectedChapterRowVersion + 1 &&
+        (
+          current.chapter.rowVersion === request.expectedChapterRowVersion + 1 ||
+          current.chapter.rowVersion === request.expectedChapterRowVersion
+        ) &&
         current.sourceStoryboardVersionId === request.expectedSourceStoryboardVersionId &&
         current.sourceDigest === request.expectedSourceDigest &&
-        existing.sourceDigest === request.expectedSourceDigest
+        existing.sourceDigest === request.expectedSourceDigest &&
+        existing.documentDigest === encoded.digest
       ) {
         return { preflight: this.toDto(existing), productionState: (await this.productionQuery.readScoped(scope, tx)).productionState, chapterRowVersion: current.chapter.rowVersion, replayed: true };
       }
@@ -52,7 +57,6 @@ export class PreflightRevisionRepository {
 
       const previous = await tx.preflightRevision.findFirst({ where: { chapterId: scope.chapterId }, orderBy: { version: "desc" }, select: { version: true } });
       const now = new Date();
-      const encoded = encodePreflightDocumentV2(current.document);
       const created = await tx.preflightRevision.create({
         data: {
           id: randomUUID(), projectId: scope.projectId, chapterId: scope.chapterId, version: (previous?.version ?? 0) + 1,

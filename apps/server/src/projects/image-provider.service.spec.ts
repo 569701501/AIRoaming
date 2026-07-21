@@ -218,6 +218,33 @@ describe("ImageProviderService.generateCandidateImage", () => {
     expect(body[0]).not.toHaveProperty("inputs");
   });
 
+  it("Runware HTTP 失败保留安全的错误码和参数名", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      errors: [{
+        code: "invalidValue",
+        message: "The selected adapter is incompatible with this request.",
+        parameter: "ipAdapters[0].guideImages",
+        taskUUID: "11111111-1111-4111-8111-111111111111",
+      }],
+    }), { status: 400, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new ImageProviderService({
+      getRuntimeImageProviderSettings: () => ({
+        type: "runware",
+        apiKey: "runware-test-key",
+        baseUrl: "https://api.runware.ai/v1",
+        modelId: "runware:100@1",
+      }),
+    } as never);
+
+    await expect(service.generateImage({
+      prompt: "one cheap storyboard draft",
+      size: "1024x1024",
+    })).rejects.toThrow(
+      "IMAGE_PROVIDER_RUNWARE_FAILED:400:invalidValue:ipAdapters0.guideImages",
+    );
+  });
+
   it("Runware 单图精修使用 FLUX.2 Dev referenceImages 官方路径", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{ imageDataURI: `data:image/webp;base64,${Buffer.from("runware-edit").toString("base64")}` }],
@@ -243,7 +270,7 @@ describe("ImageProviderService.generateCandidateImage", () => {
       model: string;
       width: number;
       height: number;
-      referenceImages: string[];
+      inputs: { referenceImages: string[] };
       steps: number;
       CFGScale: number;
     }>;
@@ -251,13 +278,13 @@ describe("ImageProviderService.generateCandidateImage", () => {
       model: "runware:400@1",
       width: 512,
       height: 768,
-      referenceImages: [ONE_PIXEL_PNG_DATA_URI],
+      inputs: { referenceImages: [ONE_PIXEL_PNG_DATA_URI] },
       steps: 28,
       CFGScale: 4,
     });
   });
 
-  it("Runware 候选图把全部必需参考交给 Dev + FLUX IP-Adapter", async () => {
+  it("Runware 候选图把全部必需参考交给 FLUX.2 Dev 原生多参考", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{ imageBase64Data: Buffer.from("runware-candidate").toString("base64") }],
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -302,17 +329,59 @@ describe("ImageProviderService.generateCandidateImage", () => {
     const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as Array<{
       model: string;
       steps: number;
+      CFGScale: number;
       positivePrompt: string;
-      ipAdapters: Array<{ model: string; guideImages: string[]; weight: number }>;
+      inputs: { referenceImages: string[] };
+      ipAdapters?: unknown;
     }>;
-    expect(body[0]).toMatchObject({ model: "runware:101@1", steps: 24 });
-    expect(body[0]?.ipAdapters).toEqual([{
-      model: "runware:56@1",
-      guideImages: [ONE_PIXEL_PNG_DATA_URI, ONE_PIXEL_PNG_DATA_URI],
-      weight: 0.65,
-    }]);
+    expect(body[0]).toMatchObject({ model: "runware:400@1", steps: 28, CFGScale: 4 });
+    expect(body[0]?.inputs.referenceImages).toEqual([
+      ONE_PIXEL_PNG_DATA_URI,
+      ONE_PIXEL_PNG_DATA_URI,
+    ]);
+    expect(body[0]).not.toHaveProperty("ipAdapters");
     expect(body[0]?.positivePrompt).toContain("Image 1 (酷拉皮卡) supplies character identity only");
     expect(body[0]?.positivePrompt).toContain("Image 2 (海边病房) supplies scene identity only");
+  });
+
+  it("Runware FLUX.2 候选提示词可超过旧 FLUX.1 的 3000 字符上限", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [{ imageBase64Data: Buffer.from("runware-candidate").toString("base64") }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const service = new ImageProviderService({
+      getRuntimeImageProviderSettings: () => ({
+        type: "runware",
+        apiKey: "runware-test-key",
+        baseUrl: "https://api.runware.ai/v1",
+        modelId: "runware:100@1",
+      }),
+    } as never);
+
+    const result = await service.generateCandidateImage({
+      prompt: `SCENE AND IDENTITY MUST STAY\n${"x".repeat(3_500)}\nHARD CONSTRAINTS MUST STAY`,
+      size: "1024x1536",
+      references: [{
+        assetId: "asset_character",
+        kind: "character_identity",
+        label: "酷拉皮卡",
+        buffer: ONE_PIXEL_PNG,
+        mimeType: "image/png",
+        fileName: "kurapika.png",
+        sourceReferenceKind: "preview_front",
+      }],
+    });
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as Array<{
+      positivePrompt: string;
+    }>;
+    expect(body[0]?.positivePrompt.length).toBeGreaterThan(3_000);
+    expect(body[0]?.positivePrompt.length).toBeLessThanOrEqual(32_000);
+    expect(body[0]?.positivePrompt).toContain("SCENE AND IDENTITY MUST STAY");
+    expect(body[0]?.positivePrompt).toContain("HARD CONSTRAINTS MUST STAY");
+    expect(body[0]?.positivePrompt).toContain("Image 1 (酷拉皮卡) supplies character identity only");
+    expect(body[0]?.positivePrompt).toContain("References do not override the requested subject count");
+    expect(result.warnings).toEqual([]);
   });
 
   it("Seedream 超过十张引用时把全部角色编成身份板而不省略资产", async () => {

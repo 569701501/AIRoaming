@@ -72,7 +72,7 @@ const PROVIDER_REFERENCE_LIMITS: Record<ImageProviderType, number> = {
   grok: 3,
   openai: 16,
   doubao: 10,
-  runware: 10,
+  runware: 4,
 };
 
 interface PreparedSourceReference {

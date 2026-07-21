@@ -935,7 +935,10 @@ export class ProjectRepository {
 
   private databaseAssetToLocal(row: Prisma.AssetGetPayload<{}>): WorkbenchAsset {
     const metadata = this.jsonRecord(row.metadataJson);
-    const publicMetadata = Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== "legacyName" && key !== "legacyPath" && key !== "physicalEvidence"));
+    const publicMetadata = {
+      ...Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== "legacyName" && key !== "legacyPath" && key !== "physicalEvidence")),
+      createdAt: row.createdAt.toISOString(),
+    };
     const name = typeof metadata.legacyName === "string" ? metadata.legacyName : typeof metadata.name === "string" ? metadata.name : path.basename(row.storageKey) || "未命名素材";
     const type = ["audio", "video", "document", "archive"].includes(row.type) ? row.type : "image";
     return { id: row.id, chapterId: row.chapterId, type: type as WorkbenchAsset["type"], name, path: typeof metadata.legacyPath === "string" ? metadata.legacyPath : row.storageKey, sourceTaskId: row.sourceTaskId, meta: JSON.stringify(publicMetadata) };

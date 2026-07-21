@@ -126,8 +126,15 @@ function selectChapter(event: Event) {
 }
 
 function getChapterLabel(chapter: ChapterListItem): string {
-  if (chapter.status === "exported") return "已打包";
-  if (chapter.status === "layout_done") return "可打包";
+  const hasPackageHistory = props.snapshot.assets.some((asset) => asset.chapterId === chapter.id && isPackageAsset(asset));
+  if (chapter.id === currentChapterId.value) {
+    const packageStep = props.snapshot.workflow.steps.find((step) => step.key === "asset_package");
+    if (packageStep?.status === "done") return "已打包";
+    if (hasPackageHistory) return "有历史素材包";
+  } else if (hasPackageHistory) {
+    return "已有素材包";
+  }
+  if (chapter.status === "layout_done" || chapter.status === "exported") return "可打包";
   return "未就绪";
 }
 </script>

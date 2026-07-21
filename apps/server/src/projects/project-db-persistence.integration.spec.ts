@@ -689,6 +689,10 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const visual = await prisma.characterVisual.findFirstOrThrow({ where: { characterId: character.id } });
     expect(visual).toMatchObject({ assetId: asset.id, kind: "preview_front", version: 1, status: "available", confirmedAt: null });
     expect((await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).previewVisualId).toBe(visual.id);
+    const snapshot = await projects.getWorkbenchSnapshot(project.id);
+    const workbenchAsset = snapshot.assets.find((item) => item.id === asset.id);
+    expect(workbenchAsset).toBeDefined();
+    expect(JSON.parse(workbenchAsset!.meta)).toMatchObject({ createdAt: asset.createdAt.toISOString() });
     await expect(readFile(workspace.resolveVirtualPath(`/workspace/${asset.storageKey}`))).resolves.toEqual(png);
   }, 20_000);
 
@@ -1542,6 +1546,19 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(() => encodePreflightDocumentV2(storedPreflight.documentJson)).not.toThrow();
     const replay = await preflight.confirm(scope, { expectedSourceStoryboardVersionId: boardConfirmed.value.current.id, expectedSourceDigest: preview.sourceDigest, expectedChapterRowVersion: preview.chapterRowVersion, notes: "首次确认" });
     expect(replay.replayed).toBe(true);
+    const currentPreview = await preflight.getPreview(scope, "首次确认");
+    const repeatedCurrent = await preflight.confirm(scope, {
+      expectedSourceStoryboardVersionId: boardConfirmed.value.current.id,
+      expectedSourceDigest: currentPreview.sourceDigest,
+      expectedChapterRowVersion: currentPreview.chapterRowVersion,
+      notes: "首次确认",
+    });
+    expect(repeatedCurrent).toMatchObject({
+      replayed: true,
+      preflight: { id: confirmed.preflight.id, version: 1 },
+      chapterRowVersion: currentPreview.chapterRowVersion,
+    });
+    expect(await app.get(PrismaService).database().preflightRevision.count({ where: { chapterId: scope.chapterId } })).toBe(1);
 
     const completedImagesMilestone = await app.get(PrismaService).database().chapter.update({
       where: { id: scope.chapterId },
@@ -2534,15 +2551,51 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     })).rejects.toMatchObject({ status: 409, response: { error: { code: "LAYOUT_WORKING_COPY_CONFLICT" } } });
     expect(await layoutWorkingCopies.get(scope)).toMatchObject({ rowVersion: 2, document: { canvases: [{ name: "Tab B wins" }] } });
 
+    const productionQuery = app.get(ChapterProductionQueryService);
+    const beforePackageWorkflow = (await productionQuery.get(scope)).workflow;
+    expect(beforePackageWorkflow.currentStepKey).toBe("asset_package");
+    expect(beforePackageWorkflow.steps.find((step) => step.key === "asset_package")).toMatchObject({
+      status: "active",
+      milestoneReached: false,
+      currentArtifactId: null,
+      canStartTask: true,
+    });
+
     const packageResult = await projects.exportAssetPackage(project.id, scope.chapterId);
     expect(packageResult.manifest.files.length).toBeGreaterThan(1);
     expect(packageResult.asset.type).toBe("archive");
+    const packagePaths = packageResult.manifest.files.map((file) => file.path);
+    expect(new Set(packagePaths).size).toBe(packagePaths.length);
+    const chapterSlug = (await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).slug;
+    expect(packagePaths).toEqual(expect.arrayContaining([
+      "manifest.json",
+      `chapters/${chapterSlug}/script.md`,
+      `chapters/${chapterSlug}/structure.json`,
+      `chapters/${chapterSlug}/storyboard.json`,
+      `chapters/${chapterSlug}/preflight.json`,
+      `chapters/${chapterSlug}/candidates.json`,
+      `chapters/${chapterSlug}/layout/layout.json`,
+      `chapters/${chapterSlug}/exports/publication.json`,
+      "shared/characters.json",
+    ]));
+    expect(packagePaths.filter((item) => item.startsWith(`chapters/${chapterSlug}/locked/`))).toHaveLength(1);
+    expect(packagePaths.filter((item) => item.startsWith(`chapters/${chapterSlug}/exports/`) && item !== `chapters/${chapterSlug}/exports/publication.json`).length).toBeGreaterThanOrEqual(2);
+    const packageRoot = path.join(workspaceRoot, packageResult.packagePath);
+    await Promise.all(packagePaths.map((file) => access(path.join(packageRoot, file))));
+    expect(JSON.parse(await readFile(path.join(packageRoot, "manifest.json"), "utf8"))).toEqual(packageResult.manifest);
+    expect(JSON.parse(await readFile(path.join(packageRoot, `chapters/${chapterSlug}/candidates.json`), "utf8"))).toMatchObject({
+      schemaVersion: 1,
+      projectId: project.id,
+      chapterId: scope.chapterId,
+      candidates: expect.arrayContaining([expect.objectContaining({ isCurrentFinal: true })]),
+      currentDecisions: [expect.objectContaining({ candidateId: expect.any(String), action: expect.stringMatching(/^(lock|replace)$/) })],
+    });
+    expect(JSON.parse(packageResult.asset.meta)).toMatchObject({ kind: "asset_package", packageId: packageResult.packageId, fileCount: packagePaths.length });
     const packageRevision = await prisma.exportRevision.findFirstOrThrow({ where: { chapterId: scope.chapterId, kind: "asset_package" } });
     expect(packageRevision).toMatchObject({ status: "ready", completionApplicability: "current" });
     expect(await prisma.exportArtifact.count({ where: { exportRevisionId: packageRevision.id } })).toBe(1);
     expect((await prisma.chapter.findUniqueOrThrow({ where: { id: scope.chapterId } })).milestoneStatus).toBe("exported");
 
-    const productionQuery = app.get(ChapterProductionQueryService);
     const sourceQuery = app.get(CandidateSourceQueryService);
     const currentSources = (await productionQuery.get(scope)).productionState.candidateSources!;
     expect(currentSources).toMatchObject({
@@ -2556,6 +2609,12 @@ describe("Project/Chapter/Script DB-only persistence", () => {
         exportLayout: { allowed: true, reasonCodes: [] },
         exportPackage: { allowed: true, reasonCodes: [] },
       },
+    });
+    expect((await productionQuery.get(scope)).workflow.steps.find((step) => step.key === "asset_package")).toMatchObject({
+      status: "done",
+      milestoneReached: true,
+      currentArtifactId: packageRevision.id,
+      freshness: "current",
     });
     expect((await projects.getWorkbenchSnapshot(project.id, scope.chapterId)).candidateSources).toEqual(currentSources);
 

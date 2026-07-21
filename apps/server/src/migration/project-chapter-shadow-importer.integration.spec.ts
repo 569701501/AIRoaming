@@ -279,6 +279,15 @@ async function createSnapshot(root: string, formats: Record<string, string>, opt
 }
 
 function semanticWorkbenchSnapshot(snapshot: Awaited<ReturnType<ProjectsService["getWorkbenchSnapshot"]>>) {
+  const semanticAssetMeta = (meta: string) => {
+    try {
+      const value = JSON.parse(meta) as Record<string, unknown>;
+      delete value.createdAt;
+      return JSON.stringify(value);
+    } catch {
+      return meta;
+    }
+  };
   return {
     project: { name: snapshot.project.name, type: snapshot.project.type, storyTitle: snapshot.project.storyTitle, genreTags: snapshot.project.genreTags, comicFormat: snapshot.project.comicFormat, artStyle: snapshot.project.artStyle, description: snapshot.project.description },
     chapters: snapshot.chapters.map((item) => ({ order: item.order, title: item.title, summary: item.summary, sourceTextPreview: item.sourceTextPreview })),
@@ -288,7 +297,7 @@ function semanticWorkbenchSnapshot(snapshot: Awaited<ReturnType<ProjectsService[
     imagePreflight: snapshot.imagePreflight && { ready: snapshot.imagePreflight.preflightJson.ready, shotCount: snapshot.imagePreflight.preflightJson.shotCount, issues: snapshot.imagePreflight.preflightJson.issues, styleCheck: snapshot.imagePreflight.preflightJson.styleCheck },
     characters: snapshot.characters.map((item) => ({ name: item.name, role: item.role, level: item.level, entityType: item.entityType, status: item.status, appearance: item.appearance, personality: item.personality, promptFragment: item.promptFragment })),
     candidates: snapshot.candidates.map((item) => ({ index: item.index, label: item.label, status: item.status, promptDigest: item.promptDigest })),
-    assets: snapshot.assets.map((item) => ({ type: item.type, name: item.name, path: item.path, sourceTaskId: item.sourceTaskId, meta: item.meta })),
+    assets: snapshot.assets.map((item) => ({ type: item.type, name: item.name, path: item.path, sourceTaskId: item.sourceTaskId, meta: semanticAssetMeta(item.meta) })),
     chapterLayout: snapshot.chapterLayout && { pages: snapshot.chapterLayout.pages.map((item) => ({ pageNumber: item.pageNumber, format: item.format, width: item.width, height: item.height, placements: item.placements.map((placement) => ({ order: placement.order, x: placement.x, y: placement.y, w: placement.w, h: placement.h })) })), exportAssetIds: snapshot.chapterLayout.exportAssetIds },
   };
 }
