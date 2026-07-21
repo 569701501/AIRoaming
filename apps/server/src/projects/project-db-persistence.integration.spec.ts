@@ -1124,6 +1124,27 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(publishReplay.replayed).toBe(true);
     expect((await repository.listHistory(scope)).items).toHaveLength(1);
 
+    const unchangedWorking = await repository.updateWorkingCopy(scope, {
+      sourceText: published.workingCopy.sourceText,
+      expectedChapterRowVersion: published.workingCopy.chapterRowVersion,
+    });
+    expect(unchangedWorking).toMatchObject({
+      replayed: true,
+      value: { chapterRowVersion: published.workingCopy.chapterRowVersion, state: "clean" },
+    });
+    const repeatedCompletion = await repository.publish(scope, {
+      expectedCurrentScriptVersionId: published.scriptVersion.id,
+      expectedWorkingDigest: published.workingCopy.digest,
+      expectedChapterRowVersion: published.workingCopy.chapterRowVersion,
+      createNextChapter: true,
+    });
+    expect(repeatedCompletion).toMatchObject({
+      replayed: true,
+      scriptVersion: { id: published.scriptVersion.id, version: 1 },
+      workingCopy: { chapterRowVersion: published.workingCopy.chapterRowVersion, state: "clean" },
+    });
+    expect((await repository.listHistory(scope)).items).toHaveLength(1);
+
     const cleared = await repository.clearWorkingCopy(scope, {
       expectedWorkingDigest: encoded.digest,
       expectedChapterRowVersion: published.workingCopy.chapterRowVersion,
@@ -3073,11 +3094,74 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       },
     );
     expect(published.scriptVersion.status).toBe("current");
+    const character = await prisma.character.create({
+      data: {
+        id: randomUUID(),
+        projectId: project.id,
+        name: "带预览图角色",
+        normalizedName: "带预览图角色",
+        role: "主角",
+        level: "lead",
+        entityType: "human",
+        status: "draft",
+        appearance: "黑发",
+        personality: "冷静",
+        promptFragment: "黑发主角",
+        source: "manual",
+      },
+    });
+    const visualBytes = Buffer.from("project-delete-character-visual");
+    const visualAssetId = randomUUID();
+    const visualStorageKey = `projects/${project.id}/assets/${visualAssetId}.png`;
+    const visualMetadata = {};
+    await mkdir(path.dirname(workspace.resolveVirtualPath(`/workspace/${visualStorageKey}`)), { recursive: true });
+    await writeFile(workspace.resolveVirtualPath(`/workspace/${visualStorageKey}`), visualBytes);
+    await prisma.asset.create({
+      data: {
+        id: visualAssetId,
+        projectId: project.id,
+        chapterId: null,
+        type: "image",
+        role: "character_reference",
+        mimeType: "image/png",
+        storageKey: visualStorageKey,
+        status: "staged",
+        metadataJson: visualMetadata,
+        metadataSchemaVersion: 1,
+        metadataDigest: digestCanonicalJson(visualMetadata),
+      },
+    });
+    await prisma.asset.update({
+      where: { id: visualAssetId },
+      data: {
+        status: "ready",
+        sha256: `sha256:${createHash("sha256").update(visualBytes).digest("hex")}`,
+        bytes: visualBytes.byteLength,
+        width: 1,
+        height: 1,
+        readyAt: new Date(),
+      },
+    });
+    const visual = await prisma.characterVisual.create({
+      data: {
+        id: randomUUID(),
+        characterId: character.id,
+        assetId: visualAssetId,
+        kind: "preview_front",
+        version: 1,
+        status: "available",
+      },
+    });
+    await prisma.character.update({
+      where: { id: character.id },
+      data: { previewVisualId: visual.id, rowVersion: { increment: 1 } },
+    });
     await mkdir(path.join(workspaceRoot, "projects", project.id), { recursive: true });
     await writeFile(path.join(workspaceRoot, "projects", project.id, "project.json"), "legacy metadata", "utf8");
     const first = await projects.deleteProject(project.id);
     expect(first).toMatchObject({ deletedProjectId: project.id, status: "pending", cleanupEventId: expect.any(String) });
     expect(await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({ lifecycleStatus: "deleting", deletingAt: expect.any(Date) });
+    expect(await prisma.character.findUniqueOrThrow({ where: { id: character.id } })).toMatchObject({ previewVisualId: null, primaryVisualId: null });
     expect(await prisma.outboxEvent.count({ where: { eventType: "project.delete_files", aggregateId: project.id } })).toBe(1);
     await expect(
       prisma.$executeRawUnsafe(
@@ -3107,6 +3191,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await reopenedPrisma.project.findUnique({ where: { id: project.id } })).toBeNull();
     expect(await reopenedPrisma.chapter.count({ where: { projectId: project.id } })).toBe(0);
     expect(await reopenedPrisma.chapterScriptVersion.count({ where: { chapterId } })).toBe(0);
+    expect(await reopenedPrisma.character.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await reopenedPrisma.characterVisual.count({ where: { characterId: character.id } })).toBe(0);
+    expect(await reopenedPrisma.asset.count({ where: { id: visualAssetId } })).toBe(0);
     expect(await reopenedPrisma.outboxEvent.findUniqueOrThrow({ where: { id: first.cleanupEventId! } })).toMatchObject({ status: "processed" });
     expect(workspace.resolveVirtualPath(`/workspace/projects/${project.id}`)).toContain(path.join(workspaceRoot, "projects", project.id));
   }, 30_000);

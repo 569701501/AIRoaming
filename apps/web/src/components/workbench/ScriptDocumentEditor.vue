@@ -94,7 +94,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { CheckCircle2, Save, ArrowRight, Trash2, History, AlertTriangle, MoreHorizontal, FileText } from "lucide-vue-next";
-import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { CompleteChapterRequest, SaveChapterDraftRequest, ScriptWorkingCopyDto, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import MarkdownTextEditor from "./MarkdownTextEditor.vue";
 
@@ -103,6 +103,7 @@ type MarkdownTextEditorHandle = InstanceType<typeof MarkdownTextEditor>;
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
   loading: boolean;
+  scriptWorkingCopy: ScriptWorkingCopyDto | null;
 }>();
 
 const emit = defineEmits<{
@@ -137,7 +138,11 @@ const hasChanges = computed(() => sourceText.value !== currentChapterSourceText.
 // 保存草稿必须同时满足"有变化"和"非空":
 // 切章瞬间编辑器尚未同步时会误判 hasChanges=true,若不判空会让空内容覆盖正式正文。
 const canSave = computed(() => hasChanges.value && sourceText.value.trim().length > 0);
-const canComplete = computed(() => !pendingSourceText.value && sourceText.value.trim().length > 0);
+const canComplete = computed(() =>
+  !pendingSourceText.value &&
+  sourceText.value.trim().length > 0 &&
+  (hasChanges.value || props.scriptWorkingCopy?.state !== "clean"),
+);
 const canReset = computed(() => !pendingSourceText.value && (sourceText.value.trim().length > 0 || props.snapshot.currentChapter?.status !== "draft"));
 const lastScriptRevision = computed(() => props.snapshot.currentChapter?.lastScriptRevision ?? null);
 const pendingOperationLabel = computed(() => {

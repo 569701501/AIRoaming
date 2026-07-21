@@ -157,6 +157,15 @@ export class ScriptVersionRepository {
         }
         errorForMismatch("CHAPTER_VERSION_CONFLICT");
       }
+      if (
+        chapter.title === title &&
+        chapter.summary === summary &&
+        chapter.scriptWorkingText === encoded.text &&
+        chapter.scriptWorkingDigest === encoded.digest &&
+        chapter.scriptWorkingState === state
+      ) {
+        return this.mutation(chapter, this.toWorkingCopy(chapter), true);
+      }
       await this.updateChapterCas(tx, scope, request.expectedChapterRowVersion, {
         title,
         summary,
@@ -237,7 +246,10 @@ export class ScriptVersionRepository {
     return this.run(async (tx) => {
       const chapter = await this.readChapter(scope, tx);
       const current = chapter.currentScriptVersion;
-      const isReplay = chapter.rowVersion === request.expectedChapterRowVersion + 1 &&
+      const isOriginalReplay = chapter.rowVersion === request.expectedChapterRowVersion + 1;
+      const isCurrentReplay = chapter.rowVersion === request.expectedChapterRowVersion &&
+        chapter.currentScriptVersionId === request.expectedCurrentScriptVersionId;
+      const isReplay = (isOriginalReplay || isCurrentReplay) &&
         chapter.scriptWorkingState === "clean" &&
         chapter.scriptWorkingDigest === request.expectedWorkingDigest &&
         current?.sourceDigest === request.expectedWorkingDigest;

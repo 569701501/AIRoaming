@@ -43,6 +43,7 @@
           </div>
           <ScriptDocumentEditor
             :loading="loading"
+            :script-working-copy="scriptWorkingCopy"
             :snapshot="snapshot"
             @save-draft="emitChapterDraft"
             @complete-chapter="emitCompleteChapter"
@@ -146,7 +147,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, SaveChapterDraftRequest, ScriptWorkingCopyDto, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -173,6 +174,7 @@ const props = defineProps<{
   dialogueError: string | null;
   dialogueNotice: string | null;
   runtimeModelError: string | null;
+  scriptWorkingCopy: ScriptWorkingCopyDto | null;
 }>();
 
 const scriptDraft = ref("");

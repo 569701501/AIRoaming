@@ -555,6 +555,25 @@ export class ProjectDeleteOutboxService {
       // so that a later child purge cannot trigger an implicit scope update.
       const detached = await tx.project.updateMany({ where: { id: projectId, lifecycleStatus: "active", rowVersion: project.rowVersion }, data: { currentChapterId: null, currentScriptOutlineId: null, rowVersion: { increment: 1 }, updatedAt: now } });
       if (detached.count !== 1) throw new BadRequestException("PROJECT_DELETE_CONFLICT");
+      // CharacterVisual uses ON DELETE SET NULL back to Character.  The
+      // character scope trigger intentionally refuses pointer changes after
+      // the project enters deleting, so detach both reverse pointers while
+      // the project is still active, just like the project-level pointers.
+      await tx.character.updateMany({
+        where: {
+          projectId,
+          OR: [
+            { previewVisualId: { not: null } },
+            { primaryVisualId: { not: null } },
+          ],
+        },
+        data: {
+          previewVisualId: null,
+          primaryVisualId: null,
+          rowVersion: { increment: 1 },
+          updatedAt: now,
+        },
+      });
       const updated = await tx.project.updateMany({ where: { id: projectId, lifecycleStatus: "active", rowVersion: project.rowVersion + 1 }, data: { lifecycleStatus: "deleting", deletingAt: now, rowVersion: { increment: 1 }, updatedAt: now } });
       if (updated.count !== 1) throw new BadRequestException("PROJECT_DELETE_CONFLICT");
       const payload: ProjectDeletePayload = { schemaVersion: 1, projectId, projectRootStorageKey: `projects/${projectId}`, assetManifestDigest };

@@ -24,6 +24,7 @@
           :loading="loading"
           :running-tasks="workbench.runningTaskCount"
           :runtime-model-error="runtimeModelError"
+          :script-working-copy="scriptWorkingCopy"
           :snapshot="snapshot"
           :tasks="tasks"
           @send-dialogue="sendDialogue"
@@ -107,6 +108,7 @@ const {
   loading,
   projects,
   runtimeModelError,
+  scriptWorkingCopy,
   snapshot,
   tasks,
 } = storeToRefs(workbench);
