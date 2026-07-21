@@ -5,14 +5,12 @@ import type {
   DialogueToolResult,
   SendDialogueMessageRequest,
   StoryStructureJson,
-  WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { OpenCodeRuntimeService } from "../ai-runtime/opencode-runtime.service.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { ScriptVersionService } from "../projects/versioning/script-version.service.js";
 import type {
   DialogueTurn,
-  LocalDialogueThread,
   PendingStoryStructure,
 } from "./dialogue-types.js";
 import {
@@ -21,8 +19,8 @@ import {
   shouldGenerateStoryStructure,
 } from "./dialogue-intent.util.js";
 import { buildStoryStructurePrompt, buildStoryStructureRepairPrompt } from "./dialogue-prompt.util.js";
-import { parseStoryStructureJson, normalizeStoryStructureJson } from "./dialogue-json.util.js";
-import { getErrorMessage } from "./dialogue-text.util.js";
+import { normalizeStoryStructureJson, STORY_STRUCTURE_OUTPUT_JSON_SCHEMA } from "./dialogue-json.util.js";
+import { GenerationRepairError, getErrorMessage } from "./dialogue-text.util.js";
 import { getPendingStoryStructureKey } from "./dialogue-key.util.js";
 import {
   assertStoryStructureQuality,
@@ -34,25 +32,17 @@ import {
  *
  * 收口剧情结构(story_structure)步骤的两个子流程:生成剧情结构 / 确认剧情结构。
  * 持有进程内 pendingStoryStructures Map。
- * AI 调用器依赖 OpenCode session,但 session 解析器由 DialogueService 注入(setEnsureSession),
- * 避免重复持有线程状态。
+ * AI 调用使用独立的固定结构会话，避免继承普通对话中的工具和项目规则。
  */
 @Injectable()
 export class StoryStructureDialogueService {
   private readonly pendingStoryStructures = new Map<string, PendingStoryStructure>();
-
-  /** OpenCode session 解析器,由 DialogueService 注入(负责获取/创建 session)。 */
-  private ensureSession!: (thread: LocalDialogueThread, snapshot: WorkbenchSnapshot, signal?: AbortSignal) => Promise<string>;
 
   constructor(
     @Inject(ProjectsService) private readonly projectsService: ProjectsService,
     @Inject(OpenCodeRuntimeService) private readonly openCodeRuntimeService: OpenCodeRuntimeService,
     @Optional() @Inject(ScriptVersionService) private readonly scriptVersionService?: ScriptVersionService,
   ) {}
-
-  setEnsureSession(fn: (thread: LocalDialogueThread, snapshot: WorkbenchSnapshot, signal?: AbortSignal) => Promise<string>): void {
-    this.ensureSession = fn;
-  }
 
   /**
    * 清理本项目在 pendingStoryStructures 里的条目(用 projectId 前缀匹配)。
@@ -294,43 +284,54 @@ export class StoryStructureDialogueService {
     signal?: AbortSignal,
   ): Promise<StoryStructureJson> {
     const sourceText = await this.resolveFormalScriptSource(turn, input);
-    const openCodeSessionId = await this.ensureSession(turn.thread, turn.snapshot, signal);
     const prompt = buildStoryStructurePrompt(turn, {
       ...input,
       context: { ...input.context, sourceText },
     });
-    const response = await this.openCodeRuntimeService.sendMessage({
-      sessionId: openCodeSessionId,
-      model: input.model,
-      content: prompt,
-      signal,
-    });
-    const validate = (content: string): StoryStructureJson => {
-      const structure = parseStoryStructureJson(
-        content,
-        turn.snapshot.currentChapter?.id ?? undefined,
+    const validate = (value: unknown): StoryStructureJson => {
+      const structure = normalizeStoryStructureJson(
+        value,
+        turn.snapshot.currentChapter?.id ?? "",
         turn.snapshot.currentChapter?.title ?? "",
-        turn.snapshot.currentChapter?.currentScriptVersionId ?? undefined,
+        {
+          sourceScriptVersionId: turn.snapshot.currentChapter?.currentScriptVersionId ?? undefined,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       );
       assertStoryStructureQuality(structure, sourceText);
       return structure;
     };
 
+    let invalidOutput = "";
     try {
-      return validate(response.content);
-    } catch (error) {
-      const repaired = await this.openCodeRuntimeService.sendMessage({
-        sessionId: openCodeSessionId,
+      const response = await this.openCodeRuntimeService.generateStructured({
+        title: `story_parse:${turn.snapshot.currentChapter?.id ?? turn.thread.chapterId}`,
         model: input.model,
-        content: buildStoryStructureRepairPrompt({
-          originalPrompt: prompt,
-          invalidOutput: response.content,
-          validationError: getErrorMessage(error),
-          qualityIssues: error instanceof StoryStructureQualityError ? error.issues : undefined,
-        }),
+        content: prompt,
+        schema: STORY_STRUCTURE_OUTPUT_JSON_SCHEMA,
         signal,
       });
-      return validate(repaired.content);
+      invalidOutput = JSON.stringify(response.value);
+      return validate(response.value);
+    } catch (primaryError) {
+      try {
+        const repaired = await this.openCodeRuntimeService.generateStructured({
+          title: `story_parse_repair:${turn.snapshot.currentChapter?.id ?? turn.thread.chapterId}`,
+          model: input.model,
+          content: buildStoryStructureRepairPrompt({
+            originalPrompt: prompt,
+            invalidOutput,
+            validationError: getErrorMessage(primaryError),
+            qualityIssues: primaryError instanceof StoryStructureQualityError ? primaryError.issues : undefined,
+          }),
+          schema: STORY_STRUCTURE_OUTPUT_JSON_SCHEMA,
+          signal,
+        });
+        return validate(repaired.value);
+      } catch (repairError) {
+        throw new GenerationRepairError(primaryError, repairError);
+      }
     }
   }
 

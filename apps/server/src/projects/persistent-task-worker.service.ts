@@ -50,7 +50,11 @@ import {
   buildStoryboardRepairPrompt,
 } from "../dialogue/dialogue-prompt.util.js";
 import { buildStoryboardDialogueReference } from "../dialogue/storyboard-dialogue-reference.util.js";
-import { normalizeStoryboardJson, parseStoryStructureJson } from "../dialogue/dialogue-json.util.js";
+import {
+  normalizeStoryboardJson,
+  normalizeStoryStructureJson,
+  STORY_STRUCTURE_OUTPUT_JSON_SCHEMA,
+} from "../dialogue/dialogue-json.util.js";
 import {
   assertStoryStructureQuality,
   StoryStructureQualityError,
@@ -61,7 +65,7 @@ import {
   StoryboardQualityError,
 } from "../dialogue/storyboard-quality.util.js";
 import { resolveStoryboardReferences } from "../dialogue/storyboard-reference.util.js";
-import { getErrorMessage } from "../dialogue/dialogue-text.util.js";
+import { GenerationRepairError, getErrorMessage } from "../dialogue/dialogue-text.util.js";
 import { enrichStoryboardVisualBrief } from "../dialogue/storyboard-visual-brief.util.js";
 import { toStoryDocumentV2 } from "./versioning/story-document-adapter.util.js";
 import {
@@ -818,7 +822,6 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
     if (!scriptVersion) throw new Error("SCRIPT_VERSION_MISSING");
     if (scriptVersion.sourceDigest !== source.sourceDigest) throw new Error("SCRIPT_VERSION_SOURCE_DIGEST_MISMATCH");
     const instruction = typeof context.input.instruction === "string" ? context.input.instruction : "";
-    const sessionId = await this.openCode.createSession(`story_parse:${chapter.id}`);
     const prompt = buildStoryStructurePromptFromFacts({
       project: {
         name: chapter.project.name,
@@ -835,34 +838,46 @@ export class PersistentTaskWorkerService implements OnModuleDestroy {
       scriptOutline: null,
     }, instruction.trim() || "生成当前章节剧情结构");
 
-    const validate = (content: string) => {
-      const structure = parseStoryStructureJson(
-        content,
+    const validate = (value: unknown) => {
+      const structure = normalizeStoryStructureJson(
+        value,
         chapter.id,
         chapter.title,
-        scriptVersion.id,
+        {
+          sourceScriptVersionId: scriptVersion.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       );
       assertStoryStructureQuality(structure, scriptVersion.sourceText);
       return toStoryDocumentV2(structure);
     };
 
-    const response = await this.openCode.sendMessage({
-      sessionId,
-      content: prompt,
-    });
+    let invalidOutput = "";
     try {
-      return validate(response.content);
-    } catch (error) {
-      const repaired = await this.openCode.sendMessage({
-        sessionId,
-        content: buildStoryStructureRepairPrompt({
-          originalPrompt: prompt,
-          invalidOutput: response.content,
-          validationError: getErrorMessage(error),
-          qualityIssues: error instanceof StoryStructureQualityError ? error.issues : undefined,
-        }),
+      const response = await this.openCode.generateStructured({
+        title: `story_parse:${chapter.id}`,
+        content: prompt,
+        schema: STORY_STRUCTURE_OUTPUT_JSON_SCHEMA,
       });
-      return validate(repaired.content);
+      invalidOutput = JSON.stringify(response.value);
+      return validate(response.value);
+    } catch (primaryError) {
+      try {
+        const repaired = await this.openCode.generateStructured({
+          title: `story_parse_repair:${chapter.id}`,
+          content: buildStoryStructureRepairPrompt({
+            originalPrompt: prompt,
+            invalidOutput,
+            validationError: getErrorMessage(primaryError),
+            qualityIssues: primaryError instanceof StoryStructureQualityError ? primaryError.issues : undefined,
+          }),
+          schema: STORY_STRUCTURE_OUTPUT_JSON_SCHEMA,
+        });
+        return validate(repaired.value);
+      } catch (repairError) {
+        throw new GenerationRepairError(primaryError, repairError);
+      }
     }
   }
 

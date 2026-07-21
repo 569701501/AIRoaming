@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import {
   DocumentValidationError,
   encodeScriptTextV1,
+  parseChapterScriptMarkdownV1,
   parseScriptOutlineMarkdownV1,
   PreflightDocumentCodecV2,
   resolveChapterProductionState,
@@ -55,6 +56,17 @@ function normalizeScript(value: string, allowEmpty = true): { text: string; dige
     return { text: encoded.canonical, digest: encoded.digest };
   } catch (error) {
     if (error instanceof G2DatabaseError) throw error;
+    throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", error);
+  }
+}
+
+function assertPublishableScript(value: string): void {
+  if (!value.trimStart().startsWith("# 章节剧本")) {
+    return;
+  }
+  try {
+    parseChapterScriptMarkdownV1(value, { characterRoster: "strict" });
+  } catch (error) {
     throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", error);
   }
 }
@@ -241,6 +253,7 @@ export class ScriptVersionRepository {
 
       const now = new Date();
       const encoded = normalizeScript(chapter.scriptWorkingText, false);
+      assertPublishableScript(encoded.text);
       if (encoded.digest !== request.expectedWorkingDigest) errorForMismatch("WORKING_DIGEST_CHANGED");
       const last = await tx.chapterScriptVersion.findFirst({ where: { chapterId: chapter.id }, orderBy: { version: "desc" } });
       const version = (last?.version ?? 0) + 1;

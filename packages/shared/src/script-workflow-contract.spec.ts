@@ -128,6 +128,16 @@ describe("chapter script strict Markdown contract", () => {
     const source = VALID_CHAPTER_SCRIPT_MARKDOWN_V1.replace("你还是来了。", "你把 JSON 当成真相了吗？");
     expect(parseChapterScriptMarkdownV1(source).scenes[1]?.dialogue).toContain("JSON");
   });
+
+  it("keeps historical rosters readable but rejects annotations in newly generated scripts", () => {
+    const annotated = VALID_CHAPTER_SCRIPT_MARKDOWN_V1.replace(
+      "出场人物：林夏、主持人、买家",
+      "出场人物：林夏、主持人（广播/台上）、（屏幕中的失踪信息）、买家（短暂）",
+    );
+
+    expect(parseChapterScriptMarkdownV1(annotated).scenes[1]?.characters).toContain("广播/台上");
+    expect(() => parseChapterScriptMarkdownV1(annotated, { mode: "creative" })).toThrow(/only character names/);
+  });
 });
 
 describe("import.analyze strict JSON contract", () => {

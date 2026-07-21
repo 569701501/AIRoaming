@@ -1,6 +1,9 @@
 import { BadGatewayException, Inject, Injectable, OnModuleDestroy } from "@nestjs/common";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import * as path from "node:path";
 import type { AIRuntimeModelItem, AIRuntimeModelSelection } from "@airoaming/shared";
 import { SettingsService } from "../settings/settings.service.js";
 
@@ -14,6 +17,16 @@ interface OpenCodeTextPart {
 }
 
 interface OpenCodeMessageResponse {
+  info?: {
+    structured?: unknown;
+    error?: {
+      name?: string;
+      data?: {
+        message?: string;
+        retries?: number;
+      };
+    };
+  };
   parts?: OpenCodeTextPart[];
 }
 
@@ -65,6 +78,28 @@ const TEXT_GENERATION_SESSION_PERMISSIONS = [
 const TEXT_GENERATION_MESSAGE_TOOLS = {
   "*": false,
 } as const;
+
+// OpenCode 的 JSON Schema 输出本身通过内置 StructuredOutput 工具回传。
+// 其他工具全部关闭，但不能把这个内置工具一起关掉。
+const STRUCTURED_GENERATION_MESSAGE_TOOLS = {
+  "*": false,
+  StructuredOutput: true,
+} as const;
+
+const OPENCODE_GO_PROVIDER_ID = "opencode-go";
+const OPENCODE_GO_BASE_URL = new URL("https://opencode.ai/zen/go/v1");
+
+function isOpenCodeGoBaseUrl(baseUrl: string): boolean {
+  try {
+    const candidate = new URL(baseUrl);
+    return candidate.origin === OPENCODE_GO_BASE_URL.origin
+      && candidate.pathname.replace(/\/+$/, "") === OPENCODE_GO_BASE_URL.pathname
+      && candidate.search === ""
+      && candidate.hash === "";
+  } catch {
+    return false;
+  }
+}
 
 @Injectable()
 export class OpenCodeRuntimeService implements OnModuleDestroy {
@@ -174,6 +209,74 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
 
     return {
       content,
+      model,
+    };
+  }
+
+  async generateStructured(input: {
+    title: string;
+    content: string;
+    schema: Record<string, unknown>;
+    model?: AIRuntimeModelSelection;
+    signal?: AbortSignal;
+  }): Promise<{
+    value: unknown;
+    content: string;
+    model: AIRuntimeModelSelection;
+  }> {
+    const model = input.model ?? this.getDefaultModel();
+    const directory = path.resolve(
+      process.env.OPENCODE_STRUCTURED_DIRECTORY?.trim()
+        || path.join(
+          process.env.AIROAMING_DATA_ROOT?.trim() || path.join(homedir(), ".airoaming", "data"),
+          "opencode-structured",
+        ),
+    );
+    await mkdir(directory, { recursive: true });
+    const query = `?directory=${encodeURIComponent(directory)}`;
+    const response = await this.withReadyRetry(async () => {
+      const binding = await this.ensureConfiguredProvider(model);
+      await this.syncConfiguredAuth(binding);
+      const session = await this.requestJson<OpenCodeSession>(`/session${query}`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: input.title,
+        }),
+        signal: input.signal,
+      });
+      if (!session.id) {
+        throw new BadGatewayException("OPENCODE_SESSION_ID_MISSING");
+      }
+      return this.postMessage(session.id, input.content, model, input.signal, {
+        directoryQuery: query,
+        system: "只通过固定结构输出能力完成用户要求。不要读取项目文件、规则文件或代码，不要调用其他工具，也不要返回结构之外的说明。",
+        tools: STRUCTURED_GENERATION_MESSAGE_TOOLS,
+        format: {
+          type: "json_schema",
+          schema: input.schema,
+          retryCount: 0,
+        },
+      });
+    });
+
+    if (response.info?.error) {
+      throw new BadGatewayException({
+        code: "OPENCODE_STRUCTURED_OUTPUT_FAILED",
+        message: response.info.error.data?.message
+          ?? response.info.error.name
+          ?? "OpenCode 未能生成符合固定结构的结果",
+      });
+    }
+    if (response.info?.structured === undefined) {
+      throw new BadGatewayException({
+        code: "OPENCODE_STRUCTURED_OUTPUT_FAILED",
+        message: "OpenCode 没有返回固定结构结果",
+      });
+    }
+
+    return {
+      value: response.info.structured,
+      content: this.extractText(response),
       model,
     };
   }
@@ -373,9 +476,19 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     content: string,
     model: AIRuntimeModelSelection,
     signal?: AbortSignal,
+    options: {
+      directoryQuery?: string;
+      system?: string;
+      format?: {
+        type: "json_schema";
+        schema: Record<string, unknown>;
+        retryCount: number;
+      };
+      tools?: Readonly<Record<string, boolean>>;
+    } = {},
   ): Promise<OpenCodeMessageResponse> {
     const runtimeModel = this.getRuntimeProviderBinding(model);
-    return this.requestJson<OpenCodeMessageResponse>(`/session/${encodeURIComponent(sessionId)}/message`, {
+    return this.requestJson<OpenCodeMessageResponse>(`/session/${encodeURIComponent(sessionId)}/message${options.directoryQuery ?? ""}`, {
       method: "POST",
       body: JSON.stringify({
         model: {
@@ -384,7 +497,9 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
         },
         // OpenCode 1.17.x 会把消息级 tools 规则写回会话权限。
         // 这里同时保护升级前已存在、仍会被复用的文本生成会话。
-        tools: TEXT_GENERATION_MESSAGE_TOOLS,
+        tools: options.tools ?? TEXT_GENERATION_MESSAGE_TOOLS,
+        ...(options.system ? { system: options.system } : {}),
+        ...(options.format ? { format: options.format } : {}),
         parts: [
           {
             type: "text",
@@ -618,7 +733,11 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   private getRuntimeProviderBinding(model: AIRuntimeModelSelection = this.getDefaultModel()): OpenCodeRuntimeProviderBinding {
     const credential = this.settingsService.getRuntimeAIKeySettings();
     const baseUrl = model.providerId === credential.providerId ? credential.baseUrl?.trim() : null;
-    const runtimeProviderId = baseUrl ? `airoaming_${model.providerId}` : model.providerId;
+    const runtimeProviderId = baseUrl
+      ? isOpenCodeGoBaseUrl(baseUrl)
+        ? OPENCODE_GO_PROVIDER_ID
+        : `airoaming_${model.providerId}`
+      : model.providerId;
     const managedProvider: OpenCodeProviderConfig | null = baseUrl
       ? {
           name: model.providerId,

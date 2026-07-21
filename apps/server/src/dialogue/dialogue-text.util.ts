@@ -84,7 +84,28 @@ export function shortId(id: string): string {
 }
 
 export function getErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "getResponse" in error) {
+    const getResponse = (error as { getResponse?: unknown }).getResponse;
+    if (typeof getResponse === "function") {
+      const response = getResponse.call(error) as unknown;
+      if (typeof response === "string") return response;
+      if (typeof response === "object" && response !== null && "message" in response) {
+        const message = (response as { message?: unknown }).message;
+        if (typeof message === "string" && message.trim()) return message;
+      }
+    }
+  }
   return error instanceof Error ? error.message : String(error);
+}
+
+export class GenerationRepairError extends Error {
+  constructor(
+    readonly primaryError: unknown,
+    readonly repairError: unknown,
+  ) {
+    super(`首次生成失败：${getErrorMessage(primaryError)}；自动修复失败：${getErrorMessage(repairError)}`);
+    this.name = "GenerationRepairError";
+  }
 }
 
 // ---------- 灵感种子 normalize ----------

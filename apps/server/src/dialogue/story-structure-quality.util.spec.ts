@@ -12,6 +12,15 @@ describe("剧情结构固定质量门", () => {
     expect(() => assertStoryStructureQuality(buildValidStoryStructure(), VALID_CHAPTER_SCRIPT_MARKDOWN_V1)).not.toThrow();
   });
 
+  it("历史正文的括号说明不再被拆成伪角色", () => {
+    const source = VALID_CHAPTER_SCRIPT_MARKDOWN_V1.replace(
+      "出场人物：林夏、主持人、买家",
+      "出场人物：林夏、主持人（广播/台上）、（屏幕中的失踪信息）、买家（短暂）",
+    );
+
+    expect(() => assertStoryStructureQuality(buildValidStoryStructure(), source)).not.toThrow();
+  });
+
   it("拒绝漏掉正文场景或没有 beat 覆盖的场景", () => {
     const structure = buildValidStoryStructure();
     structure.scenes = structure.scenes.slice(0, 1);

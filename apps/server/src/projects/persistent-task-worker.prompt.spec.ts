@@ -251,9 +251,8 @@ describe("PersistentTaskWorkerService story structure Prompt", () => {
       sourceText,
       sourceDigest,
     });
-    const createSession = vi.fn().mockResolvedValue("session-1");
-    const sendMessage = vi.fn().mockResolvedValue({
-      content: JSON.stringify({
+    const generateStructured = vi.fn().mockResolvedValue({
+      value: {
         synopsis: "林舟在追兵逼近时找到旧录音并决定带走。",
         direction: {
           logline: "林舟冒险带走父亲留下的旧录音。",
@@ -290,7 +289,7 @@ describe("PersistentTaskWorkerService story structure Prompt", () => {
           outcome: "林舟决定带走录音。",
         }],
         notes: "后续分镜需保持追兵逼近的压力。",
-      }),
+      },
     });
     const service = new PersistentTaskWorkerService(
       {
@@ -304,7 +303,7 @@ describe("PersistentTaskWorkerService story structure Prompt", () => {
       {} as never,
       {} as never,
       {} as never,
-      { createSession, sendMessage } as never,
+      { generateStructured } as never,
       {} as never,
       {} as never,
       {} as never,
@@ -335,11 +334,12 @@ describe("PersistentTaskWorkerService story structure Prompt", () => {
       },
     });
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage.mock.calls[0]?.[0].content).toContain("skill：structure-story-parse");
-    expect(sendMessage.mock.calls[0]?.[0].content).toContain("当前剧本版本：script-version-1");
-    expect(sendMessage.mock.calls[0]?.[0].content).not.toContain("管理代号-1111");
-    expect(sendMessage.mock.calls[0]?.[0].content).not.toContain("StoryDocumentV2");
+    expect(generateStructured).toHaveBeenCalledTimes(1);
+    expect(generateStructured.mock.calls[0]?.[0].content).toContain("skill：structure-story-parse");
+    expect(generateStructured.mock.calls[0]?.[0].content).toContain("当前剧本版本：script-version-1");
+    expect(generateStructured.mock.calls[0]?.[0].content).not.toContain("管理代号-1111");
+    expect(generateStructured.mock.calls[0]?.[0].content).not.toContain("StoryDocumentV2");
+    expect(generateStructured.mock.calls[0]?.[0].schema).toMatchObject({ type: "object" });
     expect(result).toMatchObject({ schemaVersion: 2, chapterId: "chapter-1" });
     expect(result.characters[0]).toMatchObject({
       id: "character_01",

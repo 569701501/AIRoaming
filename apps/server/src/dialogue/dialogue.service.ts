@@ -45,7 +45,6 @@ export class DialogueService {
   ) {
     this.projectsService.onProjectDeleted((projectId) => this.deleteProjectRuntimeState(projectId));
     this.scriptDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
-    this.storyStructureDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
     this.storyboardDialogue.setEnsureSession((thread, snapshot, signal) => this.ensureOpenCodeSession(thread, snapshot, signal));
     this.maintenance?.registerRuntimeStateProvider("dialogue", () => this.captureRuntimeState());
   }

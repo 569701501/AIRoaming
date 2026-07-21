@@ -380,6 +380,84 @@ export interface ChapterScriptDocumentV1 {
 export interface ParseChapterScriptMarkdownV1Options {
   expectedChapterHeading?: string;
   mode?: "creative" | "import";
+  characterRoster?: "legacy" | "strict";
+}
+
+export interface ChapterScriptCharacterRosterV1 {
+  names: string[];
+  annotations: string[];
+  malformed: boolean;
+}
+
+/**
+ * 把场景「出场人物」编译成稳定角色名。
+ * 历史正文允许尾部括号说明；括号内的斜杠不是人物分隔符。
+ */
+export function parseChapterScriptCharacterRosterV1(value: string): ChapterScriptCharacterRosterV1 {
+  const tokens: string[] = [];
+  let buffer = "";
+  let depth = 0;
+  let malformed = false;
+  const separators = new Set(["、", "，", ",", "；", ";", "/", "／", "\n"]);
+
+  for (const character of value.normalize("NFKC")) {
+    if (character === "(") {
+      depth += 1;
+      buffer += character;
+      continue;
+    }
+    if (character === ")") {
+      if (depth === 0) malformed = true;
+      else depth -= 1;
+      buffer += character;
+      continue;
+    }
+    if (depth === 0 && separators.has(character)) {
+      if (buffer.trim()) tokens.push(buffer.trim());
+      buffer = "";
+      continue;
+    }
+    buffer += character;
+  }
+  if (buffer.trim()) tokens.push(buffer.trim());
+  if (depth !== 0) malformed = true;
+
+  const names: string[] = [];
+  const annotations: string[] = [];
+  for (const token of tokens) {
+    let name = token;
+    let matchedAnnotation = false;
+    while (true) {
+      const match = name.match(/^(.*?)\s*\(([^()]*)\)\s*$/u);
+      if (!match) break;
+      matchedAnnotation = true;
+      if (match[2]?.trim()) annotations.unshift(match[2].trim());
+      name = (match[1] ?? "").trim();
+    }
+    if (matchedAnnotation && !name) {
+      annotations.push(token);
+      continue;
+    }
+    if (name) names.push(name);
+  }
+
+  return {
+    names: [...new Set(names)],
+    annotations,
+    malformed,
+  };
+}
+
+function assertStrictChapterCharacterRosters(document: ChapterScriptDocumentV1): void {
+  document.scenes.forEach((scene, index) => {
+    const roster = parseChapterScriptCharacterRosterV1(scene.characters);
+    if (roster.malformed || roster.annotations.length > 0) {
+      invalid(
+        `chapterScript.scenes[${index}].characters`,
+        "only character names are allowed; move appearance notes to description, actions, dialogue, or narration",
+      );
+    }
+  });
 }
 
 function parseChineseOrdinal(value: string): number | null {
@@ -565,6 +643,9 @@ export function parseChapterScriptMarkdownV1(input: string, options: ParseChapte
     ];
     if (creativeValues.some((value) => value.trim() === "原稿未明确")) invalid("chapterScript", "creative output must not use import missing marker 原稿未明确");
   }
+  if (options.mode !== undefined || options.characterRoster === "strict") {
+    assertStrictChapterCharacterRosters(document);
+  }
   return document;
 }
 
@@ -628,7 +709,7 @@ export function serializeChapterScriptMarkdownV1(document: ChapterScriptDocument
     `悬念：${document.suspense}`,
     `下一章引子：${document.nextChapterLead}`,
   ].join("\n").trimEnd() + "\n";
-  parseChapterScriptMarkdownV1(source);
+  parseChapterScriptMarkdownV1(source, { characterRoster: "strict" });
   return source;
 }
 

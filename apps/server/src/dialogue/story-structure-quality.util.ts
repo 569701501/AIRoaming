@@ -1,4 +1,5 @@
 import {
+  parseChapterScriptCharacterRosterV1,
   parseChapterScriptMarkdownV1,
   type ChapterScriptDocumentV1,
   type StoryStructureJson,
@@ -68,9 +69,7 @@ function parseSourceDocument(sourceText: string): ChapterScriptDocumentV1 | null
 }
 
 function splitSourceCharacterNames(value: string): string[] {
-  return value
-    .split(/[、，,；;\/／\n]+/u)
-    .map((item) => item.trim())
+  return parseChapterScriptCharacterRosterV1(value).names
     .filter((item) => item.length > 0 && !EMPTY_ROSTER_VALUES.has(semanticKey(item)));
 }
 

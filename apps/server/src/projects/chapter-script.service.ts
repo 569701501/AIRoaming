@@ -4,6 +4,7 @@ import {
   extractChapterScriptName,
   extractChapterScriptTitle,
   extractScriptOutlineTitle,
+  parseChapterScriptMarkdownV1,
   stripChapterScriptName,
   type ChapterPendingSourceText,
   type ClearChapterScriptResponse,
@@ -222,6 +223,16 @@ export class ChapterScriptService {
       throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");
     }
     const parsedChapterTitle = extractChapterScriptTitle(sourceText);
+    if (sourceText.trimStart().startsWith("# 章节剧本")) {
+      try {
+        parseChapterScriptMarkdownV1(sourceText, { characterRoster: "strict" });
+      } catch (error) {
+        throw new BadRequestException({
+          code: "VERSION_DOCUMENT_INVALID",
+          message: error instanceof Error ? error.message : "章节剧本格式不合法",
+        });
+      }
+    }
     const scriptVersion = this.createChapterScriptVersion(chapter, sourceText, completedAt);
     const completedChapter: LocalChapter = {
       ...chapter,

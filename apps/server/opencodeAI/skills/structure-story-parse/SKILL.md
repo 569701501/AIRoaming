@@ -35,7 +35,7 @@ description: 用户明确要求为当前章生成或重新生成剧情结构时�
 
 ## 输出契约
 
-- 只返回一个完整 JSON 代码块。
+- 只返回符合后端固定结构约束的完整 JSON。
 - 语义字段保持现有页面所需的 `synopsis`、`direction`、`characters`、`scenes`、`beats` 和 `notes`。
 - AI 用角色名和场景名建立关联，不生成 `chapterId`、版本 ID、角色/场景/节拍 ID、`projectCharacterId`、时间戳或状态字段。
 - 对话路径输出只进入待确认预览；用户确认后才形成正式剧情结构版本。

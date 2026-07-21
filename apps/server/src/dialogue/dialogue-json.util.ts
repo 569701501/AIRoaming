@@ -143,6 +143,79 @@ export function parseStoryboardJson(content: string, currentChapterId: string | 
 
 // ---------- 剧情结构 JSON normalize ----------
 
+export const STORY_STRUCTURE_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["synopsis", "direction", "characters", "scenes", "beats", "notes"],
+  properties: {
+    synopsis: { type: "string" },
+    direction: {
+      type: "object",
+      additionalProperties: false,
+      required: ["logline", "chapterGoal", "coreConflict", "emotionalArc", "endingHook"],
+      properties: {
+        logline: { type: "string" },
+        chapterGoal: { type: "string" },
+        coreConflict: { type: "string" },
+        emotionalArc: { type: "string" },
+        endingHook: { type: "string" },
+      },
+    },
+    characters: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "role", "level", "entityType", "motivation", "relationship", "visualTraits", "notes"],
+        properties: {
+          name: { type: "string" },
+          role: { type: "string" },
+          level: { type: "string", enum: ["lead", "recurring", "chapter", "minor", "extra"] },
+          entityType: { type: "string", enum: ["human", "creature", "group", "voice"] },
+          motivation: { type: "string" },
+          relationship: { type: "string" },
+          visualTraits: { type: "string" },
+          notes: { type: "string" },
+        },
+      },
+    },
+    scenes: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "location", "timeOfDay", "atmosphere", "purpose"],
+        properties: {
+          name: { type: "string" },
+          location: { type: "string" },
+          timeOfDay: { type: "string" },
+          atmosphere: { type: "string" },
+          purpose: { type: "string" },
+        },
+      },
+    },
+    beats: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["order", "title", "summary", "conflict", "characters", "sceneName", "visualFocus", "outcome"],
+        properties: {
+          order: { type: "integer", minimum: 1 },
+          title: { type: "string" },
+          summary: { type: "string" },
+          conflict: { type: "string" },
+          characters: { type: "array", items: { type: "string" } },
+          sceneName: { type: "string" },
+          visualFocus: { type: "string" },
+          outcome: { type: "string" },
+        },
+      },
+    },
+    notes: { type: "string" },
+  },
+};
+
 export function normalizeStoryStructureJson(
   input: unknown,
   chapterId: string,
@@ -248,17 +321,6 @@ export function resolveSceneIdByName(sceneName: string | null, scenes: StoryStru
   }
 
   return scenes.find((scene) => scene.name === sceneName)?.id ?? null;
-}
-
-/** 从 AI 返回文本解析剧情结构 JSON(含校验当前章节存在)。 */
-export function parseStoryStructureJson(content: string, currentChapterId: string | undefined, currentChapterTitle: string, currentScriptVersionId: string | undefined): StoryStructureJson {
-  const jsonText = extractJsonPayload(content);
-  const value = JSON.parse(jsonText) as unknown;
-  return normalizeStoryStructureJson(value, currentChapterId ?? "", currentChapterTitle, {
-    sourceScriptVersionId: currentScriptVersionId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
 }
 
 // ---------- 灵感种子 JSON 解析 ----------
