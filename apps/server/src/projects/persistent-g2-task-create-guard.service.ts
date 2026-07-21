@@ -344,7 +344,6 @@ export class PersistentG2TaskCreateGuardService {
     const referenceAssets = [
       ...shot.characterIds.flatMap((token, index) => {
         const character = characters[index];
-        const projectCharacter = projectCharacterForToken(token);
         const source = document.sourceSnapshot.characters.find((candidate) =>
           candidate.characterId === token || candidate.characterId === character?.id,
         );

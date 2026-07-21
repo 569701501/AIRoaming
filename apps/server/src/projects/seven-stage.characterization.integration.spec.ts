@@ -189,7 +189,7 @@ describe("七阶段 Service 行为刻画", () => {
     expect(readySnapshot.workflow.steps.find((step) => step.key === "image_candidates")?.status).toBe("active");
   });
 
-  it("图片任务只接受已确认分镜镜头，全镜候选锁定后才进入排版", async () => {
+  it("图片任务只接受已确认分镜镜头，旧 file 候选锁定入口不再推进排版", async () => {
     const ref = await fixture.createProject("候选锁定门禁项目");
     await fixture.completeScript(ref);
     await fixture.confirmStructure(ref);
@@ -219,46 +219,8 @@ describe("七阶段 Service 行为刻画", () => {
     });
     expect((await fixture.snapshot(ref)).currentChapter?.status).toBe("storyboard_done");
 
-    const firstCandidate = snapshot.candidates.find((candidate) => candidate.shotId === "shot_001");
-    const secondCandidate = snapshot.candidates.find((candidate) => candidate.shotId === "shot_002");
-    expect(firstCandidate).toBeDefined();
-    expect(secondCandidate).toBeDefined();
-    await fixture.projects.lockChapterCandidate(ref.projectId, ref.chapterId, {
-      candidateId: firstCandidate!.id,
-    });
-
-    response = await businessErrorResponse(() => fixture.projects.completeChapterImages(
-      ref.projectId,
-      ref.chapterId,
-    ));
-    expect(response).toMatchObject({
-      code: "CHAPTER_CANDIDATES_NOT_FULLY_LOCKED",
-      details: { unlockedShotIds: ["shot_002"] },
-    });
-
-    await fixture.projects.lockChapterCandidate(ref.projectId, ref.chapterId, {
-      candidateId: secondCandidate!.id,
-    });
-    await fixture.projects.completeChapterImages(ref.projectId, ref.chapterId);
-
-    snapshot = await fixture.snapshot(ref);
-    expect(snapshot.currentChapter?.status).toBe("images_done");
-    expect(snapshot.workflow.currentStepKey).toBe("layout_export");
-    expect(snapshot.workflow.steps.map(({ key, status }) => ({ key, status }))).toEqual([
-      { key: "project_story", status: "done" },
-      { key: "story_structure", status: "done" },
-      { key: "storyboard", status: "done" },
-      { key: "image_preflight", status: "done" },
-      { key: "image_candidates", status: "done" },
-      { key: "layout_export", status: "active" },
-      { key: "asset_package", status: "waiting" },
-    ]);
-    expect(snapshot.shots.map((shot) => ({ id: shot.id, lockedCandidateId: shot.lockedCandidateId })))
-      .toEqual([
-        { id: "shot_001", lockedCandidateId: firstCandidate!.id },
-        { id: "shot_002", lockedCandidateId: secondCandidate!.id },
-      ]);
-    expect(snapshot.candidates.every((candidate) => candidate.status === "generated")).toBe(true);
+    expect((fixture.projects as unknown as { lockChapterCandidate?: unknown }).lockChapterCandidate).toBeUndefined();
+    expect(snapshot.workflow.currentStepKey).toBe("image_candidates");
   });
 
   it("图片阶段未完成时排版与素材包入口都拒绝且不产生成功事实", async () => {
@@ -286,12 +248,6 @@ describe("七阶段 Service 行为刻画", () => {
     await fixture.confirmStoryboard(ref);
     await fixture.projects.confirmChapterImagePreflight(ref.projectId, ref.chapterId);
     await fixture.generateCandidate(ref, "shot_001");
-
-    const generated = await fixture.snapshot(ref);
-    const candidate = generated.candidates.find((item) => item.shotId === "shot_001");
-    expect(candidate).toBeDefined();
-    await fixture.projects.lockChapterCandidate(ref.projectId, ref.chapterId, { candidateId: candidate!.id });
-    await fixture.projects.completeChapterImages(ref.projectId, ref.chapterId);
 
     expect((fixture.projects as unknown as { buildChapterLayout?: unknown }).buildChapterLayout).toBeUndefined();
     expect((fixture.projects as unknown as { exportChapterLayout?: unknown }).exportChapterLayout).toBeUndefined();

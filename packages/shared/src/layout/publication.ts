@@ -8,7 +8,6 @@ import type {
   EncodedLayoutValue,
   LayoutCanvasV1,
   LayoutDigest,
-  LayoutDocumentV1,
   LayoutPublicationProfileV1,
 } from "./document.js";
 import { LayoutDocumentCodecV1 } from "./codec.js";

@@ -126,7 +126,7 @@ async function payloadJson(snapshot: VerifiedSnapshot, storageKey: string): Prom
 export class ProjectChapterShadowImporter {
   private readonly ledger: PrismaMigrationLedgerRepository;
 
-  constructor(private readonly prisma: PrismaService, ledger?: PrismaMigrationLedgerRepository) {
+  constructor(prisma: PrismaService, ledger?: PrismaMigrationLedgerRepository) {
     this.ledger = ledger ?? new PrismaMigrationLedgerRepository(prisma);
   }
 

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { MetadataArchiveError, MetadataArchiveService } from "./metadata-archive.service.js";
+import { MetadataArchiveService } from "./metadata-archive.service.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });

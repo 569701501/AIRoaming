@@ -3,17 +3,12 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import type {
-  ChapterDetail,
-  ChapterListItem,
   ChapterStoryboard,
   CandidateGenerationSpec,
   CompleteChapterImagesResponse,
   GenerationTaskItem,
-  LockChapterCandidateRequest,
-  LockChapterCandidateResponse,
   ProjectCandidate,
   ProjectWorkflow,
-  StoryboardJson,
   WorkbenchAsset,
   WorkbenchCandidate,
   WorkbenchShot,
@@ -113,7 +108,7 @@ export class ImageCandidateService {
         sections: generationSpec.sections,
         systemConstraints: generationSpec.systemConstraints,
       });
-      const size = this.toProviderSize(generationSpec, providerType);
+      const size = this.toProviderSize(generationSpec);
       const referenceModeEnabled = process.env.AIROAMING_CANDIDATE_REFERENCE_MODE?.trim().toLowerCase() !== "off";
       const referenceResolution = referenceModeEnabled
         ? await this.candidateReferenceResolver.resolve(project, generationSpec)
@@ -274,91 +269,6 @@ export class ImageCandidateService {
       await this.persistTaskArtifact(() => this.taskArtifactService.writeError(task.projectId, taskId, taskError));
       this.tasksService.fail(taskId, taskError.code, taskError.message, taskError.retryable);
     }
-  }
-
-  async lockCandidate(
-    projectId: string,
-    chapterId: string,
-    input: LockChapterCandidateRequest,
-  ): Promise<LockChapterCandidateResponse> {
-    if (this.prismaService.isDatabaseMode()) {
-      throw new ConflictException({
-        code: "LEGACY_WRITE_ROUTE_DISABLED",
-        message: "LEGACY_WRITE_ROUTE_DISABLED",
-        details: { replacement: `/api/projects/${projectId}/chapters/${chapterId}/shots/{shotId}/candidate-lock` },
-      });
-    }
-    const project = await this.projectStore.getReadyProject(projectId);
-    const chapter = this.projectStore.findChapter(project, chapterId);
-    if (!chapter.storyboard) {
-      throw new BadRequestException("STORYBOARD_REQUIRED");
-    }
-    if (chapter.status !== "storyboard_done" && chapter.status !== "images_done") {
-      throw new BadRequestException("CHAPTER_NOT_READY_FOR_CANDIDATE_LOCK");
-    }
-
-    const candidateId = input.candidateId?.trim();
-    if (!candidateId) {
-      throw new BadRequestException("CANDIDATE_ID_REQUIRED");
-    }
-    const candidates = [...(chapter.candidates ?? [])];
-    const target = candidates.find((item) => item.id === candidateId);
-    if (!target) {
-      throw new BadRequestException("CANDIDATE_NOT_FOUND");
-    }
-    if (target.status === "rejected") {
-      throw new BadRequestException("CANDIDATE_REJECTED");
-    }
-
-    const now = new Date().toISOString();
-    const nextCandidates = candidates;
-
-    const nextStoryboardJson: StoryboardJson = {
-      ...chapter.storyboard.storyboardJson,
-      shots: chapter.storyboard.storyboardJson.shots.map((shot) => {
-        if (shot.id !== target.shotId) {
-          return shot;
-        }
-        return {
-          ...shot,
-          lockedCandidateId: target.id,
-          status: "locked",
-        };
-      }),
-      // 旧 file projection 只改 Shot 决策，不再把 Candidate.status 当当前定稿；
-      // 不更新 storyboardJson.updatedAt,避免让已确认的 preflight 因时间戳不匹配而误失效。
-    };
-    const nextStoryboard: ChapterStoryboard = {
-      ...chapter.storyboard,
-      storyboardJson: nextStoryboardJson,
-    };
-    const nextChapter: LocalChapter = {
-      ...chapter,
-      candidates: nextCandidates,
-      storyboard: nextStoryboard,
-      // 锁定过程不自动完成章节；仍停留 storyboard_done 直到用户完成本章候选图
-      status: chapter.status === "images_done" ? "images_done" : "storyboard_done",
-      updatedAt: now,
-    };
-    const nextProject: LocalProject = {
-      ...project,
-      chapters: project.chapters.map((item) => item.id === nextChapter.id ? nextChapter : item),
-      updatedAt: now,
-    };
-
-    await this.projectStore.writeProjectFiles(nextProject);
-    this.repository.setProject(nextProject);
-
-    const locked = nextCandidates.find((item) => item.id === target.id)!;
-    return {
-      candidate: this.toWorkbenchCandidate(locked),
-      candidates: nextCandidates.map((item) => this.toWorkbenchCandidate(item)),
-      shots: this.toWorkbenchShots(nextChapter),
-      chapter: wsDomain.toChapterDetail(nextChapter),
-      chapters: wsDomain.sortChapters(nextProject.chapters).map((item) => wsDomain.toChapterListItem(item)),
-      storyboard: nextStoryboard,
-      assets: nextProject.assets,
-    };
   }
 
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
@@ -547,10 +457,7 @@ export class ImageCandidateService {
     return record as CandidateGenerationSpec;
   }
 
-  private toProviderSize(
-    spec: CandidateGenerationSpec,
-    providerType: "openai" | "doubao" | "grok" | "runware",
-  ): string {
+  private toProviderSize(spec: CandidateGenerationSpec): string {
     const { width, height } = spec.requestedSize;
     return `${width}x${height}`;
   }
@@ -574,9 +481,3 @@ export class ImageCandidateService {
     }
   }
 }
-
-// re-export helpers used by response builders
-export type ChapterCandidateResponseFields = {
-  chapter: ChapterDetail;
-  chapters: ChapterListItem[];
-};

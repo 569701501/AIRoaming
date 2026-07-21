@@ -36,16 +36,3 @@ export function normalizeWorkspacePath(input: string): string {
   }
   return normalized;
 }
-
-export function joinWorkspacePath(...segments: string[]): string {
-  return normalizeWorkspacePath(segments.join("/"));
-}
-
-export function isWorkspacePath(input: string): boolean {
-  try {
-    normalizeWorkspacePath(input);
-    return true;
-  } catch {
-    return false;
-  }
-}

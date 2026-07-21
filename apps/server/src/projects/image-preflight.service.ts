@@ -1,5 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
   type ChapterImagePreflight,
   type ImagePreflightCharacterCheck,
@@ -13,11 +12,10 @@ import {
   type SaveChapterImagePreflightResponse,
   type ConfirmChapterImagePreflightRequest,
   type ArtStyle,
-  type ComicFormat,
   type ChapterStoryboard,
   type ProjectCharacter,
 } from "@airoaming/shared";
-import type { LocalChapter, LocalProject } from "./local-types.js";
+import type { LocalChapter } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as wsCharacter from "./character-domain.util.js";
 import * as wsJson from "./workspace-json.util.js";

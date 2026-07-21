@@ -293,8 +293,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ArrowUp, Bot, Brain, CheckCircle2, ChevronsLeft, CircleAlert, FileText, Loader2, Paperclip, Sparkles, Wrench, Zap, Users, Lightbulb, Search } from "lucide-vue-next";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, StoryboardJson, WorkbenchSnapshot } from "@airoaming/shared";
+import { ArrowUp, Bot, Brain, CheckCircle2, ChevronsLeft, CircleAlert, FileText, Loader2, Paperclip, Sparkles, Wrench } from "lucide-vue-next";
+import type { DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, StoryboardJson, WorkbenchSnapshot } from "@airoaming/shared";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -304,27 +304,15 @@ const props = defineProps<{
   dialogueSending: boolean;
   dialogueError: string | null;
   dialogueNotice: string | null;
-  runtimeModels: AIRuntimeModelItem[];
-  selectedModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
   loading: boolean;
 }>();
 
 const emit = defineEmits<{
   send: [input: SendDialogueMessageRequest];
-  selectModel: [model: AIRuntimeModelSelection];
   retryImportItem: [payload: { batchId: string; itemId: string }];
 }>();
 
-const quickPrompts = [
-  { text: "帮我找灵感", icon: Lightbulb },
-  { text: "优化开场钩子", icon: Sparkles },
-  { text: "丰富角色动机", icon: Users },
-  { text: "扩展戏剧冲突", icon: Zap },
-  { text: "生成场景梗概", icon: Lightbulb },
-  { text: "润色对白", icon: FileText },
-  { text: "检查逻辑一致性", icon: Search },
-];
 const draft = ref("");
 const attachments = ref<Array<DialogueAttachmentInput & { id: string }>>([]);
 const attachmentError = ref<string | null>(null);
@@ -348,7 +336,6 @@ const canSend = computed(() => {
   const hasAttachments = dialogueCopy.value.allowAttachments && attachments.value.length > 0;
   return (hasContent || hasAttachments) && !props.dialogueSending;
 });
-const selectedModelValue = computed(() => props.selectedModel ? serializeModel(props.selectedModel) : "");
 const skillTools = new Set<DialogueToolResult["tool"]>([
   "analyze_script_import",
   "import_script_to_chapters",
@@ -584,28 +571,6 @@ function isSupportedTextFile(file: File) {
 
 function removeAttachment(id: string) {
   attachments.value = attachments.value.filter((attachment) => attachment.id !== id);
-}
-
-function selectModel(event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
-  const model = props.runtimeModels.find((item) => serializeModel(item) === value);
-  if (!model) {
-    return;
-  }
-
-  emit("selectModel", {
-    providerId: model.providerId,
-    modelId: model.modelId,
-  });
-}
-
-function serializeModel(model: AIRuntimeModelSelection) {
-  return `${model.providerId}::${model.modelId}`;
-}
-
-function getModelLabel(model: AIRuntimeModelItem) {
-  const label = `${model.providerName} · ${model.displayName}`;
-  return model.default ? `${label}（默认）` : label;
 }
 
 function getMessageContent(message: DialogueMessageItem) {

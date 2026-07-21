@@ -99,7 +99,7 @@ export class AssetVisualShadowImporter {
         const assetItem = snapshot.sourceManifest.items.find((item) => item.storageKey === `projects/${legacyProjectId}/shared/assets.json`);
         const physical = targetProject && assetItem && workspaceRoot ? await this.readPhysicalAssets(snapshot, assetItem.storageKey, legacyProjectId, targetProjectId, workspaceRoot) : [];
         if (targetProject && physical.length > 0) {
-          const characterPlans = await this.buildCharacterVisualPlans(snapshot, legacyProjectId, targetProjectId, physical);
+          const characterPlans = await this.buildCharacterVisualPlans(snapshot, legacyProjectId, physical);
           const scenePlans = await this.buildSceneVisualPlans(snapshot, legacyProjectId, targetProjectId, physical);
           await this.ledger.withTransaction(async (tx) => {
             for (const item of physical) { await this.promoteAsset(tx, run.id, item); readyCount += 1; }
@@ -183,7 +183,7 @@ export class AssetVisualShadowImporter {
     await chmod(absolute, 0o600);
   }
 
-  private async buildCharacterVisualPlans(snapshot: VerifiedSnapshot, legacyProjectId: string, targetProjectId: string, physical: PhysicalAsset[]): Promise<CharacterVisualPlan[]> {
+  private async buildCharacterVisualPlans(snapshot: VerifiedSnapshot, legacyProjectId: string, physical: PhysicalAsset[]): Promise<CharacterVisualPlan[]> {
     const item = snapshot.sourceManifest.items.find((candidate) => candidate.storageKey === `projects/${legacyProjectId}/shared/characters.json`);
     if (!item) return [];
     const { value } = await payload(snapshot, item.storageKey);

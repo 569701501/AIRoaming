@@ -16,7 +16,6 @@ import type {
   ConfirmChapterStoryboardRequest,
   CreateProjectRequest,
   ClearChapterScriptResponse,
-  DeleteCharacterReferenceResponse,
   DeleteProjectResponse,
   DiscardChapterPendingSourceResponse,
   DialogueStreamEvent,
@@ -40,15 +39,12 @@ import type {
   GenerationTaskItem,
   GetChapterResponse,
   HealthResponse,
-  ListChaptersResponse,
   PreviewCandidateLockRequest,
-  ProjectCharactersResponse,
   ProjectListItem,
   QueueCharacterReferenceResponse,
   QueueSceneReferenceResponse,
   ResolveImagePreflightCharacterRequest,
   ResolveImagePreflightCharacterResponse,
-  ResetProjectScriptResponse,
   SaveChapterDraftRequest,
   SaveChapterDraftResponse,
   SaveChapterImagePreflightResponse,
@@ -56,7 +52,6 @@ import type {
   SaveChapterStoryStructureResponse,
   SaveChapterStoryboardResponse,
   SendDialogueMessageRequest,
-  SendDialogueMessageResponse,
   UpdateProjectCharacterRequest,
   UpdateChapterStoryStructureRequest,
   UpdateChapterStoryboardRequest,
@@ -66,7 +61,6 @@ import type {
   WorkbenchSnapshot,
   ScriptWorkingCopyDto,
   ScriptWorkingCopyUpdateRequest,
-  ScriptWorkingCopyClearRequest,
   ScriptPublishRequest,
   ScriptPublishResponse,
   ScriptPendingSuggestionDto,
@@ -79,24 +73,20 @@ import type {
   StoryWorkingCopyMutationValue,
   CreateStoryWorkingCopyRequest,
   UpdateStoryWorkingCopyRequest,
-  DiscardStoryWorkingCopyRequest,
   ConfirmStoryWorkingCopyRequest,
   StoryboardWorkingCopyDto,
   StoryboardWorkingCopyMutationValue,
   CreateStoryboardWorkingCopyRequest,
   UpdateStoryboardWorkingCopyRequest,
-  DiscardStoryboardWorkingCopyRequest,
   ConfirmStoryboardWorkingCopyRequest,
   GetChapterPreflightPreviewResponse,
   ConfirmChapterPreflightRequest,
   ConfirmChapterPreflightResponse,
-  VersionHistoryCopyRequest,
   InitializeLayoutWorkingCopyRequestV1,
   InitializeLayoutWorkingCopyResponseV1,
   LayoutWorkingCopyResponseV1,
   LayoutSourceCatalogResponseV1,
   LayoutFontCatalogResponseV1,
-  LayoutFontProvisionResponseV1,
   SaveLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyResponseV1,
   CommitLayoutSourceReplacementRequestV1,
@@ -303,18 +293,8 @@ export const api = {
     const query = chapterId ? `?chapterId=${encodeURIComponent(chapterId)}` : "";
     return request<{ snapshot: WorkbenchSnapshot }>(`/projects/${encodeURIComponent(projectId)}/workbench${query}`);
   },
-  listChapters: (projectId: string) => request<ListChaptersResponse>(`/projects/${encodeURIComponent(projectId)}/chapters`),
   getChapter: (projectId: string, chapterId: string) => request<GetChapterResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}`,
-  ),
-  listProjectCharacters: (projectId: string) => request<ProjectCharactersResponse>(
-    `/projects/${encodeURIComponent(projectId)}/characters`,
-  ),
-  ensureProjectCharacterPreviewTasks: (projectId: string) => request<QueueCharacterReferenceResponse>(
-    `/projects/${encodeURIComponent(projectId)}/characters/previews/ensure`,
-    {
-      method: "POST",
-    },
   ),
   extractProjectCharacters: (projectId: string, input: ExtractProjectCharactersRequest) => request<ExtractProjectCharactersResponse>(
     `/projects/${encodeURIComponent(projectId)}/characters/extract`,
@@ -379,16 +359,6 @@ export const api = {
       body: JSON.stringify(input),
     },
   ),
-  deleteCharacterReference: (
-    projectId: string,
-    characterId: string,
-    assetId: string,
-  ) => request<DeleteCharacterReferenceResponse>(
-    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/references/${encodeURIComponent(assetId)}`,
-    {
-      method: "DELETE",
-    },
-  ),
   projectAssetFileUrl: (projectId: string, assetId: string) =>
     `${API_BASE}/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}/file`,
   saveChapterDraft: (projectId: string, chapterId: string, input: SaveChapterDraftRequest) => request<SaveChapterDraftResponse>(
@@ -423,9 +393,6 @@ export const api = {
   updateScriptWorkingCopy: (projectId: string, chapterId: string, input: ScriptWorkingCopyUpdateRequest) => request<ScriptMutationResult<ScriptWorkingCopyDto>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/working-copy`, { method: "PATCH", body: JSON.stringify(input) },
   ),
-  clearScriptWorkingCopy: (projectId: string, chapterId: string, input: ScriptWorkingCopyClearRequest) => request<ScriptMutationResult<ScriptWorkingCopyDto>>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/working-copy`, { method: "DELETE", body: JSON.stringify(input) },
-  ),
   publishScript: (projectId: string, chapterId: string, input: ScriptPublishRequest) => request<ScriptPublishResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/script/publish`, { method: "POST", body: JSON.stringify(input) },
   ),
@@ -450,14 +417,8 @@ export const api = {
   updateStoryWorkingCopy: (projectId: string, chapterId: string, input: UpdateStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`, { method: "PATCH", body: JSON.stringify(input) },
   ),
-  discardStoryWorkingCopy: (projectId: string, chapterId: string, input: DiscardStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy`, { method: "DELETE", body: JSON.stringify(input) },
-  ),
   confirmStoryWorkingCopy: (projectId: string, chapterId: string, input: ConfirmStoryWorkingCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyMutationValue>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/working-copy/confirm`, { method: "POST", body: JSON.stringify(input) },
-  ),
-  copyStoryVersionToWorkingCopy: (projectId: string, chapterId: string, versionId: string, input: VersionHistoryCopyRequest) => request<ScriptMutationResult<StoryWorkingCopyDto>>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/story-structure/versions/${encodeURIComponent(versionId)}/copy-to-working-copy`, { method: "POST", body: JSON.stringify(input) },
   ),
   getStoryboardWorkingCopy: (projectId: string, chapterId: string) => request<StoryboardWorkingCopyDto>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`,
@@ -471,14 +432,8 @@ export const api = {
   updateStoryboardWorkingCopy: (projectId: string, chapterId: string, input: UpdateStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "PATCH", body: JSON.stringify(input) },
   ),
-  discardStoryboardWorkingCopy: (projectId: string, chapterId: string, input: DiscardStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy`, { method: "DELETE", body: JSON.stringify(input) },
-  ),
   confirmStoryboardWorkingCopy: (projectId: string, chapterId: string, input: ConfirmStoryboardWorkingCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyMutationValue>>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/working-copy/confirm`, { method: "POST", body: JSON.stringify(input) },
-  ),
-  copyStoryboardVersionToWorkingCopy: (projectId: string, chapterId: string, versionId: string, input: VersionHistoryCopyRequest) => request<ScriptMutationResult<StoryboardWorkingCopyDto>>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/storyboard/versions/${encodeURIComponent(versionId)}/copy-to-working-copy`, { method: "POST", body: JSON.stringify(input) },
   ),
   getChapterPreflightPreviewV2: (projectId: string, chapterId: string) => request<GetChapterPreflightPreviewResponse>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/image-preflight/preview`,
@@ -569,25 +524,12 @@ export const api = {
       method: "POST",
     },
   ),
-  resetProjectScript: (projectId: string) => request<ResetProjectScriptResponse>(
-    `/projects/${encodeURIComponent(projectId)}/script/reset`,
-    {
-      method: "POST",
-    },
-  ),
   dialogueThread: (projectId: string, stepKey: string, chapterId?: string | null) => {
     const query = chapterId ? `?chapterId=${encodeURIComponent(chapterId)}` : "";
     return request<{ thread: DialogueThread }>(
       `/projects/${encodeURIComponent(projectId)}/dialogue/threads/${encodeURIComponent(stepKey)}${query}`,
     );
   },
-  sendDialogueMessage: (projectId: string, stepKey: string, input: SendDialogueMessageRequest) => request<SendDialogueMessageResponse>(
-    `/projects/${encodeURIComponent(projectId)}/dialogue/threads/${encodeURIComponent(stepKey)}/messages`,
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  ),
   sendDialogueMessageStream: (
     projectId: string,
     stepKey: string,
@@ -696,10 +638,6 @@ export const api = {
   ),
   getLayoutFonts: (projectId: string, chapterId: string) => request<LayoutFontCatalogResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/fonts`,
-  ),
-  provisionLayoutFonts: (projectId: string, chapterId: string) => request<LayoutFontProvisionResponseV1>(
-    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/fonts/provision`,
-    { method: "POST" },
   ),
   layoutFontFileUrl: (projectId: string, chapterId: string, assetId: string) =>
     `${API_BASE}/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/fonts/${encodeURIComponent(assetId)}/file`,

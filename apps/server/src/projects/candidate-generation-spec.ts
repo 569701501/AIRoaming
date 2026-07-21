@@ -357,10 +357,6 @@ export function createCandidateGenerationSpec(input: CreateCandidateGenerationSp
   });
 }
 
-export function getCandidateRequestedSize(comicFormat: ComicFormat): { width: number; height: number } {
-  return getLegacyGenerationDefaultSize(comicFormat).requestedSize;
-}
-
 export function getLegacyGenerationDefaultSize(comicFormat: ComicFormat): {
   requestedSize: { width: number; height: number };
   sizePolicyVersion: typeof LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION;

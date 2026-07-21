@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -9,13 +10,36 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  G1_SCHEMA_MANIFEST_SOURCE_PATHS,
-  buildG1SchemaManifestFromSources,
-  type G1SchemaManifestSourcePath,
-} from "./g1-schema-manifest-source.js";
+interface HistoricalG1SchemaManifest {
+  readonly status: string;
+  readonly manifestDigest: string;
+  readonly completeness: { readonly ready: boolean };
+  readonly counts: {
+    readonly models: number;
+    readonly scalarFields: number;
+    readonly triggers: number;
+  };
+  readonly models: readonly {
+    readonly table: string;
+    readonly fields: readonly {
+      readonly column: string;
+      readonly type: string;
+      readonly primaryKey: boolean;
+    }[];
+  }[];
+  readonly constraints: {
+    readonly checks: readonly {
+      readonly name: string;
+      readonly normalizedExpression: string;
+    }[];
+    readonly triggers: readonly {
+      readonly name: string;
+      readonly normalizedSql: string;
+      readonly normalizedWhen: string;
+    }[];
+  };
+}
 
-type Manifest = ReturnType<typeof buildG1SchemaManifestFromSources>;
 type Row = Readonly<Record<string, SQLInputValue>>;
 type Database = InstanceType<typeof NodeDatabaseSync>;
 
@@ -27,37 +51,36 @@ const workspaceRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../../..",
 );
-const contractPath =
-  "文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md";
-const registryPath =
-  "文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md";
+const historicalManifestPath =
+  "apps/server/prisma/contracts/g1-schema-manifest.json";
+const HISTORICAL_MANIFEST_FILE_SHA256 =
+  "a94fc42af9f9a03e761bf4601e561652b24ffcbbb256e8c7db34a9e81868ef46";
 const DIGEST_A = `sha256:${"a".repeat(64)}`;
 const DIGEST_B = `sha256:${"b".repeat(64)}`;
 const DIGEST_C = `sha256:${"c".repeat(64)}`;
 
-let manifest: Manifest;
+let manifest: HistoricalG1SchemaManifest;
 
 beforeAll(async () => {
-  const [contractMarkdown, registryMarkdown, sourceEntries] =
-    await Promise.all([
-      readFile(resolve(workspaceRoot, contractPath), "utf8"),
-      readFile(resolve(workspaceRoot, registryPath), "utf8"),
-      Promise.all(
-        G1_SCHEMA_MANIFEST_SOURCE_PATHS.map(async (sourcePath) => [
-          sourcePath,
-          await readFile(resolve(workspaceRoot, sourcePath), "utf8"),
-        ] as const),
-      ),
-    ]);
-  manifest = buildG1SchemaManifestFromSources({
-    contractMarkdown,
-    registryMarkdown,
-    moduleSources: Object.fromEntries(sourceEntries) as Record<
-      G1SchemaManifestSourcePath,
-      string
-    >,
-  });
+  const manifestBytes = await readFile(
+    resolve(workspaceRoot, historicalManifestPath),
+  );
+  expect(createHash("sha256").update(manifestBytes).digest("hex")).toBe(
+    HISTORICAL_MANIFEST_FILE_SHA256,
+  );
+  manifest = JSON.parse(
+    manifestBytes.toString("utf8"),
+  ) as HistoricalG1SchemaManifest;
+  expect(manifest.status).toBe("ready_for_materialization");
   expect(manifest.completeness.ready).toBe(true);
+  expect(manifest.counts).toMatchObject({
+    models: 44,
+    scalarFields: 556,
+    triggers: 194,
+  });
+  expect(manifest.manifestDigest).toBe(
+    "sha256:392bd4cb98fc29c35f43886071edced76b7e48f732e0f55a380d1e3a76f0231c",
+  );
 });
 
 const quoteIdentifier = (identifier: string): string =>
@@ -192,7 +215,7 @@ function seedPurgeRoot(database: Database, table: string): void {
   insert(database, table, { id: "root-1", project_id: "project-1" });
 }
 
-describe("G1 trigger DSL real SQLite semantics", () => {
+describe("historical G1 trigger real SQLite semantics", () => {
   it("creates all 44 loose authority tables and parses all 194 triggers", () => {
     withDatabase((database) => {
       installTriggers(

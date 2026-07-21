@@ -72,10 +72,6 @@ function stringField(value: Record<string, unknown>, key: string, fallback: stri
   return typeof value[key] === "string" && value[key].trim() !== "" ? value[key] as string : fallback;
 }
 
-function optionalString(value: Record<string, unknown>, key: string): string | null {
-  return typeof value[key] === "string" ? value[key] as string : null;
-}
-
 function dateField(value: Record<string, unknown>, key: string, fallback = FALLBACK_DATE): Date {
   const candidate = typeof value[key] === "string" ? new Date(value[key] as string) : new Date(fallback);
   return Number.isNaN(candidate.getTime()) ? new Date(fallback) : candidate;

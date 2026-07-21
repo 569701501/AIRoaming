@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CutoverCredentialError, CutoverCredentialVerifier } from "./cutover-credential-verifier.js";
+import { CutoverCredentialVerifier } from "./cutover-credential-verifier.js";
 import { FakeSecretStore, fingerprintSecret, SecretString } from "../settings/secret-store.js";
 
 describe("RCUT-SEC credential verifier", () => {

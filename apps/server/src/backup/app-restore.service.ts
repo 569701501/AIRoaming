@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename as fsRename, rm, stat } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename as fsRename, rm } from "node:fs/promises";
 import * as path from "node:path";
 import type { DatabaseSync as NodeDatabaseSync } from "node:sqlite";
 import { digestCanonicalJson } from "@airoaming/shared";

@@ -116,11 +116,6 @@ export class CutoverEvidenceStore {
     await writeAtomic(this.manifestPath(), manifest);
     return { step: evidenceStep, replayed: false };
   }
-  async reconcileCompletion(state: { activationState: "db_only"; activatedAt: string; firstBusinessWriteAt: null }, now = () => new Date().toISOString()): Promise<{ step: CutoverEvidenceStepV1; replayed: boolean }> {
-    if (!state.activatedAt || state.firstBusinessWriteAt !== null) throw new CutoverEvidenceError("CUTOVER_RECONCILE_STATE_INVALID");
-    const inputDigest = digest({ kind: "cutover_completion_reconcile_v1", activatedAt: state.activatedAt, firstBusinessWriteAt: null });
-    return this.runStep("C7", inputDigest, async () => ({ summaryCode: "CUTOVER_C7_RECONCILED", completion: { activatedAt: state.activatedAt, firstBusinessWriteAt: null } }), now);
-  }
   async gateEvidenceDigest(completedThrough: CutoverEvidenceStep): Promise<SnapshotDigest> {
     const verified = await this.readVerified();
     const end = CUTOVER_EVIDENCE_STEPS.indexOf(completedThrough);

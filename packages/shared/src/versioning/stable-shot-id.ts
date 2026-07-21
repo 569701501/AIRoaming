@@ -25,6 +25,3 @@ export function stableShotId(input: StableShotIdInput): string {
   const material = `g2-shot-v1\u0000${projectId}\u0000${chapterId}\u0000${pendingVersionId}\u0000${requestId}`;
   return `shot_${sha256Text(material).slice("sha256:".length, "sha256:".length + 32)}`;
 }
-
-export const buildStableShotId = stableShotId;
-export const deriveStableShotId = stableShotId;

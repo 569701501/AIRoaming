@@ -1677,7 +1677,7 @@ function attachFreeToPanel(
   session.selectElement(panel.id);
 }
 
-function presetInset(canvas: LayoutCanvasV1) {
+function presetInset() {
   const profile = session.document.value!.profile;
   return profile.kind === "paged"
     ? profile.safeArea
@@ -1695,7 +1695,7 @@ function buildPresetPanels(
     presetVersion: 1,
     width: canvas.width,
     height: canvas.height,
-    inset: presetInset(canvas),
+    inset: presetInset(),
     gap: session.document.value!.profile.kind === "paged" ? 48 : 24,
     panelIds: Array.from({ length: count }, () => newId("panel")),
   });

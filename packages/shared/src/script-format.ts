@@ -1,11 +1,5 @@
 export const SCRIPT_INSPIRATION_SEED_COUNT = 3;
 
-export const SCRIPT_OUTLINE_REQUIRED_SECTION_LABELS = [
-  "一、基础信息",
-  "二、主要角色",
-  "三、情节概要",
-] as const;
-
 export const CHAPTER_SCRIPT_REQUIRED_SECTION_LABELS = [
   "一、基础方向",
   "二、本章方向",
@@ -13,16 +7,6 @@ export const CHAPTER_SCRIPT_REQUIRED_SECTION_LABELS = [
   "四、视觉基调",
   "五、剧本正文",
   "六、本章结尾",
-] as const;
-
-export const CHAPTER_SCRIPT_FORBIDDEN_OUTPUT_LABELS = [
-  "主体列表",
-  "正式场景列表",
-  "剧情节拍",
-  "分镜剧本",
-  "镜头编号",
-  "图片 Prompt",
-  "JSON",
 ] as const;
 
 export interface FormatChapterScriptDocumentInput {
@@ -34,43 +18,6 @@ export interface FormatChapterScriptDocumentInput {
   comicForm?: string;
   targetLength?: string;
   sceneName?: string;
-}
-
-export interface FormatScriptOutlineDocumentInput {
-  title: string;
-  sourceText?: string;
-  genreStyle?: string;
-  episodeLength?: string;
-  episodeChapterPlan?: string;
-}
-
-export function isScriptOutlineDocument(sourceText: string): boolean {
-  const text = sourceText.trim();
-  return text.includes("剧本大纲")
-    && SCRIPT_OUTLINE_REQUIRED_SECTION_LABELS.every((label) => text.includes(label));
-}
-
-export function formatScriptOutlineDocument(input: FormatScriptOutlineDocumentInput): string {
-  const title = input.title.trim() || "待补充";
-  const sourceText = input.sourceText?.trim() || "待补充";
-
-  return [
-    "# 剧本大纲",
-    "",
-    "## 一、基础信息",
-    `剧集名称：${title}`,
-    `题材风格：${input.genreStyle?.trim() || "待补充"}`,
-    `剧集篇幅：${input.episodeLength?.trim() || "待补充"}`,
-    `剧集章数：${input.episodeChapterPlan?.trim() || "待补充"}`,
-    `剧情简介：${sourceText}`,
-    "",
-    "## 二、主要角色",
-    "角色名（定位）：待补充",
-    "",
-    "## 三、情节概要",
-    "第 1 - 2 集：待补充",
-    "",
-  ].join("\n");
 }
 
 export function getScriptOutlineFormatPrompt(): string {

@@ -35,9 +35,4 @@ export class TaskApplicabilityGuardService {
     return { applicability: reasonCodes.length === 0 ? "current" : "historical", reasonCodes, productionState: gate.productionState };
   }
 
-  async assertCurrent(scope: VersionScopeV1, operation: G2VersionTaskType, input: TaskApplicabilityInput = {}, reader?: GateReader): Promise<TaskApplicabilityResult> {
-    const result = await this.evaluate(scope, operation, input, reader);
-    if (result.applicability === "historical") return result;
-    return result;
-  }
 }

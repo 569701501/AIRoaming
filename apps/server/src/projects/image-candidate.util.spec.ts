@@ -9,7 +9,6 @@ function applyLock(
   candidates: ProjectCandidate[],
   shots: StoryboardShot[],
   candidateId: string,
-  now: string,
 ): { candidates: ProjectCandidate[]; shots: StoryboardShot[] } {
   const target = candidates.find((item) => item.id === candidateId);
   if (!target) {
@@ -94,7 +93,7 @@ describe("candidate lock rules", () => {
       makeShot("shot_1", "a"),
       makeShot("shot_2", "c"),
     ];
-    const result = applyLock(candidates, shots, "b", "2026-07-09T01:00:00.000Z");
+    const result = applyLock(candidates, shots, "b");
     expect(result.candidates.find((item) => item.id === "b")?.status).toBe("generated");
     expect(result.candidates.find((item) => item.id === "a")?.status).toBe("generated");
     expect(result.candidates.find((item) => item.id === "c")?.status).toBe("generated");

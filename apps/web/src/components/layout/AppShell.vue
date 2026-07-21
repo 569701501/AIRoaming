@@ -24,22 +24,15 @@
           :loading="loading"
           :running-tasks="workbench.runningTaskCount"
           :runtime-model-error="runtimeModelError"
-          :runtime-models="runtimeModels"
-          :selected-dialogue-model="selectedDialogueModel"
           :snapshot="snapshot"
           :tasks="tasks"
           @send-dialogue="sendDialogue"
           @retry-import-item="retryImportItem"
-          @back="goProjectLibrary"
           @open-characters="openCharacterLibrary"
           @save-chapter-draft="saveChapterDraft"
           @complete-chapter="completeChapter"
           @extract-characters="extractProjectCharacters"
-          @ensure-character-previews="ensureCharacterPreviews"
-          @update-project-character="updateProjectCharacter"
-          @generate-character-reference="generateCharacterReference"
           @regenerate-character-reference="regenerateCharacterReference"
-          @delete-character-reference="deleteCharacterReference"
           @confirm-character-preview="confirmCharacterPreview"
           @confirm-character-reference="confirmCharacterReference"
           @generate-scene-reference="generateSceneReference"
@@ -58,7 +51,6 @@
           @discard-pending-source="discardPendingSource"
           @select-chapter="goProjectChapter"
           @select-step="goProjectStep"
-          @select-dialogue-model="selectDialogueModel"
           @update-story-structure="updateStoryStructure"
           @update-storyboard="updateStoryboard"
           @save-pending-storyboard="savePendingStoryboard"
@@ -81,12 +73,6 @@
           :snapshot="snapshot"
           :tasks="tasks"
           @close="isCharacterLibraryOpen = false"
-          @extract-characters="extractProjectCharacters"
-          @ensure-previews="ensureCharacterPreviews"
-          @regenerate-reference="regenerateCharacterReference"
-          @delete-reference="deleteCharacterReference"
-          @confirm-preview="confirmCharacterPreview"
-          @confirm-reference="confirmCharacterReference"
         />
       </section>
     </div>
@@ -97,7 +83,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { AIRuntimeModelSelection, CandidatePromptOverrides, CompleteChapterRequest, GenerateCharacterReferenceRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -121,8 +107,6 @@ const {
   loading,
   projects,
   runtimeModelError,
-  runtimeModels,
-  selectedDialogueModel,
   snapshot,
   tasks,
 } = storeToRefs(workbench);
@@ -257,18 +241,6 @@ async function extractProjectCharacters() {
   await workbench.extractProjectCharacters();
 }
 
-async function ensureCharacterPreviews() {
-  await workbench.ensureProjectCharacterPreviewTasks();
-}
-
-async function updateProjectCharacter(payload: { characterId: string; input: UpdateProjectCharacterRequest }) {
-  await workbench.updateProjectCharacter(payload.characterId, payload.input);
-}
-
-async function generateCharacterReference(payload: { characterId: string; referenceKind: GenerateCharacterReferenceRequest["referenceKind"] }) {
-  await workbench.generateCharacterReference(payload.characterId, { referenceKind: payload.referenceKind });
-}
-
 async function regenerateCharacterReference(payload: {
   characterId: string;
   referenceKind: "preview_front" | "final_reference";
@@ -283,10 +255,6 @@ async function generateSceneReference(payload: { chapterId: string; sceneId: str
   await workbench.generateSceneReference(payload.chapterId, payload.sceneId, {
     requestId: crypto.randomUUID(),
   });
-}
-
-async function deleteCharacterReference(payload: { characterId: string; assetId: string }) {
-  await workbench.deleteCharacterReference(payload.characterId, payload.assetId);
 }
 
 async function confirmCharacterPreview(payload: { characterId: string; assetId: string }) {
@@ -363,10 +331,6 @@ async function sendDialogue(input: SendDialogueMessageRequest) {
 
 async function retryImportItem(payload: { batchId: string; itemId: string }) {
   await workbench.retryScriptImportItem(payload.batchId, payload.itemId);
-}
-
-function selectDialogueModel(model: AIRuntimeModelSelection) {
-  workbench.selectDialogueModel(model);
 }
 
 async function refreshTasks() {

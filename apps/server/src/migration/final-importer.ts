@@ -1,4 +1,3 @@
-import { digestCanonicalJson } from "@airoaming/shared";
 import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";

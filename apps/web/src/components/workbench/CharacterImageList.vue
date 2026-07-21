@@ -208,32 +208,13 @@
         </section>
       </div>
 
-      <div v-if="deleteTarget" class="modal-backdrop" role="dialog" aria-modal="true" @click.self="deleteTarget = null">
-        <section class="delete-modal">
-          <button class="modal-close" type="button" aria-label="关闭删除确认" @click="deleteTarget = null">
-            <X :size="18" />
-          </button>
-          <div class="modal-heading">
-            <span>删除图片</span>
-            <h3>删除{{ deleteTarget.character.name }}当前图片？</h3>
-          </div>
-          <p>这只会删除当前显示的图片版本，不会删除角色，也不会修改角色名字。</p>
-          <footer class="modal-actions">
-            <button class="cancel-action" type="button" @click="deleteTarget = null">取消</button>
-            <button class="danger-action" type="button" :disabled="loading" @click="submitDelete">
-              <Trash2 :size="15" />
-              <span>删除当前图片</span>
-            </button>
-          </footer>
-        </section>
-      </div>
     </Teleport>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { CheckCircle2, ImagePlus, LoaderCircle, Lock, Pencil, RotateCw, Trash2, UserRound, X, ZoomIn } from "lucide-vue-next";
+import { CheckCircle2, ImagePlus, LoaderCircle, Lock, RotateCw, UserRound, X, ZoomIn } from "lucide-vue-next";
 import { requiredCharacterReferenceKind } from "@airoaming/shared";
 import type {
   GenerationTaskItem,
@@ -272,7 +253,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   regenerateReference: [payload: { characterId: string; referenceKind: ReferenceKind; input: UpdateProjectCharacterRequest }];
-  deleteReference: [payload: { characterId: string; assetId: string }];
   confirmPreview: [payload: { characterId: string; assetId: string }];
   confirmReference: [payload: { characterId: string; assetId: string }];
 }>();
@@ -284,7 +264,6 @@ const editDraft = ref<{
   referenceKind: ReferenceKind;
   description: string;
 } | null>(null);
-const deleteTarget = ref<{ character: ProjectCharacter; asset: WorkbenchAsset } | null>(null);
 
 const assets = computed(() => props.snapshot.assets ?? []);
 
@@ -369,16 +348,8 @@ function isReferenceTaskActive(character: ProjectCharacter, referenceKind: Refer
   return task?.status === "queued" || task?.status === "running" || task?.status === "retrying";
 }
 
-function isReferenceTaskFailed(character: ProjectCharacter, referenceKind: ReferenceKind) {
-  return getReferenceTask(character, referenceKind)?.status === "failed";
-}
-
 function hasActiveTask(character: ProjectCharacter) {
   return isReferenceTaskActive(character, "preview_front") || isReferenceTaskActive(character, "final_reference");
-}
-
-function hasFailedTask(character: ProjectCharacter) {
-  return isReferenceTaskFailed(character, "preview_front") || isReferenceTaskFailed(character, "final_reference");
 }
 
 function isLocked(character: ProjectCharacter) {
@@ -489,28 +460,6 @@ function getEntityTypeLabel(entityType: ProjectCharacterEntityType) {
   return labels[entityType];
 }
 
-function getCardStateLabel(character: ProjectCharacter) {
-  if (hasActiveTask(character)) {
-    return "生成中";
-  }
-  if (hasFailedTask(character)) {
-    return "生成失败，可重新生成";
-  }
-  if (character.status === "in_use") {
-    return "已用于出图，不能替换";
-  }
-  const finalAsset = getReferenceAsset(character, "final_reference");
-  if (finalAsset) {
-    return character.primaryReferenceAssetId === finalAsset.id ? "定稿已锁定" : "定稿待锁定";
-  }
-  const previewAsset = getReferenceAsset(character, "preview_front");
-  if (previewAsset) {
-    if (requiresFinalReference(character)) return "待生成定稿";
-    return character.previewReferenceAssetId === previewAsset.id ? "参考已采用" : "参考待采用";
-  }
-  return requiresAnyImage(character) ? "待生成角色图" : "无需图片";
-}
-
 function openPreviewFor(character: ProjectCharacter, referenceKind: ReferenceKind) {
   const asset = getReferenceAsset(character, referenceKind);
   if (!asset) return;
@@ -561,21 +510,6 @@ function submitEdit() {
   closeEdit();
 }
 
-function openDelete(character: ProjectCharacter) {
-  const asset = getReferenceAsset(character, "preview_front");
-  if (asset) {
-    deleteTarget.value = { character, asset };
-  }
-}
-
-function submitDelete() {
-  if (!deleteTarget.value) return;
-  emit("deleteReference", {
-    characterId: deleteTarget.value.character.id,
-    assetId: deleteTarget.value.asset.id,
-  });
-  deleteTarget.value = null;
-}
 </script>
 
 <style scoped>

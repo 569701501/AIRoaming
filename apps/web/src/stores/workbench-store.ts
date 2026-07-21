@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 import {
-  type AIRuntimeModelItem,
   type AIRuntimeModelSelection,
   type ChapterDetail,
   type ChapterImagePreflight,
@@ -42,10 +41,8 @@ import {
   getSceneName,
   mapStoryboardShots,
   resolveChapterList,
-  toChapterListItem,
 } from "../utils/workbench-chapter";
 import {
-  isChapterImagePreflightReady,
   isProjectCharacterLibraryReady,
 } from "../utils/workbench-preflight";
 import {
@@ -68,7 +65,6 @@ interface WorkbenchState {
   dialogueSending: boolean;
   dialogueError: string | null;
   dialogueNotice: string | null;
-  runtimeModels: AIRuntimeModelItem[];
   selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
   tasks: GenerationTaskItem[];
@@ -139,7 +135,6 @@ export const useWorkbenchStore = defineStore("workbench", {
     dialogueSending: false,
     dialogueError: null,
     dialogueNotice: null,
-    runtimeModels: [],
     selectedDialogueModel: null,
     runtimeModelError: null,
     tasks: [],
@@ -273,8 +268,6 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.runtimeModelError = null;
       try {
         const result = await api.listRuntimeModels();
-        this.runtimeModels = result.items;
-
         const defaultModel = result.items.find((item) => item.default) ?? result.items[0];
         this.selectedDialogueModel = defaultModel
           ? {
@@ -285,9 +278,6 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.runtimeModelError = error instanceof Error ? error.message : "模型列表加载失败";
       }
-    },
-    selectDialogueModel(model: AIRuntimeModelSelection) {
-      this.selectedDialogueModel = model;
     },
     applyChapterUpdate(chapter: ChapterDetail, chapters: ChapterListItem[] | null = null) {
       if (!this.snapshot) {
@@ -1007,7 +997,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           const board = this.snapshot.storyboard;
           if (!board) throw new Error("分镜尚未确认，不能进行出图准备");
           const preview = await api.getChapterPreflightPreviewV2(projectId, chapterId);
-          const confirmed = await api.confirmChapterPreflightV2(projectId, chapterId, {
+          await api.confirmChapterPreflightV2(projectId, chapterId, {
             expectedSourceStoryboardVersionId: board.id,
             expectedSourceDigest: preview.sourceDigest,
             expectedChapterRowVersion: preview.chapterRowVersion,
@@ -1318,44 +1308,6 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
-    async updateProjectCharacter(characterId: string, input: UpdateProjectCharacterRequest): Promise<ProjectCharacter | null> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        if (!projectId) {
-          throw new Error("请先进入项目");
-        }
-        const result = await api.updateProjectCharacter(projectId, characterId, input);
-        this.applyProjectCharactersUpdate(result.characters, result.assets);
-        return result.character;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "更新项目角色失败";
-        return null;
-      } finally {
-        this.loading = false;
-      }
-    },
-    async generateCharacterReference(characterId: string, input: GenerateCharacterReferenceRequest): Promise<ProjectCharacter | null> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        if (!projectId) {
-          throw new Error("请先进入项目");
-        }
-        const result = await api.generateCharacterReference(projectId, characterId, input);
-        this.applyProjectCharactersUpdate(result.characters, result.assets);
-        this.mergeTasks(result.tasks);
-        this.dialogueNotice = result.createdCount > 0 ? "已开始生成角色图。" : "角色图生成任务已在队列中。";
-        return this.snapshot?.characters.find((character) => character.id === characterId) ?? null;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "生成角色参考图失败";
-        return null;
-      } finally {
-        this.loading = false;
-      }
-    },
     async generateSceneReference(chapterId: string, sceneId: string, input: GenerateSceneReferenceRequest): Promise<void> {
       this.loading = true;
       this.error = null;
@@ -1406,41 +1358,6 @@ export const useWorkbenchStore = defineStore("workbench", {
         return null;
       } finally {
         this.loading = false;
-      }
-    },
-    async deleteCharacterReference(characterId: string, assetId: string): Promise<ProjectCharacter | null> {
-      this.loading = true;
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        if (!projectId) {
-          throw new Error("请先进入项目");
-        }
-        const result = await api.deleteCharacterReference(projectId, characterId, assetId);
-        this.applyProjectCharactersUpdate(result.characters, result.assets);
-        this.dialogueNotice = result.cleanupStatus === "pending" ? "已提交删除，物理文件将由后台安全清理。" : "已删除当前角色图版本。";
-        return result.character;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "删除角色图失败";
-        return null;
-      } finally {
-        this.loading = false;
-      }
-    },
-    async ensureProjectCharacterPreviewTasks(): Promise<number> {
-      this.error = null;
-      try {
-        const projectId = this.activeProjectId;
-        if (!projectId) {
-          throw new Error("请先进入项目");
-        }
-        const result = await api.ensureProjectCharacterPreviewTasks(projectId);
-        this.applyProjectCharactersUpdate(result.characters, result.assets);
-        this.mergeTasks(result.tasks);
-        return result.createdCount;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : "补齐角色预览图任务失败";
-        return 0;
       }
     },
     async confirmCharacterPreview(characterId: string, assetId: string): Promise<ProjectCharacter | null> {

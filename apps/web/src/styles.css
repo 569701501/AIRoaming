@@ -464,7 +464,6 @@ button:disabled {
   line-height: 1.65;
 }
 
-.workflow-strip,
 .project-list-section {
   display: grid;
   gap: 16px;
@@ -507,7 +506,6 @@ button:disabled {
 }
 
 .workflow-icon,
-.stat-icon,
 .empty-icon {
   display: grid;
   width: 38px;
@@ -538,44 +536,6 @@ button:disabled {
   color: #a8b4d0;
   font-size: 12px;
   line-height: 1.55;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.stat-card {
-  display: grid;
-  grid-template-columns: 42px 1fr;
-  gap: 4px 12px;
-  min-height: 108px;
-  border: 1px solid rgba(202, 211, 240, 0.14);
-  border-radius: 8px;
-  background: rgba(17, 24, 39, 0.76);
-  padding: 14px;
-}
-
-.stat-card .stat-icon {
-  grid-row: span 3;
-}
-
-.stat-card span {
-  color: #aeb8d4;
-  font-size: 13px;
-}
-
-.stat-card strong {
-  color: #ffffff;
-  font-size: 25px;
-  line-height: 1.1;
-}
-
-.stat-card p {
-  margin: 0;
-  color: #7f8dab;
-  font-size: 12px;
 }
 
 .project-section-header {
@@ -1078,7 +1038,6 @@ button:disabled {
     min-height: 170px;
   }
 
-  .stats-grid,
   .project-grid {
     grid-template-columns: 1fr;
   }

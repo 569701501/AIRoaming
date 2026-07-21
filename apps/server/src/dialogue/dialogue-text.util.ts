@@ -5,14 +5,6 @@
  * 见任务 2026-07-02_DialogueService拆分 轮次1。
  */
 import { randomUUID } from "node:crypto";
-import {
-  extractScriptOutlineTitle,
-  formatChapterScriptDocument,
-  formatScriptOutlineDocument,
-  isChapterScriptDocument,
-  isScriptOutlineDocument,
-  stripChapterScriptName,
-} from "@airoaming/shared";
 
 // ---------- record 取值辅助 ----------
 
@@ -47,44 +39,6 @@ export function getRequiredString(record: Record<string, unknown>, key: string):
 }
 
 // ---------- Markdown / 文本处理 ----------
-
-export function stripMarkdownFence(content: string): string {
-  const fenced = content.trim().match(/^```(?:markdown|md)?\s*([\s\S]*?)```$/i);
-  return fenced?.[1]?.trim() ?? content.trim();
-}
-
-export function ensureChapterMarkdown(content: string, fallbackTitle: string): string {
-  const markdown = stripMarkdownFence(content).trim();
-  if (!markdown) {
-    throw new Error("AI 没有返回章节正文");
-  }
-
-  if (isChapterScriptDocument(markdown)) {
-    return stripChapterScriptName(markdown);
-  }
-
-  return formatChapterScriptDocument({
-    chapterTitle: fallbackTitle,
-    sourceText: stripChapterScriptName(markdown),
-  });
-}
-
-export function ensureScriptOutlineMarkdown(content: string, fallbackTitle: string): string {
-  const markdown = stripMarkdownFence(content).trim();
-  if (!markdown) {
-    throw new Error("AI 没有返回剧本大纲");
-  }
-
-  if (isScriptOutlineDocument(markdown)) {
-    return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
-  }
-
-  const title = extractScriptOutlineTitle(markdown) ?? fallbackTitle;
-  return `${formatScriptOutlineDocument({
-    title,
-    sourceText: markdown,
-  })}\n`;
-}
 
 export function compactPromptText(text: string, maxLength: number): string {
   if (text.length <= maxLength) {

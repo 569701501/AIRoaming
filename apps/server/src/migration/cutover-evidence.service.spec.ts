@@ -96,14 +96,6 @@ describe("CutoverEvidenceStore", () => {
     expect(JSON.parse(await readFile(path.join(root, "COMPLETED"), "utf8"))).toMatchObject({ kind: "airoaming_cutover_completed_v1", step: "C7", activatedAt: "2026-07-13T00:00:00.000Z", firstBusinessWriteAt: null });
   });
 
-  it("reconciles a db_only activation without changing the activation timestamp", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-evidence-"));
-    const store = new CutoverEvidenceStore(root, identity);
-    for (const step of ["C0", "C1", "C2", "C3", "C4", "C5", "C6"] as const) await store.runStep(step, `sha256:${step.charCodeAt(0).toString(16).padStart(2, "0")}${"2".repeat(62)}` as `sha256:${string}`, async () => ({ summaryCode: `${step}_OK` }));
-    await expect(store.reconcileCompletion({ activationState: "db_only", activatedAt: "2026-07-13T01:00:00.000Z", firstBusinessWriteAt: null })).resolves.toMatchObject({ step: { summaryCode: "CUTOVER_C7_RECONCILED" } });
-    expect(JSON.parse(await readFile(path.join(root, "COMPLETED"), "utf8"))).toMatchObject({ activatedAt: "2026-07-13T01:00:00.000Z", firstBusinessWriteAt: null });
-  });
-
   it("verifies C6_READY and COMPLETED contents instead of trusting marker existence", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "airoaming-evidence-"));
     const store = new CutoverEvidenceStore(root, identity);

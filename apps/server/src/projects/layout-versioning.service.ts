@@ -28,7 +28,6 @@ import {
   type LayoutRevisionSummaryV1,
   type LayoutSourceCatalogItemV1,
   type LayoutSourceReplacementPreviewV1,
-  type LayoutWorkingCopyResponseV1,
   type RestoreLayoutRevisionResponseV1,
 } from "@airoaming/shared";
 

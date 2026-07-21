@@ -123,7 +123,6 @@ export const CHAPTER_SCOPED_GENERATION_TASK_TYPES = [
   "image_generate",
   "layout_export",
 ] as const satisfies ReadonlyArray<GenerationTaskType>;
-export type ChapterScopedGenerationTaskType = (typeof CHAPTER_SCOPED_GENERATION_TASK_TYPES)[number];
 
 export const GENERATION_TASK_TARGET_TYPES = [
   "project",
@@ -147,17 +146,6 @@ export const GENERATION_TASK_STATUSES = [
 ] as const;
 export type GenerationTaskStatus = (typeof GENERATION_TASK_STATUSES)[number];
 
-export const GENERATION_TASK_EVENTS = [
-  "task.created",
-  "task.started",
-  "task.progress",
-  "task.asset.created",
-  "task.succeeded",
-  "task.failed",
-  "task.cancelled",
-] as const;
-export type GenerationTaskEvent = (typeof GENERATION_TASK_EVENTS)[number];
-
 export const CANDIDATE_GENERATION_SPEC_VERSION = 2 as const;
 export const LEGACY_GENERATION_DEFAULT_SIZE_POLICY_VERSION =
   "legacy_generation_default_v1" as const;
@@ -169,24 +157,3 @@ export type AssetType = (typeof ASSET_TYPES)[number];
 
 export const APPEARANCE_THEMES = ["system", "dark", "light"] as const;
 export type AppearanceTheme = (typeof APPEARANCE_THEMES)[number];
-
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  type: ProjectType;
-  status: ProjectStatus;
-  currentChapterId: string | null;
-  currentStoryVersionId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AssetSummary {
-  id: string;
-  projectId: string;
-  type: AssetType;
-  mimeType: string;
-  path: string;
-  sourceTaskId: string | null;
-  createdAt: string;
-}

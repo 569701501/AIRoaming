@@ -93,7 +93,6 @@ import type {
   GenerationTaskItem,
   ProjectCharacter,
   ProjectCharacterLevel,
-  UpdateProjectCharacterRequest,
   WorkbenchAsset,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
@@ -110,11 +109,6 @@ const props = defineProps<{
 
 defineEmits<{
   extractCharacters: [];
-  ensurePreviews: [];
-  regenerateReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
-  deleteReference: [payload: { characterId: string; assetId: string }];
-  confirmPreview: [payload: { characterId: string; assetId: string }];
-  confirmReference: [payload: { characterId: string; assetId: string }];
 }>();
 
 const characters = computed(() => props.snapshot.characters ?? []);

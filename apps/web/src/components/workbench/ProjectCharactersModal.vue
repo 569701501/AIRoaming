@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import { X } from "lucide-vue-next";
-import type { GenerationTaskItem, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { GenerationTaskItem, WorkbenchSnapshot } from "@airoaming/shared";
 import ProjectCharactersWorkspace from "./ProjectCharactersWorkspace.vue";
 
 defineProps<{
@@ -40,12 +40,6 @@ defineProps<{
 
 defineEmits<{
   close: [];
-  extractCharacters: [];
-  ensurePreviews: [];
-  regenerateReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
-  deleteReference: [payload: { characterId: string; assetId: string }];
-  confirmPreview: [payload: { characterId: string; assetId: string }];
-  confirmReference: [payload: { characterId: string; assetId: string }];
 }>();
 </script>
 

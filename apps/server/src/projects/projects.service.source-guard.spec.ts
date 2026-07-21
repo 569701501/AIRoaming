@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UpdateProjectDraftRequest } from "@airoaming/shared";
 import type { LocalChapter, LocalProject } from "./local-types.js";
-import { ImageProviderService } from "./image-provider.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
@@ -14,7 +13,6 @@ import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
 import { ImagePreflightService } from "./image-preflight.service.js";
 import { ProjectsService } from "./projects.service.js";
-import type { SettingsService } from "../settings/settings.service.js";
 import type { TasksService } from "../tasks/tasks.service.js";
 import type { WorkspacePathService } from "../workspace/workspace-path.service.js";
 
@@ -103,7 +101,6 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
       // 需要 repository 能吞掉写入(校验失败前不应真正落盘,但链路会先走到这些方法)。
       setProject: vi.fn(),
       saveProject: vi.fn().mockResolvedValue(undefined),
-      clearProjectChaptersDir: vi.fn().mockResolvedValue(undefined),
       hasProject: vi.fn().mockReturnValue(true),
     };
     // resolveVirtualPath 返回真实临时目录,让 ensureDefaultChapterReady 能读 script.md
@@ -118,14 +115,10 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
       setCreateGuard: vi.fn(),
       setWorker: vi.fn(),
     } as unknown as TasksService;
-    const mockSettings = {} as SettingsService;
-
     service = new ProjectsService(
       mockWorkspacePath,
       mockTasks,
-      mockSettings,
       mockRepository as unknown as ProjectRepository,
-      { getActiveProviderType: vi.fn(() => "doubao") } as unknown as ImageProviderService,
       {
         setReferenceTaskChecker: vi.fn(),
         ensureProjectsLoaded: vi.fn(),

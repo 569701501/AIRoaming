@@ -4,8 +4,6 @@ import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import {
   type ChapterStoryStructure,
-  type ChapterListItem,
-  type ChapterDetail,
   type ConfirmCharacterPreviewRequest,
   type ConfirmCharacterPreviewResponse,
   type ConfirmCharacterReferenceRequest,
@@ -21,12 +19,10 @@ import {
   type ProjectCharacterReferenceKind,
   type ProjectCharacterStatus,
   type ProjectCharactersResponse,
-  type ProjectScriptOutline,
   type QueueCharacterReferenceResponse,
   type QueueSceneReferenceResponse,
   type SaveProjectCharacterResponse,
   type GenerationTaskItem,
-  type StoryStructureJson,
   type UpdateProjectCharacterRequest,
   type WorkbenchAsset,
   buildTaskSourceProjection,
@@ -97,10 +93,6 @@ export class CharacterReferenceService {
 
   private normalizeCharacterLevel(value: string): ProjectCharacterLevel {
     return wsCharacter.normalizeCharacterLevel(value);
-  }
-
-  private normalizeCharacterStatus(value: string): ProjectCharacterStatus {
-    return wsCharacter.normalizeCharacterStatus(value);
   }
 
   private normalizeCharacterReferenceKind(value: string): ProjectCharacterReferenceKind {
@@ -338,14 +330,6 @@ export class CharacterReferenceService {
       ? await this.repository.refreshProjectFromDatabase(projectId)
       : await this.projectStore.getReadyProject(projectId);
     return this.toProjectCharactersResponse(project);
-  }
-
-  async ensureProjectCharacterPreviewTasks(projectId: string): Promise<QueueCharacterReferenceResponse> {
-    const project = await this.projectStore.getReadyProject(projectId);
-    const tasks = project.characters
-      .map((character) => this.queueMissingCharacterReferenceTask(project, character, "preview_front"))
-      .filter((task): task is NonNullable<typeof task> => Boolean(task));
-    return { ...this.toProjectCharactersResponse(project), tasks, createdCount: tasks.length };
   }
 
   async extractProjectCharacters(projectId: string, input: ExtractProjectCharactersRequest = {}): Promise<ExtractProjectCharactersResponse> {
@@ -940,7 +924,7 @@ export class CharacterReferenceService {
   }
 
   private async deleteCharacterReferenceInDatabase(projectId: string, characterId: string, assetId: string): Promise<DeleteCharacterReferenceResponse> {
-    const database = this.prismaService.database();
+    this.prismaService.database();
     const result = await this.prismaService.runBusinessTransaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true, lifecycleStatus: true } });
       if (!project || project.lifecycleStatus !== "active") {

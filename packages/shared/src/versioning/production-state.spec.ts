@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { digestCanonicalJson, sha256Text } from "./canonical-json.js";
+import { sha256Text } from "./canonical-json.js";
 import { resolveChapterProductionState, type ChapterVersionGraphInput, type VersionGraphArtifact } from "./production-state.js";
 import { sourceSnapshotDigest } from "./source-snapshot.js";
 

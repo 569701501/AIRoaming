@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import type { Digest, FreshnessReasonCode, ChapterProductionState } from "@airoaming/shared";
 import { G2_VERSION_TASK_TYPES, type G2VersionTaskType } from "./versioning-database.types.js";
 import { createG2DatabaseError } from "./g2-database-error.mapper.js";

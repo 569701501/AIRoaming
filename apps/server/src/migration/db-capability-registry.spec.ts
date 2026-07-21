@@ -87,7 +87,7 @@ describe("M5-A0 DB capability registry", () => {
     expect(operations.map((operation) => operation.operation).sort()).toEqual(
       await readGuardedOperationsFromSource(),
     );
-    expect(operations).toHaveLength(36);
+    expect(operations).toHaveLength(27);
     expect(operations.every((operation) => operation.readStatus === "not_applicable")).toBe(true);
     expect(operations.filter((operation) => operation.writeStatus === "implemented").map((operation) => operation.operation)).toEqual([
       "update_project_draft",
@@ -98,19 +98,17 @@ describe("M5-A0 DB capability registry", () => {
       "confirm_character_preview",
       "confirm_character_reference",
       "delete_character_reference",
-      "ensure_chapter_exists",
       "write_chapter_draft_from_ai",
       "save_script_outline_from_ai",
       "confirm_script_outline",
       "generation_task_create",
-      "lock_candidate",
       "complete_chapter_images",
       "build_layout",
       "export_layout",
       "export_asset_package",
       "delete_project",
     ]);
-    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(17);
+    expect(operations.filter((operation) => operation.writeStatus === "retired")).toHaveLength(10);
     expect(operations.find((operation) => operation.operation === "generation_task_create")).toMatchObject({
       capabilityId: "task_create_claim_complete_cancel_recover",
       ownerModule: "tasks/persistent-task-repository",
@@ -128,7 +126,7 @@ describe("M5-A0 DB capability registry", () => {
     const payload = JSON.parse(result.stdout) as { code: string; capabilities: unknown[]; operations: unknown[] };
     expect(payload.code).toBe("DB_CAPABILITIES_REPORTED");
     expect(payload.capabilities).toHaveLength(8);
-    expect(payload.operations).toHaveLength(36);
+    expect(payload.operations).toHaveLength(27);
   });
 
   it("CAP-01 reports an open activation gate after the D2 delete/outbox closeout", async () => {

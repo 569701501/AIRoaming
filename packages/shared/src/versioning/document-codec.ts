@@ -312,9 +312,6 @@ export function encodePreflightDocumentV2(input: unknown): EncodedDocument<Prefl
 export const StoryDocumentCodecV2 = { schemaVersion: 2 as const, parse: parseStoryDocumentV2, encode: encodeStoryDocumentV2 };
 export const StoryboardDocumentCodecV2 = { schemaVersion: 2 as const, parse: parseStoryboardDocumentV2, encode: encodeStoryboardDocumentV2 };
 export const PreflightDocumentCodecV2 = { schemaVersion: 2 as const, parse: parsePreflightDocumentV2, encode: encodePreflightDocumentV2 };
-export const StoryDocumentCodec = StoryDocumentCodecV2;
-export const StoryboardDocumentCodec = StoryboardDocumentCodecV2;
-export const PreflightDocumentCodec = PreflightDocumentCodecV2;
 
 export interface EncodedScriptText {
   schemaVersion: 1;
@@ -340,9 +337,6 @@ export function encodeScriptTextV1(input: string | Uint8Array, options: { allowE
   const canonicalBytes = new TextEncoder().encode(canonical);
   return { schemaVersion: 1, canonical, canonicalBytes, digest: sha256Bytes(canonicalBytes) };
 }
-
-export const ScriptTextCodecV1 = { schemaVersion: 1 as const, normalize: normalizeScriptText, encode: encodeScriptTextV1 };
-export const ScriptTextCodec = ScriptTextCodecV1;
 
 // Kept public for callers that need to verify a stored digest without knowing
 // which V2 document type produced it.

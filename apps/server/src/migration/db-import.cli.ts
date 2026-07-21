@@ -100,15 +100,6 @@ async function main(): Promise<number> {
   const kind = required("--kind");
   if (kind === "final") {
     const args = process.argv.slice(2);
-    const snapshotIndex = process.argv.indexOf("--snapshot");
-    const decisionsIndex = process.argv.indexOf("--decisions");
-    const databaseIndex = process.argv.indexOf("--database-url");
-    const reportIndex = process.argv.indexOf("--report");
-    const workspaceIndex = process.argv.indexOf("--workspace-root");
-    const dataIndex = process.argv.indexOf("--data-root");
-    const releaseIndex = process.argv.indexOf("--release-root");
-    const secretIndex = process.argv.indexOf("--secret-store-root");
-    const runIndex = process.argv.indexOf("--run-id");
     const parsed = parseFinalArgs(args);
     const snapshot = parsed["--snapshot"];
     const decisions = parsed["--decisions"];

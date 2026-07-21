@@ -124,16 +124,3 @@ export function mapG2DatabaseError(error: unknown): G2MappedDatabaseError {
   }
   return mapped(500, "G2_DATABASE_CONTRACT_VIOLATION", error);
 }
-
-export function mapG2ConditionFailure(reason: string): G2MappedDatabaseError {
-  if (/active.?pending/i.test(reason)) return mapped(409, "ACTIVE_PENDING_EXISTS", reason);
-  if (/pending/i.test(reason)) return mapped(409, "PENDING_VERSION_CONFLICT", reason);
-  if (/chapter.?version|row.?version/i.test(reason)) return mapped(409, "CHAPTER_VERSION_CONFLICT", reason);
-  if (/stale|source/i.test(reason)) return mapped(409, "UPSTREAM_SOURCE_STALE", reason);
-  if (/preflight/i.test(reason)) return mapped(409, "PREFLIGHT_SOURCE_CHANGED", reason);
-  return mapped(500, "G2_DATABASE_CONTRACT_VIOLATION", reason);
-}
-
-export function throwMappedG2DatabaseError(error: unknown): never {
-  throw new G2DatabaseError(mapG2DatabaseError(error));
-}

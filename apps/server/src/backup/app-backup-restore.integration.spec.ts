@@ -1087,7 +1087,7 @@ describe("M5-A2 restore", () => {
       await app.listen(0, "127.0.0.1");
       try {
         const coordinator = app.get(MaintenanceCoordinator);
-        expect(coordinator.getState()).toBe("closed");
+        expect((await coordinator.status()).state).toBe("closed");
         expect((await coordinator.status()).state).toBe("closed");
         const state = await app.get(PrismaService).database().persistenceState.findUnique({ where: { id: "primary" } });
         expect(state).toMatchObject({ activationState: "shadow", cutoverRunId: null, firstBusinessWriteAt: null });

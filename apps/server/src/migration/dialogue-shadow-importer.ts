@@ -90,7 +90,7 @@ export class DialogueShadowImporter {
       const pendingCaptured = pendingState.captured === true;
       const rawPendingArtifacts = pendingCaptured && Array.isArray(pendingState.artifacts) ? pendingState.artifacts : [];
       if (pendingCaptured && !Array.isArray(pendingState.artifacts)) throw new DialogueShadowImportError("MIGRATION_PENDING_DIALOGUE_ARTIFACTS_INVALID");
-      const result = await this.buildPlans(snapshot, rawThreads, rawPendingArtifacts, runtime.digest);
+      const result = await this.buildPlans(rawThreads, rawPendingArtifacts, runtime.digest);
       if (result.plans.length > 0) await this.ledger.withTransaction(async (tx) => { for (const plan of result.plans) await this.importThread(tx, run.id, plan); });
       if (result.pendingPlans.length > 0) await this.ledger.withTransaction(async (tx) => { for (const plan of result.pendingPlans) await this.importPendingArtifact(tx, run.id, plan); });
       for (const issue of result.issues) await this.ledger.withTransaction((tx) => this.ledger.recordGenericIssueInTransaction(tx, run.id, issue));
@@ -110,7 +110,7 @@ export class DialogueShadowImporter {
     try { return normalizeMigrationDecisionArtifact(JSON.parse(await readFile(decisionsPath, "utf8")) as unknown, expected); } catch (error) { if (error instanceof Error && "code" in error) throw new DialogueShadowImportError(String((error as Error & { code: unknown }).code)); throw new DialogueShadowImportError("MIGRATION_DECISION_INVALID"); }
   }
 
-  private async buildPlans(snapshot: VerifiedSnapshot, rawThreads: unknown[], rawPendingArtifacts: unknown[], sourceDigest: `sha256:${string}`): Promise<{ plans: ThreadPlan[]; pendingPlans: PendingArtifactPlan[]; issues: Array<{ issueKey: string; code: string; entityType: string; entityId: string; sourceKey: string; storageKey: string; detailJson: Prisma.InputJsonValue }>; blockedProjects: Set<string>; threadCount: number; messageCount: number; toolResultCount: number; sessionCount: number }> {
+  private async buildPlans(rawThreads: unknown[], rawPendingArtifacts: unknown[], sourceDigest: `sha256:${string}`): Promise<{ plans: ThreadPlan[]; pendingPlans: PendingArtifactPlan[]; issues: Array<{ issueKey: string; code: string; entityType: string; entityId: string; sourceKey: string; storageKey: string; detailJson: Prisma.InputJsonValue }>; blockedProjects: Set<string>; threadCount: number; messageCount: number; toolResultCount: number; sessionCount: number }> {
     const plans: ThreadPlan[] = [];
     const pendingPlans: PendingArtifactPlan[] = [];
     const issues: Array<{ issueKey: string; code: string; entityType: string; entityId: string; sourceKey: string; storageKey: string; detailJson: Prisma.InputJsonValue }> = [];

@@ -6,7 +6,6 @@ import type {
   ConfirmChapterImagePreflightRequest,
   ConfirmChapterStoryboardRequest,
   ConfirmChapterStoryStructureRequest,
-  CreateProjectRequest,
   ExtractProjectCharactersRequest,
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
@@ -15,7 +14,6 @@ import type {
   UpdateProjectCharacterRequest,
   UpdateChapterStoryboardRequest,
   UpdateChapterStoryStructureRequest,
-  UpdateProjectDraftRequest,
   ScriptHistoryCopyRequest,
   ScriptPendingAdoptRequest,
   ScriptPendingDiscardRequest,
@@ -105,16 +103,6 @@ export class ProjectsController {
     return ok({ snapshot: await this.projectsService.getWorkbenchSnapshot(projectId, chapterId) });
   }
 
-  @Post(":projectId/script/reset")
-  async resetScript(@Param("projectId") projectId: string) {
-    return ok(await this.projectsService.resetProjectScript(projectId));
-  }
-
-  @Get(":projectId/script/impact-preview")
-  async scriptImpactPreview(@Param("projectId") projectId: string) {
-    return ok(await this.projectsService.getScriptImpactPreview(projectId));
-  }
-
   @Get(":projectId/chapters")
   async listChapters(@Param("projectId") projectId: string) {
     return ok(await this.projectsService.listChapters(projectId));
@@ -133,11 +121,6 @@ export class ProjectsController {
   @Post(":projectId/characters/extract")
   async extractProjectCharacters(@Param("projectId") projectId: string, @Body() body: ExtractProjectCharactersRequest) {
     return ok(await this.projectsService.extractProjectCharacters(projectId, body));
-  }
-
-  @Post(":projectId/characters/previews/ensure")
-  async ensureProjectCharacterPreviewTasks(@Param("projectId") projectId: string) {
-    return ok(await this.projectsService.ensureProjectCharacterPreviewTasks(projectId));
   }
 
   @Patch(":projectId/characters/:characterId")

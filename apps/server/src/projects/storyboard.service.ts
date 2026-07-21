@@ -1,5 +1,4 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
   type ChapterStoryboard,
   type ConfirmChapterStoryboardRequest,
@@ -9,7 +8,7 @@ import {
   type StoryboardJson,
   type UpdateChapterStoryboardRequest,
 } from "@airoaming/shared";
-import type { LocalChapter, LocalProject } from "./local-types.js";
+import type { LocalChapter } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
 import * as storyNormalize from "./story-normalize.util.js";
 import { ProjectRepository } from "./project-repository.service.js";

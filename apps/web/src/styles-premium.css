@@ -240,132 +240,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* ---- Workflow Bar ---- */
-.workflow-bar {
-  display: flex;
-  align-items: center;
-  padding: 0;
-  width: 100%;
-}
-.workflow-steps {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  background: rgba(10, 15, 30, 0.55);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  box-shadow:
-    0 10px 40px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 0 20px rgba(139, 92, 246, 0.15);
-  padding: 16px 28px;
-  border-radius: 16px;
-}
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.wf-step {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  white-space: nowrap;
-  transition: opacity 0.15s;
-  cursor: default;
-}
-.wf-step:hover {
-  opacity: 0.8;
-}
-.wf-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(139, 92, 246, 0.2);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  color: #c4b5fd;
-  flex-shrink: 0;
-}
-.wf-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.wf-text strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: #f8fafc;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.wf-text span {
-  font-size: 11px;
-  color: #94a3b8;
-}
-.wf-arrow {
-  color: #64748b;
-  flex-shrink: 0;
-}
-
-/* ---- Stats Grid ---- */
-.stats-grid {
-  gap: 14px !important;
-}
-.stat-card {
-  display: flex !important;
-  align-items: center !important;
-  gap: 14px !important;
-  padding: 18px 20px !important;
-  background: rgba(15, 18, 28, 0.8) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  border-radius: 12px !important;
-}
-.stat-icon {
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 10px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex-shrink: 0 !important;
-  margin-right: 0 !important;
-}
-.purple-icon { background: rgba(139, 92, 246, 0.12) !important; color: #a78bfa !important; }
-.blue-icon { background: rgba(56, 189, 248, 0.1) !important; color: #38bdf8 !important; }
-.green-icon { background: rgba(34, 197, 94, 0.1) !important; color: #22c55e !important; }
-.amber-icon { background: rgba(251, 191, 36, 0.1) !important; color: #fbbf24 !important; }
-.stat-content { flex: 1; min-width: 0; }
-.stat-content > span {
-  font-size: 13px !important;
-  color: #6b7a94 !important;
-  display: block;
-  margin-bottom: 4px !important;
-}
-.stat-value-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.stat-value-row > strong {
-  font-size: 26px !important;
-  font-weight: 700 !important;
-  color: #f1f5f9 !important;
-  line-height: 1 !important;
-}
-.stat-trend {
-  font-size: 12px;
-  font-weight: 500;
-}
-.trend-up { color: #22c55e; }
-
 /* ---- Filter / Sort Bar ---- */
 .project-section-header {
   flex-direction: row !important;
@@ -1031,8 +905,6 @@ body {
 /* ---- Responsive ---- */
 .project-library,
 .hero-banner,
-.workflow-bar,
-.workflow-steps,
 .project-list-section,
 .project-grid,
 .project-card {
@@ -1040,21 +912,6 @@ body {
   max-width: 100%;
 }
 
-.workflow-steps {
-  min-width: 0;
-}
-
-@media (max-width: 860px) {
-  .workflow-bar {
-    align-items: stretch;
-    min-width: 0;
-  }
-
-  .workflow-steps {
-    min-width: 0;
-    overflow-x: auto;
-  }
-}
 @media (max-width: 560px) {
   .hero-banner {
     height: auto !important;
@@ -1064,20 +921,6 @@ body {
   .hero-content {
     min-height: 218px;
     padding: 18px;
-  }
-
-  .workflow-bar {
-    display: grid;
-    gap: 10px;
-  }
-
-  .workflow-steps {
-    width: 100%;
-    padding: 10px 12px;
-  }
-
-  .wf-arrow {
-    display: none;
   }
 
   .project-section-header {
@@ -1135,7 +978,6 @@ html[data-theme="light"] .user-name,
 html[data-theme="light"] .settings-heading h1,
 html[data-theme="light"] .panel-title-row h2,
 html[data-theme="light"] .project-card-title strong,
-html[data-theme="light"] .stat-value-row > strong,
 html[data-theme="light"] .section-heading strong,
 html[data-theme="light"] .queue-card strong {
   color: #172033 !important;
@@ -1170,9 +1012,7 @@ html[data-theme="light"] .settings-nav-btn.is-active {
 }
 
 html[data-theme="light"] .command-panel,
-html[data-theme="light"] .workflow-strip,
 html[data-theme="light"] .project-card,
-html[data-theme="light"] .stat-card,
 html[data-theme="light"] .settings-nav,
 html[data-theme="light"] .settings-panel,
 html[data-theme="light"] .key-meta > div,
@@ -1660,34 +1500,7 @@ html[data-theme="light"] .cm-activeLine {
   background-color: transparent !important;
 }
 
-/* 6. Landing Page Workflow Strip */
-html[data-theme="light"] .workflow-steps {
-  background: rgba(15, 23, 42, 0.55) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3) !important;
-  backdrop-filter: blur(24px) !important;
-  -webkit-backdrop-filter: blur(24px) !important;
-}
-
-html[data-theme="light"] .wf-icon {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  color: #ffffff !important;
-}
-
-html[data-theme="light"] .wf-text strong {
-  color: #ffffff !important;
-}
-
-html[data-theme="light"] .wf-text span {
-  color: #cbd5e1 !important;
-}
-
-html[data-theme="light"] .wf-arrow {
-  color: #94a3b8 !important;
-}
-
-/* 7. Modal overlays / confirmations */
+/* 6. Modal overlays / confirmations */
 html[data-theme="light"] .modal-overlay {
   background: rgba(15, 23, 42, 0.3) !important;
 }

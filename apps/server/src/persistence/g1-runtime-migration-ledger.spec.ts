@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertG1RuntimeMigrationLedgerV1,
-  assertG1RuntimeMigrationReadyV1,
   G1_RUNTIME_MIGRATION_NAMES,
   loadG1RuntimeMigrationExpectationsV1,
   type G1RuntimeMigrationLedgerRowV1,
@@ -85,13 +84,4 @@ describe("G1 runtime migration ledger", () => {
     }
   });
 
-  it("maps a missing or unreadable Prisma ledger table to a stable startup error", async () => {
-    await expect(
-      assertG1RuntimeMigrationReadyV1({
-        $queryRawUnsafe: async <T = unknown>() => {
-          throw new Error("no such table: _prisma_migrations");
-        },
-      }),
-    ).rejects.toThrow("DB_PERSISTENCE_MIGRATION_LEDGER_UNAVAILABLE");
-  });
 });

@@ -14,7 +14,6 @@ import {
   parseImportFidelityOutputV1,
   parseScriptOutlineMarkdownV1,
   scriptOutlineCardDigestV1,
-  scriptSourceBlockCatalogV1,
   type ConfirmedScriptChapterMapItemV1,
   type ConfirmedScriptChapterMapV1,
   type ImportAnalysisOutputV1,
@@ -905,9 +904,11 @@ export class ScriptWorkflowSourceRepository {
       if (!itemSource) throw createG2DatabaseError(422, "SOURCE_UNRESOLVED");
       const item = await tx.scriptImportBatchItem.findFirst({ where: { id: itemSource.sourceId, chapterId: chapter.id, status: "pending_ready", outputDigest: pending.sourceDigest }, include: { batch: true } });
       if (!item) throw createG2DatabaseError(409, "IMPORT_ITEM_STATE_CONFLICT");
+      const publishable = canonicalScript(pending.sourceText, "import");
+      if (publishable.sourceDigest !== pending.sourceDigest) throw createG2DatabaseError(409, "PENDING_VERSION_CONFLICT");
       const latest = await tx.chapterScriptVersion.findFirst({ where: { chapterId: chapter.id }, orderBy: { version: "desc" } });
       const now = new Date();
-      const created = await tx.chapterScriptVersion.create({ data: { id: randomUUID(), chapterId: chapter.id, version: (latest?.version ?? 0) + 1, sourceText: pending.sourceText, sourceDigest: pending.sourceDigest, origin: "import", createdAt: now, completedAt: now } });
+      const created = await tx.chapterScriptVersion.create({ data: { id: randomUUID(), chapterId: chapter.id, version: (latest?.version ?? 0) + 1, sourceText: publishable.sourceText, sourceDigest: publishable.sourceDigest, origin: "import", createdAt: now, completedAt: now } });
       await tx.scriptImportBatchItem.update({ where: { id: item.id }, data: { status: "confirmed", confirmedScriptVersionId: created.id, completedAt: now, rowVersion: { increment: 1 }, updatedAt: now } });
       await tx.chapterScriptPending.delete({ where: { id: pending.id } });
       await tx.chapter.update({ where: { id: chapter.id }, data: { scriptWorkingText: created.sourceText, scriptWorkingDigest: created.sourceDigest, scriptWorkingState: "clean", currentScriptVersionId: created.id, milestoneStatus: "script_done", completedAt: now, rowVersion: { increment: 1 }, updatedAt: now } });

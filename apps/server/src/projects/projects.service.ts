@@ -1,16 +1,9 @@
-import { BadRequestException, HttpException, Inject, Injectable, Logger, NotFoundException, Optional, type OnModuleInit } from "@nestjs/common";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import * as wsJson from "./workspace-json.util.js";
-import type { LocalChapter, LocalChapterScriptVersion, LocalProject } from "./local-types.js";
+import { BadRequestException, HttpException, Inject, Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
+import { rm } from "node:fs/promises";
+import type { LocalChapter, LocalProject } from "./local-types.js";
 import * as wsDomain from "./project-domain.util.js";
-import * as storyNormalize from "./story-normalize.util.js";
-import * as wsCharacter from "./character-domain.util.js";
 import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
-import * as referencePromptUtil from "./reference-prompt.util.js";
-import * as scriptImportUtil from "./script-import.util.js";
-import type { AnalyzeScriptImportInput } from "./script-import.util.js";
-import { ImageProviderService } from "./image-provider.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
@@ -23,28 +16,17 @@ import { AssetPackageService } from "./asset-package.service.js";
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { parseCreateProjectRequestV1, parseUpdateProjectDraftRequestV1 } from "./project-input.contract.js";
 import { mapG3ProjectDatabaseError } from "./g3-project-error.mapper.js";
-import { CHARACTER_LEVEL_ORDER, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_SLUG, DEFAULT_CHAPTER_TITLE, getDefaultChapterTitle } from "./project-domain.util.js";
-import { createHash, randomUUID } from "node:crypto";
-import * as path from "node:path";
+import { DEFAULT_CHAPTER_ID } from "./project-domain.util.js";
+import { randomUUID } from "node:crypto";
 import {
-  PROJECT_WORKFLOW_STEP_KEYS,
-  extractChapterScriptName,
-  extractChapterScriptTitle,
-  extractScriptOutlineTitle,
   stripChapterScriptName,
   type ChapterDetail,
   type ChapterListItem,
-  type ChapterPendingSourceText,
-  type ChapterScriptVersionItem,
-  type ChapterImagePreflight,
   type ChapterStoryboard,
-  type ChapterStoryStructure,
-  type ChapterStatus,
   type ClearChapterScriptResponse,
   type ConfirmChapterPendingSourceResponse,
   type DiscardChapterPendingSourceResponse,
   type ArtStyle,
-  type ComicFormat,
   type ConfirmCharacterPreviewRequest,
   type ConfirmCharacterPreviewResponse,
   type ConfirmChapterStoryboardRequest,
@@ -58,78 +40,43 @@ import {
   type CandidateGenerationPreviewResponse,
   type CandidatePromptOverrides,
   type CreateGenerationTaskRequest,
-  type CreateProjectRequest,
   type DeleteProjectResponse,
   type ExportAssetPackageResponse,
   type CreateLayoutPublicationResponseV1,
   type LayoutPublicationHistoryResponseV1,
   type LayoutPublicationSummaryV1,
-  type LockChapterCandidateRequest,
-  type LockChapterCandidateResponse,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
   type GenerateCharacterReferenceRequest,
-  type GenerateCharacterReferenceResponse,
-  type GenerationTaskItem,
   type GetChapterStoryStructureResponse,
   type GetChapterStoryboardResponse,
   type GetChapterImagePreflightResponse,
   type GetChapterResponse,
-  type ImagePreflightCharacterCheck,
-  type ImagePreflightIssue,
-  type ImagePreflightJson,
-  type ImagePreflightSceneCheck,
-  type ImagePreflightStyleCheck,
   type ListChaptersResponse,
   type QueueCharacterReferenceResponse,
   type QueueSceneReferenceResponse,
   type GenerateSceneReferenceRequest,
   type ResolveImagePreflightCharacterRequest,
   type ResolveImagePreflightCharacterResponse,
-  type ProjectCharacter,
-  type ProjectCharacterEntityType,
-  type ProjectCharacterLevel,
-  type ProjectCharacterReferenceKind,
-  type ProjectCharacterStatus,
   type ProjectCharactersResponse,
   type ProjectListItem,
   type ProjectScriptOutline,
   type ProjectType,
   type ProjectWorkflow,
-  type ProjectWorkflowStep,
-  type ProjectWorkflowStepKey,
-  type ResetProjectScriptResponse,
   type SaveChapterDraftRequest,
   type SaveChapterDraftResponse,
   type SaveChapterImagePreflightResponse,
   type SaveChapterStoryStructureResponse,
   type SaveChapterStoryboardResponse,
   type SaveProjectCharacterResponse,
-  type ScriptImportAnalysis,
-  type ScriptImportChapterBoundary,
-  type ScriptImportChapterPlan,
-  type ScriptImportContentType,
   type ScriptRevisionItem,
-  type StoryboardJson,
   type StoryboardShot,
-  type StoryStructureCharacterCard,
-  type StoryStructureJson,
   type UpdateChapterStoryboardRequest,
   type UpdateChapterStoryStructureRequest,
   type UpdateProjectCharacterRequest,
-  type UpdateProjectDraftRequest,
-  type WorkbenchAsset,
   type WorkbenchSnapshot,
   type VersioningCapability,
-  normalizeCameraAngle,
-  normalizeCameraMovement,
-  normalizeFrameType,
-  normalizePanelRhythm,
-  normalizeShotType,
-  normalizeVoiceLines,
-  parseDurationHintToMs,
 } from "@airoaming/shared";
-import { SettingsService } from "../settings/settings.service.js";
 import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
@@ -144,7 +91,6 @@ import {
 } from "./candidate-generation-spec.js";
 import { hasBlockingCandidateVisualIssues } from "./candidate-visual-quality.util.js";
 
-const SCRIPT_VERSION_FILE_PATTERN = /^script-v(\d+)\.md$/;
 const imageCandidateTaskTypes = new Set(["shot_prompt_generate", "image_generate"]);
 
 function rethrowMappedG3ProjectError(error: unknown): never {
@@ -171,24 +117,6 @@ interface ProjectAssetFile {
   buffer: Buffer;
   mimeType: string;
   fileName: string;
-}
-
-interface CharacterReferenceSource extends ProjectAssetFile {
-  asset: WorkbenchAsset;
-}
-
-export interface ImportScriptToChaptersInput {
-  sourceText: string;
-  sourceName: string;
-  threadId: string;
-  messageId: string;
-  toolCallId: string;
-}
-
-export interface ImportScriptToChaptersResult {
-  chapters: ChapterListItem[];
-  currentChapter: ChapterDetail;
-  revision: ScriptRevisionItem;
 }
 
 export interface WriteChapterDraftFromAIInput {
@@ -224,7 +152,6 @@ type ProjectDeletedListener = (projectId: string) => number | void;
 @Injectable()
 export class ProjectsService implements OnModuleInit {
   private readonly logger = new Logger(ProjectsService.name);
-  private characterReferenceQueue: Promise<void> = Promise.resolve();
   private readonly projectDeletedListeners = new Set<ProjectDeletedListener>();
 
   private isDatabaseMode(): boolean {
@@ -239,9 +166,7 @@ export class ProjectsService implements OnModuleInit {
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
     @Inject(TasksService) private readonly tasksService: TasksService,
-    @Inject(SettingsService) private readonly settingsService: SettingsService,
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
-    @Inject(ImageProviderService) private readonly imageProvider: ImageProviderService,
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
     @Inject(CharacterReferenceService) private readonly characterRef: CharacterReferenceService,
     @Inject(ChapterScriptService) private readonly chapterScript: ChapterScriptService,
@@ -417,12 +342,6 @@ export class ProjectsService implements OnModuleInit {
     return this.characterRef.listProjectCharacters(projectId);
   }
 
-  async ensureProjectCharacterPreviewTasks(projectId: string) : Promise<QueueCharacterReferenceResponse> {
-    if (this.isDatabaseMode()) this.throwCharacterReferenceRouteRetired(projectId, "ensure_character_previews", "/characters/{characterId}/reference", "批量旧入口不能携带逐角色 source freeze；请逐角色创建持久 queue task。");
-    this.repository.assertDatabaseOperationSupported("ensure_character_previews");
-    return this.characterRef.ensureProjectCharacterPreviewTasks(projectId);
-  }
-
   async extractProjectCharacters(projectId: string,
     input: ExtractProjectCharactersRequest = {},) : Promise<ExtractProjectCharactersResponse> {
     if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("extract_characters");
@@ -436,14 +355,6 @@ export class ProjectsService implements OnModuleInit {
     return this.characterRef.updateProjectCharacter(projectId, characterId, input);
   }
 
-  async generateCharacterReference(projectId: string,
-    characterId: string,
-    input: GenerateCharacterReferenceRequest & { sourceTaskId?: string } = {},) : Promise<GenerateCharacterReferenceResponse> {
-    if (this.isDatabaseMode()) this.throwCharacterReferenceRouteRetired(projectId, "generate_character_reference", "/characters/{characterId}/reference", "DB 模式不允许同步 provider 出图；请使用 queue_character_reference 后由持久 worker 完成。");
-    this.repository.assertDatabaseOperationSupported("generate_character_reference");
-    return this.characterRef.generateCharacterReference(projectId, characterId, input);
-  }
-
   /**
    * 场景背景图:排队生成入口(对称 queueCharacterReference,但更简单——纯文生图)
    */
@@ -453,16 +364,6 @@ export class ProjectsService implements OnModuleInit {
     input: GenerateSceneReferenceRequest = {},) : Promise<QueueSceneReferenceResponse> {
     if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("queue_scene_reference");
     return this.characterRef.queueSceneReference(projectId, chapterId, sceneId, input);
-  }
-
-  /** 场景背景图:真正出图(同步,由任务队列调用) */
-  async generateSceneReference(projectId: string,
-    chapterId: string,
-    sceneId: string,
-    input: GenerateSceneReferenceRequest & { sourceTaskId?: string } = {},) : Promise<{ storyStructure: ChapterStoryStructure; asset: WorkbenchAsset }> {
-    if (this.isDatabaseMode()) this.throwCharacterReferenceRouteRetired(projectId, "generate_scene_reference", "/chapters/{chapterId}/scenes/{sceneId}/reference", "DB 模式不允许同步 provider 出图；请使用 queue_scene_reference 后由持久 worker 完成。");
-    this.repository.assertDatabaseOperationSupported("generate_scene_reference");
-    return this.characterRef.generateSceneReference(projectId, chapterId, sceneId, input);
   }
 
   /** 由场景字段拼成生图 prompt */
@@ -543,10 +444,6 @@ export class ProjectsService implements OnModuleInit {
     throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { replacement: `/api/projects/${projectId}/chapters/${chapterId}/script/working-copy` } } }, 409);
   }
 
-  private throwProjectScriptRetired(projectId: string, operation: string): never {
-    throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { operation, replacement: `/api/projects/${projectId}/script/impact-preview`, reason: "历史正文与章节里程碑不可由整项目 reset/import 物理删除或回退" } } }, 409);
-  }
-
   private throwLegacyVersioningRouteDisabled(projectId: string, chapterId: string, operation: string, replacement: string, reason: string): never {
     throw new HttpException({
       success: false,
@@ -556,31 +453,6 @@ export class ProjectsService implements OnModuleInit {
         details: { operation, replacement: `/api/projects/${projectId}/chapters/${chapterId}${replacement}`, reason },
       },
     }, 409);
-  }
-
-  private throwCharacterReferenceRouteRetired(projectId: string, operation: string, replacement: string, reason: string): never {
-    throw new HttpException({ success: false, error: { code: "LEGACY_WRITE_ROUTE_DISABLED", message: "LEGACY_WRITE_ROUTE_DISABLED", details: { operation, replacement: `/api/projects/${projectId}${replacement}`, reason } } }, 409);
-  }
-
-  /**
-   * 内部:写入/覆盖章节正文草稿缓冲(不碰正式 sourceText)。
-   * 给 writeChapterDraftFromAI 和三期批量生成调用。
-   */
-  async importScriptToChapters(projectId: string,
-    input: ImportScriptToChaptersInput,) : Promise<ImportScriptToChaptersResult> {
-    if (this.isDatabaseMode()) this.throwProjectScriptRetired(projectId, "import_script_to_chapters");
-    this.repository.assertDatabaseOperationSupported("import_script_to_chapters");
-    return this.chapterScript.importScriptToChapters(projectId, input);
-  }
-
-  /**
-   * 确保指定 order 的章节存在(边生成边建章,见 ADR-0008 三期)。
-   * 存在则返回原章节;不存在则按 order 建一个空章节并落盘。
-   * 用于批量逐章生成时,每生成一章前确保目标章节已就位。
-   */
-  async ensureChapterExists(projectId: string, order: number, title?: string) : Promise<ChapterDetail> {
-    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("ensure_chapter_exists");
-    return this.chapterScript.ensureChapterExists(projectId, order, title);
   }
 
   async writeChapterDraftFromAI(projectId: string,
@@ -859,18 +731,6 @@ export class ProjectsService implements OnModuleInit {
     return this.storyboard.updateChapterStoryboard(projectId, chapterId, input);
   }
 
-  async lockChapterCandidate(
-    projectId: string,
-    chapterId: string,
-    input: LockChapterCandidateRequest,
-  ): Promise<LockChapterCandidateResponse> {
-    if (this.isDatabaseMode()) {
-      this.throwLegacyVersioningRouteDisabled(projectId, chapterId, "lock_candidate", "/shots/{shotId}/candidate-lock", "旧候选定稿接口缺少 preview impactDigest 与 expectedCurrentRevisionId；请使用 G4 Candidate Lock 两阶段接口。");
-    }
-    this.repository.assertDatabaseOperationSupported("lock_candidate");
-    return this.imageCandidate.lockCandidate(projectId, chapterId, input);
-  }
-
   async completeChapterImages(projectId: string, chapterId: string): Promise<CompleteChapterImagesResponse> {
     if (this.isDatabaseMode()) {
       if (!this.candidateDecision) throw new Error("CANDIDATE_DECISION_SERVICE_REQUIRED");
@@ -910,42 +770,6 @@ export class ProjectsService implements OnModuleInit {
     return this.assetPackage.exportAssetPackage(projectId, chapterId);
   }
 
-  async resetProjectScript(projectId: string) : Promise<ResetProjectScriptResponse> {
-    if (this.isDatabaseMode()) this.throwProjectScriptRetired(projectId, "reset_project_script");
-    this.repository.assertDatabaseOperationSupported("reset_project_script");
-    return this.chapterScript.resetProjectScript(projectId);
-  }
-
-  /** Read-only preview used before a legacy import/reset is retired. */
-  async getScriptImpactPreview(projectId: string) {
-    const project = await this.projectStore.getReadyProject(projectId);
-    return {
-      projectId,
-      chapterCount: project.chapters.length,
-      chapters: project.chapters.map((chapter) => ({
-        id: chapter.id,
-        order: chapter.order,
-        title: chapter.title,
-        milestoneStatus: chapter.status,
-        workingCopyBytes: Buffer.byteLength(chapter.sourceText, "utf8"),
-        formalHistoryCount: chapter.scriptVersions.length,
-        hasPendingSuggestion: chapter.pendingSourceText !== null,
-        downstream: {
-          story: chapter.storyStructure !== null,
-          storyboard: chapter.storyboard !== null,
-          preflight: chapter.imagePreflight !== null,
-          layout: chapter.layout !== null,
-          candidates: chapter.candidates.length,
-        },
-      })),
-      replacement: "逐章使用 G2 Working Copy clear/adopt/discard 或新建章节；不会删除历史。",
-    };
-  }
-
-  async analyzeScriptImport(projectId: string, input: AnalyzeScriptImportInput) : Promise<ScriptImportAnalysis> {
-    return this.chapterScript.analyzeScriptImport(projectId, input);
-  }
-
   async deleteProject(projectId: string): Promise<DeleteProjectResponse> {
     if (this.isDatabaseMode()) {
       if (!this.projectDeleteOutbox) throw new BadRequestException("PROJECT_DELETE_OUTBOX_UNAVAILABLE");
@@ -975,14 +799,6 @@ export class ProjectsService implements OnModuleInit {
       deletedTaskCount,
       deletedRuntimeStateCount,
     };
-  }
-
-  async purgeDeletedProject(projectId: string): Promise<{ projectId: string; purged: true }> {
-    if (!this.isDatabaseMode() || !this.projectDeleteOutbox) throw new BadRequestException("PROJECT_DELETE_OUTBOX_UNAVAILABLE");
-    const result = await this.projectDeleteOutbox.purgeDeletedProject(projectId);
-    this.repository.deleteProject(projectId);
-    this.notifyProjectDeleted(projectId);
-    return result;
   }
 
   private notifyProjectDeleted(projectId: string): number {
@@ -1113,10 +929,6 @@ export class ProjectsService implements OnModuleInit {
     return wsDomain.normalizeArtStyle(input);
   }
 
-  private normalizeChapterStatus(input: unknown): ChapterStatus {
-    return wsDomain.normalizeChapterStatus(input);
-  }
-
   private buildProjectWorkflow(project: LocalProject, currentChapter: LocalChapter | null): ProjectWorkflow {
     return workflowUtil.buildProjectWorkflow(project, currentChapter, imagePreflightUtil.isChapterImagePreflightReady(project, currentChapter, (pid, cid) => this.characterRef.hasActiveCharacterReferenceTask(pid, cid, "final_reference")));
   }
@@ -1142,14 +954,6 @@ export class ProjectsService implements OnModuleInit {
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     };
-  }
-
-  private async clearProjectChaptersDir(projectId: string): Promise<void> {
-    await this.repository.clearProjectChaptersDir(projectId);
-  }
-
-  private async clearLegacyStoryDir(projectId: string): Promise<void> {
-    await this.repository.clearLegacyStoryDir(projectId);
   }
 
   private createDefaultChapter(projectId: string, sourceText: string, now: string): LocalChapter {
@@ -1184,157 +988,8 @@ export class ProjectsService implements OnModuleInit {
       : [this.createDefaultChapter(project.id, sourceText, updatedAt), ...nextChapters];
   }
 
-  private async readOptionalTextFile(filePath: string): Promise<string | null> {
-    return wsJson.readOptionalTextFile(filePath);
-  }
-
-  private parseJsonRecord(content: string, filePath: string): Record<string, unknown> {
-    return wsJson.parseJsonRecord(content, filePath);
-  }
-
-  private getStringField(record: Record<string, unknown>, key: string, fallback: string): string {
-    return wsJson.getStringField(record, key, fallback);
-  }
-
-  private getOptionalStringField(record: Record<string, unknown>, key: string): string | null {
-    return wsJson.getOptionalStringField(record, key);
-  }
-
-  private getStringArrayField(record: Record<string, unknown>, key: string): string[] {
-    return wsJson.getStringArrayField(record, key);
-  }
-
-  private getNumberField(record: Record<string, unknown>, key: string, fallback: number): number {
-    return wsJson.getNumberField(record, key, fallback);
-  }
-
-  // normalizeStoryStructureCharacters/Scenes/Beats 已抽到 ./story-normalize.util.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre-2)。
-
-  // normalizeStoryboardShots/Shot 已抽到 ./story-normalize.util.ts(见任务 2026-06-21_ProjectsService拆分 1b-pre-2)。
-
-  private normalizeProjectCharacter(
-    item: Record<string, unknown>,
-    projectId: string,
-    fallbackCreatedAt: string,
-    fallbackUpdatedAt: string,
-    index: number,
-  ): ProjectCharacter {
-    const level = wsCharacter.normalizeCharacterLevel(this.getStringField(item, "level", index === 0 ? "lead" : "recurring"));
-    const primaryReferenceAssetId = this.getOptionalStringField(item, "primaryReferenceAssetId");
-    const status = wsCharacter.normalizeCharacterStatus(this.getStringField(item, "status", primaryReferenceAssetId ? "finalized" : "draft"));
-    return {
-      id: this.getStringField(item, "id", `char_${String(index + 1).padStart(3, "0")}`),
-      projectId,
-      name: wsCharacter.normalizeCharacterName(this.getStringField(item, "name", `角色 ${index + 1}`)),
-      role: this.getStringField(item, "role", ""),
-      level,
-      entityType: wsCharacter.normalizeEntityType(item.entityType),
-      status,
-      appearance: this.getStringField(item, "appearance", ""),
-      personality: this.getStringField(item, "personality", ""),
-      promptFragment: this.getStringField(item, "promptFragment", ""),
-      referenceAssetIds: this.getStringArrayField(item, "referenceAssetIds"),
-      previewReferenceAssetId: this.getOptionalStringField(item, "previewReferenceAssetId"),
-      previewConfirmedAt: this.getOptionalStringField(item, "previewConfirmedAt"),
-      primaryReferenceAssetId,
-      primaryReferenceKind: wsCharacter.normalizeCharacterReferenceKind(
-        this.getStringField(item, "primaryReferenceKind", wsCharacter.defaultReferenceKindForLevel(level)),
-      ),
-      visualVersion: this.getNumberField(item, "visualVersion", primaryReferenceAssetId ? 1 : 0),
-      source: item.source === "imported_script" || item.source === "manual" || item.source === "story_structure" || item.source === "image_preflight" ? item.source : "script_outline",
-      createdAt: this.getStringField(item, "createdAt", fallbackCreatedAt),
-      updatedAt: this.getStringField(item, "updatedAt", fallbackUpdatedAt),
-      finalizedAt: this.getOptionalStringField(item, "finalizedAt"),
-    };
-  }
-
-  /** 结构卡 entityType 优先用 AI 输出,AI 没给(含旧数据 null)默认 human。 */
-  /**
-   * 结构卡 level 优先用 AI 输出(card.level),AI 没给才回落 inferCharacterLevel(见 task 2026-06-21_角色分层双维度)。
-   * 保留 inferCharacterLevel 作兜底:① 旧 structure.json 无 level;② AI 偶发漏填;③ 剧本导入链路继续用。
-   */
-  private getComicFormatLabel(format: ComicFormat): string {
-    return wsDomain.getComicFormatLabel(format);
-  }
-
-  private getArtStyleLabel(style: ArtStyle): string {
-    return wsDomain.getArtStyleLabel(style);
-  }
-
-  private parseScriptRevision(value: unknown): ScriptRevisionItem | null {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return null;
-    }
-
-    const record = value as Record<string, unknown>;
-    const operation = record.operation;
-    if (
-      operation !== "import_script_to_chapters"
-      && operation !== "update_chapter_draft"
-      && operation !== "generate_script_from_seed"
-      && operation !== "generate_script_from_outline"
-    ) {
-      return null;
-    }
-
-    const requiredStrings = ["id", "projectId", "threadId", "messageId", "toolCallId", "summary", "createdAt"];
-    if (!requiredStrings.every((key) => typeof record[key] === "string")) {
-      return null;
-    }
-
-    return {
-      id: record.id as string,
-      projectId: record.projectId as string,
-      chapterId: typeof record.chapterId === "string" ? record.chapterId : null,
-      source: "ai_tool",
-      threadId: record.threadId as string,
-      messageId: record.messageId as string,
-      toolCallId: record.toolCallId as string,
-      operation,
-      summary: record.summary as string,
-      createdAt: record.createdAt as string,
-    };
-  }
-
-  private getOrderFromChapterSlug(slug: string): number | null {
-    const match = slug.match(/^chapter-(\d+)$/);
-    if (!match) {
-      return null;
-    }
-
-    return Number(match[1]);
-  }
-
-  private isNotFoundError(error: unknown): boolean {
-    return wsJson.isNotFoundError(error);
-  }
-
-  private getErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-  }
-
   private getCurrentChapter(project: LocalProject): LocalChapter | null {
     return wsDomain.getCurrentChapter(project);
-  }
-
-  private toWorkbenchShots(chapter: LocalChapter | null): WorkbenchSnapshot["shots"] {
-    const storyboard = chapter?.storyboard?.storyboardJson;
-    const structure = chapter?.storyStructure?.structureJson;
-    if (!chapter || !storyboard) {
-      return [];
-    }
-
-    return storyboard.shots.map((shot) => {
-      const scene = structure?.scenes.find((item) => item.id === shot.sceneId) ?? null;
-      const beat = structure?.beats.find((item) => item.id === shot.beatId) ?? null;
-      return {
-        ...shot,
-        chapterId: chapter.id,
-        sceneName: scene?.name ?? "",
-        characterIds: shot.characterIds,
-        characters: shot.characterIds.length > 0 ? shot.characterIds : beat?.characters ?? [],
-      };
-    });
   }
 
   private sortChapters(chapters: LocalChapter[]): LocalChapter[] {
@@ -1349,7 +1004,4 @@ export class ProjectsService implements OnModuleInit {
     return wsDomain.toChapterDetail(chapter);
   }
 
-  private toChapterScriptVersionItem(version: LocalChapterScriptVersion): ChapterScriptVersionItem {
-    return wsDomain.toChapterScriptVersionItem(version);
-  }
 }

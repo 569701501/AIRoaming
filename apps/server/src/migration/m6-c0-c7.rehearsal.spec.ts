@@ -6,10 +6,11 @@ import { cp, mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from
 import * as os from "node:os";
 import * as path from "node:path";
 import { NestFactory } from "@nestjs/core";
+import { digestCanonicalJson } from "@airoaming/shared";
 import { AppModule } from "../app.module.js";
 import { AppBackupService } from "../backup/app-backup.service.js";
 import { AppRestoreService } from "../backup/app-restore.service.js";
-import { CutoverCoordinator } from "./cutover-coordinator.service.js";
+import { CutoverEvidenceStore, type CutoverEvidenceStep } from "./cutover-evidence.service.js";
 import { DbActivateService } from "./db-activate.service.js";
 import { createMigrationDecisionArtifact } from "./migration-decision.js";
 import { MetadataArchiveService } from "./metadata-archive.service.js";
@@ -88,30 +89,54 @@ describe("M6 isolated C0-C7 rehearsal", () => {
       const snapshot = await new SnapshotService().createSnapshot({ workspaceRoot: sourceWorkspace, stagingRoot: snapshotStaging, runtimeBundle: maintenanceBundle });
       const afterSnapshot = await stat(path.join(sourceWorkspace, "projects/p1/project.json"));
       const decisionsPath = path.join(root, "decisions.json");
-      await writeFile(decisionsPath, `${JSON.stringify(createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, []))}\n`, { mode: 0o600 });
+      const decisions = createMigrationDecisionArtifact(snapshot.sourceManifest.manifestDigest, []);
+      await writeFile(decisionsPath, `${JSON.stringify(decisions)}\n`, { mode: 0o600 });
       const release = await loadReleaseSchemaIdentityV1(repoRoot);
       const runId = "m6-a1-real-c0-c7";
-      const coordinator = new CutoverCoordinator(maintenance, { evidenceRoot, identity: { runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest } });
+      const evidenceStore = new CutoverEvidenceStore(evidenceRoot, {
+        cutoverId: "m6-a1-real-c0-c7",
+        appCommit: "a".repeat(40),
+        planDigest: digestCanonicalJson({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest }) as `sha256:${string}`,
+        runId,
+        effectiveSchemaManifestDigest: release.effectiveSchemaManifestDigest,
+      });
+      const runStep = async (
+        step: CutoverEvidenceStep,
+        action: () => Promise<string | { summaryCode: string; completion: { activatedAt: string; firstBusinessWriteAt: null } }>,
+        artifactDigests: Record<string, `sha256:${string}`> = {},
+      ) => evidenceStore.runStep(
+        step,
+        digestCanonicalJson({ runId, step }) as `sha256:${string}`,
+        async () => {
+          const result = await action();
+          return typeof result === "string"
+            ? { summaryCode: result, artifactDigests }
+            : { ...result, artifactDigests };
+        },
+      );
 
-      await coordinator.runStep("C0", async () => {
+      await runStep("C0", async () => {
         expect(getBlockedDbCapabilities()).toEqual([]);
         expect(release.effectiveSchemaManifestDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
         expect(path.resolve(sourceWorkspace)).not.toBe(path.resolve(dataRoot));
         return "release-gates-and-isolated-roots-passed";
       });
-      await coordinator.runStep("C1", async () => {
+      await runStep("C1", async () => {
         const runtime = await new RuntimeBundleFileService().readAndVerify(maintenanceBundle);
         expect(runtime.bundle.maintenanceState).toBe("closed");
         expect(runtime.bundle.activeMutations).toBe(0);
         expect(runtime.bundle.activeStreams).toBe(0);
         return "maintenance-closed-runtime-bundle-sealed";
       });
-      await coordinator.runStep("C2", async () => {
+      await runStep("C2", async () => {
         expect(snapshot.sourceManifest.items.length).toBeGreaterThan(0);
         expect(afterSnapshot.mtimeMs).toBe(beforeSnapshot.mtimeMs);
         return "real-snapshot-source-unchanged";
+      }, {
+        sourceManifestDigest: snapshot.sourceManifest.manifestDigest,
+        snapshotManifestDigest: snapshot.snapshotManifest.manifestDigest,
       });
-      await coordinator.runStep("C3", async () => {
+      await runStep("C3", async () => {
         await deploy(databaseUrl);
         prisma = new PrismaService();
         await prisma.onModuleInit();
@@ -119,7 +144,7 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         expect(databaseUrl).not.toContain(path.resolve(sourceWorkspace));
         return "fresh-migrated-temp-sqlite-and-fake-secret-store";
       });
-      await coordinator.runStep("C4", async () => {
+      await runStep("C4", async () => {
         const finalResult = await new FinalImportOrchestrator(prisma!).import({ snapshotPath: snapshot.outputPath, decisionsPath, databaseUrl, workspaceRoot: targetWorkspace, dataRoot, releaseRoot: repoRoot, secretStoreRoot, runId });
         expect(finalResult.run.status).toBe("succeeded");
         expect(finalResult.report.slices).toHaveLength(16);
@@ -133,8 +158,8 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         materializedWorkspaceRoot = path.join(restoreRoot, "materialized-workspace");
         await expect(new AppRestoreService().restore({ backup: backup.bundlePath, releaseRoot: repoRoot, targetDataRoot: materializedDataRoot, targetWorkspaceRoot: materializedWorkspaceRoot, mode: "materialize" })).resolves.toMatchObject({ mode: "materialize" });
         return JSON.stringify({ final: finalResult.report.reportDigest, backup: backup.bundleDigest, restore: restore.bundleDigest });
-      });
-      await coordinator.runStep("C5", async () => {
+      }, { decisionsDigest: decisions.decisionsDigest });
+      await runStep("C5", async () => {
         app = await NestFactory.create(AppModule, { logger: false });
         app.setGlobalPrefix("api");
         await app.listen(0, "127.0.0.1");
@@ -152,19 +177,24 @@ describe("M6 isolated C0-C7 rehearsal", () => {
         expect(await stat(materializedWorkspaceRoot!)).toBeTruthy();
         return "real-api-read-and-closed-write-rollback-smoke";
       });
-      await coordinator.runStep("C6", async () => {
+      await runStep("C6", async () => {
         const result = await new MetadataArchiveService().archive({ workspaceRoot: sourceWorkspace, archiveRoot, marker: runId });
         expect(result.assetPathCount).toBe(1);
         await expect(readFile(path.join(archiveRoot, "projects/p1/assets/asset.bin"))).rejects.toThrow();
         return "metadata-only-archive-retains-asset-path-not-bytes";
       });
-      await coordinator.runStep("C7", async () => {
+      await runStep("C7", async () => {
         const backupEntries = await readdir(backupOutput);
         const backup = path.join(backupOutput, backupEntries.find((entry) => entry.startsWith("backup-"))!);
         const activate = new DbActivateService(prisma!);
-        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, maintenanceBundle, cutoverEvidenceRoot: evidenceRoot, gate: "ACT-08", mode: "dry-run" })).resolves.toMatchObject({ activationState: "ready_for_activation", firstBusinessWriteAt: null });
-        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, maintenanceBundle, cutoverEvidenceRoot: evidenceRoot, gate: "ACT-08", mode: "execute" })).resolves.toMatchObject({ activationState: "db_only", firstBusinessWriteAt: null });
-        return "activate-execute-before-first-business-write";
+        await expect(activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, gate: "ACT-08", mode: "dry-run" })).resolves.toMatchObject({ activationState: "ready_for_activation", firstBusinessWriteAt: null });
+        const activated = await activate.activate({ runId, sourceManifestDigest: snapshot.sourceManifest.manifestDigest, effectiveManifestDigest: release.effectiveSchemaManifestDigest, releaseRoot: repoRoot, backup, gate: "ACT-08", mode: "execute" });
+        expect(activated).toMatchObject({ activationState: "db_only", firstBusinessWriteAt: null });
+        if (!activated.activatedAt) throw new Error("M6_C7_ACTIVATED_AT_MISSING");
+        return {
+          summaryCode: "activate-execute-before-first-business-write",
+          completion: { activatedAt: activated.activatedAt, firstBusinessWriteAt: null },
+        };
       });
       expect(await stat(path.join(evidenceRoot, "COMPLETED"))).toBeTruthy();
       const project = await prisma!.database().project.findFirstOrThrow();
@@ -175,10 +205,11 @@ describe("M6 isolated C0-C7 rehearsal", () => {
       expect(state?.activationState).toBe("db_only");
       expect(state?.firstBusinessWriteAt).toBeInstanceOf(Date);
 
-      expect(coordinator.status()).toHaveLength(8);
-      expect(coordinator.status().every((item) => item.status === "passed")).toBe(true);
-      const persistedEvidence = JSON.parse(await readFile(path.join(evidenceRoot, "cutover-evidence.json"), "utf8")) as { steps: unknown[]; evidenceDigest: string };
-      expect(persistedEvidence.steps).toHaveLength(8);
+      const verifiedEvidence = await evidenceStore.readVerified();
+      expect(verifiedEvidence.steps).toHaveLength(8);
+      expect(verifiedEvidence.steps.every((item) => item.status === "passed")).toBe(true);
+      const persistedEvidence = JSON.parse(await readFile(path.join(evidenceRoot, "cutover-evidence.json"), "utf8")) as { stepDigests: unknown[]; evidenceDigest: string };
+      expect(persistedEvidence.stepDigests).toHaveLength(8);
       expect(persistedEvidence.evidenceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
     } finally {
       await app?.close();

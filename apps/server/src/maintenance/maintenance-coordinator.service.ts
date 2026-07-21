@@ -77,18 +77,8 @@ export class MaintenanceCoordinator {
     return configured === "closed" || configured === "true" ? "closed" : "open";
   }
 
-  getState(): MaintenanceState {
-    return this.state;
-  }
-
   getRuntimeInstanceId(): string {
     return this.runtimeInstanceId;
-  }
-
-  registerParticipant(participant: MaintenanceParticipant): void {
-    if (!participant.name.trim()) throw new TypeError("MAINTENANCE_PARTICIPANT_NAME_REQUIRED");
-    if (this.participants.has(participant.name)) throw new TypeError(`MAINTENANCE_PARTICIPANT_DUPLICATE:${participant.name}`);
-    this.participants.set(participant.name, participant);
   }
 
   registerRuntimeStateProvider(name: string, provider: RuntimeStateProvider): void {
@@ -177,12 +167,6 @@ export class MaintenanceCoordinator {
     }
     await Promise.all([...this.participants.values()].map((participant) => participant.reopen()));
     this.state = "open";
-    return this.status();
-  }
-
-  async handOff(): Promise<MaintenanceStatus> {
-    if (this.state !== "closed") throw new MaintenanceException("MAINTENANCE_INVALID_TRANSITION", 409, `cannot hand off from ${this.state}`);
-    this.state = "handed_off";
     return this.status();
   }
 

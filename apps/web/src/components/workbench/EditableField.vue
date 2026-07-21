@@ -13,7 +13,7 @@ import { PencilLine } from "lucide-vue-next";
 import type { PropType } from "vue";
 import type { ShotSelectOption } from "../../utils/storyboard-options";
 
-const props = defineProps({
+defineProps({
   fieldKey: { type: String, required: true },
   label: { type: String, required: true },
   value: { type: String, required: true },

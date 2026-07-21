@@ -6,7 +6,6 @@ import {
   projectLayoutSourceBindings,
 } from "./digest.js";
 import type {
-  CandidateImageSourceV1,
   LayoutDigest,
   LayoutDocumentV1,
   LayoutPublicationProfileV1,

@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
+import { mkdir, open, rename, unlink } from "node:fs/promises";
 import * as path from "node:path";
 import { MigrationAuditError, MigrationAuditService } from "./migration-audit.service.js";
 import { readJsonFormat } from "../cli-format.js";

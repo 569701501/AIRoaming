@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { loadReleaseSchemaIdentityV1 } from "../persistence/release-schema-identity.js";
-import { DbActivateError, DbActivateService } from "./db-activate.service.js";
+import { DbActivateService } from "./db-activate.service.js";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../..");
 const release = await loadReleaseSchemaIdentityV1(repoRoot);

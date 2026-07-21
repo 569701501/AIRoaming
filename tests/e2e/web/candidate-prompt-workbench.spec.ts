@@ -8,6 +8,7 @@ test("候选图工作台展示自动整理说明、阻断硬伤，并可采用�
   provider,
   rainSmokeProject,
 }) => {
+  const providerRequestCursor = (await provider.listRequests()).length;
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject, { generateCandidates: false });
   await page.goto(`/projects/${fixture.projectId}/candidates`);
 
@@ -51,6 +52,6 @@ test("候选图工作台展示自动整理说明、阻断硬伤，并可采用�
   );
   expect(current.data.snapshot.shots.find((shot) => shot.id === fixture.shotId)?.comic.panelDescription)
     .toBe("雨夜站台与缓缓进站的空车");
-  const providerRequests = await provider.listRequests();
+  const providerRequests = (await provider.listRequests()).slice(providerRequestCursor);
   expect(providerRequests.some((request) => request.path.startsWith("/image/v1/images/"))).toBe(false);
 });

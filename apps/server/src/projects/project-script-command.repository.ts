@@ -3,13 +3,10 @@ import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { encodeScriptTextV1, stripChapterScriptName, extractScriptOutlineTitle } from "@airoaming/shared";
 import { PrismaService } from "../persistence/prisma.service.js";
-import { getDefaultChapterTitle } from "./project-domain.util.js";
 import { VersionTransactionRunner } from "./versioning/version-transaction-runner.service.js";
 import { createG2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import { createScriptOutlineId, createScriptPendingIds } from "./versioning/runtime-command-id.js";
 import type { SaveScriptOutlineFromAIInput, WriteChapterDraftFromAIInput } from "./projects.service.js";
-
-const EMPTY_SCRIPT_DIGEST = encodeScriptTextV1("", { allowEmpty: true }).digest;
 
 export interface ProjectMetadataPatch {
   name?: string;
@@ -68,24 +65,6 @@ export class ProjectScriptCommandRepository {
       if (JSON.stringify(current) === JSON.stringify(next)) return;
       const updated = await tx.project.updateMany({ where: { id: projectId, rowVersion: project.rowVersion, lifecycleStatus: "active" }, data: { ...data, rowVersion: { increment: 1 } } });
       if (updated.count !== 1) throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT");
-    });
-  }
-
-  async ensureChapter(projectId: string, order: number, title?: string): Promise<{ id: string; replayed: boolean }> {
-    this.assertDatabaseMode();
-    if (!Number.isInteger(order) || order <= 0) throw createG2DatabaseError(400, "VERSION_DOCUMENT_INVALID", { field: "order" });
-    return this.transactionRunner.run(async (tx) => {
-      const project = await tx.project.findUnique({ where: { id: projectId } });
-      if (!project || project.lifecycleStatus !== "active") throw createG2DatabaseError(404, "PROJECT_NOT_FOUND");
-      const existing = await tx.chapter.findUnique({ where: { projectId_order: { projectId, order } } });
-      if (existing) return { id: existing.id, replayed: true };
-      const suffix = String(order).padStart(3, "0");
-      const id = `${projectId}_chapter_${suffix}`;
-      const now = new Date();
-      await tx.chapter.create({ data: { id, projectId, slug: `chapter-${suffix}`, order, title: title?.trim() || getDefaultChapterTitle(order), milestoneStatus: "draft", scriptWorkingText: "", scriptWorkingDigest: EMPTY_SCRIPT_DIGEST, scriptWorkingState: "empty", rowVersion: 0, createdAt: now, updatedAt: now } });
-      const updated = await tx.project.updateMany({ where: { id: projectId, rowVersion: project.rowVersion, lifecycleStatus: "active" }, data: { currentChapterId: id, rowVersion: { increment: 1 } } });
-      if (updated.count !== 1) throw createG2DatabaseError(409, "CHAPTER_VERSION_CONFLICT");
-      return { id, replayed: false };
     });
   }
 

@@ -37,7 +37,6 @@ function optional(value: Record<string, unknown>, key: string): string | null { 
 function dateField(value: Record<string, unknown>, key: string, fallback = FALLBACK_DATE): Date { const parsed = new Date(field(value, key, fallback)); return Number.isNaN(parsed.getTime()) ? new Date(fallback) : parsed; }
 function projectSourceKey(projectId: string): string { return `workspace-v1:${projectId}:Project:${projectId}`; }
 function chapterSourceKey(projectId: string, chapterId: string): string { return `workspace-v1:${projectId}:Chapter:${chapterId}`; }
-function storyboardSourceKey(projectId: string, chapterId: string, version: number): string { return `workspace-v1:${projectId}:StoryboardVersion:${chapterId}:v${String(version).padStart(3, "0")}`; }
 function preflightSourceKey(projectId: string, chapterId: string, version: number): string { return `workspace-v1:${projectId}:PreflightRevision:${chapterId}:v${String(version).padStart(3, "0")}`; }
 function characterSourceKey(projectId: string, characterId: string): string { return `workspace-v1:${projectId}:Character:${characterId}`; }
 function assetSourceKey(projectId: string, assetId: string): string { return `workspace-v1:${projectId}:Asset:${assetId}`; }

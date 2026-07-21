@@ -208,8 +208,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AlertTriangle, CheckCircle2, GripVertical, Image as ImageIcon, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2, X } from "lucide-vue-next";
-import type { ChapterListItem, ChapterStoryboard, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchCandidate, WorkbenchSnapshot } from "@airoaming/shared";
+import { AlertTriangle, CheckCircle2, GripVertical, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2, X } from "lucide-vue-next";
+import type { ChapterListItem, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchCandidate, WorkbenchSnapshot } from "@airoaming/shared";
 import { api } from "../../services/api";
 import EditableField from "./EditableField.vue";
 import {

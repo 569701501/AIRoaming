@@ -154,7 +154,6 @@
           empty-title="还没有主角色"
           empty-text="确认剧本大纲后，主角和常驻角色会自动进入项目角色库。"
           @regenerate-reference="$emit('regenerateCharacterReference', $event)"
-          @delete-reference="$emit('deleteCharacterReference', $event)"
           @confirm-preview="$emit('confirmCharacterPreview', $event)"
           @confirm-reference="$emit('confirmCharacterReference', $event)"
         />
@@ -172,7 +171,6 @@
           empty-title="本章角色还没有进入角色库"
           empty-text="确认剧情结构后，本章角色会自动进入角色库并排队生成角色图。"
           @regenerate-reference="$emit('regenerateCharacterReference', $event)"
-          @delete-reference="$emit('deleteCharacterReference', $event)"
           @confirm-preview="$emit('confirmCharacterPreview', $event)"
           @confirm-reference="$emit('confirmCharacterReference', $event)"
         />
@@ -300,7 +298,6 @@ const emit = defineEmits<{
   confirmStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   regenerateCharacterReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
-  deleteCharacterReference: [payload: { characterId: string; assetId: string }];
   confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
   generateSceneReference: [payload: { chapterId: string; sceneId: string }];

@@ -105,18 +105,3 @@ export function assertG4RuntimeMigrationLedgerV1(
     fail("LEDGER_COUNT_MISMATCH", `${rows.length}:${expected.length}`);
   }
 }
-
-export async function assertG4RuntimeMigrationReadyV1(client: {
-  $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
-}): Promise<void> {
-  const expected = await loadG4RuntimeMigrationExpectationsV1();
-  let rows: G1RuntimeMigrationLedgerRowV1[];
-  try {
-    rows = await client.$queryRawUnsafe<G1RuntimeMigrationLedgerRowV1[]>(
-      'SELECT migration_name, checksum, finished_at, rolled_back_at, logs, applied_steps_count FROM "_prisma_migrations" ORDER BY started_at, migration_name',
-    );
-  } catch (cause) {
-    fail("LEDGER_UNAVAILABLE", undefined, cause);
-  }
-  assertG4RuntimeMigrationLedgerV1(expected, rows);
-}

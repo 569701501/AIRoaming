@@ -72,7 +72,7 @@ import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 import { ChevronDown, FolderPlus } from "lucide-vue-next";
-import type { CreateProjectRequest, ProjectListItem, ProjectStatus } from "@airoaming/shared";
+import type { CreateProjectRequest, ProjectListItem } from "@airoaming/shared";
 import CreateProjectModal from "./CreateProjectModal.vue";
 import DeleteProjectDialog from "./DeleteProjectDialog.vue";
 import ProjectCard from "./ProjectCard.vue";

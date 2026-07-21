@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CutoverSettingsError, CutoverSettingsService } from "./cutover-settings.service.js";
+import { CutoverSettingsService } from "./cutover-settings.service.js";
 import { FakeSecretStore, SecretString } from "./secret-store.js";
 
 describe("RCUT-SEC deferred settings migration", () => {

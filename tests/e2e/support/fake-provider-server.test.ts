@@ -79,6 +79,39 @@ describe("G0 loopback fake provider", () => {
     assert.equal(structure.beats?.length, 3);
   });
 
+  test("returns the story structure through OpenCode json_schema structured output", async () => {
+    const response = await fetch(`${fake.url}/opencode/session/e2e-session-2/message?directory=%2Ftmp%2Fe2e-structured`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: { providerID: "e2e", modelID: "deterministic" },
+        format: {
+          type: "json_schema",
+          schema: {
+            type: "object",
+            required: ["synopsis"],
+            properties: { synopsis: { type: "string" } },
+          },
+          retryCount: 0,
+        },
+        parts: [{
+          type: "text",
+          text: "你正在为 AI漫游执行剧情结构阶段 skill：structure-story-parse。\n当前章节剧本文档：\n雨夜站台。",
+        }],
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as {
+      info?: { structured?: { synopsis?: string; direction?: { endingHook?: string }; beats?: unknown[] } };
+      parts?: unknown[];
+    };
+    assert.equal(payload.info?.structured?.synopsis, "林夏在雨夜站台等待末班车，异常广播后空车进站。");
+    assert.equal(payload.info?.structured?.direction?.endingHook, "无人驾驶的末班车在林夏面前打开车门。");
+    assert.equal(payload.info?.structured?.beats?.length, 3);
+    assert.deepEqual(payload.parts, []);
+  });
+
   test("supports local failure injection without exposing a production endpoint", async () => {
     const control = await fetch(`${fake.url}/__e2e__/control`, {
       method: "POST",

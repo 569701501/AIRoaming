@@ -290,11 +290,6 @@ export interface ConfirmImportChapterResponse {
   batchItemId: string;
 }
 
-export interface ResetProjectScriptResponse {
-  chapter: ChapterDetail;
-  chapters: ChapterListItem[];
-}
-
 export type ChapterStoryStructureStatus = "pending_confirmation" | "structured";
 
 export interface StoryStructureDirection {
@@ -759,11 +754,6 @@ export interface GenerateSceneReferenceRequest {
   requestId?: string;
   prompt?: string;
   size?: string;
-}
-
-export interface GenerateSceneReferenceResponse {
-  storyStructure: ChapterStoryStructure;
-  asset: WorkbenchAsset;
 }
 
 export interface QueueSceneReferenceResponse {
@@ -1246,28 +1236,6 @@ export interface ProjectCandidate {
   generationSpecDigest?: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface ChapterCandidates {
-  schemaVersion: 1;
-  projectId: string;
-  chapterId: string;
-  candidates: ProjectCandidate[];
-  updatedAt: string;
-}
-
-export interface LockChapterCandidateRequest {
-  candidateId: string;
-}
-
-export interface LockChapterCandidateResponse {
-  candidate: WorkbenchCandidate;
-  candidates: WorkbenchCandidate[];
-  shots: WorkbenchShot[];
-  chapter: ChapterDetail;
-  chapters: ChapterListItem[];
-  storyboard: ChapterStoryboard;
-  assets: WorkbenchAsset[];
 }
 
 export interface CompleteChapterImagesResponse {

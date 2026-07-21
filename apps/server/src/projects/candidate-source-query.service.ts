@@ -220,65 +220,6 @@ export class CandidateSourceQueryService {
     };
   }
 
-  /**
-   * Completion-time fence for G4/G5 tasks. Sealed immutable source rows prove
-   * what the task started from; this comparison only decides whether that
-   * source is still the chapter's current formal chain.
-   */
-  async taskApplicability(
-    scope: VersionScopeV1,
-    taskId: string,
-    reader: Reader = this.prismaService.database(),
-  ): Promise<TaskApplicability> {
-    const task = await reader.generationTask.findFirst({
-      where: {
-        id: taskId,
-        projectId: scope.projectId,
-        chapterId: scope.chapterId,
-      },
-      include: { generationTaskSourcesByTask: true },
-    });
-    if (!task || task.recordKind !== "runtime" || !task.sourceSetSealedAt) {
-      return "legacy_unresolved";
-    }
-    const state = await this.get(scope, reader);
-    const currentLockRevisionIds = new Set(
-      state.candidateLockSet.entries.flatMap((entry) => entry.candidateLockRevisionId
-        ? [entry.candidateLockRevisionId]
-        : []),
-    );
-    let mutableSourceCount = 0;
-    for (const source of task.generationTaskSourcesByTask) {
-      if (source.sourceType === "candidate_lock_revision") {
-        mutableSourceCount += 1;
-        if (!currentLockRevisionIds.has(source.sourceId)) return "historical";
-      } else if (source.sourceType === "lock_set") {
-        mutableSourceCount += 1;
-        if (
-          source.sourceId !== scope.chapterId
-          || source.sourceDigest !== state.candidateLockSet.digest
-        ) return "historical";
-      } else if (source.sourceType === "layout_revision") {
-        mutableSourceCount += 1;
-        if (
-          source.sourceId !== state.currentLayout?.id
-          || state.currentLayout.source.sourceResolution !== "current"
-        ) return "historical";
-      } else if (source.sourceType === "export_revision") {
-        mutableSourceCount += 1;
-        if (
-          source.sourceId !== state.currentExport?.id
-          || state.currentExport.source.sourceResolution !== "current"
-        ) return "historical";
-      }
-    }
-    if (mutableSourceCount === 0) return "legacy_unresolved";
-    return state.candidateLockSet.state === "complete"
-      && state.candidateLockSet.sourceApplicability === "current"
-      ? "current"
-      : "historical";
-  }
-
   private evaluateWorkingCopy(
     workingCopy: {
       id: string;

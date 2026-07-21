@@ -72,8 +72,10 @@ AI漫游是一个内部 AI 制作工作台，目标是把故事创意稳定转�
 | G1 Schema 与旧数据映射 | `文档/04_方案与决策/2026-07-11_G1数据库Schema字典与旧数据映射.md` |
 | G1 Schema 实施契约（已物化基线） | `文档/04_方案与决策/2026-07-11_G1数据库Schema实施契约.md` |
 | G1 Task/Outbox 实施注册表 | `文档/04_方案与决策/2026-07-11_G1任务与Outbox实施注册表.md` |
-| G1 machine manifest（`ready_for_materialization`，当前源精确绑定） | `apps/server/prisma/contracts/g1-schema-manifest.json` |
+| G1 历史 machine manifest（`ready_for_materialization`，冻结 provenance，不再主动重建） | `apps/server/prisma/contracts/g1-schema-manifest.json` |
 | G1 纠偏与 DB 垂直切片完成记录 | `文档/05_执行与记录/功能完成记录/2026-07-12_G1纠偏与DB垂直切片.md` |
+| DB-only 遗留代码收缩完成记录 | `文档/05_执行与记录/功能完成记录/2026-07-21_DB-only遗留代码收缩.md` |
+| E2E 固定结构与请求隔离完成记录 | `文档/05_执行与记录/功能完成记录/2026-07-21_E2E固定结构与请求隔离.md` |
 | G2 上游版本链与 Freshness | `文档/04_方案与决策/2026-07-11_G2上游版本链与Freshness开发方案.md` |
 | G2 版本来源契约字典 | `文档/04_方案与决策/2026-07-11_G2版本来源与Freshness契约字典.md` |
 | G2 施工依赖边界 | `文档/04_方案与决策/2026-07-12_G2施工包_依赖边界与阶段门禁.md` |

@@ -28,10 +28,6 @@ import {
   type ImagePreflightStyleCheck,
   type ProjectCharacter,
   type ProjectCandidate,
-  type ProjectCharacterEntityType,
-  type ProjectCharacterLevel,
-  type ProjectCharacterReferenceKind,
-  type ProjectCharacterStatus,
   type ProjectScriptOutline,
   type ProjectWorkflow,
   type ScriptRevisionItem,
@@ -266,20 +262,6 @@ export class ProjectRepository {
       ? project.persistenceCompatibility.comicFormatSource.rawValue
       : project.comicFormat;
   }
-  async clearProjectChaptersDir(projectId: string): Promise<void> {
-    this.assertDatabaseOperationSupported("clear_project_chapters");
-    await this.workspacePathService.ensureReady();
-    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
-    await rm(path.join(projectDir, "chapters"), { recursive: true, force: true });
-  }
-
-  async clearLegacyStoryDir(projectId: string): Promise<void> {
-    this.assertDatabaseOperationSupported("clear_legacy_story");
-    await this.workspacePathService.ensureReady();
-    const projectDir = this.workspacePathService.resolveVirtualPath(`/workspace/projects/${projectId}`);
-    await rm(path.join(projectDir, "story"), { recursive: true, force: true });
-  }
-
   private async writeChapterFiles(projectDir: string, chapter: LocalChapter): Promise<void> {
     const chapterDir = path.join(projectDir, "chapters", chapter.slug);
     const versionsDir = path.join(chapterDir, "script.versions");
@@ -709,7 +691,6 @@ export class ProjectRepository {
             sourceText: version.sourceText,
           }));
         const currentStory = readModel.stories.find((item) => item.id === chapter.currentStoryVersionId) ?? null;
-        const pendingStory = readModel.stories.find((item) => item.id === chapter.pendingStoryVersionId) ?? null;
         const currentStoryboard = readModel.storyboards.find((item) => item.id === chapter.currentStoryboardVersionId) ?? null;
         const pendingStoryboard = readModel.storyboards.find((item) => item.id === chapter.pendingStoryboardVersionId) ?? null;
         const currentPreflight = readModel.preflights.find((item) => item.id === chapter.currentPreflightRevisionId) ?? null;

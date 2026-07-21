@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   isExactCandidateLockReplay,
-  parseCandidateLockSetSummary,
   resolveCandidateLockTransition,
   type CandidateLockRevisionRecord,
   type CurrentCandidateDecision,
@@ -114,37 +113,4 @@ describe("candidate lock pure rules", () => {
     expect(isExactCandidateLockReplay(null, request)).toBe(false);
   });
 
-  it("LKS-14/15 strictly parses lock-set state/nullability and rejects unknown fields", () => {
-    const complete = {
-      schemaVersion: 1,
-      projectId: "project_a",
-      chapterId: "chapter_a",
-      storyboardVersionId: "storyboard_a",
-      state: "complete",
-      sourceApplicability: "current",
-      entries: [{ shotId: "shot_a", candidateLockRevisionId: "revision_a", candidateId: "candidate_a" }],
-      missingShotIds: [],
-      clearedShotIds: [],
-      unresolvedShotIds: [],
-      digest: `sha256:${"b".repeat(64)}`,
-    };
-    expect(parseCandidateLockSetSummary(complete)).toEqual(complete);
-    expect(() => parseCandidateLockSetSummary({ ...complete, unknown: true })).toThrow();
-    expect(() => parseCandidateLockSetSummary({ ...complete, sourceApplicability: null })).toThrow();
-    expect(() => parseCandidateLockSetSummary({ ...complete, state: "incomplete", sourceApplicability: "current" })).toThrow();
-    expect(() => parseCandidateLockSetSummary({
-      ...complete,
-      entries: [
-        { shotId: "shot_b", candidateLockRevisionId: "revision_b", candidateId: "candidate_b" },
-        { shotId: "shot_a", candidateLockRevisionId: "revision_a", candidateId: "candidate_a" },
-      ],
-    })).toThrow();
-    expect(() => parseCandidateLockSetSummary({
-      ...complete,
-      state: "incomplete",
-      sourceApplicability: null,
-      missingShotIds: ["shot_a"],
-      digest: null,
-    })).toThrow();
-  });
 });

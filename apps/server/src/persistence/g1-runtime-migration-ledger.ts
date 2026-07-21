@@ -40,10 +40,6 @@ export interface G1RuntimeMigrationLedgerRowV1 {
   readonly applied_steps_count: unknown;
 }
 
-interface MigrationLedgerClient {
-  $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
-}
-
 const MIGRATION_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../prisma/migrations",
@@ -213,19 +209,4 @@ export function assertG1RuntimeMigrationLedgerV1(
   if (g1Rows.length !== expected.length) {
     fail("LEDGER_COUNT_MISMATCH", `${g1Rows.length}:${expected.length}`);
   }
-}
-
-export async function assertG1RuntimeMigrationReadyV1(
-  client: MigrationLedgerClient,
-): Promise<void> {
-  const expected = await loadG1RuntimeMigrationExpectationsV1();
-  let rows: G1RuntimeMigrationLedgerRowV1[];
-  try {
-    rows = await client.$queryRawUnsafe<G1RuntimeMigrationLedgerRowV1[]>(
-      'SELECT migration_name, checksum, finished_at, rolled_back_at, logs, applied_steps_count FROM "_prisma_migrations" ORDER BY started_at, migration_name',
-    );
-  } catch (cause) {
-    fail("LEDGER_UNAVAILABLE", undefined, cause);
-  }
-  assertG1RuntimeMigrationLedgerV1(expected, rows);
 }

@@ -93,7 +93,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { CheckCircle2, Save, List, ListOrdered, Bold, Italic, Underline, Strikethrough, Quote, Image, ArrowRight, Trash2, History, AlertTriangle, MoreHorizontal, FileText } from "lucide-vue-next";
+import { CheckCircle2, Save, ArrowRight, Trash2, History, AlertTriangle, MoreHorizontal, FileText } from "lucide-vue-next";
 import type { CompleteChapterRequest, SaveChapterDraftRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import MarkdownTextEditor from "./MarkdownTextEditor.vue";

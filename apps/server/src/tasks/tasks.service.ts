@@ -38,12 +38,6 @@ export class TasksService {
       : this.list();
   }
 
-  async getForApi(taskId: string): Promise<GenerationTaskItem> {
-    return this.isDatabaseMode()
-      ? this.requirePersistentRepository().get(taskId)
-      : this.get(taskId);
-  }
-
   async getDetailForApi(taskId: string): Promise<{ task: GenerationTaskItem; attempts: import("./persistent-task.repository.js").PersistentTaskAttemptItem[]; applicability: string | null }> {
     if (!this.isDatabaseMode()) return { task: this.get(taskId), attempts: [], applicability: null };
     const detail = await this.requirePersistentRepository().getDetail(taskId);

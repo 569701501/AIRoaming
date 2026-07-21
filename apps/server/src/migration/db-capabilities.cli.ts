@@ -16,7 +16,7 @@ function parseArgs(args: readonly string[]): { check: boolean } {
   const format = readJsonFormat(args, () => new DbCapabilityCliError("DB_CAPABILITIES_ARGS_INVALID"));
   if (format !== "json") throw new DbCapabilityCliError("DB_CAPABILITIES_ARGS_INVALID");
   const checkFlags = args.filter((arg) => arg === "--check");
-  if (checkFlags.length > 1 || args.some((arg, index) => arg !== "--check"
+  if (checkFlags.length > 1 || args.some((arg) => arg !== "--check"
     && arg !== "--format"
     && arg !== "json")) {
     throw new DbCapabilityCliError("DB_CAPABILITIES_ARGS_INVALID");

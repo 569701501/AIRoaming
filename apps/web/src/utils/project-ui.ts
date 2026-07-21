@@ -1,10 +1,4 @@
-import type { ProjectListItem, ProjectStatus, ProjectType } from "@airoaming/shared";
-
-export const projectTypeLabels: Record<ProjectType, string> = {
-  comic: "漫画项目",
-  light_motion: "轻漫剧",
-  mixed: "混合项目",
-};
+import type { ProjectListItem, ProjectStatus } from "@airoaming/shared";
 
 export const projectStatusMeta: Record<ProjectStatus, { label: string; tone: string; step: string }> = {
   draft: {

@@ -396,7 +396,7 @@ export class LayoutWorkingCopyService {
         }
         const sourceState = await this.candidateSources.get(scope, tx);
         if (!sourceState.gates.buildLayoutWorkingCopy.allowed) serviceError("LAYOUT_LOCK_SET_INCOMPLETE", 409, { reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes });
-        const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, tx);
+        const sources = await this.readReadySources(chapter.currentStoryboardVersionId, tx);
         const document = makeInitialDocument({
           scope,
           comicFormat,
@@ -449,7 +449,7 @@ export class LayoutWorkingCopyService {
         reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes,
       });
     }
-    const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, reader);
+    const sources = await this.readReadySources(chapter.currentStoryboardVersionId, reader);
     return {
       schemaVersion: 1,
       projectId: scope.projectId,
@@ -533,7 +533,7 @@ export class LayoutWorkingCopyService {
             reasonCodes: sourceState.gates.buildLayoutWorkingCopy.reasonCodes,
           });
         }
-        const sources = await this.readReadySources(scope, chapter.currentStoryboardVersionId, tx);
+        const sources = await this.readReadySources(chapter.currentStoryboardVersionId, tx);
         const document = makeInitialDocument({
           scope,
           comicFormat,
@@ -690,11 +690,7 @@ export class LayoutWorkingCopyService {
     });
   }
 
-  private async readReadySources(
-    scope: VersionScopeV1,
-    storyboardVersionId: string | null,
-    reader: Reader,
-  ): Promise<ReadyLayoutSource[]> {
+  private async readReadySources(storyboardVersionId: string | null, reader: Reader): Promise<ReadyLayoutSource[]> {
     if (!storyboardVersionId) serviceError("LAYOUT_LOCK_SET_INCOMPLETE", 409);
     const projections = await reader.storyboardShotProjection.findMany({
       where: { storyboardVersionId },

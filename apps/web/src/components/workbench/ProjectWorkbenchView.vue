@@ -16,12 +16,9 @@
         :dialogue-thread="dialogueThread"
         :loading="loading"
         :runtime-model-error="runtimeModelError"
-        :runtime-models="runtimeModels"
-        :selected-model="selectedDialogueModel"
         :snapshot="snapshot"
         :step-label="currentStageLabel"
         @send="emitDialogue"
-        @select-model="$emit('selectDialogueModel', $event)"
         @retry-import-item="$emit('retryImportItem', $event)"
       />
 
@@ -69,7 +66,6 @@
         @confirm-structure="$emit('confirmStoryStructure', $event)"
         @update-structure="$emit('updateStoryStructure', $event)"
         @regenerate-character-reference="$emit('regenerateCharacterReference', $event)"
-        @delete-character-reference="$emit('deleteCharacterReference', $event)"
         @confirm-character-preview="$emit('confirmCharacterPreview', $event)"
         @confirm-character-reference="$emit('confirmCharacterReference', $event)"
         @generate-scene-reference="$emit('generateSceneReference', $event)"
@@ -81,11 +77,6 @@
         :snapshot="snapshot"
         :tasks="tasks"
         @extract-characters="$emit('extractCharacters')"
-        @ensure-previews="$emit('ensureCharacterPreviews')"
-        @regenerate-reference="$emit('regenerateCharacterReference', $event)"
-        @delete-reference="$emit('deleteCharacterReference', $event)"
-        @confirm-preview="$emit('confirmCharacterPreview', $event)"
-        @confirm-reference="$emit('confirmCharacterReference', $event)"
       />
 
       <StoryboardWorkspace
@@ -155,7 +146,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { AIRuntimeModelItem, AIRuntimeModelSelection, CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerateCharacterReferenceRequest, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
@@ -181,15 +172,12 @@ const props = defineProps<{
   dialogueSending: boolean;
   dialogueError: string | null;
   dialogueNotice: string | null;
-  runtimeModels: AIRuntimeModelItem[];
-  selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
 }>();
 
 const scriptDraft = ref("");
 
 const emit = defineEmits<{
-  back: [];
   openCharacters: [];
   saveChapterDraft: [payload: { chapterId: string; input: SaveChapterDraftRequest }];
   completeChapter: [payload: { chapterId: string; input: CompleteChapterRequest }];
@@ -199,15 +187,10 @@ const emit = defineEmits<{
   selectChapter: [chapterId: string];
   selectStep: [stepKey: string];
   dismissCompletionPrompt: [];
-  selectDialogueModel: [model: AIRuntimeModelSelection];
   sendDialogue: [input: SendDialogueMessageRequest];
   retryImportItem: [payload: { batchId: string; itemId: string }];
   extractCharacters: [];
-  ensureCharacterPreviews: [];
-  updateProjectCharacter: [payload: { characterId: string; input: UpdateProjectCharacterRequest }];
-  generateCharacterReference: [payload: { characterId: string; referenceKind: GenerateCharacterReferenceRequest["referenceKind"] }];
   regenerateCharacterReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
-  deleteCharacterReference: [payload: { characterId: string; assetId: string }];
   confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
   generateSceneReference: [payload: { chapterId: string; sceneId: string }];

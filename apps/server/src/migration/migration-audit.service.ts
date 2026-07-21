@@ -127,7 +127,7 @@ export class MigrationAuditService {
 
       for (const item of projectItems) {
         const projectId = item.storageKey.split("/")[1];
-        const { bytes } = await verified.readPayload(item.storageKey);
+        await verified.readPayload(item.storageKey);
         const metadata = parseObject(await readJson(path.join(root, "payload", ...item.storageKey.split("/")), "MIGRATION_SOURCE_PROJECT_INVALID"), "MIGRATION_SOURCE_PROJECT_INVALID");
         const mapping = mapLegacyComicFormat(metadata.comicFormat);
         const issue = buildComicFormatIssue({ runId: run.id, projectId, sourceStorageKey: item.storageKey, sourceDigest: item.sha256, mapping, createdAt: run.startedAt });

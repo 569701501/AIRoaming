@@ -446,6 +446,13 @@ export async function createFakeProviderServer(options) {
       }
       if (method === "POST" && /^\/opencode\/session\/[^/]+\/message$/.test(url.pathname)) {
         const payload = await readJsonBody(request);
+        const structured = deterministicStructuredOpenCodeResponse(payload);
+        if (structured !== null) {
+          return sendJson(response, 200, {
+            info: { role: "assistant", structured },
+            parts: [],
+          });
+        }
         return sendJson(response, 200, {
           parts: [{ type: "text", text: deterministicOpenCodeResponse(payload, failureMode) }],
         });
@@ -542,17 +549,35 @@ function sendJson(response, status, payload) {
   response.end(body);
 }
 
-function deterministicOpenCodeResponse(payload, failureMode) {
-  const prompt = Array.isArray(payload.parts)
+function readOpenCodePrompt(payload) {
+  return Array.isArray(payload.parts)
     ? payload.parts
       .filter((part) => part && typeof part === "object" && part.type === "text" && typeof part.text === "string")
       .map((part) => part.text)
       .join("\n")
     : "";
+}
+
+function selectStoryStructureResponse(prompt) {
+  return prompt.includes("#### 场景 2：无人末班车")
+    ? FULL_STORY_STRUCTURE_RESPONSE
+    : STORY_STRUCTURE_RESPONSE;
+}
+
+function deterministicStructuredOpenCodeResponse(payload) {
+  if (!payload.format || typeof payload.format !== "object" || payload.format.type !== "json_schema") {
+    return null;
+  }
+  const prompt = readOpenCodePrompt(payload);
+  return prompt.includes("structure-story-parse")
+    ? selectStoryStructureResponse(prompt)
+    : null;
+}
+
+function deterministicOpenCodeResponse(payload, failureMode) {
+  const prompt = readOpenCodePrompt(payload);
   if (prompt.includes("structure-story-parse")) {
-    const structure = prompt.includes("#### 场景 2：无人末班车")
-      ? FULL_STORY_STRUCTURE_RESPONSE
-      : STORY_STRUCTURE_RESPONSE;
+    const structure = selectStoryStructureResponse(prompt);
     return `\`\`\`json\n${JSON.stringify(structure, null, 2)}\n\`\`\``;
   }
   if (prompt.includes("shot-prompt-optimize")) {

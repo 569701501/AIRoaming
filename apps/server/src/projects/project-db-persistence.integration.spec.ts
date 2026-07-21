@@ -78,6 +78,40 @@ interface PrismaResult {
   readonly stderr: string;
 }
 
+async function createEmptyDatabaseChapter(
+  database: ReturnType<PrismaService["database"]>,
+  projectId: string,
+  order: number,
+  title: string,
+): Promise<{ id: string; title: string }> {
+  const suffix = String(order).padStart(3, "0");
+  const id = `${projectId}_chapter_${suffix}`;
+  const now = new Date();
+  await database.$transaction(async (tx) => {
+    await tx.chapter.create({
+      data: {
+        id,
+        projectId,
+        slug: `chapter-${suffix}`,
+        order,
+        title,
+        milestoneStatus: "draft",
+        scriptWorkingText: "",
+        scriptWorkingDigest: encodeScriptTextV1("", { allowEmpty: true }).digest,
+        scriptWorkingState: "empty",
+        rowVersion: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    await tx.project.update({
+      where: { id: projectId },
+      data: { currentChapterId: id, rowVersion: { increment: 1 }, updatedAt: now },
+    });
+  });
+  return { id, title };
+}
+
 async function runPrismaDeploy(
   databaseUrl: string,
   schemaPath = FORMAL_SCHEMA_PATH,
@@ -324,7 +358,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   }, 20_000);
 
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
-    const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
+    const { workspaceRoot, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
     expect(deployed.stdout).toContain("17 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
@@ -383,7 +417,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await projects.getWorkbenchSnapshot(second.id)).chapters).toHaveLength(2);
     expect((await projects.getWorkbenchSnapshot(second.id)).chapters[1]?.id).toBe(`${second.id}_chapter_002`);
 
-    await expect(projects.resetProjectScript(first.id)).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "LEGACY_WRITE_ROUTE_DISABLED" }) }) });
     await expect(
       access(path.join(workspaceRoot, "projects", first.id)),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -469,7 +502,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       artStyle: "comic_style",
     });
     const firstChapterId = project.currentChapterId!;
-    const secondChapter = await projects.ensureChapterExists(project.id, 2, "第二章");
+    const secondChapter = await createEmptyDatabaseChapter(prisma, project.id, 2, "第二章");
     const before = await prisma.project.findUniqueOrThrow({
       where: { id: project.id },
       select: { currentChapterId: true, rowVersion: true, updatedAt: true },
@@ -486,22 +519,20 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect((await projects.getWorkbenchSnapshot(project.id)).currentChapter?.id).toBe(secondChapter.id);
   }, 20_000);
 
-  it("D2-A2-1: keeps metadata, chapter ensure, AI pending and outline commands replayable", async () => {
+  it("D2-A2-1: keeps metadata, AI pending and outline commands replayable", async () => {
     const { workspaceRoot, databasePath, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
     const projects = app.get(ProjectsService);
     const script = app.get(ScriptVersionService);
+    const prisma = app.get(PrismaService).database();
     const project = await projects.createProject({ name: "A2-1 命令闭环", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
 
     const before = await projects.getWorkbenchSnapshot(project.id);
     expect(before.versioningCapability).toMatchObject({ mode: "g2_db", schemaVersion: 2, supports: { scriptWorkingCopy: true, importer: false } });
     const metadata = await projects.updateProjectDraft(project.id, { name: "A2-1 已更新", description: "只改 metadata" });
     expect(metadata.name).toBe("A2-1 已更新");
-    const ensured = await projects.ensureChapterExists(project.id, 2, "第二章");
-    const replayedChapter = await projects.ensureChapterExists(project.id, 2, "不会覆盖标题");
-    expect(replayedChapter.id).toBe(ensured.id);
-    expect(replayedChapter.title).toBe("第二章");
+    const ensured = await createEmptyDatabaseChapter(prisma, project.id, 2, "第二章");
 
     const aiInput = { sourceText: "第二章正文\n", title: "第二章", summary: "AI 建议", threadId: "missing-thread", messageId: "missing-message", toolCallId: "tool-a2-1", operation: "generate_script_from_outline" as const };
     const pendingResult = await projects.writeChapterDraftFromAI(project.id, ensured.id, aiInput);
@@ -538,12 +569,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const projects = app.get(ProjectsService);
     const project = await projects.createProject({ name: "A2-2 退役路由", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
     const expectRetired = (promise: Promise<unknown>, operation?: string) => expect(promise).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "LEGACY_WRITE_ROUTE_DISABLED", details: expect.objectContaining(operation ? { operation } : {}) }) }) });
-    await expectRetired(projects.resetProjectScript(project.id), "reset_project_script");
-    await expectRetired(projects.importScriptToChapters(project.id, { sourceText: "# 旧导入", sourceName: "legacy.md", threadId: "t", messageId: "m", toolCallId: "c" }), "import_script_to_chapters");
     await expectRetired(projects.clearChapterScript(project.id, project.currentChapterId!), undefined);
     await expectRetired(projects.confirmChapterPendingSource(project.id, project.currentChapterId!), undefined);
     await expectRetired(projects.discardChapterPendingSource(project.id, project.currentChapterId!), undefined);
-    expect((await projects.getScriptImpactPreview(project.id)).replacement).toContain("逐章");
     expect((await projects.getWorkbenchSnapshot(project.id)).versioningCapability.mode).toBe("g2_db");
   }, 20_000);
 
@@ -570,19 +598,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     await expectRetired(projects.confirmChapterStoryboard(project.id, chapterId, {} as never), "confirm_storyboard", "/storyboard/working-copy/confirm");
     await expectRetired(projects.updateChapterStoryboard(project.id, chapterId, {} as never), "update_storyboard", "/storyboard/working-copy");
     expect(readBusinessFacts(databasePath)).toMatchObject({ projects: 1, chapters: 1 });
-  }, 20_000);
-
-  it("P4-LEGACY-01: retires synchronous/bulk character reference routes in DB mode", async () => {
-    const { deployed } = await prepareDatabase();
-    expect(deployed.code).toBe(0);
-    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
-    const projects = app.get(ProjectsService);
-    const project = await projects.createProject({ name: "P4 参考图旧入口", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
-    const chapterId = project.currentChapterId!;
-    const expectRetired = (promise: Promise<unknown>, operation: string, replacement: string) => expect(promise).rejects.toMatchObject({ response: expect.objectContaining({ error: expect.objectContaining({ code: "LEGACY_WRITE_ROUTE_DISABLED", details: expect.objectContaining({ operation, replacement: expect.stringContaining(replacement) }) }) }) });
-    await expectRetired(projects.ensureProjectCharacterPreviewTasks(project.id), "ensure_character_previews", "/characters/");
-    await expectRetired(projects.generateCharacterReference(project.id, "character-1"), "generate_character_reference", "/characters/");
-    await expectRetired(projects.generateSceneReference(project.id, chapterId, "scene-1"), "generate_scene_reference", "/chapters/");
   }, 20_000);
 
   it("P4-CHAR-01: updates character identity in DB without workspace writes", async () => {
@@ -856,7 +871,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const finalAsset = await prisma.asset.findFirstOrThrow({ where: { sourceTaskId: finalTaskId } });
     await projects.confirmCharacterReference(project.id, character.id, { assetId: finalAsset.id });
     const asset = finalAsset;
-    const visual = await prisma.characterVisual.findFirstOrThrow({ where: { characterId: character.id, assetId: asset.id } });
+    await prisma.characterVisual.findFirstOrThrow({ where: { characterId: character.id, assetId: asset.id } });
     await prisma.character.update({ where: { id: character.id }, data: { status: "in_use", rowVersion: { increment: 1 } } });
     await expect(projects.deleteCharacterReference(project.id, character.id, asset.id)).rejects.toMatchObject({ message: "PROJECT_CHARACTER_IN_USE_LOCKED" });
     expect(await prisma.outboxEvent.count({ where: { eventType: "asset.delete", aggregateId: asset.id } })).toBe(0);
@@ -2202,9 +2217,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       orderBy: { index: "asc" },
     });
     expect([candidateA?.index, candidateB?.index, candidateC?.index]).toEqual([1, 2, 3]);
-    await expect(projects.lockChapterCandidate(project.id, scope.chapterId, { candidateId: candidateA!.id })).rejects.toMatchObject({
-      response: { error: { code: "LEGACY_WRITE_ROUTE_DISABLED" } },
-    });
+    expect((projects as unknown as { lockChapterCandidate?: unknown }).lockChapterCandidate).toBeUndefined();
 
     const lockPreviewResponse = await fetch(`${apiBase}/projects/${project.id}/chapters/${scope.chapterId}/shots/${shotId}/candidate-lock/preview`, {
       method: "POST",
@@ -2553,7 +2566,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
         },
       },
     });
-    expect(await sourceQuery.taskApplicability(scope, lateLayoutTask.item.id)).toBe("current");
     const claimedLateTask = await repository.claimNext("g4-d-late-layout-worker", new Date(), ["layout_export"]);
     expect(claimedLateTask?.item).toMatchObject({ id: lateLayoutTask.item.id, status: "running" });
 
@@ -2574,7 +2586,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     const cancelledLateTask = await prisma.generationTask.findUniqueOrThrow({ where: { id: lateLayoutTask.item.id } });
     expect(cancelledLateTask).toMatchObject({ status: "running" });
     expect(cancelledLateTask.cancelRequestedAt).not.toBeNull();
-    expect(await sourceQuery.taskApplicability(scope, lateLayoutTask.item.id)).toBe("historical");
     await repository.finish({
       taskId: lateLayoutTask.item.id,
       claimToken: claimedLateTask!.claimToken,
@@ -3038,7 +3049,6 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
     const projects = app.get(ProjectsService);
-    const outbox = app.get(ProjectDeleteOutboxService);
     const prisma = app.get(PrismaService).database();
     const workspace = app.get(WorkspacePathService);
     const project = await projects.createProject({ name: "P8 删除意图", type: "comic", comicFormat: "vertical_scroll", artStyle: "comic_style" });
@@ -3093,7 +3103,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(await reopenedPrisma.outboxEvent.findUniqueOrThrow({ where: { id: first.cleanupEventId! } })).toMatchObject({ status: "processed", leaseToken: null, processedAt: expect.any(Date) });
     await expect(access(path.join(workspaceRoot, "projects", project.id))).rejects.toMatchObject({ code: "ENOENT" });
     await expect(app.get(ProjectsService).updateProjectDraft(project.id, { name: "late write" })).rejects.toThrow();
-    await expect(app.get(ProjectsService).purgeDeletedProject(project.id)).resolves.toMatchObject({ projectId: project.id, purged: true });
+    await expect(reopenedOutbox.purgeDeletedProject(project.id)).resolves.toMatchObject({ projectId: project.id, purged: true });
     expect(await reopenedPrisma.project.findUnique({ where: { id: project.id } })).toBeNull();
     expect(await reopenedPrisma.chapter.count({ where: { projectId: project.id } })).toBe(0);
     expect(await reopenedPrisma.chapterScriptVersion.count({ where: { chapterId } })).toBe(0);

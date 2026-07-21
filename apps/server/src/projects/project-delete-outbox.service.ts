@@ -18,7 +18,6 @@ export const OUTBOX_EVENT_TYPES = [
 ] as const;
 
 export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number];
-export type OutboxEventStatus = "pending" | "processing" | "processed" | "failed";
 
 const OUTBOX_LEASE_MS = 60_000;
 const OUTBOX_RETRY_BACKOFF_MS = [5_000, 30_000] as const;
@@ -534,7 +533,7 @@ export class ProjectDeleteOutboxService {
   }
 
   async requestProjectDelete(projectId: string): Promise<DeleteProjectIntentResult> {
-    const database = this.database();
+    this.database();
     return this.prismaService.runBusinessTransaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true, lifecycleStatus: true, rowVersion: true } });
       if (!project) throw new NotFoundException("PROJECT_NOT_FOUND");
@@ -570,7 +569,7 @@ export class ProjectDeleteOutboxService {
    * OutboxEvent rows as immutable audit facts.
    */
   async purgeDeletedProject(projectId: string): Promise<{ projectId: string; purged: true }> {
-    const database = this.database();
+    this.database();
     await this.prismaService.runBusinessTransaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId }, select: { lifecycleStatus: true } });
       if (!project || project.lifecycleStatus !== "deleting") throw new NotFoundException("PROJECT_NOT_FOUND");

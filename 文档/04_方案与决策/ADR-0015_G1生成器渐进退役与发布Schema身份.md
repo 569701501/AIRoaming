@@ -2,7 +2,7 @@
 doc_id: AIR-ADR-0015
 status: active
 created: 2026-07-12
-updated: 2026-07-12
+updated: 2026-07-21
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: 44 表/194 trigger 建模审查、G3-M4 verifier 代码复核与用户确认
@@ -12,7 +12,7 @@ source: 44 表/194 trigger 建模审查、G3-M4 verifier 代码复核与用户�
 
 ## 1. 决策状态
 
-已采纳。用户于 2026-07-12 确认执行。
+已采纳并执行。用户于 2026-07-12 确认渐进退役，2026-07-21 在 DB-only、R2、G4/G5 和最终用户签收均完成后明确授权代码收缩。
 
 ## 2. 背景与问题
 
@@ -63,6 +63,8 @@ migration 必须按正式执行顺序列出。Overlay contract 继续独立验�
 4. 退役门槛：full shadow 两轮、final import、DB-only activate、协调 backup/restore 和一个稳定发布周期全部完成。
 5. 退役后：保留历史 manifest、0001～0010、checksum、Prisma Schema 和必要 SQLite 特征测试；删除活跃 DSL/source rebuild/write CLI。
 
+2026-07-21 执行结果：上述门槛已满足。活跃生成器 16 个生产文件、7 个专用测试和 6 个 package script 已退役；历史 manifest、`schema.prisma`、0001～0017、release identity、runtime ledger、备份恢复及真实 SQLite trigger 语义测试继续保留。后续 Schema 只允许使用 forward-only migration + 小型 overlay contract。
+
 ### 3.4 非目标
 
 - 本 ADR 不授权执行真实 DB-only activate。
@@ -99,8 +101,8 @@ migration 必须按正式执行顺序列出。Overlay contract 继续独立验�
 | 数据模型 | 无表/字段变化；只修正发布身份计算 |
 | API / 任务协议 | `db:verify` 报告中的 `effectiveSchemaManifestDigest` 改用 release identity |
 | 文件与 Asset | 无 |
-| 后端模块 | 新增 release Schema identity 模块；G1 package closure 收窄 |
-| 测试与验收 | 增加 package 独立性、Schema/migration drift、verifier identity 测试 |
+| 后端模块 | release Schema identity 成为唯一发布身份；G1 活跃生成器和 package commands 已退役 |
+| 测试与验收 | 保留 package 独立性、Schema/migration drift、runtime ledger、verifier identity 与真实 SQLite trigger 语义测试 |
 
 ## 6. 兼容、迁移与切换
 
@@ -119,13 +121,13 @@ migration 必须按正式执行顺序列出。Overlay contract 继续独立验�
 
 ## 8. 验证标准
 
-- [ ] package script 改动不改变 release Schema digest。
-- [ ] 任一 migration SQL 或 `schema.prisma` 改动会改变 release Schema digest。
-- [ ] release identity 当前精确包含 0001～0010；新增有序 migration 会自动进入 identity 并改变 digest，runtime 未登记时仍 fail-closed。
-- [ ] `db:verify` 不再加载 G1 source manifest。
-- [ ] `schema.prisma`、0001～0008 migration SQL 和现有 trigger 字节不变。
-- [ ] G1 三项 check、Prisma validate、typecheck、定向测试和 server 全测通过。
-- [ ] Runtime/User Review 不适用：本轮只处理离线发布身份，不执行真实切换。
+- [x] package script 改动不改变 release Schema digest。
+- [x] 任一 migration SQL 或 `schema.prisma` 改动会改变 release Schema digest。
+- [x] release identity 当前精确包含 0001～0017；新增有序 migration 会自动进入 identity 并改变 digest，runtime 未登记时仍 fail-closed。
+- [x] `db:verify` 不加载 G1 source manifest。
+- [x] `schema.prisma`、0001～0017 migration SQL、历史 manifest 和现有 trigger 字节不变。
+- [x] 退役前 G1 三项 exact check 通过；退役后 Prisma validate、全仓 typecheck、server build、43 个保留契约定向测试和 server 129 files / 790 tests 全部通过。
+- [x] 用户页面不变；运行复核由真实 SQLite trigger 语义、fresh migration、DB-only 集成及 backup/restore 测试覆盖。
 
 ## 9. 关联资料
 

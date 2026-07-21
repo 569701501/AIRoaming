@@ -8,7 +8,6 @@ import {
   type ProjectCharacterLevel,
   type GetChapterStoryStructureResponse,
   type SaveChapterStoryStructureResponse,
-  type StoryStructureCharacterCard,
   type StoryStructureJson,
   type UpdateChapterStoryStructureRequest,
   requiredCharacterReferenceKind,

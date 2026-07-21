@@ -52,7 +52,6 @@ function object(value: unknown, code: string): Record<string, unknown> { if (!va
 function stringField(value: Record<string, unknown>, key: string, fallback = ""): string { return typeof value[key] === "string" && value[key].trim() ? value[key].trim() : fallback; }
 function nullableString(value: Record<string, unknown>, key: string): string | null { const result = stringField(value, key); return result || null; }
 function dateField(value: Record<string, unknown>, key: string): Date { const raw = stringField(value, key, FALLBACK_DATE); const result = new Date(raw); return Number.isNaN(result.getTime()) ? new Date(FALLBACK_DATE) : result; }
-function jsonValue(value: unknown): Prisma.InputJsonValue { return value as Prisma.InputJsonValue; }
 function digest(bytes: Buffer): `sha256:${string}` { return `sha256:${createHash("sha256").update(bytes).digest("hex")}`; }
 function stableId(type: string, sourceKey: string): string { return PrismaMigrationLedgerRepository.stableEntityId(type, sourceKey); }
 function providerSourceKey(providerId: string): string { return `workspace-v1:settings:ProviderConfig:${providerId}`; }
@@ -78,7 +77,7 @@ async function readSnapshotFile(snapshot: VerifiedSnapshot, storageKey: string):
 /** G3-M3-A14：只导入脱敏 provider/settings 元数据，永不把旧 key 当作可用 Secret。 */
 export class ProviderShadowImporter {
   private readonly ledger: PrismaMigrationLedgerRepository;
-  constructor(private readonly prisma: PrismaService, ledger?: PrismaMigrationLedgerRepository) { this.ledger = ledger ?? new PrismaMigrationLedgerRepository(prisma); }
+  constructor(prisma: PrismaService, ledger?: PrismaMigrationLedgerRepository) { this.ledger = ledger ?? new PrismaMigrationLedgerRepository(prisma); }
 
   async import(snapshotPath: string, decisionsPath: string, options: { runId?: string; startedAt?: string } = {}): Promise<{ run: MigrationRunRecord; report: ComicFormatReport; decisions: MigrationDecisionArtifact }> {
     const snapshot = await readVerifiedSnapshot(snapshotPath);

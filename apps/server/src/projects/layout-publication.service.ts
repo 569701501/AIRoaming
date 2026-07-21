@@ -1,5 +1,5 @@
 import { HttpException, Inject, Injectable } from "@nestjs/common";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   buildTaskSourceProjection,
   digestCanonicalJson,
@@ -26,8 +26,6 @@ import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { LayoutRendererService } from "./layout-renderer.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
-
-type Reader = Prisma.TransactionClient | PrismaClient;
 
 class LayoutPublicationServiceError extends Error {
   constructor(readonly code: string, readonly status: number, readonly details?: unknown) {

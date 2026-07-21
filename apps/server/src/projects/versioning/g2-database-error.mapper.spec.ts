@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  mapG2ConditionFailure,
-  mapG2DatabaseError,
-} from "./g2-database-error.mapper.js";
+import { mapG2DatabaseError } from "./g2-database-error.mapper.js";
 
 describe("G2 database error mapper", () => {
   it("maps fixed trigger families to stable HTTP/domain codes", () => {
@@ -22,18 +19,6 @@ describe("G2 database error mapper", () => {
     expect(mapG2DatabaseError(new Error("AIR_G2:unknown_future_trigger"))).toMatchObject({
       status: 500,
       code: "G2_DATABASE_CONTRACT_VIOLATION",
-    });
-  });
-
-  it("maps zero-row conditions without leaking SQL", () => {
-    expect(mapG2ConditionFailure("pending pointer changed")).toMatchObject({
-      status: 409,
-      code: "PENDING_VERSION_CONFLICT",
-      message: "PENDING_VERSION_CONFLICT",
-    });
-    expect(mapG2ConditionFailure("source stale")).toMatchObject({
-      status: 409,
-      code: "UPSTREAM_SOURCE_STALE",
     });
   });
 });

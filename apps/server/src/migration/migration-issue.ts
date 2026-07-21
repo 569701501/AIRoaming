@@ -1,4 +1,3 @@
-import { digestCanonicalJson } from "@airoaming/shared";
 import type { ComicFormatIssueCode, ComicFormatMapping } from "./comic-format-migration.plugin.js";
 import { ALLOWED_COMIC_FORMATS } from "./comic-format-migration.plugin.js";
 
@@ -147,15 +146,4 @@ export function parseComicFormatIssueDetail(raw: string): ComicFormatIssueDetail
   if (detail.layoutPresetIntent !== null && detail.layoutPresetIntent !== "four_panel") throw new MigrationIssueCodecError("MIGRATION_ISSUE_DETAIL_INVALID");
   if (detail.allowedComicFormats.length !== ALLOWED_COMIC_FORMATS.length || detail.allowedComicFormats.some((item, index) => item !== ALLOWED_COMIC_FORMATS[index])) throw new MigrationIssueCodecError("MIGRATION_ISSUE_DETAIL_INVALID");
   return detail as ComicFormatIssueDetail;
-}
-
-export function parseComicFormatResolution(raw: string, detail: ComicFormatIssueDetail): ComicFormatResolution {
-  let value: unknown;
-  try { value = JSON.parse(raw); } catch { throw new MigrationIssueCodecError("MIGRATION_DECISION_INVALID"); }
-  validateResolution(value, detail);
-  return value;
-}
-
-export function issueDetailDigest(issue: MigrationIssueRecord): Digest {
-  return digestCanonicalJson(parseComicFormatIssueDetail(issue.detailJson));
 }

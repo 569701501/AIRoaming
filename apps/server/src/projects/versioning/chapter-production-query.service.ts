@@ -31,8 +31,6 @@ const MILESTONE_ORDER = new Map([
   ["draft", 0], ["script_done", 1], ["structured", 2], ["storyboard_done", 3], ["images_done", 4], ["layout_done", 5], ["exported", 6],
 ]);
 
-function uniqueReasons(values: readonly FreshnessReasonCode[]): FreshnessReasonCode[] { return [...new Set(values)]; }
-
 @Injectable()
 export class ChapterProductionQueryService {
   constructor(
@@ -85,7 +83,7 @@ export class ChapterProductionQueryService {
       projectId: row.projectId,
       currentChapterId: row.id,
       currentStepKey,
-      steps: PROJECT_WORKFLOW_STEPS.map((definition) => this.toStep(definition, row, state, currentStepKey, currentIndex)),
+      steps: PROJECT_WORKFLOW_STEPS.map((definition) => this.toStep(definition, row, state, currentIndex)),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -113,14 +111,13 @@ export class ChapterProductionQueryService {
     definition: (typeof PROJECT_WORKFLOW_STEPS)[number],
     row: ChapterVersionQueryRow,
     state: ChapterProductionState,
-    currentStepKey: ProjectWorkflowStepKey,
     currentIndex: number,
   ): ProjectWorkflowStep {
     const stepIndex = STEP_ORDER.get(definition.key) ?? 0;
     const nodeKey = NODE_BY_STEP[definition.key];
     const node = nodeKey ? state[nodeKey] as VersionNode : null;
     const milestoneReached = this.milestoneReached(definition.key, state.milestoneStatus);
-    const status = this.resolveStatus(definition.key, stepIndex, currentStepKey, currentIndex, node, milestoneReached, state);
+    const status = this.resolveStatus(definition.key, stepIndex, currentIndex, node, milestoneReached, state);
     const reasonCodes = node?.reasonCodes ?? [];
     const sourceProjection = this.sourceProjection(definition.key, state);
     return {
@@ -144,7 +141,6 @@ export class ChapterProductionQueryService {
   private resolveStatus(
     key: ProjectWorkflowStepKey,
     index: number,
-    currentKey: ProjectWorkflowStepKey,
     currentIndex: number,
     node: VersionNode | null,
     milestoneReached: boolean,

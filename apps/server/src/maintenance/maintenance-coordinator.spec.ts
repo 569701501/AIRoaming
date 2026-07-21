@@ -3,8 +3,7 @@ import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { MaintenanceAdminController } from "./maintenance-admin.controller.js";
-import { MaintenanceCoordinator, MaintenanceException } from "./maintenance-coordinator.service.js";
-import type { MaintenanceParticipant } from "./maintenance.types.js";
+import { MaintenanceCoordinator } from "./maintenance-coordinator.service.js";
 
 const envTokenPath = "AIROAMING_MAINTENANCE_TOKEN_FILE";
 
@@ -63,22 +62,6 @@ describe("G3-M0 maintenance gate", () => {
     });
     release();
     await Promise.all([task, tool, stream]);
-  });
-
-  it("MNT-04 blocks close while a participant reports active work", async () => {
-    const coordinator = new MaintenanceCoordinator();
-    let active = 0;
-    const participant: MaintenanceParticipant = {
-      name: "external-test",
-      beginDrain: async () => undefined,
-      status: async () => ({ active, queued: 0, blockedReason: active ? "TEST_BUSY" : null }),
-      sealRuntimeState: async () => ({ captured: false }),
-      reopen: async () => undefined,
-    };
-    coordinator.registerParticipant(participant);
-    await coordinator.drain();
-    active = 1;
-    await expect(coordinator.close()).rejects.toMatchObject({ code: "MAINTENANCE_PARTICIPANT_BUSY" });
   });
 
   it("MNT-05 requires loopback and a 0600 token file", async () => {
