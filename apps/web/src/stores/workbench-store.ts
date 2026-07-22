@@ -68,6 +68,7 @@ interface WorkbenchState {
   selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
   tasks: GenerationTaskItem[];
+  dialogueCollapsedByStep: Record<string, boolean>;
   loading: boolean;
   error: string | null;
   creatingProject: boolean;
@@ -138,6 +139,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     selectedDialogueModel: null,
     runtimeModelError: null,
     tasks: [],
+    dialogueCollapsedByStep: {},
     loading: false,
     error: null,
     creatingProject: false,
@@ -150,8 +152,16 @@ export const useWorkbenchStore = defineStore("workbench", {
       const result = getLatestImportBatchResult(state.dialogueThread);
       return result?.importWorkflow?.batchStatus === "queued" || result?.importWorkflow?.batchStatus === "processing";
     },
+    dialogueCollapsed: (state) => (stepKey: string) =>
+      state.dialogueCollapsedByStep[stepKey] ?? stepKey === "image_candidates",
   },
   actions: {
+    toggleDialogueCollapsed(stepKey: string) {
+      this.dialogueCollapsedByStep = {
+        ...this.dialogueCollapsedByStep,
+        [stepKey]: !this.dialogueCollapsed(stepKey),
+      };
+    },
     async refresh() {
       this.loading = true;
       this.error = null;

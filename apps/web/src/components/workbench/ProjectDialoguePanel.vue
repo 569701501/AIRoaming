@@ -5,7 +5,7 @@
         <Sparkles :size="16" class="title-icon" />
         <h2>{{ dialogueCopy.title }}</h2>
       </div>
-      <button class="collapse-btn" type="button">
+      <button class="collapse-btn" type="button" title="收起对话" @click="emit('collapse')">
         <ChevronsLeft :size="16" />
       </button>
     </header>
@@ -322,6 +322,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   send: [input: SendDialogueMessageRequest];
   retryImportItem: [payload: { batchId: string; itemId: string }];
+  collapse: [];
 }>();
 
 const draft = ref("");

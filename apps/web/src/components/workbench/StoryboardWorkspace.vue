@@ -69,7 +69,6 @@
           :key="shot.id"
           class="shot-card"
           :class="{
-            'is-collapsed': !isShotExpanded(shot.id),
             'is-dragging': dragIndex === index,
             'is-drag-over': dragOverIndex === index && dragIndex !== index,
           }"
@@ -77,21 +76,33 @@
           @drop="onDrop(index)"
           @dragend="onDragEnd"
         >
-          <div class="shot-card-head" @click="toggleShotExpand(shot.id)">
+          <div class="shot-frame" @click="openShot(shot.id)">
+            <img
+              v-if="shotThumbMap.get(shot.id)"
+              class="shot-frame-img"
+              :src="shotThumbMap.get(shot.id)!.url"
+              :alt="`镜头 ${shot.order} 候选`"
+              loading="lazy"
+            />
+            <span v-else class="shot-frame-num">{{ String(shot.order).padStart(2, "0") }}</span>
+            <span v-if="shotThumbMap.get(shot.id)" class="shot-frame-order">{{ String(shot.order).padStart(2, "0") }}</span>
             <span
               class="drag-handle"
               title="拖拽调整顺序"
               draggable="true"
               @click.stop
               @dragstart="onDragStart(index)"
-            ><GripVertical :size="18" /></span>
-            <div class="shot-number">{{ String(shot.order).padStart(2, "0") }}</div>
-            <!-- 候选图缩略预览(P0 任务D):有图才显示,无图不占位避免分镜阶段噪音 -->
-            <div v-if="shotThumbMap.get(shot.id)" class="shot-thumb" :class="{ 'is-locked': shotThumbMap.get(shot.id)?.locked }">
-              <img :src="shotThumbMap.get(shot.id)!.url" :alt="`镜头 ${shot.order} 候选`" loading="lazy" />
-              <Lock v-if="shotThumbMap.get(shot.id)?.locked" :size="11" class="shot-thumb-lock" />
-              <span v-else-if="(shotThumbMap.get(shot.id)?.count ?? 0) > 1" class="shot-thumb-count">{{ shotThumbMap.get(shot.id)?.count }}</span>
-            </div>
+            ><GripVertical :size="15" /></span>
+            <button class="icon-action danger shot-frame-delete" type="button" title="删除镜头" @click.stop="removeShot(index)">
+              <Trash2 :size="13" />
+            </button>
+            <span v-if="shotThumbMap.get(shot.id)?.locked" class="shot-frame-flag is-locked">
+              <Lock :size="10" />
+              <span>已定稿</span>
+            </span>
+            <span v-else-if="(shotThumbMap.get(shot.id)?.count ?? 0) > 1" class="shot-frame-flag">{{ shotThumbMap.get(shot.id)?.count }} 张候选</span>
+          </div>
+          <div class="shot-card-head" @click="openShot(shot.id)">
             <div class="shot-head-text">
               <strong>{{ shot.coreAction || shot.comic.panelDescription || "未填写镜头动作" }}</strong>
               <span>{{ getShotSceneName(shot.sceneId) }} · {{ shot.emotion || "未填写情绪" }}</span>
@@ -100,70 +111,6 @@
                 <span v-if="getShotOptionLabel(CAMERA_ANGLE_OPTIONS, shot.cameraAngle)" class="shot-tag">{{ getShotOptionLabel(CAMERA_ANGLE_OPTIONS, shot.cameraAngle) }}</span>
               </div>
             </div>
-            <button class="icon-action danger" type="button" title="删除镜头" @click.stop="removeShot(index)">
-              <Trash2 :size="14" />
-            </button>
-            <span class="shot-expand-toggle" :class="{ 'is-open': isShotExpanded(shot.id) }">▾</span>
-          </div>
-
-          <div v-show="isShotExpanded(shot.id)" class="shot-card-body">
-
-          <div class="shot-core-grid">
-            <EditableField :field-key="`shots.${index}.coreAction`" label="核心动作" :editing-key="editingKey" :editing-value="editingValue" :value="shot.coreAction" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableField :field-key="`shots.${index}.emotion`" label="情绪" :editing-key="editingKey" :editing-value="editingValue" :value="shot.emotion" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-            <EditableField :field-key="`shots.${index}.shotType`" label="景别" :value="shot.shotType" :options="SHOT_TYPE_OPTIONS" @commit="commitSelectField" />
-            <EditableField :field-key="`shots.${index}.cameraAngle`" label="机位" :value="shot.cameraAngle" :options="CAMERA_ANGLE_OPTIONS" @commit="commitSelectField" />
-          </div>
-
-          <div class="shot-expression-grid">
-            <section class="shot-expression comic-column">
-              <div class="expression-heading">
-                <span>漫画画格</span>
-              </div>
-              <EditableField :field-key="`shots.${index}.comic.panelDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.panelDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableField :field-key="`shots.${index}.comic.composition`" label="构图" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.composition" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableField :field-key="`shots.${index}.comic.dialogue`" label="对白" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.dialogue" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableField :field-key="`shots.${index}.comic.caption`" label="旁白" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.caption" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableField :field-key="`shots.${index}.comic.panelRhythm`" label="画格节奏" :value="shot.comic.panelRhythm" :options="PANEL_RHYTHM_OPTIONS" @commit="commitSelectField" />
-            </section>
-
-            <section class="shot-expression motion-column">
-              <div class="expression-heading">
-                <span>漫剧镜头</span>
-              </div>
-              <EditableField :field-key="`shots.${index}.motion.visualDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.visualDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableField :field-key="`shots.${index}.motion.compositionDesign`" label="构图设计" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.compositionDesign" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <EditableField :field-key="`shots.${index}.motion.cameraMovement`" label="运镜调度" :value="shot.motion.cameraMovement" :options="CAMERA_MOVEMENT_OPTIONS" @commit="commitSelectField" />
-              <EditableField :field-key="`shots.${index}.motion.frameType`" label="镜头类型" :value="shot.motion.frameType" :options="FRAME_TYPE_OPTIONS" @commit="commitSelectField" />
-              <div class="editable-shot-field">
-                <span class="editable-shot-label">时长(毫秒)</span>
-                <div class="editable-shot-value">
-                  <input
-                    type="number"
-                    class="shot-number-input"
-                    :value="shot.motion.durationMs"
-                    min="0"
-                    step="100"
-                    @change="commitSelectField(`shots.${index}.motion.durationMs`, ($event.target as HTMLInputElement).value)"
-                  />
-                </div>
-              </div>
-              <EditableField :field-key="`shots.${index}.motion.durationHint`" label="时长说明" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.durationHint" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
-              <div class="editable-shot-field">
-                <span class="editable-shot-label">配音台词</span>
-                <div class="editable-shot-value">
-                  <ul v-if="shot.motion.voiceLines.length > 0" class="voice-lines-list">
-                    <li v-for="(voiceLine, lineIndex) in shot.motion.voiceLines" :key="lineIndex">
-                      <strong>{{ voiceLine.name || "未命名" }}</strong>
-                      <span>{{ voiceLine.line || "（无台词）" }}</span>
-                      <em v-if="voiceLine.voiceStyle">{{ voiceLine.voiceStyle }}</em>
-                    </li>
-                  </ul>
-                  <p v-else>无台词</p>
-                </div>
-              </div>
-            </section>
-          </div>
           </div>
         </article>
       </div>
@@ -180,6 +127,95 @@
       <p>左侧说“生成分镜”，这里会先显示待确认镜头卡。</p>
     </div>
   </section>
+
+  <Teleport to="body">
+    <div v-if="activeShot && activeShotIndex >= 0 && workingJson" class="shot-modal-backdrop" @click.self="closeShot">
+      <section class="shot-modal" role="dialog" aria-modal="true" :aria-label="`镜头 ${activeShot.order} 编辑`">
+        <header class="shot-modal-header">
+          <div class="shot-modal-title">
+            <span v-if="shotThumbMap.get(activeShot.id)" class="shot-modal-thumb">
+              <img :src="shotThumbMap.get(activeShot.id)!.url" :alt="`镜头 ${activeShot.order} 候选`" />
+            </span>
+            <span class="shot-modal-num">{{ String(activeShot.order).padStart(2, "0") }}</span>
+            <div class="shot-modal-title-text">
+              <strong>{{ activeShot.coreAction || activeShot.comic.panelDescription || "未填写镜头动作" }}</strong>
+              <span>{{ getShotSceneName(activeShot.sceneId) }} · {{ activeShot.emotion || "未填写情绪" }}</span>
+            </div>
+          </div>
+          <div class="shot-modal-actions">
+            <button class="shot-modal-nav" type="button" title="上一个镜头" :disabled="activeShotIndex <= 0" @click="goSiblingShot(-1)">‹</button>
+            <span class="shot-modal-position">{{ activeShotIndex + 1 }} / {{ workingJson.shots.length }}</span>
+            <button class="shot-modal-nav" type="button" title="下一个镜头" :disabled="activeShotIndex >= workingJson.shots.length - 1" @click="goSiblingShot(1)">›</button>
+            <button class="shot-modal-nav is-danger" type="button" title="删除镜头" :disabled="loading" @click="removeShot(activeShotIndex); closeShot()">
+              <Trash2 :size="15" />
+            </button>
+            <button class="shot-modal-nav" type="button" aria-label="关闭镜头编辑" @click="closeShot">
+              <X :size="17" />
+            </button>
+          </div>
+        </header>
+
+        <div class="shot-modal-body">
+          <div class="shot-core-grid">
+            <EditableField :field-key="`shots.${activeShotIndex}.coreAction`" label="核心动作" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.coreAction" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`shots.${activeShotIndex}.emotion`" label="情绪" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.emotion" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+            <EditableField :field-key="`shots.${activeShotIndex}.shotType`" label="景别" :value="activeShot.shotType" :options="SHOT_TYPE_OPTIONS" @commit="commitSelectField" />
+            <EditableField :field-key="`shots.${activeShotIndex}.cameraAngle`" label="机位" :value="activeShot.cameraAngle" :options="CAMERA_ANGLE_OPTIONS" @commit="commitSelectField" />
+          </div>
+
+          <div class="shot-expression-grid">
+            <section class="shot-expression comic-column">
+              <div class="expression-heading">
+                <span>漫画画格</span>
+              </div>
+              <EditableField :field-key="`shots.${activeShotIndex}.comic.panelDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.comic.panelDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.comic.composition`" label="构图" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.comic.composition" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.comic.dialogue`" label="对白" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.comic.dialogue" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.comic.caption`" label="旁白" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.comic.caption" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.comic.panelRhythm`" label="画格节奏" :value="activeShot.comic.panelRhythm" :options="PANEL_RHYTHM_OPTIONS" @commit="commitSelectField" />
+            </section>
+
+            <section class="shot-expression motion-column">
+              <div class="expression-heading">
+                <span>漫剧镜头</span>
+              </div>
+              <EditableField :field-key="`shots.${activeShotIndex}.motion.visualDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.motion.visualDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.motion.compositionDesign`" label="构图设计" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.motion.compositionDesign" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.motion.cameraMovement`" label="运镜调度" :value="activeShot.motion.cameraMovement" :options="CAMERA_MOVEMENT_OPTIONS" @commit="commitSelectField" />
+              <EditableField :field-key="`shots.${activeShotIndex}.motion.frameType`" label="镜头类型" :value="activeShot.motion.frameType" :options="FRAME_TYPE_OPTIONS" @commit="commitSelectField" />
+              <div class="editable-shot-field">
+                <span class="editable-shot-label">时长(毫秒)</span>
+                <div class="editable-shot-value">
+                  <input
+                    type="number"
+                    class="shot-number-input"
+                    :value="activeShot.motion.durationMs"
+                    min="0"
+                    step="100"
+                    @change="commitSelectField(`shots.${activeShotIndex}.motion.durationMs`, ($event.target as HTMLInputElement).value)"
+                  />
+                </div>
+              </div>
+              <EditableField :field-key="`shots.${activeShotIndex}.motion.durationHint`" label="时长说明" :editing-key="editingKey" :editing-value="editingValue" :value="activeShot.motion.durationHint" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
+              <div class="editable-shot-field">
+                <span class="editable-shot-label">配音台词</span>
+                <div class="editable-shot-value">
+                  <ul v-if="activeShot.motion.voiceLines.length > 0" class="voice-lines-list">
+                    <li v-for="(voiceLine, lineIndex) in activeShot.motion.voiceLines" :key="lineIndex">
+                      <strong>{{ voiceLine.name || "未命名" }}</strong>
+                      <span>{{ voiceLine.line || "（无台词）" }}</span>
+                      <em v-if="voiceLine.voiceStyle">{{ voiceLine.voiceStyle }}</em>
+                    </li>
+                  </ul>
+                  <p v-else>无台词</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 
   <Teleport to="body">
     <div v-if="confirmImpactOpen" class="storyboard-confirm-backdrop" @click.self="closeConfirmImpact">
@@ -249,7 +285,7 @@ const editingKey = ref<string | null>(null);
 const editingValue = ref("");
 const workingJson = ref<StoryboardJson | null>(null);
 const workingSourceKey = ref("");
-const expandedShots = ref<Set<string>>(new Set());
+const activeShotId = ref<string | null>(null);
 const dragIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 const confirmImpactOpen = ref(false);
@@ -451,17 +487,47 @@ function setStoryboardNumber(storyboard: StoryboardJson, key: string, value: num
   }
 }
 
-function toggleShotExpand(shotId: string) {
-  if (expandedShots.value.has(shotId)) {
-    expandedShots.value.delete(shotId);
-  } else {
-    expandedShots.value.add(shotId);
+const activeShotIndex = computed(() => {
+  if (!activeShotId.value || !workingJson.value) {
+    return -1;
   }
-  expandedShots.value = new Set(expandedShots.value);
+  return workingJson.value.shots.findIndex((shot) => shot.id === activeShotId.value);
+});
+const activeShot = computed(() => (activeShotIndex.value >= 0 ? workingJson.value?.shots[activeShotIndex.value] ?? null : null));
+
+function openShot(shotId: string) {
+  activeShotId.value = shotId;
 }
 
-function isShotExpanded(shotId: string) {
-  return expandedShots.value.has(shotId);
+function closeShot() {
+  activeShotId.value = null;
+}
+
+function goSiblingShot(delta: number) {
+  if (!workingJson.value || activeShotIndex.value < 0) {
+    return;
+  }
+  const nextIndex = activeShotIndex.value + delta;
+  const next = workingJson.value.shots[nextIndex];
+  if (next) {
+    activeShotId.value = next.id;
+  }
+}
+
+watch(activeShotId, (shotId) => {
+  if (shotId) {
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onShotModalKeydown);
+  } else {
+    document.body.style.overflow = "";
+    window.removeEventListener("keydown", onShotModalKeydown);
+  }
+});
+
+function onShotModalKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    closeShot();
+  }
 }
 
 function addShot() {
@@ -891,89 +957,347 @@ html[data-theme="light"] .storyboard-status-band strong {
 /* Shot Card Styles */
 .shot-list {
   display: grid;
-  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 1200px) {
+  .shot-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .shot-card {
   display: grid;
-  gap: 16px;
-  border: 1px solid rgba(139, 92, 246, 0.08) !important;
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.35) !important;
-  padding: 20px;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid rgba(139, 92, 246, 0.5) !important;
-  transition: gap 0.2s, padding 0.2s;
-}
-.shot-card.is-collapsed {
   gap: 0;
+  border: 1px solid rgba(139, 92, 246, 0.14);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
 }
-
-/* 镜头卡内容区:展开后给足内边距和子区间距,避免字段堆叠 */
-.shot-card-body {
-  display: grid;
-  gap: 16px;
-  padding: 14px 4px 4px;
+.shot-card:hover {
+  border-color: rgba(139, 92, 246, 0.38);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(139, 92, 246, 0.12);
+  transform: translateY(-2px);
+}
+.shot-card.is-dragging {
+  opacity: 0.55;
+}
+.shot-card.is-drag-over {
+  border-color: rgba(52, 211, 153, 0.55);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.22);
 }
 html[data-theme="light"] .shot-card {
-  border-color: rgba(100, 116, 139, 0.08) !important;
-  background: #ffffff !important;
-  box-shadow: 0 4px 24px rgba(100, 116, 139, 0.02);
-  border-left-color: rgba(124, 58, 237, 0.6) !important;
+  border-color: rgba(100, 116, 139, 0.14);
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(100, 116, 139, 0.06);
 }
 
-.shot-card-head {
+/* 16:9 胶片画框:有候选图显示图,无图显示镜头号占位 */
+.shot-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(240px 120px at 70% 15%, rgba(139, 92, 246, 0.14), transparent 65%),
+    rgba(2, 6, 23, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  overflow: hidden;
+}
+html[data-theme="light"] .shot-frame {  background:
+    radial-gradient(240px 120px at 70% 15%, rgba(124, 58, 237, 0.08), transparent 65%),
+    #f1f5f9;
+  border-bottom-color: rgba(100, 116, 139, 0.1);
+}
+
+.shot-frame-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shot-frame-num {
+  color: rgba(167, 139, 250, 0.34);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+html[data-theme="light"] .shot-frame-num {
+  color: rgba(124, 58, 237, 0.28);
+}
+
+.shot-frame-order {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.72);
+  color: #ddd6fe;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(6px);
+}
+
+.shot-frame .drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 42px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.72);
+  color: #94a3b8;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  backdrop-filter: blur(6px);
+}
+.shot-frame:hover .drag-handle,
+.shot-frame:hover .shot-frame-delete {
+  opacity: 1;
+}
+
+.shot-frame-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: rgba(2, 6, 23, 0.72);
+  color: #94a3b8;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  backdrop-filter: blur(6px);
+}
+.shot-frame-delete:hover {
+  background: rgba(127, 29, 29, 0.85);
+  color: #fca5a5;
+}
+
+.shot-frame-flag {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+  color: #cbd5e1;
+  font-size: 10.5px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+}
+.shot-frame-flag.is-locked {
+  color: #4ade80;
+}
+
+/* 镜头编辑弹窗 */
+.shot-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 8, 18, 0.72);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+
+.shot-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1060px, 100%);
+  max-height: 88vh;
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  border-radius: 16px;
+  background: #10162a;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(139, 92, 246, 0.08);
+  overflow: hidden;
+}
+html[data-theme="light"] .shot-modal {
+  background: #ffffff;
+  border-color: rgba(100, 116, 139, 0.2);
+}
+
+.shot-modal-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-  transition: background 0.15s;
-  border-radius: 8px;
-  margin: -4px -8px 0;
-  padding: 4px 8px 12px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
-.shot-card-head:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-.shot-card.is-collapsed .shot-card-head {
-  border-bottom: none;
-  padding-bottom: 4px;
-}
-html[data-theme="light"] .shot-card-head {
-  border-bottom-color: rgba(100, 116, 139, 0.06);
+html[data-theme="light"] .shot-modal-header {
+  border-bottom-color: rgba(100, 116, 139, 0.12);
 }
 
-.shot-expand-toggle {
-  color: #64748b;
-  font-size: 14px;
-  transition: transform 0.2s;
-  flex-shrink: 0;
+.shot-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
-.shot-expand-toggle.is-open {
-  transform: rotate(180deg);
-}
-
-.shot-number {
+.shot-modal-num {
   flex-shrink: 0;
-  align-self: center;
-  min-width: 34px;
-  color: #a78bfa !important;
-  font-size: 24px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1;
-  text-align: center;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
-html[data-theme="light"] .shot-number {
-  color: #7c3aed !important;
+.shot-modal-thumb {
+  flex-shrink: 0;
+  width: 76px;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.shot-modal-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.shot-modal-title-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.shot-modal-title-text strong {
+  color: #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shot-modal-title-text span {
+  color: #7c86a0;
+  font-size: 12px;
+}
+html[data-theme="light"] .shot-modal-title-text strong {
+  color: #1e293b;
+}
+
+.shot-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.shot-modal-position {
+  min-width: 44px;
+  text-align: center;
+  color: #7c86a0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.shot-modal-nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.shot-modal-nav:hover:not(:disabled) {
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #e2e8f0;
+  background: rgba(139, 92, 246, 0.1);
+}
+.shot-modal-nav.is-danger:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(127, 29, 29, 0.3);
+  color: #fca5a5;
+}
+.shot-modal-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+html[data-theme="light"] .shot-modal-nav {
+  border-color: rgba(100, 116, 139, 0.16);
+  color: #64748b;
+}
+
+.shot-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+/* 镜头卡头部(画框下方文字区) */
+.shot-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px 13px;
+  cursor: pointer;
+}
+
+.shot-head-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.shot-head-text strong {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.shot-head-text > span {
+  color: #7c86a0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-theme="light"] .shot-head-text strong {
+  color: #1e293b;
+}
+html[data-theme="light"] .shot-head-text > span {
+  color: #64748b;
 }
 
 .shot-head-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 5px;
+  margin-top: 2px;
 }
 
 .shot-tag {
@@ -1013,118 +1337,11 @@ html[data-theme="light"] .shot-count-pill {
   gap: 10px;
 }
 
-.shot-thumb {
-  position: relative;
-  flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(2, 6, 23, 0.48);
-  display: grid;
-  place-items: center;
-  color: #64748b;
-}
-
-.shot-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.shot-thumb.is-locked {
-  border-color: rgba(34, 197, 94, 0.5);
-}
-
-.shot-thumb-lock {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  color: #22c55e;
-  background: rgba(2, 6, 23, 0.7);
-  border-radius: 3px;
-  padding: 1px;
-}
-
-.shot-thumb-count {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  font-size: 9px;
-  font-weight: 900;
-  color: #fff;
-  background: rgba(2, 6, 23, 0.78);
-  border-radius: 3px;
-  padding: 1px 4px;
-}
-
-.shot-thumb.is-empty {
-  color: #475569;
-}
-
-.drag-handle {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  cursor: grab;
-  color: #475569;
-  user-select: none;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.drag-handle:hover {
-  color: #94a3b8;
-  background: rgba(148, 163, 184, 0.1);
-}
-
 .drag-handle:active {
   cursor: grabbing;
 }
 html[data-theme="light"] .drag-handle {
   color: #94a3b8;
-}
-html[data-theme="light"] .drag-handle:hover {
-  color: #64748b;
-  background: rgba(100, 116, 139, 0.08);
-}
-
-.shot-card.is-dragging {
-  opacity: 0.4;
-}
-
-.shot-card.is-drag-over {
-  border-top: 2px solid #22c7a9 !important;
-}
-
-.shot-head-text {
-  flex: 1;
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-
-.shot-head-text strong {
-  overflow: hidden;
-  color: #f1f5f9;
-  font-size: 15px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-html[data-theme="light"] .shot-head-text strong {
-  color: #1e293b;
-}
-
-.shot-head-text span {
-  color: #94a3b8;
-  font-size: 12px;
-}
-html[data-theme="light"] .shot-head-text span {
-  color: #64748b;
 }
 
 /* Core grid and inputs */

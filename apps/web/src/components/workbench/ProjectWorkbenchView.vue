@@ -6,9 +6,9 @@
       @select-step="$emit('selectStep', $event)"
     />
 
-    <section class="workbench-content" :class="{ 'is-layout-step': isLayoutStep }" :aria-label="`${currentStageLabel}工作区`">
+    <section class="workbench-content" :class="{ 'is-layout-step': isLayoutStep, 'is-dialogue-collapsed': !isLayoutStep && dialogueCollapsed }" :aria-label="`${currentStageLabel}工作区`">
       <ProjectDialoguePanel
-        v-if="!isLayoutStep"
+        v-if="!isLayoutStep && !dialogueCollapsed"
         :active-step-key="activeStepKey"
         :dialogue-error="dialogueError"
         :dialogue-notice="dialogueNotice"
@@ -20,7 +20,18 @@
         :step-label="currentStageLabel"
         @send="emitDialogue"
         @retry-import-item="$emit('retryImportItem', $event)"
+        @collapse="workbench.toggleDialogueCollapsed(activeStepKey)"
       />
+      <button
+        v-else-if="!isLayoutStep"
+        class="dialogue-expand-rail"
+        type="button"
+        title="展开 AI 对话"
+        @click="workbench.toggleDialogueCollapsed(activeStepKey)"
+      >
+        <Sparkles :size="16" />
+        <ChevronsRight :size="13" />
+      </button>
 
       <template v-if="isScriptStep">
         <div class="script-middle-column">
@@ -149,8 +160,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { ChevronsRight, Sparkles } from "lucide-vue-next";
 import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, SaveChapterDraftRequest, ScriptWorkingCopyDto, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
+import { useWorkbenchStore } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
 import ProjectDialoguePanel from "./ProjectDialoguePanel.vue";
 import ProjectCharactersWorkspace from "./ProjectCharactersWorkspace.vue";
@@ -178,6 +191,8 @@ const props = defineProps<{
   runtimeModelError: string | null;
   scriptWorkingCopy: ScriptWorkingCopyDto | null;
 }>();
+
+const workbench = useWorkbenchStore();
 
 const scriptDraft = ref("");
 
@@ -232,6 +247,7 @@ const isPreflightStep = computed(() => props.activeStepKey === "image_preflight"
 const isCandidatesStep = computed(() => props.activeStepKey === "image_candidates");
 const isLayoutStep = computed(() => props.activeStepKey === "layout_export");
 const isAssetPackageStep = computed(() => props.activeStepKey === "asset_package");
+const dialogueCollapsed = computed(() => workbench.dialogueCollapsed(props.activeStepKey));
 const chapterItems = computed(() => props.snapshot.chapters ?? []);
 const currentChapterId = computed(() => props.snapshot.currentChapter?.id ?? props.snapshot.story.chapterId ?? null);
 const completionPrimaryActionLabel = computed(() => "进入本章剧情结构");
@@ -373,6 +389,35 @@ function enterCompletedChapterStructure() {
 
 .workbench-content.is-layout-step {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.workbench-content.is-dialogue-collapsed {
+  grid-template-columns: 46px minmax(0, 1fr);
+}
+
+.dialogue-expand-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  border: 1px solid rgba(139, 92, 246, 0.18);
+  border-radius: 14px;
+  background: rgba(13, 18, 33, 0.4);
+  color: #a78bfa;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.dialogue-expand-rail:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(139, 92, 246, 0.1);
+  color: #ddd6fe;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+html[data-theme="light"] .dialogue-expand-rail {
+  background: #ffffff;
+  border-color: rgba(124, 58, 237, 0.2);
+  color: #7c3aed;
 }
 
 .script-middle-column {

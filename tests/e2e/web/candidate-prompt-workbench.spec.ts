@@ -18,8 +18,7 @@ test("候选图工作台展示自动整理说明、阻断硬伤，并可采用�
   await expect(visual).toHaveValue("雨夜站台与缓缓进站的空车");
   await expect(action).toHaveValue("空车进站");
   await expect(composition).toHaveValue("站台中景");
-  await expect(page.getByText("生成分镜时已自动整理，可继续微调")).toBeVisible();
-  await expect(page.getByText("这里展示的是本镜头的详细单帧说明；手动修改只影响本次候选图，不会改正式分镜。")).toBeVisible();
+  await expect(page.getByText("由分镜自动整理，可微调；只影响本次候选图，不改正式分镜。")).toBeVisible();
 
   await visual.fill("林夏先站在雨夜站台，随后切到车厢显示字幕。");
   await expect(page.getByText("当前描述串联了多个先后动作或时间跨度；请只保留一个决定性瞬间。")).toBeVisible();
