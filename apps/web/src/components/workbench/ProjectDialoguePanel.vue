@@ -254,6 +254,16 @@
           </span>
         </div>
         <p v-if="attachmentError" class="attachment-error">{{ attachmentError }}</p>
+        <div v-if="quickActions.length > 0" class="dialogue-quick-actions" aria-label="快捷指令">
+          <button
+            v-for="action in quickActions"
+            :key="action.label"
+            class="quick-action-btn"
+            type="button"
+            :disabled="dialogueSending"
+            @click="runQuickAction(action)"
+          >{{ action.label }}</button>
+        </div>
         <div class="composer-input-row">
           <input
             ref="fileInputRef"
@@ -274,6 +284,7 @@
             <Paperclip :size="16" />
           </button>
           <textarea
+            ref="composerTextareaRef"
             v-model="draft"
             aria-label="输入对话内容"
             :placeholder="dialogueCopy.placeholder"
@@ -317,7 +328,50 @@ const draft = ref("");
 const attachments = ref<Array<DialogueAttachmentInput & { id: string }>>([]);
 const attachmentError = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const composerTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
+
+interface DialogueQuickAction {
+  label: string;
+  content?: string;
+  intent?: SendDialogueMessageRequest["intent"];
+  focusComposer?: boolean;
+}
+
+const quickActions = computed<DialogueQuickAction[]>(() => {
+  switch (props.activeStepKey) {
+    case "project_story":
+      return [
+        { label: "给我 3 个灵感", content: "给我 3 个灵感", intent: "generate_inspiration_seeds" },
+        { label: "粘贴已有剧本", focusComposer: true },
+        { label: "生成当前章节", content: "生成当前章节" },
+      ];
+    case "story_structure":
+      return [
+        { label: "生成剧情结构", content: "生成当前章节剧情结构", intent: "generate_story_structure" },
+      ];
+    case "storyboard":
+      return [
+        { label: "生成分镜", content: "生成当前章节分镜", intent: "generate_storyboard" },
+      ];
+    default:
+      return [];
+  }
+});
+
+function runQuickAction(action: DialogueQuickAction) {
+  if (action.focusComposer) {
+    composerTextareaRef.value?.focus();
+    return;
+  }
+  if (!action.content) {
+    return;
+  }
+  emit("send", {
+    content: action.content,
+    intent: action.intent,
+  });
+}
 
 const messages = computed(() => props.dialogueThread?.messages ?? []);
 const toolResults = computed(() => props.dialogueThread?.toolResults ?? []);
@@ -353,20 +407,20 @@ const skillTools = new Set<DialogueToolResult["tool"]>([
   "confirm_storyboard",
 ]);
 const toolDisplayNames: Record<DialogueToolResult["tool"], string> = {
-  analyze_script_import: "script-import-normalize",
-  import_script_to_chapters: "script-import-normalize",
-  generate_inspiration_seeds: "script-inspiration-seeding",
-  generate_script_outline_from_seed: "script-outline-drafting",
-  generate_script_outline_from_topic: "script-outline-drafting",
-  generate_script_from_outline: "script-chapter-drafting",
-  generate_script_from_seed: "script-chapter-drafting",
-  generate_multiple_chapters: "script-chapter-drafting",
-  update_chapter_draft: "script-chapter-editing",
-  generate_story_structure: "structure-story-parse",
-  confirm_story_structure: "confirm-story-structure",
-  generate_project_characters: "project-character-extract",
-  generate_storyboard: "storyboard-shot-generate",
-  confirm_storyboard: "confirm-storyboard",
+  analyze_script_import: "剧本导入分析",
+  import_script_to_chapters: "剧本拆章导入",
+  generate_inspiration_seeds: "灵感种子生成",
+  generate_script_outline_from_seed: "剧本大纲起草",
+  generate_script_outline_from_topic: "剧本大纲起草",
+  generate_script_from_outline: "章节草稿生成",
+  generate_script_from_seed: "章节草稿生成",
+  generate_multiple_chapters: "章节草稿生成",
+  update_chapter_draft: "章节草稿改写",
+  generate_story_structure: "剧情结构解析",
+  confirm_story_structure: "确认剧情结构",
+  generate_project_characters: "项目角色提取",
+  generate_storyboard: "分镜生成",
+  confirm_storyboard: "确认分镜",
 };
 
 const dialogueCopy = computed(() => {
@@ -594,7 +648,7 @@ function isSkillTool(result: DialogueToolResult) {
 }
 
 function getToolKindLabel(result: DialogueToolResult) {
-  return isSkillTool(result) ? "调用技能" : "调用工具";
+  return isSkillTool(result) ? "AI 技能" : "AI 工具";
 }
 
 function getToolKindIcon(result: DialogueToolResult) {
@@ -1295,9 +1349,9 @@ function getImportItemStatusLabel(status: string) {
 .dialogue-quick-actions {
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .quick-actions-title {
@@ -1313,23 +1367,23 @@ function getImportItemStatusLabel(status: string) {
 }
 
 .quick-action-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid rgba(139, 92, 246, 0.15);
-  border-radius: 8px;
-  color: #cbd5e1;
+  gap: 6px;
+  padding: 7px 12px;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  border-radius: 999px;
+  color: #c4b5fd;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  text-align: left;
 }
 
 .quick-action-btn:hover:not(:disabled) {
-  background: rgba(139, 92, 246, 0.1);
-  border-color: rgba(139, 92, 246, 0.4);
+  background: rgba(139, 92, 246, 0.16);
+  border-color: rgba(139, 92, 246, 0.45);
   color: #f1f5f9;
 }
 

@@ -33,6 +33,7 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
   await page.getByRole("button", { name: "创建数据库草稿" }).click();
+  await page.getByRole("button", { name: "版本与出版" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
 
   // E2E 图片服务返回真实 1×1 PNG；把画格同步成 1×1，避免伪造来源尺寸，仍由渲染器读取原始字节。

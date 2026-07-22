@@ -97,7 +97,7 @@ const requestedSource = route.query.source === "revision" || route.query.source 
 const requestedId = typeof route.query.id === "string" ? route.query.id : null;
 const documentValue = ref<LayoutDocumentV1 | null>(null);
 const sourceResolution = ref<"current" | "stale" | "unresolved">("current");
-const sourceLabel = ref("数据库草稿");
+const sourceLabel = ref("当前草稿");
 const digestLabel = ref("");
 const title = ref("成稿预览");
 const loading = ref(true);
@@ -134,7 +134,7 @@ onMounted(async () => {
       const workingCopy = await api.getLayoutWorkingCopy(projectId, chapterId);
       documentValue.value = workingCopy.document;
       sourceResolution.value = workingCopy.sourceEvaluation.sourceResolution;
-      sourceLabel.value = `数据库草稿 · v${workingCopy.rowVersion} · ${new Date(workingCopy.updatedAt).toLocaleString()}`;
+      sourceLabel.value = `当前草稿 · v${workingCopy.rowVersion} · ${new Date(workingCopy.updatedAt).toLocaleString()}`;
       digestLabel.value = shortDigest(workingCopy.documentDigest);
     } else if (requestedSource === "revision") {
       if (!requestedId) throw new Error("缺少成稿版本 id。 ");
@@ -149,7 +149,7 @@ onMounted(async () => {
       const revision = await api.getLayoutRevision(projectId, chapterId, publication.layoutRevisionId);
       documentValue.value = revision.document;
       sourceResolution.value = revision.sourceResolution;
-      sourceLabel.value = `出版 ${publication.revision} · ${publication.status} · ${publication.revisionPosition === 'current' ? '当前' : '历史'}`;
+      sourceLabel.value = `出版 ${publication.revision} · ${getPublicationStatusLabel(publication.status)} · ${publication.revisionPosition === 'current' ? '当前' : '历史'}`;
       digestLabel.value = shortDigest(revision.documentDigest);
       publicationArtifacts.value = publication.artifacts;
       publicationId.value = publication.id;
@@ -171,6 +171,16 @@ function installFonts(items: Awaited<ReturnType<typeof api.getLayoutFonts>>["ite
 
 function cssText(value: string): string {
   return value.replace(/["\\]/g, "");
+}
+
+function getPublicationStatusLabel(status: string): string {
+  return ({
+    queued: "排队中",
+    rendering: "渲染中",
+    ready: "已完成",
+    failed: "失败",
+    cancelled: "已取消",
+  } as Record<string, string>)[status] ?? status;
 }
 
 function shortDigest(value: string): string {

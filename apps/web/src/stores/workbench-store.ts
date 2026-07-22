@@ -744,7 +744,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             expectedChapterRowVersion: updated.chapterRowVersion,
           });
           await this.refreshActiveProjectRuntime();
-          this.dialogueNotice = "已确认剧情结构（DB Working Copy）。";
+          this.dialogueNotice = "已确认剧情结构。";
           return this.snapshot?.storyStructure ?? null;
         }
         const result = await api.confirmChapterStoryStructure(projectId, chapterId, { structureJson });
@@ -851,7 +851,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             expectedChapterRowVersion: updated.chapterRowVersion,
           });
           await this.refreshActiveProjectRuntime();
-          this.dialogueNotice = "已确认分镜（DB Working Copy）。";
+          this.dialogueNotice = "已确认分镜。";
           return this.snapshot?.storyboard ?? null;
         }
         const result = await api.confirmChapterStoryboard(projectId, chapterId, { storyboardJson });
@@ -1004,7 +1004,7 @@ export const useWorkbenchStore = defineStore("workbench", {
             notes: preview.preview.notes,
           });
           await this.refreshActiveProjectRuntime();
-          this.dialogueNotice = "已确认出图准备（DB Revision）。";
+          this.dialogueNotice = "已确认出图准备。";
           return this.snapshot?.imagePreflight ?? null;
         }
         const result = await api.confirmChapterImagePreflight(projectId, chapterId, {});

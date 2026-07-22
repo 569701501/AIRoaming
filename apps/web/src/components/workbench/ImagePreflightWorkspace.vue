@@ -23,28 +23,25 @@
       </div>
     </header>
 
-    <div v-if="versioningStatus" class="db-versioning-status" data-testid="preflight-db-versioning-status">
-      <strong>DB Revision</strong>
-      <span>{{ versioningStatus.label }}</span>
-      <span v-if="versioningStatus.freshness">来源：{{ versioningStatus.freshness }}</span>
-      <span v-if="versioningStatus.history">历史：可查看</span>
-      <span v-if="versioningStatus.attention">门禁：{{ versioningStatus.attention }}</span>
+    <div v-if="isSourceStale" class="source-stale-banner" data-testid="preflight-db-versioning-status">
+      <AlertCircle :size="14" />
+      <span>来源已变化：分镜有新版本，出图准备需要重新检查并确认</span>
     </div>
 
     <div v-if="!hasFormalStoryboard" class="preflight-empty">
       <Lock :size="22" />
       <h2>请先确认本章分镜</h2>
-      <p>出图准备只读取正式 storyboard.json。待确认分镜不会进入候选图生成。</p>
+      <p>出图准备只读取已确认的正式分镜。待确认分镜不会进入候选图生成。</p>
     </div>
 
     <div v-else class="preflight-scroll">
-      <!-- 出门前的检查单:只回答"还差几项就能出图" -->
+      <!-- 出图前检查单:只回答"还差几项就能出图" -->
       <section class="preflight-hero" :class="{ 'is-ready': pendingIssueCount === 0 }">
         <div>
           <span>{{ pendingIssueCount === 0 ? (isPreflightConfirmed ? "本章已可出图" : "全部就绪，可确认出图") : `还差 ${pendingIssueCount} 项就能出图` }}</span>
           <h2>{{ currentChapterTitle }} · {{ shots.length }} 镜</h2>
         </div>
-        <p>出门前的检查单：确认该绑的绑了、该锁的锁了，全过后即可进入候选图。角色图生成/定稿在剧情结构页完成，这里只做检查。</p>
+        <p>生成候选图前的最后检查：全部通过后即可进入候选图工作台。</p>
       </section>
 
       <!-- 全项检查清单:已完成✓、未完成⚠+提醒+入口 -->
@@ -106,16 +103,7 @@ const currentChapter = computed(() => props.snapshot.currentChapter);
 const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const currentChapterTitle = computed(() => currentChapter.value?.title ?? "当前章节");
 const preflightWorkflowStep = computed(() => props.snapshot.workflow.steps.find((item) => item.key === "image_preflight"));
-const versioningStatus = computed(() => {
-  if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
-  const step = preflightWorkflowStep.value;
-  return {
-    label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "预览/Revision",
-    freshness: step?.freshness ?? null,
-    history: Boolean(step?.historyAvailable),
-    attention: step?.attention ?? null,
-  };
-});
+const isSourceStale = computed(() => preflightWorkflowStep.value?.status === "needs_update");
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
 const characterById = computed(() => new Map(props.snapshot.characters.map((character) => [character.id, character])));
@@ -300,7 +288,7 @@ const checklist = computed<ChecklistItem[]>(() => [
     key: "storyboard",
     title: "正式分镜",
     status: hasFormalStoryboard.value ? "ok" : "warn",
-    description: hasFormalStoryboard.value ? "当前章节已存在正式 storyboard.json。" : "需要先在分镜工作台确认分镜。",
+    description: hasFormalStoryboard.value ? "当前章节已有正式分镜。" : "需要先在分镜工作台确认分镜。",
     action: null,
     actionLabel: null,
     hint: null,

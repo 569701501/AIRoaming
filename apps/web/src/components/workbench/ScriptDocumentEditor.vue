@@ -164,12 +164,11 @@ const pendingHint = computed(() => isImportPending.value
   ? "请完整只读检查本章。确认后将直接形成正式章节版本；暂不确认时可以切换查看其他章节。"
   : "请先完整查看。采用后进入可编辑正文，完成本章后才形成正式版本；丢弃后当前正文不变。");
 const revisionTitle = computed(() => {
-  const revision = lastScriptRevision.value;
-  if (!revision) {
+  if (!lastScriptRevision.value) {
     return "";
   }
 
-  return `threadId: ${revision.threadId}\nmessageId: ${revision.messageId}\ntoolCallId: ${revision.toolCallId}`;
+  return "本章最近一次由 AI 通过受控工具写入，来源记录已保存";
 });
 
 const saveStatusLabel = computed(() => {

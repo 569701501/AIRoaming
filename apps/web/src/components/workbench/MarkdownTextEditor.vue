@@ -8,8 +8,9 @@
 import { basicSetup } from "codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { indentWithTab } from "@codemirror/commands";
-import { EditorSelection, EditorState, type ChangeSpec, Compartment } from "@codemirror/state";
-import { EditorView, keymap, placeholder as editorPlaceholder } from "@codemirror/view";
+import { syntaxTree } from "@codemirror/language";
+import { EditorSelection, EditorState, type ChangeSpec, Compartment, RangeSetBuilder } from "@codemirror/state";
+import { Decoration, EditorView, keymap, placeholder as editorPlaceholder, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 const props = withDefaults(defineProps<{
@@ -66,6 +67,48 @@ const editorTheme = EditorView.theme({
   },
 }, { dark: true });
 
+const headingLineDecorations: Record<string, Decoration> = {
+  ATXHeading1: Decoration.line({ class: "cm-md-line-h1" }),
+  ATXHeading2: Decoration.line({ class: "cm-md-line-h2" }),
+  ATXHeading3: Decoration.line({ class: "cm-md-line-h3" }),
+};
+const headerMarkDecoration = Decoration.mark({ class: "cm-md-header-mark" });
+
+function buildHeadingDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  syntaxTree(view.state).iterate({
+    enter(node) {
+      const lineDecoration = headingLineDecorations[node.type.name];
+      if (lineDecoration) {
+        const line = view.state.doc.lineAt(node.from);
+        builder.add(line.from, line.from, lineDecoration);
+        return;
+      }
+      if (node.type.name === "HeaderMark") {
+        builder.add(node.from, node.to, headerMarkDecoration);
+      }
+    },
+  });
+  return builder.finish();
+}
+
+const headingRenderPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = buildHeadingDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged || syntaxTree(update.state) !== syntaxTree(update.startState)) {
+        this.decorations = buildHeadingDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
+
 onMounted(() => {
   if (!editorRoot.value) {
     return;
@@ -79,6 +122,7 @@ onMounted(() => {
       markdown(),
       EditorView.lineWrapping,
       editorTheme,
+      headingRenderPlugin,
       editorPlaceholder(props.placeholder),
       keymap.of([indentWithTab]),
       editableCompartment.of(readOnlyExtensions(props.disabled)),
@@ -333,5 +377,40 @@ defineExpose({
 
 .markdown-editor-root :deep(.cm-scroller::-webkit-scrollbar) {
   display: none;
+}
+
+.markdown-editor-root :deep(.cm-md-line-h1) {
+  border-left: 3px solid #8b5cf6;
+  margin-top: 12px;
+  padding-left: 10px;
+  color: #f8fbff;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.markdown-editor-root :deep(.cm-md-line-h2) {
+  border-left: 3px solid rgba(139, 92, 246, 0.55);
+  margin-top: 10px;
+  padding-left: 10px;
+  color: #e6e2ff;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.markdown-editor-root :deep(.cm-md-line-h3) {
+  margin-top: 6px;
+  padding-left: 13px;
+  color: #c3b8f5;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.markdown-editor-root :deep(.cm-md-header-mark) {
+  color: #5d6b8c;
+  font-size: 0.8em;
+  font-weight: 400;
 }
 </style>

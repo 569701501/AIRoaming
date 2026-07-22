@@ -66,7 +66,6 @@ import {
 } from "./dialogue-prompt.util.js";
 import { parseInspirationSeeds } from "./dialogue-json.util.js";
 import {
-  formatRevisionSource,
   getErrorMessage,
   summarizeDraftUpdate,
 } from "./dialogue-text.util.js";
@@ -830,7 +829,7 @@ export class ScriptDialogueService {
       toolCallId,
       tool: "generate_script_from_outline",
       status: "succeeded",
-      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${chapter.title} 的待确认草稿。请先完整查看；采用后进入可编辑正文，完成本章后才形成正式版本。来源：${chapter.lastScriptRevision ? formatRevisionSource(chapter.lastScriptRevision) : "系统密封来源"}`,
+      summary: `已根据已确认剧本大纲「${confirmedOutline.title}」生成 ${chapter.title} 的待确认草稿。请先完整查看；采用后进入可编辑正文，完成本章后才形成正式版本。`,
       chapters: refreshed.chapters,
       currentChapterId: chapter.id,
       currentChapter: chapter,
@@ -954,7 +953,7 @@ export class ScriptDialogueService {
       toolCallId,
       tool: "update_chapter_draft",
       status: "succeeded",
-      summary: `已通过受控工具更新当前章节草稿（待确认）：${summary} 采用后才覆盖正式正文。来源：${formatRevisionSource(result.revision)}`,
+      summary: `已通过受控工具更新当前章节草稿（待确认）：${summary} 采用后才覆盖正式正文。`,
       chapters: result.chapters,
       currentChapterId: result.chapter.id,
       currentChapter: result.chapter,

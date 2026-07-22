@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>绘界漫画 · 剧本工作区（精修稿 V2）</title>
+<style>
+  /* ============ 保留现有视觉语言 ============ */
+  :root {
+    --bg-page: #0b1020;
+    --bg-panel: rgba(19, 25, 46, 0.62);
+    --bg-panel-solid: #131a2e;
+    --bg-nested: rgba(28, 35, 60, 0.55);
+    --bg-hover: rgba(148, 163, 255, 0.08);
+    --border: rgba(148, 163, 255, 0.1);
+    --border-strong: rgba(148, 163, 255, 0.2);
+
+    --text-primary: #e6eaf6;
+    --text-secondary: #8f97b3;
+    --text-muted: #5d6580;
+
+    --violet: #7a5cff;
+    --violet-soft: rgba(122, 92, 255, 0.14);
+    --violet-text: #b3a5ff;
+    --teal: #22c7a9;
+
+    --ok: #34d399;
+    --ok-soft: rgba(52, 211, 153, 0.12);
+    --warn: #fbbf24;
+    --warn-soft: rgba(251, 191, 36, 0.12);
+
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Segoe UI", sans-serif;
+    background:
+      radial-gradient(1000px 500px at 25% -5%, rgba(122, 92, 255, 0.14), transparent 55%),
+      radial-gradient(800px 400px at 85% 0%, rgba(34, 199, 169, 0.06), transparent 50%),
+      var(--bg-page);
+    color: var(--text-primary);
+    font-size: 13.5px;
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 顶栏 ============ */
+  .topbar {
+    height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10, 14, 29, 0.8);
+    backdrop-filter: blur(18px);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 6px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #7a5cff, #22c7a9 80%);
+    color: #fff; font-size: 15px;
+    box-shadow: 0 8px 20px rgba(112, 90, 255, 0.35);
+  }
+  .brand strong { font-size: 14.5px; letter-spacing: 0.02em; }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: 1px solid var(--border);
+    color: var(--text-secondary); font-size: 13px;
+    padding: 7px 13px; border-radius: var(--radius-sm); cursor: pointer;
+    transition: all 0.15s;
+  }
+  .back-btn:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--bg-hover); }
+
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .pill-btn {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--violet-soft); border: 1px solid rgba(122, 92, 255, 0.28);
+    color: var(--violet-text); font-size: 13px;
+    padding: 7px 14px; border-radius: 999px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .pill-btn:hover { background: rgba(122, 92, 255, 0.22); }
+  .pill-btn .count {
+    background: var(--violet); color: #fff; font-size: 11px;
+    min-width: 17px; height: 17px; border-radius: 999px;
+    display: grid; place-items: center; padding: 0 4px;
+  }
+  .icon-btn {
+    width: 34px; height: 34px; display: grid; place-items: center;
+    background: none; border: none; color: var(--text-secondary);
+    border-radius: var(--radius-sm); cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #f0abfc, #7a5cff);
+    display: grid; place-items: center; font-size: 12px; color: #fff;
+    cursor: pointer;
+  }
+
+  /* ============ 7 步流程轨道 ============ */
+  .stage-strip {
+    display: flex; justify-content: center;
+    padding: 10px 0 12px;
+  }
+  .stage-rail {
+    display: flex; align-items: center; gap: 3px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 7px 12px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  }
+  .stage {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 10px; border-radius: var(--radius-sm);
+    cursor: pointer; white-space: nowrap; transition: background 0.15s;
+  }
+  .stage:hover { background: var(--bg-hover); }
+  .stage .dot {
+    width: 21px; height: 21px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .stage .label { font-size: 12.5px; }
+  .stage.is-done .dot { background: var(--ok); color: #052e1f; box-shadow: 0 0 10px rgba(52, 211, 153, 0.35); }
+  .stage.is-done .label { color: var(--text-primary); }
+  .stage.is-current { background: var(--violet-soft); }
+  .stage.is-current .dot { background: var(--violet); color: #fff; box-shadow: 0 0 12px rgba(122, 92, 255, 0.5); }
+  .stage.is-current .label { color: #fff; font-weight: 600; }
+  .stage.is-locked { cursor: not-allowed; opacity: 0.45; }
+  .stage.is-locked .dot { border: 1px solid var(--border-strong); color: var(--text-muted); }
+  .stage.is-locked .label { color: var(--text-muted); }
+  .connector { color: var(--text-muted); font-size: 11px; opacity: 0.6; }
+
+  /* ============ 主体两列 ============ */
+  .workbench {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 14px;
+    padding: 0 14px 14px;
+    height: calc(100vh - 58px - 52px);
+  }
+
+  /* ---- 左：AI 对话 ---- */
+  .dialogue {
+    display: flex; flex-direction: column;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(14px);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .dialogue-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px 12px;
+  }
+  .dialogue-header .title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; font-weight: 600;
+  }
+  .dialogue-header .title .sparkle { color: var(--violet-text); font-size: 15px; }
+
+  .dialogue-messages {
+    flex: 1; overflow-y: auto; padding: 4px 16px 16px;
+    display: flex; flex-direction: column; gap: 14px;
+    min-height: 0;
+  }
+  .msg { display: flex; gap: 9px; }
+  .msg .m-avatar {
+    width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 12px;
+  }
+  .msg.is-assistant .m-avatar {
+    background: var(--violet-soft); color: var(--violet-text);
+    border: 1px solid rgba(122, 92, 255, 0.25);
+  }
+  .msg.is-user { flex-direction: row-reverse; }
+  .msg.is-user .m-avatar {
+    background: linear-gradient(135deg, #f0abfc, #7a5cff); color: #fff; font-size: 11px;
+  }
+  .msg .bubble {
+    max-width: 86%;
+    padding: 10px 13px; border-radius: 12px;
+    font-size: 13px; line-height: 1.7;
+  }
+  .msg.is-assistant .bubble {
+    background: var(--bg-nested);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+  }
+  .msg.is-user .bubble {
+    background: linear-gradient(135deg, #7a5cff, #6848f0);
+    color: #fff; border-top-right-radius: 4px;
+    box-shadow: 0 6px 16px rgba(122, 92, 255, 0.28);
+  }
+
+  /* 工具过程卡：折叠成一行，中文名，无内部 ID */
+  .tool-card {
+    max-width: 86%;
+    border: 1px solid rgba(52, 211, 153, 0.22);
+    border-radius: var(--radius-md);
+    background: rgba(52, 211, 153, 0.06);
+    padding: 8px 12px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--text-secondary);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .tool-card:hover { background: rgba(52, 211, 153, 0.1); }
+  .tool-card .ok-icon {
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--ok); color: #052e1f;
+    display: grid; place-items: center; font-size: 10px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .tool-card strong { color: var(--text-primary); font-weight: 600; }
+  .tool-card .state {
+    margin-left: auto; font-size: 11px; color: var(--ok);
+    background: var(--ok-soft); padding: 2px 8px; border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .dialogue-footer { border-top: 1px solid var(--border); padding: 12px 14px 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+  .chip {
+    font-size: 12px; color: var(--violet-text);
+    background: var(--violet-soft);
+    border: 1px solid rgba(122, 92, 255, 0.25);
+    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chip:hover { background: rgba(122, 92, 255, 0.24); border-color: rgba(122, 92, 255, 0.45); }
+  .input-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-nested);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 10px 10px 14px;
+    transition: border-color 0.15s;
+  }
+  .input-row:focus-within { border-color: rgba(122, 92, 255, 0.55); box-shadow: 0 0 0 3px rgba(122, 92, 255, 0.12); }
+  .input-row .attach { color: var(--text-muted); cursor: pointer; display: flex; }
+  .input-row .attach:hover { color: var(--violet-text); }
+  .input-row input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text-primary); font-size: 13px; font-family: inherit;
+  }
+  .input-row input::placeholder { color: var(--text-muted); }
+  .send-btn {
+    width: 32px; height: 32px; border: none; border-radius: 9px;
+    background: linear-gradient(135deg, #7a5cff, #6848f0); color: #fff;
+    cursor: pointer; display: grid; place-items: center; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(122, 92, 255, 0.4);
+  }
+
+  /* ---- 右：剧本主区 ---- */
+  .script-main {
+    display: flex; flex-direction: column;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(14px);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .script-toolbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chapter-select {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--bg-nested);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 13px; cursor: pointer; font-size: 13px;
+    transition: border-color 0.15s;
+  }
+  .chapter-select:hover { border-color: var(--border-strong); }
+  .chapter-select .doc-icon { color: var(--violet-text); }
+  .chapter-select strong { font-weight: 600; }
+  .status-pill {
+    font-size: 11px; padding: 2px 9px; border-radius: 999px; font-weight: 500;
+  }
+  .status-pill.is-done { background: var(--ok-soft); color: var(--ok); }
+  .story-tag {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12.5px; color: var(--teal);
+    background: rgba(34, 199, 169, 0.08);
+    border: 1px solid rgba(34, 199, 169, 0.2);
+    padding: 6px 12px; border-radius: 999px;
+  }
+  .toolbar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* 编辑区 */
+  .editor-scroll {
+    flex: 1; overflow-y: auto;
+    padding: 26px 40px 20px;
+    min-height: 0;
+  }
+  .editor-doc { max-width: 780px; margin: 0 auto; }
+  .doc-banner {
+    background: var(--bg-nested);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 26px;
+  }
+  .doc-h2 {
+    font-size: 16.5px; font-weight: 600;
+    margin: 0 0 18px;
+    color: var(--text-primary);
+  }
+  .doc-h2 .md-mark, .doc-h3 .md-mark { color: var(--violet-text); opacity: 0.55; font-weight: 500; margin-right: 4px; }
+  .doc-h3 {
+    font-size: 14px; font-weight: 600;
+    color: var(--violet-text);
+    margin: 26px 0 12px;
+  }
+  .doc-p {
+    font-size: 13.5px; line-height: 1.9;
+    color: #c3c9dd;
+    margin-bottom: 0.9em;
+  }
+  .doc-p strong { color: var(--text-primary); font-weight: 600; }
+
+  /* 底栏 */
+  .editor-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 18px;
+    border-top: 1px solid var(--border);
+    background: rgba(15, 20, 38, 0.7);
+  }
+  .editor-footer .stats {
+    display: flex; align-items: center; gap: 14px;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .editor-footer .saved { color: var(--ok); display: flex; align-items: center; gap: 5px; }
+  .footer-actions { display: flex; gap: 10px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    cursor: pointer; border: none;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #7a5cff, #6848f0);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(122, 92, 255, 0.35);
+  }
+  .btn-primary:hover { box-shadow: 0 8px 22px rgba(122, 92, 255, 0.5); transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent; color: var(--text-secondary);
+    border: 1px solid var(--border-strong);
+    font-weight: 500;
+  }
+  .btn-ghost:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(148, 163, 255, 0.15); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 255, 0.28); }
+</style>
+</head>
+<body>
+
+  <!-- ============ 顶栏 ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">✦</div>
+      <strong>绘界漫画</strong>
+    </div>
+    <button class="back-btn">‹ 返回项目列表</button>
+    <div class="topbar-right">
+      <button class="pill-btn">👥 角色库</button>
+      <button class="pill-btn">⏱ 任务队列 <span class="count">0</span></button>
+      <button class="icon-btn" title="通知">🔔</button>
+      <div class="avatar">墨</div>
+    </div>
+  </header>
+
+  <!-- ============ 7 步流程轨道 ============ -->
+  <div class="stage-strip">
+    <nav class="stage-rail" aria-label="创作流程">
+      <div class="stage is-current"><span class="dot">1</span><span class="label">剧本</span></div>
+      <span class="connector">›</span>
+      <div class="stage is-locked"><span class="dot">2</span><span class="label">剧情结构</span></div>
+      <span class="connector">›</span>
+      <div class="stage is-locked"><span class="dot">3</span><span class="label">分镜工作台</span></div>
+      <span class="connector">›</span>
+      <div class="stage is-locked"><span class="dot">4</span><span class="label">出图准备</span></div>
+      <span class="connector">›</span>
+      <div class="stage is-locked"><span class="dot">5</span><span class="label">候选图工作台</span></div>
+      <span class="connector">›</span>
+      <div class="stage is-locked"><span class="dot">6</span><span class="label">排版导出</span></div>
+      <span class="connector">›</span>
+      <div class="stage is-locked"><span class="dot">7</span><span class="label">素材包</span></div>
+    </nav>
+  </div>
+
+  <!-- ============ 主体 ============ -->
+  <div class="workbench">
+
+    <!-- 左：AI 对话 -->
+    <aside class="dialogue">
+      <div class="dialogue-header">
+        <div class="title"><span class="sparkle">✦</span> AI 编剧助手</div>
+        <button class="icon-btn" title="收起对话">⇤</button>
+      </div>
+
+      <div class="dialogue-messages">
+        <div class="msg is-user">
+          <div class="m-avatar">墨</div>
+          <div class="bubble">确认大纲</div>
+        </div>
+
+        <div class="msg is-assistant">
+          <div class="m-avatar">✦</div>
+          <div style="display:flex;flex-direction:column;gap:7px;max-width:100%;">
+            <div class="tool-card">
+              <span class="ok-icon">✓</span>
+              <span>技能 · <strong>剧本大纲生成</strong></span>
+              <span class="state">已完成</span>
+            </div>
+            <div class="bubble">剧本大纲已确认。本次没有生成章节；请打开目标章节，并在该章节对话中明确输入「生成当前章节」。</div>
+          </div>
+        </div>
+
+        <div class="msg is-user">
+          <div class="m-avatar">墨</div>
+          <div class="bubble">生成当前章节</div>
+        </div>
+
+        <div class="msg is-assistant">
+          <div class="m-avatar">✦</div>
+          <div style="display:flex;flex-direction:column;gap:7px;max-width:100%;">
+            <div class="tool-card">
+              <span class="ok-icon">✓</span>
+              <span>技能 · <strong>章节草稿生成</strong></span>
+              <span class="state">已完成</span>
+            </div>
+            <div class="bubble">已根据大纲「雨夜末班车·无名乘客」生成《雨夜点名》待确认草稿。请完整查看；采用后进入可编辑正文，完成本章后才形成正式版本。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dialogue-footer">
+        <div class="chips">
+          <button class="chip">给我 3 个灵感</button>
+          <button class="chip">粘贴已有剧本</button>
+          <button class="chip">生成当前章节</button>
+        </div>
+        <div class="input-row">
+          <span class="attach" title="上传剧本文本">📎</span>
+          <input placeholder="告诉我的想法，或输入 / 唤起指令" />
+          <button class="send-btn" title="发送">↑</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右：剧本主区 -->
+    <main class="script-main">
+      <div class="script-toolbar">
+        <div class="chapter-select">
+          <span class="doc-icon">▤</span>
+          <strong>雨夜点名</strong>
+          <span class="status-pill is-done">已完成</span>
+          <span style="color:var(--text-muted);font-size:11px;">▾</span>
+        </div>
+        <div class="story-tag">剧本 · 雨夜末班车·无名乘客</div>
+        <div class="toolbar-actions">
+          <button class="btn btn-ghost" title="更多操作">⋯</button>
+        </div>
+      </div>
+
+      <div class="editor-scroll">
+        <div class="editor-doc">
+          <div class="doc-banner">章节剧本</div>
+
+          <h2 class="doc-h2"><span class="md-mark">##</span>第 1 章：雨夜点名</h2>
+
+          <h3 class="doc-h3"><span class="md-mark">###</span>一、基础方向</h3>
+          <p class="doc-p"><strong>类型：</strong>都市怪谈 / 心理惊悚 / 超自然<br />
+          <strong>主题：</strong>被错误点名的活人，如何在收容规则里争回自己的姓名<br />
+          <strong>风格：</strong>暗黑写实、雨夜压迫、低语式惊悚<br />
+          <strong>漫画形式：</strong>竖向条漫<br />
+          <strong>目标篇幅：</strong>单章短篇（完整起承转合）</p>
+
+          <h3 class="doc-h3"><span class="md-mark">###</span>二、本章方向</h3>
+          <p class="doc-p"><strong>一句话梗概：</strong>雨夜末班站，林夏被广播点名上一辆无司机空车，发现座位按死亡时间编号后，她抓住点名漏洞证明自己不该被带走，跌回站台，只余广播极轻的一顿。</p>
+          <p class="doc-p"><strong>本章目标：</strong>完成「被点名上车 → 识破收容规则 → 证明不该被带走并回到站台」的单章闭环，让读者看清空车规则、林夏压力与最终选择结果。</p>
+          <p class="doc-p"><strong>核心冲突：</strong>林夏只想到家，却被系统点名为漏网死者；反抗会触发车厢清点，服从会被送去从未去过的终点，失败则姓名与存在被抹去。</p>
+          <p class="doc-p"><strong>情绪走向：</strong>疲惫戒备 → 被点名的僵直恐惧 → 车内规则压迫下的无助 → 抓住矛盾后的拼死自证 → 落地后的虚脱与未散余悸</p>
+
+          <h3 class="doc-h3"><span class="md-mark">###</span>三、剧本亮点</h3>
+          <p class="doc-p">关键转折：她从「不敢动、只求别被点到」转为抓住编号/点名矛盾主动自证；因此空车的收容逻辑被卡死，车门在终点前反常开启，她被放回站台而非被抹除。</p>
+          <p class="doc-p">结尾钩子：人已安全站在雨里，值班员撑伞确认她还在；主威胁解除，只余广播在空荡线路尽头极轻地停顿半拍，像记得这个名字，却不再宣读。</p>
+        </div>
+      </div>
+
+      <footer class="editor-footer">
+        <div class="stats">
+          <span>2,995 字 · 约 10–12 页</span>
+          <span class="saved">✓ 已保存</span>
+        </div>
+        <div class="footer-actions">
+          <button class="btn btn-ghost">保存草稿</button>
+          <button class="btn btn-primary">完成本章 →</button>
+        </div>
+      </footer>
+    </main>
+
+  </div>
+</body>
+</html>

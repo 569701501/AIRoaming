@@ -155,8 +155,8 @@ function statusLabel(status: ChapterStatus) {
 
 .btn-status {
   font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
   background: rgba(148, 163, 184, 0.15);
   color: #94a3b8;
   font-weight: 800;
@@ -168,6 +168,7 @@ function statusLabel(status: ChapterStatus) {
 .btn-status.images_done,
 .btn-status.layout_done,
 .btn-status.exported {
+  border: 1px solid rgba(34, 199, 169, 0.3);
   background: rgba(34, 199, 169, 0.15);
   color: #8df0dc;
 }

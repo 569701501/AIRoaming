@@ -43,6 +43,11 @@
           </span>
         </div>
 
+        <p class="panel-hint">
+          <Check :size="14" />
+          <span>密钥仅保存在本机，不会在页面回显</span>
+        </p>
+
         <div class="field-grid">
           <label>
             <span>服务商</span>
@@ -62,12 +67,19 @@
           </label>
           <label class="is-wide">
             <span>API Key</span>
-            <input
-              v-model.trim="aiForm.apiKey"
-              autocomplete="off"
-              placeholder="留空则保留当前密钥"
-              spellcheck="false"
-            />
+            <div class="secret-input">
+              <input
+                v-model.trim="aiForm.apiKey"
+                autocomplete="off"
+                placeholder="留空则保留当前密钥"
+                spellcheck="false"
+                :type="showAiKey ? 'text' : 'password'"
+              />
+              <button type="button" :aria-label="showAiKey ? '隐藏密钥' : '显示密钥'" @click="showAiKey = !showAiKey">
+                <EyeOff v-if="showAiKey" :size="16" />
+                <Eye v-else :size="16" />
+              </button>
+            </div>
           </label>
         </div>
 
@@ -324,11 +336,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import type { AppearanceTheme, ImageProviderType } from "@airoaming/shared";
-import { Check, ImagePlus, KeyRound, Monitor, Moon, Palette, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
+import { Check, Eye, EyeOff, ImagePlus, KeyRound, Monitor, Moon, Palette, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
 import { useSettingsStore } from "../../stores/settings-store";
 
 const settings = useSettingsStore();
 const activeTab = ref<"ai-key" | "image-provider" | "appearance">("ai-key");
+const showAiKey = ref(false);
 const aiForm = reactive({
   providerId: "self",
   providerName: "自定义 OpenAI 兼容",
@@ -733,15 +746,15 @@ function formatTime(value: string): string {
 .provider-form-head strong {
   color: #f8fbff;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .provider-note {
   display: grid;
   gap: 5px;
-  border: 1px solid rgba(124, 227, 206, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.22);
   border-radius: 8px;
-  background: rgba(124, 227, 206, 0.06);
+  background: rgba(139, 92, 246, 0.07);
   padding: 11px 12px;
   color: #aeb8cf;
   font-size: 12px;
@@ -749,7 +762,7 @@ function formatTime(value: string): string {
 }
 
 .provider-note strong {
-  color: #7ce3ce;
+  color: #b3a5ff;
   font-size: 12px;
 }
 
@@ -766,7 +779,7 @@ function formatTime(value: string): string {
   padding: 0 10px;
   text-align: left;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .settings-nav-btn.is-active {
@@ -791,12 +804,18 @@ function formatTime(value: string): string {
 }
 
 .settings-heading span,
-.panel-title-row span,
+.panel-title-row span {
+  color: #b3a5ff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 .key-meta span,
 label > span {
-  color: #7ce3ce;
+  color: #8f97b3;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .settings-heading h1,
@@ -809,6 +828,19 @@ label > span {
 
 .panel-title-row h2 {
   font-size: 20px;
+}
+
+.panel-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #8f97b3;
+  font-size: 12px;
+}
+
+.panel-hint span {
+  color: #aeb8cf;
 }
 
 .settings-icon-btn {
@@ -827,7 +859,7 @@ label > span {
   border-radius: 8px;
   padding: 12px 14px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .settings-alert.is-error {
@@ -895,6 +927,35 @@ select:focus {
   border-color: rgba(139, 92, 246, 0.58);
 }
 
+.secret-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.secret-input input {
+  padding-right: 44px;
+}
+
+.secret-input button {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8b96b3;
+  cursor: pointer;
+}
+
+.secret-input button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
 .key-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -946,12 +1007,12 @@ select:focus {
   color: #cbd5e1;
   padding: 0 14px;
   text-align: left;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .theme-option.is-active {
-  border-color: rgba(34, 199, 169, 0.34);
-  background: rgba(34, 199, 169, 0.1);
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(139, 92, 246, 0.12);
   color: #f8fbff;
 }
 

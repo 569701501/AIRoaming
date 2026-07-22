@@ -27,12 +27,22 @@
             <div class="row-title">
               <strong>{{ character.name }}</strong>
               <span class="row-level">{{ getLevelLabel(character.level) }}</span>
+              <span v-if="isFinalLocked(character)" class="row-locked-badge">定稿已锁定</span>
+              <span v-if="isPureVoice(character)" class="row-voice-badge">纯声音</span>
             </div>
             <p class="row-desc">{{ getCharacterDescription(character) }}</p>
           </div>
 
-          <!-- 右侧:角色图 + 三视图 并排 -->
-          <div class="row-images">
+          <!-- 右侧:角色图 + 三视图 并排;纯声音角色不需要视觉素材 -->
+          <div v-if="isPureVoice(character)" class="row-images">
+            <div class="row-image-slot is-voice">
+              <div class="row-image-frame is-voice">
+                <AudioLines :size="22" />
+                <span>纯声音角色 · 不需要视觉素材</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="row-images">
             <div class="row-image-slot">
               <button
                 v-if="getReferenceAsset(character, 'preview_front')"
@@ -88,7 +98,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ImageOff, UserRound, UsersRound, X } from "lucide-vue-next";
+import { AudioLines, ImageOff, UserRound, UsersRound, X } from "lucide-vue-next";
+import { requiredCharacterReferenceKind } from "@airoaming/shared";
 import type {
   GenerationTaskItem,
   ProjectCharacter,
@@ -122,6 +133,14 @@ function openPreview(asset: WorkbenchAsset, alt: string) {
 
 function closePreview() {
   activePreview.value = null;
+}
+
+function isPureVoice(character: ProjectCharacter) {
+  return requiredCharacterReferenceKind(character) === "none";
+}
+
+function isFinalLocked(character: ProjectCharacter) {
+  return character.primaryReferenceKind === "final_reference" && Boolean(character.primaryReferenceAssetId);
 }
 
 const LEVEL_LABELS: Record<ProjectCharacterLevel, string> = {
@@ -378,6 +397,28 @@ button:disabled {
   font-weight: 900;
 }
 
+.row-locked-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.14);
+  color: #9fe8b5;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.row-voice-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.14);
+  color: #c4b5fd;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .row-desc {
   margin: 0;
   color: #cbd5e1;
@@ -402,6 +443,10 @@ button:disabled {
   width: 130px;
 }
 
+.row-image-slot.is-voice {
+  width: 270px;
+}
+
 .row-image-frame {
   display: grid;
   place-items: center;
@@ -423,6 +468,24 @@ button:disabled {
   gap: 4px;
   color: #475569;
   font-size: 11px;
+}
+
+.row-image-frame.is-voice {
+  display: grid;
+  width: 100%;
+  height: 130px;
+  aspect-ratio: auto;
+  place-content: center;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed rgba(139, 92, 246, 0.3);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(139, 92, 246, 0.12), transparent 70%),
+    rgba(2, 6, 23, 0.6);
+  color: #8b7fd4;
+  font-size: 11px;
+  text-align: center;
+  padding: 10px;
 }
 
 .row-image-label {

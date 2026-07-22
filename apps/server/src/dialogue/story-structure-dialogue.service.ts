@@ -220,8 +220,8 @@ export class StoryStructureDialogueService {
       status: "needs_user_confirmation",
       summary: [
         `已生成「${storyStructure.structureJson.chapterTitle}」的剧情结构预览，右侧可查看。`,
-        "这还是待确认预览，不会写入正式 structure.json，也不能生成分镜。",
-        "确认后我会通过受控接口保存到当前章节，并把章节推进为 structured。",
+        "这还是待确认预览，不会写入正式剧情结构，也不能生成分镜。",
+        "确认后我会保存为本章正式剧情结构，之后就可以生成分镜了。",
       ].join("\n"),
       chapters: [],
       currentChapterId: storyStructure.chapterId,

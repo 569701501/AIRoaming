@@ -42,13 +42,13 @@
     <div v-if="!hasFormalStoryboard" class="candidate-empty">
       <Lock :size="22" />
       <h2>请先确认本章分镜</h2>
-      <p>候选图只读取正式 storyboard.json。</p>
+      <p>候选图只读取已确认的正式分镜。</p>
     </div>
 
     <div v-else-if="!isPreflightConfirmed" class="candidate-empty">
       <ShieldAlert :size="22" />
       <h2>请先通过出图准备</h2>
-      <p>当前章节还没有可用于候选图生成的 preflight.json 确认记录。</p>
+      <p>当前章节还没有通过出图准备检查，请先完成检查并确认。</p>
       <button class="empty-action" type="button" :disabled="loading" @click="$emit('goPreflight')">
         <ListChecks :size="15" />
         <span>去出图准备</span>
@@ -71,6 +71,9 @@
           @click="selectedShotId = shot.id"
         >
           <span class="shot-index">{{ shot.order }}</span>
+          <span v-if="shotRowThumbMap.get(shot.id)" class="shot-row-thumb">
+            <img :src="shotRowThumbMap.get(shot.id)!" :alt="`镜头 ${shot.order} 缩略`" loading="lazy" />
+          </span>
           <span class="shot-row-main">
             <strong>{{ shot.coreAction || shot.comic.panelDescription || "未填写镜头动作" }}</strong>
             <small>{{ shot.sceneName || "未绑定场景" }} · {{ getShotTaskSummary(shot.id) }}</small>
@@ -146,8 +149,7 @@
           <header class="visual-editor-heading">
             <div>
               <span>本次候选图描述</span>
-              <strong>生成分镜时已自动整理，可继续微调</strong>
-              <small>这里展示的是本镜头的详细单帧说明；手动修改只影响本次候选图，不会改正式分镜。</small>
+              <small>由分镜自动整理，可微调；只影响本次候选图，不改正式分镜。</small>
             </div>
             <div class="visual-editor-actions">
               <button type="button" class="secondary-action compact" :disabled="loading || !hasPromptDraftChanges" @click="resetPromptDraft">
@@ -569,6 +571,33 @@ const currentChapterId = computed(() => currentChapter.value?.id ?? null);
 const isDatabaseCandidateMode = computed(() => props.snapshot.versioningCapability.mode === "g2_db");
 const hasFormalStoryboard = computed(() => Boolean(props.snapshot.storyboard && props.snapshot.storyboard.chapterId === currentChapterId.value));
 const shots = computed(() => hasFormalStoryboard.value ? props.snapshot.shots : []);
+
+/** 镜头列表行缩略图：已定稿候选优先，否则取最新一张候选。 */
+const shotRowThumbMap = computed(() => {
+  const byShot = new Map<string, WorkbenchCandidate[]>();
+  for (const candidate of props.snapshot.candidates ?? []) {
+    const list = byShot.get(candidate.shotId);
+    if (list) {
+      list.push(candidate);
+    } else {
+      byShot.set(candidate.shotId, [candidate]);
+    }
+  }
+  const result = new Map<string, string>();
+  for (const shot of shots.value) {
+    const list = byShot.get(shot.id);
+    if (!list?.length) continue;
+    const locked = shot.lockedCandidateId ? list.find((candidate) => candidate.id === shot.lockedCandidateId) : null;
+    const target = locked ?? [...list].sort((a, b) => Date.parse(b.createdAt ?? "0") - Date.parse(a.createdAt ?? "0"))[0];
+    if (target?.assetId) {
+      const url = getCandidatePreviewUrl(target.assetId);
+      if (url) {
+        result.set(shot.id, url);
+      }
+    }
+  }
+  return result;
+});
 const currentCandidateIds = computed(() => new Set(
   shots.value
     .map((shot) => shot.lockedCandidateId)
@@ -1562,7 +1591,7 @@ button:disabled {
   display: grid;
   width: 100%;
   min-height: 72px;
-  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  grid-template-columns: 34px auto minmax(0, 1fr) 18px;
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -1571,6 +1600,22 @@ button:disabled {
   padding: 10px;
   color: #e8eefc;
   text-align: left;
+}
+
+.shot-row-thumb {
+  display: block;
+  width: 64px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.48);
+}
+
+.shot-row-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .shot-row.is-active {
@@ -1773,18 +1818,23 @@ button:disabled {
 
 .visual-editor-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
 }
 
 .visual-editor-primary {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .visual-editor-fields label {
   display: grid;
+  grid-template-rows: auto 1fr;
   gap: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px;
 }
 
 .visual-editor-fields label > span {
@@ -1795,7 +1845,8 @@ button:disabled {
 
 .visual-editor-fields textarea {
   width: 100%;
-  min-height: 94px;
+  min-height: 110px;
+  height: 100%;
   resize: vertical;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
@@ -2789,6 +2840,10 @@ button:disabled {
     max-height: 260px;
     border-right: 0;
     border-bottom: 1px solid rgba(31, 41, 55, 0.1);
+  }
+
+  .visual-editor-fields {
+    grid-template-columns: 1fr;
   }
 
   .shot-context-grid {

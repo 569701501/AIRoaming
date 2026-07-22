@@ -24,6 +24,10 @@
         <p>{{ digest }}</p>
       </div>
 
+      <div class="progress-row" role="progressbar" :aria-valuenow="Math.round(progress * 100)" aria-valuemin="0" aria-valuemax="100">
+        <span :style="{ width: `${progress * 100}%` }"></span>
+      </div>
+
       <div class="project-card-foot">
         <span class="project-step" :class="{ 'is-done': isExported }">{{ progressLabel }}</span>
         <span class="project-date">{{ formatRelativeDate(project.updatedAt) }}</span>
@@ -41,6 +45,7 @@ import {
   getProjectAccent,
   getProjectDigest,
   getProjectStepLabel,
+  getProjectStepProgress,
   projectStatusMeta,
 } from "../../utils/project-ui";
 
@@ -61,4 +66,5 @@ const digest = computed(() => getProjectDigest(props.project));
 const accent = computed(() => getProjectAccent(props.project.id));
 const isExported = computed(() => props.project.status === "exported");
 const progressLabel = computed(() => getProjectStepLabel(props.project));
+const progress = computed(() => getProjectStepProgress(props.project));
 </script>

@@ -14,7 +14,7 @@ export const projectStatusMeta: Record<ProjectStatus, { label: string; tone: str
   characters_ready: {
     label: "创作中",
     tone: "green",
-    step: "角色库",
+    step: "剧情结构",
   },
   shots_ready: {
     label: "创作中",
@@ -99,9 +99,29 @@ export function getProjectStepLabel(project: ProjectListItem) {
   return `当前 · 第 ${index} 步 ${meta.step}`;
 }
 
+/** 项目卡进度条比例：当前阶段在 7 步流程中的位置，已导出为 1。 */
+export function getProjectStepProgress(project: ProjectListItem) {
+  if (project.status === "exported") {
+    return 1;
+  }
+  const index = STATUS_STEP_INDEX[project.status] ?? 1;
+  return Math.min(1, Math.max(0.06, (index - 1) / 7 + 0.06));
+}
+
 export function getProjectDigest(project: ProjectListItem) {
   const text = project.sourceTextPreview || project.description;
-  return text.trim() || "还没有故事内容，进入项目后补充故事原文。";
+  const plain = stripMarkdown(text);
+  return plain || "还没有故事内容，进入项目后补充故事原文。";
+}
+
+function stripMarkdown(text: string) {
+  return text
+    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+    .replace(/^\s*[-+•]\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/[*_`~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function getProjectAccent(projectId: string) {

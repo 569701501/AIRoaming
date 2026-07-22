@@ -45,6 +45,14 @@
           title="打开 AI 成稿建议"
           @click="openAiDrawer"
         ><Sparkles :size="16" />AI 建议</button>
+        <button
+          type="button"
+          :aria-expanded="m6PanelOpen"
+          aria-controls="layout-m6-control-center"
+          :disabled="!session.server.value"
+          title="版本、预检与出版管理"
+          @click="m6PanelOpen = !m6PanelOpen"
+        ><History :size="16" />版本与出版</button>
       </div>
     </header>
 
@@ -90,7 +98,7 @@
       <div>
         <strong>{{ sourceAttention.title }}</strong>
         <p>{{ sourceAttention.message }}</p>
-        <small>旧排版、旧版本和旧导出保持不变；可在下方先预览换图及裁切，再显式提交到 Working Copy。</small>
+        <small>旧排版、旧版本和旧导出保持不变；可在下方先预览换图及裁切，再显式提交到当前草稿。</small>
       </div>
       <button type="button" :disabled="loading" @click="$emit('goCandidates')">查看候选定稿</button>
       <button
@@ -124,7 +132,11 @@
       {{ actionError || session.errorMessage.value || fontLoader.loadError.value }}
     </div>
 
-    <section v-if="session.server.value" class="m6-control-center" data-testid="layout-m6-control-center" aria-label="来源返修与版本管理">
+    <section v-if="session.server.value && m6PanelOpen" class="m6-control-center" data-testid="layout-m6-control-center" aria-label="来源返修与版本管理">
+      <div class="m6-panel-head">
+        <strong>版本与出版管理</strong>
+        <button type="button" aria-label="收起版本与出版管理" @click="m6PanelOpen = false"><X :size="15" /></button>
+      </div>
       <article class="m6-card source-repair-card">
         <header>
           <div><strong>来源返修</strong><small>{{ replaceableImageElementIds.length ? `${replaceableImageElementIds.length} 个图片待处理` : '来源已是当前定稿' }}</small></div>
@@ -156,7 +168,7 @@
 
       <article class="m6-card preflight-card">
         <header>
-          <div><strong>正式版本预检</strong><small>error 阻止保存；warning 必须逐项确认</small></div>
+          <div><strong>正式版本预检</strong><small>存在错误时无法保存；警告需逐项确认</small></div>
           <span v-if="session.preflight.value" :class="`tone-${session.preflight.value.status}`">{{ preflightStatusLabel }}</span>
         </header>
         <button type="button" :disabled="m6Busy || session.isReadOnly.value" @click="prepareRevision">重新预检</button>
@@ -181,7 +193,7 @@
 
       <article class="m6-card history-card">
         <header>
-          <div><strong>版本历史</strong><small>恢复只覆盖 Working Copy，不切换正式版本</small></div>
+          <div><strong>版本历史</strong><small>恢复只覆盖当前草稿，不影响正式版本</small></div>
           <span>{{ session.revisionHistory.value?.items.length ?? 0 }}</span>
         </header>
         <p v-if="!session.revisionHistory.value?.items.length" class="muted-copy">尚无正式版本。</p>
@@ -643,6 +655,7 @@ import {
   Eye,
   EyeOff,
   Hand,
+  History,
   Image as ImageIcon,
   LayoutPanelTop,
   LayoutTemplate,
@@ -657,6 +670,7 @@ import {
   Type,
   Undo2,
   Unlock,
+  X,
 } from "lucide-vue-next";
 import type {
   CandidateLockErrorCode,
@@ -730,6 +744,7 @@ const selectedSourceShotId = ref<string | null>(null);
 const selectedPresetId = ref<LayoutPresetIdV1>(isPaged.value ? "four_panel" : "single");
 const actionError = ref<string | null>(null);
 const m6Busy = ref(false);
+const m6PanelOpen = ref(false);
 const replacementCropMode = ref<LayoutSourceReplacementCropModeV1>("preserve_normalized_crop");
 const acknowledgedIssueKeys = ref<string[]>([]);
 const publicationPreflight = ref<LayoutPreflightReportV1 | null>(null);
@@ -865,7 +880,7 @@ const sourceStateLabel = computed(() => {
 const saveStateLabel = computed(() => ({
   loading: "读取中",
   missing: "尚未创建",
-  saved: "已保存到数据库",
+  saved: "已保存",
   unsaved: "有未保存修改",
   saving: "保存中",
   conflict: "保存冲突",
@@ -1074,6 +1089,7 @@ async function discardAiSuggestion(): Promise<void> {
 }
 
 async function prepareRevision(): Promise<void> {
+  m6PanelOpen.value = true;
   m6Busy.value = true;
   actionError.value = null;
   try {
@@ -1093,6 +1109,7 @@ async function previewStaleReplacement(selectedOnly: boolean): Promise<void> {
     ? [selectedStaleImageId.value]
     : replaceableImageElementIds.value;
   if (!ids.length) return;
+  m6PanelOpen.value = true;
   m6Busy.value = true;
   actionError.value = null;
   try {
@@ -1160,6 +1177,7 @@ async function preparePublication(): Promise<void> {
   const id = chapterId.value;
   const revisionId = currentLayoutRevisionId.value;
   if (!id || !revisionId) return;
+  m6PanelOpen.value = true;
   publicationBusy.value = true;
   actionError.value = null;
   try {
@@ -2405,6 +2423,32 @@ button:disabled {
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   padding: 10px 12px;
   background: #0a1120;
+}
+
+.m6-panel-head {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.m6-panel-head button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.m6-panel-head button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
 }
 
 .m6-card {

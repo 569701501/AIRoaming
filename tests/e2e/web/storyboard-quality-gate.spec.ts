@@ -48,7 +48,7 @@ test("S2：新项目分镜首次未过固定质量门时只修复一次，并只
   await page.getByRole("button", { name: "进入本章剧情结构" }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/structure$`));
 
-  await page.getByRole("button", { name: "生成剧情结构" }).click();
+  await page.locator(".structure-workspace").getByRole("button", { name: "生成剧情结构" }).click();
   await expect(page.getByRole("button", { name: "确认结构" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "确认结构" }).click();
   await expect.poll(async () => {

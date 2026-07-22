@@ -70,6 +70,7 @@
         @confirm-character-preview="$emit('confirmCharacterPreview', $event)"
         @confirm-character-reference="$emit('confirmCharacterReference', $event)"
         @generate-scene-reference="$emit('generateSceneReference', $event)"
+        @go-storyboard="$emit('selectStep', 'storyboard')"
       />
 
       <ProjectCharactersWorkspace
@@ -91,6 +92,7 @@
         @confirm-storyboard="$emit('confirmStoryboard', $event)"
         @update-storyboard="$emit('updateStoryboard', $event)"
         @save-pending-storyboard="$emit('savePendingStoryboard', $event)"
+        @go-preflight="$emit('selectStep', 'image_preflight')"
       />
 
       <ImagePreflightWorkspace

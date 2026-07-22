@@ -184,11 +184,11 @@ test.describe("W1 DB-only Web/API gate", () => {
     });
 
     await page.goto(`/projects/${projectId}/structure`);
-    await expect(page.getByTestId("story-db-versioning-status")).toContainText("DB Working Copy");
+    await expect(page.getByTestId("story-db-versioning-status")).toHaveCount(0);
     await page.goto(`/projects/${projectId}/storyboard`);
-    await expect(page.getByTestId("storyboard-db-versioning-status")).toContainText("DB Working Copy");
+    await expect(page.getByTestId("storyboard-db-versioning-status")).toHaveCount(0);
     await page.goto(`/projects/${projectId}/preflight`);
-    await expect(page.getByTestId("preflight-db-versioning-status")).toContainText("DB Revision");
+    await expect(page.getByTestId("preflight-db-versioning-status")).toHaveCount(0);
 
     const legacy = await api.patch<Record<string, unknown>>(`/projects/${projectId}/chapters/${chapterId}/story-structure`, { structureJson: {} }).catch((error: Error) => error.message);
     expect(String(legacy)).toContain("E2E_API_REQUEST_FAILED");
@@ -291,12 +291,12 @@ test.describe("W1 DB-only Web/API gate", () => {
     await publishScript(api, projectId, chapterId!);
 
     await page.goto(`/projects/${projectId}/structure`);
-    await page.getByRole("button", { name: "生成剧情结构", exact: true }).click();
+    await page.locator(".structure-workspace").getByRole("button", { name: "生成剧情结构", exact: true }).click();
     await expect(page.getByRole("button", { name: "确认结构", exact: true })).toBeVisible();
     await expect(page.getByText("林夏在雨夜站台等待末班车，异常广播后空车进站。", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "确认结构", exact: true }).click();
-    await expect(page.getByTestId("story-db-versioning-status")).toContainText("current");
+    await expect(page.getByTestId("story-db-versioning-status")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "3 分镜工作台", exact: true })).toBeEnabled();
     await expect(page.getByText("该预览已处理，当前状态以右侧工作区为准。", { exact: true })).toBeVisible();
 

@@ -11,18 +11,27 @@
         <span v-if="snapshot.project.storyTitle" class="story-title">{{ snapshot.project.storyTitle }}</span>
       </div>
 
-      <button class="primary-action" type="button" :disabled="!canGenerate || loading || dialogueSending" @click="requestGenerate">
-        <RefreshCw :size="15" />
-        <span>{{ hasStructure ? "重新生成" : "生成剧情结构" }}</span>
-      </button>
+      <div class="structure-toolbar-actions">
+        <button class="secondary-action" type="button" :disabled="!canGenerate || loading || dialogueSending" @click="requestGenerate">
+          <RefreshCw :size="15" />
+          <span>{{ hasStructure ? "重新生成" : "生成剧情结构" }}</span>
+        </button>
+        <button
+          v-if="formalStructure"
+          class="primary-action"
+          type="button"
+          :disabled="loading"
+          @click="$emit('goStoryboard')"
+        >
+          <span>进入分镜工作台</span>
+          <ArrowRight :size="15" />
+        </button>
+      </div>
     </header>
 
-    <div v-if="versioningStatus" class="db-versioning-status" data-testid="story-db-versioning-status">
-      <strong>DB Working Copy</strong>
-      <span>{{ versioningStatus.label }}</span>
-      <span v-if="versioningStatus.freshness">来源：{{ versioningStatus.freshness }}</span>
-      <span v-if="versioningStatus.history">历史：可查看</span>
-      <span v-if="versioningStatus.attention">门禁：{{ versioningStatus.attention }}</span>
+    <div v-if="isSourceStale" class="source-stale-banner" data-testid="story-db-versioning-status">
+      <AlertTriangle :size="14" />
+      <span>来源已变化：本章剧本有新版本，剧情结构需要重新生成或确认</span>
     </div>
 
     <div v-if="currentChapter?.status === 'draft'" class="structure-empty">
@@ -277,7 +286,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AlertTriangle, CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
+import { AlertTriangle, ArrowRight, CheckCircle2, FileText, ImagePlus, LoaderCircle, Lock, RefreshCw, RotateCw, X, ZoomIn } from "lucide-vue-next";
 import type { ChapterListItem, ChapterStoryStructure, DialogueThread, GenerationTaskItem, StoryStructureJson, StoryStructureSceneCard, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import { characterVisualIdentityKey } from "@airoaming/shared";
 import { api } from "../../services/api";
@@ -301,6 +310,7 @@ const emit = defineEmits<{
   confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
   generateSceneReference: [payload: { chapterId: string; sceneId: string }];
+  goStoryboard: [];
 }>();
 
 const editingKey = ref<string | null>(null);
@@ -338,16 +348,9 @@ const structureJson = computed(() => activeStructure.value?.structureJson ?? cre
 const hasStructure = computed(() => Boolean(pendingStructure.value || formalStructure.value));
 const canGenerate = computed(() => Boolean(currentChapter.value && currentChapter.value.status !== "draft"));
 const canEdit = computed(() => activeStructure.value?.status === "structured");
-const versioningStatus = computed(() => {
-  if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
-  const step = props.snapshot.workflow.steps.find((item) => item.key === "story_structure");
-  return {
-    label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "Working Copy",
-    freshness: step?.freshness ?? null,
-    history: Boolean(step?.historyAvailable),
-    attention: step?.attention ?? null,
-  };
-});
+const isSourceStale = computed(() =>
+  props.snapshot.workflow.steps.find((item) => item.key === "story_structure")?.status === "needs_update",
+);
 const projectCharacterByName = computed(() => new Map(props.snapshot.characters.map((character) => [normalizeCharacterKey(character.name), character])));
 const projectCharacterById = computed(() => new Map(props.snapshot.characters.map((character) => [character.id, character])));
 const projectCharacterByVisualIdentity = computed(() => {
@@ -682,7 +685,15 @@ html[data-theme="light"] .story-title {
 }
 
 /* Actions Style */
+.structure-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
 .primary-action,
+.secondary-action,
 .confirm-action {
   display: inline-flex;
   align-items: center;
@@ -697,12 +708,28 @@ html[data-theme="light"] .story-title {
   cursor: pointer;
 }
 .primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled),
 .confirm-action:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 .primary-action:active:not(:disabled),
+.secondary-action:active:not(:disabled),
 .confirm-action:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.secondary-action {
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  background: rgba(148, 163, 184, 0.08) !important;
+  color: #b6c2d8 !important;
+}
+.secondary-action:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.14) !important;
+}
+html[data-theme="light"] .secondary-action {
+  border-color: rgba(100, 116, 139, 0.25) !important;
+  background: rgba(100, 116, 139, 0.06) !important;
+  color: #475569 !important;
 }
 
 .primary-action {
@@ -1252,12 +1279,12 @@ html[data-theme="light"] .beat-list::before {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.95);
-  border: 2px solid rgba(139, 92, 246, 0.3) !important;
-  color: #ddd6fe;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  border: 2px solid rgba(139, 92, 246, 0.55) !important;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 800;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.1);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
 }
 html[data-theme="light"] .beat-order {
   background: #ffffff;

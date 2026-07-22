@@ -11,24 +11,38 @@
         <span v-if="snapshot.project.storyTitle" class="story-title">{{ snapshot.project.storyTitle }}</span>
       </div>
 
-      <button class="primary-action" type="button" :disabled="!canGenerate || loading || dialogueSending" @click="requestGenerate">
-        <RefreshCw :size="15" />
-        <span>{{ hasStoryboard ? "重新生成" : "生成分镜" }}</span>
-      </button>
+      <div class="storyboard-toolbar-actions">
+        <span v-if="workingJson" class="shot-count-pill">{{ workingJson.shots.length }} 镜</span>
+        <button class="secondary-action" type="button" :disabled="!workingJson || loading" @click="addShot">
+          <Plus :size="15" />
+          <span>新增镜头</span>
+        </button>
+        <button class="secondary-action" type="button" :disabled="!canGenerate || loading || dialogueSending" @click="requestGenerate">
+          <RefreshCw :size="15" />
+          <span>{{ hasStoryboard ? "重新生成" : "生成分镜" }}</span>
+        </button>
+        <button
+          v-if="formalStoryboard && !pendingStoryboard"
+          class="primary-action"
+          type="button"
+          :disabled="loading"
+          @click="$emit('goPreflight')"
+        >
+          <span>进入出图准备</span>
+          <ArrowRight :size="15" />
+        </button>
+      </div>
     </header>
 
-    <div v-if="versioningStatus" class="db-versioning-status" data-testid="storyboard-db-versioning-status">
-      <strong>DB Working Copy</strong>
-      <span>{{ versioningStatus.label }}</span>
-      <span v-if="versioningStatus.freshness">来源：{{ versioningStatus.freshness }}</span>
-      <span v-if="versioningStatus.history">历史：可查看</span>
-      <span v-if="versioningStatus.attention">门禁：{{ versioningStatus.attention }}</span>
+    <div v-if="isSourceStale" class="source-stale-banner" data-testid="storyboard-db-versioning-status">
+      <AlertTriangle :size="14" />
+      <span>来源已变化：剧情结构有新版本，分镜需要重新生成或确认</span>
     </div>
 
     <div v-if="!snapshot.storyStructure" class="storyboard-empty">
       <Lock :size="22" />
       <h2>请先确认本章剧情结构</h2>
-      <p>分镜会读取已确认的 structure.json，把剧情节拍拆成镜头卡。</p>
+      <p>分镜会读取已确认的剧情结构，把剧情节拍拆成镜头卡。</p>
     </div>
 
     <div v-else-if="workingJson" class="storyboard-scroll">
@@ -48,14 +62,6 @@
           <span>确认分镜</span>
         </button>
       </div>
-
-      <section class="storyboard-summary">
-        <div>
-          <span>镜头模型</span>
-          <strong>Shot 核心 + comic / motion</strong>
-        </div>
-        <p>每张镜头卡同时保留漫画画格表达和基础漫剧镜头表达；后续仍可拆分或合并漫剧镜头。</p>
-      </section>
 
       <div class="shot-list">
         <article
@@ -79,7 +85,7 @@
               @click.stop
               @dragstart="onDragStart(index)"
             ><GripVertical :size="18" /></span>
-            <div class="shot-number">镜头 {{ shot.order }}</div>
+            <div class="shot-number">{{ String(shot.order).padStart(2, "0") }}</div>
             <!-- 候选图缩略预览(P0 任务D):有图才显示,无图不占位避免分镜阶段噪音 -->
             <div v-if="shotThumbMap.get(shot.id)" class="shot-thumb" :class="{ 'is-locked': shotThumbMap.get(shot.id)?.locked }">
               <img :src="shotThumbMap.get(shot.id)!.url" :alt="`镜头 ${shot.order} 候选`" loading="lazy" />
@@ -89,6 +95,10 @@
             <div class="shot-head-text">
               <strong>{{ shot.coreAction || shot.comic.panelDescription || "未填写镜头动作" }}</strong>
               <span>{{ getShotSceneName(shot.sceneId) }} · {{ shot.emotion || "未填写情绪" }}</span>
+              <div v-if="getShotOptionLabel(SHOT_TYPE_OPTIONS, shot.shotType) || getShotOptionLabel(CAMERA_ANGLE_OPTIONS, shot.cameraAngle)" class="shot-head-tags">
+                <span v-if="getShotOptionLabel(SHOT_TYPE_OPTIONS, shot.shotType)" class="shot-tag">{{ getShotOptionLabel(SHOT_TYPE_OPTIONS, shot.shotType) }}</span>
+                <span v-if="getShotOptionLabel(CAMERA_ANGLE_OPTIONS, shot.cameraAngle)" class="shot-tag">{{ getShotOptionLabel(CAMERA_ANGLE_OPTIONS, shot.cameraAngle) }}</span>
+              </div>
             </div>
             <button class="icon-action danger" type="button" title="删除镜头" @click.stop="removeShot(index)">
               <Trash2 :size="14" />
@@ -109,7 +119,6 @@
             <section class="shot-expression comic-column">
               <div class="expression-heading">
                 <span>漫画画格</span>
-                <strong>comic</strong>
               </div>
               <EditableField :field-key="`shots.${index}.comic.panelDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.panelDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
               <EditableField :field-key="`shots.${index}.comic.composition`" label="构图" :editing-key="editingKey" :editing-value="editingValue" :value="shot.comic.composition" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
@@ -121,7 +130,6 @@
             <section class="shot-expression motion-column">
               <div class="expression-heading">
                 <span>漫剧镜头</span>
-                <strong>motion</strong>
               </div>
               <EditableField :field-key="`shots.${index}.motion.visualDescription`" label="画面描述" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.visualDescription" multiline @start="startEditing" @input="editingValue = $event" @commit="commitField" />
               <EditableField :field-key="`shots.${index}.motion.compositionDesign`" label="构图设计" :editing-key="editingKey" :editing-value="editingValue" :value="shot.motion.compositionDesign" @start="startEditing" @input="editingValue = $event" @commit="commitField" />
@@ -208,7 +216,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AlertTriangle, CheckCircle2, GripVertical, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2, X } from "lucide-vue-next";
+import { AlertTriangle, ArrowRight, CheckCircle2, GripVertical, Lock, PanelsTopLeft, Plus, RefreshCw, Trash2, X } from "lucide-vue-next";
 import type { ChapterListItem, DialogueThread, StoryboardJson, StoryboardShot, WorkbenchCandidate, WorkbenchSnapshot } from "@airoaming/shared";
 import { api } from "../../services/api";
 import EditableField from "./EditableField.vue";
@@ -218,6 +226,7 @@ import {
   FRAME_TYPE_OPTIONS,
   PANEL_RHYTHM_OPTIONS,
   SHOT_TYPE_OPTIONS,
+  type ShotSelectOption,
 } from "../../utils/storyboard-options";
 
 const props = defineProps<{
@@ -233,6 +242,7 @@ const emit = defineEmits<{
   confirmStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   updateStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
   savePendingStoryboard: [payload: { chapterId: string; storyboardJson: StoryboardJson }];
+  goPreflight: [];
 }>();
 
 const editingKey = ref<string | null>(null);
@@ -320,16 +330,9 @@ const hasDownstreamImpact = computed(() => Boolean(
     || downstreamLayoutExportCount.value > 0),
 ));
 const canGenerate = computed(() => Boolean(currentChapter.value && props.snapshot.storyStructure && currentChapter.value.status !== "draft" && currentChapter.value.status !== "script_done"));
-const versioningStatus = computed(() => {
-  if (props.snapshot.versioningCapability.mode !== "g2_db") return null;
-  const step = props.snapshot.workflow.steps.find((item) => item.key === "storyboard");
-  return {
-    label: step?.status === "needs_confirmation" ? "待确认" : step?.status === "needs_update" ? "来源已变化" : step?.status === "done" ? "current" : "Working Copy",
-    freshness: step?.freshness ?? null,
-    history: Boolean(step?.historyAvailable),
-    attention: step?.attention ?? null,
-  };
-});
+const isSourceStale = computed(() =>
+  props.snapshot.workflow.steps.find((item) => item.key === "storyboard")?.status === "needs_update",
+);
 
 watch(
   activeStoryboard,
@@ -581,6 +584,14 @@ function getShotSceneName(sceneId: string | null) {
   return props.snapshot.storyStructure.structureJson.scenes.find((scene) => scene.id === sceneId)?.name ?? "未关联场景";
 }
 
+function getShotOptionLabel(options: ShotSelectOption[], value: string) {
+  if (!value) {
+    return "";
+  }
+
+  return options.find((option) => option.value === value)?.label ?? "";
+}
+
 function cloneStoryboard(storyboard: StoryboardJson): StoryboardJson {
   return JSON.parse(JSON.stringify(storyboard)) as StoryboardJson;
 }
@@ -731,6 +742,7 @@ html[data-theme="light"] .story-title {
 
 /* Actions Style */
 .primary-action,
+.secondary-action,
 .confirm-action {
   display: inline-flex;
   align-items: center;
@@ -745,12 +757,28 @@ html[data-theme="light"] .story-title {
   cursor: pointer;
 }
 .primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled),
 .confirm-action:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 .primary-action:active:not(:disabled),
+.secondary-action:active:not(:disabled),
 .confirm-action:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.secondary-action {
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  background: rgba(148, 163, 184, 0.08) !important;
+  color: #b6c2d8 !important;
+}
+.secondary-action:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.14) !important;
+}
+html[data-theme="light"] .secondary-action {
+  border-color: rgba(100, 116, 139, 0.25) !important;
+  background: rgba(100, 116, 139, 0.06) !important;
+  color: #475569 !important;
 }
 
 .primary-action {
@@ -792,6 +820,7 @@ html[data-theme="light"] .confirm-action:hover:not(:disabled) {
 }
 
 .primary-action:disabled,
+.secondary-action:disabled,
 .confirm-action:disabled {
   cursor: not-allowed;
   opacity: 0.4;
@@ -857,56 +886,6 @@ html[data-theme="light"] .storyboard-status-band.pending_confirmation span {
 }
 html[data-theme="light"] .storyboard-status-band strong {
   color: #1e293b;
-}
-
-/* Storyboard Summary Card */
-.storyboard-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border: 1px solid rgba(139, 92, 246, 0.08) !important;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.25) !important;
-  padding: 14px 16px;
-}
-html[data-theme="light"] .storyboard-summary {
-  border-color: rgba(100, 116, 139, 0.08) !important;
-  background: #ffffff !important;
-  box-shadow: 0 4px 24px rgba(100, 116, 139, 0.02);
-}
-
-.storyboard-summary span {
-  color: #a78bfa;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-html[data-theme="light"] .storyboard-summary span {
-  color: #7c3aed;
-}
-
-.storyboard-summary strong {
-  display: block;
-  margin-top: 4px;
-  color: #f1f5f9;
-  font-size: 15px;
-  font-weight: 800;
-}
-html[data-theme="light"] .storyboard-summary strong {
-  color: #1e293b;
-}
-
-.storyboard-summary p {
-  max-width: 560px;
-  margin: 0;
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1.6;
-}
-html[data-theme="light"] .storyboard-summary p {
-  color: #475569;
 }
 
 /* Shot Card Styles */
@@ -977,19 +956,61 @@ html[data-theme="light"] .shot-card-head {
 
 .shot-number {
   flex-shrink: 0;
-  border-radius: 999px;
-  background: rgba(139, 92, 246, 0.12) !important;
-  border: 1px solid rgba(139, 92, 246, 0.2) !important;
-  color: #ddd6fe !important;
-  padding: 4px 10px;
-  font-size: 11px;
+  align-self: center;
+  min-width: 34px;
+  color: #a78bfa !important;
+  font-size: 24px;
   font-weight: 800;
+  line-height: 1;
+  text-align: center;
   letter-spacing: 0.02em;
 }
 html[data-theme="light"] .shot-number {
-  background: rgba(124, 58, 237, 0.06) !important;
-  border-color: rgba(124, 58, 237, 0.15) !important;
   color: #7c3aed !important;
+}
+
+.shot-head-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.shot-tag {
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.1);
+  color: #c4b5fd;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+}
+html[data-theme="light"] .shot-tag {
+  border-color: rgba(124, 58, 237, 0.18);
+  background: rgba(124, 58, 237, 0.06);
+  color: #6d28d9;
+}
+
+.shot-count-pill {
+  align-self: center;
+  border: 1px solid rgba(139, 92, 246, 0.24);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.1);
+  color: #c4b5fd;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+html[data-theme="light"] .shot-count-pill {
+  border-color: rgba(124, 58, 237, 0.2);
+  background: rgba(124, 58, 237, 0.07);
+  color: #6d28d9;
+}
+
+.storyboard-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .shot-thumb {

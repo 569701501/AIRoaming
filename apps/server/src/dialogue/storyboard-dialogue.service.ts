@@ -104,7 +104,7 @@ export class StoryboardDialogueService {
       return this.createFailedToolResult(
         turn,
         "generate_storyboard",
-        "当前章节还没有确认剧情结构，请先在剧情结构步骤确认 structure.json，再生成分镜。",
+        "当前章节还没有确认剧情结构，请先在剧情结构步骤完成确认，再生成分镜。",
       );
     }
 

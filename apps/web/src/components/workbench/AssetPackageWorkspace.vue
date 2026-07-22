@@ -24,7 +24,7 @@
     <div v-if="!isLayoutDone" class="package-empty">
       <Lock :size="22" />
       <h2>请先完成排版导出</h2>
-      <p>素材包会打包本章剧本、结构、分镜、锁定候选图和导出页，并生成 manifest.json。</p>
+      <p>素材包会打包本章剧本、结构、分镜、锁定候选图和导出页，并生成可追溯的素材清单。</p>
       <button class="empty-action" type="button" :disabled="loading" @click="$emit('goLayout')">
         <LayoutTemplate :size="15" />
         <span>去排版导出</span>
@@ -32,18 +32,28 @@
     </div>
 
     <div v-else class="package-content">
+      <section class="package-card delivery-stats" aria-label="本次交付">
+        <h2>本次交付</h2>
+        <div class="delivery-stat-grid">
+          <div v-for="stat in deliveryStats" :key="stat.label" class="delivery-stat">
+            <strong>{{ stat.count }}</strong>
+            <span>{{ stat.label }}</span>
+          </div>
+        </div>
+      </section>
+
       <section class="package-card">
         <h2>将包含的内容</h2>
         <ul>
-          <li>章节剧本 script.md</li>
-          <li>剧情结构 structure.json</li>
-          <li>正式分镜 storyboard.json</li>
-          <li>出图准备 preflight.json</li>
-          <li>候选图索引 candidates.json</li>
-          <li>排版 layout/layout.json</li>
-          <li>已锁定候选图与导出页 PNG/WebP</li>
-          <li>项目角色索引 shared/characters.json</li>
-          <li>可追溯清单 manifest.json</li>
+          <li>章节剧本</li>
+          <li>剧情结构</li>
+          <li>正式分镜</li>
+          <li>出图准备检查记录</li>
+          <li>候选图索引</li>
+          <li>排版文件</li>
+          <li>已锁定候选图与导出页图片</li>
+          <li>项目角色索引</li>
+          <li>素材清单（可追溯来源）</li>
         </ul>
       </section>
 
@@ -55,8 +65,13 @@
         </div>
         <article v-for="asset in packageAssets" :key="asset.id" class="package-item">
           <strong>{{ asset.name }}</strong>
-          <span>{{ asset.path }}</span>
+          <span :title="asset.path">{{ shortPackagePath(asset.path) }}</span>
           <small>{{ getPackageMeta(asset) }}</small>
+          <button class="package-copy-btn" type="button" @click="copyPackagePath(asset)">
+            <Check v-if="copiedAssetId === asset.id" :size="13" />
+            <Copy v-else :size="13" />
+            <span>{{ copiedAssetId === asset.id ? "已复制" : "复制保存位置" }}</span>
+          </button>
         </article>
       </section>
     </div>
@@ -64,8 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { Archive, LayoutTemplate, Lock, Package } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import { Archive, Check, Copy, LayoutTemplate, Lock, Package } from "lucide-vue-next";
 import type { ChapterListItem, WorkbenchAsset, WorkbenchSnapshot } from "@airoaming/shared";
 
 const props = defineProps<{
@@ -87,6 +102,56 @@ const isLayoutDone = computed(() => {
   return status === "layout_done" || status === "exported";
 });
 const canExport = computed(() => isLayoutDone.value);
+
+const deliveryStats = computed(() => {
+  const lockedCount = props.snapshot.candidateSources?.candidateLockSet.entries.length
+    ?? props.snapshot.shots.filter((shot) => Boolean(shot.lockedCandidateId)).length;
+  const chapterId = currentChapterId.value;
+  const publishedPageCount = props.snapshot.assets.filter((asset) => {
+    if (asset.chapterId !== chapterId || asset.type !== "image") return false;
+    try {
+      return (JSON.parse(asset.meta || "{}") as { kind?: string }).kind === "layout_publication_artifact_v1";
+    } catch {
+      return false;
+    }
+  }).length;
+  return [
+    { label: "剧本", count: props.snapshot.currentChapter ? 1 : 0 },
+    { label: "剧情结构", count: props.snapshot.storyStructure ? 1 : 0 },
+    { label: "正式分镜", count: props.snapshot.shots.length },
+    { label: "定稿图", count: lockedCount },
+    { label: "漫画页面", count: props.snapshot.chapterLayout?.pages.length ?? publishedPageCount },
+    { label: "角色素材", count: props.snapshot.characters.length },
+  ];
+});
+
+function shortPackagePath(value: string) {
+  const parts = value.split("/").filter(Boolean);
+  return parts.length > 0 ? `…/${parts.slice(-2).join("/")}` : value;
+}
+
+const copiedAssetId = ref<string | null>(null);
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function copyPackagePath(asset: WorkbenchAsset) {
+  try {
+    await navigator.clipboard.writeText(asset.path);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = asset.path;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  }
+  copiedAssetId.value = asset.id;
+  if (copiedTimer) {
+    clearTimeout(copiedTimer);
+  }
+  copiedTimer = setTimeout(() => {
+    copiedAssetId.value = null;
+  }, 1600);
+}
 const packageAssets = computed(() =>
   props.snapshot.assets
     .filter((asset) => asset.chapterId === currentChapterId.value && isPackageAsset(asset))
@@ -235,6 +300,43 @@ function getChapterLabel(chapter: ChapterListItem): string {
   font-size: 16px;
 }
 
+.delivery-stats {
+  grid-column: 1 / -1;
+}
+
+.delivery-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.delivery-stat {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border: 1px solid rgba(139, 92, 246, 0.16);
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.07);
+  padding: 12px 8px;
+}
+
+.delivery-stat strong {
+  color: #d8ccff;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.delivery-stat span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .delivery-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .package-card ul {
   margin: 0;
   padding-left: 18px;
@@ -263,6 +365,27 @@ function getChapterLabel(chapter: ChapterListItem): string {
   color: #94a3b8;
   font-size: 12px;
   word-break: break-all;
+}
+
+.package-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  justify-self: start;
+  min-height: 28px;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.08);
+  color: #c4b5fd;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.package-copy-btn:hover {
+  background: rgba(139, 92, 246, 0.16);
 }
 
 @media (max-width: 960px) {

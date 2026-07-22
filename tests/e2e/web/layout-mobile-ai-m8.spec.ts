@@ -22,6 +22,7 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
   await page.getByRole("button", { name: "创建数据库草稿" }).click();
+  await page.getByRole("button", { name: "版本与出版" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
 
   await test.step("画布尺寸两种模式均先预览，并可由一次 Undo 完整恢复", async () => {

@@ -33,23 +33,41 @@
             </span>
           </label>
 
-          <label class="form-field" for="comic-format">
-            <span class="field-label">漫画版式</span>
-            <select
-              id="comic-format"
-              v-model="form.comicFormat"
-              :disabled="loading"
-              :aria-invalid="Boolean(errorMessage)"
-              aria-describedby="comic-format-help comic-format-error"
-            >
-              <option value="">请选择漫画版式</option>
-              <option v-for="definition in COMIC_FORMAT_DEFINITIONS" :key="definition.value" :value="definition.value">
-                {{ definition.label }}
-              </option>
-            </select>
+          <div class="form-field" role="radiogroup" aria-label="漫画版式" aria-describedby="comic-format-help comic-format-error">
+            <span class="field-label" id="comic-format">漫画版式</span>
+            <div class="format-cards">
+              <button
+                v-for="definition in COMIC_FORMAT_DEFINITIONS"
+                :key="definition.value"
+                class="format-card"
+                :class="{ 'is-selected': form.comicFormat === definition.value }"
+                type="button"
+                role="radio"
+                :aria-checked="form.comicFormat === definition.value"
+                :disabled="loading"
+                @click="form.comicFormat = definition.value"
+              >
+                <span class="format-radio" aria-hidden="true"></span>
+                <span class="format-thumb" aria-hidden="true">
+                  <template v-if="definition.value === 'vertical_scroll'">
+                    <i class="format-thumb-strip"></i>
+                    <i class="format-thumb-strip"></i>
+                    <i class="format-thumb-strip"></i>
+                  </template>
+                  <template v-else>
+                    <i class="format-thumb-page"></i>
+                    <i class="format-thumb-page"></i>
+                  </template>
+                </span>
+                <span class="format-text">
+                  <strong>{{ definition.label }}</strong>
+                  <small>{{ definition.description }}</small>
+                </span>
+              </button>
+            </div>
             <span id="comic-format-help" class="field-help">{{ selectedFormatDescription }}</span>
             <span v-if="errorMessage" id="comic-format-error" class="field-error" role="alert" aria-live="polite">{{ errorMessage }}</span>
-          </label>
+          </div>
 
           <footer class="modal-footer">
             <button class="secondary-action" type="button" :disabled="loading" @click="requestClose">取消</button>
@@ -163,7 +181,7 @@ function submit() {
 }
 
 .create-modal {
-  width: min(560px, calc(100vw - 32px));
+  width: min(640px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow: hidden;
   border: 1px solid rgba(105, 88, 255, 0.24);
@@ -265,28 +283,6 @@ function submit() {
   font-weight: 800;
 }
 
-.form-field select {
-  width: 100%;
-  min-height: 48px;
-  border: 1px solid rgba(206, 216, 244, 0.14);
-  border-radius: 12px;
-  outline: none;
-  padding: 0 14px;
-  color: #f8fbff;
-  background: rgba(255, 255, 255, 0.045);
-  font-size: 15px;
-}
-
-.form-field select:focus {
-  border-color: rgba(142, 121, 255, 0.74);
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.16);
-}
-
-.form-field select:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
 .field-help {
   color: #8190aa;
   font-size: 12px;
@@ -383,6 +379,129 @@ function submit() {
   transform: none;
 }
 
+.format-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.format-card {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 14px;
+  min-height: 112px;
+  border: 1px solid rgba(206, 216, 244, 0.14);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.format-card:hover:not(:disabled) {
+  border-color: rgba(142, 121, 255, 0.44);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.format-card.is-selected {
+  border-color: rgba(142, 121, 255, 0.78);
+  background: rgba(124, 58, 237, 0.14);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16);
+}
+
+.format-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.format-radio {
+  display: grid;
+  align-self: start;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  place-items: center;
+  border: 2px solid rgba(206, 216, 244, 0.34);
+  border-radius: 50%;
+}
+
+.format-card.is-selected .format-radio {
+  border-color: #9d8bff;
+}
+
+.format-card.is-selected .format-radio::after {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9d8bff;
+  content: "";
+}
+
+.format-thumb {
+  display: flex;
+  width: 40px;
+  height: 60px;
+  flex: 0 0 auto;
+  align-items: stretch;
+  justify-content: center;
+  gap: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(157, 139, 255, 0.34);
+  border-radius: 6px;
+  background: rgba(124, 58, 237, 0.12);
+  padding: 4px;
+}
+
+.format-thumb i {
+  display: block;
+  border-radius: 2px;
+  background: rgba(157, 139, 255, 0.5);
+}
+
+.format-thumb-strip {
+  width: 100%;
+  height: 30%;
+}
+
+.format-thumb i.format-thumb-page {
+  width: 46%;
+  height: 100%;
+  background-color: rgba(157, 139, 255, 0.4);
+  background-image:
+    linear-gradient(to right, transparent calc(50% - 1px), rgba(5, 9, 20, 0.95) calc(50% - 1px), rgba(5, 9, 20, 0.95) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom, transparent calc(50% - 1px), rgba(5, 9, 20, 0.95) calc(50% - 1px), rgba(5, 9, 20, 0.95) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+.format-thumb:has(.format-thumb-strip) {
+  flex-direction: column;
+}
+
+.format-thumb:has(.format-thumb-page) {
+  width: 64px;
+  height: 48px;
+}
+
+.format-text {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.format-text strong {
+  color: #f8fbff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.format-text small {
+  color: #8190aa;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 560px) {
   .modal-backdrop {
     padding: 16px;
@@ -400,8 +519,13 @@ function submit() {
     padding: 18px;
   }
 
+
   .modal-footer {
     flex-direction: column-reverse;
+  }
+
+  .format-cards {
+    grid-template-columns: 1fr;
   }
 
   .secondary-action,
