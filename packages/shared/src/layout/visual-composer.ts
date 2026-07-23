@@ -40,6 +40,7 @@ import {
   type LayoutRuleCompositionInputV1,
   type LayoutRuleCompositionPlanV1,
 } from "./rule-composer.js";
+import { inferLayoutSemanticTextRoleV1 } from "./semantic-style.js";
 import { countLayoutGraphemes } from "./text.js";
 import {
   createRuleFallbackLayoutImageAnalysisV1,
@@ -698,10 +699,17 @@ function visualBalloonSize(
   panel: PanelFrameElementV1,
   strategy: LayoutVisualCandidateStrategyV1,
 ): { width: number; height: number; padding: BalloonElementV1["padding"] } {
-  const caption = item.kind === "caption";
+  const visualRole = inferLayoutSemanticTextRoleV1(item.kind, item.text);
+  const caption = visualRole === "caption";
   const widthRatio = caption ? 0.9 : strategy === "dialogue_first" ? 0.86 : strategy === "subject_first" ? 0.68 : 0.77;
   const minimumWidth = caption ? 220 : 250;
-  const horizontalRatio = caption ? 0.88 : item.kind === "shout" ? 0.62 : 0.7;
+  const horizontalRatio = caption
+    ? 0.88
+    : visualRole === "shout"
+      ? 0.62
+      : visualRole === "thought"
+        ? 0.66
+        : 0.7;
   const maximumFontSize = Math.max(...balloon.richText.paragraphs.flatMap((paragraph) => paragraph.runs.map((run) => run.fontSize)));
   const longestLine = Math.max(...item.text.split(/\r?\n/u).map((line) => countLayoutGraphemes(line)));
   const maximumWidth = Math.min(panel.transform.width - 28, panel.transform.width * widthRatio);
@@ -711,8 +719,19 @@ function visualBalloonSize(
     Math.min(maximumWidth, caption ? maximumWidth : naturalSpeechWidth),
   ));
   const innerWidth = Math.max(80, width * horizontalRatio - 8);
-  const measurement = evaluateRichTextOverflowV1(balloon.richText, { width: innerWidth, height: 100_000 });
-  const verticalRatio = caption ? 0.78 : item.kind === "shout" ? 0.64 : 0.7;
+  const measurement = evaluateRichTextOverflowV1(balloon.richText, {
+    // Keep one em of inline slack for real-font metrics and CJK punctuation
+    // line-breaking rules that the deterministic estimator cannot fully model.
+    width: Math.max(1, innerWidth - maximumFontSize * 0.5),
+    height: 100_000,
+  });
+  const verticalRatio = caption
+    ? 0.78
+    : visualRole === "shout"
+      ? 0.64
+      : visualRole === "thought"
+        ? 0.66
+        : 0.7;
   const height = rounded(Math.max(
     caption ? maximumFontSize * 2 : maximumFontSize * 2.8,
     measurement.required / verticalRatio + 24,
@@ -761,8 +780,11 @@ function candidatePositions(
   box: { width: number; height: number },
   safeRegions: readonly LayoutPixelRectV1[],
   item: LayoutDialogueItemV1,
+  allowPanelSafeRegions: boolean,
+  preferredStackY: number,
+  precedingStackHeight: number,
+  stackHeight: number,
 ): Array<{ x: number; y: number; safeRank: number }> {
-  const inset = 18;
   const panelRect = { ...panel.transform };
   const result: Array<{ x: number; y: number; safeRank: number; external: boolean }> = [];
   const externalRegions: LayoutPixelRectV1[] = [
@@ -771,6 +793,48 @@ function candidatePositions(
     { x: panelRect.x, y: 10, width: panelRect.width, height: panelRect.y - 20 },
     { x: panelRect.x, y: panelRect.y + panelRect.height + 10, width: panelRect.width, height: canvas.height - panelRect.y - panelRect.height - 20 },
   ].filter((region) => region.width >= box.width && region.height >= box.height);
+  const preferredStackPositions = [
+    {
+      x: panelRect.x + (panelRect.width - box.width) / 2,
+      y: preferredStackY,
+    },
+    {
+      x: panelRect.x,
+      y: preferredStackY,
+    },
+    {
+      x: panelRect.x + panelRect.width - box.width,
+      y: preferredStackY,
+    },
+  ];
+  if (stackHeight <= panelRect.height) {
+    preferredStackPositions.push(
+      {
+        x: panelRect.x - box.width - 10,
+        y: panelRect.y + precedingStackHeight,
+      },
+      {
+        x: panelRect.x + panelRect.width + 10,
+        y: panelRect.y + precedingStackHeight,
+      },
+    );
+  }
+  for (const position of preferredStackPositions) {
+    const candidateRect = { ...position, width: box.width, height: box.height };
+    const outsideSourcePanel = pixelRectAreaV1(intersectPixelRectsV1(candidateRect, panelRect)) < 1;
+    if (
+      outsideSourcePanel
+      && position.x >= 4
+      && position.x + box.width <= canvas.width - 4
+      && position.y >= 4
+      && position.y + box.height <= canvas.height - 4
+      && allPanels.every((other) => (
+        other.id === panel.id || pixelRectAreaV1(intersectPixelRectsV1(candidateRect, other.transform)) < 1
+      ))
+    ) {
+      result.push({ ...position, safeRank: -1, external: true });
+    }
+  }
   for (const [index, region] of externalRegions.entries()) {
     const positions = [
       { x: region.x, y: region.y },
@@ -786,24 +850,19 @@ function candidatePositions(
       }
     }
   }
-  for (const [index, region] of safeRegions.entries()) {
-    const clipped = intersectPixelRectsV1(region, panelRect);
-    if (clipped.width >= box.width && clipped.height >= box.height) {
-      result.push({
-        x: item.lineOrder % 2 === 0 ? clipped.x + clipped.width - box.width : clipped.x,
-        y: clipped.y,
-        safeRank: 20 + index,
-        external: false,
-      });
+  if (allowPanelSafeRegions) {
+    for (const [index, region] of safeRegions.entries()) {
+      const clipped = intersectPixelRectsV1(region, panelRect);
+      if (clipped.width >= box.width && clipped.height >= box.height) {
+        result.push({
+          x: item.lineOrder % 2 === 0 ? clipped.x + clipped.width - box.width : clipped.x,
+          y: clipped.y,
+          safeRank: 20 + index,
+          external: false,
+        });
+      }
     }
   }
-  result.push(
-    { x: panelRect.x + inset, y: panelRect.y + inset, safeRank: 100, external: false },
-    { x: panelRect.x + panelRect.width - box.width - inset, y: panelRect.y + inset, safeRank: 101, external: false },
-    { x: panelRect.x + inset, y: panelRect.y + panelRect.height - box.height - inset, safeRank: 102, external: false },
-    { x: panelRect.x + panelRect.width - box.width - inset, y: panelRect.y + panelRect.height - box.height - inset, safeRank: 103, external: false },
-    { x: panelRect.x + (panelRect.width - box.width) / 2, y: panelRect.y + inset, safeRank: 104, external: false },
-  );
   return result.map((candidate) => ({
     x: rounded(candidate.external
       ? Math.max(4, Math.min(canvas.width - box.width - 4, candidate.x))
@@ -991,7 +1050,6 @@ function placeBalloons(
       balloon.transform.height = size.height;
       balloon.padding = size.padding;
       balloon.verticalAlign = "center";
-      const candidates = candidatePositions(canvas, panels, panel, size, regions.safe, item);
       const allSubjects = [...projected.values()].flatMap((value) => value.subjects);
       const allBodies = [...projected.values()].flatMap((value) => value.bodies);
       const allFaces = allSubjects.flatMap((subject) => subject.face ? [subject.face] : []);
@@ -1006,6 +1064,18 @@ function placeBalloons(
       const stackStartY = Math.max(10, panel.transform.y - stackHeight - 10);
       const desiredStackY = stackStartY + precedingStackHeight;
       const stackFitsAbove = panel.transform.y - stackStartY >= stackHeight;
+      const candidates = candidatePositions(
+        canvas,
+        panels,
+        panel,
+        size,
+        regions.safe,
+        item,
+        context.analysis.mode === "vision",
+        desiredStackY,
+        precedingStackHeight,
+        stackHeight,
+      );
       const mappedSubject = item.speakerCharacterId === null
         || !context.analysis.subjects.some((subject) => subject.characterId === item.speakerCharacterId && subject.confidence >= 0.7)
         ? undefined
@@ -1060,6 +1130,7 @@ function placeBalloons(
           rect,
           tailTarget,
           tailSegment,
+          occupiedOverlap,
           score: faceOverlap * 10_000
             + bodyOverlap * strategyBodyWeight
             + occupiedOverlap * 8_000
@@ -1076,7 +1147,7 @@ function placeBalloons(
             + rankPenalty,
         };
       }).sort((left, right) => left.score - right.score || left.candidate.y - right.candidate.y || left.candidate.x - right.candidate.x);
-      const selected = scored[0];
+      const selected = scored.find((candidate) => candidate.occupiedOverlap <= 0.000_001);
       if (!selected) fail("LAYOUT_GEOMETRY_INVALID", `balloon ${balloon.id} has no placement candidate`);
       balloon.transform.x = selected.candidate.x;
       balloon.transform.y = selected.candidate.y;
@@ -1278,6 +1349,20 @@ export function composeVisuallyGuidedLayoutV1(
     : candidates[0]!;
   const dialogueCoverage = assertInitialLayoutDialogueCoverageV1(selected.document, base.dialogueLedger);
   const placedShots = selected.score.panels.length;
+  const qualityIssues: LayoutVisualCompositionIssueV1[] = [
+    ...selected.score.panels.flatMap((panel) => panel.issues.map((code) => ({
+      code,
+      severity: "warning" as const,
+      shotId: panel.shotId,
+      elementId: panel.panelId,
+    }))),
+    ...selected.score.balloons.flatMap((balloon) => balloon.issues.map((code) => ({
+      code,
+      severity: "warning" as const,
+      shotId: balloon.shotId,
+      elementId: balloon.elementId,
+    }))),
+  ];
   return {
     schemaVersion: 1,
     policyVersion: "layout_visual_composition_v1",
@@ -1310,7 +1395,7 @@ export function composeVisuallyGuidedLayoutV1(
       silentRewriteCount: 0,
       textOverflowCount: 0,
       quality: selected.score,
-      issues: [...resolved.issues, ...candidateIssues],
+      issues: [...resolved.issues, ...candidateIssues, ...qualityIssues],
     },
   };
 }

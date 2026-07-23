@@ -16,6 +16,8 @@ import {
   type LayoutDigest,
   type LayoutFontPolicyV1,
   type LayoutProfileV1,
+  type LayoutTypographyFaceV1,
+  type LayoutTypographyPresetV1,
   type LayoutSourceCatalogResponseV1,
 } from "@airoaming/shared";
 
@@ -232,10 +234,38 @@ export class LayoutCompositionSourceProjector {
         defaultFontAssetId: regularFont.assetId,
         fallbackFontAssetIds: boldFont ? [boldFont.assetId] : [],
       };
+      const fontById = new Map(fontCatalog.map((item) => [item.assetId, item]));
+      const defaultFont = fontById.get(fontPolicy.defaultFontAssetId) ?? regularFont;
+      const semanticFace = (weight: number): LayoutTypographyFaceV1 => {
+        const exactFace = fontCatalog.find((item) =>
+          item.metadata.familyName === defaultFont.metadata.familyName
+          && item.metadata.face.weight === weight
+          && item.metadata.face.style === "normal");
+        const face = exactFace ?? defaultFont;
+        return {
+          fontAssetId: face.assetId,
+          fontWeight: face.metadata.face.weight,
+          fontStyle: face.metadata.face.style,
+        };
+      };
+      const typographyPreset: LayoutTypographyPresetV1 = {
+        policyVersion: "layout_typography_preset_v1",
+        speech: semanticFace(400),
+        thought: semanticFace(400),
+        shout: semanticFace(900),
+        caption: semanticFace(500),
+      };
       const profile = baseDocument?.value.profile ?? defaultProfile(project.comicFormat);
       await this.layoutFonts.validateReferences(
         scope,
-        [fontPolicy.defaultFontAssetId, ...fontPolicy.fallbackFontAssetIds],
+        unique([
+          fontPolicy.defaultFontAssetId,
+          ...fontPolicy.fallbackFontAssetIds,
+          typographyPreset.speech.fontAssetId,
+          typographyPreset.thought.fontAssetId,
+          typographyPreset.shout.fontAssetId,
+          typographyPreset.caption.fontAssetId,
+        ]),
         tx,
       );
 
@@ -265,6 +295,7 @@ export class LayoutCompositionSourceProjector {
           items: characterCatalog,
         },
         fontPolicy,
+        typographyPreset,
         profile,
         visualAnalysisProvider,
         baseWorkingCopy: workingCopy && baseDocument
@@ -281,6 +312,7 @@ export class LayoutCompositionSourceProjector {
         policyVersion: "layout_composition_policy_set_digest_v1",
         profile,
         fontPolicy,
+        typographyPreset,
         policy,
         intent: request.intent,
         visualAnalysisProvider,
@@ -326,10 +358,13 @@ export class LayoutCompositionSourceProjector {
           },
         );
       }
-      const fontById = new Map(fontCatalog.map((item) => [item.assetId, item]));
       for (const fontId of unique([
         fontPolicy.defaultFontAssetId,
         ...fontPolicy.fallbackFontAssetIds,
+        typographyPreset.speech.fontAssetId,
+        typographyPreset.thought.fontAssetId,
+        typographyPreset.shout.fontAssetId,
+        typographyPreset.caption.fontAssetId,
       ])) {
         const font = fontById.get(fontId);
         if (!font) sourceError("LAYOUT_COMPOSITION_SOURCE_INCOMPLETE", 409, { fontId });
@@ -450,6 +485,10 @@ export class LayoutCompositionSourceProjector {
       ...parsed.source.candidateLockSet.items.map((item) => item.source.assetId),
       parsed.source.fontPolicy.defaultFontAssetId,
       ...parsed.source.fontPolicy.fallbackFontAssetIds,
+      parsed.source.typographyPreset.speech.fontAssetId,
+      parsed.source.typographyPreset.thought.fontAssetId,
+      parsed.source.typographyPreset.shout.fontAssetId,
+      parsed.source.typographyPreset.caption.fontAssetId,
     ]);
     const assets = await reader.asset.findMany({
       where: { id: { in: assetIds }, projectId: scope.projectId, status: "ready" },
@@ -468,6 +507,10 @@ export class LayoutCompositionSourceProjector {
     for (const fontId of unique([
       parsed.source.fontPolicy.defaultFontAssetId,
       ...parsed.source.fontPolicy.fallbackFontAssetIds,
+      parsed.source.typographyPreset.speech.fontAssetId,
+      parsed.source.typographyPreset.thought.fontAssetId,
+      parsed.source.typographyPreset.shout.fontAssetId,
+      parsed.source.typographyPreset.caption.fontAssetId,
     ])) {
       const asset = assetById.get(fontId);
       const projection = parsed.sourceProjection.sources.find((entry) =>

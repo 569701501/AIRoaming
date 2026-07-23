@@ -1,0 +1,28 @@
+{
+  "workingCopyId": "layout_wc_080dd45e-7623-4079-a5dc-cd913a9221b7",
+  "rowVersion": 73,
+  "documentDigest": "sha256:2351a6606da0a29f7f9860a45b76c9e39cd1518a4b54dc21674e24fe0d1fca9a",
+  "sourceLockSetDigest": "sha256:cb74f40e522e5a6ad39b6b4bfaef6584ab9ce21795e293d05bda86974256253d",
+  "updatedAt": "2026-07-23T15:09:36.514Z",
+  "automaticCompositionBaseline": {
+    "rowVersion": 71,
+    "taskId": "2c83c8c7-d049-4979-b5f0-6a522da85669"
+  },
+  "manualPolish": [
+    {
+      "elementId": "balloon_0ee196916472fe28e7a601e7",
+      "scope": "geometry",
+      "widthBefore": 506.667,
+      "widthAfter": 570
+    },
+    {
+      "elementId": "balloon_61c2b524bdb0b8d138828400",
+      "scope": "geometry",
+      "widthBefore": 407.758,
+      "widthAfter": 470
+    }
+  ],
+  "protections": {
+    "geometry": 2
+  }
+}

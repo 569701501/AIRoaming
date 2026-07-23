@@ -27,6 +27,11 @@ import {
   parseLayoutImageAnalysisV1,
   type LayoutShotVisualAnalysisV1,
 } from "./visual-analysis.js";
+import {
+  legacyLayoutTypographyPresetV1,
+  type LayoutTypographyFaceV1,
+  type LayoutTypographyPresetV1,
+} from "./semantic-style.js";
 
 export const LAYOUT_COMPOSITION_MODES_V1 = [
   "initial",
@@ -96,6 +101,7 @@ export interface LayoutCompositionFrozenSourceV1 {
     items: LayoutCompositionCharacterV1[];
   };
   fontPolicy: LayoutFontPolicyV1;
+  typographyPreset: LayoutTypographyPresetV1;
   profile: LayoutProfileV1;
   visualAnalysisProvider: LayoutVisualAnalysisProviderV1 | null;
   baseWorkingCopy: null | {
@@ -264,8 +270,8 @@ function nullableDigest(value: unknown, path: string): LayoutDigest | null {
   return value === null ? null : digest(value, path);
 }
 
-function enumeration<T extends string>(value: unknown, values: readonly T[], path: string): T {
-  if (typeof value !== "string" || !values.includes(value as T)) {
+function enumeration<T extends string | number>(value: unknown, values: readonly T[], path: string): T {
+  if (!values.includes(value as T)) {
     fail(path, `expected one of ${values.join(", ")}`);
   }
   return value as T;
@@ -293,6 +299,37 @@ function parseFontPolicy(value: unknown, path: string): LayoutFontPolicyV1 {
   const fallbackFontAssetIds = stringArray(row.fallbackFontAssetIds, `${path}.fallbackFontAssetIds`, 32);
   if (fallbackFontAssetIds.includes(defaultFontAssetId)) fail(path, "default font must not be repeated as fallback");
   return { defaultFontAssetId, fallbackFontAssetIds };
+}
+
+function parseTypographyFace(value: unknown, path: string): LayoutTypographyFaceV1 {
+  const row = exact(value, ["fontAssetId", "fontWeight", "fontStyle"], path);
+  return {
+    fontAssetId: id(row.fontAssetId, `${path}.fontAssetId`),
+    fontWeight: enumeration(
+      row.fontWeight,
+      [100, 200, 300, 400, 500, 600, 700, 800, 900] as const,
+      `${path}.fontWeight`,
+    ),
+    fontStyle: enumeration(row.fontStyle, ["normal", "italic"] as const, `${path}.fontStyle`),
+  };
+}
+
+function parseTypographyPreset(value: unknown, path: string): LayoutTypographyPresetV1 {
+  const row = exact(
+    value,
+    ["policyVersion", "speech", "thought", "shout", "caption"],
+    path,
+  );
+  if (row.policyVersion !== "layout_typography_preset_v1") {
+    fail(`${path}.policyVersion`, "expected layout_typography_preset_v1");
+  }
+  return {
+    policyVersion: "layout_typography_preset_v1",
+    speech: parseTypographyFace(row.speech, `${path}.speech`),
+    thought: parseTypographyFace(row.thought, `${path}.thought`),
+    shout: parseTypographyFace(row.shout, `${path}.shout`),
+    caption: parseTypographyFace(row.caption, `${path}.caption`),
+  };
 }
 
 function parseCandidateSource(value: unknown, path: string): CandidateImageSourceV1 {
@@ -377,6 +414,7 @@ export function digestLayoutCompositionScopeV1(
 function parseFrozenSource(value: unknown, path: string): LayoutCompositionFrozenSourceV1 {
   const sourceValue = record(value, path);
   const row = exact({
+    typographyPreset: null,
     visualAnalysisProvider: null,
     ...sourceValue,
   }, [
@@ -388,6 +426,7 @@ function parseFrozenSource(value: unknown, path: string): LayoutCompositionFroze
     "candidateLockSet",
     "characterCatalog",
     "fontPolicy",
+    "typographyPreset",
     "profile",
     "visualAnalysisProvider",
     "baseWorkingCopy",
@@ -457,6 +496,9 @@ function parseFrozenSource(value: unknown, path: string): LayoutCompositionFroze
     || (comicFormat === "vertical_scroll" && profile.kind !== "vertical_strip")
   ) fail(`${path}.profile`, "does not match comicFormat");
   const fontPolicy = parseFontPolicy(row.fontPolicy, `${path}.fontPolicy`);
+  const typographyPreset = row.typographyPreset === null
+    ? legacyLayoutTypographyPresetV1(fontPolicy)
+    : parseTypographyPreset(row.typographyPreset, `${path}.typographyPreset`);
   const visualAnalysisProvider = row.visualAnalysisProvider === null
     ? null
     : (() => {
@@ -518,6 +560,7 @@ function parseFrozenSource(value: unknown, path: string): LayoutCompositionFroze
     },
     characterCatalog: { digest: characterDigest, items: characterItems },
     fontPolicy,
+    typographyPreset,
     profile,
     visualAnalysisProvider,
     baseWorkingCopy,
@@ -576,6 +619,15 @@ export function parseLayoutCompositionTaskInputV1(
     policyVersion: "layout_composition_policy_set_digest_v1",
     profile: source.profile,
     fontPolicy: source.fontPolicy,
+    typographyPreset: source.typographyPreset,
+    policy: source.policy,
+    intent,
+    visualAnalysisProvider: source.visualAnalysisProvider,
+  });
+  const previousPolicyDigest = digestCanonicalJson({
+    policyVersion: "layout_composition_policy_set_digest_v1",
+    profile: source.profile,
+    fontPolicy: source.fontPolicy,
     policy: source.policy,
     intent,
     visualAnalysisProvider: source.visualAnalysisProvider,
@@ -587,7 +639,11 @@ export function parseLayoutCompositionTaskInputV1(
     policy: source.policy,
     intent,
   });
-  if (currentPolicyDigest !== policySetDigest && legacyPolicyDigest !== policySetDigest) {
+  if (
+    currentPolicyDigest !== policySetDigest
+    && previousPolicyDigest !== policySetDigest
+    && legacyPolicyDigest !== policySetDigest
+  ) {
     fail("input.policySetDigest", "does not match policy set");
   }
   return {

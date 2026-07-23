@@ -5,6 +5,7 @@ import {
   createBalloonPathV1,
   digestCanonicalJson,
   evaluateCoverCropV1,
+  resolveLayoutBalloonVisualRoleV1,
   type LayoutCanvasV1,
   type LayoutPublicationProfileV1,
   type LayoutRendererCapabilitiesV1,
@@ -32,6 +33,19 @@ const { PNG } = require("pngjs") as {
     };
   };
 };
+const fontkit = require("fontkit") as {
+  create(buffer: Buffer): {
+    italicAngle?: number;
+    "OS/2"?: { usWeightClass?: number };
+  };
+};
+
+interface ResolvedRenderFontFaceV1 {
+  assetId: string;
+  format: "woff2" | "otf" | "ttf";
+  weight: number;
+  style: "normal" | "italic";
+}
 
 export interface ResolvedRenderAssetV1 {
   assetId: string;
@@ -76,7 +90,7 @@ const RENDERER_BUILD_DIGEST = digestCanonicalJson({
   textPolicyVersion: "layout_text_v1",
   balloonPolicyVersion: "balloon_shape_v1",
   browserPackage: "@playwright/test@1.61.1",
-  sceneVersion: "layout_render_scene_v3",
+  sceneVersion: "layout_render_scene_v4",
 });
 
 function browserLaunchOptions(): { headless: true; executablePath?: string } {
@@ -86,6 +100,32 @@ function browserLaunchOptions(): { headless: true; executablePath?: string } {
 
 function sha256(bytes: Uint8Array): `sha256:${string}` {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+function inspectResolvedFontFace(asset: ResolvedRenderAssetV1): ResolvedRenderFontFaceV1 {
+  const format = asset.mimeType === "font/woff2"
+    ? "woff2"
+    : asset.mimeType === "font/otf"
+      ? "otf"
+      : asset.mimeType === "font/ttf"
+        ? "ttf"
+        : null;
+  if (!format) throw new Error(`LAYOUT_RENDER_FONT_FACE_INVALID:${asset.assetId}`);
+  try {
+    const font = fontkit.create(asset.bytes);
+    const weight = font["OS/2"]?.usWeightClass;
+    if (typeof weight !== "number" || !Number.isInteger(weight) || weight < 1 || weight > 1_000) {
+      throw new Error("invalid weight");
+    }
+    return {
+      assetId: asset.assetId,
+      format,
+      weight,
+      style: (font.italicAngle ?? 0) === 0 ? "normal" : "italic",
+    };
+  } catch {
+    throw new Error(`LAYOUT_RENDER_FONT_FACE_INVALID:${asset.assetId}`);
+  }
 }
 
 function pngDimensions(bytes: Buffer): { width: number; height: number } {
@@ -160,7 +200,7 @@ function assertOutputLimits(plan: RenderPlanV1, profile: LayoutPublicationProfil
 
 function sceneShell(): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://airoaming.invalid; font-src https://airoaming.invalid; style-src 'unsafe-inline'"><style>
-    *{box-sizing:border-box}html,body{margin:0;padding:0;background:transparent}body{overflow:visible}.scene{position:relative;margin:0;padding:0}.layout-canvas{position:relative;overflow:hidden;break-after:page;page-break-after:always}.layout-canvas:last-child{break-after:auto;page-break-after:auto}.layout-element{position:absolute;transform-origin:center center}.layout-image{position:absolute;width:100%;height:100%;max-width:none;max-height:none}.rich-text{position:absolute;inset:0;white-space:pre-wrap;overflow:visible}.balloon-shape{position:absolute;inset:0;overflow:visible;pointer-events:none}.balloon-body{position:absolute;inset:0;display:flex}.balloon-body>.rich-text{position:relative;inset:auto;width:100%;height:max-content}.panel-border{position:absolute;inset:0;pointer-events:none}
+    *{box-sizing:border-box}html,body{margin:0;padding:0;background:transparent}body{overflow:visible}.scene{position:relative;margin:0;padding:0}.layout-canvas{position:relative;overflow:hidden;break-after:page;page-break-after:always}.layout-canvas:last-child{break-after:auto;page-break-after:auto}.layout-element{position:absolute;transform-origin:center center}.layout-image{position:absolute;width:100%;height:100%;max-width:none;max-height:none}.rich-text{position:absolute;inset:0;white-space:pre-wrap;overflow:visible;font-synthesis:none}.balloon-shape{position:absolute;inset:0;overflow:visible;pointer-events:none}.balloon-body{position:absolute;inset:0;display:flex}.balloon-body>.rich-text{position:relative;inset:auto;width:100%;height:max-content}.panel-border{position:absolute;inset:0;pointer-events:none}
   </style></head><body><main id="scene" class="scene"></main></body></html>`;
 }
 
@@ -168,7 +208,7 @@ async function installScene(
   page: Page,
   canvases: LayoutCanvasV1[],
   mode: "paged" | "strip",
-  fontAssetIds: string[],
+  fontFaces: ResolvedRenderFontFaceV1[],
   imageAssets: Array<{ assetId: string; width: number; height: number }>,
 ): Promise<void> {
   const imageById = new Map(imageAssets.map((asset) => [asset.assetId, asset]));
@@ -178,7 +218,7 @@ async function installScene(
     for (const element of canvas.elements) {
       if (element.type === "balloon") {
         balloonPaths[element.id] = createBalloonPathV1({
-          kind: element.balloonKind,
+          kind: resolveLayoutBalloonVisualRoleV1(element),
           width: element.transform.width,
           height: element.transform.height,
           tail: element.tail,
@@ -212,7 +252,11 @@ async function installScene(
     const scene = document.querySelector<HTMLElement>("#scene");
     if (!scene) throw new Error("LAYOUT_RENDER_SCENE_MISSING");
     const assetUrl = (assetId: string) => `https://airoaming.invalid/assets/${encodeURIComponent(assetId)}`;
-    const fontFamily = (assetId: string) => `AIRFont_${fonts.indexOf(assetId)}`;
+    const fontFace = (assetId: string) => {
+      const index = fonts.findIndex((font) => font.assetId === assetId);
+      if (index < 0) throw new Error(`LAYOUT_RENDER_FONT_FACE_MISSING:${assetId}`);
+      return { ...fonts[index]!, family: `AIRFont_${index}` };
+    };
     const rgba = (value: string) => value.length === 9
       ? `rgba(${Number.parseInt(value.slice(1, 3), 16)},${Number.parseInt(value.slice(3, 5), 16)},${Number.parseInt(value.slice(5, 7), 16)},${Number.parseInt(value.slice(7, 9), 16) / 255})`
       : value;
@@ -243,12 +287,13 @@ async function installScene(
         paragraphNode.style.textAlign = paragraph.align;
         paragraphNode.style.lineHeight = String(paragraph.lineHeight);
         for (const run of paragraph.runs) {
+          const face = fontFace(run.fontAssetId);
           const span = document.createElement("span");
           span.textContent = run.text;
-          span.style.fontFamily = `"${fontFamily(run.fontAssetId)}"`;
+          span.style.fontFamily = `"${face.family}"`;
           span.style.fontSize = `${run.fontSize}px`;
-          span.style.fontWeight = String(run.fontWeight);
-          span.style.fontStyle = run.fontStyle;
+          span.style.fontWeight = String(face.weight);
+          span.style.fontStyle = face.style;
           span.style.color = rgba(run.color);
           span.style.letterSpacing = `${run.letterSpacing}px`;
           if (run.stroke) span.style.webkitTextStroke = `${run.stroke.width}px ${rgba(run.stroke.color)}`;
@@ -314,7 +359,7 @@ async function installScene(
       return node;
     };
     const style = document.createElement("style");
-    style.textContent = fonts.map((assetId, index) => `@font-face{font-family:"AIRFont_${index}";src:url("${assetUrl(assetId)}");font-display:block}`).join("\n");
+    style.textContent = fonts.map((font, index) => `@font-face{font-family:"AIRFont_${index}";src:url("${assetUrl(font.assetId)}") format("${font.format}");font-weight:${font.weight};font-style:${font.style};font-display:block}`).join("\n");
     document.head.append(style);
     for (const canvas of inputCanvases) {
       const node = document.createElement("section");
@@ -328,7 +373,7 @@ async function installScene(
     }
     scene.style.width = `${inputCanvases[0]?.width ?? 0}px`;
     scene.style.height = inputMode === "strip" ? `${inputCanvases.reduce((sum, canvas) => sum + canvas.height, 0)}px` : "auto";
-  }, { inputCanvases: canvases, inputMode: mode, fonts: fontAssetIds, displays: cropDisplays, paths: balloonPaths });
+  }, { inputCanvases: canvases, inputMode: mode, fonts: fontFaces, displays: cropDisplays, paths: balloonPaths });
   await page.waitForFunction(async () => {
     await document.fonts.ready;
     const images = Array.from(document.images);
@@ -380,6 +425,7 @@ export class LayoutRendererService {
       const issue = inspectLayoutImageNormalizationV1(resolved.bytes, resolved.mimeType).issueCodes[0];
       if (issue) throw new Error(`${issue}:${asset.assetId}`);
     }
+    const fontFaces = plan.assets.fonts.map((asset) => inspectResolvedFontFace(assetById.get(asset.assetId)!));
     const browser = await chromium.launch(browserLaunchOptions());
     const renderer: LayoutRendererIdentityV1 = {
       rendererId: "airoaming_layout_renderer",
@@ -400,8 +446,8 @@ export class LayoutRendererService {
     await context.route("**/*", (route) => this.routeAsset(route, assetById));
     try {
       const artifacts = profile.kind === "paged_publication"
-        ? await this.renderPaged(context, plan, profile)
-        : await this.renderVertical(context, plan, profile);
+        ? await this.renderPaged(context, plan, profile, fontFaces)
+        : await this.renderVertical(context, plan, profile, fontFaces);
       return { renderer, artifacts };
     } finally {
       await context.close();
@@ -439,6 +485,7 @@ export class LayoutRendererService {
     context: BrowserContext,
     plan: RenderPlanV1,
     profile: Extract<LayoutPublicationProfileV1, { kind: "paged_publication" }>,
+    fontFaces: ResolvedRenderFontFaceV1[],
   ): Promise<RenderedPublicationArtifactV1[]> {
     const page = await context.newPage();
     const artifacts: RenderedPublicationArtifactV1[] = [];
@@ -447,7 +494,7 @@ export class LayoutRendererService {
         page,
         plan.canvases.map((item) => item.canvas),
         "paged",
-        plan.assets.fonts.map((font) => font.assetId),
+        fontFaces,
         plan.assets.images,
       );
       const canvases = page.locator(".layout-canvas");
@@ -488,6 +535,7 @@ export class LayoutRendererService {
     context: BrowserContext,
     plan: RenderPlanV1,
     profile: Extract<LayoutPublicationProfileV1, { kind: "vertical_publication" }>,
+    fontFaces: ResolvedRenderFontFaceV1[],
   ): Promise<RenderedPublicationArtifactV1[]> {
     const page = await context.newPage();
     try {
@@ -495,7 +543,7 @@ export class LayoutRendererService {
         page,
         plan.canvases.map((item) => item.canvas),
         "strip",
-        plan.assets.fonts.map((font) => font.assetId),
+        fontFaces,
         plan.assets.images,
       );
       const width = plan.canvases[0]?.width;

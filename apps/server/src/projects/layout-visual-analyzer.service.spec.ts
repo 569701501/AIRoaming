@@ -97,6 +97,13 @@ function input(assetDigest: LayoutDigest, configured = true): LayoutCompositionT
         defaultFontAssetId: "font_001",
         fallbackFontAssetIds: [],
       },
+      typographyPreset: {
+        policyVersion: "layout_typography_preset_v1",
+        speech: { fontAssetId: "font_001", fontWeight: 400, fontStyle: "normal" },
+        thought: { fontAssetId: "font_001", fontWeight: 400, fontStyle: "normal" },
+        shout: { fontAssetId: "font_001", fontWeight: 700, fontStyle: "normal" },
+        caption: { fontAssetId: "font_001", fontWeight: 400, fontStyle: "normal" },
+      },
       profile: {
         kind: "paged",
         presetId: "portrait_3_4",

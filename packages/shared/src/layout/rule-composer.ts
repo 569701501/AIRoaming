@@ -44,6 +44,13 @@ import {
 } from "./narrative.js";
 import { projectVisibleShotPlacementsV1 } from "./placement.js";
 import { countLayoutGraphemes, normalizePlainLayoutText } from "./text.js";
+import {
+  layoutBalloonVisualPresetV1,
+  inferLayoutSemanticTextRoleV1,
+  layoutTypographyFaceForRoleV1,
+  legacyLayoutTypographyPresetV1,
+  type LayoutTypographyPresetV1,
+} from "./semantic-style.js";
 import type { LayoutSourceCatalogItemV1 } from "./working-copy.js";
 
 export type LayoutRuleTemplateV1 =
@@ -73,6 +80,7 @@ export interface LayoutRuleCompositionInputV1 {
   comicFormat: "vertical_scroll" | "paged_comic";
   profile: LayoutProfileV1;
   fontPolicy: LayoutFontPolicyV1;
+  typographyPreset?: LayoutTypographyPresetV1;
   storyboardVersion: {
     id: string;
     documentDigest: LayoutDigest;
@@ -428,13 +436,15 @@ function pageFrames(
 
 function richTextFor(
   item: LayoutDialogueItemV1,
-  fontAssetId: string,
+  typographyPreset: LayoutTypographyPresetV1,
   format: LayoutRuleCompositionInputV1["comicFormat"],
 ): RichTextDocumentV1 {
+  const visualRole = inferLayoutSemanticTextRoleV1(item.kind, item.text);
+  const face = layoutTypographyFaceForRoleV1(typographyPreset, visualRole);
+  const visual = layoutBalloonVisualPresetV1(visualRole, format);
   const fontSize = item.kind === "caption"
     ? format === "paged_comic" ? PAGE_CAPTION_FONT_SIZE : STRIP_CAPTION_FONT_SIZE
     : format === "paged_comic" ? PAGE_FONT_SIZE : STRIP_FONT_SIZE;
-  const color = item.kind === "caption" ? "#FFFFFFFF" : "#111827FF";
   return {
     schemaVersion: 1,
     writingMode: "horizontal-tb",
@@ -444,11 +454,11 @@ function richTextFor(
       lineHeight: 1.35,
       runs: [{
         text: line,
-        fontAssetId,
+        fontAssetId: face.fontAssetId,
         fontSize,
-        fontWeight: item.kind === "shout" ? 700 : 400,
-        fontStyle: "normal",
-        color,
+        fontWeight: face.fontWeight,
+        fontStyle: face.fontStyle,
+        color: visual.textColor,
         letterSpacing: 0,
         stroke: null,
       }],
@@ -459,16 +469,23 @@ function richTextFor(
 function balloonBox(
   item: LayoutDialogueItemV1,
   panelWidth: number,
-  fontAssetId: string,
+  typographyPreset: LayoutTypographyPresetV1,
   format: LayoutRuleCompositionInputV1["comicFormat"],
 ): BalloonBoxV1 {
-  const richText = richTextFor(item, fontAssetId, format);
+  const richText = richTextFor(item, typographyPreset, format);
   const paddingAmount = format === "paged_comic" ? 28 : 20;
   const padding = { top: paddingAmount, right: paddingAmount, bottom: paddingAmount, left: paddingAmount };
   const widthRatio = item.kind === "caption" ? 0.86 : 0.72;
   const width = Math.max(160, Math.min(panelWidth - 32, panelWidth * widthRatio));
+  const maximumFontSize = Math.max(
+    ...richText.paragraphs.flatMap((paragraph) => paragraph.runs.map((run) => run.fontSize)),
+    1,
+  );
   const measurement = evaluateRichTextOverflowV1(richText, {
-    width: width - padding.left - padding.right,
+    // Reserve one em for real-font metrics and CJK line-start/line-end rules.
+    // The deterministic estimator intentionally sizes slightly larger than the
+    // theoretical advance sum so browser/PDF rendering cannot add a surprise line.
+    width: Math.max(1, width - padding.left - padding.right - maximumFontSize * 0.5),
     height: 100_000,
   });
   const minimumHeight = (format === "paged_comic" ? PAGE_FONT_SIZE : STRIP_FONT_SIZE) * 2.2;
@@ -491,18 +508,19 @@ function balloonBox(
 function estimatedBalloonStackHeight(
   items: readonly LayoutDialogueItemV1[],
   panelWidth: number,
-  fontAssetId: string,
+  typographyPreset: LayoutTypographyPresetV1,
   format: LayoutRuleCompositionInputV1["comicFormat"],
 ): number {
-  return items.reduce((sum, item) => sum + balloonBox(item, panelWidth, fontAssetId, format).height + 18, 0);
+  return items.reduce(
+    (sum, item) => sum + balloonBox(item, panelWidth, typographyPreset, format).height + 18,
+    0,
+  );
 }
 
 function verticalFrameHeight(
   shot: StoryboardShotV2,
   source: LayoutSourceCatalogItemV1,
-  items: readonly LayoutDialogueItemV1[],
   panelWidth: number,
-  fontAssetId: string,
 ): number {
   const aspect = Math.max(0.72, Math.min(1.9, source.width / source.height));
   let height = panelWidth / aspect;
@@ -511,8 +529,6 @@ function verticalFrameHeight(
   if (shot.shotType === "extreme_close_up") height = Math.min(height, panelWidth * 0.72);
   if (shot.comic.panelRhythm === "impact") height = Math.max(height, panelWidth * 0.96);
   if (shot.motion.frameType === "transition") height = Math.min(height, panelWidth * 0.58);
-  const textHeight = estimatedBalloonStackHeight(items, panelWidth, fontAssetId, "vertical_scroll");
-  height = Math.max(height, textHeight + 96);
   // Publication slicing works in physical rows. Rule-generated strip section
   // boundaries stay on whole logical pixels so independent slice rounding
   // cannot drift from long-image stitching.
@@ -524,8 +540,13 @@ function verticalFrames(
   profile: StripProfileV1,
   sources: ReadonlyMap<string, LayoutSourceCatalogItemV1>,
   dialogueByShot: ReadonlyMap<string, readonly LayoutDialogueItemV1[]>,
-  fontAssetId: string,
-): { template: "vertical_stack"; frames: LayoutTransformV1[]; height: number } {
+  typographyPreset: LayoutTypographyPresetV1,
+): {
+  template: "vertical_stack";
+  frames: LayoutTransformV1[];
+  balloonBands: LayoutTransformV1[];
+  height: number;
+} {
   const left = profile.safeInsetX;
   const width = profile.width - profile.safeInsetX * 2;
   const slow = assignment.shots.some((shot) => isSlowLayoutRhythmV1(shot.comic.panelRhythm));
@@ -533,22 +554,62 @@ function verticalFrames(
   const bottom = slow ? 170 : 96;
   const gap = assignment.groups.some((group) => group.rhythm === "transition") ? 144 : STRIP_GAP;
   const frames: LayoutTransformV1[] = [];
+  const balloonBands: LayoutTransformV1[] = [];
   let y = top;
   for (const shot of assignment.shots) {
     const source = sources.get(shot.id)!;
-    const frameHeight = verticalFrameHeight(
-      shot,
-      source,
-      dialogueByShot.get(shot.id) ?? [],
+    const items = dialogueByShot.get(shot.id) ?? [];
+    const stackHeight = estimatedBalloonStackHeight(
+      items,
       width,
-      fontAssetId,
+      typographyPreset,
+      "vertical_scroll",
     );
-    frames.push(transform(left, y, width, frameHeight));
-    y += frameHeight + gap;
+    const bandHeight = items.length > 0 ? stackHeight + 24 : 0;
+    const frameHeight = verticalFrameHeight(shot, source, width);
+    balloonBands.push(transform(left, y, width, bandHeight));
+    frames.push(transform(left, y + bandHeight, width, frameHeight));
+    y += bandHeight + frameHeight + gap;
   }
   const height = Math.round(Math.max(320, y - gap + bottom));
   if (height > 8192) throw new LayoutRuleCompositionError("LAYOUT_GEOMETRY_INVALID", "vertical section exceeds 8192 logical pixels");
-  return { template: "vertical_stack", frames, height };
+  return { template: "vertical_stack", frames, balloonBands, height };
+}
+
+function reservePageBalloonBands(
+  frames: readonly LayoutTransformV1[],
+  assignment: CanvasAssignmentV1,
+  dialogueByShot: ReadonlyMap<string, readonly LayoutDialogueItemV1[]>,
+  typographyPreset: LayoutTypographyPresetV1,
+): { frames: LayoutTransformV1[]; balloonBands: LayoutTransformV1[] } {
+  const adjustedFrames: LayoutTransformV1[] = [];
+  const balloonBands: LayoutTransformV1[] = [];
+  for (const [index, frame] of frames.entries()) {
+    const shot = assignment.shots[index]!;
+    const items = dialogueByShot.get(shot.id) ?? [];
+    const stackHeight = estimatedBalloonStackHeight(
+      items,
+      frame.width,
+      typographyPreset,
+      "paged_comic",
+    );
+    const bandHeight = items.length > 0 ? stackHeight + 24 : 0;
+    const remainingHeight = frame.height - bandHeight;
+    if (remainingHeight < 220) {
+      throw new LayoutRuleCompositionError(
+        "LAYOUT_TEXT_OVERFLOW",
+        `dialogue for shot ${shot.id} cannot fit in a safe page gutter`,
+      );
+    }
+    balloonBands.push(transform(frame.x, frame.y, frame.width, bandHeight));
+    adjustedFrames.push(transform(
+      frame.x,
+      frame.y + bandHeight,
+      frame.width,
+      remainingHeight,
+    ));
+  }
+  return { frames: adjustedFrames, balloonBands };
 }
 
 function panelFor(
@@ -581,24 +642,31 @@ function panelFor(
 }
 
 function balloonFor(
-  canvas: Pick<LayoutCanvasV1, "id" | "width" | "height">,
   panel: PanelFrameElementV1,
+  band: LayoutTransformV1,
   item: LayoutDialogueItemV1,
   itemIndex: number,
   stackOffset: number,
-  fontAssetId: string,
+  typographyPreset: LayoutTypographyPresetV1,
   format: LayoutRuleCompositionInputV1["comicFormat"],
 ): { element: BalloonElementV1; binding: LayoutDialogueBindingV1; nextOffset: number } {
-  const box = balloonBox(item, panel.transform.width, fontAssetId, format);
-  const sideInset = Math.max(16, panel.transform.width * 0.035);
+  const box = balloonBox(item, panel.transform.width, typographyPreset, format);
+  const sideInset = Math.max(16, band.width * 0.035);
   const alternateRight = item.kind !== "caption" && itemIndex % 2 === 1;
   const x = alternateRight
-    ? panel.transform.x + panel.transform.width - box.width - sideInset
-    : panel.transform.x + sideInset;
-  const naturalY = panel.transform.y + 20 + stackOffset;
-  const y = Math.max(8, Math.min(naturalY, canvas.height - box.height - 8));
+    ? band.x + band.width - box.width - sideInset
+    : band.x + sideInset;
+  const y = band.y + 12 + stackOffset;
+  if (y + box.height > panel.transform.y) {
+    throw new LayoutRuleCompositionError(
+      "LAYOUT_TEXT_OVERFLOW",
+      `dialogue item ${item.id} exceeds its safe gutter`,
+    );
+  }
   const elementId = stableId("balloon", { dialogueItemId: item.id });
   const transformValue = transform(x, y, box.width, box.height);
+  const visualRole = inferLayoutSemanticTextRoleV1(item.kind, item.text);
+  const visual = layoutBalloonVisualPresetV1(visualRole, format);
   const element: BalloonElementV1 = {
     id: elementId,
     type: "balloon",
@@ -609,9 +677,9 @@ function balloonFor(
     balloonKind: item.kind,
     sourceShotId: item.shotId,
     speakerCharacterId: item.speakerCharacterId,
-    fillColor: item.kind === "caption" ? "#111827E8" : "#FFFFFFFF",
-    strokeColor: item.kind === "caption" ? "#111827FF" : item.kind === "shout" ? "#991B1BFF" : "#111827FF",
-    strokeWidth: format === "paged_comic" ? 6 : 4,
+    fillColor: visual.fillColor,
+    strokeColor: visual.strokeColor,
+    strokeWidth: visual.strokeWidth,
     padding: box.padding,
     verticalAlign: "center",
     tail: {
@@ -652,6 +720,7 @@ function buildCanvases(input: {
   comicFormat: LayoutRuleCompositionInputV1["comicFormat"];
   profile: LayoutProfileV1;
   fontPolicy: LayoutFontPolicyV1;
+  typographyPreset: LayoutTypographyPresetV1;
   assignments: readonly CanvasAssignmentV1[];
   sources: ReadonlyMap<string, LayoutSourceCatalogItemV1>;
   dialogueByShot: ReadonlyMap<string, readonly LayoutDialogueItemV1[]>;
@@ -666,11 +735,19 @@ function buildCanvases(input: {
       shotIds: assignment.shots.map((shot) => shot.id),
     });
     let frames: LayoutTransformV1[];
+    let balloonBands: LayoutTransformV1[];
     let height: number;
     let template: LayoutRuleTemplateV1;
     if (input.profile.kind === "paged") {
       const page = pageFrames(assignment.shots.length, input.profile, assignment.shots);
-      frames = page.frames;
+      const reserved = reservePageBalloonBands(
+        page.frames,
+        assignment,
+        input.dialogueByShot,
+        input.typographyPreset,
+      );
+      frames = reserved.frames;
+      balloonBands = reserved.balloonBands;
       height = input.profile.height;
       template = page.template;
     } else {
@@ -679,9 +756,10 @@ function buildCanvases(input: {
         input.profile,
         input.sources,
         input.dialogueByShot,
-        input.fontPolicy.defaultFontAssetId,
+        input.typographyPreset,
       );
       frames = strip.frames;
+      balloonBands = strip.balloonBands;
       height = strip.height;
       template = strip.template;
     }
@@ -712,12 +790,12 @@ function buildCanvases(input: {
       let stackOffset = 0;
       for (const [itemIndex, item] of items.entries()) {
         const result = balloonFor(
-          canvas,
           panel,
+          balloonBands[panelIndex]!,
           item,
           itemIndex,
           stackOffset,
-          input.fontPolicy.defaultFontAssetId,
+          input.typographyPreset,
           input.comicFormat,
         );
         canvas.elements.push(result.element);
@@ -806,6 +884,8 @@ export function composeRuleBasedLayoutV1(
   input: LayoutRuleCompositionInputV1,
 ): LayoutRuleCompositionPlanV1 {
   const { storyboard, profile, sources } = validateInput(input);
+  const typographyPreset = input.typographyPreset
+    ?? legacyLayoutTypographyPresetV1(input.fontPolicy);
   const dialogueLedger = normalizeLayoutDialogueV1({
     storyboard,
     characterCatalog: input.characterCatalog,
@@ -823,6 +903,7 @@ export function composeRuleBasedLayoutV1(
     comicFormat: input.comicFormat,
     profile,
     fontPolicy: input.fontPolicy,
+    typographyPreset,
     assignments,
     sources: sourceMap,
     dialogueByShot,
@@ -857,6 +938,7 @@ export function composeRuleBasedLayoutV1(
     sourceLockSetDigest: input.sourceLockSetDigest,
     dialogueLedgerDigest: dialogueLedger.ledgerDigest,
     narrativePlanDigest: narrativePlan.planDigest,
+    typographyPreset,
     canvases: built.plans,
     visibleDocumentDigest: visible.digest,
   });

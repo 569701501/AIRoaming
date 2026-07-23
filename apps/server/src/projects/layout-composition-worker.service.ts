@@ -140,6 +140,7 @@ export class LayoutCompositionWorkerService {
         comicFormat: source.comicFormat,
         profile: source.profile,
         fontPolicy: source.fontPolicy,
+        typographyPreset: source.typographyPreset,
         storyboardVersion: {
           id: source.storyboard.versionId,
           documentDigest: source.storyboard.documentDigest,

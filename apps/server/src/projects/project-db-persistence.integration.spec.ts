@@ -1391,17 +1391,25 @@ describe("Project/Chapter/Script DB-only persistence", () => {
     expect(first.items.map((item) => [item.metadata.face.weight, item.metadata.face.style])).toEqual([
       [400, "normal"],
       [700, "normal"],
+      [500, "normal"],
+      [900, "normal"],
+    ]);
+    expect(first.items.map((item) => [item.metadata.face.weight, item.sha256, item.bytes])).toEqual([
+      [400, "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce", 1_602_144],
+      [700, "sha256:989da46b79020196982ff943896843d69a8a16412a385b726b525dd626cf39f4", 1_662_964],
+      [500, "sha256:d9db1f2a8ff0722ed12cd13844350ae567f3ad772a8b85ac910fd1b4acc4af03", 1_611_904],
+      [900, "sha256:e5a532a6d6216e7f0f6f7e7c36f8c1f6b581c7cdfcf60d6b0900cbcbe9b2da40", 1_691_204],
     ]);
     expect(first.items.every((item) => item.metadata.license.embeddingAllowed && item.metadata.license.spdx === "OFL-1.1")).toBe(true);
     expect(first.items.every((item) => item.metadata.cmap.codePointCount === 7898 && item.metadata.cmap.ranges.length === 4109)).toBe(true);
 
     const prisma = app.get(PrismaService).database();
     const assets = await prisma.asset.findMany({ where: { projectId: project.id, type: "font", role: "layout_font" }, orderBy: { createdAt: "asc" } });
-    expect(assets).toHaveLength(2);
+    expect(assets).toHaveLength(4);
     expect(assets.every((asset) => asset.status === "ready" && asset.readyAt && asset.sha256 && asset.bytes)).toBe(true);
     expect(JSON.stringify(assets.map((asset) => asset.metadataJson))).not.toMatch(/base64|data:font/i);
     const events = await prisma.outboxEvent.findMany({ where: { aggregateId: { in: assets.map((asset) => asset.id) }, eventType: "asset.promote" } });
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(4);
     expect(events.every((event) => event.status === "processed" && event.processedAt)).toBe(true);
 
     for (const item of first.items) {

@@ -8,9 +8,11 @@ import {
   assertInitialLayoutDialogueCoverageV1,
   composeRuleBasedLayoutV1,
   evaluateRichTextOverflowV1,
+  inferLayoutSemanticTextRoleV1,
   LayoutDocumentCodecV2,
   projectLayoutDocumentV2ToV1,
   projectVisibleShotPlacementsV1,
+  resolveLayoutBalloonVisualRoleV1,
   richTextPlainTextV1,
   type BalloonElementV1,
   type LayoutRuleCompositionInputV1,
@@ -179,6 +181,76 @@ describe("Smart layout M2 deterministic rule composition", () => {
       });
       expect(overflow.overflow, balloon.id).toBe(false);
     }
+  });
+
+  it("keeps every rule-fallback balloon body outside every image panel", async () => {
+    for (const name of fixtureNames) {
+      const plan = composeRuleBasedLayoutV1(inputFromFixture(await fixture(name)));
+      for (const canvas of plan.document.canvases) {
+        const panels = canvas.elements.filter((element) => element.type === "panel_frame");
+        for (const balloon of canvas.elements.filter(
+          (element): element is BalloonElementV1 => element.type === "balloon",
+        )) {
+          for (const panel of panels) {
+            const overlapWidth = Math.max(0, Math.min(
+              balloon.transform.x + balloon.transform.width,
+              panel.transform.x + panel.transform.width,
+            ) - Math.max(balloon.transform.x, panel.transform.x));
+            const overlapHeight = Math.max(0, Math.min(
+              balloon.transform.y + balloon.transform.height,
+              panel.transform.y + panel.transform.height,
+            ) - Math.max(balloon.transform.y, panel.transform.y));
+            expect(overlapWidth * overlapHeight, `${name}/${balloon.id}/${panel.id}`).toBe(0);
+          }
+          expect(balloon.tail.enabled, `${name}/${balloon.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("uses exact semantic font faces and distinct visual presets instead of synthetic bold", async () => {
+    const typographyPreset = {
+      policyVersion: "layout_typography_preset_v1",
+      speech: { fontAssetId: "font_regular", fontWeight: 400, fontStyle: "normal" },
+      thought: { fontAssetId: "font_regular", fontWeight: 400, fontStyle: "normal" },
+      shout: { fontAssetId: "font_black", fontWeight: 900, fontStyle: "normal" },
+      caption: { fontAssetId: "font_medium", fontWeight: 500, fontStyle: "normal" },
+    } as const;
+    const plans = await Promise.all([
+      "fix-v01-vertical",
+      "fix-v02-vertical",
+    ].map(async (name) => {
+      const input = inputFromFixture(await fixture(name));
+      input.typographyPreset = typographyPreset;
+      return composeRuleBasedLayoutV1(input);
+    }));
+    const allBalloons = plans.flatMap((plan) => balloons(plan.document));
+    const byKind = new Map<BalloonElementV1["balloonKind"], BalloonElementV1>();
+    for (const balloon of allBalloons) {
+      const text = richTextPlainTextV1(balloon.richText);
+      byKind.set(inferLayoutSemanticTextRoleV1(balloon.balloonKind, text), balloon);
+    }
+    expect([...byKind.keys()].sort()).toEqual(["caption", "shout", "speech", "thought"]);
+    for (const [kind, balloon] of byKind) {
+      const expected = typographyPreset[kind];
+      expect(balloon.richText.paragraphs[0]!.runs[0]).toMatchObject(expected);
+    }
+    expect(byKind.get("speech")?.fillColor).toBe("#FFFFFFFF");
+    expect(byKind.get("thought")?.fillColor).toBe("#FFFDF5FF");
+    expect(byKind.get("shout")?.strokeColor).toBe("#B91C1CFF");
+    expect(byKind.get("caption")?.fillColor).toBe("#111827EE");
+    expect(resolveLayoutBalloonVisualRoleV1(byKind.get("speech")!)).toBe("speech");
+    expect(resolveLayoutBalloonVisualRoleV1(byKind.get("thought")!)).toBe("thought");
+    expect(resolveLayoutBalloonVisualRoleV1(byKind.get("shout")!)).toBe("shout");
+    expect(resolveLayoutBalloonVisualRoleV1(byKind.get("caption")!)).toBe("caption");
+  });
+
+  it("adds conservative visual tone without changing the source balloon kind", () => {
+    expect(inferLayoutSemanticTextRoleV1("speech", "别——！")).toBe("shout");
+    expect(inferLayoutSemanticTextRoleV1("speech", "开门！外面还有人！我不是——")).toBe("shout");
+    expect(inferLayoutSemanticTextRoleV1("speech", "……我只是回家。")).toBe("thought");
+    expect(inferLayoutSemanticTextRoleV1("speech", "我们到站了。")).toBe("speech");
+    expect(inferLayoutSemanticTextRoleV1("caption", "雨一直在下。")).toBe("caption");
   });
 
   it("SML-DLG-005 fails closed when a placed balloon is rewritten or omitted", async () => {

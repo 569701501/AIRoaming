@@ -2,6 +2,7 @@ export * from "./document.js";
 export * from "./text.js";
 export * from "./geometry.js";
 export * from "./balloon.js";
+export * from "./semantic-style.js";
 export * from "./codec.js";
 export * from "./digest.js";
 export * from "./publication.js";

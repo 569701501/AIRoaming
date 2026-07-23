@@ -37,17 +37,18 @@
         <article
           v-for="canvas in visibleCanvases"
           :key="canvas.id"
+          :ref="(node) => registerCanvas(canvas.id, node)"
           class="readonly-canvas"
+          :data-canvas-id="canvas.id"
           :style="canvasStyle(canvas)"
           :aria-label="`${canvas.name}，阅读顺序 ${canvas.panelReadingOrder.join('、') || '无画格'}`"
         >
-          <div class="safe-area" :style="safeAreaStyle(canvas)" aria-hidden="true" />
           <div
             v-for="element in canvas.elements.filter((item) => !item.hidden)"
             :key="element.id"
             class="readonly-element"
             :class="`type-${element.type}`"
-            :style="elementStyle(element)"
+            :style="elementStyle(element, canvas)"
             :aria-label="element.name"
           >
             <template v-if="element.type === 'panel_frame'">
@@ -55,9 +56,14 @@
               <span v-else>空画格</span>
             </template>
             <img v-else-if="element.type === 'free_image'" :src="api.projectAssetFileUrl(projectId, element.source.assetId)" :alt="element.name" />
-            <span v-else>{{ richTextValue(element.richText) }}</span>
+            <LayoutElementTextPreview
+              v-else-if="element.type === 'text' || element.type === 'balloon'"
+              :element="element"
+              :fallback-font-asset-ids="documentValue.fontPolicy.fallbackFontAssetIds"
+              :scale="canvasScale(canvas)"
+              :overflow="overflowElementIds.has(element.id)"
+            />
           </div>
-          <div v-if="!isPaged" class="slice-boundary" aria-label="条漫切片参考线">切片 / 段落边界</div>
         </article>
       </section>
 
@@ -76,10 +82,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, type CSSProperties } from "vue";
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  type ComponentPublicInstance,
+  type CSSProperties,
+} from "vue";
 import { useRoute } from "vue-router";
 import {
   collectLayoutTextIssuesV1,
+  layoutFontFamilyNameV1,
   projectLayoutDocumentV2ToV1,
   type LayoutCanvasV1,
   type LayoutDocumentV1,
@@ -87,6 +101,7 @@ import {
   type LayoutTopLevelElementV1,
 } from "@airoaming/shared";
 
+import LayoutElementTextPreview from "../components/workbench/LayoutElementTextPreview.vue";
 import { api } from "../services/api";
 
 const route = useRoute();
@@ -116,8 +131,26 @@ const visibleCanvases = computed(() => {
 const textIssues = computed(() => documentValue.value
   ? collectLayoutTextIssuesV1(documentValue.value, fontCatalog.value)
   : []);
+const overflowElementIds = computed(() => new Set(
+  textIssues.value
+    .filter((issue) => issue.code === "LAYOUT_TEXT_OVERFLOW")
+    .map((issue) => issue.elementId),
+));
+const canvasWidths = ref<Record<string, number>>({});
+const canvasElements = new Map<string, HTMLElement>();
+let canvasResizeObserver: ResizeObserver | null = null;
+let installedFontStyle: HTMLStyleElement | null = null;
 
 onMounted(async () => {
+  if (typeof ResizeObserver !== "undefined") {
+    canvasResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const canvasId = (entry.target as HTMLElement).dataset.canvasId;
+        if (canvasId) updateCanvasWidth(canvasId, entry.contentRect.width);
+      }
+    });
+    for (const element of canvasElements.values()) canvasResizeObserver.observe(element);
+  }
   if (!projectId || !chapterId) {
     errorMessage.value = "缺少 projectId 或 chapterId。";
     loading.value = false;
@@ -164,16 +197,50 @@ onMounted(async () => {
   }
 });
 
+onBeforeUnmount(() => {
+  canvasResizeObserver?.disconnect();
+  canvasResizeObserver = null;
+  canvasElements.clear();
+  installedFontStyle?.remove();
+  installedFontStyle = null;
+});
+
 function installFonts(items: Awaited<ReturnType<typeof api.getLayoutFonts>>["items"]): void {
-  const rules = items.map((item) => `@font-face{font-family:"${cssText(item.metadata.familyName)}";src:url("${api.layoutFontFileUrl(projectId, chapterId, item.assetId)}") format("${item.metadata.format}");font-weight:${item.metadata.face.weight};font-style:${item.metadata.face.style};font-display:block;}`);
+  const rules = items.map((item) => `@font-face{font-family:"${layoutFontFamilyNameV1(item.assetId)}";src:url("${api.layoutFontFileUrl(projectId, chapterId, item.assetId)}") format("${item.metadata.format}");font-weight:${item.metadata.face.weight};font-style:${item.metadata.face.style};font-display:block;}`);
   const style = globalThis.document.createElement("style");
   style.dataset.layoutPreviewFonts = "true";
   style.textContent = rules.join("\n");
+  installedFontStyle?.remove();
+  installedFontStyle = style;
   globalThis.document.head.append(style);
 }
 
-function cssText(value: string): string {
-  return value.replace(/["\\]/g, "");
+function registerCanvas(canvasId: string, node: Element | ComponentPublicInstance | null): void {
+  const next = node instanceof HTMLElement ? node : null;
+  const previous = canvasElements.get(canvasId);
+  if (previous && previous !== next) canvasResizeObserver?.unobserve(previous);
+  if (!next) {
+    canvasElements.delete(canvasId);
+    const nextWidths = { ...canvasWidths.value };
+    delete nextWidths[canvasId];
+    canvasWidths.value = nextWidths;
+    return;
+  }
+  canvasElements.set(canvasId, next);
+  updateCanvasWidth(canvasId, next.getBoundingClientRect().width);
+  canvasResizeObserver?.observe(next);
+}
+
+function updateCanvasWidth(canvasId: string, width: number): void {
+  if (!(width > 0) || canvasWidths.value[canvasId] === width) return;
+  canvasWidths.value = { ...canvasWidths.value, [canvasId]: width };
+}
+
+function canvasScale(canvas: LayoutCanvasV1): number {
+  const measuredWidth = canvasWidths.value[canvas.id];
+  if (measuredWidth && measuredWidth > 0) return measuredWidth / canvas.width;
+  const viewportWidth = typeof globalThis.innerWidth === "number" ? globalThis.innerWidth : canvas.width + 28;
+  return Math.max(1, Math.min(760, viewportWidth - 28)) / canvas.width;
 }
 
 function getPublicationStatusLabel(status: string): string {
@@ -190,29 +257,11 @@ function shortDigest(value: string): string {
   return `${value.slice(0, 15)}…${value.slice(-8)}`;
 }
 
-function richTextValue(value: { paragraphs: Array<{ runs: Array<{ text: string }> }> }): string {
-  return value.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join("")).join("\n");
-}
-
 function canvasStyle(canvas: LayoutCanvasV1): CSSProperties {
   return { aspectRatio: `${canvas.width} / ${canvas.height}`, backgroundColor: canvas.backgroundColor.slice(0, 7) };
 }
 
-function safeAreaStyle(canvas: LayoutCanvasV1): CSSProperties {
-  const profile = documentValue.value!.profile;
-  const area = profile.kind === "paged"
-    ? profile.safeArea
-    : { top: 64, right: profile.safeInsetX, bottom: 64, left: profile.safeInsetX };
-  return {
-    top: `${area.top / canvas.height * 100}%`,
-    right: `${area.right / canvas.width * 100}%`,
-    bottom: `${area.bottom / canvas.height * 100}%`,
-    left: `${area.left / canvas.width * 100}%`,
-  };
-}
-
-function elementStyle(element: LayoutTopLevelElementV1): CSSProperties {
-  const canvas = visibleCanvases.value.find((item) => item.elements.some((candidate) => candidate.id === element.id))!;
+function elementStyle(element: LayoutTopLevelElementV1, canvas: LayoutCanvasV1): CSSProperties {
   const transform = element.transform;
   return {
     left: `${transform.x / canvas.width * 100}%`,
@@ -222,10 +271,6 @@ function elementStyle(element: LayoutTopLevelElementV1): CSSProperties {
     opacity: transform.opacity,
     transform: `rotate(${transform.rotation}deg)`,
     zIndex: canvas.elements.findIndex((candidate) => candidate.id === element.id) + 1,
-    writingMode: element.type === "text" || element.type === "balloon" ? element.richText.writingMode : undefined,
-    fontFamily: element.type === "text" || element.type === "balloon"
-      ? fontCatalog.value.find((font) => font.assetId === element.richText.paragraphs[0]?.runs[0]?.fontAssetId)?.metadata.familyName
-      : undefined,
   };
 }
 </script>
@@ -250,11 +295,9 @@ function elementStyle(element: LayoutTopLevelElementV1): CSSProperties {
 .readonly-canvas { position: relative; width: 100%; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,.38); }
 .readonly-element { position: absolute; display: grid; place-items: center; box-sizing: border-box; overflow: hidden; color: #111827; white-space: pre-wrap; text-align: center; transform-origin: center; }
 .readonly-element.type-panel_frame { border: 1px solid #111827; background: #d7dce5; }
-.readonly-element.type-balloon { border: 1px solid #111827; border-radius: 48%; background: white; padding: 2%; }
+.readonly-element.type-balloon, .readonly-element.type-text { overflow: visible; }
 .readonly-element img { width: 100%; height: 100%; object-fit: cover; }
-.readonly-element span { font-size: clamp(8px, 2.4vw, 20px); line-height: 1.25; }
-.safe-area { position: absolute; z-index: 9990; border: 1px dashed rgba(34,199,169,.5); pointer-events: none; }
-.slice-boundary { position: absolute; z-index: 9991; left: 0; right: 0; bottom: 0; border-top: 1px dashed rgba(245,158,11,.75); color: #fbbf24; background: rgba(7,12,22,.68); font-size: 9px; padding: 2px 6px; }
+.readonly-element.type-panel_frame > span { font-size: clamp(8px, 2.4vw, 20px); line-height: 1.25; }
 .publication-files { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .publication-files strong { width: 100%; }
 @media (min-width: 800px) { .mobile-layout-preview { padding-top: 28px; } }

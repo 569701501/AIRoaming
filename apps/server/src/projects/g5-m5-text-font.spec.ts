@@ -20,10 +20,11 @@ describe("G5-M5 font, rich text, and balloon authority", () => {
   });
 
   it("uses contenteditable composition and plain-text paste without a system font selector", async () => {
-    const [editor, workspace, preview] = await Promise.all([
+    const [editor, workspace, preview, renderer] = await Promise.all([
       readFile(new URL("../../../web/src/components/workbench/LayoutRichTextEditor.vue", import.meta.url), "utf8"),
       readFile(new URL("../../../web/src/components/workbench/LayoutExportWorkspace.vue", import.meta.url), "utf8"),
       readFile(new URL("../../../web/src/components/workbench/LayoutElementTextPreview.vue", import.meta.url), "utf8"),
+      readFile(new URL("./layout-renderer.service.ts", import.meta.url), "utf8"),
     ]);
     expect(editor).toContain(':contenteditable="disabled ? \'false\' : \'true\'"');
     expect(editor).toContain('@compositionstart="compositionActive = true"');
@@ -32,8 +33,23 @@ describe("G5-M5 font, rich text, and balloon authority", () => {
     expect(editor).toContain('getData("text/plain")');
     expect(editor).toContain("layoutGraphemes");
     expect(editor).not.toMatch(/<option[^>]*>\s*(Arial|Helvetica|Times|system-ui)/i);
+    expect(editor.indexOf("props.modelValue.paragraphs[0]?.runs[0]?.fontAssetId"))
+      .toBeLessThan(editor.indexOf("props.fontCatalog[0]?.assetId"));
+    expect(editor).toContain('fontSynthesis: "none"');
+    expect(editor).toContain("fontWeight: font.metadata.face.weight");
+    expect(editor).toContain("fontStyle: font.metadata.face.style");
+    expect(editor).toContain(':disabled="disabled || !canToggleItalic"');
+    expect(editor).not.toContain('fontStyle: italic.value ? "italic" : "normal"');
     expect(preview).toContain("layoutFontFamilyNameV1");
+    expect(preview).toContain("resolveLayoutBalloonVisualRoleV1");
+    expect(preview).toContain('stroke-linejoin="round"');
+    expect(preview).not.toContain("fillColor.slice(0, 7)");
     expect(preview).not.toContain("local(");
+    expect(renderer).toContain('format("${font.format}")');
+    expect(renderer).toContain("font-weight:${font.weight}");
+    expect(renderer).toContain("font-style:${font.style}");
+    expect(renderer).toContain("font-synthesis:none");
+    expect(renderer).toContain("resolveLayoutBalloonVisualRoleV1");
     expect(workspace).toContain("collectLayoutTextIssuesV1");
     expect(workspace).toContain("balloon.set_tail");
     expect(workspace).toContain("文字模式只编辑内部文字");

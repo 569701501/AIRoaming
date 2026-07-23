@@ -658,7 +658,7 @@
             <section v-if="primaryElement.type === 'balloon'" class="special-properties" data-testid="balloon-controls">
               <div class="section-heading"><strong>气泡</strong><small>固定四种形状；只允许一个受控尾巴</small></div>
               <label>类型
-                <select :value="primaryElement.balloonKind" :disabled="cannotEditPrimary" @change="setBalloonKind">
+                <select :value="resolveLayoutBalloonVisualRoleV1(primaryElement)" :disabled="cannotEditPrimary" @change="setBalloonKind">
                   <option value="speech">对白</option>
                   <option value="thought">思考</option>
                   <option value="shout">喊叫</option>
@@ -780,6 +780,8 @@ import {
   collectLayoutTextIssuesV1,
   generateLayoutPresetV1,
   initializeLayoutCanvasesFromSourcesV1,
+  layoutBalloonVisualPresetV1,
+  resolveLayoutBalloonVisualRoleV1,
   projectLayoutDocumentV2ToV1,
   projectVisibleShotPlacementsV1,
   replaceRichTextRange,
@@ -1756,10 +1758,62 @@ function setBalloonKind(event: Event): void {
   const canvas = session.currentCanvas.value;
   if (element?.type !== "balloon" || !canvas) return;
   const balloonKind = (event.target as HTMLSelectElement).value as "speech" | "thought" | "shout" | "caption";
-  session.execute(command("balloon.set_kind", "调整气泡类型", { canvasId: canvas.id, elementId: element.id, balloonKind }));
-  if (balloonKind === "caption" && element.tail.enabled) {
-    session.execute(command("balloon.set_tail", "关闭旁白框尾巴", { canvasId: canvas.id, elementId: element.id, tail: { ...element.tail, enabled: false } }));
+  const visual = layoutBalloonVisualPresetV1(
+    balloonKind,
+    isPaged.value ? "paged_comic" : "vertical_scroll",
+  );
+  const desiredWeight = balloonKind === "shout" ? 900 : balloonKind === "caption" ? 500 : 400;
+  const catalog = session.fontCatalog.value?.items ?? [];
+  const currentRun = element.richText.paragraphs.flatMap((paragraph) => paragraph.runs)[0];
+  const currentFace = catalog.find((font) => font.assetId === currentRun?.fontAssetId)
+    ?? catalog.find((font) => font.assetId === session.document.value?.fontPolicy.defaultFontAssetId);
+  const semanticFace = currentFace
+    ? catalog.find((font) => (
+        font.metadata.familyName === currentFace.metadata.familyName
+        && font.metadata.face.weight === desiredWeight
+        && font.metadata.face.style === "normal"
+      ))
+    : undefined;
+  const richText = structuredClone(element.richText);
+  for (const paragraph of richText.paragraphs) {
+    for (const run of paragraph.runs) {
+      run.color = visual.textColor;
+      if (semanticFace) {
+        run.fontAssetId = semanticFace.assetId;
+        run.fontWeight = semanticFace.metadata.face.weight;
+        run.fontStyle = semanticFace.metadata.face.style;
+      }
+    }
   }
+  executeBatch("应用语义气泡样式", [
+    command("balloon.set_kind", "调整气泡类型", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      balloonKind,
+    }),
+    command("balloon.set_visual_style", "应用气泡外观", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      fillColor: visual.fillColor,
+      strokeColor: visual.strokeColor,
+      strokeWidth: visual.strokeWidth,
+      padding: element.padding,
+      verticalAlign: element.verticalAlign,
+    }),
+    command("balloon.set_tail", "调整气泡尾巴", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      tail: {
+        ...element.tail,
+        enabled: visual.tailAllowed && element.tail.enabled,
+      },
+    }),
+    command("balloon.replace_text_document", "应用语义文字样式", {
+      canvasId: canvas.id,
+      elementId: element.id,
+      richText,
+    }),
+  ]);
 }
 
 function updateBalloonTailBoolean(event: Event): void {

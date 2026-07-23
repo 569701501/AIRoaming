@@ -103,7 +103,9 @@ describe("M6 scoped intelligent reflow", () => {
       ...baseBalloon.transform,
       x: baseBalloon.transform.x + 12,
     };
-    baseBalloon.fillColor = "#FFF7EDFF";
+    baseBalloon.fillColor = targetBalloon.fillColor === "#00FF00FF"
+      ? "#FF00FFFF"
+      : "#00FF00FF";
     baseBalloon.tail = {
       ...baseBalloon.tail,
       targetX: baseBalloon.tail.targetX + 8,

@@ -36,10 +36,11 @@ const FONT_LICENSE_SOURCE = "https://github.com/notofonts/noto-cjk/blob/main/San
 const FONT_PACKAGE_NAME = "@openfonts/noto-sans-sc_chinese-simplified";
 
 interface BundledFontFace {
-  weight: 400 | 700;
+  weight: 400 | 500 | 700 | 900;
   fileName: string;
   displayName: string;
   expectedSha256: LayoutDigest;
+  expectedBytes: number;
   expectedCmapDigest: LayoutDigest;
   expectedCodePointCount: number;
 }
@@ -50,6 +51,7 @@ const BUNDLED_FONT_FACES: readonly BundledFontFace[] = [
     fileName: "noto-sans-sc-chinese-simplified-400.woff2",
     displayName: "Noto Sans SC 受控常规体",
     expectedSha256: "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+    expectedBytes: 1_602_144,
     expectedCmapDigest: "sha256:f0aadbba133c9af21f940a346e61c5235bc9fe0197b7581b8ddfda5d48af19b3",
     expectedCodePointCount: 7898,
   },
@@ -58,6 +60,25 @@ const BUNDLED_FONT_FACES: readonly BundledFontFace[] = [
     fileName: "noto-sans-sc-chinese-simplified-700.woff2",
     displayName: "Noto Sans SC 受控粗体",
     expectedSha256: "sha256:989da46b79020196982ff943896843d69a8a16412a385b726b525dd626cf39f4",
+    expectedBytes: 1_662_964,
+    expectedCmapDigest: "sha256:f0aadbba133c9af21f940a346e61c5235bc9fe0197b7581b8ddfda5d48af19b3",
+    expectedCodePointCount: 7898,
+  },
+  {
+    weight: 500,
+    fileName: "noto-sans-sc-chinese-simplified-500.woff2",
+    displayName: "Noto Sans SC 受控中等体",
+    expectedSha256: "sha256:d9db1f2a8ff0722ed12cd13844350ae567f3ad772a8b85ac910fd1b4acc4af03",
+    expectedBytes: 1_611_904,
+    expectedCmapDigest: "sha256:f0aadbba133c9af21f940a346e61c5235bc9fe0197b7581b8ddfda5d48af19b3",
+    expectedCodePointCount: 7898,
+  },
+  {
+    weight: 900,
+    fileName: "noto-sans-sc-chinese-simplified-900.woff2",
+    displayName: "Noto Sans SC 受控特粗体",
+    expectedSha256: "sha256:e5a532a6d6216e7f0f6f7e7c36f8c1f6b581c7cdfcf60d6b0900cbcbe9b2da40",
+    expectedBytes: 1_691_204,
     expectedCmapDigest: "sha256:f0aadbba133c9af21f940a346e61c5235bc9fe0197b7581b8ddfda5d48af19b3",
     expectedCodePointCount: 7898,
   },
@@ -100,7 +121,7 @@ function bundledFontPath(face: BundledFontFace): string {
 }
 
 function inspectBundledFont(face: BundledFontFace, bytes: Buffer): LayoutFontAssetMetadataV1 {
-  if (sha256(bytes) !== face.expectedSha256) {
+  if (bytes.byteLength !== face.expectedBytes || sha256(bytes) !== face.expectedSha256) {
     fontError("LAYOUT_FONT_BUNDLE_DIGEST_MISMATCH", 500, { fileName: face.fileName });
   }
   let codePoints: number[];

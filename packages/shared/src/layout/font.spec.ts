@@ -88,6 +88,19 @@ describe("G5-M5 controlled fonts and deterministic text preflight", () => {
     });
   });
 
+  it("measures Noto CJK ellipsis and em dash with a full ideographic advance", () => {
+    expect(evaluateRichTextOverflowV1(richText("……"), { width: 30, height: 24 })).toMatchObject({
+      overflow: true,
+      required: 48,
+      firstOverflow: { paragraphIndex: 0, graphemeOffset: 1 },
+    });
+    expect(evaluateRichTextOverflowV1(richText("——"), { width: 30, height: 24 })).toMatchObject({
+      overflow: true,
+      required: 48,
+      firstOverflow: { paragraphIndex: 0, graphemeOffset: 1 },
+    });
+  });
+
   it("reports missing font, missing glyph, embedding and overflow as formal blockers", () => {
     const document: LayoutDocumentV1 = {
       schemaVersion: 1,

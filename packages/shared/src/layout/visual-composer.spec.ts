@@ -7,7 +7,11 @@ import {
   composeVisuallyGuidedLayoutV1,
   createLayoutImageAnalysisV1,
   LayoutDocumentCodecV2,
+  intersectPixelRectsV1,
+  pixelRectAreaV1,
+  projectCoverCropV1,
   projectLayoutDocumentV2ToV1,
+  projectNormalizedRectToCanvasV1,
   projectVisibleShotPlacementsV1,
   richTextPlainTextV1,
   type BalloonElementV1,
@@ -186,7 +190,19 @@ describe("Smart layout M3 visual candidates, scoring and bounded repair", () => 
     const fallback = composeVisuallyGuidedLayoutV1(timedOut);
     expect(fallback.report.analysisMode).toBe("rule_fallback");
     expect(fallback.report.issues.filter((issue) => issue.code === "visual_analysis_unavailable")).toHaveLength(8);
+    expect(fallback.report.issues.some((issue) => issue.code === "visual_protection_unverified")).toBe(true);
     expect(balloons(fallback.document).every((balloon) => balloon.tail.enabled === false)).toBe(true);
+    const fallbackPanels = new Map(fallback.document.canvases.flatMap((canvas) => canvas.elements.flatMap((element) => (
+      element.type === "panel_frame" && element.contentImage
+        ? [[element.contentImage.source.shotId, element] as const]
+        : []
+    ))));
+    expect(balloons(fallback.document).every((balloon) => {
+      const panel = balloon.sourceShotId ? fallbackPanels.get(balloon.sourceShotId) : undefined;
+      return panel
+        ? pixelRectAreaV1(intersectPixelRectsV1(balloon.transform, panel.transform)) === 0
+        : false;
+    })).toBe(true);
 
     const lowConfidence = inputFromFixture(sample, visual);
     const first = lowConfidence.visualEvidence[0]!;
@@ -199,6 +215,82 @@ describe("Smart layout M3 visual candidates, scoring and bounded repair", () => 
     expect(degraded.report.issues.some((issue) => issue.code === "visual_analysis_low_confidence" && issue.shotId === first.shotId)).toBe(true);
     expect(balloons(degraded.document).filter((balloon) => balloon.sourceShotId === first.shotId)
       .every((balloon) => balloon.tail.enabled === false)).toBe(true);
+  });
+
+  it("keeps every rule-fallback balloon outside its source panel", async () => {
+    const visual = await visualFixture();
+    for (const name of fixtureNames) {
+      const sample = await fixture(name);
+      const input = inputFromFixture(sample, visual);
+      input.visualEvidence = input.visualEvidence.map((entry) => ({ ...entry, analysis: null }));
+      const plan = composeVisuallyGuidedLayoutV1(input);
+      const panelByShot = new Map(plan.document.canvases.flatMap((canvas) => canvas.elements.flatMap((element) => (
+        element.type === "panel_frame" && element.contentImage
+          ? [[element.contentImage.source.shotId, element] as const]
+          : []
+      ))));
+      expect(balloons(plan.document).every((balloon) => {
+        const panel = balloon.sourceShotId ? panelByShot.get(balloon.sourceShotId) : undefined;
+        return panel
+          ? pixelRectAreaV1(intersectPixelRectsV1(balloon.transform, panel.transform)) === 0
+          : false;
+      }), name).toBe(true);
+      const collisions = plan.document.canvases.flatMap((canvas) => {
+        const visible = canvas.elements.filter((element): element is BalloonElementV1 => (
+          element.type === "balloon" && !element.hidden
+        ));
+        return visible.flatMap((balloon, index) => visible.slice(index + 1).flatMap((other) => {
+          const overlap = pixelRectAreaV1(intersectPixelRectsV1(balloon.transform, other.transform));
+          return overlap > 0 ? [{ canvasId: canvas.id, left: balloon.id, right: other.id, overlap }] : [];
+        }));
+      });
+      expect(collisions, `${name}:balloon_collision`).toEqual([]);
+    }
+  });
+
+  it("places vision balloons only outside panels or inside verified text-safe regions", async () => {
+    const visual = await visualFixture();
+    for (const name of fixtureNames) {
+      const sample = await fixture(name);
+      const plan = composeVisuallyGuidedLayoutV1(inputFromFixture(sample, visual));
+      const panelByShot = new Map(plan.document.canvases.flatMap((canvas) => canvas.elements.flatMap((element) => (
+        element.type === "panel_frame" && element.contentImage
+          ? [[element.contentImage.source.shotId, element] as const]
+          : []
+      ))));
+      const sourceByShot = new Map<string, any>(sample.inputs.sourceCatalog.items.map((source: any) => [
+        source.source.shotId,
+        source,
+      ]));
+      const analysisByShot = new Map(plan.analyses.map((entry) => [entry.shotId, entry.analysis]));
+      const safe = balloons(plan.document).every((balloon) => {
+        const shotId = balloon.sourceShotId;
+        const panel = shotId ? panelByShot.get(shotId) : undefined;
+        const source = shotId ? sourceByShot.get(shotId) : undefined;
+        const analysis = shotId ? analysisByShot.get(shotId) : undefined;
+        if (!panel || !source || !analysis) return false;
+        const overlap = intersectPixelRectsV1(balloon.transform, panel.transform);
+        if (pixelRectAreaV1(overlap) === 0) return true;
+        if (analysis.mode !== "vision") return false;
+        const projection = projectCoverCropV1({
+          frame: panel.transform,
+          sourceWidth: source.width,
+          sourceHeight: source.height,
+          crop: panel.contentImage!.crop,
+        });
+        return analysis.textSafeRegions.filter((region) => region.score >= 0.55).some((region) => {
+          const projected = intersectPixelRectsV1(
+            projectNormalizedRectToCanvasV1(region.box, projection),
+            panel.transform,
+          );
+          return overlap.x >= projected.x - 0.5
+            && overlap.y >= projected.y - 0.5
+            && overlap.x + overlap.width <= projected.x + projected.width + 0.5
+            && overlap.y + overlap.height <= projected.y + projected.height + 0.5;
+        });
+      });
+      expect(safe, name).toBe(true);
+    }
   });
 
   it("SML-VIS-003 preserves every high-confidence subject and face in the frozen multi-person page", async () => {

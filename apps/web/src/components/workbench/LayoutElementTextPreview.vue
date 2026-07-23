@@ -9,16 +9,17 @@
     >
       <path
         :d="balloonPath"
-        :fill="element.fillColor.slice(0, 7)"
-        :stroke="element.strokeColor.slice(0, 7)"
+        :fill="element.fillColor"
+        :stroke="element.strokeColor"
         :stroke-width="element.strokeWidth"
+        stroke-linejoin="round"
       />
     </svg>
     <div class="rich-text-preview" :style="containerStyle">
       <p
         v-for="(paragraph, paragraphIndex) in element.richText.paragraphs"
         :key="paragraphIndex"
-        :style="{ textAlign: paragraph.align, lineHeight: paragraph.lineHeight }"
+        :style="paragraphStyle(paragraph)"
       >
         <span
           v-for="(run, runIndex) in paragraph.runs"
@@ -37,7 +38,9 @@ import { computed } from "vue";
 import {
   createBalloonPathV1,
   layoutFontFamilyNameV1,
+  resolveLayoutBalloonVisualRoleV1,
   type BalloonElementV1,
+  type RichTextParagraphV1,
   type RichTextRunV1,
   type TextElementV1,
 } from "@airoaming/shared";
@@ -51,7 +54,7 @@ const props = defineProps<{
 
 const balloonPath = computed(() => props.element.type === "balloon"
   ? createBalloonPathV1({
-      kind: props.element.balloonKind,
+      kind: resolveLayoutBalloonVisualRoleV1(props.element),
       width: props.element.transform.width,
       height: props.element.transform.height,
       tail: props.element.tail,
@@ -75,9 +78,18 @@ function runStyle(run: RichTextRunV1) {
     fontSize: `${run.fontSize * props.scale}px`,
     fontWeight: run.fontWeight,
     fontStyle: run.fontStyle,
-    color: run.color.slice(0, 7),
+    color: run.color,
     letterSpacing: `${run.letterSpacing * props.scale}px`,
-    WebkitTextStroke: run.stroke ? `${run.stroke.width * props.scale}px ${run.stroke.color.slice(0, 7)}` : undefined,
+    WebkitTextStroke: run.stroke ? `${run.stroke.width * props.scale}px ${run.stroke.color}` : undefined,
+  };
+}
+
+function paragraphStyle(paragraph: RichTextParagraphV1) {
+  const maximumFontSize = Math.max(...paragraph.runs.map((run) => run.fontSize), 1);
+  return {
+    textAlign: paragraph.align,
+    lineHeight: paragraph.lineHeight,
+    fontSize: `${maximumFontSize * props.scale}px`,
   };
 }
 </script>

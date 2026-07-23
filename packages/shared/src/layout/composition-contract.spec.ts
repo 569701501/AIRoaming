@@ -202,6 +202,39 @@ describe("Smart layout M4 persistent composition contract", () => {
     })).toThrow(/does not match sourceProjection/);
   });
 
+  it("freezes the semantic typography preset and keeps legacy tasks readable", async () => {
+    const legacy = await initialTaskInput();
+    expect(legacy.source.typographyPreset).toMatchObject({
+      policyVersion: "layout_typography_preset_v1",
+      speech: { fontAssetId: legacy.source.fontPolicy.defaultFontAssetId, fontWeight: 400 },
+      shout: { fontAssetId: legacy.source.fontPolicy.defaultFontAssetId, fontWeight: 700 },
+    });
+
+    const typographyPreset = {
+      policyVersion: "layout_typography_preset_v1",
+      speech: { fontAssetId: "font_regular", fontWeight: 400, fontStyle: "normal" },
+      thought: { fontAssetId: "font_regular", fontWeight: 400, fontStyle: "normal" },
+      shout: { fontAssetId: "font_black", fontWeight: 900, fontStyle: "normal" },
+      caption: { fontAssetId: "font_medium", fontWeight: 500, fontStyle: "normal" },
+    } as const;
+    const source = { ...legacy.source, typographyPreset };
+    const policySetDigest = digestCanonicalJson({
+      policyVersion: "layout_composition_policy_set_digest_v1",
+      profile: source.profile,
+      fontPolicy: source.fontPolicy,
+      typographyPreset,
+      policy: source.policy,
+      intent: legacy.intent,
+      visualAnalysisProvider: source.visualAnalysisProvider,
+    });
+    const parsed = parseLayoutCompositionTaskInputV1({
+      ...legacy,
+      source,
+      policySetDigest,
+    });
+    expect(parsed.source.typographyPreset).toEqual(typographyPreset);
+  });
+
   it("emits one canonical initial V2 document and rejects mixed or sensitive output", async () => {
     const input = await initialTaskInput();
     const source = input.source;

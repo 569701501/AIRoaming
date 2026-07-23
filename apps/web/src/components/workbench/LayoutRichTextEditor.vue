@@ -37,7 +37,7 @@
         :key="paragraphKey(paragraph, paragraphIndex)"
         class="editor-paragraph"
         :data-paragraph-index="paragraphIndex"
-        :style="{ textAlign: paragraph.align, lineHeight: paragraph.lineHeight }"
+        :style="paragraphStyle(paragraph)"
       >
         <span
           v-for="(run, runIndex) in paragraph.runs"
@@ -77,8 +77,8 @@
     </div>
 
     <div class="style-actions">
-      <button type="button" :class="{ 'is-active': bold }" :disabled="disabled" @mousedown.prevent @click="bold = !bold">粗体</button>
-      <button type="button" :class="{ 'is-active': italic }" :disabled="disabled" @mousedown.prevent @click="italic = !italic">斜体</button>
+      <button type="button" :class="{ 'is-active': bold }" :disabled="disabled || !canToggleBold" @mousedown.prevent @click="toggleBold">粗体</button>
+      <button type="button" :class="{ 'is-active': italic }" :disabled="disabled || !canToggleItalic" @mousedown.prevent @click="toggleItalic">斜体</button>
       <button type="button" :disabled="disabled || selectionCollapsed" @mousedown.prevent @click="applySelectionStyle">应用到选区</button>
     </div>
 
@@ -126,6 +126,10 @@ const emit = defineEmits<{
   setParagraphStyle: [value: { paragraphIndexes: number[]; align: RichTextAlignV1; lineHeight: number }];
 }>();
 
+function firstRunFontAssetId(document: RichTextDocumentV1): string {
+  return document.paragraphs[0]?.runs[0]?.fontAssetId ?? "";
+}
+
 const editor = ref<HTMLElement | null>(null);
 const compositionActive = ref(false);
 let ignoreNextInput = false;
@@ -133,16 +137,31 @@ const selection = ref<RichTextRangeV1>({
   start: { paragraphIndex: 0, graphemeOffset: 0 },
   end: { paragraphIndex: 0, graphemeOffset: 0 },
 });
-const selectedFontAssetId = ref(props.fontCatalog[0]?.assetId ?? props.modelValue.paragraphs[0]?.runs[0]?.fontAssetId ?? "");
+const selectedFontAssetId = ref(props.modelValue.paragraphs[0]?.runs[0]?.fontAssetId ?? props.fontCatalog[0]?.assetId ?? "");
 const fontSize = ref(36);
 const letterSpacing = ref(0);
 const color = ref("#111827");
 const strokeWidth = ref(0);
 const strokeColor = ref("#FFFFFF");
-const bold = ref(false);
-const italic = ref(false);
 const lineHeight = ref(1.2);
 const textOrientation = ref(props.modelValue.textOrientation);
+const selectedFont = computed(() => props.fontCatalog.find((font) => font.assetId === selectedFontAssetId.value) ?? null);
+const bold = computed(() => (selectedFont.value?.metadata.face.weight ?? 400) >= 700);
+const italic = computed(() => selectedFont.value?.metadata.face.style === "italic");
+
+function matchingFace(weight: number, style: "normal" | "italic"): LayoutFontCatalogItemV1 | null {
+  const current = selectedFont.value;
+  if (!current) return null;
+  return props.fontCatalog.find((font) => font.metadata.familyName === current.metadata.familyName
+    && font.metadata.face.weight === weight
+    && font.metadata.face.style === style) ?? null;
+}
+
+const canToggleBold = computed(() => Boolean(matchingFace(bold.value ? 400 : 700, selectedFont.value?.metadata.face.style ?? "normal")));
+const canToggleItalic = computed(() => Boolean(matchingFace(
+  selectedFont.value?.metadata.face.weight ?? 400,
+  italic.value ? "normal" : "italic",
+)));
 
 const selectionCollapsed = computed(() => selection.value.start.paragraphIndex === selection.value.end.paragraphIndex
   && selection.value.start.graphemeOffset === selection.value.end.graphemeOffset);
@@ -152,22 +171,45 @@ const selectionSummary = computed(() => selectionCollapsed.value
 
 watch(() => props.fontCatalog, (catalog) => {
   if (!catalog.some((font) => font.assetId === selectedFontAssetId.value)) {
-    selectedFontAssetId.value = catalog[0]?.assetId ?? "";
+    const currentRunAssetId = firstRunFontAssetId(props.modelValue);
+    selectedFontAssetId.value = catalog.some((font) => font.assetId === currentRunAssetId)
+      ? currentRunAssetId
+      : catalog[0]?.assetId ?? "";
   }
 }, { immediate: true });
+
+watch(() => firstRunFontAssetId(props.modelValue), (assetId, previousAssetId) => {
+  if (assetId !== previousAssetId && props.fontCatalog.some((font) => font.assetId === assetId)) {
+    selectedFontAssetId.value = assetId;
+  }
+});
 
 watch(() => props.modelValue.textOrientation, (value) => { textOrientation.value = value; });
 
 function runStyle(run: RichTextRunV1) {
   const chain = [run.fontAssetId, ...props.fallbackFontAssetIds.filter((assetId) => assetId !== run.fontAssetId)];
+  const face = props.fontCatalog.find((font) => font.assetId === run.fontAssetId)?.metadata.face;
   return {
     fontFamily: chain.map((assetId) => `"${layoutFontFamilyNameV1(assetId)}"`).join(","),
     fontSize: `${Math.max(12, Math.min(36, run.fontSize / 2))}px`,
-    fontWeight: run.fontWeight,
-    fontStyle: run.fontStyle,
+    fontWeight: face?.weight ?? run.fontWeight,
+    fontStyle: face?.style ?? run.fontStyle,
+    fontSynthesis: "none",
     color: run.color.slice(0, 7),
     letterSpacing: `${Math.max(-4, Math.min(8, run.letterSpacing / 2))}px`,
     WebkitTextStroke: run.stroke ? `${Math.min(2, run.stroke.width / 2)}px ${run.stroke.color.slice(0, 7)}` : undefined,
+  };
+}
+
+function paragraphStyle(paragraph: RichTextParagraphV1) {
+  const maximumFontSize = Math.max(
+    ...paragraph.runs.map((run) => Math.max(12, Math.min(36, run.fontSize / 2))),
+    1,
+  );
+  return {
+    textAlign: paragraph.align,
+    lineHeight: paragraph.lineHeight,
+    fontSize: `${maximumFontSize}px`,
   };
 }
 
@@ -273,8 +315,6 @@ function captureSelection(): void {
   color.value = run.color.slice(0, 7);
   strokeWidth.value = run.stroke?.width ?? 0;
   strokeColor.value = run.stroke?.color.slice(0, 7) ?? "#FFFFFF";
-  bold.value = run.fontWeight >= 700;
-  italic.value = run.fontStyle === "italic";
 }
 
 function restoreCaret(flatOffset: number): void {
@@ -307,23 +347,29 @@ function restoreCaret(flatOffset: number): void {
   captureSelection();
 }
 
+function toggleBold(): void {
+  const face = matchingFace(bold.value ? 400 : 700, selectedFont.value?.metadata.face.style ?? "normal");
+  if (face) selectedFontAssetId.value = face.assetId;
+}
+
+function toggleItalic(): void {
+  const face = matchingFace(
+    selectedFont.value?.metadata.face.weight ?? 400,
+    italic.value ? "normal" : "italic",
+  );
+  if (face) selectedFontAssetId.value = face.assetId;
+}
+
 function applySelectionStyle(): void {
-  if (selectionCollapsed.value || !selectedFontAssetId.value) return;
-  const selectedFont = props.fontCatalog.find((font) => font.assetId === selectedFontAssetId.value);
-  let fontAssetId = selectedFontAssetId.value;
-  if (selectedFont) {
-    const matchingWeight = props.fontCatalog.find((font) => font.metadata.familyName === selectedFont.metadata.familyName
-      && font.metadata.face.weight === (bold.value ? 700 : 400)
-      && font.metadata.face.style === "normal");
-    if (matchingWeight) fontAssetId = matchingWeight.assetId;
-  }
+  const font = selectedFont.value;
+  if (selectionCollapsed.value || !font) return;
   emit("applyStyle", {
     ...selection.value,
     style: {
-      fontAssetId,
+      fontAssetId: font.assetId,
       fontSize: Math.max(6, Math.min(512, Number(fontSize.value) || 36)),
-      fontWeight: bold.value ? 700 : 400,
-      fontStyle: italic.value ? "italic" : "normal",
+      fontWeight: font.metadata.face.weight,
+      fontStyle: font.metadata.face.style,
       color: `${color.value.toUpperCase()}FF`,
       letterSpacing: Math.max(-64, Math.min(256, Number(letterSpacing.value) || 0)),
       stroke: strokeWidth.value > 0

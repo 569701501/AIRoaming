@@ -116,6 +116,53 @@ function transformRect(value: LayoutTransformV1): LayoutPixelRectV1 {
   return { x: value.x, y: value.y, width: value.width, height: value.height };
 }
 
+function laneAdjacent(
+  left: LayoutPixelRectV1,
+  right: LayoutPixelRectV1,
+  maximumGap = 72,
+): boolean {
+  const horizontalGap = Math.max(
+    0,
+    right.x - (left.x + left.width),
+    left.x - (right.x + right.width),
+  );
+  const verticalGap = Math.max(
+    0,
+    right.y - (left.y + left.height),
+    left.y - (right.y + right.height),
+  );
+  const alignedX = left.x + left.width >= right.x && left.x <= right.x + right.width;
+  const alignedY = left.y + left.height >= right.y && left.y <= right.y + right.height;
+  return (verticalGap <= maximumGap && alignedX) || (horizontalGap <= maximumGap && alignedY);
+}
+
+function linkedThroughBalloonStack(
+  balloonId: string,
+  shotId: string,
+  canvasId: string,
+  panelRect: LayoutPixelRectV1,
+  visibleBalloons: readonly { canvas: LayoutCanvasV1; balloon: BalloonElementV1 }[],
+): boolean {
+  const group = visibleBalloons.filter((entry) => (
+    entry.canvas.id === canvasId && entry.balloon.sourceShotId === shotId
+  ));
+  const start = group.find((entry) => entry.balloon.id === balloonId);
+  if (!start) return false;
+  const pending = [transformRect(start.balloon.transform)];
+  const remaining = group.filter((entry) => entry.balloon.id !== balloonId);
+  while (pending.length > 0) {
+    const current = pending.shift()!;
+    if (laneAdjacent(current, panelRect)) return true;
+    for (let index = remaining.length - 1; index >= 0; index -= 1) {
+      const candidate = transformRect(remaining[index]!.balloon.transform);
+      if (!laneAdjacent(current, candidate)) continue;
+      pending.push(candidate);
+      remaining.splice(index, 1);
+    }
+  }
+  return false;
+}
+
 function segmentCrossesRect(
   start: { x: number; y: number },
   end: { x: number; y: number },
@@ -253,6 +300,7 @@ function expectedMappedSubject(item: LayoutDialogueItemV1, analysis: LayoutImage
 function scorePanels(input: ScoreVisualLayoutCandidateInputV1): {
   panels: LayoutPanelQualityV1[];
   projectedSubjects: Array<{ canvasId: string; shotId: string; characterId: string | null; body: LayoutPixelRectV1; face: LayoutPixelRectV1 | null }>;
+  projectedFocalRegions: Array<{ canvasId: string; shotId: string; rect: LayoutPixelRectV1 }>;
 } {
   const panels = panelByShot(input.document);
   const sourceByShot = new Map(input.sources.map((source) => [source.source.shotId, source]));
@@ -296,6 +344,7 @@ function scorePanels(input: ScoreVisualLayoutCandidateInputV1): {
     pageRhythmByCanvas.set(canvas.id, countOk && occupiedRatio >= minimumOccupiedRatio);
   }
   const projectedSubjects: Array<{ canvasId: string; shotId: string; characterId: string | null; body: LayoutPixelRectV1; face: LayoutPixelRectV1 | null }> = [];
+  const projectedFocalRegions: Array<{ canvasId: string; shotId: string; rect: LayoutPixelRectV1 }> = [];
   const readingOkByShot = new Map<string, boolean>();
   for (const canvas of input.document.canvases) {
     let previousOrder = 0;
@@ -351,26 +400,40 @@ function scorePanels(input: ScoreVisualLayoutCandidateInputV1): {
       sourceHeight: source.height,
       crop: target.panel.contentImage.crop,
     });
+    const visualProtectionVerified = analysis.mode === "vision";
     const requiredSubjects = analysis.subjects.filter((subject) => subject.confidence >= 0.65 && subject.importance >= 0.45);
-    const bodyVisibility = requiredSubjects.length === 0
+    const bodyVisibility = !visualProtectionVerified
+      ? 0
+      : requiredSubjects.length === 0
       ? 1
       : Math.min(...requiredSubjects.map((subject) => normalizedVisibility(subject.bodyBox, projection.visibleSourceRect)));
     const faces = requiredSubjects.flatMap((subject) => subject.faceBox ? [subject.faceBox] : []);
-    const faceVisibility = faces.length === 0
+    const faceVisibility = !visualProtectionVerified
+      ? 0
+      : faces.length === 0
       ? 1
       : Math.min(...faces.map((face) => normalizedVisibility(face, projection.visibleSourceRect)));
-    const requiredFocalRegions = analysis.focalRegions.filter((region) => region.weight >= 0.7);
-    const focalVisibility = requiredFocalRegions.length === 0
+    const requiredFocalRegions = analysis.focalRegions.filter((region) => region.weight >= 0.65);
+    const focalVisibility = !visualProtectionVerified
+      ? 0
+      : requiredFocalRegions.length === 0
       ? 1
       : Math.min(...requiredFocalRegions.map((region) => (
           normalizedVisibility(region.box, projection.visibleSourceRect)
       )));
-    const cropOk = bodyVisibility >= 0.985 && faceVisibility >= 0.998 && focalVisibility >= 0.94;
-    if (!cropOk) issues.push(
-      focalVisibility < 0.94
-        ? "required_focal_region_cropped"
-        : "required_subject_or_face_cropped",
-    );
+    const cropOk = visualProtectionVerified
+      && bodyVisibility >= 0.985
+      && faceVisibility >= 0.998
+      && focalVisibility >= 0.94;
+    if (!visualProtectionVerified) {
+      issues.push("visual_protection_unverified");
+    } else if (!cropOk) {
+      issues.push(
+        focalVisibility < 0.94
+          ? "required_focal_region_cropped"
+          : "required_subject_or_face_cropped",
+      );
+    }
     for (const subject of requiredSubjects) {
       projectedSubjects.push({
         canvasId: target.canvas.id,
@@ -380,6 +443,16 @@ function scorePanels(input: ScoreVisualLayoutCandidateInputV1): {
         face: subject.faceBox
           ? intersectPixelRectsV1(projectNormalizedRectToCanvasV1(subject.faceBox, projection), panelRect)
           : null,
+      });
+    }
+    for (const focalRegion of requiredFocalRegions) {
+      projectedFocalRegions.push({
+        canvasId: target.canvas.id,
+        shotId: shot.id,
+        rect: intersectPixelRectsV1(
+          projectNormalizedRectToCanvasV1(focalRegion.box, projection),
+          panelRect,
+        ),
       });
     }
     return {
@@ -397,15 +470,17 @@ function scorePanels(input: ScoreVisualLayoutCandidateInputV1): {
       issues,
     };
   });
-  return { panels: quality, projectedSubjects };
+  return { panels: quality, projectedSubjects, projectedFocalRegions };
 }
 
 function scoreBalloons(
   input: ScoreVisualLayoutCandidateInputV1,
   panels: LayoutPanelQualityV1[],
   projectedSubjects: Array<{ canvasId: string; shotId: string; characterId: string | null; body: LayoutPixelRectV1; face: LayoutPixelRectV1 | null }>,
+  projectedFocalRegions: Array<{ canvasId: string; shotId: string; rect: LayoutPixelRectV1 }>,
 ): LayoutBalloonQualityV1[] {
   const panelTargets = panelByShot(input.document);
+  const sourceByShot = new Map(input.sources.map((source) => [source.source.shotId, source]));
   const analysisByShot = new Map(input.analyses.map((entry) => [entry.shotId, entry.analysis]));
   const itemById = new Map(input.dialogueLedger.items.map((item) => [item.id, item]));
   const balloonTargets = balloonsById(input.document);
@@ -426,6 +501,8 @@ function scoreBalloons(
     });
   }
   const result: LayoutBalloonQualityV1[] = [];
+  const subjectOccludedShotIds = new Set<string>();
+  const focalOccludedShotIds = new Set<string>();
 
   for (const binding of input.document.automation.dialogueBindings) {
     const item = itemById.get(binding.dialogueItemId);
@@ -438,6 +515,15 @@ function scoreBalloons(
     const panel = panelTargets.get(item.shotId)?.panel;
     const panelRect = panel ? transformRect(panel.transform) : null;
     const insideCanvas = containsRect(canvasRect, balloonRect);
+    const sourcePanelOverlap = panelRect
+      ? pixelRectAreaV1(intersectPixelRectsV1(balloonRect, panelRect))
+      : 0;
+    const otherPanels = [...panelTargets.values()].filter((targetPanel) => (
+      targetPanel.canvas.id === canvas.id && targetPanel.panel.id !== panel?.id
+    ));
+    const otherPanelOverlap = otherPanels.reduce((sum, targetPanel) => (
+      sum + pixelRectAreaV1(intersectPixelRectsV1(balloonRect, targetPanel.panel.transform))
+    ), 0);
     const anchoredNearPanel = panelRect
       ? (() => {
           const overlap = pixelRectAreaV1(intersectPixelRectsV1(balloonRect, panelRect));
@@ -450,22 +536,101 @@ function scoreBalloons(
             || (verticalGap <= 72 && alignedX);
         })()
       : false;
+    const linkedThroughClearLane = panelRect
+      ? (() => {
+          const overlapXStart = Math.max(balloonRect.x, panelRect.x);
+          const overlapXEnd = Math.min(
+            balloonRect.x + balloonRect.width,
+            panelRect.x + panelRect.width,
+          );
+          const overlapYStart = Math.max(balloonRect.y, panelRect.y);
+          const overlapYEnd = Math.min(
+            balloonRect.y + balloonRect.height,
+            panelRect.y + panelRect.height,
+          );
+          const verticalGap = Math.max(
+            0,
+            panelRect.y - (balloonRect.y + balloonRect.height),
+            balloonRect.y - (panelRect.y + panelRect.height),
+          );
+          const horizontalGap = Math.max(
+            0,
+            panelRect.x - (balloonRect.x + balloonRect.width),
+            balloonRect.x - (panelRect.x + panelRect.width),
+          );
+          const verticalCorridor = overlapXEnd > overlapXStart
+            && verticalGap <= canvas.width * 1.5
+            ? {
+                x: overlapXStart,
+                y: Math.min(
+                  balloonRect.y + balloonRect.height,
+                  panelRect.y + panelRect.height,
+                ),
+                width: overlapXEnd - overlapXStart,
+                height: verticalGap,
+              }
+            : null;
+          const horizontalCorridor = overlapYEnd > overlapYStart
+            && horizontalGap <= canvas.width * 0.5
+            ? {
+                x: Math.min(
+                  balloonRect.x + balloonRect.width,
+                  panelRect.x + panelRect.width,
+                ),
+                y: overlapYStart,
+                width: horizontalGap,
+                height: overlapYEnd - overlapYStart,
+              }
+            : null;
+          return [verticalCorridor, horizontalCorridor].some((corridor) => (
+            corridor !== null
+            && otherPanels.every((other) => (
+              pixelRectAreaV1(intersectPixelRectsV1(corridor, other.panel.transform)) < 1
+            ))
+          ));
+        })()
+      : false;
+    const linkedThroughStack = panelRect
+      ? linkedThroughBalloonStack(balloon.id, item.shotId, canvas.id, panelRect, visibleBalloons)
+      : false;
     const relevantSubjects = projectedSubjects.filter((subject) => subject.canvasId === canvas.id);
     const faceOverlap = relevantSubjects.reduce((sum, subject) => (
       sum + (subject.face ? pixelRectAreaV1(intersectPixelRectsV1(balloonRect, subject.face)) : 0)
     ), 0);
-    const bodyOverlapRatio = relevantSubjects.reduce((sum, subject) => (
+    const bodyOverlapArea = relevantSubjects.reduce((sum, subject) => (
       sum + pixelRectAreaV1(intersectPixelRectsV1(balloonRect, subject.body))
-    ), 0) / Math.max(1, pixelRectAreaV1(balloonRect));
+    ), 0);
+    const relevantFocalRegions = projectedFocalRegions.filter((region) => region.canvasId === canvas.id);
+    const focalOverlap = relevantFocalRegions.reduce((sum, region) => (
+      sum + pixelRectAreaV1(intersectPixelRectsV1(balloonRect, region.rect))
+    ), 0);
     const balloonCollision = visibleBalloons.some((other) => {
       if (other.balloon.id === balloon.id || other.canvas.id !== canvas.id) return false;
       const overlap = pixelRectAreaV1(intersectPixelRectsV1(balloonRect, transformRect(other.balloon.transform)));
-      return overlap / Math.max(1, Math.min(pixelRectAreaV1(balloonRect), pixelRectAreaV1(transformRect(other.balloon.transform)))) > 0.08;
+      return overlap >= 1;
     });
     if (!insideCanvas) issues.push("balloon_outside_canvas");
+    if (otherPanelOverlap >= 1) issues.push("balloon_overlaps_other_panel");
     if (faceOverlap >= 1) issues.push("balloon_overlaps_face");
-    if (bodyOverlapRatio > 0.12) issues.push("balloon_overlaps_subject");
+    if (bodyOverlapArea >= 1) issues.push("balloon_overlaps_subject");
+    if (focalOverlap >= 1) issues.push("balloon_overlaps_focal_region");
     if (balloonCollision) issues.push("balloon_collision");
+    if (faceOverlap >= 1 || bodyOverlapArea >= 1) {
+      for (const subject of relevantSubjects) {
+        const overlapsFace = subject.face
+          ? pixelRectAreaV1(intersectPixelRectsV1(balloonRect, subject.face)) >= 1
+          : false;
+        const overlapsBody = pixelRectAreaV1(intersectPixelRectsV1(balloonRect, subject.body)) >= 1;
+        if (overlapsFace || overlapsBody) subjectOccludedShotIds.add(subject.shotId);
+      }
+    }
+    if (focalOverlap >= 1) {
+      for (const region of relevantFocalRegions) {
+        if (pixelRectAreaV1(intersectPixelRectsV1(balloonRect, region.rect)) >= 1) {
+          focalOccludedShotIds.add(region.shotId);
+        }
+      }
+    }
 
     const balloonTypeOk = balloon.balloonKind === item.kind;
     if (!balloonTypeOk) issues.push("balloon_type_mismatch");
@@ -485,6 +650,34 @@ function scoreBalloons(
     if (!shapeSafeOk) issues.push("shape_safe_padding_insufficient");
 
     const analysis = analysisByShot.get(item.shotId);
+    const fallbackExternalOk = analysis?.mode !== "rule_fallback" || sourcePanelOverlap < 1;
+    const fallbackTailOk = analysis?.mode !== "rule_fallback" || balloon.tail.enabled === false;
+    const source = sourceByShot.get(item.shotId);
+    const panelTarget = panelTargets.get(item.shotId);
+    const insideVerifiedSafeRegion = analysis?.mode === "vision"
+      && !!source
+      && !!panelTarget?.panel.contentImage
+      && analysis.textSafeRegions
+        .filter((region) => region.score >= 0.55)
+        .some((region) => {
+          const projection = projectCoverCropV1({
+            frame: panelTarget.panel.transform,
+            sourceWidth: source.width,
+            sourceHeight: source.height,
+            crop: panelTarget.panel.contentImage!.crop,
+          });
+          const safeRect = intersectPixelRectsV1(
+            projectNormalizedRectToCanvasV1(region.box, projection),
+            panelTarget.panel.transform,
+          );
+          return containsRect(safeRect, balloonRect, 0.5);
+        });
+    const visionSafeRegionOk = analysis?.mode !== "vision"
+      || sourcePanelOverlap < 1
+      || insideVerifiedSafeRegion;
+    if (!fallbackExternalOk) issues.push("fallback_balloon_must_be_external");
+    if (!fallbackTailOk) issues.push("fallback_tail_must_be_disabled");
+    if (!visionSafeRegionOk) issues.push("balloon_outside_verified_safe_region");
     const mapped = analysis ? expectedMappedSubject(item, analysis) : false;
     let tailOk: boolean;
     let crossesFace = false;
@@ -537,12 +730,20 @@ function scoreBalloons(
     if (crossesOtherBalloon) issues.push("tail_crosses_other_balloon");
     if (crossesOtherTail) issues.push("tail_crosses_other_tail");
     if (!tailOk) issues.push("tail_semantics_invalid");
-    const linkedToPanel = anchoredNearPanel || (balloon.tail.enabled && tailOk);
+    const linkedToPanel = anchoredNearPanel
+      || linkedThroughClearLane
+      || linkedThroughStack
+      || (balloon.tail.enabled && tailOk);
     const balloonGeometryOk = insideCanvas
       && linkedToPanel
       && faceOverlap < 1
-      && bodyOverlapRatio <= 0.12
-      && !balloonCollision;
+      && bodyOverlapArea < 1
+      && focalOverlap < 1
+      && otherPanelOverlap < 1
+      && !balloonCollision
+      && fallbackExternalOk
+      && fallbackTailOk
+      && visionSafeRegionOk;
     if (!linkedToPanel) issues.push("balloon_detached_from_source_panel");
     result.push({
       dialogueItemId: item.id,
@@ -559,12 +760,12 @@ function scoreBalloons(
     });
   }
 
-  const occludedShots = new Set(result.filter((balloon) => (
-    balloon.issues.includes("balloon_overlaps_face") || balloon.issues.includes("balloon_overlaps_subject")
-  )).map((balloon) => balloon.shotId));
   for (const panel of panels) {
-    panel.subjectOcclusionOk = !occludedShots.has(panel.shotId);
-    if (!panel.subjectOcclusionOk) panel.issues.push("subject_occluded_by_balloon");
+    const subjectOccluded = subjectOccludedShotIds.has(panel.shotId);
+    const focalOccluded = focalOccludedShotIds.has(panel.shotId);
+    panel.subjectOcclusionOk = !subjectOccluded && !focalOccluded;
+    if (subjectOccluded) panel.issues.push("subject_occluded_by_balloon");
+    if (focalOccluded) panel.issues.push("focal_region_occluded_by_balloon");
     panel.directUsable = panel.layoutOk && panel.cropOk && panel.readingOrderOk && panel.subjectOcclusionOk;
   }
   return result;
@@ -582,7 +783,12 @@ export function scoreVisualLayoutCandidateV1(
   input: ScoreVisualLayoutCandidateInputV1,
 ): LayoutCompositionQualityScoreV1 {
   const panelResult = scorePanels(input);
-  const balloons = scoreBalloons(input, panelResult.panels, panelResult.projectedSubjects);
+  const balloons = scoreBalloons(
+    input,
+    panelResult.panels,
+    panelResult.projectedSubjects,
+    panelResult.projectedFocalRegions,
+  );
   const panelRate = ratio(panelResult.panels.filter((item) => item.directUsable).length, panelResult.panels.length);
   const balloonRate = ratio(balloons.filter((item) => item.directUsable).length, balloons.length);
   const textAndTypeRate = ratio(balloons.filter((item) => item.textFitOk && item.balloonTypeOk).length, balloons.length);
@@ -613,16 +819,24 @@ export function scoreVisualLayoutCandidateV1(
   } satisfies LayoutCompositionScoreDimensionsV1;
   const issues = [
     ...panelResult.panels.flatMap((panel) => panel.issues.map((issue) => `${panel.shotId}:${issue}`)),
-    ...balloons.flatMap((balloon) => balloon.issues.map((issue) => `${balloon.dialogueItemId}:${issue}`)),
+    ...balloons.flatMap((balloon) => balloon.issues.map((issue) => (
+      `${balloon.shotId}:${balloon.dialogueItemId}:${issue}`
+    ))),
   ];
+  const analysisModeByShot = new Map(input.analyses.map((entry) => [entry.shotId, entry.analysis.mode]));
   return {
     policyVersion: "layout_composition_score_v1",
     total: roundScore(Object.values(dimensions).reduce((sum, value) => sum + value, 0)),
     dimensions,
     hardGatePassed: panelResult.panels.length === input.storyboard.shots.length
       && balloons.length === input.dialogueLedger.items.length
-      && panelResult.panels.every((panel) => panel.geometryOk && panel.readingOrderOk)
-      && balloons.every((balloon) => balloon.textFitOk && balloon.balloonTypeOk),
+      && panelResult.panels.every((panel) => (
+        panel.geometryOk
+        && panel.readingOrderOk
+        && panel.subjectOcclusionOk
+        && (analysisModeByShot.get(panel.shotId) === "rule_fallback" || panel.cropOk)
+      ))
+      && balloons.every((balloon) => balloon.directUsable),
     panelDirectUsableRate: roundScore(panelRate),
     balloonDirectUsableRate: roundScore(balloonRate),
     panels: panelResult.panels,

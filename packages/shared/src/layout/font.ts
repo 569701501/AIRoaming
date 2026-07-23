@@ -192,7 +192,15 @@ export interface LayoutTextOverflowResultV1 {
 
 function graphemeAdvance(grapheme: string, run: RichTextRunV1): number {
   const first = grapheme.codePointAt(0) ?? 0;
-  const wide = first >= 0x2e80 || first > 0xffff;
+  // Noto CJK renders these East-Asian ambiguous punctuation marks at a full
+  // ideographic advance. Treating them as Latin punctuation underestimates
+  // lines such as “……林夏——” and can make browser/PDF output wrap once more
+  // than the deterministic preflight predicts.
+  const cjkAmbiguousPunctuation = first === 0x2014
+    || first === 0x2015
+    || first === 0x2025
+    || first === 0x2026;
+  const wide = first >= 0x2e80 || first > 0xffff || cjkAmbiguousPunctuation;
   return Math.max(0.01, run.fontSize * (wide ? 1 : 0.6) + run.letterSpacing);
 }
 
