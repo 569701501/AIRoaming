@@ -50,23 +50,74 @@ function circlePath(cx: number, cy: number, radius: number): string {
   return `M${point(cx + radius, cy)} A${point(radius, radius)} 0 1 0 ${point(cx - radius, cy)} A${point(radius, radius)} 0 1 0 ${point(cx + radius, cy)} Z`;
 }
 
+export type BalloonTailSideV1 = "top" | "right" | "bottom" | "left";
+
+export interface BalloonTailRootV1 {
+  x: number;
+  y: number;
+  side: BalloonTailSideV1;
+}
+
+function tailSide(width: number, height: number, targetX: number, targetY: number): BalloonTailSideV1 {
+  // Pick the edge that faces the target from the balloon centre. Comparing the
+  // normalised direction avoids a diagonal target above-left being attached to
+  // the left edge merely because it is a few pixels closer to that boundary.
+  const horizontal = (targetX - width / 2) / Math.max(1, width / 2);
+  const vertical = (targetY - height / 2) / Math.max(1, height / 2);
+  if (Math.abs(horizontal) > Math.abs(vertical)) return horizontal < 0 ? "left" : "right";
+  return vertical < 0 ? "top" : "bottom";
+}
+
+export function balloonTailRootRatioForTargetV1(input: {
+  width: number;
+  height: number;
+  targetX: number;
+  targetY: number;
+}): number {
+  const side = tailSide(input.width, input.height, input.targetX, input.targetY);
+  const ratio = side === "left" || side === "right"
+    ? input.targetY / input.height
+    : input.targetX / input.width;
+  return normalizeLayoutNumber(Math.max(0.12, Math.min(0.87, ratio)));
+}
+
+export function resolveBalloonTailRootV1(
+  width: number,
+  height: number,
+  tail: BalloonTailV1,
+): BalloonTailRootV1 {
+  const side = tailSide(width, height, tail.targetX, tail.targetY);
+  const ratio = Math.max(0.08, Math.min(0.92, tail.rootRatio));
+  if (side === "top") return { x: width * ratio, y: height * 0.08, side };
+  if (side === "bottom") return { x: width * ratio, y: height * 0.92, side };
+  if (side === "left") return { x: width * 0.08, y: height * ratio, side };
+  return { x: width * 0.92, y: height * ratio, side };
+}
+
 function appendThoughtTail(path: string, width: number, height: number, tail: BalloonTailV1): string {
   if (!tail.enabled) return path;
-  const rootX = Math.max(0, Math.min(width, width * tail.rootRatio));
-  const rootY = height * 0.86;
-  const dx = tail.targetX - rootX;
-  const dy = tail.targetY - rootY;
+  const root = resolveBalloonTailRootV1(width, height, tail);
+  const dx = tail.targetX - root.x;
+  const dy = tail.targetY - root.y;
   const firstRadius = Math.max(4, tail.baseWidth * 0.28);
   const secondRadius = Math.max(3, tail.baseWidth * 0.17);
-  return `${path} ${circlePath(rootX + dx * 0.34, rootY + dy * 0.34, firstRadius)} ${circlePath(rootX + dx * 0.67, rootY + dy * 0.67, secondRadius)}`;
+  return `${path} ${circlePath(root.x + dx * 0.34, root.y + dy * 0.34, firstRadius)} ${circlePath(root.x + dx * 0.67, root.y + dy * 0.67, secondRadius)}`;
 }
 
 function appendTail(path: string, width: number, height: number, tail: BalloonTailV1): string {
   if (!tail.enabled) return path;
-  const rootX = Math.max(0, Math.min(width, width * tail.rootRatio));
+  const root = resolveBalloonTailRootV1(width, height, tail);
   const half = tail.baseWidth / 2;
-  const body = path.slice(0, -1);
-  return `${body} M${point(rootX - half, height * 0.92)} Q${point(rootX, height)} ${point(tail.targetX, tail.targetY)} Q${point(rootX, height)} ${point(rootX + half, height * 0.92)} Z`;
+  if (root.side === "top") {
+    return `${path} M${point(root.x - half, root.y)} Q${point(root.x, 0)} ${point(tail.targetX, tail.targetY)} Q${point(root.x, 0)} ${point(root.x + half, root.y)} Z`;
+  }
+  if (root.side === "bottom") {
+    return `${path} M${point(root.x - half, root.y)} Q${point(root.x, height)} ${point(tail.targetX, tail.targetY)} Q${point(root.x, height)} ${point(root.x + half, root.y)} Z`;
+  }
+  if (root.side === "left") {
+    return `${path} M${point(root.x, root.y - half)} Q${point(0, root.y)} ${point(tail.targetX, tail.targetY)} Q${point(0, root.y)} ${point(root.x, root.y + half)} Z`;
+  }
+  return `${path} M${point(root.x, root.y - half)} Q${point(width, root.y)} ${point(tail.targetX, tail.targetY)} Q${point(width, root.y)} ${point(root.x, root.y + half)} Z`;
 }
 
 export interface BalloonPathInputV1 {

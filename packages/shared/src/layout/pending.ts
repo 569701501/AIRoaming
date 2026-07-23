@@ -4,6 +4,16 @@ import {
   type EditorCommandBatchV1,
 } from "./commands.js";
 import { LayoutDocumentCodecV1 } from "./codec.js";
+import {
+  LayoutDocumentCodecV2,
+  projectLayoutDocumentV2ToV1,
+  type LayoutDocumentV2,
+} from "./automation.js";
+import {
+  applyLayoutCommandBatchV2,
+  parseEditorCommandBatchV2,
+  type EditorCommandBatchV2,
+} from "./commands-v2.js";
 import { projectLayoutSourceBindings } from "./digest.js";
 import { digestCanonicalJson } from "../versioning/canonical-json.js";
 import type { LayoutDigest, LayoutDocumentV1 } from "./document.js";
@@ -66,6 +76,56 @@ export interface DiscardPendingEditorCommandResponseV1 {
   status: "discarded";
 }
 
+export interface PendingEditorCommandSetV2 {
+  schemaVersion: 2;
+  workingCopyId: string;
+  expectedRowVersion: number;
+  baseDocumentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest | null;
+  selectionElementIds: string[];
+  summary: string;
+  changedElementIds: string[];
+  warnings: string[];
+  commandBatch: EditorCommandBatchV2;
+  resultDocumentDigest: LayoutDigest;
+}
+
+export interface BuiltPendingEditorCommandSetV2 extends PendingEditorCommandSetV2 {
+  resultDocument: LayoutDocumentV2;
+}
+
+export interface PendingEditorCommandPreviewV2 {
+  schemaVersion: 2;
+  id: string;
+  status: "pending";
+  payload: PendingEditorCommandSetV2;
+  resultDocument: LayoutDocumentV2;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplyPendingEditorCommandResponseV2 {
+  schemaVersion: 2;
+  pendingId: string;
+  appliedBatch: EditorCommandBatchV2;
+  previousDocument: LayoutDocumentV2;
+  workingCopy: LayoutWorkingCopyResponseV1;
+}
+
+export type PendingEditorCommandSetV1OrV2 =
+  | PendingEditorCommandSetV1
+  | PendingEditorCommandSetV2;
+export type PendingEditorCommandPreviewV1OrV2 =
+  | PendingEditorCommandPreviewV1
+  | PendingEditorCommandPreviewV2;
+export interface PendingEditorCommandCurrentResponseV1OrV2 {
+  schemaVersion: 1;
+  item: PendingEditorCommandPreviewV1OrV2 | null;
+}
+export type ApplyPendingEditorCommandResponseV1OrV2 =
+  | ApplyPendingEditorCommandResponseV1
+  | ApplyPendingEditorCommandResponseV2;
+
 export class PendingEditorCommandContractError extends Error {
   readonly code = "LAYOUT_PENDING_COMMAND_INVALID" as const;
 
@@ -81,6 +141,16 @@ export function pendingEditorSourceProjectionUnchangedV1(
 ): boolean {
   return digestCanonicalJson(projectLayoutSourceBindings(before))
     === digestCanonicalJson(projectLayoutSourceBindings(after));
+}
+
+export function pendingEditorSourceProjectionUnchangedV2(
+  before: LayoutDocumentV2,
+  after: LayoutDocumentV2,
+): boolean {
+  return pendingEditorSourceProjectionUnchangedV1(
+    projectLayoutDocumentV2ToV1(before),
+    projectLayoutDocumentV2ToV1(after),
+  );
 }
 
 function fail(path: string, message: string): never {
@@ -209,6 +279,68 @@ export function buildPendingEditorCommandSetV1(input: {
   const resultDocument = LayoutDocumentCodecV1.encode(result.document);
   const payload = parsePendingEditorCommandSetV1({
     schemaVersion: 1,
+    workingCopyId: input.workingCopyId,
+    expectedRowVersion: input.expectedRowVersion,
+    baseDocumentDigest: input.baseDocumentDigest,
+    sourceLockSetDigest: input.sourceLockSetDigest,
+    selectionElementIds: [...input.selectionElementIds],
+    summary: input.summary,
+    changedElementIds: result.changedElementIds,
+    warnings: [...input.warnings],
+    commandBatch,
+    resultDocumentDigest: resultDocument.digest,
+  });
+  return { ...payload, resultDocument: resultDocument.value };
+}
+
+export function parsePendingEditorCommandSetV2(input: unknown): PendingEditorCommandSetV2 {
+  const row = exact(input, [
+    "schemaVersion",
+    "workingCopyId",
+    "expectedRowVersion",
+    "baseDocumentDigest",
+    "sourceLockSetDigest",
+    "selectionElementIds",
+    "summary",
+    "changedElementIds",
+    "warnings",
+    "commandBatch",
+    "resultDocumentDigest",
+  ], "pending");
+  if (row.schemaVersion !== 2) fail("pending.schemaVersion", "expected 2");
+  return {
+    schemaVersion: 2,
+    workingCopyId: id(row.workingCopyId, "pending.workingCopyId"),
+    expectedRowVersion: integer(row.expectedRowVersion, "pending.expectedRowVersion"),
+    baseDocumentDigest: digest(row.baseDocumentDigest, "pending.baseDocumentDigest"),
+    sourceLockSetDigest: nullableDigest(row.sourceLockSetDigest, "pending.sourceLockSetDigest"),
+    selectionElementIds: stringArray(row.selectionElementIds, "pending.selectionElementIds", 500, 200),
+    summary: text(row.summary, "pending.summary", 2_000),
+    changedElementIds: stringArray(row.changedElementIds, "pending.changedElementIds", 5_000, 200),
+    warnings: stringArray(row.warnings, "pending.warnings", 100, 1_000),
+    commandBatch: parseEditorCommandBatchV2(row.commandBatch),
+    resultDocumentDigest: digest(row.resultDocumentDigest, "pending.resultDocumentDigest"),
+  };
+}
+
+export function buildPendingEditorCommandSetV2(input: {
+  workingCopyId: string;
+  expectedRowVersion: number;
+  baseDocumentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest | null;
+  selectionElementIds: readonly string[];
+  summary: string;
+  warnings: readonly string[];
+  commandBatch: EditorCommandBatchV2;
+  document: LayoutDocumentV2;
+}): BuiltPendingEditorCommandSetV2 {
+  const encoded = LayoutDocumentCodecV2.encode(input.document);
+  if (encoded.digest !== input.baseDocumentDigest) fail("input.baseDocumentDigest", "does not match document");
+  const commandBatch = parseEditorCommandBatchV2(input.commandBatch);
+  const result = applyLayoutCommandBatchV2(encoded.value, commandBatch);
+  const resultDocument = LayoutDocumentCodecV2.encode(result.document);
+  const payload = parsePendingEditorCommandSetV2({
+    schemaVersion: 2,
     workingCopyId: input.workingCopyId,
     expectedRowVersion: input.expectedRowVersion,
     baseDocumentDigest: input.baseDocumentDigest,

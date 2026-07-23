@@ -1,0 +1,682 @@
+{
+  "schemaVersion": 1,
+  "kind": "smart_layout_m0_corpus_v1",
+  "sourceDate": "2026-07-22T00:00:00.000Z",
+  "groupCount": 10,
+  "runnableVariantCount": 12,
+  "groups": [
+    {
+      "groupId": "FIX-V01",
+      "title": "条漫单人独白",
+      "variantIds": [
+        "fix-v01-vertical"
+      ]
+    },
+    {
+      "groupId": "FIX-V02",
+      "title": "条漫双人连续对话",
+      "variantIds": [
+        "fix-v02-vertical"
+      ]
+    },
+    {
+      "groupId": "FIX-V03",
+      "title": "条漫动作高潮",
+      "variantIds": [
+        "fix-v03-vertical"
+      ]
+    },
+    {
+      "groupId": "FIX-V04",
+      "title": "条漫多场景转场",
+      "variantIds": [
+        "fix-v04-vertical"
+      ]
+    },
+    {
+      "groupId": "FIX-P01",
+      "title": "页漫双人对话",
+      "variantIds": [
+        "fix-p01-paged"
+      ]
+    },
+    {
+      "groupId": "FIX-P02",
+      "title": "页漫多人对话",
+      "variantIds": [
+        "fix-p02-paged"
+      ]
+    },
+    {
+      "groupId": "FIX-P03",
+      "title": "页漫动作与细节",
+      "variantIds": [
+        "fix-p03-paged"
+      ]
+    },
+    {
+      "groupId": "FIX-P04",
+      "title": "页漫长对白与旁白",
+      "variantIds": [
+        "fix-p04-paged"
+      ]
+    },
+    {
+      "groupId": "FIX-X01",
+      "title": "两种格式的无对白章节",
+      "variantIds": [
+        "fix-x01-vertical",
+        "fix-x01-paged"
+      ]
+    },
+    {
+      "groupId": "FIX-X02",
+      "title": "两种格式的来源更新",
+      "variantIds": [
+        "fix-x02-vertical",
+        "fix-x02-paged"
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "groupId": "FIX-V01",
+      "variantId": "fix-v01-vertical",
+      "title": "雨夜屋顶的单人独白",
+      "comicFormat": "vertical_scroll",
+      "path": "fixtures/fix-v01-vertical.json",
+      "fixtureDigest": "sha256:a4f4cf6ba5c184e205da16db9a90c6e9eb9b86cbc05adbcd8cb81bbbf92d4c74",
+      "storyboardDigest": "sha256:a6035c6c41563f9282a5ec7e6d7f7d00b42400129e42d1f0a1ddf23435d1d39b",
+      "sourceLockSetDigest": "sha256:17509a662ddf580e03b4378e226d722dcf39c80c47ca7885afa3a15cb713be99",
+      "layoutDocumentDigest": "sha256:b2a043692e24e9a5750f7bf66a02fa61d7e5047194ea9dc38e65aad09e450476",
+      "shotCount": 6,
+      "dialogueOrCaptionItemCount": 6,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-V02",
+      "variantId": "fix-v02-vertical",
+      "title": "便利店里的交替追问",
+      "comicFormat": "vertical_scroll",
+      "path": "fixtures/fix-v02-vertical.json",
+      "fixtureDigest": "sha256:883538b8a605830c423bbeb16f1778371ab1962074c61d1f7d6558b2f8e815bc",
+      "storyboardDigest": "sha256:f2f362b23662b812eee9438d0b22610e4afacfd346853e109c550d0d756554f2",
+      "sourceLockSetDigest": "sha256:99bd1a70c6131a82319c365d37495841032711daee2829fcc417288a01503056",
+      "layoutDocumentDigest": "sha256:97cc31c814e0592385dd1b617b693ae2a457ba3b73632d9032ded6ea1d0d9568",
+      "shotCount": 8,
+      "dialogueOrCaptionItemCount": 8,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-V03",
+      "variantId": "fix-v03-vertical",
+      "title": "旧港追逐与坠落",
+      "comicFormat": "vertical_scroll",
+      "path": "fixtures/fix-v03-vertical.json",
+      "fixtureDigest": "sha256:d640bc0ea708a6e1b73873d4fb052a321120396226d36832e1aae85e2c5db01c",
+      "storyboardDigest": "sha256:e3819effdf979334bbab93cd2bfc9fc094e18305a76e532c05c7d0af07239ea5",
+      "sourceLockSetDigest": "sha256:ceb13aebc91a3d762775a08133f1e614aa0729d0975a392ef8f9f5191b6be301",
+      "layoutDocumentDigest": "sha256:602214f26001558d360faa6c14cac7a8058c9c79c155cab4858476523b75505a",
+      "shotCount": 7,
+      "dialogueOrCaptionItemCount": 5,
+      "currentPanelDirectUsableRate": 0.2857142857142857,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-V04",
+      "variantId": "fix-v04-vertical",
+      "title": "三处地点的并行线索",
+      "comicFormat": "vertical_scroll",
+      "path": "fixtures/fix-v04-vertical.json",
+      "fixtureDigest": "sha256:2e1a381921fc33014ef4a88d10b0ddef4ffe2cb287fa2a0d82b30ce27ea879e2",
+      "storyboardDigest": "sha256:4748dfaea0040065bb4872abcbc3dec75c11f111cd2a3f65680b04e528489d2a",
+      "sourceLockSetDigest": "sha256:9249120d31c41ced3ee053a9f5f252a3fc18d70265f41c4413d8f66c8d1aa811",
+      "layoutDocumentDigest": "sha256:deb7fec5ba74e3c85f85edc87502c49b0ff6974cbc1333f7febfb7121034c258",
+      "shotCount": 8,
+      "dialogueOrCaptionItemCount": 8,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-P01",
+      "variantId": "fix-p01-paged",
+      "title": "审讯室里的三轮交锋",
+      "comicFormat": "paged_comic",
+      "path": "fixtures/fix-p01-paged.json",
+      "fixtureDigest": "sha256:0bcd465569ff02787af6b7faf7495e061f035363175112f8b638c342d9dc817b",
+      "storyboardDigest": "sha256:443241de561b745eb565dea70e823be1bcdb89267a41e3182ad1c28d03d82f8a",
+      "sourceLockSetDigest": "sha256:d38d590be9b43cc059c4b7686a7336c34003abab9ccba05f179d3bcf59c02791",
+      "layoutDocumentDigest": "sha256:bcf811af0cc044907f2eef5e23dbd930f368bdb6446e7c92fadeebb880161095",
+      "shotCount": 6,
+      "dialogueOrCaptionItemCount": 6,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-P02",
+      "variantId": "fix-p02-paged",
+      "title": "仓库里的多人争执",
+      "comicFormat": "paged_comic",
+      "path": "fixtures/fix-p02-paged.json",
+      "fixtureDigest": "sha256:2b8dd00a335213978baed700de092dda13f1431ef77fe0961002345f75bcbf9f",
+      "storyboardDigest": "sha256:e277316459a4b0554f3581170bc94e3a71ade820b7b6450bd2387c5596347d6d",
+      "sourceLockSetDigest": "sha256:4a7d69c82673246cbfc68537fb0bd0ebf4036b654cee1a744dd26f8703355546",
+      "layoutDocumentDigest": "sha256:24bf6ede9d9f987dcf024e6de6115901fb0a22520e37ac0cab9d1fe6d90ccbb9",
+      "shotCount": 5,
+      "dialogueOrCaptionItemCount": 7,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-P03",
+      "variantId": "fix-p03-paged",
+      "title": "仓库爆破前后的动作页",
+      "comicFormat": "paged_comic",
+      "path": "fixtures/fix-p03-paged.json",
+      "fixtureDigest": "sha256:be5593a83e288986c6f42fe1f511d8bd831bf6a839ee1f4159b8f8c22ead15d9",
+      "storyboardDigest": "sha256:3a9f64e8ab8a0c9444f4c71e06e41a06a5d6ed4d5d8b91c5946c9639fefd22a7",
+      "sourceLockSetDigest": "sha256:cb5b5df943d0e44d16f79edc3c01108263aa4807ff11897d6ff8752f1ecac4e2",
+      "layoutDocumentDigest": "sha256:0e3694fbca01060280ab1b4083e8fa9fea0d5d8474dac7eb5b41455485f8c6df",
+      "shotCount": 7,
+      "dialogueOrCaptionItemCount": 3,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-P04",
+      "variantId": "fix-p04-paged",
+      "title": "证词与回忆交错的长对白",
+      "comicFormat": "paged_comic",
+      "path": "fixtures/fix-p04-paged.json",
+      "fixtureDigest": "sha256:25ce61876a2b9566f2fdafe0520c26606b016ba89b468812901223502e227fc7",
+      "storyboardDigest": "sha256:3c88b1225c6a1927d38a30c5ee55ea206eafa69e2a2a8d12d371130a996d16ca",
+      "sourceLockSetDigest": "sha256:36adfd40c676ca24110e243ff00e0aa453d8f9bb28d2afdc1daca255725a2e69",
+      "layoutDocumentDigest": "sha256:b2f45d980fe8424ace8b26cb17621739cb3d4fa52b99bcc3c4c33cc72c5091fc",
+      "shotCount": 4,
+      "dialogueOrCaptionItemCount": 8,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-X01",
+      "variantId": "fix-x01-vertical",
+      "title": "无对白潜入（条漫）",
+      "comicFormat": "vertical_scroll",
+      "path": "fixtures/fix-x01-vertical.json",
+      "fixtureDigest": "sha256:65ac14942eae2e899a6478bba9ac88a9a4be3270ed12806eb8cb9758b8d36e16",
+      "storyboardDigest": "sha256:0a73a757784ba11b07a890ff583b0d84f22b0402d7b084830383a9ca920288b0",
+      "sourceLockSetDigest": "sha256:2ebd0173562be05d751450c8117193e65c34a2b8135cab0e4981b01575e48ddb",
+      "layoutDocumentDigest": "sha256:b5271e1ad9f37635ea3000648fe884cf49f1775fcbe14d681ecf1f4aa116c215",
+      "shotCount": 5,
+      "dialogueOrCaptionItemCount": 0,
+      "currentPanelDirectUsableRate": 0,
+      "currentBalloonDirectUsableRate": null,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-X01",
+      "variantId": "fix-x01-paged",
+      "title": "无对白潜入（页漫）",
+      "comicFormat": "paged_comic",
+      "path": "fixtures/fix-x01-paged.json",
+      "fixtureDigest": "sha256:d0319e570280cdd8038ac3faa6c754def8fb8a4da9d688bc1d9c53cab27b8112",
+      "storyboardDigest": "sha256:ec856b4a6848c2c32532502f146501261b3cc352f287157de5b20d8a883cddb6",
+      "sourceLockSetDigest": "sha256:e910f5fe7fb5b93d4a5647e49b5b363a8ee3d103a438e82aa214536caf162acc",
+      "layoutDocumentDigest": "sha256:3cd3a8a32fa9658d9cc1437ec0ba59ec696ca22fe805afcb0b24d88dca613e99",
+      "shotCount": 5,
+      "dialogueOrCaptionItemCount": 0,
+      "currentPanelDirectUsableRate": 0.2,
+      "currentBalloonDirectUsableRate": null,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-X02",
+      "variantId": "fix-x02-vertical",
+      "title": "定稿图替换（条漫）",
+      "comicFormat": "vertical_scroll",
+      "path": "fixtures/fix-x02-vertical.json",
+      "fixtureDigest": "sha256:a031880a044b8587a025e42a9b37529ead237c68fa3b2275f4b315088af69afd",
+      "storyboardDigest": "sha256:53c52388fc513a9386ddb33d72a4b50481880ddd1dbec8eb2cdf71088340b31c",
+      "sourceLockSetDigest": "sha256:e93de9fb059b3e93c1c22f95a2c33daee33c38493861f52db0c8dc09c3ddf64b",
+      "layoutDocumentDigest": "sha256:3a60b4d7d3f43a39c8f0cdb63f570e5889825c1492ca91274206814bbd3a5e44",
+      "shotCount": 4,
+      "dialogueOrCaptionItemCount": 4,
+      "currentPanelDirectUsableRate": 0.25,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    },
+    {
+      "groupId": "FIX-X02",
+      "variantId": "fix-x02-paged",
+      "title": "定稿图替换（页漫）",
+      "comicFormat": "paged_comic",
+      "path": "fixtures/fix-x02-paged.json",
+      "fixtureDigest": "sha256:9f56363521ce9ad5edfbdaa9d208461ae3c9bb2f96eabe20990e504774d44327",
+      "storyboardDigest": "sha256:159c71d412ae3249f1ed16c69bc08c7a9f020c23e022a18041f2cb8e3160286e",
+      "sourceLockSetDigest": "sha256:abc91f2b6c1d629959c22e6a5e3949d002de05a567a864f0711e57361ddaedb6",
+      "layoutDocumentDigest": "sha256:bd6acf5310a7c6010cd114e119c95401620d56b435e83e57a4ba3a42acd46da9",
+      "shotCount": 4,
+      "dialogueOrCaptionItemCount": 4,
+      "currentPanelDirectUsableRate": 0.25,
+      "currentBalloonDirectUsableRate": 0,
+      "baselineStatus": "red"
+    }
+  ],
+  "assets": {
+    "images": [
+      {
+        "assetId": "asset_sml_landscape_left",
+        "fixtureName": "landscape_left",
+        "relativePath": "assets/landscape_left.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:325de0a4e3edaa9a0068d5e8e52d7def0c70148115705a3f2a57df424942e59c",
+        "bytes": 9704,
+        "width": 1280,
+        "height": 720,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.04,
+            "y": 0.18,
+            "width": 0.28,
+            "height": 0.72
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_landscape_center",
+        "fixtureName": "landscape_center",
+        "relativePath": "assets/landscape_center.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:6d89dbf4f1790429682bb19aedf2d83c538cf50be9b3eab9f64162814a350320",
+        "bytes": 9748,
+        "width": 1280,
+        "height": 720,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.36,
+            "y": 0.16,
+            "width": 0.28,
+            "height": 0.74
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_landscape_right",
+        "fixtureName": "landscape_right",
+        "relativePath": "assets/landscape_right.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:2c21b52ad4bfa8b064f1c3f888de6a5520cd55dfe05dfa780f645f4d478391a3",
+        "bytes": 9707,
+        "width": 1280,
+        "height": 720,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.68,
+            "y": 0.18,
+            "width": 0.28,
+            "height": 0.72
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_landscape_pair_edges",
+        "fixtureName": "landscape_pair_edges",
+        "relativePath": "assets/landscape_pair_edges.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+        "bytes": 11816,
+        "width": 1280,
+        "height": 720,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.02,
+            "y": 0.2,
+            "width": 0.25,
+            "height": 0.7
+          },
+          {
+            "x": 0.73,
+            "y": 0.2,
+            "width": 0.25,
+            "height": 0.7
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_landscape_group",
+        "fixtureName": "landscape_group",
+        "relativePath": "assets/landscape_group.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:901531f2036744ac6e7b16739a74c080423817adef34e59372135d911e0e1248",
+        "bytes": 15016,
+        "width": 1280,
+        "height": 720,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.02,
+            "y": 0.26,
+            "width": 0.2,
+            "height": 0.64
+          },
+          {
+            "x": 0.27,
+            "y": 0.2,
+            "width": 0.2,
+            "height": 0.7
+          },
+          {
+            "x": 0.53,
+            "y": 0.2,
+            "width": 0.2,
+            "height": 0.7
+          },
+          {
+            "x": 0.78,
+            "y": 0.26,
+            "width": 0.2,
+            "height": 0.64
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_landscape_detail_bottom",
+        "fixtureName": "landscape_detail_bottom",
+        "relativePath": "assets/landscape_detail_bottom.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+        "bytes": 8405,
+        "width": 1280,
+        "height": 720,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.38,
+            "y": 0.61,
+            "width": 0.24,
+            "height": 0.34
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_portrait_left",
+        "fixtureName": "portrait_left",
+        "relativePath": "assets/portrait_left.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+        "bytes": 10228,
+        "width": 720,
+        "height": 1280,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.04,
+            "y": 0.16,
+            "width": 0.4,
+            "height": 0.76
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_portrait_center",
+        "fixtureName": "portrait_center",
+        "relativePath": "assets/portrait_center.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:b6467304596afa3ab2673249426a833574c290221e4f117bcf8d4d8fbbe77643",
+        "bytes": 10244,
+        "width": 720,
+        "height": 1280,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.3,
+            "y": 0.1,
+            "width": 0.4,
+            "height": 0.82
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_portrait_right",
+        "fixtureName": "portrait_right",
+        "relativePath": "assets/portrait_right.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+        "bytes": 10325,
+        "width": 720,
+        "height": 1280,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.56,
+            "y": 0.16,
+            "width": 0.4,
+            "height": 0.76
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_portrait_pair",
+        "fixtureName": "portrait_pair",
+        "relativePath": "assets/portrait_pair.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+        "bytes": 12641,
+        "width": 720,
+        "height": 1280,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.03,
+            "y": 0.22,
+            "width": 0.42,
+            "height": 0.7
+          },
+          {
+            "x": 0.55,
+            "y": 0.22,
+            "width": 0.42,
+            "height": 0.7
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_square_left",
+        "fixtureName": "square_left",
+        "relativePath": "assets/square_left.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+        "bytes": 11570,
+        "width": 1024,
+        "height": 1024,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.04,
+            "y": 0.16,
+            "width": 0.42,
+            "height": 0.76
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_square_center",
+        "fixtureName": "square_center",
+        "relativePath": "assets/square_center.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:1687e1f3bf082c48c1224f06bda3ab9122b802ec68980c03983fd97132456457",
+        "bytes": 11613,
+        "width": 1024,
+        "height": 1024,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.29,
+            "y": 0.12,
+            "width": 0.42,
+            "height": 0.8
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_square_right",
+        "fixtureName": "square_right",
+        "relativePath": "assets/square_right.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+        "bytes": 11512,
+        "width": 1024,
+        "height": 1024,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.54,
+            "y": 0.16,
+            "width": 0.42,
+            "height": 0.76
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_wide_environment",
+        "fixtureName": "wide_environment",
+        "relativePath": "assets/wide_environment.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+        "bytes": 12986,
+        "width": 1536,
+        "height": 864,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.05,
+            "y": 0.28,
+            "width": 0.9,
+            "height": 0.5
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_wide_group_edges",
+        "fixtureName": "wide_group_edges",
+        "relativePath": "assets/wide_group_edges.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:19637f939fe3919869ee317083335dcd286da83d72d2fa11e3064920abcbfa16",
+        "bytes": 17564,
+        "width": 1536,
+        "height": 864,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.01,
+            "y": 0.2,
+            "width": 0.24,
+            "height": 0.72
+          },
+          {
+            "x": 0.38,
+            "y": 0.14,
+            "width": 0.24,
+            "height": 0.78
+          },
+          {
+            "x": 0.75,
+            "y": 0.2,
+            "width": 0.24,
+            "height": 0.72
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_tall_action",
+        "fixtureName": "tall_action",
+        "relativePath": "assets/tall_action.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+        "bytes": 12024,
+        "width": 768,
+        "height": 1365,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.22,
+            "y": 0.03,
+            "width": 0.56,
+            "height": 0.94
+          }
+        ]
+      },
+      {
+        "assetId": "asset_sml_portrait_replacement",
+        "fixtureName": "portrait_replacement",
+        "relativePath": "assets/portrait_replacement.png",
+        "mimeType": "image/png",
+        "sha256": "sha256:3475b9490dc58cc75b3ce50e0b428322d0ff5e6881b7a8160d0eabfc46f3480c",
+        "bytes": 11450,
+        "width": 720,
+        "height": 1280,
+        "status": "ready",
+        "subjectBoxes": [
+          {
+            "x": 0.2,
+            "y": 0.12,
+            "width": 0.6,
+            "height": 0.82
+          }
+        ]
+      }
+    ],
+    "fonts": [
+      {
+        "assetId": "asset_font_sml_noto_sc_400",
+        "role": "font",
+        "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+        "mimeType": "font/woff2",
+        "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+        "bytes": 1602144,
+        "metadata": {
+          "schemaVersion": 1,
+          "kind": "layout_font_asset_v1",
+          "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+          "familyName": "Noto Sans SC",
+          "displayName": "Noto Sans SC 受控常规体",
+          "face": {
+            "weight": 400,
+            "style": "normal"
+          },
+          "format": "woff2",
+          "license": {
+            "spdx": "OFL-1.1",
+            "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+            "embeddingAllowed": true
+          }
+        },
+        "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+        "status": "ready"
+      }
+    ]
+  },
+  "scoringPolicy": {
+    "panelDirectUsable": "layout_ok && crop_ok && reading_order_ok && subject_occlusion_ok",
+    "boundBalloonDirectUsable": "balloon_geometry_ok && balloon_type_ok && text_fit_ok",
+    "missingRequiredBalloonCountsAsFailure": true,
+    "futureReleaseThreshold": 0.8,
+    "requiredIndependentHumanReviews": 2,
+    "currentAutomatedRubricRole": "现状红灯与调整下限，不替代最终双人人工视觉签收"
+  },
+  "corpusDigest": "sha256:8906e9e2f3dc8c2d2c58db189225233f7ae610578cf1ef9f6cd9e9b10d6a1aef"
+}

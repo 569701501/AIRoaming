@@ -11,6 +11,7 @@ import type {
 
 import { expect, test } from "../support/e2e-fixture.ts";
 import { lockCandidate, prepareG4CandidateFixture } from "../support/g4-candidate-fixture.ts";
+import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
@@ -19,7 +20,7 @@ const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))
 async function saveNow(page: import("@playwright/test").Page): Promise<void> {
   const button = page.getByRole("button", { name: "立即保存" });
   if (await button.isEnabled()) await button.click();
-  await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
 }
 
 async function pastePlainText(
@@ -61,9 +62,14 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
+  await initializeLegacyLayoutWorkingCopy(
+    api,
+    rainSmokeProject,
+    fixture.projectId,
+    fixture.chapterId,
+  );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "创建数据库草稿" }).click();
   await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   const fonts = await api.get<LayoutFontCatalogResponseV1>(
@@ -193,10 +199,10 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   const balloonEditor = page.getByRole("textbox", { name: "画布富文本内容" });
   await pastePlainText(balloonEditor, "这是一个会明确溢出的很长很长的受控气泡文本");
   await expect(page.getByTestId("text-preflight-summary")).toContainText("文字溢出");
-  await page.getByRole("button", { name: "保存版本" }).click();
+  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByTestId("layout-m6-control-center").getByRole("button", { name: "重新预检" }).click();
   await expect(page.getByTestId("layout-preflight-result")).toContainText("文字发生溢出");
   await expect(page.getByRole("button", { name: "还需确认 1 项警告" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "正式出版", exact: true })).toBeDisabled();
   await saveNow(page);
 
   const isolatedFamilies = await page.locator(".canvas-element.type-text .rich-text-preview span").first().evaluate((element) => getComputedStyle(element).fontFamily);

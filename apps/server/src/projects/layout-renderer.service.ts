@@ -2,7 +2,9 @@ import { Injectable } from "@nestjs/common";
 import { chromium, type BrowserContext, type Page, type Route } from "@playwright/test";
 import {
   buildVerticalSlicePlanV1,
+  createBalloonPathV1,
   digestCanonicalJson,
+  evaluateCoverCropV1,
   type LayoutCanvasV1,
   type LayoutPublicationProfileV1,
   type LayoutRendererCapabilitiesV1,
@@ -74,7 +76,7 @@ const RENDERER_BUILD_DIGEST = digestCanonicalJson({
   textPolicyVersion: "layout_text_v1",
   balloonPolicyVersion: "balloon_shape_v1",
   browserPackage: "@playwright/test@1.61.1",
-  sceneVersion: "layout_render_scene_v1",
+  sceneVersion: "layout_render_scene_v3",
 });
 
 function browserLaunchOptions(): { headless: true; executablePath?: string } {
@@ -158,15 +160,55 @@ function assertOutputLimits(plan: RenderPlanV1, profile: LayoutPublicationProfil
 
 function sceneShell(): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://airoaming.invalid; font-src https://airoaming.invalid; style-src 'unsafe-inline'"><style>
-    *{box-sizing:border-box}html,body{margin:0;padding:0;background:transparent}body{overflow:visible}.scene{position:relative;margin:0;padding:0}.layout-canvas{position:relative;overflow:hidden;break-after:page;page-break-after:always}.layout-canvas:last-child{break-after:auto;page-break-after:auto}.layout-element{position:absolute;transform-origin:center center}.layout-image{position:absolute;width:100%;height:100%;max-width:none;max-height:none}.rich-text{position:absolute;inset:0;white-space:pre-wrap;overflow:visible}.balloon-body{position:absolute;inset:0}.balloon-tail{position:absolute;width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:44px solid currentColor;left:50%;bottom:-32px}.panel-border{position:absolute;inset:0;pointer-events:none}
+    *{box-sizing:border-box}html,body{margin:0;padding:0;background:transparent}body{overflow:visible}.scene{position:relative;margin:0;padding:0}.layout-canvas{position:relative;overflow:hidden;break-after:page;page-break-after:always}.layout-canvas:last-child{break-after:auto;page-break-after:auto}.layout-element{position:absolute;transform-origin:center center}.layout-image{position:absolute;width:100%;height:100%;max-width:none;max-height:none}.rich-text{position:absolute;inset:0;white-space:pre-wrap;overflow:visible}.balloon-shape{position:absolute;inset:0;overflow:visible;pointer-events:none}.balloon-body{position:absolute;inset:0;display:flex}.balloon-body>.rich-text{position:relative;inset:auto;width:100%;height:max-content}.panel-border{position:absolute;inset:0;pointer-events:none}
   </style></head><body><main id="scene" class="scene"></main></body></html>`;
 }
 
-async function installScene(page: Page, canvases: LayoutCanvasV1[], mode: "paged" | "strip", fontAssetIds: string[]): Promise<void> {
+async function installScene(
+  page: Page,
+  canvases: LayoutCanvasV1[],
+  mode: "paged" | "strip",
+  fontAssetIds: string[],
+  imageAssets: Array<{ assetId: string; width: number; height: number }>,
+): Promise<void> {
+  const imageById = new Map(imageAssets.map((asset) => [asset.assetId, asset]));
+  const cropDisplays: Record<string, { width: number; height: number }> = {};
+  const balloonPaths: Record<string, string> = {};
+  for (const canvas of canvases) {
+    for (const element of canvas.elements) {
+      if (element.type === "balloon") {
+        balloonPaths[element.id] = createBalloonPathV1({
+          kind: element.balloonKind,
+          width: element.transform.width,
+          height: element.transform.height,
+          tail: element.tail,
+        });
+      }
+      const image = element.type === "panel_frame" && element.contentImage
+        ? { id: element.contentImage.id, source: element.contentImage.source, crop: element.contentImage.crop }
+        : element.type === "free_image" && element.display.mode === "cover"
+          ? { id: element.id, source: element.source, crop: element.display.crop }
+          : null;
+      if (!image) continue;
+      const asset = imageById.get(image.source.assetId);
+      if (!asset) throw new Error(`LAYOUT_RENDER_ASSET_INVALID:${image.source.assetId}`);
+      const evaluation = evaluateCoverCropV1({
+        sourceWidth: asset.width,
+        sourceHeight: asset.height,
+        frameWidth: element.transform.width,
+        frameHeight: element.transform.height,
+        crop: image.crop,
+      });
+      cropDisplays[image.id] = {
+        width: asset.width * evaluation.baseScale * image.crop.zoom,
+        height: asset.height * evaluation.baseScale * image.crop.zoom,
+      };
+    }
+  }
   await page.setContent(sceneShell(), { waitUntil: "load" });
   // tsx/esbuild 在源码直跑环境会为序列化函数注入 __name；隔离页面只提供无副作用命名兼容层。
   await page.evaluate("globalThis.__name = (target) => target");
-  await page.evaluate(({ inputCanvases, inputMode, fonts }) => {
+  await page.evaluate(({ inputCanvases, inputMode, fonts, displays, paths }) => {
     const scene = document.querySelector<HTMLElement>("#scene");
     if (!scene) throw new Error("LAYOUT_RENDER_SCENE_MISSING");
     const assetUrl = (assetId: string) => `https://airoaming.invalid/assets/${encodeURIComponent(assetId)}`;
@@ -180,10 +222,16 @@ async function installScene(page: Page, canvases: LayoutCanvasV1[], mode: "paged
         opacity: String(transform.opacity), transform: `rotate(${transform.rotation}deg)`,
       });
     };
-    const setCrop = (image: HTMLImageElement, crop: { zoom: number; offsetX: number; offsetY: number; rotation: number; flipX: boolean; flipY: boolean }) => {
-      image.style.objectFit = "cover";
+    const setCrop = (image: HTMLImageElement, cropId: string, crop: { zoom: number; offsetX: number; offsetY: number; rotation: number; flipX: boolean; flipY: boolean }) => {
+      const display = displays[cropId];
+      if (!display) throw new Error(`LAYOUT_RENDER_CROP_DISPLAY_MISSING:${cropId}`);
+      image.style.objectFit = "fill";
       image.style.transformOrigin = "center center";
-      image.style.transform = `translate(${crop.offsetX}px,${crop.offsetY}px) rotate(${crop.rotation}deg) scale(${crop.zoom * (crop.flipX ? -1 : 1)},${crop.zoom * (crop.flipY ? -1 : 1)})`;
+      image.style.left = `calc(50% + ${crop.offsetX}px)`;
+      image.style.top = `calc(50% + ${crop.offsetY}px)`;
+      image.style.width = `${display.width}px`;
+      image.style.height = `${display.height}px`;
+      image.style.transform = `translate(-50%,-50%) rotate(${crop.rotation}deg) scale(${crop.flipX ? -1 : 1},${crop.flipY ? -1 : 1})`;
     };
     const richText = (value: any) => {
       const root = document.createElement("div");
@@ -223,7 +271,7 @@ async function installScene(page: Page, canvases: LayoutCanvasV1[], mode: "paged
           const image = document.createElement("img");
           image.className = "layout-image";
           image.src = assetUrl(element.contentImage.source.assetId);
-          setCrop(image, element.contentImage.crop);
+          setCrop(image, element.contentImage.id, element.contentImage.crop);
           node.append(image);
         }
         const border = document.createElement("div");
@@ -237,26 +285,31 @@ async function installScene(page: Page, canvases: LayoutCanvasV1[], mode: "paged
         image.className = "layout-image";
         image.src = assetUrl(element.source.assetId);
         image.style.objectFit = element.display.mode;
-        if (element.display.mode === "cover") setCrop(image, element.display.crop);
+        if (element.display.mode === "cover") setCrop(image, element.id, element.display.crop);
         node.append(image);
       } else if (element.type === "text") {
         node.append(richText(element.richText));
       } else {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.classList.add("balloon-shape");
+        svg.setAttribute("width", String(element.transform.width));
+        svg.setAttribute("height", String(element.transform.height));
+        svg.setAttribute("viewBox", `0 0 ${element.transform.width} ${element.transform.height}`);
+        svg.setAttribute("overflow", "visible");
+        const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        shape.setAttribute("d", paths[element.id]);
+        shape.setAttribute("fill", rgba(element.fillColor));
+        shape.setAttribute("stroke", rgba(element.strokeColor));
+        shape.setAttribute("stroke-width", String(element.strokeWidth));
+        shape.setAttribute("stroke-linejoin", "round");
+        svg.append(shape);
+        node.append(svg);
         const body = document.createElement("div");
         body.className = "balloon-body";
-        body.style.background = rgba(element.fillColor);
-        body.style.border = `${element.strokeWidth}px solid ${rgba(element.strokeColor)}`;
-        body.style.borderRadius = element.balloonKind === "caption" ? "18px" : element.balloonKind === "shout" ? "22%" : "50%";
         body.style.padding = `${element.padding.top}px ${element.padding.right}px ${element.padding.bottom}px ${element.padding.left}px`;
+        body.style.alignItems = element.verticalAlign === "start" ? "flex-start" : element.verticalAlign === "end" ? "flex-end" : "center";
         body.append(richText(element.richText));
         node.append(body);
-        if (element.tail.enabled) {
-          const tail = document.createElement("div");
-          tail.className = "balloon-tail";
-          tail.style.color = rgba(element.fillColor);
-          tail.style.left = `${element.tail.rootRatio * 100}%`;
-          node.append(tail);
-        }
       }
       return node;
     };
@@ -275,7 +328,7 @@ async function installScene(page: Page, canvases: LayoutCanvasV1[], mode: "paged
     }
     scene.style.width = `${inputCanvases[0]?.width ?? 0}px`;
     scene.style.height = inputMode === "strip" ? `${inputCanvases.reduce((sum, canvas) => sum + canvas.height, 0)}px` : "auto";
-  }, { inputCanvases: canvases, inputMode: mode, fonts: fontAssetIds });
+  }, { inputCanvases: canvases, inputMode: mode, fonts: fontAssetIds, displays: cropDisplays, paths: balloonPaths });
   await page.waitForFunction(async () => {
     await document.fonts.ready;
     const images = Array.from(document.images);
@@ -390,7 +443,13 @@ export class LayoutRendererService {
     const page = await context.newPage();
     const artifacts: RenderedPublicationArtifactV1[] = [];
     try {
-      await installScene(page, plan.canvases.map((item) => item.canvas), "paged", plan.assets.fonts.map((font) => font.assetId));
+      await installScene(
+        page,
+        plan.canvases.map((item) => item.canvas),
+        "paged",
+        plan.assets.fonts.map((font) => font.assetId),
+        plan.assets.images,
+      );
       const canvases = page.locator(".layout-canvas");
       for (let index = 0; index < plan.canvases.length; index += 1) {
         const bytes = await canvases.nth(index).screenshot({ animations: "disabled", scale: "device" });
@@ -432,7 +491,13 @@ export class LayoutRendererService {
   ): Promise<RenderedPublicationArtifactV1[]> {
     const page = await context.newPage();
     try {
-      await installScene(page, plan.canvases.map((item) => item.canvas), "strip", plan.assets.fonts.map((font) => font.assetId));
+      await installScene(
+        page,
+        plan.canvases.map((item) => item.canvas),
+        "strip",
+        plan.assets.fonts.map((font) => font.assetId),
+        plan.assets.images,
+      );
       const width = plan.canvases[0]?.width;
       if (!width || plan.canvases.some((canvas) => canvas.width !== width)) throw new Error("LAYOUT_RENDER_OUTPUT_INVALID:STRIP_WIDTH");
       const slices = buildVerticalSlicePlanV1(plan.canvases, profile.maxSliceHeightPx, profile.outputScale);

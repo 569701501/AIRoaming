@@ -16,6 +16,22 @@ interface OpenCodeTextPart {
   text?: string;
 }
 
+export type OpenCodeStructuredImageMimeType = "image/png" | "image/jpeg" | "image/webp";
+
+export interface OpenCodeStructuredImageInput {
+  mimeType: OpenCodeStructuredImageMimeType;
+  fileName: string;
+  dataUrl: string;
+}
+
+interface OpenCodeMessageInputPart {
+  type: "text" | "file";
+  text?: string;
+  mime?: string;
+  filename?: string;
+  url?: string;
+}
+
 interface OpenCodeMessageResponse {
   info?: {
     structured?: unknown;
@@ -217,6 +233,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     title: string;
     content: string;
     schema: Record<string, unknown>;
+    images?: readonly OpenCodeStructuredImageInput[];
     model?: AIRuntimeModelSelection;
     signal?: AbortSignal;
   }): Promise<{
@@ -247,10 +264,15 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       if (!session.id) {
         throw new BadGatewayException("OPENCODE_SESSION_ID_MISSING");
       }
+      const imageParts = this.structuredImageParts(input.images ?? []);
       return this.postMessage(session.id, input.content, model, input.signal, {
         directoryQuery: query,
         system: "只通过固定结构输出能力完成用户要求。不要读取项目文件、规则文件或代码，不要调用其他工具，也不要返回结构之外的说明。",
         tools: STRUCTURED_GENERATION_MESSAGE_TOOLS,
+        parts: [
+          { type: "text", text: input.content },
+          ...imageParts,
+        ],
         format: {
           type: "json_schema",
           schema: input.schema,
@@ -485,6 +507,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
         retryCount: number;
       };
       tools?: Readonly<Record<string, boolean>>;
+      parts?: readonly OpenCodeMessageInputPart[];
     } = {},
   ): Promise<OpenCodeMessageResponse> {
     const runtimeModel = this.getRuntimeProviderBinding(model);
@@ -500,15 +523,46 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
         tools: options.tools ?? TEXT_GENERATION_MESSAGE_TOOLS,
         ...(options.system ? { system: options.system } : {}),
         ...(options.format ? { format: options.format } : {}),
-        parts: [
-          {
-            type: "text",
-            text: content,
-          },
-        ],
+        parts: options.parts ?? [{ type: "text", text: content }],
       }),
       timeoutMs: this.messageTimeoutMs,
       signal,
+    });
+  }
+
+  private structuredImageParts(
+    images: readonly OpenCodeStructuredImageInput[],
+  ): OpenCodeMessageInputPart[] {
+    if (images.length > 8) {
+      throw new BadGatewayException("OPENCODE_STRUCTURED_IMAGE_LIMIT_EXCEEDED");
+    }
+    return images.map((image, index) => {
+      const fileName = image.fileName.trim();
+      if (
+        fileName === ""
+        || fileName.length > 200
+        || fileName.includes("/")
+        || fileName.includes("\\")
+        || fileName.includes("\0")
+        || fileName.includes("\n")
+        || fileName.includes("\r")
+      ) {
+        throw new BadGatewayException(`OPENCODE_STRUCTURED_IMAGE_FILENAME_INVALID:${index}`);
+      }
+      const prefix = `data:${image.mimeType};base64,`;
+      if (
+        !image.dataUrl.startsWith(prefix)
+        || image.dataUrl.length > 36_000_000
+        || !/^[A-Za-z0-9+/]*={0,2}$/.test(image.dataUrl.slice(prefix.length))
+      ) {
+        throw new BadGatewayException(`OPENCODE_STRUCTURED_IMAGE_DATA_INVALID:${index}`);
+      }
+      return {
+        type: "file",
+        mime: image.mimeType,
+        filename: fileName,
+        url: image.dataUrl,
+      };
     });
   }
 

@@ -87,7 +87,7 @@ import type {
   LayoutWorkingCopyResponseV1,
   LayoutSourceCatalogResponseV1,
   LayoutFontCatalogResponseV1,
-  SaveLayoutWorkingCopyRequestV1,
+  SaveLayoutWorkingCopyRequestV1OrV2,
   SaveLayoutWorkingCopyResponseV1,
   CommitLayoutSourceReplacementRequestV1,
   CommitLayoutSourceReplacementResponseV1,
@@ -106,10 +106,12 @@ import type {
   LayoutPublicationHistoryResponseV1,
   LayoutPublicationSummaryV1,
   CreatePendingEditorCommandSetRequestV1,
-  PendingEditorCommandCurrentResponseV1,
-  PendingEditorCommandPreviewV1,
-  ApplyPendingEditorCommandResponseV1,
+  PendingEditorCommandCurrentResponseV1OrV2,
+  PendingEditorCommandPreviewV1OrV2,
+  ApplyPendingEditorCommandResponseV1OrV2,
   DiscardPendingEditorCommandResponseV1,
+  CreateLayoutCompositionRequestV1,
+  LayoutCompositionApplyResponseV1,
   LayoutLegacyCutoverResponseV1,
   LayoutLegacyCutoverStatusV1,
 } from "@airoaming/shared";
@@ -652,7 +654,7 @@ export const api = {
   saveLayoutWorkingCopy: (
     projectId: string,
     chapterId: string,
-    input: SaveLayoutWorkingCopyRequestV1,
+    input: SaveLayoutWorkingCopyRequestV1OrV2,
   ) => request<SaveLayoutWorkingCopyResponseV1>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/working-copy`,
     { method: "PUT", body: JSON.stringify(input) },
@@ -724,18 +726,36 @@ export const api = {
   ),
   layoutPublicationArtifactUrl: (projectId: string, chapterId: string, exportRevisionId: string, assetId: string) =>
     `${API_BASE}/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}/artifacts/${encodeURIComponent(assetId)}/file`,
-  getCurrentPendingLayoutCommand: (projectId: string, chapterId: string) => request<PendingEditorCommandCurrentResponseV1>(
+  createLayoutComposition: (
+    projectId: string,
+    chapterId: string,
+    input: CreateLayoutCompositionRequestV1,
+  ) => request<{ schemaVersion: 1; replayed: boolean; task: GenerationTaskItem }>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/compositions`,
+    { method: "POST", body: JSON.stringify(input) },
+  ),
+  getLayoutComposition: (projectId: string, chapterId: string, taskId: string) => request<{
+    schemaVersion: 1;
+    task: GenerationTaskItem;
+  }>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/compositions/${encodeURIComponent(taskId)}`,
+  ),
+  applyLayoutComposition: (projectId: string, chapterId: string, taskId: string) => request<LayoutCompositionApplyResponseV1>(
+    `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/compositions/${encodeURIComponent(taskId)}/apply`,
+    { method: "POST" },
+  ),
+  getCurrentPendingLayoutCommand: (projectId: string, chapterId: string) => request<PendingEditorCommandCurrentResponseV1OrV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/current`,
   ),
   previewPendingLayoutCommand: (
     projectId: string,
     chapterId: string,
     input: CreatePendingEditorCommandSetRequestV1,
-  ) => request<PendingEditorCommandPreviewV1>(
+  ) => request<PendingEditorCommandPreviewV1OrV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/preview`,
     { method: "POST", body: JSON.stringify(input) },
   ),
-  applyPendingLayoutCommand: (projectId: string, chapterId: string, pendingId: string) => request<ApplyPendingEditorCommandResponseV1>(
+  applyPendingLayoutCommand: (projectId: string, chapterId: string, pendingId: string) => request<ApplyPendingEditorCommandResponseV1OrV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/pending-commands/${encodeURIComponent(pendingId)}/apply`,
     { method: "POST" },
   ),

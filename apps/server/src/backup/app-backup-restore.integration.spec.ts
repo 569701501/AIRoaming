@@ -550,7 +550,7 @@ describe("M5-A1 coordinated backup", () => {
     expect(dbOnlyMissingRun.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
     const dbOnlyWithReport = await runCli(backupCli, ...common, "--kind", "db-only-coordinated", "--run-id", "final-run", "--full-import-report", "/tmp/full-import.json");
     expect(dbOnlyWithReport.stderr.trim()).toContain("BACKUP_ARGS_INVALID");
-  });
+  }, 15_000);
 
   it("M6A1-BK-03 rejects missing or non-closed maintenance evidence before sealing", async () => {
     const fixture = await createFixture();

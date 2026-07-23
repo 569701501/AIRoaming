@@ -2,7 +2,7 @@
 doc_id: AIR-CONTRACT-20260711-G5-LAYOUT-DOCUMENT
 status: active
 created: 2026-07-11
-updated: 2026-07-12
+updated: 2026-07-22
 owner: AI漫游项目
 audience: human, ai-agent, developer, qa
 source: ADR-0011、G1 Layout/Export Schema、G3 PageProfile 边界、G4 CandidateLockRevision/Freshness 契约
@@ -10,12 +10,14 @@ source: ADR-0011、G1 Layout/Export Schema、G3 PageProfile 边界、G4 Candidat
 
 # G5 LayoutDocument 与编辑命令契约字典
 
+> 2026-07-22 状态说明：`LayoutDocumentV1` 与 V1 命令已经作为 G5 基础实现，已有 Revision 必须继续按本文解析且保持不可变。智能成稿的新写目标为 `LayoutDocumentV2`，只增加根级 automation/protection 与 command actor，不新增可见元素类型；扩展契约见 `文档/02_架构与契约/2026-07-22_智能成稿规划与编辑保护契约.md`。
+
 ## 1. 文档状态与用途
 
 本文是 G5 实施时可直接映射到 Shared types、runtime codec、命令 reducer、Working Copy API、LayoutRevision 投影、fixture 和测试的字段级契约。
 
-- 当前状态为 `accepted`，代表用户接受本契约作为开发基线；功能仍未实现。
-- 本文不代表功能已经实现。
+- 本文曾以 `accepted` 作为开发基线，G5 M0～M8 现已实现并签收；本文仍是 V1 历史与兼容事实源。
+- 本文不覆盖 2026-07-22 新增的智能规划、自动对白/气泡和人工保护目标。
 - 画布内核、富文本输入层和服务端栅格器仍需通过 E0 原型；任何库的私有 JSON 都不得替代本文。
 
 ## 2. 领域词汇

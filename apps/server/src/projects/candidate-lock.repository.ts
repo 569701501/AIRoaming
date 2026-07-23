@@ -707,7 +707,7 @@ export class CandidateLockRepository {
       : []));
     const workingCopyBindings = workingCopy ? projectLayoutWorkingCopyDependencies({
       workingCopyId: workingCopy.id,
-      documentKind: workingCopy.documentKind as "legacy_chapter_layout_v1" | "layout_document_v1",
+      documentKind: workingCopy.documentKind as "legacy_chapter_layout_v1" | "layout_document_v1" | "layout_document_v2",
       documentDigest: workingCopy.documentDigest,
       documentJson: workingCopy.documentJson,
       currentRevisionByShot,

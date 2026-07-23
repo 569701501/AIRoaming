@@ -29,30 +29,21 @@
           立即保存
         </button>
         <button
+          class="primary-action"
           type="button"
-          :disabled="session.isReadOnly.value || !canBatchInitialize"
-          title="按当前 G4 定稿批量建立页面或条漫段落"
-          @click="batchInitializeFromSources"
-        >生成排版</button>
-        <button type="button" :disabled="session.isReadOnly.value || !session.server.value || m6Busy" @click="prepareRevision">保存版本</button>
-        <button type="button" :disabled="session.isReadOnly.value || session.isDirty.value || !currentLayoutRevisionId || publicationBusy" @click="preparePublication">正式出版</button>
+          :disabled="session.isReadOnly.value || !session.server.value || !session.isAutomatedDocument.value || session.isDirty.value || composition.busy.value"
+          title="保留当前成稿不变，先生成一版可对比的新排法"
+          @click="openOrCreateReflow"
+        ><Sparkles :size="16" />{{ session.pendingCommand.value ? '查看新排法' : composition.busy.value ? '正在重新排版' : '重新排一版' }}</button>
         <button type="button" :disabled="!session.server.value" title="打开独立手机只读预览" @click="openMobilePreview"><Smartphone :size="16" />手机预览</button>
-        <button
-          type="button"
-          :aria-expanded="aiDrawerOpen"
-          aria-controls="layout-ai-drawer"
-          :disabled="session.isReadOnly.value || !session.server.value"
-          title="打开 AI 成稿建议"
-          @click="openAiDrawer"
-        ><Sparkles :size="16" />AI 建议</button>
         <button
           type="button"
           :aria-expanded="m6PanelOpen"
           aria-controls="layout-m6-control-center"
-          :disabled="!session.server.value"
-          title="版本、预检与出版管理"
+          :disabled="!session.server.value || session.isAutomatedDocument.value"
+          :title="session.isAutomatedDocument.value ? '新版智能成稿的正式导出将在后续阶段接通' : '版本、预检与出版管理'"
           @click="m6PanelOpen = !m6PanelOpen"
-        ><History :size="16" />版本与出版</button>
+        ><History :size="16" />{{ session.isAutomatedDocument.value ? '导出（开发中）' : '版本与出版' }}</button>
       </div>
     </header>
 
@@ -61,30 +52,93 @@
       id="layout-ai-drawer"
       class="layout-ai-drawer"
       data-testid="layout-ai-drawer"
-      aria-label="AI 成稿建议"
+      :aria-label="aiDrawerTitle"
     >
       <header>
-        <div><Sparkles :size="18" /><strong>AI 成稿建议</strong></div>
-        <button type="button" aria-label="关闭 AI 成稿建议" @click="aiDrawerOpen = false">×</button>
+        <div><Sparkles :size="18" /><strong>{{ aiDrawerTitle }}</strong></div>
+        <button type="button" :aria-label="`关闭${aiDrawerTitle}`" @click="aiDrawerOpen = false">×</button>
       </header>
-      <p>建议只读取最近一次成功保存的草稿。应用前会再次核对行版本、文档摘要和来源摘要；AI 不能保存正式版本或发起出版。</p>
-      <div v-if="aiBusy" class="ai-pending-state"><LoaderCircle class="spin" :size="18" />正在核对建议…</div>
+      <p>{{ aiDrawerDescription }}</p>
+      <div v-if="composition.busy.value || aiBusy" class="ai-pending-state">
+        <LoaderCircle class="spin" :size="18" />
+        <div>
+          <strong>{{ composition.phaseLabel.value }}</strong>
+          <small>{{ composition.progressPercent.value }}%</small>
+        </div>
+      </div>
+      <div v-else-if="composition.errorMessage.value" class="ai-error-state" role="alert">
+        <AlertTriangle :size="18" />
+        <div>
+          <strong>这次没有生成新排法</strong>
+          <p>{{ composition.errorMessage.value }}</p>
+          <button type="button" @click="retryAiRequest">再试一次</button>
+        </div>
+      </div>
       <section v-else-if="session.pendingCommand.value" class="ai-command-preview" data-testid="layout-ai-command-preview">
         <strong>{{ session.pendingCommand.value.payload.summary }}</strong>
-        <small>before {{ shortDigest(session.pendingCommand.value.payload.baseDocumentDigest) }} → after {{ shortDigest(session.pendingCommand.value.payload.resultDocumentDigest) }}</small>
-        <p>影响对象：{{ session.pendingCommand.value.payload.changedElementIds.join('、') || '无' }}</p>
+        <small>{{ composition.analysisLabel.value || '已根据本章分镜与对白重新整理' }}</small>
+        <div class="layout-preview-comparison">
+          <LayoutDocumentMiniPreview
+            :document="session.document.value"
+            :project-id="projectId"
+            label="当前排法"
+            badge="保持不变"
+          />
+          <LayoutDocumentMiniPreview
+            :document="pendingPreviewDocument"
+            :project-id="projectId"
+            label="新排法"
+            badge="预览"
+          />
+        </div>
         <ul v-if="session.pendingCommand.value.payload.warnings.length">
-          <li v-for="warning in session.pendingCommand.value.payload.warnings" :key="warning">{{ warning }}</li>
+          <li v-for="warning in session.pendingCommand.value.payload.warnings" :key="warning">{{ compositionWarningLabel(warning) }}</li>
         </ul>
-        <div>
-          <button type="button" :disabled="aiBusy" @click="discardAiSuggestion">放弃建议</button>
-          <button class="primary-action" type="button" :disabled="aiBusy" @click="applyAiSuggestion">应用为一次可撤销操作</button>
+        <div class="ai-preview-actions">
+          <button type="button" :disabled="aiBusy" @click="discardAiSuggestion">保留当前排法</button>
+          <button class="primary-action" type="button" :disabled="aiBusy" @click="applyAiSuggestion">使用这版新排法</button>
         </div>
       </section>
-      <section v-else class="ai-empty-state">
-        <strong>没有待确认建议</strong>
-        <p>先选择一个未锁定对象，可生成一次小幅构图微调的受控命令预览。来源换图不会走这里，必须使用来源返修预览。</p>
-        <button type="button" :disabled="!canSuggestCenter || aiBusy" @click="previewCenterSuggestion">预览构图微调建议</button>
+      <section v-else-if="aiRequestKind === 'full'" class="ai-empty-state">
+        <strong>还没有另一版排法</strong>
+        <p>生成后先在这里对比，不满意就保留当前成稿。已经手动调整过的内容不会被悄悄覆盖。</p>
+        <button class="primary-action" type="button" :disabled="composition.busy.value" @click="requestFullReflow">生成一版看看</button>
+      </section>
+      <section v-else class="ai-empty-state ai-adjust-options">
+        <strong>调整哪里</strong>
+        <div class="ai-option-row">
+          <button
+            type="button"
+            :class="{ 'is-active': aiRequestKind === 'selection' }"
+            :disabled="!session.selectedElementIds.value.length"
+            @click="aiRequestKind = 'selection'"
+          >选中内容</button>
+          <button
+            type="button"
+            :class="{ 'is-active': aiRequestKind === 'canvas' }"
+            @click="aiRequestKind = 'canvas'"
+          >当前{{ isPaged ? '页' : '段' }}</button>
+          <button
+            type="button"
+            :class="{ 'is-active': aiRequestKind === 'scene' }"
+            :disabled="!primarySourceShotId"
+            @click="aiRequestKind = 'scene'"
+          >当前场景</button>
+        </div>
+        <strong>想怎么调</strong>
+        <div class="ai-option-row">
+          <button type="button" :class="{ 'is-active': aiIntent === 'dialogue_readability' }" @click="aiIntent = 'dialogue_readability'">对白更清楚</button>
+          <button type="button" :class="{ 'is-active': aiIntent === 'emphasize_focus' }" @click="aiIntent = 'emphasize_focus'">突出重点</button>
+          <button type="button" :class="{ 'is-active': aiIntent === 'more_compact' }" @click="aiIntent = 'more_compact'">更紧凑</button>
+          <button type="button" :class="{ 'is-active': aiIntent === 'more_relaxed' }" @click="aiIntent = 'more_relaxed'">更舒展</button>
+        </div>
+        <p>只会调整这个范围，并自动带上同一段连续对白。已锁定或手动保护的内容会保留。</p>
+        <button
+          class="primary-action"
+          type="button"
+          :disabled="!canRequestScopedAdjustment || composition.busy.value"
+          @click="requestScopedReflow"
+        >生成调整预览</button>
       </section>
     </aside>
 
@@ -258,7 +312,7 @@
       <div v-if="session.legacyStatus.value" class="create-card legacy-cutover-card" data-testid="layout-legacy-cutover">
         <AlertTriangle :size="30" />
         <h2>{{ session.legacyStatus.value.state === 'legacy_convertible' ? '发现可转换的旧排版' : '旧排版来源无法完整解析' }}</h2>
-        <p v-if="session.legacyStatus.value.state === 'legacy_convertible'">系统会保留旧页面尺寸、顺序和已核对来源，把内容转换为 V1 数据库草稿；不会自动创建正式版本。</p>
+        <p v-if="session.legacyStatus.value.state === 'legacy_convertible'">系统会保留旧页面尺寸、顺序和已核对来源，把内容转换成可继续编辑的数据库草稿；不会自动创建正式版本。</p>
         <p v-else>系统不会把缺失的旧候选来源猜成当前来源。只有你明确确认后，才会使用当前 G4 定稿重新建立草稿；旧 metadata 与迁移 provenance 继续保留。</p>
         <small>旧摘要：{{ session.legacyStatus.value.legacyDocumentDigest ? shortDigest(session.legacyStatus.value.legacyDocumentDigest) : '无' }} · provenance {{ session.legacyStatus.value.provenancePreserved ? '已保留' : '待核对' }}</small>
         <button
@@ -267,7 +321,7 @@
           type="button"
           :disabled="session.isReadOnly.value || legacyCutoverBusy"
           @click="convertLegacyDraft"
-        >转换为 V1 草稿</button>
+        >转换并继续编辑</button>
         <button
           v-else
           class="primary-action"
@@ -277,31 +331,36 @@
         >明确使用当前定稿重建</button>
         <button type="button" @click="$emit('goCandidates')">返回候选图核对来源</button>
       </div>
-      <div v-else class="create-card">
-        <LayoutPanelTop :size="30" />
-        <h2>创建成稿草稿</h2>
-        <p>草稿只保存在目标数据库，不会生成正式版本，也不会写入旧 layout.json。</p>
-        <label>
-          初始内容
-          <select v-model="initializationMode" :disabled="session.isReadOnly.value">
-            <option value="default_storyboard_layout">按当前分镜建立基础排版</option>
-            <option value="blank">创建空白草稿</option>
-          </select>
-        </label>
-        <div class="profile-grid">
-          <label>
-            宽度
-            <input v-model.number="profileWidth" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" />
-          </label>
-          <label>
-            {{ isPaged ? '高度' : '默认段高' }}
-            <input v-model.number="profileHeight" type="number" min="320" max="16384" :disabled="session.isReadOnly.value" />
-          </label>
-        </div>
-        <button class="primary-action" type="button" :disabled="session.isReadOnly.value || !canInitialize" @click="initializeDraft">
-          创建数据库草稿
-        </button>
-        <button type="button" @click="$emit('goCandidates')">返回候选图检查来源</button>
+      <div v-else class="create-card smart-compose-card" data-testid="layout-smart-compose-state">
+        <template v-if="composition.busy.value">
+          <LoaderCircle class="spin compose-mark" :size="34" />
+          <h2>{{ composition.phaseLabel.value }}</h2>
+          <p>系统会一次完成画格布局、图片放置、对白气泡和阅读顺序。完成后直接进入可编辑成稿。</p>
+          <div class="compose-progress" role="progressbar" :aria-valuenow="composition.progressPercent.value" aria-valuemin="0" aria-valuemax="100">
+            <span :style="{ width: `${composition.progressPercent.value}%` }" />
+          </div>
+          <small>{{ composition.progressPercent.value }}% · 生成期间不会创建正式版本或直接导出</small>
+        </template>
+        <template v-else-if="composition.errorMessage.value">
+          <AlertTriangle class="compose-mark is-error" :size="34" />
+          <h2>这次成稿没有生成完成</h2>
+          <p>{{ composition.errorMessage.value }}</p>
+          <button class="primary-action" type="button" :disabled="session.isReadOnly.value || !sourceReadyForCompose" @click="retryInitialComposition">重新生成完整成稿</button>
+          <button type="button" @click="$emit('goCandidates')">返回候选图检查</button>
+        </template>
+        <template v-else-if="!sourceReadyForCompose">
+          <AlertTriangle class="compose-mark" :size="34" />
+          <h2>还差已确认的候选图</h2>
+          <p>{{ initialCompositionBlockedReason }}</p>
+          <button class="primary-action" type="button" @click="$emit('goCandidates')">去确认候选图</button>
+        </template>
+        <template v-else>
+          <Sparkles class="compose-mark" :size="34" />
+          <h2>准备生成完整成稿</h2>
+          <p>不需要先选模板或填写尺寸。系统会根据项目类型、分镜、候选图和对白自动完成第一版，你再按需要调整。</p>
+          <button class="primary-action" type="button" :disabled="session.isReadOnly.value" @click="retryInitialComposition">生成完整成稿</button>
+          <button type="button" @click="$emit('goCandidates')">返回候选图检查</button>
+        </template>
       </div>
     </section>
 
@@ -383,6 +442,13 @@
             <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('top')">顶对齐</button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 3 || session.isReadOnly.value" @click="distributeHorizontal">水平分布</button>
             <button type="button" :disabled="!primaryElement || session.isReadOnly.value" @click="duplicatePrimaryElement">复制对象</button>
+            <button
+              class="smart-scope-action"
+              type="button"
+              :disabled="session.isReadOnly.value || !session.isAutomatedDocument.value || session.isDirty.value || composition.busy.value"
+              title="先预览，只调整选中内容；没有选择时调整当前页或段落"
+              @click="openScopedAdjustment"
+            ><Sparkles :size="14" />智能调整</button>
           </div>
           <label>
             缩放
@@ -515,9 +581,19 @@
               <button type="button" :disabled="session.isReadOnly.value" @click="setSelectedLocked(!primaryElement.locked)">
                 {{ primaryElement.locked ? '解除锁定' : '锁定对象' }}
               </button>
+              <button
+                v-if="session.selectedSmartProtections.value.length > 0"
+                type="button"
+                data-testid="allow-smart-adjustment"
+                :disabled="session.isReadOnly.value"
+                @click="session.clearSelectedSmartProtections"
+              >允许智能再次调整</button>
               <button type="button" :disabled="session.isReadOnly.value || primaryElement.locked" @click="setSelectedHidden(true)">隐藏对象</button>
               <button type="button" :disabled="session.isReadOnly.value || primaryElement.locked" @click="deletePrimaryElement">删除对象</button>
             </div>
+            <p v-if="session.selectedSmartProtections.value.length > 0" class="property-help">
+              这个对象有手动调整记录，系统默认不会覆盖。允许后，下次智能调整可以重新移动或修整它；“锁定对象”不会被解除。
+            </p>
 
             <section v-if="primaryElement.type === 'panel_frame'" class="special-properties">
               <div class="section-heading"><strong>画格</strong><small>图片内嵌于画格</small></div>
@@ -657,7 +733,6 @@ import {
   Hand,
   History,
   Image as ImageIcon,
-  LayoutPanelTop,
   LayoutTemplate,
   LoaderCircle,
   Lock,
@@ -680,6 +755,7 @@ import type {
   EditorCommandTypeV1,
   EditorCommandV1,
   LayoutCanvasV1,
+  LayoutCompositionIntentV1,
   LayoutPresetIdV1,
   LayoutProfileV1,
   LayoutPreflightCodeV1,
@@ -704,6 +780,7 @@ import {
   collectLayoutTextIssuesV1,
   generateLayoutPresetV1,
   initializeLayoutCanvasesFromSourcesV1,
+  projectLayoutDocumentV2ToV1,
   projectVisibleShotPlacementsV1,
   replaceRichTextRange,
   LayoutPublicationProfileCodecV1,
@@ -711,8 +788,10 @@ import {
 } from "@airoaming/shared";
 
 import { useLayoutEditorSession } from "../../composables/layout-editor-session";
+import { useLayoutCompositionSession } from "../../composables/layout-composition-session";
 import { useLayoutFontLoader } from "../../composables/layout-font-loader";
 import { api } from "../../services/api";
+import LayoutDocumentMiniPreview from "./LayoutDocumentMiniPreview.vue";
 import LayoutElementTextPreview from "./LayoutElementTextPreview.vue";
 import LayoutRichTextEditor from "./LayoutRichTextEditor.vue";
 
@@ -729,6 +808,7 @@ const emit = defineEmits<{
 const projectId = computed(() => props.snapshot.project.id);
 const chapterId = computed(() => props.snapshot.currentChapter?.id ?? null);
 const session = useLayoutEditorSession({ projectId, chapterId });
+const composition = useLayoutCompositionSession({ projectId, chapterId });
 const chapters = computed(() => props.snapshot.chapters ?? []);
 const isPaged = computed(() => props.snapshot.project.comicFormat === "paged_comic");
 const formatLabel = computed(() => isPaged.value ? "页漫" : "条漫");
@@ -755,8 +835,11 @@ const publicationBusy = ref(false);
 const activeTool = ref<"select" | "text">("select");
 const aiDrawerOpen = ref(false);
 const aiBusy = ref(false);
+const aiRequestKind = ref<"full" | "selection" | "canvas" | "scene">("full");
+const aiIntent = ref<LayoutCompositionIntentV1>("dialogue_readability");
 const legacyCutoverBusy = ref(false);
 let publicationPollTimer: ReturnType<typeof setInterval> | null = null;
+let autoCompositionKey: string | null = null;
 const fontLoader = useLayoutFontLoader({
   projectId,
   chapterId,
@@ -790,6 +873,28 @@ const visibleElements = computed(() => currentElements.value.filter((element) =>
 const reversedLayers = computed(() => [...currentElements.value].reverse());
 const hiddenCount = computed(() => currentElements.value.filter((element) => element.hidden).length);
 const primaryElement = computed(() => session.selectedElements.value[0] ?? null);
+const primarySourceShotId = computed(() => {
+  const element = primaryElement.value;
+  if (element?.type === "panel_frame") return element.contentImage?.source.shotId ?? null;
+  if (element?.type === "free_image") return element.source.shotId;
+  if (element?.type === "balloon") return element.sourceShotId;
+  return null;
+});
+const aiDrawerTitle = computed(() => {
+  if (aiRequestKind.value === "full") return "整章新排法";
+  if (aiRequestKind.value === "selection") return "选中内容智能调整";
+  if (aiRequestKind.value === "scene") return "当前场景智能调整";
+  return `当前${isPaged.value ? "页" : "段"}智能调整`;
+});
+const aiDrawerDescription = computed(() => aiRequestKind.value === "full"
+  ? "当前成稿不会被直接覆盖。系统会先生成另一版画格、图片、对白和气泡布局，你看着更顺眼再使用。"
+  : "系统会先读取画面和对白，再给出局部调整预览。当前成稿不会被直接覆盖，应用后也可以一次撤销。");
+const canRequestScopedAdjustment = computed(() => {
+  if (!session.server.value || !session.currentCanvas.value || session.isReadOnly.value) return false;
+  if (aiRequestKind.value === "selection") return session.selectedElementIds.value.length > 0;
+  if (aiRequestKind.value === "scene") return Boolean(primarySourceShotId.value);
+  return aiRequestKind.value === "canvas";
+});
 const sourceCatalogItems = computed(() => session.sourceCatalog.value?.items ?? []);
 const selectedSource = computed(() => sourceCatalogItems.value.find((item) => item.source.shotId === selectedSourceShotId.value) ?? sourceCatalogItems.value[0] ?? null);
 const visiblePlacements = computed(() => session.document.value ? projectVisibleShotPlacementsV1(session.document.value) : {});
@@ -823,7 +928,18 @@ const canBatchInitialize = computed(() => {
   return session.document.value.canvases.every((canvas) => canvas.elements.every((element) => element.type === "panel_frame"));
 });
 const cannotEditPrimary = computed(() => session.isReadOnly.value || Boolean(primaryElement.value?.locked));
-const canSuggestCenter = computed(() => Boolean(primaryElement.value && !primaryElement.value.locked && session.server.value && session.currentCanvas.value));
+const pendingPreviewDocument = computed(() => {
+  const value = session.pendingCommand.value?.resultDocument;
+  if (!value) return null;
+  return value.schemaVersion === 2 ? projectLayoutDocumentV2ToV1(value) : value;
+});
+const sourceReadyForCompose = computed(() => (
+  props.snapshot.candidateSources?.gates.buildLayoutWorkingCopy.allowed === true
+));
+const initialCompositionBlockedReason = computed(() => {
+  const code = props.snapshot.candidateSources?.gates.buildLayoutWorkingCopy.reasonCodes[0];
+  return getSourceReasonLabel(code);
+});
 const textIssues = computed(() => session.document.value
   ? collectLayoutTextIssuesV1(session.document.value, session.fontCatalog.value?.items ?? [])
   : []);
@@ -940,27 +1056,6 @@ function selectChapter(event: Event): void {
   if (id) emit("selectChapter", id);
 }
 
-function initializeDraft(): void {
-  const profile: LayoutProfileV1 = isPaged.value
-    ? {
-        kind: "paged",
-        presetId: profileWidth.value === 1800 && profileHeight.value === 2400 ? "portrait_3_4" : "custom",
-        width: profileWidth.value,
-        height: profileHeight.value,
-        safeArea: { top: 72, right: 72, bottom: 72, left: 72 },
-        panelReadingDirection: "ltr_ttb",
-      }
-    : {
-        kind: "vertical_strip",
-        presetId: profileWidth.value === 1080 ? "webtoon_1080" : "custom",
-        width: profileWidth.value,
-        defaultSectionHeight: profileHeight.value,
-        safeInsetX: 64,
-      };
-  const currentLayoutId = props.snapshot.candidateSources?.currentLayout?.id ?? null;
-  void session.initialize(profile, initializationMode.value, currentLayoutId);
-}
-
 function currentProfile(): LayoutProfileV1 {
   return isPaged.value
     ? {
@@ -1011,56 +1106,134 @@ function openMobilePreview(): void {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-async function openAiDrawer(): Promise<void> {
+async function generateInitialComposition(): Promise<void> {
+  if (!chapterId.value || session.isReadOnly.value || !sourceReadyForCompose.value) return;
+  actionError.value = null;
+  const applied = await composition.startInitial();
+  if (applied?.target === "working_copy") {
+    await session.reloadServer();
+    return;
+  }
+  if (!applied) {
+    await session.reloadServer().catch(() => undefined);
+  }
+}
+
+async function retryInitialComposition(): Promise<void> {
+  autoCompositionKey = chapterId.value ? `${projectId.value}:${chapterId.value}` : null;
+  composition.reset();
+  await generateInitialComposition();
+}
+
+async function openOrCreateReflow(): Promise<void> {
+  aiRequestKind.value = "full";
+  aiDrawerOpen.value = true;
+  aiBusy.value = true;
+  actionError.value = null;
+  try {
+    await session.loadPendingCommand();
+    if (!session.pendingCommand.value && !composition.busy.value) {
+      await requestFullReflow();
+    }
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "新排法读取失败";
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
+async function requestFullReflow(): Promise<void> {
+  const server = session.server.value;
+  if (!server || !session.isAutomatedDocument.value || session.isReadOnly.value) return;
+  aiRequestKind.value = "full";
+  aiDrawerOpen.value = true;
+  actionError.value = null;
+  try {
+    await session.flush();
+    if (session.isDirty.value || session.saveState.value !== "saved") {
+      throw new Error("请等当前调整保存完成后再生成另一版排法。");
+    }
+    const latest = session.server.value;
+    if (!latest) return;
+    const applied = await composition.startFullReflow(
+      latest.rowVersion,
+      latest.documentDigest,
+    );
+    if (applied?.target === "pending_command") {
+      await session.loadPendingCommand();
+    }
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : "整章重新排版失败";
+  }
+}
+
+async function openScopedAdjustment(): Promise<void> {
+  aiRequestKind.value = session.selectedElementIds.value.length ? "selection" : "canvas";
   aiDrawerOpen.value = true;
   aiBusy.value = true;
   actionError.value = null;
   try {
     await session.loadPendingCommand();
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "AI 建议读取失败";
+    actionError.value = error instanceof Error ? error.message : "智能调整预览读取失败";
   } finally {
     aiBusy.value = false;
   }
 }
 
-async function previewCenterSuggestion(): Promise<void> {
-  const element = primaryElement.value;
-  const canvas = session.currentCanvas.value;
+async function requestScopedReflow(): Promise<void> {
   const server = session.server.value;
-  if (!element || !canvas || !server || element.locked) return;
-  aiBusy.value = true;
+  const canvas = session.currentCanvas.value;
+  if (
+    !server
+    || !canvas
+    || !session.isAutomatedDocument.value
+    || session.isReadOnly.value
+    || !canRequestScopedAdjustment.value
+  ) return;
+  aiDrawerOpen.value = true;
   actionError.value = null;
   try {
-    const maxX = Math.max(0, canvas.width - element.transform.width);
-    const shiftedX = element.transform.x + 8 <= maxX
-      ? element.transform.x + 8
-      : Math.max(0, element.transform.x - 8);
-    const transform = { ...element.transform, x: Math.round(shiftedX * 1_000) / 1_000 };
-    const suggestion = command("element.set_transform", "微调所选对象留白", {
-      canvasId: canvas.id,
-      elementId: element.id,
-      transform,
-    });
-    await session.previewPendingCommand({
-      schemaVersion: 1,
-      expectedWorkingCopyRowVersion: server.rowVersion,
-      expectedDocumentDigest: server.documentDigest,
-      selectionElementIds: [element.id],
-      summary: `将「${element.name}」横向微调 8 像素`,
-      warnings: [],
-      commandBatch: {
-        schemaVersion: 1,
-        batchId: newId("ai_batch"),
-        label: "AI 建议：微调所选对象留白",
-        commands: [suggestion],
-      },
-    });
+    await session.flush();
+    if (session.isDirty.value || session.saveState.value !== "saved") {
+      throw new Error("请等当前调整保存完成后再生成局部预览。");
+    }
+    const latest = session.server.value;
+    if (!latest) return;
+    const scope = aiRequestKind.value === "selection"
+      ? {
+          canvasIds: [],
+          elementIds: [...session.selectedElementIds.value],
+          shotIds: [],
+        }
+      : aiRequestKind.value === "scene"
+        ? {
+            canvasIds: [],
+            elementIds: [],
+            shotIds: primarySourceShotId.value ? [primarySourceShotId.value] : [],
+          }
+        : {
+            canvasIds: [canvas.id],
+            elementIds: [],
+            shotIds: [],
+          };
+    const applied = await composition.startScopedReflow(
+      latest.rowVersion,
+      latest.documentDigest,
+      scope,
+      aiIntent.value,
+    );
+    if (applied?.target === "pending_command") {
+      await session.loadPendingCommand();
+    }
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "AI 建议预览失败";
-  } finally {
-    aiBusy.value = false;
+    actionError.value = error instanceof Error ? error.message : "局部智能调整失败";
   }
+}
+
+function retryAiRequest(): void {
+  if (aiRequestKind.value === "full") void requestFullReflow();
+  else void requestScopedReflow();
 }
 
 async function applyAiSuggestion(): Promise<void> {
@@ -1068,8 +1241,10 @@ async function applyAiSuggestion(): Promise<void> {
   actionError.value = null;
   try {
     await session.applyPendingCommand();
+    composition.reset();
+    aiDrawerOpen.value = false;
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "AI 建议已过期，请重新生成";
+    actionError.value = error instanceof Error ? error.message : "新排法已过期，请重新生成";
     await session.loadPendingCommand().catch(() => null);
   } finally {
     aiBusy.value = false;
@@ -1081,11 +1256,32 @@ async function discardAiSuggestion(): Promise<void> {
   actionError.value = null;
   try {
     await session.discardPendingCommand();
+    composition.reset();
+    aiDrawerOpen.value = false;
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "AI 建议放弃失败";
+    actionError.value = error instanceof Error ? error.message : "保留当前排法失败";
   } finally {
     aiBusy.value = false;
   }
+}
+
+function compositionWarningLabel(code: string): string {
+  const labels: Record<string, string> = {
+    BALLOON_LAYOUT_FALLBACK: "个别对白气泡使用了保守位置，应用后可以继续手动调整。",
+    BALLOON_TAIL_FALLBACK: "个别气泡尾巴没有可靠的说话人位置，应用后可以继续手动调整。",
+    VISUAL_ANALYSIS_MISSING: "这次主要根据分镜、图片尺寸和对白规则排版。",
+    LAYOUT_TEXT_OVERFLOW: "个别文字区域需要应用后再检查。",
+    visual_analysis_not_configured: "当前没有可用的画面分析模型，这次使用了安全排版规则。",
+    visual_analysis_timeout: "个别图片分析超时，已自动改用安全排版规则。",
+    visual_analysis_provider_failed: "个别图片没有完成视觉分析，已自动改用安全排版规则。",
+    visual_analysis_subject_not_detected: "个别画面没有可靠识别出人物，系统采用了保守裁切。",
+    visual_analysis_text_safe_region_not_detected: "个别画面没有可靠文字空白区，气泡采用了保守位置。",
+    SCOPED_REFLOW_EXPANDED_TO_SCENE: "为了保持场景连续，预览包含了当前场景的完整镜头。",
+    SCOPED_REFLOW_EXPANDED_TO_NARRATIVE_GROUP: "为了不拆开连续对白，预览带上了同一小段内容。",
+    SMART_PROTECTED_ITEMS_PRESERVED: "你手动调整或锁定的内容已保留，未被这次智能调整覆盖。",
+    SMART_TARGET_MATCH_MISSING: "个别对象没有可靠的新位置，已保持当前排法。",
+  };
+  return labels[code] ?? "这版有一处需要应用后再看一下。";
 }
 
 async function prepareRevision(): Promise<void> {
@@ -2249,11 +2445,39 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 watch(chapterId, () => {
+  autoCompositionKey = null;
+  aiDrawerOpen.value = false;
+  aiRequestKind.value = "full";
   publicationPreflight.value = null;
   publicationAcknowledgedIssueKeys.value = [];
   publicationRequestId.value = null;
   void refreshPublicationHistory().catch(() => undefined);
 });
+watch(
+  () => [
+    projectId.value,
+    chapterId.value,
+    session.saveState.value,
+    session.legacyStatus.value?.state ?? "none",
+    session.isReadOnly.value,
+    sourceReadyForCompose.value,
+  ] as const,
+  () => {
+    const currentChapterId = chapterId.value;
+    if (
+      !currentChapterId
+      || session.saveState.value !== "missing"
+      || session.legacyStatus.value
+      || session.isReadOnly.value
+      || !sourceReadyForCompose.value
+    ) return;
+    const key = `${projectId.value}:${currentChapterId}`;
+    if (autoCompositionKey === key || composition.busy.value) return;
+    autoCompositionKey = key;
+    void generateInitialComposition();
+  },
+  { immediate: true },
+);
 watch(() => {
   const profile = session.document.value?.profile;
   const canvas = session.currentCanvas.value;
@@ -2304,7 +2528,7 @@ onBeforeUnmount(() => {
   display: grid;
   align-content: start;
   gap: 14px;
-  width: min(390px, calc(100% - 24px));
+  width: min(780px, calc(100% - 24px));
   box-sizing: border-box;
   border-left: 1px solid rgba(116, 95, 255, 0.34);
   background: rgba(9, 15, 28, 0.98);
@@ -2315,7 +2539,7 @@ onBeforeUnmount(() => {
 
 .layout-ai-drawer > header,
 .layout-ai-drawer > header > div,
-.ai-command-preview > div,
+.ai-preview-actions,
 .ai-pending-state {
   display: flex;
   align-items: center;
@@ -2331,8 +2555,45 @@ onBeforeUnmount(() => {
 .ai-empty-state { display: grid; gap: 10px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 12px; background: rgba(19, 28, 48, 0.72); padding: 13px; }
 .ai-command-preview small { color: #8da0c2; overflow-wrap: anywhere; }
 .ai-command-preview ul { margin: 0; padding-left: 18px; color: #fcd34d; font-size: 11px; }
-.ai-command-preview > div { justify-content: flex-end; flex-wrap: wrap; }
-.ai-pending-state { color: #bdb5ff; }
+.ai-preview-actions { justify-content: flex-end; flex-wrap: wrap; }
+.ai-adjust-options { gap: 12px; }
+.ai-option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ai-option-row button.is-active {
+  border-color: rgba(129, 116, 255, 0.78);
+  background: rgba(116, 95, 255, 0.22);
+  color: #eeeaff;
+  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.16);
+}
+.ai-pending-state {
+  justify-content: center;
+  min-height: 150px;
+  color: #bdb5ff;
+}
+.ai-pending-state > div { display: grid; gap: 4px; }
+.ai-pending-state small { color: #8e9ab5; }
+.ai-error-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgba(251, 113, 133, 0.28);
+  border-radius: 12px;
+  background: rgba(127, 29, 29, 0.16);
+  padding: 13px;
+  color: #fecdd3;
+}
+.ai-error-state > div { display: grid; gap: 8px; }
+.ai-error-state p { margin: 0; color: #fda4af; font-size: 12px; line-height: 1.55; }
+.layout-preview-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
 
 button,
 select,
@@ -2374,6 +2635,14 @@ button:disabled {
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   padding: 8px 12px;
   background: rgba(12, 18, 33, 0.96);
+}
+
+.smart-scope-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-color: rgba(129, 116, 255, 0.42);
+  color: #d8d1ff;
 }
 
 .layout-source-attention {
@@ -2622,6 +2891,28 @@ button:disabled {
 .create-card label { display: grid; gap: 6px; color: #aab5ca; font-size: 12px; font-weight: 800; }
 .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .primary-action { background: linear-gradient(135deg, #22c7a9, #745fff); border-color: transparent; color: white; font-weight: 900; }
+.smart-compose-card {
+  justify-items: center;
+  width: min(520px, calc(100% - 32px));
+  text-align: center;
+}
+.smart-compose-card .compose-mark { color: #8b7cff; }
+.smart-compose-card .compose-mark.is-error { color: #fb7185; }
+.smart-compose-card > small { color: #7f8ca8; font-size: 11px; }
+.compose-progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+}
+.compose-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c7a9, #745fff);
+  transition: width 220ms ease;
+}
 
 .editor-shell {
   display: grid;
@@ -2762,6 +3053,7 @@ button:disabled {
 .number-grid label { display: grid; gap: 5px; color: #8491aa; font-size: 11px; }
 .number-grid input { width: 100%; box-sizing: border-box; }
 .property-actions { flex-wrap: wrap; margin-top: 14px; }
+.property-help { margin: 8px 0 14px; color: #8491aa; font-size: 10px; line-height: 1.55; }
 .preset-picker,
 .special-properties,
 .reading-order { display: grid; gap: 9px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); padding-bottom: 14px; margin-bottom: 14px; }
@@ -2808,6 +3100,7 @@ button:disabled {
   .m6-control-center { grid-template-columns: 1fr; max-height: none; }
   .history-card { grid-column: auto; }
   .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
+  .layout-preview-comparison { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

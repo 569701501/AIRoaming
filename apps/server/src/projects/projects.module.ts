@@ -46,6 +46,10 @@ import { LayoutRendererService } from "./layout-renderer.service.js";
 import { LayoutPublicationService } from "./layout-publication.service.js";
 import { LayoutPublicationWorkerService } from "./layout-publication-worker.service.js";
 import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
+import { LayoutCompositionSourceProjector } from "./layout-composition-source-projector.service.js";
+import { LayoutCompositionWorkerService } from "./layout-composition-worker.service.js";
+import { LayoutCompositionService } from "./layout-composition.service.js";
+import { LayoutVisualAnalyzerService } from "./layout-visual-analyzer.service.js";
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
@@ -92,7 +96,11 @@ import { LayoutPendingCommandService } from "./layout-pending-command.service.js
     LayoutPublicationService,
     LayoutPublicationWorkerService,
     LayoutPendingCommandService,
+    LayoutCompositionSourceProjector,
+    LayoutVisualAnalyzerService,
+    LayoutCompositionWorkerService,
+    LayoutCompositionService,
   ],
-  exports: [ProjectsService, ScriptWorkflowSourceRepository, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService, LayoutPendingCommandService],
+  exports: [ProjectsService, ScriptWorkflowSourceRepository, ProjectDeleteOutboxService, CandidateDecisionService, ScriptVersionService, StoryVersionService, StoryboardVersionService, ChapterProductionQueryService, NewWorkGateService, PreflightRevisionService, TaskApplicabilityGuardService, PersistentTaskWorkerService, LayoutFontService, LayoutWorkingCopyService, LayoutVersioningService, LayoutPublicationService, LayoutPendingCommandService, LayoutCompositionService],
 })
 export class ProjectsModule {}

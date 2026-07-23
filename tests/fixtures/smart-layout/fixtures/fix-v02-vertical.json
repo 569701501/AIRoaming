@@ -1,0 +1,1643 @@
+{
+  "fixtureSchemaVersion": 1,
+  "kind": "smart_layout_m0_fixture_v1",
+  "sourceDate": "2026-07-22T00:00:00.000Z",
+  "group": {
+    "groupId": "FIX-V02",
+    "title": "条漫双人连续对话"
+  },
+  "variant": {
+    "variantId": "fix-v02-vertical",
+    "title": "便利店里的交替追问",
+    "comicFormat": "vertical_scroll",
+    "coverageTags": [
+      "two_character_dialogue",
+      "alternating_speakers",
+      "reading_order",
+      "tails"
+    ],
+    "targetNarrativeGroups": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        5,
+        6
+      ],
+      [
+        7,
+        8
+      ]
+    ],
+    "shotLayoutIntents": [
+      {
+        "shotOrder": 1,
+        "intent": "wide",
+        "visualAsset": "landscape_pair_edges"
+      },
+      {
+        "shotOrder": 2,
+        "intent": "standard",
+        "visualAsset": "portrait_left"
+      },
+      {
+        "shotOrder": 3,
+        "intent": "standard",
+        "visualAsset": "square_right"
+      },
+      {
+        "shotOrder": 4,
+        "intent": "pause",
+        "visualAsset": "square_left"
+      },
+      {
+        "shotOrder": 5,
+        "intent": "standard",
+        "visualAsset": "portrait_right"
+      },
+      {
+        "shotOrder": 6,
+        "intent": "detail",
+        "visualAsset": "landscape_detail_bottom"
+      },
+      {
+        "shotOrder": 7,
+        "intent": "impact",
+        "visualAsset": "landscape_pair_edges"
+      },
+      {
+        "shotOrder": 8,
+        "intent": "focus",
+        "visualAsset": "tall_action"
+      }
+    ]
+  },
+  "inputs": {
+    "storyContext": {
+      "scenes": [
+        {
+          "id": "fix-v02-vertical_scene_1",
+          "name": "便利店"
+        }
+      ],
+      "beats": [
+        {
+          "id": "fix-v02-vertical_beat_1",
+          "title": "试探",
+          "sceneId": "fix-v02-vertical_scene_1"
+        },
+        {
+          "id": "fix-v02-vertical_beat_2",
+          "title": "证据",
+          "sceneId": "fix-v02-vertical_scene_1"
+        },
+        {
+          "id": "fix-v02-vertical_beat_3",
+          "title": "交换",
+          "sceneId": "fix-v02-vertical_scene_1"
+        },
+        {
+          "id": "fix-v02-vertical_beat_4",
+          "title": "警报",
+          "sceneId": "fix-v02-vertical_scene_1"
+        }
+      ]
+    },
+    "storyboardVersion": {
+      "id": "storyboard_version_fix-v02-vertical",
+      "revision": 1,
+      "position": "current",
+      "schemaVersion": 2,
+      "documentDigest": "sha256:f2f362b23662b812eee9438d0b22610e4afacfd346853e109c550d0d756554f2",
+      "document": {
+        "schemaVersion": 2,
+        "chapterId": "chapter_fix-v02-vertical",
+        "shots": [
+          {
+            "id": "fix-v02-vertical_shot_01",
+            "order": 1,
+            "beatId": "fix-v02-vertical_beat_1",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_linzhou",
+              "char_xucheng"
+            ],
+            "coreAction": "两人隔着货架对视",
+            "emotion": "戒备",
+            "shotType": "wide",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "两人隔着货架对视",
+              "composition": "布局意图：wide",
+              "dialogue": "许澄：你迟到了十一分钟。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "两人隔着货架对视",
+              "compositionDesign": "景别 wide，布局意图 wide",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_xucheng",
+                  "name": "许澄",
+                  "line": "你迟到了十一分钟。",
+                  "voiceStyle": "冷静、直接"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_02",
+            "order": 2,
+            "beatId": "fix-v02-vertical_beat_1",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_linzhou"
+            ],
+            "coreAction": "林舟把湿伞靠在门边",
+            "emotion": "克制",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "林舟把湿伞靠在门边",
+              "composition": "布局意图：standard",
+              "dialogue": "林舟：后面有人跟着我。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "林舟把湿伞靠在门边",
+              "compositionDesign": "景别 medium，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "后面有人跟着我。",
+                  "voiceStyle": "压低声音"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_03",
+            "order": 3,
+            "beatId": "fix-v02-vertical_beat_2",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_xucheng"
+            ],
+            "coreAction": "许澄推来一张存储卡",
+            "emotion": "紧张",
+            "shotType": "close_up",
+            "cameraAngle": "over_shoulder",
+            "comic": {
+              "panelDescription": "许澄推来一张存储卡",
+              "composition": "布局意图：standard",
+              "dialogue": "许澄：这里面有仓库的原始监控。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "许澄推来一张存储卡",
+              "compositionDesign": "景别 close_up，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_xucheng",
+                  "name": "许澄",
+                  "line": "这里面有仓库的原始监控。",
+                  "voiceStyle": "快速、克制"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_04",
+            "order": 4,
+            "beatId": "fix-v02-vertical_beat_2",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_linzhou"
+            ],
+            "coreAction": "林舟没有立刻伸手",
+            "emotion": "怀疑",
+            "shotType": "close_up",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "林舟没有立刻伸手",
+              "composition": "布局意图：pause",
+              "dialogue": "林舟：你为什么现在才给我？",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "林舟没有立刻伸手",
+              "compositionDesign": "景别 close_up，布局意图 pause",
+              "cameraMovement": "static",
+              "frameType": "reaction",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "你为什么现在才给我？",
+                  "voiceStyle": "追问"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_05",
+            "order": 5,
+            "beatId": "fix-v02-vertical_beat_3",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_xucheng"
+            ],
+            "coreAction": "许澄攥紧红色文件夹",
+            "emotion": "愧疚",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "许澄攥紧红色文件夹",
+              "composition": "布局意图：standard",
+              "dialogue": "许澄：因为昨晚之前，我还以为他活着。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "许澄攥紧红色文件夹",
+              "compositionDesign": "景别 medium，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_xucheng",
+                  "name": "许澄",
+                  "line": "因为昨晚之前，我还以为他活着。",
+                  "voiceStyle": "发颤、压抑"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_06",
+            "order": 6,
+            "beatId": "fix-v02-vertical_beat_3",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_linzhou"
+            ],
+            "coreAction": "林舟终于拿起存储卡",
+            "emotion": "沉重",
+            "shotType": "extreme_close_up",
+            "cameraAngle": "top_down",
+            "comic": {
+              "panelDescription": "林舟终于拿起存储卡",
+              "composition": "布局意图：detail",
+              "dialogue": "林舟：我会查清楚。",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "林舟终于拿起存储卡",
+              "compositionDesign": "景别 extreme_close_up，布局意图 detail",
+              "cameraMovement": "static",
+              "frameType": "detail",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "我会查清楚。",
+                  "voiceStyle": "低沉"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_07",
+            "order": 7,
+            "beatId": "fix-v02-vertical_beat_4",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_linzhou",
+              "char_xucheng"
+            ],
+            "coreAction": "门外车灯扫过玻璃",
+            "emotion": "惊惧",
+            "shotType": "wide",
+            "cameraAngle": "dutch_angle",
+            "comic": {
+              "panelDescription": "门外车灯扫过玻璃",
+              "composition": "布局意图：impact",
+              "dialogue": "许澄：不是我的车。",
+              "caption": "",
+              "panelRhythm": "fast"
+            },
+            "motion": {
+              "visualDescription": "门外车灯扫过玻璃",
+              "compositionDesign": "景别 wide，布局意图 impact",
+              "cameraMovement": "static",
+              "frameType": "reaction",
+              "durationMs": 1400,
+              "durationHint": "fast",
+              "voiceLines": [
+                {
+                  "characterId": "char_xucheng",
+                  "name": "许澄",
+                  "line": "不是我的车。",
+                  "voiceStyle": "急促"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-v02-vertical_shot_08",
+            "order": 8,
+            "beatId": "fix-v02-vertical_beat_4",
+            "sceneId": "fix-v02-vertical_scene_1",
+            "characterIds": [
+              "char_linzhou"
+            ],
+            "coreAction": "林舟拉低卷帘门",
+            "emotion": "果断",
+            "shotType": "full",
+            "cameraAngle": "low_angle",
+            "comic": {
+              "panelDescription": "林舟拉低卷帘门",
+              "composition": "布局意图：focus",
+              "dialogue": "林舟：关灯，走后门！",
+              "caption": "",
+              "panelRhythm": "impact"
+            },
+            "motion": {
+              "visualDescription": "林舟拉低卷帘门",
+              "compositionDesign": "景别 full，布局意图 focus",
+              "cameraMovement": "handheld",
+              "frameType": "action",
+              "durationMs": 800,
+              "durationHint": "impact",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "关灯，走后门！",
+                  "voiceStyle": "命令、急促"
+                }
+              ]
+            },
+            "promptDraft": ""
+          }
+        ],
+        "notes": "M0 固定语料：便利店里的交替追问"
+      }
+    },
+    "characterCatalog": [
+      {
+        "id": "char_linzhou",
+        "projectCharacterId": "project_character_linzhou",
+        "name": "林舟",
+        "role": "调查记者",
+        "visualTraits": "灰蓝长风衣、左眉浅疤、旧银色录音笔"
+      },
+      {
+        "id": "char_xucheng",
+        "projectCharacterId": "project_character_xucheng",
+        "name": "许澄",
+        "role": "档案管理员",
+        "visualTraits": "米白短外套、黑框眼镜、红色文件夹"
+      }
+    ],
+    "candidateLockSet": {
+      "state": "complete",
+      "sourceApplicability": "current",
+      "digest": "sha256:99bd1a70c6131a82319c365d37495841032711daee2829fcc417288a01503056",
+      "items": [
+        {
+          "order": 1,
+          "shotId": "fix-v02-vertical_shot_01",
+          "candidateId": "fix-v02-vertical_candidate_01",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_01",
+          "assetId": "asset_sml_landscape_pair_edges",
+          "assetSha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "width": 1280,
+          "height": 720,
+          "status": "ready"
+        },
+        {
+          "order": 2,
+          "shotId": "fix-v02-vertical_shot_02",
+          "candidateId": "fix-v02-vertical_candidate_02",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_02",
+          "assetId": "asset_sml_portrait_left",
+          "assetSha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+          "width": 720,
+          "height": 1280,
+          "status": "ready"
+        },
+        {
+          "order": 3,
+          "shotId": "fix-v02-vertical_shot_03",
+          "candidateId": "fix-v02-vertical_candidate_03",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_03",
+          "assetId": "asset_sml_square_right",
+          "assetSha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+          "width": 1024,
+          "height": 1024,
+          "status": "ready"
+        },
+        {
+          "order": 4,
+          "shotId": "fix-v02-vertical_shot_04",
+          "candidateId": "fix-v02-vertical_candidate_04",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_04",
+          "assetId": "asset_sml_square_left",
+          "assetSha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "width": 1024,
+          "height": 1024,
+          "status": "ready"
+        },
+        {
+          "order": 5,
+          "shotId": "fix-v02-vertical_shot_05",
+          "candidateId": "fix-v02-vertical_candidate_05",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_05",
+          "assetId": "asset_sml_portrait_right",
+          "assetSha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+          "width": 720,
+          "height": 1280,
+          "status": "ready"
+        },
+        {
+          "order": 6,
+          "shotId": "fix-v02-vertical_shot_06",
+          "candidateId": "fix-v02-vertical_candidate_06",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_06",
+          "assetId": "asset_sml_landscape_detail_bottom",
+          "assetSha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+          "width": 1280,
+          "height": 720,
+          "status": "ready"
+        },
+        {
+          "order": 7,
+          "shotId": "fix-v02-vertical_shot_07",
+          "candidateId": "fix-v02-vertical_candidate_07",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_07",
+          "assetId": "asset_sml_landscape_pair_edges",
+          "assetSha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "width": 1280,
+          "height": 720,
+          "status": "ready"
+        },
+        {
+          "order": 8,
+          "shotId": "fix-v02-vertical_shot_08",
+          "candidateId": "fix-v02-vertical_candidate_08",
+          "candidateLockRevisionId": "fix-v02-vertical_lock_08",
+          "assetId": "asset_sml_tall_action",
+          "assetSha256": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+          "width": 768,
+          "height": 1365,
+          "status": "ready"
+        }
+      ]
+    },
+    "sourceCatalog": {
+      "schemaVersion": 1,
+      "projectId": "project_fix-v02-vertical",
+      "chapterId": "chapter_fix-v02-vertical",
+      "sourceLockSetDigest": "sha256:99bd1a70c6131a82319c365d37495841032711daee2829fcc417288a01503056",
+      "items": [
+        {
+          "order": 1,
+          "width": 1280,
+          "height": 720,
+          "status": "ready",
+          "assetSha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_01",
+            "candidateId": "fix-v02-vertical_candidate_01",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_01",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "sourceDigest": "sha256:4b51e14cb72c32152f797c5123c94395773152f907472ee783673485376f8d7b"
+          }
+        },
+        {
+          "order": 2,
+          "width": 720,
+          "height": 1280,
+          "status": "ready",
+          "assetSha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_02",
+            "candidateId": "fix-v02-vertical_candidate_02",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_02",
+            "assetId": "asset_sml_portrait_left",
+            "sourceDigest": "sha256:e087be59bb2d9b19f2fc49a78f2e754f55cff3e807101186d22b84aae1514483"
+          }
+        },
+        {
+          "order": 3,
+          "width": 1024,
+          "height": 1024,
+          "status": "ready",
+          "assetSha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_03",
+            "candidateId": "fix-v02-vertical_candidate_03",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_03",
+            "assetId": "asset_sml_square_right",
+            "sourceDigest": "sha256:abf3e6ba6b0281b5083cab923883ea62377998702c7440f0b36bccc01151aa80"
+          }
+        },
+        {
+          "order": 4,
+          "width": 1024,
+          "height": 1024,
+          "status": "ready",
+          "assetSha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_04",
+            "candidateId": "fix-v02-vertical_candidate_04",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_04",
+            "assetId": "asset_sml_square_left",
+            "sourceDigest": "sha256:7db55708307eb3fff56025c346ecc3525453aed0d851d6364d04a3ef57ce67f6"
+          }
+        },
+        {
+          "order": 5,
+          "width": 720,
+          "height": 1280,
+          "status": "ready",
+          "assetSha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_05",
+            "candidateId": "fix-v02-vertical_candidate_05",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_05",
+            "assetId": "asset_sml_portrait_right",
+            "sourceDigest": "sha256:f6968625aa9110d0902454f97610afa27f031e309581f39033feeddb67355009"
+          }
+        },
+        {
+          "order": 6,
+          "width": 1280,
+          "height": 720,
+          "status": "ready",
+          "assetSha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_06",
+            "candidateId": "fix-v02-vertical_candidate_06",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_06",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "sourceDigest": "sha256:03033c0dd733ecfb42b9ea28eb0fe99c0bf76c7cbc4ec6d792b1b9e036027c3b"
+          }
+        },
+        {
+          "order": 7,
+          "width": 1280,
+          "height": 720,
+          "status": "ready",
+          "assetSha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_07",
+            "candidateId": "fix-v02-vertical_candidate_07",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_07",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "sourceDigest": "sha256:20fbfa95293feeb4a3096b26dc8c2bda1147951546d69223ca3c942055219a5a"
+          }
+        },
+        {
+          "order": 8,
+          "width": 768,
+          "height": 1365,
+          "status": "ready",
+          "assetSha256": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+          "source": {
+            "shotId": "fix-v02-vertical_shot_08",
+            "candidateId": "fix-v02-vertical_candidate_08",
+            "candidateLockRevisionId": "fix-v02-vertical_lock_08",
+            "assetId": "asset_sml_tall_action",
+            "sourceDigest": "sha256:7d180516587e76361ab6c6a654d298a609ad5a16bebf47e1582ff2db3a1dc150"
+          }
+        }
+      ]
+    },
+    "fontAsset": {
+      "assetId": "asset_font_sml_noto_sc_400",
+      "role": "font",
+      "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+      "mimeType": "font/woff2",
+      "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+      "bytes": 1602144,
+      "metadata": {
+        "schemaVersion": 1,
+        "kind": "layout_font_asset_v1",
+        "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+        "familyName": "Noto Sans SC",
+        "displayName": "Noto Sans SC 受控常规体",
+        "face": {
+          "weight": 400,
+          "style": "normal"
+        },
+        "format": "woff2",
+        "license": {
+          "spdx": "OFL-1.1",
+          "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+          "embeddingAllowed": true
+        }
+      },
+      "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+      "status": "ready"
+    },
+    "dialogueLedger": {
+      "schemaVersion": 1,
+      "items": [
+        {
+          "itemId": "fix-v02-vertical_dialogue_01_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_01",
+          "sourceOrder": 1,
+          "characterId": "char_xucheng",
+          "speakerName": "许澄",
+          "text": "你迟到了十一分钟。",
+          "textDigest": "sha256:7edcabd576206d8b827bf0dd834545ee0acc25dd6b194c871a87a16952f5c74d",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_02_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_02",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "后面有人跟着我。",
+          "textDigest": "sha256:97c550991c2776166e027f8725fcd4244e8732b792cf14e1199cb06ec904bd09",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_03_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_03",
+          "sourceOrder": 1,
+          "characterId": "char_xucheng",
+          "speakerName": "许澄",
+          "text": "这里面有仓库的原始监控。",
+          "textDigest": "sha256:5b0face9bd0a837a3cecd2367aaad4cb1d2957d091d514f7b2469b76e2fad926",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_04_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_04",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "你为什么现在才给我？",
+          "textDigest": "sha256:55d9b49173702ab17cef9e98a5bf1ae63610b233d7ff12bf5f9eb0cb4e54b7b8",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_05_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_05",
+          "sourceOrder": 1,
+          "characterId": "char_xucheng",
+          "speakerName": "许澄",
+          "text": "因为昨晚之前，我还以为他活着。",
+          "textDigest": "sha256:0f4176b810a93a1ba5014f4a0c04f5ceb058b4ddedb06e5965c7b09f1f13614d",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_06_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_06",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "我会查清楚。",
+          "textDigest": "sha256:1594683b3e8f1fc1cbfa6b4e589d725154afecdd7119d6364e76280e6ba95b24",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_07_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_07",
+          "sourceOrder": 1,
+          "characterId": "char_xucheng",
+          "speakerName": "许澄",
+          "text": "不是我的车。",
+          "textDigest": "sha256:e888370a06e287f99364429247056e6cb25fc9633c0be1502ff79d7d4166376f",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-v02-vertical_dialogue_08_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-v02-vertical_shot_08",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "关灯，走后门！",
+          "textDigest": "sha256:a77c2c9d8a5454c76f67f3ebaf197f946aee420dd660b075494c328cf42fba6f",
+          "expectedBalloonKind": "shout"
+        }
+      ],
+      "digest": "sha256:4655e02082844449e898fd69a1a4cb8a3e4d807c0fdba88e8153d9ce19699c09"
+    }
+  },
+  "replacementScenario": null,
+  "currentBaseline": {
+    "implementation": "initializeLayoutCanvasesFromSourcesV1",
+    "behavior": "每镜固定一个 1080×1920 段落并使用 single 模板",
+    "limitations": [
+      "不读取 scene/beat/frameType/panelRhythm",
+      "不创建对白、旁白或气泡",
+      "crop 固定 zoom=1 且居中"
+    ],
+    "layoutDocumentDigest": "sha256:97cc31c814e0592385dd1b617b693ae2a457ba3b73632d9032ded6ea1d0d9568",
+    "layoutDocument": {
+      "schemaVersion": 1,
+      "kind": "layout_document_v1",
+      "projectId": "project_fix-v02-vertical",
+      "chapterId": "chapter_fix-v02-vertical",
+      "comicFormat": "vertical_scroll",
+      "profile": {
+        "kind": "vertical_strip",
+        "presetId": "webtoon_1080",
+        "width": 1080,
+        "defaultSectionHeight": 1920,
+        "safeInsetX": 64
+      },
+      "fontPolicy": {
+        "defaultFontAssetId": "asset_font_sml_noto_sc_400",
+        "fallbackFontAssetIds": []
+      },
+      "canvases": [
+        {
+          "id": "fix-v02-vertical_canvas_1",
+          "kind": "strip_section",
+          "name": "第 1 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_1"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_1",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_1",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 1",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_01",
+                  "candidateId": "fix-v02-vertical_candidate_01",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_01",
+                  "assetId": "asset_sml_landscape_pair_edges",
+                  "sourceDigest": "sha256:4b51e14cb72c32152f797c5123c94395773152f907472ee783673485376f8d7b"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_2",
+          "kind": "strip_section",
+          "name": "第 2 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_2"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_2",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_2",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 2",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_02",
+                  "candidateId": "fix-v02-vertical_candidate_02",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_02",
+                  "assetId": "asset_sml_portrait_left",
+                  "sourceDigest": "sha256:e087be59bb2d9b19f2fc49a78f2e754f55cff3e807101186d22b84aae1514483"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_3",
+          "kind": "strip_section",
+          "name": "第 3 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_3"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_3",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_3",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 3",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_03",
+                  "candidateId": "fix-v02-vertical_candidate_03",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_03",
+                  "assetId": "asset_sml_square_right",
+                  "sourceDigest": "sha256:abf3e6ba6b0281b5083cab923883ea62377998702c7440f0b36bccc01151aa80"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_4",
+          "kind": "strip_section",
+          "name": "第 4 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_4"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_4",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_4",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 4",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_04",
+                  "candidateId": "fix-v02-vertical_candidate_04",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_04",
+                  "assetId": "asset_sml_square_left",
+                  "sourceDigest": "sha256:7db55708307eb3fff56025c346ecc3525453aed0d851d6364d04a3ef57ce67f6"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_5",
+          "kind": "strip_section",
+          "name": "第 5 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_5"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_5",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_5",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 5",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_05",
+                  "candidateId": "fix-v02-vertical_candidate_05",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_05",
+                  "assetId": "asset_sml_portrait_right",
+                  "sourceDigest": "sha256:f6968625aa9110d0902454f97610afa27f031e309581f39033feeddb67355009"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_6",
+          "kind": "strip_section",
+          "name": "第 6 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_6"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_6",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_6",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 6",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_06",
+                  "candidateId": "fix-v02-vertical_candidate_06",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_06",
+                  "assetId": "asset_sml_landscape_detail_bottom",
+                  "sourceDigest": "sha256:03033c0dd733ecfb42b9ea28eb0fe99c0bf76c7cbc4ec6d792b1b9e036027c3b"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_7",
+          "kind": "strip_section",
+          "name": "第 7 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_7"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_7",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_7",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 7",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_07",
+                  "candidateId": "fix-v02-vertical_candidate_07",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_07",
+                  "assetId": "asset_sml_landscape_pair_edges",
+                  "sourceDigest": "sha256:20fbfa95293feeb4a3096b26dc8c2bda1147951546d69223ca3c942055219a5a"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-v02-vertical_canvas_8",
+          "kind": "strip_section",
+          "name": "第 8 段",
+          "width": 1080,
+          "height": 1920,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-v02-vertical_panel_8"
+          ],
+          "elements": [
+            {
+              "id": "fix-v02-vertical_panel_8",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 64,
+                "y": 64,
+                "width": 952,
+                "height": 1792,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-v02-vertical_image_8",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 8",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-v02-vertical_shot_08",
+                  "candidateId": "fix-v02-vertical_candidate_08",
+                  "candidateLockRevisionId": "fix-v02-vertical_lock_08",
+                  "assetId": "asset_sml_tall_action",
+                  "sourceDigest": "sha256:7d180516587e76361ab6c6a654d298a609ad5a16bebf47e1582ff2db3a1dc150"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "sourceLockSetDigest": "sha256:99bd1a70c6131a82319c365d37495841032711daee2829fcc417288a01503056",
+    "publicationProfile": {
+      "schemaVersion": 1,
+      "kind": "vertical_publication",
+      "outputScale": 1,
+      "maxSliceHeightPx": 8192,
+      "cutPolicy": "prefer_section_boundary_then_exact",
+      "includeLongPng": true
+    },
+    "assetManifest": {
+      "schemaVersion": 1,
+      "images": [
+        {
+          "assetId": "asset_sml_landscape_detail_bottom",
+          "role": "candidate_image",
+          "relativePath": "assets/landscape_detail_bottom.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+          "bytes": 8405,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "assetId": "asset_sml_landscape_pair_edges",
+          "role": "candidate_image",
+          "relativePath": "assets/landscape_pair_edges.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "bytes": 11816,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "assetId": "asset_sml_portrait_left",
+          "role": "candidate_image",
+          "relativePath": "assets/portrait_left.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+          "bytes": 10228,
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "assetId": "asset_sml_portrait_right",
+          "role": "candidate_image",
+          "relativePath": "assets/portrait_right.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+          "bytes": 10325,
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "assetId": "asset_sml_square_left",
+          "role": "candidate_image",
+          "relativePath": "assets/square_left.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "bytes": 11570,
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "assetId": "asset_sml_square_right",
+          "role": "candidate_image",
+          "relativePath": "assets/square_right.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+          "bytes": 11512,
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "assetId": "asset_sml_tall_action",
+          "role": "candidate_image",
+          "relativePath": "assets/tall_action.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+          "bytes": 12024,
+          "width": 768,
+          "height": 1365
+        }
+      ],
+      "fonts": [
+        {
+          "assetId": "asset_font_sml_noto_sc_400",
+          "role": "font",
+          "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+          "mimeType": "font/woff2",
+          "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+          "bytes": 1602144,
+          "metadata": {
+            "schemaVersion": 1,
+            "kind": "layout_font_asset_v1",
+            "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+            "familyName": "Noto Sans SC",
+            "displayName": "Noto Sans SC 受控常规体",
+            "face": {
+              "weight": 400,
+              "style": "normal"
+            },
+            "format": "woff2",
+            "license": {
+              "spdx": "OFL-1.1",
+              "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+              "embeddingAllowed": true
+            }
+          },
+          "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+          "status": "ready"
+        }
+      ]
+    },
+    "assessment": {
+      "schemaVersion": 1,
+      "status": "red",
+      "reasonCodes": [
+        "CURRENT_LAYOUT_FIXED_COUNT_ONLY",
+        "CURRENT_LAYOUT_HAS_NO_DIALOGUE_OBJECTS",
+        "CURRENT_LAYOUT_HAS_NO_SEMANTIC_CROP"
+      ],
+      "scoringBasis": "deterministic_rubric_pending_two_independent_human_reviews",
+      "panelReview": [
+        {
+          "shotId": "fix-v02-vertical_shot_01",
+          "shotOrder": 1,
+          "canvasId": "fix-v02-vertical_canvas_1",
+          "panelId": "fix-v02-vertical_panel_1",
+          "layoutIntent": "wide",
+          "targetNarrativeGroup": [
+            1,
+            2
+          ],
+          "currentCanvasOrders": [
+            1
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_02",
+          "shotOrder": 2,
+          "canvasId": "fix-v02-vertical_canvas_2",
+          "panelId": "fix-v02-vertical_panel_2",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            1,
+            2
+          ],
+          "currentCanvasOrders": [
+            2
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": true,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_03",
+          "shotOrder": 3,
+          "canvasId": "fix-v02-vertical_canvas_3",
+          "panelId": "fix-v02-vertical_panel_3",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            3,
+            4
+          ],
+          "currentCanvasOrders": [
+            3
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_04",
+          "shotOrder": 4,
+          "canvasId": "fix-v02-vertical_canvas_4",
+          "panelId": "fix-v02-vertical_panel_4",
+          "layoutIntent": "pause",
+          "targetNarrativeGroup": [
+            3,
+            4
+          ],
+          "currentCanvasOrders": [
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_05",
+          "shotOrder": 5,
+          "canvasId": "fix-v02-vertical_canvas_5",
+          "panelId": "fix-v02-vertical_panel_5",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            5,
+            6
+          ],
+          "currentCanvasOrders": [
+            5
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": true,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_06",
+          "shotOrder": 6,
+          "canvasId": "fix-v02-vertical_canvas_6",
+          "panelId": "fix-v02-vertical_panel_6",
+          "layoutIntent": "detail",
+          "targetNarrativeGroup": [
+            5,
+            6
+          ],
+          "currentCanvasOrders": [
+            6
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": true,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_07",
+          "shotOrder": 7,
+          "canvasId": "fix-v02-vertical_canvas_7",
+          "panelId": "fix-v02-vertical_panel_7",
+          "layoutIntent": "impact",
+          "targetNarrativeGroup": [
+            7,
+            8
+          ],
+          "currentCanvasOrders": [
+            7
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_08",
+          "shotOrder": 8,
+          "canvasId": "fix-v02-vertical_canvas_8",
+          "panelId": "fix-v02-vertical_panel_8",
+          "layoutIntent": "focus",
+          "targetNarrativeGroup": [
+            7,
+            8
+          ],
+          "currentCanvasOrders": [
+            8
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": true,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout"
+          ]
+        }
+      ],
+      "balloonReview": {
+        "requiredSourceItemCount": 8,
+        "placedBalloonCount": 0,
+        "directUsableCount": 0,
+        "directUsableRate": 0,
+        "applicability": "failed_all_required_items_missing"
+      },
+      "summary": {
+        "shotCount": 8,
+        "panelCount": 8,
+        "panelDirectUsableCount": 0,
+        "panelDirectUsableRate": 0,
+        "panelsNeedingLayoutAdjustment": 8,
+        "panelsNeedingCropAdjustment": 4,
+        "dialogueOrCaptionItemsNeedingCreation": 8,
+        "minimumObjectAdjustments": 20,
+        "currentShotCoverageRate": 1,
+        "currentDialogueAndCaptionCoverageRate": 0
+      }
+    }
+  },
+  "futureAcceptanceTargets": {
+    "activeShotCoverageRate": 1,
+    "dialogueAndCaptionCoverageRate": 1,
+    "silentRewriteCount": 0,
+    "textOverflowCount": 0,
+    "aggregatePanelDirectUsableRate": 0.8,
+    "aggregateBoundBalloonDirectUsableRate": 0.8
+  }
+}

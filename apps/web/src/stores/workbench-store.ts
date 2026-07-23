@@ -1233,7 +1233,7 @@ export const useWorkbenchStore = defineStore("workbench", {
           workflow: result.workflow,
           stages: result.workflow.steps,
         };
-        this.dialogueNotice = `「${result.chapter.title}」候选图已完成，可进入排版导出。`;
+        this.dialogueNotice = `「${result.chapter.title}」候选图已完成，可进入漫画成稿。`;
         return true;
       } catch (error) {
         this.error = error instanceof Error ? error.message : "完成本章候选图失败";

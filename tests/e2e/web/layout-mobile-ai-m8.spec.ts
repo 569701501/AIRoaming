@@ -2,14 +2,17 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import {
   LayoutDocumentCodecV1,
+  type ApplyPendingEditorCommandResponseV1,
   type LayoutWorkingCopyResponseV1,
   type PendingEditorCommandCurrentResponseV1,
+  type PendingEditorCommandPreviewV1,
 } from "@airoaming/shared";
 
 import { expect, test } from "../support/e2e-fixture.ts";
 import { lockCandidate, prepareG4CandidateFixture } from "../support/g4-candidate-fixture.ts";
+import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
-test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形成 DB-only 闭环", async ({
+test("G5-M8：手机只读与 Pending preview/discard/apply/expire 形成 DB-only 闭环", async ({
   api,
   page,
   rainSmokeProject,
@@ -19,9 +22,14 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
+  await initializeLegacyLayoutWorkingCopy(
+    api,
+    rainSmokeProject,
+    fixture.projectId,
+    fixture.chapterId,
+  );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "创建数据库草稿" }).click();
   await page.getByRole("button", { name: "版本与出版" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
 
@@ -44,7 +52,7 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
     await resize.getByRole("button", { name: "调整当前段高（可撤销）" }).click();
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     await page.getByRole("button", { name: "立即保存" }).click();
-    await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+    await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
   });
 
   const before = (await api.get<LayoutWorkingCopyResponseV1>(
@@ -53,16 +61,13 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
   const beforePanel = before.document.canvases[0]?.elements[0];
   if (beforePanel?.type !== "panel_frame" || !beforePanel.contentImage) throw new Error("G5_M8_PANEL_SOURCE_MISSING");
 
-  await page.locator(".canvas-element").first().click();
-  await page.getByRole("button", { name: "AI 建议" }).click();
-  const drawer = page.getByTestId("layout-ai-drawer");
-  await expect(drawer).toBeVisible();
-
   await test.step("preview 和 discard 均不写 Working Copy", async () => {
-    await drawer.getByRole("button", { name: "预览构图微调建议" }).click();
-    const preview = page.getByTestId("layout-ai-command-preview");
-    await expect(preview).toContainText("横向微调 8 像素");
-    await expect(preview).toContainText(beforePanel.id);
+    const preview = (await api.post<PendingEditorCommandPreviewV1>(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/pending-commands/preview`,
+      microPendingInput(before),
+    )).data;
+    expect(preview.payload.summary).toContain("横向微调 8 像素");
+    expect(preview.payload.changedElementIds).toContain(beforePanel.id);
     const duringPreview = (await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
     )).data;
@@ -70,8 +75,9 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
       rowVersion: before.rowVersion,
       digest: before.documentDigest,
     });
-    await preview.getByRole("button", { name: "放弃建议" }).click();
-    await expect(page.getByTestId("layout-ai-command-preview")).not.toBeVisible();
+    await api.delete(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/pending-commands/${preview.id}`,
+    );
     const afterDiscard = (await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
     )).data;
@@ -81,9 +87,14 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
     });
   });
 
-  await test.step("apply 是一次原子写，随后一次 Undo 恢复原文档", async () => {
-    await drawer.getByRole("button", { name: "预览构图微调建议" }).click();
-    await page.getByTestId("layout-ai-command-preview").getByRole("button", { name: "应用为一次可撤销操作" }).click();
+  await test.step("apply 是一次原子写，恢复时仍走 Working Copy CAS", async () => {
+    const preview = (await api.post<PendingEditorCommandPreviewV1>(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/pending-commands/preview`,
+      microPendingInput(before),
+    )).data;
+    const applyResult = (await api.post<ApplyPendingEditorCommandResponseV1>(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/pending-commands/${preview.id}/apply`,
+    )).data;
     const applied = (await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
     )).data;
@@ -91,12 +102,15 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
     expect(applied.rowVersion).toBe(before.rowVersion + 1);
     expect(applied.documentDigest).not.toBe(before.documentDigest);
     expect(appliedPanel?.transform.x).not.toBe(beforePanel.transform.x);
-    await expect(page.getByTitle("撤销")).toBeEnabled();
-    await page.getByTitle("撤销").click();
-    const saveNow = page.getByRole("button", { name: "立即保存" });
-    await expect(saveNow).toBeEnabled();
-    await saveNow.click();
-    await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+    expect(applyResult.workingCopy.documentDigest).toBe(applied.documentDigest);
+    const original = LayoutDocumentCodecV1.encode(before.document);
+    await api.put(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`, {
+      schemaVersion: 1,
+      expectedRowVersion: applied.rowVersion,
+      baseDocumentDigest: applied.documentDigest,
+      documentDigest: original.digest,
+      document: original.value,
+    });
     const undone = (await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
     )).data;
@@ -146,8 +160,10 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
       error: { code: "LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED" },
     });
 
-    await page.locator(".canvas-element").first().click();
-    await drawer.getByRole("button", { name: "预览构图微调建议" }).click();
+    await api.post<PendingEditorCommandPreviewV1>(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/pending-commands/preview`,
+      microPendingInput(current),
+    );
     const pending = (await api.get<PendingEditorCommandCurrentResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/pending-commands/current`,
     )).data.item;
@@ -190,3 +206,39 @@ test("G5-M8：手机只读与 AI Pending preview/discard/apply/expire/Undo 形�
     await page.screenshot({ path: path.join(evidenceRoot, "g5_m8_mobile_ai.png"), fullPage: true });
   });
 });
+
+function microPendingInput(current: LayoutWorkingCopyResponseV1) {
+  if (current.document.schemaVersion !== 1) {
+    throw new Error("G5_M8_EXPECTED_LAYOUT_DOCUMENT_V1");
+  }
+  const canvas = current.document.canvases[0];
+  const element = canvas?.elements[0];
+  if (!canvas || !element) throw new Error("G5_M8_PENDING_TARGET_MISSING");
+  return {
+    schemaVersion: 1 as const,
+    expectedWorkingCopyRowVersion: current.rowVersion,
+    expectedDocumentDigest: current.documentDigest,
+    selectionElementIds: [element.id],
+    summary: `将「${element.name}」横向微调 8 像素`,
+    warnings: [],
+    commandBatch: {
+      schemaVersion: 1 as const,
+      batchId: `m8_pending_${current.rowVersion}`,
+      label: "受控微调建议",
+      commands: [{
+        schemaVersion: 1 as const,
+        commandId: `m8_pending_command_${current.rowVersion}`,
+        type: "element.set_transform" as const,
+        label: "横向微调 8 像素",
+        payload: {
+          canvasId: canvas.id,
+          elementId: element.id,
+          transform: {
+            ...element.transform,
+            x: element.transform.x + 8,
+          },
+        },
+      }],
+    },
+  };
+}

@@ -3,27 +3,40 @@ import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import {
   LayoutDocumentCodecV1,
+  LayoutDocumentCodecV2,
   PendingEditorCommandContractError,
   applyLayoutCommandBatch,
+  applyLayoutCommandBatchV2,
   buildPendingEditorCommandSetV1,
+  buildPendingEditorCommandSetV2,
   digestCanonicalJson,
   parseCreatePendingEditorCommandSetRequestV1,
   parsePendingEditorCommandSetV1,
+  parsePendingEditorCommandSetV2,
   pendingEditorSourceProjectionUnchangedV1,
-  type ApplyPendingEditorCommandResponseV1,
+  pendingEditorSourceProjectionUnchangedV2,
+  type ApplyPendingEditorCommandResponseV1OrV2,
   type DiscardPendingEditorCommandResponseV1,
   type EditorCommandBatchV1,
+  type EditorCommandBatchV2,
   type LayoutDocumentV1,
-  type PendingEditorCommandCurrentResponseV1,
+  type LayoutDocumentV1OrV2,
+  type LayoutDocumentV2,
+  type LayoutDigest,
+  type PendingEditorCommandCurrentResponseV1OrV2,
   type PendingEditorCommandPreviewV1,
+  type PendingEditorCommandPreviewV1OrV2,
+  type PendingEditorCommandPreviewV2,
   type PendingEditorCommandSetV1,
+  type PendingEditorCommandSetV1OrV2,
+  type PendingEditorCommandSetV2,
 } from "@airoaming/shared";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import type { VersionScopeV1 } from "./versioning/versioning-database.types.js";
 
-class LayoutPendingCommandServiceError extends Error {
+export class LayoutPendingCommandServiceError extends Error {
   constructor(
     readonly code: string,
     readonly status: number,
@@ -45,13 +58,13 @@ const SOURCE_MUTATING_COMMANDS = new Set([
   "layout.replace_sources",
 ]);
 
-function assertNoSourceMutation(batch: EditorCommandBatchV1): void {
+function assertNoSourceMutation(batch: EditorCommandBatchV1 | EditorCommandBatchV2): void {
   if (batch.commands.some((command) => SOURCE_MUTATING_COMMANDS.has(command.type))) {
     serviceError("LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED", 409);
   }
 }
 
-function collectFontAssetIds(document: LayoutDocumentV1): string[] {
+function collectFontAssetIds(document: LayoutDocumentV1OrV2): string[] {
   const result = new Set<string>([
     document.fontPolicy.defaultFontAssetId,
     ...document.fontPolicy.fallbackFontAssetIds,
@@ -65,6 +78,15 @@ function collectFontAssetIds(document: LayoutDocumentV1): string[] {
     }
   }
   return [...result];
+}
+
+export interface CreatePendingEditorCommandSetFromCompositionV2 {
+  expectedWorkingCopyRowVersion: number;
+  expectedDocumentDigest: LayoutDigest;
+  selectionElementIds: string[];
+  summary: string;
+  warnings: string[];
+  commandBatch: EditorCommandBatchV2;
 }
 
 function fontEmbeddingAllowed(metadata: unknown): boolean {
@@ -142,7 +164,7 @@ export class LayoutPendingCommandService {
             chapterId: scope.chapterId,
             stepKey: "layout_export",
             scopeKey: `chapter:${scope.chapterId}`,
-            title: "排版导出",
+            title: "漫画成稿",
             status: "active",
             createdAt: now,
             updatedAt: now,
@@ -168,12 +190,113 @@ export class LayoutPendingCommandService {
             resolvedAt: null,
           },
         });
-        return this.toPreview(row, payload, resultDocument);
+        return this.toPreview(row, payload, resultDocument) as PendingEditorCommandPreviewV1;
       });
     });
   }
 
-  async current(scope: VersionScopeV1): Promise<PendingEditorCommandCurrentResponseV1> {
+  async createFromCompositionInTransaction(
+    scope: VersionScopeV1,
+    input: CreatePendingEditorCommandSetFromCompositionV2,
+    tx: Prisma.TransactionClient,
+  ): Promise<PendingEditorCommandPreviewV2> {
+    assertNoSourceMutation(input.commandBatch);
+    const [chapter, workingCopy] = await Promise.all([
+      tx.chapter.findFirst({
+        where: { id: scope.chapterId, projectId: scope.projectId },
+        select: { id: true },
+      }),
+      tx.layoutWorkingCopy.findFirst({
+        where: { projectId: scope.projectId, chapterId: scope.chapterId },
+      }),
+    ]);
+    if (!chapter || !workingCopy || workingCopy.documentKind !== "layout_document_v2") {
+      serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
+    }
+    if (
+      workingCopy.rowVersion !== input.expectedWorkingCopyRowVersion
+      || workingCopy.documentDigest !== input.expectedDocumentDigest
+    ) {
+      serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409, {
+        currentRowVersion: workingCopy.rowVersion,
+        currentDocumentDigest: workingCopy.documentDigest,
+      });
+    }
+    const document = LayoutDocumentCodecV2.parseAndNormalize(workingCopy.documentJson, scope);
+    const built = buildPendingEditorCommandSetV2({
+      workingCopyId: workingCopy.id,
+      expectedRowVersion: workingCopy.rowVersion,
+      baseDocumentDigest: input.expectedDocumentDigest,
+      sourceLockSetDigest: workingCopy.sourceLockSetDigest as PendingEditorCommandSetV2["sourceLockSetDigest"],
+      selectionElementIds: input.selectionElementIds,
+      summary: input.summary,
+      warnings: input.warnings,
+      commandBatch: input.commandBatch,
+      document,
+    });
+    const { resultDocument, ...payload } = built;
+    if (!pendingEditorSourceProjectionUnchangedV2(document, resultDocument)) {
+      serviceError("LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED", 409);
+    }
+    await this.assertFontsReady(scope, resultDocument, tx);
+    const now = new Date();
+    const activeSlotKey = `layout-command:${scope.chapterId}`;
+    const existing = await tx.pendingDialogueArtifact.findUnique({ where: { activeSlotKey } });
+    if (existing) {
+      await tx.pendingDialogueArtifact.update({
+        where: { id: existing.id },
+        data: {
+          status: "superseded",
+          activeSlotKey: null,
+          resolvedAt: now,
+          updatedAt: now,
+        },
+      });
+    }
+    const thread = await tx.conversationThread.upsert({
+      where: {
+        projectId_stepKey_scopeKey: {
+          projectId: scope.projectId,
+          stepKey: "layout_export",
+          scopeKey: `chapter:${scope.chapterId}`,
+        },
+      },
+      create: {
+        id: `dialogue_thread_${randomUUID()}`,
+        projectId: scope.projectId,
+        chapterId: scope.chapterId,
+        stepKey: "layout_export",
+        scopeKey: `chapter:${scope.chapterId}`,
+        title: "漫画成稿",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      update: { updatedAt: now },
+    });
+    const row = await tx.pendingDialogueArtifact.create({
+      data: {
+        id: `layout_pending_${randomUUID()}`,
+        projectId: scope.projectId,
+        chapterId: scope.chapterId,
+        threadId: thread.id,
+        kind: "layout_editor_command_set",
+        status: "pending",
+        activeSlotKey,
+        payloadJson: payload as unknown as Prisma.InputJsonValue,
+        schemaVersion: 2,
+        payloadDigest: digestCanonicalJson(payload),
+        sourceMessageId: null,
+        toolResultId: null,
+        createdAt: now,
+        updatedAt: now,
+        resolvedAt: null,
+      },
+    });
+    return this.toPreview(row, payload, resultDocument) as PendingEditorCommandPreviewV2;
+  }
+
+  async current(scope: VersionScopeV1): Promise<PendingEditorCommandCurrentResponseV1OrV2> {
     return this.execute(async () => {
       const result = await this.prismaService.runBusinessTransaction(async (tx) => {
         const row = await tx.pendingDialogueArtifact.findUnique({
@@ -194,12 +317,25 @@ export class LayoutPendingCommandService {
           });
           return { item: null } as const;
         }
-        const document = LayoutDocumentCodecV1.parseAndNormalize(workingCopy.documentJson, scope);
-        const resultDocument = applyLayoutCommandBatch(document, payload.commandBatch).document;
-        if (!pendingEditorSourceProjectionUnchangedV1(document, resultDocument)) {
-          serviceError("LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED", 409);
-        }
-        const resultDigest = LayoutDocumentCodecV1.encode(resultDocument).digest;
+        const document = payload.schemaVersion === 1
+          ? LayoutDocumentCodecV1.parseAndNormalize(workingCopy.documentJson, scope)
+          : LayoutDocumentCodecV2.parseAndNormalize(workingCopy.documentJson, scope);
+        const resultDocument = payload.schemaVersion === 1
+          ? applyLayoutCommandBatch(document as LayoutDocumentV1, payload.commandBatch).document
+          : applyLayoutCommandBatchV2(document as LayoutDocumentV2, payload.commandBatch).document;
+        const sourceUnchanged = payload.schemaVersion === 1
+          ? pendingEditorSourceProjectionUnchangedV1(
+              document as LayoutDocumentV1,
+              resultDocument as LayoutDocumentV1,
+            )
+          : pendingEditorSourceProjectionUnchangedV2(
+              document as LayoutDocumentV2,
+              resultDocument as LayoutDocumentV2,
+            );
+        if (!sourceUnchanged) serviceError("LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED", 409);
+        const resultDigest = payload.schemaVersion === 1
+          ? LayoutDocumentCodecV1.encode(resultDocument).digest
+          : LayoutDocumentCodecV2.encode(resultDocument).digest;
         if (resultDigest !== payload.resultDocumentDigest) serviceError("LAYOUT_PENDING_COMMAND_INVALID", 409);
         return { item: this.toPreview(row, payload, resultDocument) } as const;
       });
@@ -207,7 +343,10 @@ export class LayoutPendingCommandService {
     });
   }
 
-  async apply(scope: VersionScopeV1, pendingId: string): Promise<ApplyPendingEditorCommandResponseV1> {
+  async apply(
+    scope: VersionScopeV1,
+    pendingId: string,
+  ): Promise<ApplyPendingEditorCommandResponseV1OrV2> {
     return this.execute(async () => {
       const result = await this.prismaService.runBusinessTransaction(async (tx) => {
         const row = await tx.pendingDialogueArtifact.findFirst({
@@ -233,31 +372,52 @@ export class LayoutPendingCommandService {
           });
           return { expired: true as const };
         }
-        const previousDocument = LayoutDocumentCodecV1.parseAndNormalize(workingCopy.documentJson, scope);
-        const applied = applyLayoutCommandBatch(previousDocument, payload.commandBatch);
-        if (!pendingEditorSourceProjectionUnchangedV1(previousDocument, applied.document)) {
-          serviceError("LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED", 409);
-        }
-        const encoded = LayoutDocumentCodecV1.encode(applied.document, scope);
+        const previousDocument = payload.schemaVersion === 1
+          ? LayoutDocumentCodecV1.parseAndNormalize(workingCopy.documentJson, scope)
+          : LayoutDocumentCodecV2.parseAndNormalize(workingCopy.documentJson, scope);
+        const appliedDocument = payload.schemaVersion === 1
+          ? applyLayoutCommandBatch(
+              previousDocument as LayoutDocumentV1,
+              payload.commandBatch,
+            ).document
+          : applyLayoutCommandBatchV2(
+              previousDocument as LayoutDocumentV2,
+              payload.commandBatch,
+            ).document;
+        const sourceUnchanged = payload.schemaVersion === 1
+          ? pendingEditorSourceProjectionUnchangedV1(
+              previousDocument as LayoutDocumentV1,
+              appliedDocument as LayoutDocumentV1,
+            )
+          : pendingEditorSourceProjectionUnchangedV2(
+              previousDocument as LayoutDocumentV2,
+              appliedDocument as LayoutDocumentV2,
+            );
+        if (!sourceUnchanged) serviceError("LAYOUT_PENDING_SOURCE_REPLACEMENT_REQUIRED", 409);
+        const encoded = payload.schemaVersion === 1
+          ? LayoutDocumentCodecV1.encode(appliedDocument, scope)
+          : LayoutDocumentCodecV2.encode(appliedDocument, scope);
         if (encoded.digest !== payload.resultDocumentDigest) serviceError("LAYOUT_PENDING_COMMAND_INVALID", 409);
         await this.assertFontsReady(scope, encoded.value, tx);
-        const updatedAt = new Date(Math.max(Date.now(), workingCopy.updatedAt.getTime() + 1));
-        const updatedCount = await tx.layoutWorkingCopy.updateMany({
-          where: {
-            id: workingCopy.id,
-            projectId: scope.projectId,
-            chapterId: scope.chapterId,
-            rowVersion: workingCopy.rowVersion,
-            documentDigest: workingCopy.documentDigest,
-          },
-          data: {
-            documentJson: encoded.value as unknown as Prisma.InputJsonValue,
-            documentDigest: encoded.digest,
-            rowVersion: { increment: 1 },
-            updatedAt,
-          },
-        });
-        if (updatedCount.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
+        if (encoded.digest !== workingCopy.documentDigest) {
+          const updatedAt = new Date(Math.max(Date.now(), workingCopy.updatedAt.getTime() + 1));
+          const updatedCount = await tx.layoutWorkingCopy.updateMany({
+            where: {
+              id: workingCopy.id,
+              projectId: scope.projectId,
+              chapterId: scope.chapterId,
+              rowVersion: workingCopy.rowVersion,
+              documentDigest: workingCopy.documentDigest,
+            },
+            data: {
+              documentJson: encoded.value as unknown as Prisma.InputJsonValue,
+              documentDigest: encoded.digest,
+              rowVersion: { increment: 1 },
+              updatedAt,
+            },
+          });
+          if (updatedCount.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
+        }
         const now = new Date();
         await tx.pendingDialogueArtifact.update({
           where: { id: row.id },
@@ -267,12 +427,12 @@ export class LayoutPendingCommandService {
         return {
           expired: false as const,
           response: {
-            schemaVersion: 1,
+            schemaVersion: payload.schemaVersion,
             pendingId: row.id,
             appliedBatch: payload.commandBatch,
             previousDocument,
             workingCopy: await this.workingCopies.responseForReader(scope, updated, tx),
-          } satisfies ApplyPendingEditorCommandResponseV1,
+          } as ApplyPendingEditorCommandResponseV1OrV2,
         };
       });
       if (result.expired) serviceError("LAYOUT_PENDING_COMMAND_EXPIRED", 409);
@@ -301,16 +461,24 @@ export class LayoutPendingCommandService {
     }));
   }
 
-  private parseStoredPayload(value: unknown, claimedDigest: string): PendingEditorCommandSetV1 {
+  private parseStoredPayload(
+    value: unknown,
+    claimedDigest: string,
+  ): PendingEditorCommandSetV1OrV2 {
     if (digestCanonicalJson(value) !== claimedDigest) serviceError("LAYOUT_PENDING_COMMAND_INVALID", 409);
-    return parsePendingEditorCommandSetV1(value);
+    const schemaVersion = value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>).schemaVersion
+      : null;
+    return schemaVersion === 2
+      ? parsePendingEditorCommandSetV2(value)
+      : parsePendingEditorCommandSetV1(value);
   }
 
   private isFresh(
     workingCopy: { id: string; documentKind: string; rowVersion: number; documentDigest: string; sourceLockSetDigest: string | null },
-    payload: PendingEditorCommandSetV1,
+    payload: PendingEditorCommandSetV1OrV2,
   ): boolean {
-    return workingCopy.documentKind === "layout_document_v1"
+    return workingCopy.documentKind === (payload.schemaVersion === 1 ? "layout_document_v1" : "layout_document_v2")
       && workingCopy.id === payload.workingCopyId
       && workingCopy.rowVersion === payload.expectedRowVersion
       && workingCopy.documentDigest === payload.baseDocumentDigest
@@ -319,7 +487,7 @@ export class LayoutPendingCommandService {
 
   private async assertFontsReady(
     scope: VersionScopeV1,
-    document: LayoutDocumentV1,
+    document: LayoutDocumentV1OrV2,
     tx: Prisma.TransactionClient,
   ): Promise<void> {
     const ids = collectFontAssetIds(document);
@@ -341,19 +509,19 @@ export class LayoutPendingCommandService {
 
   private toPreview(
     row: { id: string; status: string; createdAt: Date; updatedAt: Date },
-    payload: PendingEditorCommandSetV1,
-    resultDocument: LayoutDocumentV1,
-  ): PendingEditorCommandPreviewV1 {
+    payload: PendingEditorCommandSetV1OrV2,
+    resultDocument: LayoutDocumentV1OrV2,
+  ): PendingEditorCommandPreviewV1OrV2 {
     if (row.status !== "pending") serviceError("LAYOUT_PENDING_COMMAND_INVALID", 409);
     return {
-      schemaVersion: 1,
+      schemaVersion: payload.schemaVersion,
       id: row.id,
       status: "pending",
       payload,
       resultDocument,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
-    };
+    } as PendingEditorCommandPreviewV1OrV2;
   }
 
   private async execute<T>(action: () => Promise<T>): Promise<T> {

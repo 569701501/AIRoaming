@@ -8,11 +8,13 @@ import {
   loadG5RuntimeMigrationExpectationsV1,
 } from "./g5-runtime-migration-ledger.js";
 import type { G1RuntimeMigrationLedgerRowV1 } from "./g1-runtime-migration-ledger.js";
+import { LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME } from "./layout-document-v2-working-copy-contract.js";
 import { SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME } from "./script-workflow-source-state-contract.js";
 
 export const SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES = [
   ...G5_RUNTIME_MIGRATION_NAMES,
   SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME,
+  LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME,
 ] as const;
 
 export interface ScriptWorkflowRuntimeMigrationExpectationV1 {
@@ -34,15 +36,22 @@ function fail(code: string, detail?: string, cause?: unknown): never {
   );
 }
 
-async function readOverlayChecksum(root: string): Promise<string> {
-  const filePath = path.join(root, SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME, "migration.sql");
+async function readOverlayChecksum(
+  root: string,
+  migrationName:
+    | typeof SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME
+    | typeof LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME,
+): Promise<string> {
+  const filePath = path.join(root, migrationName, "migration.sql");
   let stat;
   try {
     stat = await lstat(filePath);
   } catch (cause) {
-    fail("ARTIFACT_UNAVAILABLE", SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME, cause);
+    fail("ARTIFACT_UNAVAILABLE", migrationName, cause);
   }
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) fail("ARTIFACT_INVALID", SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+    fail("ARTIFACT_INVALID", migrationName);
+  }
   return createHash("sha256").update(await readFile(filePath)).digest("hex");
 }
 
@@ -53,7 +62,11 @@ export async function loadScriptWorkflowRuntimeMigrationExpectationsV1(
     ...await loadG5RuntimeMigrationExpectationsV1(root),
     {
       migrationName: SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME,
-      checksum: await readOverlayChecksum(root),
+      checksum: await readOverlayChecksum(root, SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME),
+    },
+    {
+      migrationName: LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME,
+      checksum: await readOverlayChecksum(root, LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME),
     },
   ];
 }

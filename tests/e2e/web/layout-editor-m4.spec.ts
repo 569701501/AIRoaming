@@ -9,6 +9,7 @@ import {
   lockCandidate,
   prepareG4CandidateFixture,
 } from "../support/g4-candidate-fixture.ts";
+import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
@@ -26,6 +27,12 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
+  await initializeLegacyLayoutWorkingCopy(
+    api,
+    rainSmokeProject,
+    fixture.projectId,
+    fixture.chapterId,
+  );
 
   const database = new DatabaseSync(runtime.databasePath);
   const sourceBefore = await api.get<LayoutSourceCatalogResponseV1>(
@@ -41,8 +48,6 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
   try {
     await page.goto(`/projects/${fixture.projectId}/layout`);
     await expect(page.getByRole("region", { name: "成稿编辑器", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "创建成稿草稿" })).toBeVisible();
-    await page.getByRole("button", { name: "创建数据库草稿" }).click();
 
     const shotTray = page.getByTestId("shot-tray");
     await expect(shotTray).toBeVisible();
@@ -86,7 +91,7 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
     await canvasRows.nth(1).getByTitle("前移").click();
     await canvasRows.nth(1).click();
 
-    await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 5_000 });
+    await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 5_000 });
     const saved = await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
     );

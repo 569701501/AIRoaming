@@ -124,6 +124,7 @@ model Project {
   conversationThreadsByProject            ConversationThread[]            @relation("ConversationThread_project_Project")
   exportRevisionsByProject                ExportRevision[]                @relation("ExportRevision_project_Project")
   generationTasksByProject                GenerationTask[]                @relation("GenerationTask_project_Project")
+  layoutCompositionApplicationsByProject  LayoutCompositionApplication[]  @relation("LayoutCompositionApplication_project_Project")
   layoutRevisionsByProject                LayoutRevision[]                @relation("LayoutRevision_project_Project")
   layoutWorkingCopysByProject             LayoutWorkingCopy[]             @relation("LayoutWorkingCopy_project_Project")
   pendingDialogueArtifactsByProject       PendingDialogueArtifact[]       @relation("PendingDialogueArtifact_project_Project")
@@ -208,6 +209,7 @@ model Chapter {
   conversationThreadsByChapter      ConversationThread[]      @relation("ConversationThread_chapter_Chapter")
   exportRevisionsByChapter          ExportRevision[]          @relation("ExportRevision_chapter_Chapter")
   generationTasksByChapter          GenerationTask[]          @relation("GenerationTask_chapter_Chapter")
+  layoutCompositionApplicationsByChapter LayoutCompositionApplication[] @relation("LayoutCompositionApplication_chapter_Chapter")
   layoutRevisionsByChapter          LayoutRevision[]          @relation("LayoutRevision_chapter_Chapter")
   layoutWorkingCopyByChapter        LayoutWorkingCopy?        @relation("LayoutWorkingCopy_chapter_Chapter")
   pendingDialogueArtifactsByChapter PendingDialogueArtifact[] @relation("PendingDialogueArtifact_chapter_Chapter")
@@ -1148,6 +1150,7 @@ model GenerationTask {
   candidatesByTask            Candidate[]            @relation("Candidate_task_GenerationTask")
   exportRevisionByTask        ExportRevision?        @relation("ExportRevision_task_GenerationTask")
   generationTaskSourcesByTask GenerationTaskSource[] @relation("GenerationTaskSource_task_GenerationTask")
+  layoutCompositionApplicationByTask LayoutCompositionApplication? @relation("LayoutCompositionApplication_task_GenerationTask")
   chapter                     Chapter?               @relation("GenerationTask_chapter_Chapter", fields: [chapterId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: NoAction)
   project                     Project                @relation("GenerationTask_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   sceneVisualsBySourceTask    SceneVisual[]          @relation("SceneVisual_sourceTask_GenerationTask")
@@ -1242,6 +1245,27 @@ model LayoutWorkingCopy {
   @@unique([chapterId], map: "uq_layout_working_copies_chapter")
   @@unique([id, projectId, chapterId], map: "uq_layout_working_copies_id_scope")
   @@map("layout_working_copies")
+}
+
+model LayoutCompositionApplication {
+  id                   String   @id @default(uuid())
+  projectId            String   @map("project_id")
+  chapterId            String   @map("chapter_id")
+  taskId               String   @unique(map: "uq_layout_composition_applications_task") @map("task_id")
+  result               String
+  targetId             String   @map("target_id")
+  baseDocumentDigest   String?  @map("base_document_digest")
+  resultDocumentDigest String   @map("result_document_digest")
+  targetRowVersion     Int      @map("target_row_version")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  chapter Chapter @relation("LayoutCompositionApplication_chapter_Chapter", fields: [chapterId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: NoAction)
+  project Project @relation("LayoutCompositionApplication_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  task    GenerationTask @relation("LayoutCompositionApplication_task_GenerationTask", fields: [taskId, projectId, chapterId], references: [id, projectId, chapterId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([taskId, projectId, chapterId], map: "uq_layout_composition_applications_task_scope")
+  @@index([projectId, chapterId, createdAt(sort: Desc)], map: "ix_layout_composition_applications_scope_created")
+  @@map("layout_composition_applications")
 }
 
 model LayoutRevision {

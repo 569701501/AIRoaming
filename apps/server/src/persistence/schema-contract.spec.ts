@@ -66,6 +66,10 @@ const EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS = [
   "ChapterScriptPendingSourceBinding",
 ] as const;
 
+const EXPECTED_SMART_LAYOUT_OVERLAY_MODELS = [
+  "LayoutCompositionApplication",
+] as const;
+
 const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly string[]> = {
   PersistenceState: ["storageContractVersion", "activationState", "firstBusinessWriteAt"],
   MigrationRun: ["kind", "status", "sourceManifestDigest", "snapshotManifestDigest", "reportDigest"],
@@ -114,14 +118,20 @@ const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly 
 };
 
 describe("SCH-00 G1 schema public contract", () => {
-  it("contains the frozen 44-model G1 base plus the approved script-workflow overlay and pins Prisma 6.19.3", async () => {
+  it("contains the frozen 44-model G1 base plus the approved post-G1 overlays and pins Prisma 6.19.3", async () => {
     const contract = await inspectG1SchemaContract({
       schemaPath: path.join(SERVER_ROOT, "prisma/schema.prisma"),
       packageJsonPath: path.join(SERVER_ROOT, "package.json"),
     });
 
-    expect(contract.models).toEqual([...EXPECTED_G1_MODELS, ...EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS].sort());
-    expect(contract.models).toHaveLength(53);
+    expect(contract.models).toEqual(
+      [
+        ...EXPECTED_G1_MODELS,
+        ...EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS,
+        ...EXPECTED_SMART_LAYOUT_OVERLAY_MODELS,
+      ].sort(),
+    );
+    expect(contract.models).toHaveLength(54);
     expect(contract.prismaVersion).toBe("6.19.3");
     expect(contract.prismaClientVersion).toBe("6.19.3");
   });
@@ -137,5 +147,17 @@ describe("SCH-00 G1 schema public contract", () => {
         expect.arrayContaining([...EXPECTED_KEY_FIELDS[model]]),
       );
     }
+    expect(contract.modelFields.LayoutCompositionApplication).toEqual(
+      expect.arrayContaining([
+        "projectId",
+        "chapterId",
+        "taskId",
+        "result",
+        "targetId",
+        "baseDocumentDigest",
+        "resultDocumentDigest",
+        "targetRowVersion",
+      ]),
+    );
   });
 });

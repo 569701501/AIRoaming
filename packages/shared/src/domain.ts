@@ -85,9 +85,9 @@ export const PROJECT_WORKFLOW_STEPS = [
   },
   {
     key: "layout_export",
-    label: "排版导出",
+    label: "漫画成稿",
     scope: "chapter",
-    completionCriteria: ["当前章节已完成页面排版", "导出物可追溯到锁定候选"],
+    completionCriteria: ["当前章节已生成可编辑的完整成稿", "画格、图片、对白与气泡可追溯到锁定候选和正式分镜"],
   },
   {
     key: "asset_package",
@@ -109,6 +109,7 @@ export const GENERATION_TASK_TYPES = [
   "shot_generate",
   "shot_prompt_generate",
   "image_generate",
+  "layout_compose",
   "layout_export",
   "tts_generate",
   "video_export",
@@ -121,6 +122,7 @@ export const CHAPTER_SCOPED_GENERATION_TASK_TYPES = [
   "shot_generate",
   "shot_prompt_generate",
   "image_generate",
+  "layout_compose",
   "layout_export",
 ] as const satisfies ReadonlyArray<GenerationTaskType>;
 

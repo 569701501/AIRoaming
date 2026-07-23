@@ -51,7 +51,7 @@ export const STEP_LABELS: Record<string, string> = {
   storyboard: "分镜工作台",
   image_preflight: "出图准备",
   image_candidates: "候选图工作台",
-  layout_export: "排版导出",
+  layout_export: "漫画成稿",
   asset_package: "素材包",
 };
 

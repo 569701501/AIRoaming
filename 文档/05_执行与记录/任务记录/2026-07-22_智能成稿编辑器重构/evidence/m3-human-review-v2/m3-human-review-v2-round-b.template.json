@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "kind": "m3_human_review_v2",
+  "reviewStandardId": "AIR-QA-COMIC-FINAL-001-v1",
+  "manifestDigest": "sha256:d602087ee3a33aaaa90be4976a5bef996b32f7b370873e2a1dff5b909dc84ddf",
+  "round": "B",
+  "reviewerId": "",
+  "independent": false,
+  "calibrated": false,
+  "completedAt": null,
+  "itemDecisions": [],
+  "pageDecisions": []
+}

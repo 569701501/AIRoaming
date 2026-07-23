@@ -10,6 +10,7 @@ import type {
 import {
   buildTaskSourceProjection,
   digestCanonicalJson,
+  parseLayoutCompositionTaskInputV1,
   taskSourceProjectionDigest,
   type TaskSourceProjectionV1,
 } from "@airoaming/shared";
@@ -28,6 +29,7 @@ const TASK_DEFAULTS: Record<string, { maxAttempts: number; concurrencyKey: strin
   shot_generate: { maxAttempts: 3, concurrencyKey: "llm-provider", slotCount: 1 },
   shot_prompt_generate: { maxAttempts: 2, concurrencyKey: "local-cpu", slotCount: 2 },
   image_generate: { maxAttempts: 3, concurrencyKey: "image-provider", slotCount: 1 },
+  layout_compose: { maxAttempts: 2, concurrencyKey: "layout-compose", slotCount: 1 },
   layout_export: { maxAttempts: 2, concurrencyKey: "layout-render", slotCount: 1 },
   tts_generate: { maxAttempts: 1, concurrencyKey: "tts-provider", slotCount: 1 },
   video_export: { maxAttempts: 1, concurrencyKey: "local-cpu", slotCount: 2 },
@@ -187,6 +189,33 @@ function validateShotTaskInput(
     if (!sourceTypes.has(required)) throw new TypeError(`${type} sourceProjection must include ${required}`);
   }
   if (type === "image_generate" && (typeof input.requestId !== "string" || input.requestId.trim() === "")) throw new TypeError("image_generate.requestId must be non-empty");
+}
+
+function validateLayoutCompositionTaskInput(
+  type: string,
+  input: Record<string, unknown>,
+  projection: TaskSourceProjectionV1,
+  chapterId: string | null,
+  target: GenerationTaskTarget | undefined,
+): void {
+  if (type !== "layout_compose") return;
+  if (
+    chapterId === null
+    || target?.type !== "chapter"
+    || target.id !== chapterId
+    || target.chapterId !== chapterId
+  ) throw new TypeError("layout_compose target must route to its chapter");
+  const parsed = parseLayoutCompositionTaskInputV1(input);
+  if (parsed.chapterId !== chapterId) throw new TypeError("layout_compose chapterId mismatch");
+  if (taskSourceProjectionDigest(projection) !== parsed.sourceProjectionDigest) {
+    throw new TypeError("layout_compose source projection digest mismatch");
+  }
+  const sourceTypes = new Set(projection.sources.map((source) => source.sourceType));
+  for (const required of ["storyboard_version", "candidate_lock_revision", "asset", "lock_set"]) {
+    if (!sourceTypes.has(required)) {
+      throw new TypeError(`layout_compose sourceProjection must include ${required}`);
+    }
+  }
 }
 
 @Injectable()
@@ -620,6 +649,7 @@ export class PersistentTaskRepository {
     if (!Number.isInteger(inputSchemaVersion) || inputSchemaVersion < 1) throw new TypeError("input.schemaVersion must be a positive integer");
     validateVersionTaskInput(type, rawInput, sourceProjection, chapterId, input.target);
     validateShotTaskInput(type, rawInput, sourceProjection, chapterId, input.target);
+    validateLayoutCompositionTaskInput(type, rawInput, sourceProjection, chapterId, input.target);
     const options = input.options && Object.keys(input.options).length > 0 ? { ...input.options } : undefined;
     const inputJson: Record<string, unknown> = { ...rawInput, ...(options ? { options } : {}) };
     inputJson.sourceProjection = sourceProjection;
@@ -635,6 +665,15 @@ export class PersistentTaskRepository {
     const targetId = type === "story_parse" || type === "shot_generate" ? chapterId : target?.id ?? null;
     if (!targetType || !targetId) throw new TypeError("runtime task target is required");
     if ((type === "story_parse" || type === "shot_generate") && !chapterId) throw new TypeError("chapter scoped task requires chapterId");
+    const layoutSource = rawInput.source && typeof rawInput.source === "object" && !Array.isArray(rawInput.source)
+      ? rawInput.source as Record<string, unknown>
+      : null;
+    const layoutBase = layoutSource?.baseWorkingCopy && typeof layoutSource.baseWorkingCopy === "object" && !Array.isArray(layoutSource.baseWorkingCopy)
+      ? layoutSource.baseWorkingCopy as Record<string, unknown>
+      : null;
+    const layoutBaseDocumentDigest = typeof layoutBase?.documentDigest === "string"
+      ? layoutBase.documentDigest
+      : "none";
     const idempotencyKey = type === "story_parse"
       ? `story-parse:${projectId}:${chapterId}:${String(rawInput.expectedTargetId)}:${sourceDigest}:${inputDigest}`
       : type === "shot_generate"
@@ -643,6 +682,8 @@ export class PersistentTaskRepository {
           ? `shot-prompt:${projectId}:${chapterId}:${String(rawInput.shotId)}:${sourceDigest}:${inputDigest}`
           : type === "image_generate"
             ? `image-generate:${projectId}:${chapterId}:${String(rawInput.shotId)}:${String(rawInput.generationSpecDigest)}:${String(rawInput.requestId)}`
+            : type === "layout_compose"
+              ? `layout-compose:${projectId}:${chapterId}:${String(rawInput.mode)}:${String(rawInput.sourceProjectionDigest)}:${layoutBaseDocumentDigest}:${String(rawInput.scopeDigest)}:${String(rawInput.policySetDigest)}`
             : `task:${digestCanonicalJson({ projectId, chapterId, type, targetType, targetId, input: inputJson, options: options ?? null })}`;
     return {
       projectId,

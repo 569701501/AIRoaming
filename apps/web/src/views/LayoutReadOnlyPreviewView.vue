@@ -80,6 +80,7 @@ import { computed, onMounted, ref, type CSSProperties } from "vue";
 import { useRoute } from "vue-router";
 import {
   collectLayoutTextIssuesV1,
+  projectLayoutDocumentV2ToV1,
   type LayoutCanvasV1,
   type LayoutDocumentV1,
   type LayoutPublicationArtifactV1,
@@ -132,7 +133,9 @@ onMounted(async () => {
     installFonts(fonts.items);
     if (requestedSource === "working_copy") {
       const workingCopy = await api.getLayoutWorkingCopy(projectId, chapterId);
-      documentValue.value = workingCopy.document;
+      documentValue.value = workingCopy.document.schemaVersion === 2
+        ? projectLayoutDocumentV2ToV1(workingCopy.document)
+        : workingCopy.document;
       sourceResolution.value = workingCopy.sourceEvaluation.sourceResolution;
       sourceLabel.value = `当前草稿 · v${workingCopy.rowVersion} · ${new Date(workingCopy.updatedAt).toLocaleString()}`;
       digestLabel.value = shortDigest(workingCopy.documentDigest);

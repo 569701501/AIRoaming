@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LayoutDocumentCodecV1 } from "./codec.js";
+import { LayoutDocumentCodecV2, upgradeLayoutWorkingCopyV1ToV2 } from "./automation.js";
 import type { LayoutDocumentV1 } from "./document.js";
 import {
   encodeLayoutWorkingCopyRecoveryV1,
@@ -91,5 +92,26 @@ describe("Layout Working Copy V1 contract", () => {
     const second = encodeLayoutWorkingCopyRecoveryV1(JSON.parse(first.canonical));
     expect(second.digest).toBe(first.digest);
     expect(second.canonical).not.toMatch(/viewport|selection|localStorage|indexedDB/i);
+  });
+
+  it("preserves V2 automation metadata in a deterministic recovery copy", () => {
+    const v2 = upgradeLayoutWorkingCopyV1ToV2(document);
+    const encoded = LayoutDocumentCodecV2.encode(v2);
+    const recovery = encodeLayoutWorkingCopyRecoveryV1({
+      schemaVersion: 1,
+      kind: "layout_working_copy_recovery_v1",
+      projectId: document.projectId,
+      chapterId: document.chapterId,
+      workingCopyId: "wc_v2",
+      serverRowVersion: 2,
+      serverDocumentDigest: encoded.digest,
+      localDocumentDigest: encoded.digest,
+      document: encoded.value,
+    });
+
+    expect(recovery.value.document.schemaVersion).toBe(2);
+    expect(recovery.canonical).toContain("\"automation\"");
+    expect(encodeLayoutWorkingCopyRecoveryV1(JSON.parse(recovery.canonical)).digest)
+      .toBe(recovery.digest);
   });
 });

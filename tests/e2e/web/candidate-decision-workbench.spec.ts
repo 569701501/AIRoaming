@@ -252,7 +252,8 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
     const sourceStatus = page.getByTestId("candidate-source-status");
     await expect(sourceStatus).toContainText("候选定稿已变化");
     await expect(sourceStatus).toContainText("可在下方先预览换图及裁切，再显式提交到当前草稿");
-    await page.getByRole("button", { name: "正式出版", exact: true }).click();
+    await page.getByRole("button", { name: "版本与出版" }).click();
+    await page.getByTestId("layout-publication-center").getByRole("button", { name: "运行导出预检" }).click();
     await expect(page.getByTestId("layout-publication-preflight")).toBeVisible();
     await expect(page.getByText("存在阻断", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "开始正式出版" })).toBeDisabled();
@@ -273,8 +274,9 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
 
     await page.goto(`/projects/${fixture.projectId}/layout`);
     await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿尚未完整");
-    await expect(page.getByRole("button", { name: "生成排版" })).toBeDisabled();
-    await page.getByRole("button", { name: "正式出版", exact: true }).click();
+    await expect(page.getByRole("button", { name: "按镜头排版" })).toBeDisabled();
+    await page.getByRole("button", { name: "版本与出版" }).click();
+    await page.getByTestId("layout-publication-center").getByRole("button", { name: "运行导出预检" }).click();
     await expect(page.getByTestId("layout-publication-preflight")).toBeVisible();
     await expect(page.getByRole("button", { name: "开始正式出版" })).toBeDisabled();
   });

@@ -12,6 +12,7 @@ import {
 
 import { expect, test } from "../support/e2e-fixture.ts";
 import { lockCandidate, prepareG4CandidateFixture } from "../support/g4-candidate-fixture.ts";
+import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
@@ -30,9 +31,14 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
+  await initializeLegacyLayoutWorkingCopy(
+    api,
+    rainSmokeProject,
+    fixture.projectId,
+    fixture.chapterId,
+  );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "创建数据库草稿" }).click();
   await page.getByRole("button", { name: "版本与出版" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
 
@@ -59,7 +65,8 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   );
   await page.reload();
 
-  await page.getByRole("button", { name: "保存版本", exact: true }).click();
+  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByTestId("layout-m6-control-center").getByRole("button", { name: "重新预检" }).click();
   const revisionPreflight = page.getByTestId("layout-preflight-result");
   await expect(revisionPreflight).toBeVisible();
   const revisionAcknowledgements = revisionPreflight.locator('input[type="checkbox"]');

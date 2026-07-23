@@ -90,7 +90,7 @@ export function getWorkflowStepSummary(
     case "image_candidates":
       return "出图准备已通过，可以生成候选图并锁定结果。";
     case "layout_export":
-      return "当前章节图片结果已就绪，可以排版并导出。";
+      return "当前章节图片结果已就绪，可以自动生成完整成稿并继续编辑。";
     case "asset_package":
       return "当前章节或项目导出已就绪，可以归档素材包。";
   }
@@ -110,7 +110,7 @@ export function getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string 
     case "image_candidates":
       return "候选图或锁定图已完成。";
     case "layout_export":
-      return "排版导出已完成。";
+      return "漫画成稿已完成。";
     case "asset_package":
       return "素材包已归档。";
   }
@@ -132,7 +132,7 @@ export function getWorkflowWaitingSummary(stepKey: ProjectWorkflowStepKey): stri
     case "layout_export":
       return "需要先锁定当前章节候选图。";
     case "asset_package":
-      return "需要先完成章节排版和导出。";
+      return "需要先完成章节成稿和正式导出。";
   }
 }
 

@@ -187,6 +187,77 @@ describe("OpenCodeRuntimeService", () => {
     });
   });
 
+  it("sends a validated image file part with isolated structured generation", async () => {
+    let messageBody: Record<string, unknown> | undefined;
+    server = createServer((request, response) => {
+      if (request.method === "GET" && request.url === "/session") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end("[]");
+        return;
+      }
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => { body += chunk; });
+      request.on("end", () => {
+        if (request.method === "POST" && request.url?.startsWith("/session?directory=")) {
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify({ id: "vision-structured-session" }));
+          return;
+        }
+        if (request.method === "POST" && request.url?.startsWith("/session/vision-structured-session/message?directory=")) {
+          messageBody = JSON.parse(body) as Record<string, unknown>;
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify({
+            info: { role: "assistant", structured: { visualCenter: { x: 0.5, y: 0.5 } } },
+            parts: [],
+          }));
+          return;
+        }
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ message: "not found" }));
+      });
+    });
+    await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("TEST_SERVER_ADDRESS_MISSING");
+    process.env.OPENCODE_BASE_URL = `http://127.0.0.1:${address.port}`;
+
+    const settings = {
+      getRuntimeAIKeySettings: () => ({ providerId: "self", modelId: "vision-test" }),
+    } as unknown as SettingsService;
+    const runtime = new OpenCodeRuntimeService(settings);
+    structuredDirectory = await mkdtemp(path.join(tmpdir(), "airoaming-structured-image-"));
+    process.env.OPENCODE_STRUCTURED_DIRECTORY = structuredDirectory;
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      required: ["visualCenter"],
+      properties: {
+        visualCenter: {
+          type: "object",
+          additionalProperties: false,
+          required: ["x", "y"],
+          properties: { x: { type: "number" }, y: { type: "number" } },
+        },
+      },
+    };
+    const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+    await expect(runtime.generateStructured({
+      title: "画面分析",
+      content: "分析附件中的画面。",
+      schema,
+      images: [{ mimeType: "image/png", fileName: "shot.png", dataUrl }],
+    })).resolves.toMatchObject({
+      value: { visualCenter: { x: 0.5, y: 0.5 } },
+      model: { providerId: "self", modelId: "vision-test" },
+    });
+    expect(messageBody?.parts).toEqual([
+      { type: "text", text: "分析附件中的画面。" },
+      { type: "file", mime: "image/png", filename: "shot.png", url: dataUrl },
+    ]);
+  });
+
   it("maps a configured xAI proxy to an isolated OpenAI-compatible runtime provider", async () => {
     let authPath: string | undefined;
     let authBody: unknown;

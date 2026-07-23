@@ -7,16 +7,19 @@ import {
   digestLayoutSourceLockSet,
   generateLayoutPresetV1,
   LayoutDocumentCodecV1,
+  LayoutDocumentCodecV1OrV2,
   LayoutDocumentValidationError,
   LayoutWorkingCopyContractError,
   parseInitializeLayoutWorkingCopyRequestV1,
-  parseSaveLayoutWorkingCopyRequestV1,
+  parseSaveLayoutWorkingCopyRequestV1OrV2,
+  projectLayoutDocumentV2ToV1,
   projectLayoutSourceBindings,
   type CandidateImageSourceV1,
   type InitializeLayoutWorkingCopyResponseV1,
   type LayoutCanvasV1,
   type LayoutDigest,
   type LayoutDocumentV1,
+  type LayoutDocumentV1OrV2,
   type LayoutFontPolicyV1,
   type LayoutImageValidationContextV1,
   type LayoutProfileV1,
@@ -76,7 +79,7 @@ function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
 }
 
-function collectFontAssetIds(document: LayoutDocumentV1): string[] {
+function collectFontAssetIds(document: LayoutDocumentV1OrV2): string[] {
   const result = [
     document.fontPolicy.defaultFontAssetId,
     ...document.fontPolicy.fallbackFontAssetIds,
@@ -96,7 +99,7 @@ function sourceIdentity(source: CandidateImageSourceV1): string {
   return canonicalizeJson(source);
 }
 
-function sourceGeometryByElement(document: LayoutDocumentV1): Map<string, string> {
+function sourceGeometryByElement(document: LayoutDocumentV1OrV2): Map<string, string> {
   const result = new Map<string, string>();
   for (const canvas of document.canvases) {
     for (const element of canvas.elements) {
@@ -242,7 +245,7 @@ export class LayoutWorkingCopyService {
         where: { chapterId: scope.chapterId, projectId: scope.projectId },
       });
       if (!row) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
-      if (row.documentKind !== "layout_document_v1") {
+      if (row.documentKind !== "layout_document_v1" && row.documentKind !== "layout_document_v2") {
         serviceError("LAYOUT_WORKING_COPY_EXISTS", 409, { documentKind: row.documentKind });
       }
       return this.toResponse(scope, row, tx);
@@ -265,6 +268,16 @@ export class LayoutWorkingCopyService {
         return {
           schemaVersion: 1,
           state: "layout_document_v1",
+          workingCopyId: row.id,
+          legacyDocumentDigest: null,
+          sourceResolution: null,
+          provenancePreserved: Boolean(provenance),
+        };
+      }
+      if (row.documentKind === "layout_document_v2") {
+        return {
+          schemaVersion: 1,
+          state: "layout_document_v2",
           workingCopyId: row.id,
           legacyDocumentDigest: null,
           sourceResolution: null,
@@ -495,7 +508,10 @@ export class LayoutWorkingCopyService {
       return this.prismaService.runBusinessTransaction(async (tx) => {
         const existing = await tx.layoutWorkingCopy.findUnique({ where: { chapterId: scope.chapterId } });
         if (existing) {
-          if (existing.projectId !== scope.projectId || existing.documentKind !== "layout_document_v1") {
+          if (
+            existing.projectId !== scope.projectId
+            || (existing.documentKind !== "layout_document_v1" && existing.documentKind !== "layout_document_v2")
+          ) {
             serviceError("LAYOUT_WORKING_COPY_EXISTS", 409, { documentKind: existing.documentKind });
           }
           return {
@@ -595,7 +611,7 @@ export class LayoutWorkingCopyService {
 
   async save(scope: VersionScopeV1, input: unknown): Promise<SaveLayoutWorkingCopyResponseV1> {
     return this.execute(async () => {
-      const structural = parseSaveLayoutWorkingCopyRequestV1(input, {
+      const structural = parseSaveLayoutWorkingCopyRequestV1OrV2(input, {
         projectId: scope.projectId,
         chapterId: scope.chapterId,
       });
@@ -606,18 +622,21 @@ export class LayoutWorkingCopyService {
         ]);
         if (!project || project.lifecycleStatus !== "active") serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
         if (!existing) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
-        if (existing.documentKind !== "layout_document_v1") {
+        if (existing.documentKind !== "layout_document_v1" && existing.documentKind !== "layout_document_v2") {
           serviceError("LAYOUT_WORKING_COPY_EXISTS", 409, { documentKind: existing.documentKind });
         }
         const comicFormat = project.comicFormat;
         if (comicFormat !== "paged_comic" && comicFormat !== "vertical_scroll") {
           serviceError("LAYOUT_COMIC_FORMAT_IMMUTABLE", 409);
         }
-        const encoded = LayoutDocumentCodecV1.encode(structural.document, {
+        const encoded = LayoutDocumentCodecV1OrV2.encode(structural.document, {
           projectId: scope.projectId,
           chapterId: scope.chapterId,
           comicFormat,
         });
+        if (existing.documentKind === "layout_document_v2" && encoded.value.kind !== "layout_document_v2") {
+          serviceError("LAYOUT_DOCUMENT_DOWNGRADE_FORBIDDEN", 409);
+        }
         const decision = resolveLayoutWorkingCopySave({
           currentRowVersion: existing.rowVersion,
           currentDocumentDigest: existing.documentDigest,
@@ -633,19 +652,28 @@ export class LayoutWorkingCopyService {
           };
         }
 
-        const previous = LayoutDocumentCodecV1.parseAndNormalize(existing.documentJson, {
+        const previous = LayoutDocumentCodecV1OrV2.parseAndNormalize(existing.documentJson, {
           projectId: scope.projectId,
           chapterId: scope.chapterId,
           comicFormat,
         });
-        const imageByAssetId = await this.validateChangedSources(scope, previous, encoded.value, tx);
+        const previousVisible = previous.kind === "layout_document_v2"
+          ? projectLayoutDocumentV2ToV1(previous)
+          : previous;
+        const nextVisible = encoded.value.kind === "layout_document_v2"
+          ? projectLayoutDocumentV2ToV1(encoded.value)
+          : encoded.value;
+        const imageByAssetId = await this.validateChangedSources(scope, previousVisible, nextVisible, tx);
         await this.validateChangedFonts(scope, previous, encoded.value, tx);
-        const controlled = LayoutDocumentCodecV1.encode(encoded.value, {
+        const controlled = LayoutDocumentCodecV1OrV2.encode(encoded.value, {
           projectId: scope.projectId,
           chapterId: scope.chapterId,
           comicFormat,
           imageByAssetId,
         });
+        const controlledVisible = controlled.value.kind === "layout_document_v2"
+          ? projectLayoutDocumentV2ToV1(controlled.value)
+          : controlled.value;
         const activeShots = await tx.shot.findMany({
           where: { projectId: scope.projectId, chapterId: scope.chapterId, lifecycleStatus: "active" },
           select: { id: true },
@@ -653,7 +681,7 @@ export class LayoutWorkingCopyService {
         let sourceLockSetDigest: LayoutDigest | null;
         try {
           sourceLockSetDigest = digestLayoutSourceLockSet(
-            controlled.value,
+            controlledVisible,
             activeShots.map((shot) => shot.id),
           );
         } catch {
@@ -669,7 +697,9 @@ export class LayoutWorkingCopyService {
             documentDigest: existing.documentDigest,
           },
           data: {
+            documentKind: controlled.value.kind,
             documentJson: controlled.value as unknown as Prisma.InputJsonValue,
+            schemaVersion: controlled.value.schemaVersion,
             documentDigest: controlled.digest,
             sourceLockSetDigest,
             rowVersion: { increment: 1 },
@@ -809,8 +839,8 @@ export class LayoutWorkingCopyService {
 
   private async validateChangedFonts(
     scope: VersionScopeV1,
-    previous: LayoutDocumentV1,
-    next: LayoutDocumentV1,
+    previous: LayoutDocumentV1OrV2,
+    next: LayoutDocumentV1OrV2,
     reader: Reader,
   ): Promise<void> {
     void previous;
@@ -824,6 +854,7 @@ export class LayoutWorkingCopyService {
       projectId: string;
       chapterId: string;
       documentJson: unknown;
+      documentKind: string;
       documentDigest: string;
       sourceLockSetDigest: string | null;
       basedOnRevisionId: string | null;
@@ -832,11 +863,15 @@ export class LayoutWorkingCopyService {
     },
     reader: Reader,
   ): Promise<LayoutWorkingCopyResponseV1> {
-    const document = LayoutDocumentCodecV1.parseAndNormalize(row.documentJson, {
+    if (row.documentKind !== "layout_document_v1" && row.documentKind !== "layout_document_v2") {
+      serviceError("LAYOUT_WORKING_COPY_EXISTS", 409, { documentKind: row.documentKind });
+    }
+    const document = LayoutDocumentCodecV1OrV2.parseAndNormalize(row.documentJson, {
       projectId: scope.projectId,
       chapterId: scope.chapterId,
     });
-    const encoded = LayoutDocumentCodecV1.encode(document);
+    if (document.kind !== row.documentKind) serviceError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
+    const encoded = LayoutDocumentCodecV1OrV2.encode(document);
     if (encoded.digest !== row.documentDigest) serviceError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
     const sourceState = await this.candidateSources.get(scope, reader);
     const sourceEvaluation: LayoutSourceEvaluation | undefined =

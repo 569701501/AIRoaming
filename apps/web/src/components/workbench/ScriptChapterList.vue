@@ -94,7 +94,7 @@ function statusLabel(status: ChapterStatus) {
     structured: "结构",
     storyboard_done: "分镜",
     images_done: "图像",
-    layout_done: "排版",
+    layout_done: "成稿",
     exported: "导出",
   };
   return labels[status];

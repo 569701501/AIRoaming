@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "kind": "smart_layout_m0_baseline_outputs_v1",
+  "corpusDigest": "sha256:8906e9e2f3dc8c2d2c58db189225233f7ae610578cf1ef9f6cd9e9b10d6a1aef",
+  "renderer": {
+    "rendererId": "airoaming_layout_renderer",
+    "rendererVersion": "chromium-149-layout-v1",
+    "rendererPolicyVersion": "layout_render_policy_v1",
+    "geometryPolicyVersion": "layout_geometry_v1",
+    "textPolicyVersion": "layout_text_v1",
+    "balloonPolicyVersion": "balloon_shape_v1",
+    "rasterEngine": "chromium",
+    "rasterEngineVersion": "149.0.7827.55",
+    "buildDigest": "sha256:7c7827a1bb81f673cfe6a6fe0360846247837ac95dbdb6779ac2a6e701c8fe8d"
+  },
+  "outputs": [
+    {
+      "groupId": "FIX-V01",
+      "variantId": "fix-v01-vertical",
+      "comicFormat": "vertical_scroll",
+      "documentDigest": "sha256:b2a043692e24e9a5750f7bf66a02fa61d7e5047194ea9dc38e65aad09e450476",
+      "sourceLockSetDigest": "sha256:17509a662ddf580e03b4378e226d722dcf39c80c47ca7885afa3a15cb713be99",
+      "profileDigest": "sha256:92d05b6eeffedf22353411f278743ae9460e72c2540c184896ed68f5214dbb04",
+      "renderPlanDigest": "sha256:a411ee0f6705b9ab24ec132b9f6927512d987d5b2610765f4de44a167e672d99",
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v01-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:ba4f87e561501f77f69f60288ff1c8746accd0e96b5fc5290fc9aac02bc93734",
+          "bytes": 104207,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "strip_slice_png",
+          "order": 2,
+          "relativePath": "outputs/fix-v01-vertical/strip-0002.png",
+          "fileName": "strip-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:198fd8cec194d7ff53cb2d6db1fcd85be2fe3a1e96940302e31664efbe3684b7",
+          "bytes": 41855,
+          "width": 1080,
+          "height": 3840,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v01-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:8bfb8fd42ef6b4780d1a11e3461de62aa82d7d691bbcd9c24ceeac048037088c",
+          "bytes": 174477,
+          "width": 1080,
+          "height": 11520,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-V02",
+      "variantId": "fix-v02-vertical",
+      "comicFormat": "vertical_scroll",
+      "documentDigest": "sha256:97cc31c814e0592385dd1b617b693ae2a457ba3b73632d9032ded6ea1d0d9568",
+      "sourceLockSetDigest": "sha256:99bd1a70c6131a82319c365d37495841032711daee2829fcc417288a01503056",
+      "profileDigest": "sha256:92d05b6eeffedf22353411f278743ae9460e72c2540c184896ed68f5214dbb04",
+      "renderPlanDigest": "sha256:c7f9717060ccb083e4dd527e4ab2d9a643333a76bd28329eb4cd6a47b6bd8166",
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v02-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:15f26199da3c2cb8c07eef818912543b8db971da3e35a5c64afdf7d0beb85fad",
+          "bytes": 95026,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "strip_slice_png",
+          "order": 2,
+          "relativePath": "outputs/fix-v02-vertical/strip-0002.png",
+          "fileName": "strip-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:b7459ac5a151a2a12ca6abc16b5369838a59d2935650c3d191fdc379111be5be",
+          "bytes": 104861,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v02-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:6cce8849f91873e86d0543f627725deeb2b74d5a7bf3952f49b99aa2d5eaccd9",
+          "bytes": 237611,
+          "width": 1080,
+          "height": 15360,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-V03",
+      "variantId": "fix-v03-vertical",
+      "comicFormat": "vertical_scroll",
+      "documentDigest": "sha256:602214f26001558d360faa6c14cac7a8058c9c79c155cab4858476523b75505a",
+      "sourceLockSetDigest": "sha256:ceb13aebc91a3d762775a08133f1e614aa0729d0975a392ef8f9f5191b6be301",
+      "profileDigest": "sha256:92d05b6eeffedf22353411f278743ae9460e72c2540c184896ed68f5214dbb04",
+      "renderPlanDigest": "sha256:19af490a1b943c95300134be6b7862e13667299304252ec05738065ac592794d",
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v03-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:098cf18ff782a1aa376393825c246f41024d02f12e537ba49c641a50bb8561fb",
+          "bytes": 124748,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "strip_slice_png",
+          "order": 2,
+          "relativePath": "outputs/fix-v03-vertical/strip-0002.png",
+          "fileName": "strip-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:73bab806f58798bfc6f51ef17e0967482bb044b26f9cc3402671939e86f0df84",
+          "bytes": 84984,
+          "width": 1080,
+          "height": 5760,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v03-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:0dbc9d9a5704914c9ee53b0a06db3abdb2c659fc59c69096d3acd206355c78f9",
+          "bytes": 247659,
+          "width": 1080,
+          "height": 13440,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-V04",
+      "variantId": "fix-v04-vertical",
+      "comicFormat": "vertical_scroll",
+      "documentDigest": "sha256:deb7fec5ba74e3c85f85edc87502c49b0ff6974cbc1333f7febfb7121034c258",
+      "sourceLockSetDigest": "sha256:9249120d31c41ced3ee053a9f5f252a3fc18d70265f41c4413d8f66c8d1aa811",
+      "profileDigest": "sha256:92d05b6eeffedf22353411f278743ae9460e72c2540c184896ed68f5214dbb04",
+      "renderPlanDigest": "sha256:8d262c83c25769bbe742c6a88803566e79d1ed38486cad668ef8062bb7c76b36",
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v04-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:a7f0129d92ac4f094a1b726b06a1d5093352d93c0c88f9108fe7159f2b90ddea",
+          "bytes": 91952,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "strip_slice_png",
+          "order": 2,
+          "relativePath": "outputs/fix-v04-vertical/strip-0002.png",
+          "fileName": "strip-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:3da3eb14044c6367d5a066433309dcc02220f39c646e9ef142c92f557806d104",
+          "bytes": 113338,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v04-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:62cbf40b101cc6e2047a9dde822cccc56cc6a485cb4c0864785583cb13d884d0",
+          "bytes": 242628,
+          "width": 1080,
+          "height": 15360,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P01",
+      "variantId": "fix-p01-paged",
+      "comicFormat": "paged_comic",
+      "documentDigest": "sha256:bcf811af0cc044907f2eef5e23dbd930f368bdb6446e7c92fadeebb880161095",
+      "sourceLockSetDigest": "sha256:d38d590be9b43cc059c4b7686a7336c34003abab9ccba05f179d3bcf59c02791",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "renderPlanDigest": "sha256:e137a121d8f4592dc2f4e7c8ece73118e36846c71e9655a89ae4e1ffae7414a9",
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p01-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:63d5fecd19717b7f8f4cb14afcb8f7264d0cde88b358764dd9be00bd15bf1c10",
+          "bytes": 59387,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p01-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:bbc52d8490e17a40c599d5d0f1673dcac43093282daf6df9df763f0c9841c80e",
+          "bytes": 58469,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p01-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:906449b89cd963c791b9e55564fc869387e9a4756af43b66b79835a458a3837a",
+          "bytes": 95658,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P02",
+      "variantId": "fix-p02-paged",
+      "comicFormat": "paged_comic",
+      "documentDigest": "sha256:24bf6ede9d9f987dcf024e6de6115901fb0a22520e37ac0cab9d1fe6d90ccbb9",
+      "sourceLockSetDigest": "sha256:4a7d69c82673246cbfc68537fb0bd0ebf4036b654cee1a744dd26f8703355546",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "renderPlanDigest": "sha256:785a7a86f3981d3356916964339bac6427e405af3492424d0a88339294a42f83",
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p02-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:88b495ad22b29f9730a62f6f68dd6812d358b20fc26afd61adf0acfc74462d77",
+          "bytes": 84131,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p02-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:c807d7239923422160cb2417341deaee81ffda4498df6454bdbd3665d07d214f",
+          "bytes": 50072,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p02-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:a3d3119a495bf0a899346f2a3f162d00b91b72a404ee3728cab004637e82e75b",
+          "bytes": 57957,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P03",
+      "variantId": "fix-p03-paged",
+      "comicFormat": "paged_comic",
+      "documentDigest": "sha256:0e3694fbca01060280ab1b4083e8fa9fea0d5d8474dac7eb5b41455485f8c6df",
+      "sourceLockSetDigest": "sha256:cb5b5df943d0e44d16f79edc3c01108263aa4807ff11897d6ff8752f1ecac4e2",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "renderPlanDigest": "sha256:21c003f046ec018ecb1d08d421d1a5d7f6ed692158458b54aabe6dd9caabf251",
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p03-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:5ea7afe6d421d46541c2bf11faf45718215844f247e8e5e62cc1a36d66849420",
+          "bytes": 76803,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p03-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:44481c74b15dec9b9d589318ed2cab2d5abf396667547a697dd89f57ea49fe18",
+          "bytes": 56299,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p03-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:ee42d6e65dd05868f24f5d4f93134f2f6326d3e65cab76517234b2cf1f9b7c89",
+          "bytes": 109784,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P04",
+      "variantId": "fix-p04-paged",
+      "comicFormat": "paged_comic",
+      "documentDigest": "sha256:b2f45d980fe8424ace8b26cb17621739cb3d4fa52b99bcc3c4c33cc72c5091fc",
+      "sourceLockSetDigest": "sha256:36adfd40c676ca24110e243ff00e0aa453d8f9bb28d2afdc1daca255725a2e69",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "renderPlanDigest": "sha256:3b9851034713a770277415896982e1b758bafe838deb2f75e907770eb4b39c8e",
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p04-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:b93d114dd3ffff282e168b3592b054b9714f3812be662070732f20f3ced48e45",
+          "bytes": 71647,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p04-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:768897325c4bd03be9f67a8f86d2ffea8b493248d5a115b44697a945ae24c933",
+          "bytes": 67126,
+          "width": null,
+          "height": null,
+          "pageCount": 1
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X01",
+      "variantId": "fix-x01-vertical",
+      "comicFormat": "vertical_scroll",
+      "documentDigest": "sha256:b5271e1ad9f37635ea3000648fe884cf49f1775fcbe14d681ecf1f4aa116c215",
+      "sourceLockSetDigest": "sha256:2ebd0173562be05d751450c8117193e65c34a2b8135cab0e4981b01575e48ddb",
+      "profileDigest": "sha256:92d05b6eeffedf22353411f278743ae9460e72c2540c184896ed68f5214dbb04",
+      "renderPlanDigest": "sha256:f19017471c95815cc2da009e54974b75971d1c0fdce1b0a7a55f21a8e597fbee",
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:b826897e296817155cde62e2776a1b15b8b96ae5e2f02d04a6630c842cb31a11",
+          "bytes": 113134,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "strip_slice_png",
+          "order": 2,
+          "relativePath": "outputs/fix-x01-vertical/strip-0002.png",
+          "fileName": "strip-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:abfc184ef9dbe658c64ba13770ebc844493183079b8e8ab20f6a1f60c44f22ba",
+          "bytes": 27102,
+          "width": 1080,
+          "height": 1920,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:57bb4fa4765ccb0d1e408efaac808953977e05973af53c797b0dc3170a97ba6f",
+          "bytes": 162761,
+          "width": 1080,
+          "height": 9600,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X01",
+      "variantId": "fix-x01-paged",
+      "comicFormat": "paged_comic",
+      "documentDigest": "sha256:3cd3a8a32fa9658d9cc1437ec0ba59ec696ca22fe805afcb0b24d88dca613e99",
+      "sourceLockSetDigest": "sha256:e910f5fe7fb5b93d4a5647e49b5b363a8ee3d103a438e82aa214536caf162acc",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "renderPlanDigest": "sha256:dde77b9a5b5ba8aa307b6b82af800a81ac06fa237961c6a221afb63edeaefc8a",
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:fd1e8a3ccaf9135cfe7ff8bec5327d8c6943fc2f59e85fe3a3cfa9d7982bdc5c",
+          "bytes": 62598,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-x01-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:c807d7239923422160cb2417341deaee81ffda4498df6454bdbd3665d07d214f",
+          "bytes": 50072,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:62a98a0858c596d4e3b36b12eb9a9f16535633421b8d1988e7cd3546e57847dd",
+          "bytes": 79993,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X02",
+      "variantId": "fix-x02-vertical",
+      "comicFormat": "vertical_scroll",
+      "documentDigest": "sha256:3a60b4d7d3f43a39c8f0cdb63f570e5889825c1492ca91274206814bbd3a5e44",
+      "sourceLockSetDigest": "sha256:e93de9fb059b3e93c1c22f95a2c33daee33c38493861f52db0c8dc09c3ddf64b",
+      "profileDigest": "sha256:92d05b6eeffedf22353411f278743ae9460e72c2540c184896ed68f5214dbb04",
+      "renderPlanDigest": "sha256:0afc87bd53616d7eefd39f2a658477d3f051eda3412d942e808e36ba7837121c",
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:8f1178c3dc7a5a24014ac0c9309698133fa447133a10c805e62f4673fc76d3ae",
+          "bytes": 99302,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:194446bb90b186097924a90173ce145e8d9a4680ddef0e99daf03592a3f2e51b",
+          "bytes": 117708,
+          "width": 1080,
+          "height": 7680,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X02",
+      "variantId": "fix-x02-paged",
+      "comicFormat": "paged_comic",
+      "documentDigest": "sha256:bd6acf5310a7c6010cd114e119c95401620d56b435e83e57a4ba3a42acd46da9",
+      "sourceLockSetDigest": "sha256:abc91f2b6c1d629959c22e6a5e3949d002de05a567a864f0711e57361ddaedb6",
+      "profileDigest": "sha256:e6788480ac7a83353df0aabf92a09c4d50206160d2b33a5b66f3ac3aae202f62",
+      "renderPlanDigest": "sha256:b0aae12c2dbd9b6b77010095b5b8f1983baf5e999511539b3661719f0ea80e5f",
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:cd4065ea430276473330ca4ff21841ea9dd8d3fa48318f92d45e28f93b03ff9f",
+          "bytes": 59691,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:b8b72ea9d791225b0ae61e17ad134fa167cec50f5d754525b463530de0f1276b",
+          "bytes": 55712,
+          "width": null,
+          "height": null,
+          "pageCount": 1
+        }
+      ]
+    }
+  ],
+  "contactSheets": [
+    {
+      "kind": "paged",
+      "relativePath": "contact-sheet-paged.png",
+      "width": 1144,
+      "height": 1230,
+      "sha256": "sha256:e59443a466234cd8a958ed4e642d3a247db74ff5b594b359aea0e24da209ef2e",
+      "bytes": 309177
+    },
+    {
+      "kind": "vertical",
+      "relativePath": "contact-sheet-vertical.png",
+      "width": 1152,
+      "height": 2410,
+      "sha256": "sha256:2d48bfafc9de78cc6ca3a3045b14d37717bdf21bead0a719a9cac9a7e2d46f82",
+      "bytes": 427138
+    }
+  ],
+  "reviewTemplate": {
+    "relativePath": "m0-human-review-template.csv",
+    "sha256": "sha256:7ea417ac2209c82942ff79d7a2c37087d3dbdfb269c4b78888d443feb7db9c12",
+    "bytes": 19852,
+    "panelRows": 69,
+    "requiredBalloonRows": 59,
+    "instructions": "复制为两个独立 reviewer 文件；panel 填 layout/crop/reading_order/subject_occlusion，required_balloon 填 geometry/type/text_fit；只填 true/false，不删除失败行。"
+  },
+  "outputManifestDigest": "sha256:5119bea242ac1e623bce706a67b34efe13515b94ceb50899098b632a933d7fc0"
+}

@@ -144,7 +144,7 @@ function getWorkflowDoneSummary(stepKey: ProjectWorkflowStepKey): string {
     case "image_candidates":
       return "候选图或锁定图已完成。";
     case "layout_export":
-      return "排版导出已完成。";
+      return "漫画成稿已完成。";
     case "asset_package":
       return "素材包已归档。";
   }

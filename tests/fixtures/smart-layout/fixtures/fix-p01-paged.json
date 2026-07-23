@@ -1,0 +1,1271 @@
+{
+  "fixtureSchemaVersion": 1,
+  "kind": "smart_layout_m0_fixture_v1",
+  "sourceDate": "2026-07-22T00:00:00.000Z",
+  "group": {
+    "groupId": "FIX-P01",
+    "title": "页漫双人对话"
+  },
+  "variant": {
+    "variantId": "fix-p01-paged",
+    "title": "审讯室里的三轮交锋",
+    "comicFormat": "paged_comic",
+    "coverageTags": [
+      "paged_dialogue",
+      "three_to_six_panels",
+      "exchange_page_boundary"
+    ],
+    "targetNarrativeGroups": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        4,
+        5,
+        6
+      ]
+    ],
+    "shotLayoutIntents": [
+      {
+        "shotOrder": 1,
+        "intent": "wide",
+        "visualAsset": "landscape_pair_edges"
+      },
+      {
+        "shotOrder": 2,
+        "intent": "standard",
+        "visualAsset": "square_right"
+      },
+      {
+        "shotOrder": 3,
+        "intent": "detail",
+        "visualAsset": "landscape_detail_bottom"
+      },
+      {
+        "shotOrder": 4,
+        "intent": "impact",
+        "visualAsset": "square_left"
+      },
+      {
+        "shotOrder": 5,
+        "intent": "standard",
+        "visualAsset": "portrait_left"
+      },
+      {
+        "shotOrder": 6,
+        "intent": "focus",
+        "visualAsset": "portrait_center"
+      }
+    ]
+  },
+  "inputs": {
+    "storyContext": {
+      "scenes": [
+        {
+          "id": "fix-p01-paged_scene_1",
+          "name": "审讯室"
+        }
+      ],
+      "beats": [
+        {
+          "id": "fix-p01-paged_beat_1",
+          "title": "开场",
+          "sceneId": "fix-p01-paged_scene_1"
+        },
+        {
+          "id": "fix-p01-paged_beat_2",
+          "title": "证据",
+          "sceneId": "fix-p01-paged_scene_1"
+        },
+        {
+          "id": "fix-p01-paged_beat_3",
+          "title": "突破",
+          "sceneId": "fix-p01-paged_scene_1"
+        }
+      ]
+    },
+    "storyboardVersion": {
+      "id": "storyboard_version_fix-p01-paged",
+      "revision": 1,
+      "position": "current",
+      "schemaVersion": 2,
+      "documentDigest": "sha256:443241de561b745eb565dea70e823be1bcdb89267a41e3182ad1c28d03d82f8a",
+      "document": {
+        "schemaVersion": 2,
+        "chapterId": "chapter_fix-p01-paged",
+        "shots": [
+          {
+            "id": "fix-p01-paged_shot_01",
+            "order": 1,
+            "beatId": "fix-p01-paged_beat_1",
+            "sceneId": "fix-p01-paged_scene_1",
+            "characterIds": [
+              "char_linzhou",
+              "char_gaoyuan"
+            ],
+            "coreAction": "两人隔桌而坐",
+            "emotion": "压迫",
+            "shotType": "wide",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "两人隔桌而坐",
+              "composition": "布局意图：wide",
+              "dialogue": "林舟：我们从七码头那晚开始。",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "两人隔桌而坐",
+              "compositionDesign": "景别 wide，布局意图 wide",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "我们从七码头那晚开始。",
+                  "voiceStyle": "平静、施压"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p01-paged_shot_02",
+            "order": 2,
+            "beatId": "fix-p01-paged_beat_1",
+            "sceneId": "fix-p01-paged_scene_1",
+            "characterIds": [
+              "char_gaoyuan"
+            ],
+            "coreAction": "高远避开林舟视线",
+            "emotion": "防御",
+            "shotType": "close_up",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "高远避开林舟视线",
+              "composition": "布局意图：standard",
+              "dialogue": "高远：我那天没有值班。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "高远避开林舟视线",
+              "compositionDesign": "景别 close_up，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "reaction",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "我那天没有值班。",
+                  "voiceStyle": "生硬"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p01-paged_shot_03",
+            "order": 3,
+            "beatId": "fix-p01-paged_beat_2",
+            "sceneId": "fix-p01-paged_scene_1",
+            "characterIds": [
+              "char_linzhou"
+            ],
+            "coreAction": "林舟按下录音笔播放键",
+            "emotion": "笃定",
+            "shotType": "extreme_close_up",
+            "cameraAngle": "top_down",
+            "comic": {
+              "panelDescription": "林舟按下录音笔播放键",
+              "composition": "布局意图：detail",
+              "dialogue": "林舟：可你的声音在这里。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "林舟按下录音笔播放键",
+              "compositionDesign": "景别 extreme_close_up，布局意图 detail",
+              "cameraMovement": "static",
+              "frameType": "detail",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "可你的声音在这里。",
+                  "voiceStyle": "直接"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p01-paged_shot_04",
+            "order": 4,
+            "beatId": "fix-p01-paged_beat_2",
+            "sceneId": "fix-p01-paged_scene_1",
+            "characterIds": [
+              "char_gaoyuan"
+            ],
+            "coreAction": "高远猛地抬头",
+            "emotion": "惊慌",
+            "shotType": "close_up",
+            "cameraAngle": "low_angle",
+            "comic": {
+              "panelDescription": "高远猛地抬头",
+              "composition": "布局意图：impact",
+              "dialogue": "高远：那不是完整录音！",
+              "caption": "",
+              "panelRhythm": "impact"
+            },
+            "motion": {
+              "visualDescription": "高远猛地抬头",
+              "compositionDesign": "景别 close_up，布局意图 impact",
+              "cameraMovement": "static",
+              "frameType": "reaction",
+              "durationMs": 800,
+              "durationHint": "impact",
+              "voiceLines": [
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "那不是完整录音！",
+                  "voiceStyle": "失控喊叫"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p01-paged_shot_05",
+            "order": 5,
+            "beatId": "fix-p01-paged_beat_3",
+            "sceneId": "fix-p01-paged_scene_1",
+            "characterIds": [
+              "char_linzhou"
+            ],
+            "coreAction": "林舟停掉录音",
+            "emotion": "冷静",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "林舟停掉录音",
+              "composition": "布局意图：standard",
+              "dialogue": "林舟：那你告诉我缺了哪一段。",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "林舟停掉录音",
+              "compositionDesign": "景别 medium，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "那你告诉我缺了哪一段。",
+                  "voiceStyle": "放慢语速"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p01-paged_shot_06",
+            "order": 6,
+            "beatId": "fix-p01-paged_beat_3",
+            "sceneId": "fix-p01-paged_scene_1",
+            "characterIds": [
+              "char_gaoyuan"
+            ],
+            "coreAction": "高远双手捂住脸",
+            "emotion": "崩溃",
+            "shotType": "medium",
+            "cameraAngle": "high_angle",
+            "comic": {
+              "panelDescription": "高远双手捂住脸",
+              "composition": "布局意图：focus",
+              "dialogue": "高远：他们把船开进来时，赵妍已经在仓库里了。",
+              "caption": "",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "高远双手捂住脸",
+              "compositionDesign": "景别 medium，布局意图 focus",
+              "cameraMovement": "static",
+              "frameType": "reaction",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "他们把船开进来时，赵妍已经在仓库里了。",
+                  "voiceStyle": "崩溃、低声"
+                }
+              ]
+            },
+            "promptDraft": ""
+          }
+        ],
+        "notes": "M0 固定语料：审讯室里的三轮交锋"
+      }
+    },
+    "characterCatalog": [
+      {
+        "id": "char_linzhou",
+        "projectCharacterId": "project_character_linzhou",
+        "name": "林舟",
+        "role": "调查记者",
+        "visualTraits": "灰蓝长风衣、左眉浅疤、旧银色录音笔"
+      },
+      {
+        "id": "char_gaoyuan",
+        "projectCharacterId": "project_character_gaoyuan",
+        "name": "高远",
+        "role": "港口调度员",
+        "visualTraits": "橙色雨衣、旧工牌、宽肩"
+      }
+    ],
+    "candidateLockSet": {
+      "state": "complete",
+      "sourceApplicability": "current",
+      "digest": "sha256:d38d590be9b43cc059c4b7686a7336c34003abab9ccba05f179d3bcf59c02791",
+      "items": [
+        {
+          "order": 1,
+          "shotId": "fix-p01-paged_shot_01",
+          "candidateId": "fix-p01-paged_candidate_01",
+          "candidateLockRevisionId": "fix-p01-paged_lock_01",
+          "assetId": "asset_sml_landscape_pair_edges",
+          "assetSha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "width": 1280,
+          "height": 720,
+          "status": "ready"
+        },
+        {
+          "order": 2,
+          "shotId": "fix-p01-paged_shot_02",
+          "candidateId": "fix-p01-paged_candidate_02",
+          "candidateLockRevisionId": "fix-p01-paged_lock_02",
+          "assetId": "asset_sml_square_right",
+          "assetSha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+          "width": 1024,
+          "height": 1024,
+          "status": "ready"
+        },
+        {
+          "order": 3,
+          "shotId": "fix-p01-paged_shot_03",
+          "candidateId": "fix-p01-paged_candidate_03",
+          "candidateLockRevisionId": "fix-p01-paged_lock_03",
+          "assetId": "asset_sml_landscape_detail_bottom",
+          "assetSha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+          "width": 1280,
+          "height": 720,
+          "status": "ready"
+        },
+        {
+          "order": 4,
+          "shotId": "fix-p01-paged_shot_04",
+          "candidateId": "fix-p01-paged_candidate_04",
+          "candidateLockRevisionId": "fix-p01-paged_lock_04",
+          "assetId": "asset_sml_square_left",
+          "assetSha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "width": 1024,
+          "height": 1024,
+          "status": "ready"
+        },
+        {
+          "order": 5,
+          "shotId": "fix-p01-paged_shot_05",
+          "candidateId": "fix-p01-paged_candidate_05",
+          "candidateLockRevisionId": "fix-p01-paged_lock_05",
+          "assetId": "asset_sml_portrait_left",
+          "assetSha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+          "width": 720,
+          "height": 1280,
+          "status": "ready"
+        },
+        {
+          "order": 6,
+          "shotId": "fix-p01-paged_shot_06",
+          "candidateId": "fix-p01-paged_candidate_06",
+          "candidateLockRevisionId": "fix-p01-paged_lock_06",
+          "assetId": "asset_sml_portrait_center",
+          "assetSha256": "sha256:b6467304596afa3ab2673249426a833574c290221e4f117bcf8d4d8fbbe77643",
+          "width": 720,
+          "height": 1280,
+          "status": "ready"
+        }
+      ]
+    },
+    "sourceCatalog": {
+      "schemaVersion": 1,
+      "projectId": "project_fix-p01-paged",
+      "chapterId": "chapter_fix-p01-paged",
+      "sourceLockSetDigest": "sha256:d38d590be9b43cc059c4b7686a7336c34003abab9ccba05f179d3bcf59c02791",
+      "items": [
+        {
+          "order": 1,
+          "width": 1280,
+          "height": 720,
+          "status": "ready",
+          "assetSha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "source": {
+            "shotId": "fix-p01-paged_shot_01",
+            "candidateId": "fix-p01-paged_candidate_01",
+            "candidateLockRevisionId": "fix-p01-paged_lock_01",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "sourceDigest": "sha256:178d76997bd555a4c147d0f4b802105a30bbd3142ceed5ccd6645c871087955f"
+          }
+        },
+        {
+          "order": 2,
+          "width": 1024,
+          "height": 1024,
+          "status": "ready",
+          "assetSha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+          "source": {
+            "shotId": "fix-p01-paged_shot_02",
+            "candidateId": "fix-p01-paged_candidate_02",
+            "candidateLockRevisionId": "fix-p01-paged_lock_02",
+            "assetId": "asset_sml_square_right",
+            "sourceDigest": "sha256:e0ce82071e2eb590f7e231dc7fdbea43b537d1ec5a218ceb1b6395887ed99028"
+          }
+        },
+        {
+          "order": 3,
+          "width": 1280,
+          "height": 720,
+          "status": "ready",
+          "assetSha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+          "source": {
+            "shotId": "fix-p01-paged_shot_03",
+            "candidateId": "fix-p01-paged_candidate_03",
+            "candidateLockRevisionId": "fix-p01-paged_lock_03",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "sourceDigest": "sha256:be07433c35ff3df642f5fae7af82df365661c1e6a1179409fda7cdc9f0c7b6ab"
+          }
+        },
+        {
+          "order": 4,
+          "width": 1024,
+          "height": 1024,
+          "status": "ready",
+          "assetSha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "source": {
+            "shotId": "fix-p01-paged_shot_04",
+            "candidateId": "fix-p01-paged_candidate_04",
+            "candidateLockRevisionId": "fix-p01-paged_lock_04",
+            "assetId": "asset_sml_square_left",
+            "sourceDigest": "sha256:26b71448724e0aa695afce94fed9ebcf3364314a48d95957e2cb8973057a97d9"
+          }
+        },
+        {
+          "order": 5,
+          "width": 720,
+          "height": 1280,
+          "status": "ready",
+          "assetSha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+          "source": {
+            "shotId": "fix-p01-paged_shot_05",
+            "candidateId": "fix-p01-paged_candidate_05",
+            "candidateLockRevisionId": "fix-p01-paged_lock_05",
+            "assetId": "asset_sml_portrait_left",
+            "sourceDigest": "sha256:245541acc0e4264699fdd859bccf95d2885a903c6473472c7440640c8522d1be"
+          }
+        },
+        {
+          "order": 6,
+          "width": 720,
+          "height": 1280,
+          "status": "ready",
+          "assetSha256": "sha256:b6467304596afa3ab2673249426a833574c290221e4f117bcf8d4d8fbbe77643",
+          "source": {
+            "shotId": "fix-p01-paged_shot_06",
+            "candidateId": "fix-p01-paged_candidate_06",
+            "candidateLockRevisionId": "fix-p01-paged_lock_06",
+            "assetId": "asset_sml_portrait_center",
+            "sourceDigest": "sha256:9caa2f16b89484113982a728c0155571b8b1c21f5494326908ecdc824a99c0a3"
+          }
+        }
+      ]
+    },
+    "fontAsset": {
+      "assetId": "asset_font_sml_noto_sc_400",
+      "role": "font",
+      "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+      "mimeType": "font/woff2",
+      "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+      "bytes": 1602144,
+      "metadata": {
+        "schemaVersion": 1,
+        "kind": "layout_font_asset_v1",
+        "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+        "familyName": "Noto Sans SC",
+        "displayName": "Noto Sans SC 受控常规体",
+        "face": {
+          "weight": 400,
+          "style": "normal"
+        },
+        "format": "woff2",
+        "license": {
+          "spdx": "OFL-1.1",
+          "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+          "embeddingAllowed": true
+        }
+      },
+      "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+      "status": "ready"
+    },
+    "dialogueLedger": {
+      "schemaVersion": 1,
+      "items": [
+        {
+          "itemId": "fix-p01-paged_dialogue_01_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p01-paged_shot_01",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "我们从七码头那晚开始。",
+          "textDigest": "sha256:94142c6c8d7cd1966480b53f881f4fbb599d3219fda20d3e87be965b913aa873",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p01-paged_dialogue_02_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p01-paged_shot_02",
+          "sourceOrder": 1,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "我那天没有值班。",
+          "textDigest": "sha256:c6aa7bbbd647df8e288174c36c6e967ea14912a42ce76dda27356df77131b741",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p01-paged_dialogue_03_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p01-paged_shot_03",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "可你的声音在这里。",
+          "textDigest": "sha256:cf548edaf4f93c5a5e148fcdb872e7da9028955098076b80f0fa1dd9e6c53984",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p01-paged_dialogue_04_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p01-paged_shot_04",
+          "sourceOrder": 1,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "那不是完整录音！",
+          "textDigest": "sha256:39b85afeb7a931d20caf1a52f4c0016c4463dba0db77380cf2ab5b46a8dcd23f",
+          "expectedBalloonKind": "shout"
+        },
+        {
+          "itemId": "fix-p01-paged_dialogue_05_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p01-paged_shot_05",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "那你告诉我缺了哪一段。",
+          "textDigest": "sha256:7709101206cf8561dab311ad30b543334310401847ef277fe345e90621ac1bc4",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p01-paged_dialogue_06_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p01-paged_shot_06",
+          "sourceOrder": 1,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "他们把船开进来时，赵妍已经在仓库里了。",
+          "textDigest": "sha256:9b86ed598169c364816eb11726a9ff2f6a92f7649c2e0210e2450cb60d57b3e3",
+          "expectedBalloonKind": "speech"
+        }
+      ],
+      "digest": "sha256:e70fd47f8d6b049fc2e4102eb2dadf5573e882687058e49e452dec101cbea2e7"
+    }
+  },
+  "replacementScenario": null,
+  "currentBaseline": {
+    "implementation": "initializeLayoutCanvasesFromSourcesV1",
+    "behavior": "每 4 镜固定成页，仅按镜头数量选择 single/two_horizontal/three_focus/four_panel",
+    "limitations": [
+      "不读取 scene/beat/frameType/panelRhythm",
+      "不创建对白、旁白或气泡",
+      "crop 固定 zoom=1 且居中"
+    ],
+    "layoutDocumentDigest": "sha256:bcf811af0cc044907f2eef5e23dbd930f368bdb6446e7c92fadeebb880161095",
+    "layoutDocument": {
+      "schemaVersion": 1,
+      "kind": "layout_document_v1",
+      "projectId": "project_fix-p01-paged",
+      "chapterId": "chapter_fix-p01-paged",
+      "comicFormat": "paged_comic",
+      "profile": {
+        "kind": "paged",
+        "presetId": "portrait_3_4",
+        "width": 1800,
+        "height": 2400,
+        "safeArea": {
+          "top": 72,
+          "right": 72,
+          "bottom": 72,
+          "left": 72
+        },
+        "panelReadingDirection": "ltr_ttb"
+      },
+      "fontPolicy": {
+        "defaultFontAssetId": "asset_font_sml_noto_sc_400",
+        "fallbackFontAssetIds": []
+      },
+      "canvases": [
+        {
+          "id": "fix-p01-paged_canvas_1",
+          "kind": "page",
+          "name": "第 1 页",
+          "width": 1800,
+          "height": 2400,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-p01-paged_panel_1",
+            "fix-p01-paged_panel_2",
+            "fix-p01-paged_panel_3",
+            "fix-p01-paged_panel_4"
+          ],
+          "elements": [
+            {
+              "id": "fix-p01-paged_panel_1",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 72,
+                "y": 72,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p01-paged_image_1",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 1",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p01-paged_shot_01",
+                  "candidateId": "fix-p01-paged_candidate_01",
+                  "candidateLockRevisionId": "fix-p01-paged_lock_01",
+                  "assetId": "asset_sml_landscape_pair_edges",
+                  "sourceDigest": "sha256:178d76997bd555a4c147d0f4b802105a30bbd3142ceed5ccd6645c871087955f"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p01-paged_panel_2",
+              "type": "panel_frame",
+              "name": "画格 2",
+              "transform": {
+                "x": 924,
+                "y": 72,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p01-paged_image_2",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 2",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p01-paged_shot_02",
+                  "candidateId": "fix-p01-paged_candidate_02",
+                  "candidateLockRevisionId": "fix-p01-paged_lock_02",
+                  "assetId": "asset_sml_square_right",
+                  "sourceDigest": "sha256:e0ce82071e2eb590f7e231dc7fdbea43b537d1ec5a218ceb1b6395887ed99028"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p01-paged_panel_3",
+              "type": "panel_frame",
+              "name": "画格 3",
+              "transform": {
+                "x": 72,
+                "y": 1224,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p01-paged_image_3",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 3",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p01-paged_shot_03",
+                  "candidateId": "fix-p01-paged_candidate_03",
+                  "candidateLockRevisionId": "fix-p01-paged_lock_03",
+                  "assetId": "asset_sml_landscape_detail_bottom",
+                  "sourceDigest": "sha256:be07433c35ff3df642f5fae7af82df365661c1e6a1179409fda7cdc9f0c7b6ab"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p01-paged_panel_4",
+              "type": "panel_frame",
+              "name": "画格 4",
+              "transform": {
+                "x": 924,
+                "y": 1224,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p01-paged_image_4",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 4",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p01-paged_shot_04",
+                  "candidateId": "fix-p01-paged_candidate_04",
+                  "candidateLockRevisionId": "fix-p01-paged_lock_04",
+                  "assetId": "asset_sml_square_left",
+                  "sourceDigest": "sha256:26b71448724e0aa695afce94fed9ebcf3364314a48d95957e2cb8973057a97d9"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "fix-p01-paged_canvas_2",
+          "kind": "page",
+          "name": "第 2 页",
+          "width": 1800,
+          "height": 2400,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-p01-paged_panel_5",
+            "fix-p01-paged_panel_6"
+          ],
+          "elements": [
+            {
+              "id": "fix-p01-paged_panel_5",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 72,
+                "y": 72,
+                "width": 804,
+                "height": 2256,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p01-paged_image_5",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 5",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p01-paged_shot_05",
+                  "candidateId": "fix-p01-paged_candidate_05",
+                  "candidateLockRevisionId": "fix-p01-paged_lock_05",
+                  "assetId": "asset_sml_portrait_left",
+                  "sourceDigest": "sha256:245541acc0e4264699fdd859bccf95d2885a903c6473472c7440640c8522d1be"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p01-paged_panel_6",
+              "type": "panel_frame",
+              "name": "画格 2",
+              "transform": {
+                "x": 924,
+                "y": 72,
+                "width": 804,
+                "height": 2256,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p01-paged_image_6",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 6",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p01-paged_shot_06",
+                  "candidateId": "fix-p01-paged_candidate_06",
+                  "candidateLockRevisionId": "fix-p01-paged_lock_06",
+                  "assetId": "asset_sml_portrait_center",
+                  "sourceDigest": "sha256:9caa2f16b89484113982a728c0155571b8b1c21f5494326908ecdc824a99c0a3"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "sourceLockSetDigest": "sha256:d38d590be9b43cc059c4b7686a7336c34003abab9ccba05f179d3bcf59c02791",
+    "publicationProfile": {
+      "schemaVersion": 1,
+      "kind": "paged_publication",
+      "outputScale": 1,
+      "includePdf": true,
+      "pdfPixelDpi": 96
+    },
+    "assetManifest": {
+      "schemaVersion": 1,
+      "images": [
+        {
+          "assetId": "asset_sml_landscape_detail_bottom",
+          "role": "candidate_image",
+          "relativePath": "assets/landscape_detail_bottom.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+          "bytes": 8405,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "assetId": "asset_sml_landscape_pair_edges",
+          "role": "candidate_image",
+          "relativePath": "assets/landscape_pair_edges.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+          "bytes": 11816,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "assetId": "asset_sml_portrait_center",
+          "role": "candidate_image",
+          "relativePath": "assets/portrait_center.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:b6467304596afa3ab2673249426a833574c290221e4f117bcf8d4d8fbbe77643",
+          "bytes": 10244,
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "assetId": "asset_sml_portrait_left",
+          "role": "candidate_image",
+          "relativePath": "assets/portrait_left.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+          "bytes": 10228,
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "assetId": "asset_sml_square_left",
+          "role": "candidate_image",
+          "relativePath": "assets/square_left.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "bytes": 11570,
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "assetId": "asset_sml_square_right",
+          "role": "candidate_image",
+          "relativePath": "assets/square_right.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+          "bytes": 11512,
+          "width": 1024,
+          "height": 1024
+        }
+      ],
+      "fonts": [
+        {
+          "assetId": "asset_font_sml_noto_sc_400",
+          "role": "font",
+          "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+          "mimeType": "font/woff2",
+          "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+          "bytes": 1602144,
+          "metadata": {
+            "schemaVersion": 1,
+            "kind": "layout_font_asset_v1",
+            "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+            "familyName": "Noto Sans SC",
+            "displayName": "Noto Sans SC 受控常规体",
+            "face": {
+              "weight": 400,
+              "style": "normal"
+            },
+            "format": "woff2",
+            "license": {
+              "spdx": "OFL-1.1",
+              "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+              "embeddingAllowed": true
+            }
+          },
+          "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+          "status": "ready"
+        }
+      ]
+    },
+    "assessment": {
+      "schemaVersion": 1,
+      "status": "red",
+      "reasonCodes": [
+        "CURRENT_LAYOUT_FIXED_COUNT_ONLY",
+        "CURRENT_LAYOUT_HAS_NO_DIALOGUE_OBJECTS",
+        "CURRENT_LAYOUT_HAS_NO_SEMANTIC_CROP"
+      ],
+      "scoringBasis": "deterministic_rubric_pending_two_independent_human_reviews",
+      "panelReview": [
+        {
+          "shotId": "fix-p01-paged_shot_01",
+          "shotOrder": 1,
+          "canvasId": "fix-p01-paged_canvas_1",
+          "panelId": "fix-p01-paged_panel_1",
+          "layoutIntent": "wide",
+          "targetNarrativeGroup": [
+            1,
+            2,
+            3
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p01-paged_shot_02",
+          "shotOrder": 2,
+          "canvasId": "fix-p01-paged_canvas_1",
+          "panelId": "fix-p01-paged_panel_2",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            1,
+            2,
+            3
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p01-paged_shot_03",
+          "shotOrder": 3,
+          "canvasId": "fix-p01-paged_canvas_1",
+          "panelId": "fix-p01-paged_panel_3",
+          "layoutIntent": "detail",
+          "targetNarrativeGroup": [
+            1,
+            2,
+            3
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": true,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout"
+          ]
+        },
+        {
+          "shotId": "fix-p01-paged_shot_04",
+          "shotOrder": 4,
+          "canvasId": "fix-p01-paged_canvas_1",
+          "panelId": "fix-p01-paged_panel_4",
+          "layoutIntent": "impact",
+          "targetNarrativeGroup": [
+            4,
+            5,
+            6
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p01-paged_shot_05",
+          "shotOrder": 5,
+          "canvasId": "fix-p01-paged_canvas_2",
+          "panelId": "fix-p01-paged_panel_5",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            4,
+            5,
+            6
+          ],
+          "currentCanvasOrders": [
+            5,
+            6
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p01-paged_shot_06",
+          "shotOrder": 6,
+          "canvasId": "fix-p01-paged_canvas_2",
+          "panelId": "fix-p01-paged_panel_6",
+          "layoutIntent": "focus",
+          "targetNarrativeGroup": [
+            4,
+            5,
+            6
+          ],
+          "currentCanvasOrders": [
+            5,
+            6
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": true,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout"
+          ]
+        }
+      ],
+      "balloonReview": {
+        "requiredSourceItemCount": 6,
+        "placedBalloonCount": 0,
+        "directUsableCount": 0,
+        "directUsableRate": 0,
+        "applicability": "failed_all_required_items_missing"
+      },
+      "summary": {
+        "shotCount": 6,
+        "panelCount": 6,
+        "panelDirectUsableCount": 0,
+        "panelDirectUsableRate": 0,
+        "panelsNeedingLayoutAdjustment": 6,
+        "panelsNeedingCropAdjustment": 4,
+        "dialogueOrCaptionItemsNeedingCreation": 6,
+        "minimumObjectAdjustments": 16,
+        "currentShotCoverageRate": 1,
+        "currentDialogueAndCaptionCoverageRate": 0
+      }
+    }
+  },
+  "futureAcceptanceTargets": {
+    "activeShotCoverageRate": 1,
+    "dialogueAndCaptionCoverageRate": 1,
+    "silentRewriteCount": 0,
+    "textOverflowCount": 0,
+    "aggregatePanelDirectUsableRate": 0.8,
+    "aggregateBoundBalloonDirectUsableRate": 0.8
+  }
+}

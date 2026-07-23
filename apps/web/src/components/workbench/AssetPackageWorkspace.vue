@@ -12,7 +12,7 @@
       <div class="package-actions">
         <button class="secondary-action" type="button" :disabled="loading" @click="$emit('goLayout')">
           <LayoutTemplate :size="15" />
-          <span>排版导出</span>
+          <span>漫画成稿</span>
         </button>
         <button class="primary-action" type="button" :disabled="loading || !canExport" @click="$emit('exportPackage')">
           <Archive :size="15" />
@@ -23,11 +23,11 @@
 
     <div v-if="!isLayoutDone" class="package-empty">
       <Lock :size="22" />
-      <h2>请先完成排版导出</h2>
+      <h2>请先完成漫画成稿与正式导出</h2>
       <p>素材包会打包本章剧本、结构、分镜、锁定候选图和导出页，并生成可追溯的素材清单。</p>
       <button class="empty-action" type="button" :disabled="loading" @click="$emit('goLayout')">
         <LayoutTemplate :size="15" />
-        <span>去排版导出</span>
+        <span>去漫画成稿</span>
       </button>
     </div>
 
@@ -50,7 +50,7 @@
           <li>正式分镜</li>
           <li>出图准备检查记录</li>
           <li>候选图索引</li>
-          <li>排版文件</li>
+          <li>漫画成稿文件</li>
           <li>已锁定候选图与导出页图片</li>
           <li>项目角色索引</li>
           <li>素材清单（可追溯来源）</li>

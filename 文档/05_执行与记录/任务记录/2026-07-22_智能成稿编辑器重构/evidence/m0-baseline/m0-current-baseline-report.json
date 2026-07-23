@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "smart_layout_m0_current_baseline_report_v1",
+  "corpusDigest": "sha256:8906e9e2f3dc8c2d2c58db189225233f7ae610578cf1ef9f6cd9e9b10d6a1aef",
+  "outputManifestDigest": "sha256:5119bea242ac1e623bce706a67b34efe13515b94ceb50899098b632a933d7fc0",
+  "status": "red",
+  "reasonCodes": [
+    "CURRENT_LAYOUT_FIXED_COUNT_ONLY",
+    "CURRENT_LAYOUT_HAS_NO_DIALOGUE_OBJECTS",
+    "CURRENT_LAYOUT_HAS_NO_SEMANTIC_CROP",
+    "CURRENT_LAYOUT_BELOW_PANEL_DIRECT_USABILITY_TARGET",
+    "CURRENT_LAYOUT_BELOW_BALLOON_DIRECT_USABILITY_TARGET"
+  ],
+  "currentBehavior": {
+    "paged": "每 4 镜固定分组，仅按数量套 single/two_horizontal/three_focus/four_panel",
+    "vertical": "每镜固定一个 1080×1920 single 段落",
+    "crop": "全部 zoom=1、offset=0 的中心 cover",
+    "dialogueAndCaption": "不创建文字或气泡对象"
+  },
+  "aggregate": {
+    "variantCount": 12,
+    "shotCount": 69,
+    "panelCount": 69,
+    "panelDirectUsableCount": 5,
+    "requiredDialogueOrCaptionItemCount": 59,
+    "boundBalloonDirectUsableCount": 0,
+    "panelsNeedingLayoutAdjustment": 52,
+    "panelsNeedingCropAdjustment": 41,
+    "minimumObjectAdjustments": 152,
+    "panelDirectUsableRate": 0.07246376811594203,
+    "boundBalloonDirectUsableRate": 0
+  },
+  "byFormat": {
+    "vertical_scroll": {
+      "variantCount": 6,
+      "shotCount": 38,
+      "panelCount": 38,
+      "panelDirectUsableCount": 3,
+      "requiredDialogueOrCaptionItemCount": 31,
+      "boundBalloonDirectUsableCount": 0,
+      "panelsNeedingLayoutAdjustment": 33,
+      "panelsNeedingCropAdjustment": 18,
+      "minimumObjectAdjustments": 82,
+      "panelDirectUsableRate": 0.07894736842105263,
+      "boundBalloonDirectUsableRate": 0
+    },
+    "paged_comic": {
+      "variantCount": 6,
+      "shotCount": 31,
+      "panelCount": 31,
+      "panelDirectUsableCount": 2,
+      "requiredDialogueOrCaptionItemCount": 28,
+      "boundBalloonDirectUsableCount": 0,
+      "panelsNeedingLayoutAdjustment": 19,
+      "panelsNeedingCropAdjustment": 23,
+      "minimumObjectAdjustments": 70,
+      "panelDirectUsableRate": 0.06451612903225806,
+      "boundBalloonDirectUsableRate": 0
+    }
+  },
+  "reviewState": {
+    "deterministicContract": "passed",
+    "productionRendererOutputs": "generated",
+    "agentVisualReview": "pending_contact_sheet_review",
+    "independentHumanReviews": {
+      "required": 2,
+      "completed": 0,
+      "status": "pending_for_future_80_percent_release_gate"
+    },
+    "reviewTemplate": "m0-human-review-template.csv",
+    "statement": "本报告冻结现状红灯和最少调整量，不冒充未来智能成稿质量或双人人工签收。"
+  },
+  "futureReleaseTargets": {
+    "activeShotCoverageRate": 1,
+    "dialogueAndCaptionCoverageRate": 1,
+    "panelDirectUsableRate": 0.8,
+    "boundBalloonDirectUsableRate": 0.8,
+    "silentRewriteCount": 0,
+    "textOverflowCount": 0
+  }
+}

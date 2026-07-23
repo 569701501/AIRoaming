@@ -1,0 +1,1713 @@
+{
+  "schemaVersion": 1,
+  "kind": "smart_layout_m2_rule_composition_outputs_v1",
+  "corpusDigest": "sha256:8906e9e2f3dc8c2d2c58db189225233f7ae610578cf1ef9f6cd9e9b10d6a1aef",
+  "renderer": {
+    "rendererId": "airoaming_layout_renderer",
+    "rendererVersion": "chromium-149-layout-v1",
+    "rendererPolicyVersion": "layout_render_policy_v1",
+    "geometryPolicyVersion": "layout_geometry_v1",
+    "textPolicyVersion": "layout_text_v1",
+    "balloonPolicyVersion": "balloon_shape_v1",
+    "rasterEngine": "chromium",
+    "rasterEngineVersion": "149.0.7827.55",
+    "buildDigest": "sha256:7c7827a1bb81f673cfe6a6fe0360846247837ac95dbdb6779ac2a6e701c8fe8d"
+  },
+  "status": "passed_contract_visual_unscored",
+  "aggregate": {
+    "variantCount": 12,
+    "shotCount": 69,
+    "dialogueItemCount": 59,
+    "canvasCount": 36,
+    "panelCount": 69,
+    "balloonCount": 59,
+    "textOverflowCount": 0,
+    "silentRewriteCount": 0,
+    "shotCoverageRate": 1,
+    "dialogueCoverageRate": 1
+  },
+  "byFormat": {
+    "vertical_scroll": {
+      "variantCount": 6,
+      "shotCount": 38,
+      "dialogueItemCount": 31,
+      "canvasCount": 24,
+      "panelCount": 38,
+      "balloonCount": 31,
+      "textOverflowCount": 0,
+      "silentRewriteCount": 0,
+      "shotCoverageRate": 1,
+      "dialogueCoverageRate": 1
+    },
+    "paged_comic": {
+      "variantCount": 6,
+      "shotCount": 31,
+      "dialogueItemCount": 28,
+      "canvasCount": 12,
+      "panelCount": 31,
+      "balloonCount": 28,
+      "textOverflowCount": 0,
+      "silentRewriteCount": 0,
+      "shotCoverageRate": 1,
+      "dialogueCoverageRate": 1
+    }
+  },
+  "outputs": [
+    {
+      "groupId": "FIX-V01",
+      "variantId": "fix-v01-vertical",
+      "comicFormat": "vertical_scroll",
+      "planDigest": "sha256:1a0b3dfbea4825d9a43aaf675bf3fb93d37d4b2aca565a1676d40cc58e167535",
+      "narrativePlanDigest": "sha256:e97286bcc41e874f1d679d154e6076e8a53049c16c72239c54c7fe78bfa0cc6d",
+      "dialogueLedgerDigest": "sha256:04beacb89a6b18dae30ae2a4fe6131b6694b878dfd52c152ba3f99570f92e71e",
+      "visibleDocumentDigest": "sha256:d429f148ac30c901c2b134594b6593792fc3acf4fc6b141205d60137306ceb79",
+      "documentDigest": "sha256:0247edacd5d0c77405bbfff712c8eca53a1c78116f87da8050f78bb94f4a23f3",
+      "compositionDigest": "sha256:cf3728f104f155f2d8a6a46d714733e3997e0acbb3ed0dc1d0315dd87df1408f",
+      "renderPlanDigest": "sha256:dbdb0fc6b5637fa95d0792991c944258d1194bf93b3af994b3176445beb23378",
+      "counts": {
+        "shots": 6,
+        "placedShots": 6,
+        "dialogueItems": 6,
+        "placedOriginal": 6,
+        "canvases": 4,
+        "panels": 6,
+        "balloons": 6,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_1101c6a0e254279adee92bc0",
+          "order": 1,
+          "groupIds": [
+            "narrative_a2f220fba2d9eb1d1e49d1af"
+          ],
+          "shotIds": [
+            "fix-v01-vertical_shot_01",
+            "fix-v01-vertical_shot_02"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2232
+        },
+        {
+          "canvasId": "canvas_6c421b779504484d081be3f8",
+          "order": 2,
+          "groupIds": [
+            "narrative_5fbee154eaf3084041604f8b"
+          ],
+          "shotIds": [
+            "fix-v01-vertical_shot_03"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 856
+        },
+        {
+          "canvasId": "canvas_37985e43929e35bdd137e8f4",
+          "order": 3,
+          "groupIds": [
+            "narrative_305948ef558da480acc42538"
+          ],
+          "shotIds": [
+            "fix-v01-vertical_shot_04",
+            "fix-v01-vertical_shot_05"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2648
+        },
+        {
+          "canvasId": "canvas_17b17325fc4c5773c66a0210",
+          "order": 4,
+          "groupIds": [
+            "narrative_a7cbd44dee8e9308cf51103d"
+          ],
+          "shotIds": [
+            "fix-v01-vertical_shot_06"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 856
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v01-vertical_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v01-vertical_shot_04"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v01-vertical_shot_05"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v01-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:2897ee469488ed785f491cd7d5c623a390119d4ec99be9326fddf25262ad7bed",
+          "bytes": 184680,
+          "width": 1080,
+          "height": 6592,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v01-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:58f9f4ff0c21e9c4054c6f2b5a3716ff20484678f9eac03ee9bbc969728774a8",
+          "bytes": 216259,
+          "width": 1080,
+          "height": 6592,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-V02",
+      "variantId": "fix-v02-vertical",
+      "comicFormat": "vertical_scroll",
+      "planDigest": "sha256:15b6d1ac1d7d513ccbab02e357a1f9b2e065992bf6cfe70384185c6d0dfe7b26",
+      "narrativePlanDigest": "sha256:6b83ff9fe2f80686012ecacb89ce0fe7934130618a3c858b8a87445b850e71bd",
+      "dialogueLedgerDigest": "sha256:961e335bf65543d61fbe9815933840b6939a88adb6759d677390534ffc29863d",
+      "visibleDocumentDigest": "sha256:a4dbbdcdc559a6783c2256b704af8949b09c73c4e1d9ad97fed96dcc7c7fbd07",
+      "documentDigest": "sha256:a533539b56aea25ad335c02ec0493e40113ded3a1a1383bad440f0dd109f2441",
+      "compositionDigest": "sha256:f423a5ab990155d63c7802e402fb8ad5323938d8f4dfd6c269388673f7f16a68",
+      "renderPlanDigest": "sha256:6afa44b221fb2e23836f0ad06f132ffd244f4a9109f9023861078c151a6a4400",
+      "counts": {
+        "shots": 8,
+        "placedShots": 8,
+        "dialogueItems": 8,
+        "placedOriginal": 8,
+        "canvases": 4,
+        "panels": 8,
+        "balloons": 8,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_b64b13badcc47ca38b73a150",
+          "order": 1,
+          "groupIds": [
+            "narrative_5f9ecacfd4344a2846e97270"
+          ],
+          "shotIds": [
+            "fix-v02-vertical_shot_01",
+            "fix-v02-vertical_shot_02"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2092
+        },
+        {
+          "canvasId": "canvas_0826c73ca3f595ed06aef92f",
+          "order": 2,
+          "groupIds": [
+            "narrative_c85be3f9d654df555fba836b"
+          ],
+          "shotIds": [
+            "fix-v02-vertical_shot_03",
+            "fix-v02-vertical_shot_04"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2278
+        },
+        {
+          "canvasId": "canvas_ac57b97b470049a7acf6f013",
+          "order": 3,
+          "groupIds": [
+            "narrative_fe939732452348be7798b5a4"
+          ],
+          "shotIds": [
+            "fix-v02-vertical_shot_05",
+            "fix-v02-vertical_shot_06"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2232
+        },
+        {
+          "canvasId": "canvas_0d15eb78695afcee4a609d64",
+          "order": 4,
+          "groupIds": [
+            "narrative_60aee98d1c7ee2aaecf539ff"
+          ],
+          "shotIds": [
+            "fix-v02-vertical_shot_07",
+            "fix-v02-vertical_shot_08"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2092
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_01"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_04"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_05"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_06"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_07"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v02-vertical_shot_08"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v02-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:914f791e2497c1a800aeb4944def1a0005b08cef3d260544fb3b866a73f0adbe",
+          "bytes": 215156,
+          "width": 1080,
+          "height": 6602,
+          "pageCount": null
+        },
+        {
+          "role": "strip_slice_png",
+          "order": 2,
+          "relativePath": "outputs/fix-v02-vertical/strip-0002.png",
+          "fileName": "strip-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:58783fe54eca677ced2054f908d80ae29148f1dd03eb56030bb2f5c2efbdc352",
+          "bytes": 61927,
+          "width": 1080,
+          "height": 2092,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v02-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:b5a6e3a97de6686dcd86a466efad11b3d76ee9b15f9c7a4343924eb14cf84458",
+          "bytes": 324079,
+          "width": 1080,
+          "height": 8694,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-V03",
+      "variantId": "fix-v03-vertical",
+      "comicFormat": "vertical_scroll",
+      "planDigest": "sha256:ab60cdf6a853bf1cbfe0c8c93e52e3c405a154d0ab55e68a6199e3ed23b38698",
+      "narrativePlanDigest": "sha256:1bd2cfa9981faa49e055078308c0437c5a3ec2924b5ed1e700a4886ff2fda2da",
+      "dialogueLedgerDigest": "sha256:7ce3430791a26d2ab4105e67ded3ecfd7f5c1b1e6449e824e9a93fc8f4dfe87e",
+      "visibleDocumentDigest": "sha256:5e95362056ef548fc616b1583443d1a6075585e04b35e38d8c4acf4bcec7f771",
+      "documentDigest": "sha256:d60cbb699d7cc23fe4b7a2c506015732e056b5eae7e2a260540ba7526d1ce61e",
+      "compositionDigest": "sha256:e14692f1b4f3b0608ce219467de90d3f77b1729ed461e18c9b316d25f887f632",
+      "renderPlanDigest": "sha256:14024aa54ed625a668a251d2da4c31df972d779d6c6ee000599931e53081fe53",
+      "counts": {
+        "shots": 7,
+        "placedShots": 7,
+        "dialogueItems": 5,
+        "placedOriginal": 5,
+        "canvases": 5,
+        "panels": 7,
+        "balloons": 5,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_cdf407db339e92e52aeaa781",
+          "order": 1,
+          "groupIds": [
+            "narrative_e5b6e63b1ac86e7ff8da4f06"
+          ],
+          "shotIds": [
+            "fix-v03-vertical_shot_01",
+            "fix-v03-vertical_shot_02"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2092
+        },
+        {
+          "canvasId": "canvas_926bbfc1fd78780e7adf6416",
+          "order": 2,
+          "groupIds": [
+            "narrative_523ca6f634e234cdeff097c1"
+          ],
+          "shotIds": [
+            "fix-v03-vertical_shot_03"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1132
+        },
+        {
+          "canvasId": "canvas_4eccb0f3f928e172254d78d2",
+          "order": 3,
+          "groupIds": [
+            "narrative_b7f867f7eaa2187c3d57492a"
+          ],
+          "shotIds": [
+            "fix-v03-vertical_shot_04"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1502
+        },
+        {
+          "canvasId": "canvas_58a9fda44706b8082f1e9def",
+          "order": 4,
+          "groupIds": [
+            "narrative_1a787a0e6f64110cb4326410"
+          ],
+          "shotIds": [
+            "fix-v03-vertical_shot_05",
+            "fix-v03-vertical_shot_06"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1722
+        },
+        {
+          "canvasId": "canvas_09fe2446c174cf34470a20b7",
+          "order": 5,
+          "groupIds": [
+            "narrative_4e3fac84a252e6883ed67886"
+          ],
+          "shotIds": [
+            "fix-v03-vertical_shot_07"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1642
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v03-vertical_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v03-vertical_shot_04"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v03-vertical_shot_06"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v03-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:648f8d56e6aea9b13fe7973edf374b90da985e95bc3fba01267d4656792b0022",
+          "bytes": 185607,
+          "width": 1080,
+          "height": 8090,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v03-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:05331ccc5658987e1da7182208bf9e1fd9fbf9cd06a5142989fac11c2ec28f55",
+          "bytes": 212124,
+          "width": 1080,
+          "height": 8090,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-V04",
+      "variantId": "fix-v04-vertical",
+      "comicFormat": "vertical_scroll",
+      "planDigest": "sha256:a087f8e69578f86c746263ed0ef5f764d8f230bff8def89127727ac7ae0c30fc",
+      "narrativePlanDigest": "sha256:4e9b7de7110af7a6fc434579778a05f4dab6bfc7551146af455d3a95461cbf07",
+      "dialogueLedgerDigest": "sha256:a1f5830b938ef93eeb8546986984eda42a9fcc39b5625f28d874d3f59dceec1b",
+      "visibleDocumentDigest": "sha256:a08ff403b0b6bb40dc64173b4265b728dacc9a9a8f3366a71a34970227abb07a",
+      "documentDigest": "sha256:76bc39fe3ccc6271fee53ffe1b9b781c16473095d0438fe1a9b208134c981e6f",
+      "compositionDigest": "sha256:163d609c410f1ac872363a029f1a03716799c136d41c9bd6c6eb6f3a2b6562e4",
+      "renderPlanDigest": "sha256:c46e7bf1fd14deca01f835cb646496e6187b30903a1edfdd5e900e47d1da799c",
+      "counts": {
+        "shots": 8,
+        "placedShots": 8,
+        "dialogueItems": 8,
+        "placedOriginal": 8,
+        "canvases": 6,
+        "panels": 8,
+        "balloons": 8,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_1b34bcb3edce5cf25d1de8f7",
+          "order": 1,
+          "groupIds": [
+            "narrative_7d2dba170c44070fa20b3588"
+          ],
+          "shotIds": [
+            "fix-v04-vertical_shot_01",
+            "fix-v04-vertical_shot_02"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1446
+        },
+        {
+          "canvasId": "canvas_7a5416e5e1dec5689191fea5",
+          "order": 2,
+          "groupIds": [
+            "narrative_3ca7dc53b5064176c1dd3f5b"
+          ],
+          "shotIds": [
+            "fix-v04-vertical_shot_03"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 856
+        },
+        {
+          "canvasId": "canvas_07d7e10a71cd6c2271d99b9a",
+          "order": 3,
+          "groupIds": [
+            "narrative_7337d3c3abc1f6475f94b543"
+          ],
+          "shotIds": [
+            "fix-v04-vertical_shot_04"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1502
+        },
+        {
+          "canvasId": "canvas_997c7947878a267365566cbb",
+          "order": 4,
+          "groupIds": [
+            "narrative_4779c1b3764f1b2c2b98c1c7"
+          ],
+          "shotIds": [
+            "fix-v04-vertical_shot_05"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 856
+        },
+        {
+          "canvasId": "canvas_522dcf969e7393d9c0dc0da1",
+          "order": 5,
+          "groupIds": [
+            "narrative_f44aedb998f6fdedc43381a3"
+          ],
+          "shotIds": [
+            "fix-v04-vertical_shot_06",
+            "fix-v04-vertical_shot_07"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2508
+        },
+        {
+          "canvasId": "canvas_1e2568b6f9f3a8f73a7e6eb6",
+          "order": 6,
+          "groupIds": [
+            "narrative_f12839f911d520b42d0b24d8"
+          ],
+          "shotIds": [
+            "fix-v04-vertical_shot_08"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 732
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v04-vertical_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v04-vertical_shot_04"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v04-vertical_shot_06"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-v04-vertical_shot_07"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v04-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:a42d259fdacadc1217199ec83e22ff26024346bba16120cc581cc588db813e32",
+          "bytes": 216674,
+          "width": 1080,
+          "height": 7900,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-v04-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:c3262abb2834473e7740fc3225890c805e13f2872deed32b03efe331991cf44b",
+          "bytes": 254305,
+          "width": 1080,
+          "height": 7900,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P01",
+      "variantId": "fix-p01-paged",
+      "comicFormat": "paged_comic",
+      "planDigest": "sha256:a613d041683b8db6f495e75b9b60b1c5a1dd4076f785d3fd7d52381ec9f45af8",
+      "narrativePlanDigest": "sha256:10830db1f7c12b56b9f1227fc0fe99835d83b52d001507cdb3fe8bb077799086",
+      "dialogueLedgerDigest": "sha256:9be43db801545b49a4c35a32772bb638b926b637780287fa4c8c5d9940148f76",
+      "visibleDocumentDigest": "sha256:cd94670a5a972543b5f5de1f93b6962d0dd51d9572d41f2d9dc3c21fb762c134",
+      "documentDigest": "sha256:bec03cc32da43f94553893926d08d38e38d1f70b630ed6236f0c2cec9d0dff61",
+      "compositionDigest": "sha256:d06706cac352b39baaab7b3a1874f82a98ac9f40a181049e55a50fa578523e12",
+      "renderPlanDigest": "sha256:2636740766aeffcd837e3030a3b6e0f0a819f219d8cf631481006641f8bd3911",
+      "counts": {
+        "shots": 6,
+        "placedShots": 6,
+        "dialogueItems": 6,
+        "placedOriginal": 6,
+        "canvases": 2,
+        "panels": 6,
+        "balloons": 6,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_4e16c67a95f30b7248eeb1fb",
+          "order": 1,
+          "groupIds": [
+            "narrative_ee43b30e09028d6403e8c200",
+            "narrative_17fbfb9bdb53dc295675e48f"
+          ],
+          "shotIds": [
+            "fix-p01-paged_shot_01",
+            "fix-p01-paged_shot_02",
+            "fix-p01-paged_shot_03",
+            "fix-p01-paged_shot_04"
+          ],
+          "template": "four_grid",
+          "width": 1800,
+          "height": 2400
+        },
+        {
+          "canvasId": "canvas_4ada0c5a7e98710b54f896c0",
+          "order": 2,
+          "groupIds": [
+            "narrative_3f089a6447f056d67fff7792"
+          ],
+          "shotIds": [
+            "fix-p01-paged_shot_05",
+            "fix-p01-paged_shot_06"
+          ],
+          "template": "two_stack",
+          "width": 1800,
+          "height": 2400
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p01-paged_shot_01"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p01-paged_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p01-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p01-paged_shot_04"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p01-paged_shot_05"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p01-paged_shot_06"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p01-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:285c385b46544cbe0ff5d12f03abe40bd4967222d8c5487bb91fde803a131218",
+          "bytes": 124072,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p01-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:a6b9c79b6b224ab7d0a84c14f8754f9d95ad355d7aff2b13ea4e0b099aee57d7",
+          "bytes": 87342,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p01-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:e67c6e5523844e96ac09c9581a2a12d6d10c4e6b530fa313aaf3a1906003bf5d",
+          "bytes": 201363,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P02",
+      "variantId": "fix-p02-paged",
+      "comicFormat": "paged_comic",
+      "planDigest": "sha256:8ab61e642376655d71b7b169b233a7acb292a4271e6e4f8733bce7ca97d01600",
+      "narrativePlanDigest": "sha256:7f901987dc11ea1c370528d7647518632f4a48a183166ca0789549bc52eb8911",
+      "dialogueLedgerDigest": "sha256:d7635e7de46698aaead1f8a818974f17aec2c8b65d2842f66d8d3c3c79316d84",
+      "visibleDocumentDigest": "sha256:f3d26f798d21dd3ec51ec57adb74101f9a6acc9c0f9fc698b95103d932fa315f",
+      "documentDigest": "sha256:1d6955e7a1664c7069329b525aaf28541c68ad820467de6616cb706bd7eb7252",
+      "compositionDigest": "sha256:e6d6cd437ea48d4541fc692efc653c753c2d61d179f39052f04da01187f5f8fd",
+      "renderPlanDigest": "sha256:9ba856de90ca52af97ba31e454f1f53ee95850efe74b0d4bf9f47ce1af19c88d",
+      "counts": {
+        "shots": 5,
+        "placedShots": 5,
+        "dialogueItems": 7,
+        "placedOriginal": 7,
+        "canvases": 2,
+        "panels": 5,
+        "balloons": 7,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_4d7f1a2e100d71783e83d68e",
+          "order": 1,
+          "groupIds": [
+            "narrative_2a1752a890625e0069bb3169",
+            "narrative_e608bebdfea3494b79ca80fc"
+          ],
+          "shotIds": [
+            "fix-p02-paged_shot_01",
+            "fix-p02-paged_shot_02",
+            "fix-p02-paged_shot_03",
+            "fix-p02-paged_shot_04"
+          ],
+          "template": "four_grid",
+          "width": 1800,
+          "height": 2400
+        },
+        {
+          "canvasId": "canvas_359b60fe5d7213393f106709",
+          "order": 2,
+          "groupIds": [
+            "narrative_41839cefe9b6a388ba837957"
+          ],
+          "shotIds": [
+            "fix-p02-paged_shot_05"
+          ],
+          "template": "single_focus",
+          "width": 1800,
+          "height": 2400
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_01"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_01"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_02"
+        },
+        {
+          "code": "speaker_unresolved",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_04"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p02-paged_shot_05"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p02-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:78673e53996e12fed853ee1785d738f3266772c1553f3b9ebf255d4e4266a2ae",
+          "bytes": 192613,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p02-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:740a488ae3f49416385b301c023e57984f8fd9bbb188710cd25c100343aa210b",
+          "bytes": 74484,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p02-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:5efbea9a3a6ed747e949af47d8a7535b888de0c11f135ba0f6fce4b248897d3a",
+          "bytes": 228535,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P03",
+      "variantId": "fix-p03-paged",
+      "comicFormat": "paged_comic",
+      "planDigest": "sha256:6432e60c3bb99b1b126ac7edeed7b18631ce91191c66865daee0235339bbdfb4",
+      "narrativePlanDigest": "sha256:fc9ce7fd30d211954d548c960cfa0a162d7c4242c12e52c06d17a19565b74c04",
+      "dialogueLedgerDigest": "sha256:0df4988fbb04cc95b8dfe1b0554abd275a1606b52dba1d049800bc6f8f8da788",
+      "visibleDocumentDigest": "sha256:e62583ffd8e79e416b6793e77506ba5ba1f2d3eed3e747fffe87ad4b23025272",
+      "documentDigest": "sha256:c1975e150501e908c65e7950a111e0a8f0f9c2e5ac30182b04e6de4a2dc11b1d",
+      "compositionDigest": "sha256:632fa3d6c95556b1d3c01c189e39b1b536e5a1a4ee34c9aeb245c0fc74cee0e7",
+      "renderPlanDigest": "sha256:bb5673e8cc99e19cce73e331c83b953c8867ffebba64d0cc4361abbc1af779ef",
+      "counts": {
+        "shots": 7,
+        "placedShots": 7,
+        "dialogueItems": 3,
+        "placedOriginal": 3,
+        "canvases": 3,
+        "panels": 7,
+        "balloons": 3,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_568faf201a05c215d17f371c",
+          "order": 1,
+          "groupIds": [
+            "narrative_c976e43b221e6b5aa794397c",
+            "narrative_b3e1a923b0b5006f3ef39ef9"
+          ],
+          "shotIds": [
+            "fix-p03-paged_shot_01",
+            "fix-p03-paged_shot_02",
+            "fix-p03-paged_shot_03"
+          ],
+          "template": "three_focus_bottom",
+          "width": 1800,
+          "height": 2400
+        },
+        {
+          "canvasId": "canvas_e529a6cdaa4dabc31c878ce5",
+          "order": 2,
+          "groupIds": [
+            "narrative_55b0e86b1bea33ce50fbf007",
+            "narrative_ba5855e44b7420726cccf68e",
+            "narrative_9c19b8d6095ce77c6593e8a6"
+          ],
+          "shotIds": [
+            "fix-p03-paged_shot_04",
+            "fix-p03-paged_shot_05",
+            "fix-p03-paged_shot_06"
+          ],
+          "template": "three_focus_top",
+          "width": 1800,
+          "height": 2400
+        },
+        {
+          "canvasId": "canvas_7f01f2f6a76a4e9fbf307cf3",
+          "order": 3,
+          "groupIds": [
+            "narrative_6b268de6ed31b3cd458833e2"
+          ],
+          "shotIds": [
+            "fix-p03-paged_shot_07"
+          ],
+          "template": "single_focus",
+          "width": 1800,
+          "height": 2400
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p03-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p03-paged_shot_06"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p03-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:16af1955fc62ff292f4dd461383ac17df7e408d87082929b22c24ab0e3d78bd7",
+          "bytes": 70345,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p03-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:68f9df6f4f43e0f421239b039336f58d12ea34d26f3e9f40b21eb7c9f6f75af3",
+          "bytes": 95368,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 3,
+          "relativePath": "outputs/fix-p03-paged/page-0003.png",
+          "fileName": "page-0003.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:87fb34499ea32bec7bc5d208d1ff20e6bb649116cd5e30883398bd81c391c3c9",
+          "bytes": 63941,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p03-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:21de93ad24988a5aa041a74181fbbb747fc1aad37c3f1b1c66abc48b34a06d88",
+          "bytes": 199799,
+          "width": null,
+          "height": null,
+          "pageCount": 3
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-P04",
+      "variantId": "fix-p04-paged",
+      "comicFormat": "paged_comic",
+      "planDigest": "sha256:5f6d5ec4c75b2dab491a03375bc16707c76f659f634e8c3d08365660d485f287",
+      "narrativePlanDigest": "sha256:f160f0dfd6be18b68c9118cc68ba26759b0678a94dd3b8547895556846a56aef",
+      "dialogueLedgerDigest": "sha256:e4df70c9f2e791dfb773ae3825fa8e6728fe3b28d982e55847c3ca655e7c7d86",
+      "visibleDocumentDigest": "sha256:80c74e1c73263cda3af27fdd63c91c9e1ab0a833c9f0b9bf6a7652a20c547865",
+      "documentDigest": "sha256:b91ea1362a4dc09237bfb910b72791d7f65f30ea28b39bace7f1ac5dbdfdb66f",
+      "compositionDigest": "sha256:c8f7a05dee3df7f1f8d2759dba0eaa244e55ec718f4601e6c59abafc3d0b89bb",
+      "renderPlanDigest": "sha256:73675fc3f7318547863969c0bb679c44992d0f184688560eb1ec679443d52d63",
+      "counts": {
+        "shots": 4,
+        "placedShots": 4,
+        "dialogueItems": 8,
+        "placedOriginal": 8,
+        "canvases": 2,
+        "panels": 4,
+        "balloons": 8,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_204e5fdd891727431999aa9d",
+          "order": 1,
+          "groupIds": [
+            "narrative_bc25f83e41b2f073b3542f4b",
+            "narrative_8a2e06ada6c97c6d338f119b"
+          ],
+          "shotIds": [
+            "fix-p04-paged_shot_01",
+            "fix-p04-paged_shot_02"
+          ],
+          "template": "two_stack",
+          "width": 1800,
+          "height": 2400
+        },
+        {
+          "canvasId": "canvas_d2a6b23b466266687fc7e6a6",
+          "order": 2,
+          "groupIds": [
+            "narrative_9b8e8e2e6175da3e99142109",
+            "narrative_acfff0afa7e4f1a0a678153f"
+          ],
+          "shotIds": [
+            "fix-p04-paged_shot_03",
+            "fix-p04-paged_shot_04"
+          ],
+          "template": "two_stack",
+          "width": 1800,
+          "height": 2400
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p04-paged_shot_01"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p04-paged_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p04-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p04-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-p04-paged_shot_04"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-p04-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:ca3fbdc74df7f3c1a1c39994804c809ecb784a9b6d7001442c674f4350edb2b6",
+          "bytes": 196963,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-p04-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:2b187eb3773b99040e61014bd8b65767fc4c0304ed36abd96cf9f6b1fb4a7694",
+          "bytes": 192244,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-p04-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:47fb50f0db543b98328e6b7caae1408dd34df7b0001b9c2625d3f937bdef2c0b",
+          "bytes": 231664,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X01",
+      "variantId": "fix-x01-vertical",
+      "comicFormat": "vertical_scroll",
+      "planDigest": "sha256:7c799d20b12c7134b7d08a6381a3287b2f09b5acef68b948b2c819fa6202dd99",
+      "narrativePlanDigest": "sha256:c3dd71b93d885cbe8a0ebcdc522754e9837b6a2933bb872a3e04df09eefeac48",
+      "dialogueLedgerDigest": "sha256:a5e95d2a343ea52f4c3945737ae77e771dd0bfe11a55a6a17792dcf42167f494",
+      "visibleDocumentDigest": "sha256:3efd2f55cb52db9166d515ee4b7fc067c247392447a6874fa7509fd8da39ca8b",
+      "documentDigest": "sha256:16bcad696f51ff38ef987a79795d943667114da87d8d4309995502bbc9185b94",
+      "compositionDigest": "sha256:8c025ba0e27d233d37d1fa05d251534ab1108fba5a2bfa8e6f1891f3d4732a2f",
+      "renderPlanDigest": "sha256:9ab121eba735ec9068494721bbc56a1549a0314e6cdbcb984f7722cd9962e6e1",
+      "counts": {
+        "shots": 5,
+        "placedShots": 5,
+        "dialogueItems": 0,
+        "placedOriginal": 0,
+        "canvases": 3,
+        "panels": 5,
+        "balloons": 0,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_4c9d46775606bd25b6a66720",
+          "order": 1,
+          "groupIds": [
+            "narrative_0b8045bb7af4b8ae6694d793"
+          ],
+          "shotIds": [
+            "fix-x01-vertical_shot_01",
+            "fix-x01-vertical_shot_02"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2232
+        },
+        {
+          "canvasId": "canvas_8056b8a020d503e3afea6a3a",
+          "order": 2,
+          "groupIds": [
+            "narrative_db70ae09d38bea1e22c23f0f"
+          ],
+          "shotIds": [
+            "fix-x01-vertical_shot_03",
+            "fix-x01-vertical_shot_04"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 1862
+        },
+        {
+          "canvasId": "canvas_2ebc29fe4098afd40a353137",
+          "order": 3,
+          "groupIds": [
+            "narrative_3c2af57c225fb4e33ecad412"
+          ],
+          "shotIds": [
+            "fix-x01-vertical_shot_05"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 732
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:9a98d6a27bb90d085e3eb81465387499a30f028d00a9aae856caba2d3519c4b8",
+          "bytes": 78841,
+          "width": 1080,
+          "height": 4826,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:b0a2633894507082c0c05f78c35c75a824672a7def6f88b225a76594390b332b",
+          "bytes": 92862,
+          "width": 1080,
+          "height": 4826,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X01",
+      "variantId": "fix-x01-paged",
+      "comicFormat": "paged_comic",
+      "planDigest": "sha256:0e6150823ac9749ffb93e7f4bbe652c40cbad887fd67e55d1a291fe885df3e69",
+      "narrativePlanDigest": "sha256:c44b3b19ca1832d0cae18070fefe6ad4a9e71233154b1da5fa92ec068d60f06b",
+      "dialogueLedgerDigest": "sha256:a5e95d2a343ea52f4c3945737ae77e771dd0bfe11a55a6a17792dcf42167f494",
+      "visibleDocumentDigest": "sha256:851e107961d6b5d7ed79c5fb6b18276d073d4e9cdb6e4969519b5e7dd9de4105",
+      "documentDigest": "sha256:ea4dd5f01284fda61457ad29b4c8c195729af8aa459348ea3b9390f165015cdf",
+      "compositionDigest": "sha256:58babb15cc5602ba8ff0a2a6f61066467c142f3edc1ac5733c02e093acb16d5d",
+      "renderPlanDigest": "sha256:4e7622d4d8492b218eae2a63d15fae5a94dbe7169acbc2a73c4b23f31f585009",
+      "counts": {
+        "shots": 5,
+        "placedShots": 5,
+        "dialogueItems": 0,
+        "placedOriginal": 0,
+        "canvases": 2,
+        "panels": 5,
+        "balloons": 0,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_87701b51fd75ee9036456aae",
+          "order": 1,
+          "groupIds": [
+            "narrative_4fb3ee0c983a318294f4e724",
+            "narrative_981066bc2e982347d0a2dae2"
+          ],
+          "shotIds": [
+            "fix-x01-paged_shot_01",
+            "fix-x01-paged_shot_02",
+            "fix-x01-paged_shot_03",
+            "fix-x01-paged_shot_04"
+          ],
+          "template": "four_grid",
+          "width": 1800,
+          "height": 2400
+        },
+        {
+          "canvasId": "canvas_349129f6a350ecb76d2e875c",
+          "order": 2,
+          "groupIds": [
+            "narrative_d9e04506c28715bb022b636f"
+          ],
+          "shotIds": [
+            "fix-x01-paged_shot_05"
+          ],
+          "template": "single_focus",
+          "width": 1800,
+          "height": 2400
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:f30b221fc11d11bacf387f354fb66b9bd0148f3c4cddaa338a9f470fed2dd6bc",
+          "bytes": 65547,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "page_png",
+          "order": 2,
+          "relativePath": "outputs/fix-x01-paged/page-0002.png",
+          "fileName": "page-0002.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:c807d7239923422160cb2417341deaee81ffda4498df6454bdbd3665d07d214f",
+          "bytes": 50072,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-x01-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:a1bb8b6ea30e7e0efe962924f820f2758a72e931852f9b701728feb259315131",
+          "bytes": 80004,
+          "width": null,
+          "height": null,
+          "pageCount": 2
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X02",
+      "variantId": "fix-x02-vertical",
+      "comicFormat": "vertical_scroll",
+      "planDigest": "sha256:1fa52ca247b27310a8731d2e085787f8ef0b6cf7ca95f2074f6e0654d63db317",
+      "narrativePlanDigest": "sha256:7365252ae42c10c47cc8172da0b43319eb0ed79b7370270b6874277f38925e75",
+      "dialogueLedgerDigest": "sha256:1c20b62ac4a676a603b450d4f53c9c863368581f1176b710901a9c024df878ce",
+      "visibleDocumentDigest": "sha256:be7b81c1cc2966652de096fc8159d2b19148da3fd290304680ba920d42fa211a",
+      "documentDigest": "sha256:27ab6263875ce6a9f86bc1994e4b9ebc176dc9de02cee8152ee70d2d862de29c",
+      "compositionDigest": "sha256:0eb672509812bb9573e9032c71035d0bda04198dfe1a64dee588c226f3e1598b",
+      "renderPlanDigest": "sha256:8a597a941152c416e91808ee97ff26d99ef8ac61224204f83a8f4677cbdd807a",
+      "counts": {
+        "shots": 4,
+        "placedShots": 4,
+        "dialogueItems": 4,
+        "placedOriginal": 4,
+        "canvases": 2,
+        "panels": 4,
+        "balloons": 4,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_4cf256e6b6353bc4a20fe5bd",
+          "order": 1,
+          "groupIds": [
+            "narrative_a72921797423bb821fbe54be"
+          ],
+          "shotIds": [
+            "fix-x02-vertical_shot_01",
+            "fix-x02-vertical_shot_02"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2232
+        },
+        {
+          "canvasId": "canvas_93dbc7246b83fbb76fc89aac",
+          "order": 2,
+          "groupIds": [
+            "narrative_b98b8ef3a38df9cbc022d547"
+          ],
+          "shotIds": [
+            "fix-x02-vertical_shot_03",
+            "fix-x02-vertical_shot_04"
+          ],
+          "template": "vertical_stack",
+          "width": 1080,
+          "height": 2240
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-x02-vertical_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-x02-vertical_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-x02-vertical_shot_04"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "strip_slice_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-vertical/strip-0001.png",
+          "fileName": "strip-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:62062e3d7dbede7b27efed20a809d24acbc31fa0d67d6e7c0addf1fe1cd1d870",
+          "bytes": 128185,
+          "width": 1080,
+          "height": 4472,
+          "pageCount": null
+        },
+        {
+          "role": "long_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-vertical/long.png",
+          "fileName": "long.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:60bc8329a90fe25861b7b7e8bad2c99fd2cab1f824af39a58adc1741ba86e54b",
+          "bytes": 149727,
+          "width": 1080,
+          "height": 4472,
+          "pageCount": null
+        }
+      ]
+    },
+    {
+      "groupId": "FIX-X02",
+      "variantId": "fix-x02-paged",
+      "comicFormat": "paged_comic",
+      "planDigest": "sha256:d33a648f49fd908d02ca95b9eff0e3d1ac4a069ccab91b044b03c7c1163f96db",
+      "narrativePlanDigest": "sha256:7bade8dc73b94360a3b0dd27fa286b5ca13e23fbecb56c8d1e634df065910c7e",
+      "dialogueLedgerDigest": "sha256:6b8a89c5081ba02d8017bc48f8ee4ba6439a16925f42d5331dfe990d73b5da3d",
+      "visibleDocumentDigest": "sha256:9eab1c007cdd03c489e7818e55700dafffa237d51fa7ebc314d5c700c98864c9",
+      "documentDigest": "sha256:03a6db632cbf8872742a0484e5614f58ee7e5534e8adc733a2a17ebcb6f985ad",
+      "compositionDigest": "sha256:1c8e75e0161d5f9604bf72ef8b22fc6fd4f452a1251d70929a042d3b948f8d6d",
+      "renderPlanDigest": "sha256:1f10f1cca28980634fb206438bb5aacebe729f5cc605d375f796a3c193282a85",
+      "counts": {
+        "shots": 4,
+        "placedShots": 4,
+        "dialogueItems": 4,
+        "placedOriginal": 4,
+        "canvases": 1,
+        "panels": 4,
+        "balloons": 4,
+        "textOverflow": 0,
+        "silentRewrite": 0
+      },
+      "canvases": [
+        {
+          "canvasId": "canvas_58825034f384fc0cd9e7b7c3",
+          "order": 1,
+          "groupIds": [
+            "narrative_620ee08a298ed9f952c3a91c",
+            "narrative_c4caed964de79bd8d314478c"
+          ],
+          "shotIds": [
+            "fix-x02-paged_shot_01",
+            "fix-x02-paged_shot_02",
+            "fix-x02-paged_shot_03",
+            "fix-x02-paged_shot_04"
+          ],
+          "template": "four_grid",
+          "width": 1800,
+          "height": 2400
+        }
+      ],
+      "issues": [
+        {
+          "code": "visual_analysis_unavailable",
+          "severity": "warning",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": null
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-x02-paged_shot_02"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-x02-paged_shot_03"
+        },
+        {
+          "code": "duplicate_exact_record",
+          "severity": "info",
+          "canvasId": null,
+          "elementId": null,
+          "shotId": "fix-x02-paged_shot_04"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "page_png",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-paged/page-0001.png",
+          "fileName": "page-0001.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:3b2b15f5f10fefb501d447754b95736bf3a4155351b299bde5993929551b854a",
+          "bytes": 123577,
+          "width": 1800,
+          "height": 2400,
+          "pageCount": null
+        },
+        {
+          "role": "document_pdf",
+          "order": 1,
+          "relativePath": "outputs/fix-x02-paged/comic.pdf",
+          "fileName": "comic.pdf",
+          "mimeType": "application/pdf",
+          "sha256": "sha256:738c77ac6183aaeaed437bb155493e78102f6e988eeef78c50b79fae5da1b9ab",
+          "bytes": 125216,
+          "width": null,
+          "height": null,
+          "pageCount": 1
+        }
+      ]
+    }
+  ],
+  "contactSheets": [
+    {
+      "kind": "paged",
+      "relativePath": "contact-sheet-paged.png",
+      "width": 1144,
+      "height": 1230,
+      "sha256": "sha256:da12c16d4d31f392029b23f5add2d9cf5b2880bcf69cd99f0f770cd2f00bb95f",
+      "bytes": 402909
+    },
+    {
+      "kind": "vertical",
+      "relativePath": "contact-sheet-vertical.png",
+      "width": 1152,
+      "height": 1398,
+      "sha256": "sha256:b0d0460b643582358176bd2cb932a147e773d7b527b7d4f49d5282f4da32f85d",
+      "bytes": 424435
+    }
+  ],
+  "reviewState": {
+    "deterministicContract": "passed",
+    "productionRendererOutputs": "generated",
+    "agentVisualReview": "completed_m2_contract_only",
+    "visualReview": "m2-visual-review.md",
+    "independentHumanReviews": "not_started_m3_release_gate",
+    "statement": "M2 只签收内容覆盖、原文忠实、文字不溢出与真实 renderer 可出片；视觉直接可用率留待 M3 双人复核。"
+  },
+  "outputManifestDigest": "sha256:bfd9598ae2e2ec979f2ea605f9163e2dd26038c1e6f949782d6fafc54f75b804"
+}

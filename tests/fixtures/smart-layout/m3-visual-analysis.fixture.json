@@ -1,0 +1,4855 @@
+{
+  "schemaVersion": 1,
+  "kind": "smart_layout_m3_visual_analysis_fixture_v1",
+  "corpusDigest": "sha256:8906e9e2f3dc8c2d2c58db189225233f7ae610578cf1ef9f6cd9e9b10d6a1aef",
+  "variantCount": 12,
+  "variants": [
+    {
+      "variantId": "fix-v01-vertical",
+      "visualAnalysisSetDigest": "sha256:a747e0ae5aa2e11b9ef6ed71a3cc53e82747307abbc06ab9e604e5676148c0fe",
+      "entries": [
+        {
+          "shotId": "fix-v01-vertical_shot_01",
+          "sourceDigest": "sha256:0b087cd58b765d284c139e685f3bcb484c89f75899fb5ca847d1f31d74df4997",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_environment",
+            "assetDigest": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v01-vertical_shot_01_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "faceBox": {
+                  "x": 0.451,
+                  "y": 0.332,
+                  "width": 0.099,
+                  "height": 0.176
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.224
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.801,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.82
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:dbbe62271a40ddf255e784d727d2cf9bb0b192820dcd91588e2204b5996d99b6"
+          }
+        },
+        {
+          "shotId": "fix-v01-vertical_shot_02",
+          "sourceDigest": "sha256:0ae50d2d5d6c427df72b08ca1b2e3f535ba41864a28137980b0ee763a52f7139",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_left",
+            "assetDigest": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v01-vertical_shot_02_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.171,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.461,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.24,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:ab1a1b097340132dc71fef503b042de2e336464740203a9f9768b9a0c7a8d63f"
+          }
+        },
+        {
+          "shotId": "fix-v01-vertical_shot_03",
+          "sourceDigest": "sha256:dc2ceaaed642e273ee1e13db5816ae01c6c98a267c865811ca8619396c5c74ff",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v01-vertical_shot_03_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:31ab14cc217e760d67eaed1382ab3ceb852005403ea73614cc6dfcbe5eba250e"
+          }
+        },
+        {
+          "shotId": "fix-v01-vertical_shot_04",
+          "sourceDigest": "sha256:2157ae823eba451c31c0e84a0099f52da593f529b6f28d87cca7d87020258e1f",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v01-vertical_shot_04_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:24703ba09f43b5e61c5c8aa314d47241b28bb2ac4b63455fcef5fe7f3b3b6f0e"
+          }
+        },
+        {
+          "shotId": "fix-v01-vertical_shot_05",
+          "sourceDigest": "sha256:45b233ee2311afc8f5bd465fe48fe0f6f5daeb6a4fa2f03d0aa5a2d553f914a3",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v01-vertical_shot_05_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:d88c06d252df8487264d9875f22dbd499bb997dec8e406801672290616224c49"
+          }
+        },
+        {
+          "shotId": "fix-v01-vertical_shot_06",
+          "sourceDigest": "sha256:0768b582048d434dcda4b85fd048b60602a12b4309e8d256ae53b06c8b44f95a",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_right",
+            "assetDigest": "sha256:2c21b52ad4bfa8b064f1c3f888de6a5520cd55dfe05dfa780f645f4d478391a3",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v01-vertical_shot_06_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.68,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "faceBox": {
+                  "x": 0.771,
+                  "y": 0.294,
+                  "width": 0.098,
+                  "height": 0.175
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.68,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.624,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.82,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:bd9b176b7fc4d1b7b065335971955eb24dcc6e0acd282fa0f3a271fef8893207"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-v02-vertical",
+      "visualAnalysisSetDigest": "sha256:7748284c2fdd2f5dc53e0be7e716afde9ee59b18fb78a2494358edcc9bbc0227",
+      "entries": [
+        {
+          "shotId": "fix-v02-vertical_shot_01",
+          "sourceDigest": "sha256:4b51e14cb72c32152f797c5123c94395773152f907472ee783673485376f8d7b",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "assetDigest": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_01_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.101,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-v02-vertical_shot_01_subject_02",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.811,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.144
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.55
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:441b214d9174df119f230c65f6323fabd7dceca5a040af6856f3edd40e9f2c6b"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_02",
+          "sourceDigest": "sha256:e087be59bb2d9b19f2fc49a78f2e754f55cff3e807101186d22b84aae1514483",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_left",
+            "assetDigest": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_02_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.171,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.461,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.24,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:7e7b7931819a7b71097cbaea3f61ab036f7b7f3c3e026a10680a5a37b1a80806"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_03",
+          "sourceDigest": "sha256:abf3e6ba6b0281b5083cab923883ea62377998702c7440f0b36bccc01151aa80",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_03_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:7c0a09e55f18e9e852730623dfd9c1f4f00172477d94eeb9954d9a22d9cf5f19"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_04",
+          "sourceDigest": "sha256:7db55708307eb3fff56025c346ecc3525453aed0d851d6364d04a3ef57ce67f6",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_04_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:091abad168d16df6364d60eaf99f66eb004413db3e9ad3d2421e32b37abce514"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_05",
+          "sourceDigest": "sha256:f6968625aa9110d0902454f97610afa27f031e309581f39033feeddb67355009",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_05_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:1f0c47baa73d8440c855ac269048b9ac6e73924e0729bcd3d6e4bbb627bd4b01"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_06",
+          "sourceDigest": "sha256:03033c0dd733ecfb42b9ea28eb0fe99c0bf76c7cbc4ec6d792b1b9e036027c3b",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_06_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:50411c035b4991b01f4a978a23800bfd2ba790ea5945576294a63de5d3bf899d"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_07",
+          "sourceDigest": "sha256:20fbfa95293feeb4a3096b26dc8c2bda1147951546d69223ca3c942055219a5a",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "assetDigest": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_07_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.101,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-v02-vertical_shot_07_subject_02",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.811,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.144
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.55
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:3f5fdda01d92bf47cecfcbfcc837eb842d1bb4765d2240459f8714d321ed4f3f"
+          }
+        },
+        {
+          "shotId": "fix-v02-vertical_shot_08",
+          "sourceDigest": "sha256:7d180516587e76361ab6c6a654d298a609ad5a16bebf47e1582ff2db3a1dc150",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_tall_action",
+            "assetDigest": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v02-vertical_shot_08_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "faceBox": {
+                  "x": 0.402,
+                  "y": 0.238,
+                  "width": 0.195,
+                  "height": 0.11
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.801,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:8027eaa443f0469d70c6b3a058b3472e66154c8b8e31ae4d95025acb71f76edc"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-v03-vertical",
+      "visualAnalysisSetDigest": "sha256:eb3a9f0dfa972434444c671f5c7387771458af675a56e7cc76c68e43b22d6db9",
+      "entries": [
+        {
+          "shotId": "fix-v03-vertical_shot_01",
+          "sourceDigest": "sha256:fccd399c208d297a471320bb6dc4dc40b865067c55d9102ddca2444b19e0d8b7",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "assetDigest": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_01_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.101,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-v03-vertical_shot_01_subject_02",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.811,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.144
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.55
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:cb303254fe863582b4f1751d1dc8c233c23f2cbebb2aab711ee617f3568963f4"
+          }
+        },
+        {
+          "shotId": "fix-v03-vertical_shot_02",
+          "sourceDigest": "sha256:862930378409bdd54cafa8d8ab046c9cc83f0bbc5102ff2974b3c45ebeeea636",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_tall_action",
+            "assetDigest": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_02_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "faceBox": {
+                  "x": 0.402,
+                  "y": 0.238,
+                  "width": 0.195,
+                  "height": 0.11
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.801,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:c21a8254d97483cb4bc45b1521a02dcfbcd960d07257c7d46e6eab6ce0cb0a94"
+          }
+        },
+        {
+          "shotId": "fix-v03-vertical_shot_03",
+          "sourceDigest": "sha256:52cad362f450a8f277c3577973e82b546179da372f2d180edafdc8f82d3a8e7f",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_center",
+            "assetDigest": "sha256:1687e1f3bf082c48c1224f06bda3ab9122b802ec68980c03983fd97132456457",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_03_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.29,
+                  "y": 0.12,
+                  "width": 0.42,
+                  "height": 0.8
+                },
+                "faceBox": {
+                  "x": 0.427,
+                  "y": 0.271,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.29,
+                  "y": 0.12,
+                  "width": 0.42,
+                  "height": 0.8
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.234,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.731,
+                  "y": 0.035,
+                  "width": 0.234,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.52
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:80ea2b6cff9f5e5687eed021dcf26dc17d21c3a59a1482622ea3256b5d703d2e"
+          }
+        },
+        {
+          "shotId": "fix-v03-vertical_shot_04",
+          "sourceDigest": "sha256:d36f6ed00095370919ee1a1f2c34b73594c824e1a682c29b75859e7802ead7ce",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_pair",
+            "assetDigest": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_04_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.166,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-v03-vertical_shot_04_subject_02",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.686,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.57
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:13d67bb0c159f2adabe3766ff7676a122129a31bec2124024ff4282f2798e4d2"
+          }
+        },
+        {
+          "shotId": "fix-v03-vertical_shot_05",
+          "sourceDigest": "sha256:6afb5bf15b2cb060281ccd090273b575ba966268150e1897f83b8e01ae9776ae",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_05_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:02a34a293d381667bbf71e1f892ba5aa6d82e6de230940e67e4b7fce0cfda21d"
+          }
+        },
+        {
+          "shotId": "fix-v03-vertical_shot_06",
+          "sourceDigest": "sha256:eb34d3d28e6b6ae035fe1844e74feea1d18ec58066e1a862043ba5d2e6d66aab",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_06_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:ad66c0ab99f8030e0c8a6c745f5267d73f17547aa22a83dc4eb672bb3cfd8f1d"
+          }
+        },
+        {
+          "shotId": "fix-v03-vertical_shot_07",
+          "sourceDigest": "sha256:e6c12ee73fbf15b18d74c06b3714037b742bb26dafd12ca4a29f95e3434c97eb",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v03-vertical_shot_07_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:e049df6628d6e5296a1b0e0bc9e4b22e54b33dc20f9e74088a282d7534944057"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-v04-vertical",
+      "visualAnalysisSetDigest": "sha256:d08aa5bbf3f1778bb209b2ebbbfb491ea13197fbae3f3458125c6eaf533ddf20",
+      "entries": [
+        {
+          "shotId": "fix-v04-vertical_shot_01",
+          "sourceDigest": "sha256:93a465ca5a6829c268bcf1ca7b561df38c8eba8139a8ca039e5d01ce175c8a1c",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_environment",
+            "assetDigest": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_01_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "faceBox": {
+                  "x": 0.451,
+                  "y": 0.332,
+                  "width": 0.099,
+                  "height": 0.176
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.224
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.801,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.82
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:86f5e4e22142b7c39d4a58432351211b29bc86c2142fac0544b9fd21de2c3b07"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_02",
+          "sourceDigest": "sha256:2faa4b398cab47fcb120f952fa8b0b2d93c08dd6667bd381d0b7d026448806f2",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_02_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:675ed8f2afe009b126c89531d3c43bcb9ecdda5a576e8d5cc1dc019e2edce356"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_03",
+          "sourceDigest": "sha256:2a79034d758b38f75d3901faa53fd115b48b9eda75e4377789b9501679f3017e",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_right",
+            "assetDigest": "sha256:2c21b52ad4bfa8b064f1c3f888de6a5520cd55dfe05dfa780f645f4d478391a3",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_03_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.68,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "faceBox": {
+                  "x": 0.771,
+                  "y": 0.294,
+                  "width": 0.098,
+                  "height": 0.175
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.68,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.624,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.82,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:1afb7ccc664aeae28822291ad3808a0717b1f56c6b4fb43020900a3a918c054c"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_04",
+          "sourceDigest": "sha256:222b953db960e8d73cdc33144b59bf20c0a3293b9e579b3ac0736ebe134acefd",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_04_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:500ac614d312717facd24c04d6b322b455ad764ebc97fff0ee38616bebd84ae9"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_05",
+          "sourceDigest": "sha256:086e99e10e4f312583359b62f978ea3c712c5e4f4fea514fab6eba23efdea9eb",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_environment",
+            "assetDigest": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_05_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "faceBox": {
+                  "x": 0.451,
+                  "y": 0.332,
+                  "width": 0.099,
+                  "height": 0.176
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.224
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.801,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.82
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:4147b27586bf10dd1d9161f877814ebd67fcb93e0753abdcc99ad3d8c7a239dc"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_06",
+          "sourceDigest": "sha256:f2186498edacf83e64e8a7a3ac4b195b148a8b036b0e83033affb5fd5bbb285a",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_center",
+            "assetDigest": "sha256:1687e1f3bf082c48c1224f06bda3ab9122b802ec68980c03983fd97132456457",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_06_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.29,
+                  "y": 0.12,
+                  "width": 0.42,
+                  "height": 0.8
+                },
+                "faceBox": {
+                  "x": 0.427,
+                  "y": 0.271,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.29,
+                  "y": 0.12,
+                  "width": 0.42,
+                  "height": 0.8
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.234,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.731,
+                  "y": 0.035,
+                  "width": 0.234,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.52
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:a9af1e999477201ef439d39993609348320e84b7d68e69ac0fd4e6f1b009daca"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_07",
+          "sourceDigest": "sha256:4b3f36b0e51c01f9d6a28eabfde188f17009676046e76e165e0f98a92d82ee21",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_left",
+            "assetDigest": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_07_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.171,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.461,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.24,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:48c1b3d62f08093c8292de536efd8f89e1d848d4d6ce8e5499574ff214445518"
+          }
+        },
+        {
+          "shotId": "fix-v04-vertical_shot_08",
+          "sourceDigest": "sha256:5a87aa7a26349057b4f0f01db993770fc71fe84cb5ba40f516990d4a0c69460d",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-v04-vertical_shot_08_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:f16a395feb2ff609a9b089bbf9a09dfa3e2266ffb542b2067e3e19528e787417"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-p01-paged",
+      "visualAnalysisSetDigest": "sha256:723b35521a8e3d34098f44e5199f99b0659526d5f834a8ccdfbe0d15660958ea",
+      "entries": [
+        {
+          "shotId": "fix-p01-paged_shot_01",
+          "sourceDigest": "sha256:178d76997bd555a4c147d0f4b802105a30bbd3142ceed5ccd6645c871087955f",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "assetDigest": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p01-paged_shot_01_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.101,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p01-paged_shot_01_subject_02",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.811,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.144
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.55
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:77d70cfc8a147549ff2c75dd35e20677c536735e757155d4eb9eea8863be1d59"
+          }
+        },
+        {
+          "shotId": "fix-p01-paged_shot_02",
+          "sourceDigest": "sha256:e0ce82071e2eb590f7e231dc7fdbea43b537d1ec5a218ceb1b6395887ed99028",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p01-paged_shot_02_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:1fda56b934de9f326d85f094a686bacb0204f1d22949db9cbd2f4da8605bfea8"
+          }
+        },
+        {
+          "shotId": "fix-p01-paged_shot_03",
+          "sourceDigest": "sha256:be07433c35ff3df642f5fae7af82df365661c1e6a1179409fda7cdc9f0c7b6ab",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p01-paged_shot_03_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:90df2d7349f435e99cafbc4490a162ac6fae6a15fdea74b2458444d942c096ed"
+          }
+        },
+        {
+          "shotId": "fix-p01-paged_shot_04",
+          "sourceDigest": "sha256:26b71448724e0aa695afce94fed9ebcf3364314a48d95957e2cb8973057a97d9",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p01-paged_shot_04_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:5928be7eee853dc601c16f646d4e49d89619330a170d6baf3a11c075876bd74f"
+          }
+        },
+        {
+          "shotId": "fix-p01-paged_shot_05",
+          "sourceDigest": "sha256:245541acc0e4264699fdd859bccf95d2885a903c6473472c7440640c8522d1be",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_left",
+            "assetDigest": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p01-paged_shot_05_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.171,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.461,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.24,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:331702c972071d902dbb2a1c4b46e067dddc519e7ba3551237e341389c0c308c"
+          }
+        },
+        {
+          "shotId": "fix-p01-paged_shot_06",
+          "sourceDigest": "sha256:9caa2f16b89484113982a728c0155571b8b1c21f5494326908ecdc824a99c0a3",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_center",
+            "assetDigest": "sha256:b6467304596afa3ab2673249426a833574c290221e4f117bcf8d4d8fbbe77643",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p01-paged_shot_06_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.3,
+                  "y": 0.1,
+                  "width": 0.4,
+                  "height": 0.82
+                },
+                "faceBox": {
+                  "x": 0.431,
+                  "y": 0.291,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.3,
+                  "y": 0.1,
+                  "width": 0.4,
+                  "height": 0.82
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.244,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.721,
+                  "y": 0.035,
+                  "width": 0.244,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.51
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:9f060643e91e28348bcb6647fef737fa8f143d14d01cf6cab26b73921b556632"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-p02-paged",
+      "visualAnalysisSetDigest": "sha256:f8a5e6beda28bfef3fa975e51d1cdc1c737efb73d0db4153be382b32f48764a9",
+      "entries": [
+        {
+          "shotId": "fix-p02-paged_shot_01",
+          "sourceDigest": "sha256:bb2c2885167d3850434492c11dc20fe1e3632405912586204fe77f839e5e864f",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_group",
+            "assetDigest": "sha256:901531f2036744ac6e7b16739a74c080423817adef34e59372135d911e0e1248",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p02-paged_shot_01_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.02,
+                  "y": 0.26,
+                  "width": 0.2,
+                  "height": 0.64
+                },
+                "faceBox": {
+                  "x": 0.085,
+                  "y": 0.377,
+                  "width": 0.07,
+                  "height": 0.125
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p02-paged_shot_01_subject_02",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.27,
+                  "y": 0.2,
+                  "width": 0.2,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.335,
+                  "y": 0.334,
+                  "width": 0.07,
+                  "height": 0.125
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p02-paged_shot_01_subject_03",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.53,
+                  "y": 0.2,
+                  "width": 0.2,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.595,
+                  "y": 0.334,
+                  "width": 0.07,
+                  "height": 0.125
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p02-paged_shot_01_subject_04",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.78,
+                  "y": 0.26,
+                  "width": 0.2,
+                  "height": 0.64
+                },
+                "faceBox": {
+                  "x": 0.845,
+                  "y": 0.377,
+                  "width": 0.07,
+                  "height": 0.125
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.27,
+                  "y": 0.2,
+                  "width": 0.2,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.53,
+                  "y": 0.2,
+                  "width": 0.2,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.02,
+                  "y": 0.26,
+                  "width": 0.2,
+                  "height": 0.64
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.78,
+                  "y": 0.26,
+                  "width": 0.2,
+                  "height": 0.64
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.144
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.55
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:09f4d1cfcbb25a0d415194d747696c64976a8d4b9ad15f49f6dd17dff88f880a"
+          }
+        },
+        {
+          "shotId": "fix-p02-paged_shot_02",
+          "sourceDigest": "sha256:13b800a7e2aee58855df71b2a8dc8bb60ac68773a71de8e6345343a3e8ab7ddf",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_pair",
+            "assetDigest": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p02-paged_shot_02_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.166,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p02-paged_shot_02_subject_02",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.686,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.57
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:aee14cf6612fbcfebf3e64e1ae4334605dab85db4ff8f8fb1cd1bb67c1ac7f2a"
+          }
+        },
+        {
+          "shotId": "fix-p02-paged_shot_03",
+          "sourceDigest": "sha256:d9e8edbaece08d52c456ead59c5783f0a349b1a9488a1d5395a0cc7fb2faabec",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_pair_edges",
+            "assetDigest": "sha256:5cf215b202b003774b07adad73ca037ad342e969d6b8af3b41636a7bc2369aaa",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p02-paged_shot_03_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.101,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p02-paged_shot_03_subject_02",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.811,
+                  "y": 0.318,
+                  "width": 0.088,
+                  "height": 0.156
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.02,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.73,
+                  "y": 0.2,
+                  "width": 0.25,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.144
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.55
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:b6a941780ee272faa4a24a7c70416718b65e23b88ba598fa9adc1d233d9d63e4"
+          }
+        },
+        {
+          "shotId": "fix-p02-paged_shot_04",
+          "sourceDigest": "sha256:9358e8262d148e8d3159d7e45b59869f25e4160588fa03a5b352760e301263cb",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_pair",
+            "assetDigest": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p02-paged_shot_04_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.166,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p02-paged_shot_04_subject_02",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.686,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.57
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:5bdb5ac38af30870e82e8a56c5603d1394da2aaa084930058156570a3be86d48"
+          }
+        },
+        {
+          "shotId": "fix-p02-paged_shot_05",
+          "sourceDigest": "sha256:d366f9e82dab387ba63f9d5ec059b78bbbcdfa5bf212ebcaa742b2a905e571ed",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p02-paged_shot_05_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:4f74e58714b432bb1de752044c3ed0296889131e7e15e884b6cc8f5e19c5a2b0"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-p03-paged",
+      "visualAnalysisSetDigest": "sha256:9aef2ce32573be634f6d8c7846cd4eea7c855b1b122aaeb47df8de6d5f9116ff",
+      "entries": [
+        {
+          "shotId": "fix-p03-paged_shot_01",
+          "sourceDigest": "sha256:54938039fda5363df5408b164a466b9b30296deef408cf97d1f1c166230e412a",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_tall_action",
+            "assetDigest": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_01_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "faceBox": {
+                  "x": 0.402,
+                  "y": 0.238,
+                  "width": 0.195,
+                  "height": 0.11
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.801,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:01414570e2aec9d43932144461d3cb6f168e271fbc4aa8ee540ecdc7f261bf04"
+          }
+        },
+        {
+          "shotId": "fix-p03-paged_shot_02",
+          "sourceDigest": "sha256:5cf4fe12fc2b7a9c808936d4ddffb20125753c3f444a72ab7f84168022dbda61",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_02_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:4b57564ebfb80abeaed442a0ac08688e003ab02a7a1c89167a6153381e61fcde"
+          }
+        },
+        {
+          "shotId": "fix-p03-paged_shot_03",
+          "sourceDigest": "sha256:cc702f34d3494000fdb2087c1491d352d1c98509b44ab2710a7b2352dbb87965",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_center",
+            "assetDigest": "sha256:1687e1f3bf082c48c1224f06bda3ab9122b802ec68980c03983fd97132456457",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_03_subject_01",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.29,
+                  "y": 0.12,
+                  "width": 0.42,
+                  "height": 0.8
+                },
+                "faceBox": {
+                  "x": 0.427,
+                  "y": 0.271,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.29,
+                  "y": 0.12,
+                  "width": 0.42,
+                  "height": 0.8
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.234,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.731,
+                  "y": 0.035,
+                  "width": 0.234,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.52
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:5f90e8741b7f8bee554cc984e2317e21d38123a4b5526f4ec12de0d1361ba56a"
+          }
+        },
+        {
+          "shotId": "fix-p03-paged_shot_04",
+          "sourceDigest": "sha256:227894d00d9edda7e58e687efe1d7cd9caedc8c32adea8e861eb3c8b23075201",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_group_edges",
+            "assetDigest": "sha256:19637f939fe3919869ee317083335dcd286da83d72d2fa11e3064920abcbfa16",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_04_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.01,
+                  "y": 0.2,
+                  "width": 0.24,
+                  "height": 0.72
+                },
+                "faceBox": {
+                  "x": 0.088,
+                  "y": 0.326,
+                  "width": 0.085,
+                  "height": 0.15
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p03-paged_shot_04_subject_02",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.14,
+                  "width": 0.24,
+                  "height": 0.78
+                },
+                "faceBox": {
+                  "x": 0.458,
+                  "y": 0.283,
+                  "width": 0.085,
+                  "height": 0.15
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p03-paged_shot_04_subject_03",
+                "characterId": "char_zhaoyan",
+                "bodyBox": {
+                  "x": 0.75,
+                  "y": 0.2,
+                  "width": 0.24,
+                  "height": 0.72
+                },
+                "faceBox": {
+                  "x": 0.828,
+                  "y": 0.326,
+                  "width": 0.085,
+                  "height": 0.15
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.14,
+                  "width": 0.24,
+                  "height": 0.78
+                },
+                "weight": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.01,
+                  "y": 0.2,
+                  "width": 0.24,
+                  "height": 0.72
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.75,
+                  "y": 0.2,
+                  "width": 0.24,
+                  "height": 0.72
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [
+              "no_large_text_safe_region"
+            ],
+            "analysisDigest": "sha256:f267635a58bf6ea2a3e5945bc0a923b35ab44e3edb321dd3333e1e26f9135b54"
+          }
+        },
+        {
+          "shotId": "fix-p03-paged_shot_05",
+          "sourceDigest": "sha256:eda03421ec95117de07c51056879c0dd4cb6bbc6307c420e1ee5428cf4ed3468",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_left",
+            "assetDigest": "sha256:4c94c5301e5e266b2391639f7347d370919a5c830f3bcc0520354a9132b7dd85",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_05_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.171,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.461,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.24,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:dfeca7cbd948c628b7031feea50e60d2375691252e02da504c3dc668cda84cd9"
+          }
+        },
+        {
+          "shotId": "fix-p03-paged_shot_06",
+          "sourceDigest": "sha256:618b3277bcf46af8bef58853862eb05303b82926f76d4fa120e2e79b7b5294a9",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_06_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:2cf9c4b1d68662c4d8bfd7948b5a630ca6314e0c4c7492d12b3edf5a08500c0f"
+          }
+        },
+        {
+          "shotId": "fix-p03-paged_shot_07",
+          "sourceDigest": "sha256:35db59572b5fd126e9e069858df45dd956cfca9bfa9a3b5243c1fdb08f0e247f",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p03-paged_shot_07_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:8cf74a3efc4827ef568a2dc265c0d0af87235291b61896d30d2e09a8e9e1418d"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-p04-paged",
+      "visualAnalysisSetDigest": "sha256:a520aa471210c604d69f82c193efcef5005544567f513be69a5f36a64f060079",
+      "entries": [
+        {
+          "shotId": "fix-p04-paged_shot_01",
+          "sourceDigest": "sha256:6e366305bce6da5e52aa14b3116ca28e0dc21b5f66d480986ed85858c8db4c72",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p04-paged_shot_01_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:1dd92f46149b5f34ea9fdcfee085d9734760ec64b9e1a5f14bdfd6840e46512b"
+          }
+        },
+        {
+          "shotId": "fix-p04-paged_shot_02",
+          "sourceDigest": "sha256:dbbd5b9155cc1f89a0cc3656626bc5ad900c39eebd5f6ccf8dd6c9bd141ceb75",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_environment",
+            "assetDigest": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p04-paged_shot_02_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "faceBox": {
+                  "x": 0.451,
+                  "y": 0.332,
+                  "width": 0.099,
+                  "height": 0.176
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.224
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.801,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.82
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:839e79563c316e3b9341ee70782613e6c1ae955db1f3cf3cd9dfb95fdfeb4576"
+          }
+        },
+        {
+          "shotId": "fix-p04-paged_shot_03",
+          "sourceDigest": "sha256:d201d4c590c8965d338fac508d5111a0e2d2c54dee262982b55c1133377ef625",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_pair",
+            "assetDigest": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p04-paged_shot_03_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.166,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 1,
+                "confidence": 0.98
+              },
+              {
+                "id": "fix-p04-paged_shot_03_subject_02",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "faceBox": {
+                  "x": 0.686,
+                  "y": 0.375,
+                  "width": 0.147,
+                  "height": 0.083
+                },
+                "importance": 0.92,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.03,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 1
+              },
+              {
+                "box": {
+                  "x": 0.55,
+                  "y": 0.22,
+                  "width": 0.42,
+                  "height": 0.7
+                },
+                "weight": 0.9
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.96
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.57
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:d6d0970a9757a060954fa134a125982c6b0c18556e223ff85636d2d52759763c"
+          }
+        },
+        {
+          "shotId": "fix-p04-paged_shot_04",
+          "sourceDigest": "sha256:7ed84c6fe222da3b97fcef1c4d37a7f5eb7497bb5e548af9b4f86d1a7785a2a5",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-p04-paged_shot_04_subject_01",
+                "characterId": "char_gaoyuan",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:b8dfcbf98d6190a1ed0835906598715fab009339fbe85c0bedc975581afc7eb3"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-x01-vertical",
+      "visualAnalysisSetDigest": "sha256:1d9fbe9830d2ce3028c6324c6175586988778ae585c5464ad1f5e5f6540b3e53",
+      "entries": [
+        {
+          "shotId": "fix-x01-vertical_shot_01",
+          "sourceDigest": "sha256:a0b41ee7839b5691cd032db3b0202beeaeee2de0cf0f94c8931e78d3d6d14c64",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_environment",
+            "assetDigest": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-vertical_shot_01_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "faceBox": {
+                  "x": 0.451,
+                  "y": 0.332,
+                  "width": 0.099,
+                  "height": 0.176
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.224
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.801,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.82
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:68fb3e7532bb5fd0804e44ec73c4f4c27e31b260b5f342b8f5582d584b1246d9"
+          }
+        },
+        {
+          "shotId": "fix-x01-vertical_shot_02",
+          "sourceDigest": "sha256:8ab8f27a938206f97d88692beb753acd05698c6c060045d761bef1d818457ea2",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_tall_action",
+            "assetDigest": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-vertical_shot_02_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "faceBox": {
+                  "x": 0.402,
+                  "y": 0.238,
+                  "width": 0.195,
+                  "height": 0.11
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.801,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:88a44905f0e9fc344a559d3ee4a888121ef3e3083d4d1fd2da8b8b7261dbcdbf"
+          }
+        },
+        {
+          "shotId": "fix-x01-vertical_shot_03",
+          "sourceDigest": "sha256:a299b455a08f27ca3402404b65e68310cfb1f657948f4480acb575a87dc8c5d4",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-vertical_shot_03_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:3ef4565d0e2e691a1a24c60804daade01d236e71ad724c99796829bc13878358"
+          }
+        },
+        {
+          "shotId": "fix-x01-vertical_shot_04",
+          "sourceDigest": "sha256:904c97fd7e8593f99ac80e4e7a334d13351ac9ac01e0f518f1075ac68c8f029a",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-vertical_shot_04_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:38eb3ce8c9fcdb6c42f4b7fd8c1661dfe0f376331727f07e51941c9af6f5195c"
+          }
+        },
+        {
+          "shotId": "fix-x01-vertical_shot_05",
+          "sourceDigest": "sha256:6feca6d28ce1115d2692f81bb7a4b506e757816b1ffecad6a776eed77dbf7db5",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-vertical_shot_05_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:88db3f798601c0deea299a66cee59fa2124c8a46264d1eca07ad8b8247ee0863"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-x01-paged",
+      "visualAnalysisSetDigest": "sha256:bcbe363865d39b7b6e95663ae15b96e928af9af6c6da0243abe3cbf965eef2e9",
+      "entries": [
+        {
+          "shotId": "fix-x01-paged_shot_01",
+          "sourceDigest": "sha256:df2e8998cd3a78efd76b2eafaae0ba8dc621d85641cc76c089d240fc6f0f33d5",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_wide_environment",
+            "assetDigest": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-paged_shot_01_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "faceBox": {
+                  "x": 0.451,
+                  "y": 0.332,
+                  "width": 0.099,
+                  "height": 0.176
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.05,
+                  "y": 0.28,
+                  "width": 0.9,
+                  "height": 0.5
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.224
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.801,
+                  "width": 0.93,
+                  "height": 0.164
+                },
+                "score": 0.82
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.53
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:3183c816e494a4af1d8206d90cc5ed4801b8c854f6930a7482169f70ce96ce92"
+          }
+        },
+        {
+          "shotId": "fix-x01-paged_shot_02",
+          "sourceDigest": "sha256:f4e3fa657338ca6d167d8b35ac560519b0b952908ade08ed6fd40a467ac0d23e",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_tall_action",
+            "assetDigest": "sha256:9ee1dc5ecfa80445d103ea3601af43e67fa8f0dda291c15ffbd02df9790012a9",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-paged_shot_02_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "faceBox": {
+                  "x": 0.402,
+                  "y": 0.238,
+                  "width": 0.195,
+                  "height": 0.11
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.22,
+                  "y": 0.03,
+                  "width": 0.56,
+                  "height": 0.94
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.801,
+                  "y": 0.035,
+                  "width": 0.164,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:243508d87eb85b805f45d18d6f20e8e60c5deefa4107b9a92edffa665f3e88d2"
+          }
+        },
+        {
+          "shotId": "fix-x01-paged_shot_03",
+          "sourceDigest": "sha256:7f4054be3e6552828c7dda97d340e4e5a3fb4cea46f981c324ab53fda11ce264",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-paged_shot_03_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:b6ce72523a276f9ca8880aac0f90773f231e0a3204cf84596f7737f30e651282"
+          }
+        },
+        {
+          "shotId": "fix-x01-paged_shot_04",
+          "sourceDigest": "sha256:f51ec7dfd1e4704a1f81bdfa86f9ea4e22624fb9bbfa4eb8a726f04d8c56d677",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-paged_shot_04_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:e3b94e7afb1fc7d99c292b7826053a9d81e8752791d4c6c249558fb1ab824e7e"
+          }
+        },
+        {
+          "shotId": "fix-x01-paged_shot_05",
+          "sourceDigest": "sha256:3f07754fe4b3b9fe8240effd9745c2de8a0b17015ce96f1bcb2100ecf20866dc",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_right",
+            "assetDigest": "sha256:5ba815c6fe931371ae91cb4bbfcb77f4aba29cad7455ba3d77d5d0650e1c340b",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x01-paged_shot_05_subject_01",
+                "characterId": null,
+                "bodyBox": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.677,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.54,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.75,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:90bb1598a3dc085e462ddd6789f0dc78c99da279cb73dec9348aa7ec02e17714"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-x02-vertical",
+      "visualAnalysisSetDigest": "sha256:e0541528661df05e5a329726be49a7d42bd1dc187e2d96be2d19d9590f2da423",
+      "entries": [
+        {
+          "shotId": "fix-x02-vertical_shot_01",
+          "sourceDigest": "sha256:40364c2557f49fc5d7c6518d7210923071851dbcaea66c4c0e12788a5db82e90",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_left",
+            "assetDigest": "sha256:325de0a4e3edaa9a0068d5e8e52d7def0c70148115705a3f2a57df424942e59c",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-vertical_shot_01_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "faceBox": {
+                  "x": 0.131,
+                  "y": 0.294,
+                  "width": 0.098,
+                  "height": 0.175
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.341,
+                  "y": 0.035,
+                  "width": 0.624,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.18,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:a3cff18039b32ba680c21f0b7ff1abfaf56d25a0662d962c1178c3496e1f44e7"
+          }
+        },
+        {
+          "shotId": "fix-x02-vertical_shot_02",
+          "sourceDigest": "sha256:3f5a16b2e462e52262824b8e4425ef08687eb9dbad9e5c202fcb556c64a7fcf9",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-vertical_shot_02_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:f312acdea5518ffa197033d0300ca94bfcd35aac937be1be9f7a3c4006210ac2"
+          }
+        },
+        {
+          "shotId": "fix-x02-vertical_shot_03",
+          "sourceDigest": "sha256:062ffcbad78ec5700158e65768cfcdeb0c1517bf75443e9c8f5261cca0d37203",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-vertical_shot_03_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:a986a5cbdb93d83c16af13cc67369faec76e98b1f3365ddc70f1f762d952d82b"
+          }
+        },
+        {
+          "shotId": "fix-x02-vertical_shot_04",
+          "sourceDigest": "sha256:e85d0a8636e7ac03201f95abc0779e972a91b6c2a3ef5608d1f3c62158e122a2",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-vertical_shot_04_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:e879d10cb6b5054355c0b526173494f7bc9f5ebf8b95dea3812c50be02ac5139"
+          }
+        }
+      ]
+    },
+    {
+      "variantId": "fix-x02-paged",
+      "visualAnalysisSetDigest": "sha256:20043eccaf147ad5067d22a3d487ada05ecd6cdb59e84190d728a3217e22440e",
+      "entries": [
+        {
+          "shotId": "fix-x02-paged_shot_01",
+          "sourceDigest": "sha256:e7ddc876251c022107cfd8de315cc41b9440bc9c4a3e5f81f932529aae456cb1",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_left",
+            "assetDigest": "sha256:325de0a4e3edaa9a0068d5e8e52d7def0c70148115705a3f2a57df424942e59c",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-paged_shot_01_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "faceBox": {
+                  "x": 0.131,
+                  "y": 0.294,
+                  "width": 0.098,
+                  "height": 0.175
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.18,
+                  "width": 0.28,
+                  "height": 0.72
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.341,
+                  "y": 0.035,
+                  "width": 0.624,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.18,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:5d4682b9dde7f1b00c9f263ef64bd068e2299abebd1779fde92be89b5b7aa8c1"
+          }
+        },
+        {
+          "shotId": "fix-x02-paged_shot_02",
+          "sourceDigest": "sha256:0bc16ad56d32a45b2eb0d5243e87bb7e724951045faa051d6f42896e16af28f4",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_portrait_right",
+            "assetDigest": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-paged_shot_02_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.691,
+                  "y": 0.334,
+                  "width": 0.139,
+                  "height": 0.078
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.56,
+                  "y": 0.16,
+                  "width": 0.4,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.504,
+                  "height": 0.93
+                },
+                "score": 0.9
+              }
+            ],
+            "visualCenter": {
+              "x": 0.76,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:f7cc18aa9cb56ff1953c6cea9807a83cc1e99b99c1361848663364dfb7af9e14"
+          }
+        },
+        {
+          "shotId": "fix-x02-paged_shot_03",
+          "sourceDigest": "sha256:4ce804d53833f7dcf317a25e6aac5cb82a44d3feff2d41b41f4f79fdb9201c65",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_square_left",
+            "assetDigest": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-paged_shot_03_subject_01",
+                "characterId": "char_linzhou",
+                "bodyBox": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "faceBox": {
+                  "x": 0.177,
+                  "y": 0.3,
+                  "width": 0.146,
+                  "height": 0.146
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.04,
+                  "y": 0.16,
+                  "width": 0.42,
+                  "height": 0.76
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.481,
+                  "y": 0.035,
+                  "width": 0.484,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.25,
+              "y": 0.54
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:23b5eb9a2bbbd52ccdb7b0cf18bd2b0596145db0eb6275a47da67511b1f74d21"
+          }
+        },
+        {
+          "shotId": "fix-x02-paged_shot_04",
+          "sourceDigest": "sha256:c286be341b13e72ee71c978aadfc003e34395d971fc0156bda9256e241a3db39",
+          "analysis": {
+            "schemaVersion": 1,
+            "policyVersion": "layout_visual_analysis_v1",
+            "assetId": "asset_sml_landscape_detail_bottom",
+            "assetDigest": "sha256:a084dd9651334c1e0f7a219720e3a5c52e2732470e881f32f821f4ce947a4f79",
+            "mode": "vision",
+            "subjects": [
+              {
+                "id": "fix-x02-paged_shot_04_subject_01",
+                "characterId": "char_xucheng",
+                "bodyBox": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "faceBox": {
+                  "x": 0.466,
+                  "y": 0.645,
+                  "width": 0.067,
+                  "height": 0.119
+                },
+                "importance": 1,
+                "confidence": 0.98
+              }
+            ],
+            "focalRegions": [
+              {
+                "box": {
+                  "x": 0.38,
+                  "y": 0.61,
+                  "width": 0.24,
+                  "height": 0.34
+                },
+                "weight": 1
+              }
+            ],
+            "textSafeRegions": [
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.9
+              },
+              {
+                "box": {
+                  "x": 0.035,
+                  "y": 0.035,
+                  "width": 0.93,
+                  "height": 0.554
+                },
+                "score": 0.96
+              },
+              {
+                "box": {
+                  "x": 0.641,
+                  "y": 0.035,
+                  "width": 0.324,
+                  "height": 0.93
+                },
+                "score": 0.94
+              }
+            ],
+            "visualCenter": {
+              "x": 0.5,
+              "y": 0.78
+            },
+            "warnings": [],
+            "analysisDigest": "sha256:29a44d7da24f04b167d0738b172d9244182c66f95c0abd6a6f23aee07c5e86f3"
+          }
+        }
+      ]
+    }
+  ],
+  "fixtureDigest": "sha256:9b49a719c7e9011e143f6f216cacb8f7efd3514da4e913f22baf42107fe03e77"
+}

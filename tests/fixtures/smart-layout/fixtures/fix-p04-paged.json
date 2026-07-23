@@ -1,0 +1,991 @@
+{
+  "fixtureSchemaVersion": 1,
+  "kind": "smart_layout_m0_fixture_v1",
+  "sourceDate": "2026-07-22T00:00:00.000Z",
+  "group": {
+    "groupId": "FIX-P04",
+    "title": "页漫长对白与旁白"
+  },
+  "variant": {
+    "variantId": "fix-p04-paged",
+    "title": "证词与回忆交错的长对白",
+    "comicFormat": "paged_comic",
+    "coverageTags": [
+      "long_dialogue",
+      "caption",
+      "text_fit",
+      "minimum_font_size"
+    ],
+    "targetNarrativeGroups": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        4
+      ]
+    ],
+    "shotLayoutIntents": [
+      {
+        "shotOrder": 1,
+        "intent": "standard",
+        "visualAsset": "portrait_right"
+      },
+      {
+        "shotOrder": 2,
+        "intent": "wide",
+        "visualAsset": "wide_environment"
+      },
+      {
+        "shotOrder": 3,
+        "intent": "standard",
+        "visualAsset": "portrait_pair"
+      },
+      {
+        "shotOrder": 4,
+        "intent": "focus",
+        "visualAsset": "square_left"
+      }
+    ]
+  },
+  "inputs": {
+    "storyContext": {
+      "scenes": [
+        {
+          "id": "fix-p04-paged_scene_1",
+          "name": "病房"
+        },
+        {
+          "id": "fix-p04-paged_scene_2",
+          "name": "旧仓库回忆"
+        }
+      ],
+      "beats": [
+        {
+          "id": "fix-p04-paged_beat_1",
+          "title": "证词",
+          "sceneId": "fix-p04-paged_scene_1"
+        },
+        {
+          "id": "fix-p04-paged_beat_2",
+          "title": "证词",
+          "sceneId": "fix-p04-paged_scene_2"
+        },
+        {
+          "id": "fix-p04-paged_beat_3",
+          "title": "追问",
+          "sceneId": "fix-p04-paged_scene_1"
+        },
+        {
+          "id": "fix-p04-paged_beat_4",
+          "title": "突破",
+          "sceneId": "fix-p04-paged_scene_1"
+        }
+      ]
+    },
+    "storyboardVersion": {
+      "id": "storyboard_version_fix-p04-paged",
+      "revision": 1,
+      "position": "current",
+      "schemaVersion": 2,
+      "documentDigest": "sha256:3c88b1225c6a1927d38a30c5ee55ea206eafa69e2a2a8d12d371130a996d16ca",
+      "document": {
+        "schemaVersion": 2,
+        "chapterId": "chapter_fix-p04-paged",
+        "shots": [
+          {
+            "id": "fix-p04-paged_shot_01",
+            "order": 1,
+            "beatId": "fix-p04-paged_beat_1",
+            "sceneId": "fix-p04-paged_scene_1",
+            "characterIds": [
+              "char_gaoyuan"
+            ],
+            "coreAction": "高远望着窗外的雨",
+            "emotion": "疲惫",
+            "shotType": "medium",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "高远望着窗外的雨",
+              "composition": "布局意图：standard",
+              "dialogue": "高远：那天我本来应该在七码头值夜班，可调度室临时收到一张没有署名的换班单，上面写着让我去旧仓库检查一批已经报废的救生设备。",
+              "caption": "高远的证词，从一场看似普通的换班开始。",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "高远望着窗外的雨",
+              "compositionDesign": "景别 medium，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "那天我本来应该在七码头值夜班，可调度室临时收到一张没有署名的换班单，上面写着让我去旧仓库检查一批已经报废的救生设备。",
+                  "voiceStyle": "缓慢、回忆"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p04-paged_shot_02",
+            "order": 2,
+            "beatId": "fix-p04-paged_beat_2",
+            "sceneId": "fix-p04-paged_scene_2",
+            "characterIds": [
+              "char_gaoyuan"
+            ],
+            "coreAction": "年轻的高远推开旧仓库门",
+            "emotion": "不安",
+            "shotType": "wide",
+            "cameraAngle": "over_shoulder",
+            "comic": {
+              "panelDescription": "年轻的高远推开旧仓库门",
+              "composition": "布局意图：wide",
+              "dialogue": "高远：仓库里没有救生设备，只有一艘拆掉编号的小艇，还有三个人在搬没有登记的木箱。",
+              "caption": "他没有注意到，门锁刚被人换过。",
+              "panelRhythm": "slow"
+            },
+            "motion": {
+              "visualDescription": "年轻的高远推开旧仓库门",
+              "compositionDesign": "景别 wide，布局意图 wide",
+              "cameraMovement": "static",
+              "frameType": "atmosphere",
+              "durationMs": 2200,
+              "durationHint": "slow",
+              "voiceLines": [
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "仓库里没有救生设备，只有一艘拆掉编号的小艇，还有三个人在搬没有登记的木箱。",
+                  "voiceStyle": "压低声音、连续叙述"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p04-paged_shot_03",
+            "order": 3,
+            "beatId": "fix-p04-paged_beat_3",
+            "sceneId": "fix-p04-paged_scene_1",
+            "characterIds": [
+              "char_linzhou",
+              "char_gaoyuan"
+            ],
+            "coreAction": "林舟把照片放到床边",
+            "emotion": "克制",
+            "shotType": "medium",
+            "cameraAngle": "over_shoulder",
+            "comic": {
+              "panelDescription": "林舟把照片放到床边",
+              "composition": "布局意图：standard",
+              "dialogue": "林舟：你说看不清他们的脸，可这张照片里，你正对着其中一个人。请你再想一次，他有没有叫过别人的名字？\n高远：有。他叫了一声‘赵队’，但我不知道是不是赵妍，也可能只是同姓。",
+              "caption": "",
+              "panelRhythm": "normal"
+            },
+            "motion": {
+              "visualDescription": "林舟把照片放到床边",
+              "compositionDesign": "景别 medium，布局意图 standard",
+              "cameraMovement": "static",
+              "frameType": "dialogue",
+              "durationMs": 1400,
+              "durationHint": "normal",
+              "voiceLines": [
+                {
+                  "characterId": "char_linzhou",
+                  "name": "林舟",
+                  "line": "你说看不清他们的脸，可这张照片里，你正对着其中一个人。请你再想一次，他有没有叫过别人的名字？",
+                  "voiceStyle": "清晰、追问"
+                },
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "有。他叫了一声‘赵队’，但我不知道是不是赵妍，也可能只是同姓。",
+                  "voiceStyle": "迟疑、辩解"
+                }
+              ]
+            },
+            "promptDraft": ""
+          },
+          {
+            "id": "fix-p04-paged_shot_04",
+            "order": 4,
+            "beatId": "fix-p04-paged_beat_4",
+            "sceneId": "fix-p04-paged_scene_1",
+            "characterIds": [
+              "char_gaoyuan"
+            ],
+            "coreAction": "高远终于转过头",
+            "emotion": "恐惧",
+            "shotType": "close_up",
+            "cameraAngle": "eye_level",
+            "comic": {
+              "panelDescription": "高远终于转过头",
+              "composition": "布局意图：focus",
+              "dialogue": "高远：我记得那个人的右手。他少了一截小指，而且一直戴着一枚黑色戒指。",
+              "caption": "沉默持续了整整十秒。",
+              "panelRhythm": "impact"
+            },
+            "motion": {
+              "visualDescription": "高远终于转过头",
+              "compositionDesign": "景别 close_up，布局意图 focus",
+              "cameraMovement": "static",
+              "frameType": "reaction",
+              "durationMs": 800,
+              "durationHint": "impact",
+              "voiceLines": [
+                {
+                  "characterId": "char_gaoyuan",
+                  "name": "高远",
+                  "line": "我记得那个人的右手。他少了一截小指，而且一直戴着一枚黑色戒指。",
+                  "voiceStyle": "颤抖、确认"
+                }
+              ]
+            },
+            "promptDraft": ""
+          }
+        ],
+        "notes": "M0 固定语料：证词与回忆交错的长对白"
+      }
+    },
+    "characterCatalog": [
+      {
+        "id": "char_linzhou",
+        "projectCharacterId": "project_character_linzhou",
+        "name": "林舟",
+        "role": "调查记者",
+        "visualTraits": "灰蓝长风衣、左眉浅疤、旧银色录音笔"
+      },
+      {
+        "id": "char_gaoyuan",
+        "projectCharacterId": "project_character_gaoyuan",
+        "name": "高远",
+        "role": "港口调度员",
+        "visualTraits": "橙色雨衣、旧工牌、宽肩"
+      }
+    ],
+    "candidateLockSet": {
+      "state": "complete",
+      "sourceApplicability": "current",
+      "digest": "sha256:36adfd40c676ca24110e243ff00e0aa453d8f9bb28d2afdc1daca255725a2e69",
+      "items": [
+        {
+          "order": 1,
+          "shotId": "fix-p04-paged_shot_01",
+          "candidateId": "fix-p04-paged_candidate_01",
+          "candidateLockRevisionId": "fix-p04-paged_lock_01",
+          "assetId": "asset_sml_portrait_right",
+          "assetSha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+          "width": 720,
+          "height": 1280,
+          "status": "ready"
+        },
+        {
+          "order": 2,
+          "shotId": "fix-p04-paged_shot_02",
+          "candidateId": "fix-p04-paged_candidate_02",
+          "candidateLockRevisionId": "fix-p04-paged_lock_02",
+          "assetId": "asset_sml_wide_environment",
+          "assetSha256": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+          "width": 1536,
+          "height": 864,
+          "status": "ready"
+        },
+        {
+          "order": 3,
+          "shotId": "fix-p04-paged_shot_03",
+          "candidateId": "fix-p04-paged_candidate_03",
+          "candidateLockRevisionId": "fix-p04-paged_lock_03",
+          "assetId": "asset_sml_portrait_pair",
+          "assetSha256": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+          "width": 720,
+          "height": 1280,
+          "status": "ready"
+        },
+        {
+          "order": 4,
+          "shotId": "fix-p04-paged_shot_04",
+          "candidateId": "fix-p04-paged_candidate_04",
+          "candidateLockRevisionId": "fix-p04-paged_lock_04",
+          "assetId": "asset_sml_square_left",
+          "assetSha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "width": 1024,
+          "height": 1024,
+          "status": "ready"
+        }
+      ]
+    },
+    "sourceCatalog": {
+      "schemaVersion": 1,
+      "projectId": "project_fix-p04-paged",
+      "chapterId": "chapter_fix-p04-paged",
+      "sourceLockSetDigest": "sha256:36adfd40c676ca24110e243ff00e0aa453d8f9bb28d2afdc1daca255725a2e69",
+      "items": [
+        {
+          "order": 1,
+          "width": 720,
+          "height": 1280,
+          "status": "ready",
+          "assetSha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+          "source": {
+            "shotId": "fix-p04-paged_shot_01",
+            "candidateId": "fix-p04-paged_candidate_01",
+            "candidateLockRevisionId": "fix-p04-paged_lock_01",
+            "assetId": "asset_sml_portrait_right",
+            "sourceDigest": "sha256:6e366305bce6da5e52aa14b3116ca28e0dc21b5f66d480986ed85858c8db4c72"
+          }
+        },
+        {
+          "order": 2,
+          "width": 1536,
+          "height": 864,
+          "status": "ready",
+          "assetSha256": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+          "source": {
+            "shotId": "fix-p04-paged_shot_02",
+            "candidateId": "fix-p04-paged_candidate_02",
+            "candidateLockRevisionId": "fix-p04-paged_lock_02",
+            "assetId": "asset_sml_wide_environment",
+            "sourceDigest": "sha256:dbbd5b9155cc1f89a0cc3656626bc5ad900c39eebd5f6ccf8dd6c9bd141ceb75"
+          }
+        },
+        {
+          "order": 3,
+          "width": 720,
+          "height": 1280,
+          "status": "ready",
+          "assetSha256": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+          "source": {
+            "shotId": "fix-p04-paged_shot_03",
+            "candidateId": "fix-p04-paged_candidate_03",
+            "candidateLockRevisionId": "fix-p04-paged_lock_03",
+            "assetId": "asset_sml_portrait_pair",
+            "sourceDigest": "sha256:d201d4c590c8965d338fac508d5111a0e2d2c54dee262982b55c1133377ef625"
+          }
+        },
+        {
+          "order": 4,
+          "width": 1024,
+          "height": 1024,
+          "status": "ready",
+          "assetSha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "source": {
+            "shotId": "fix-p04-paged_shot_04",
+            "candidateId": "fix-p04-paged_candidate_04",
+            "candidateLockRevisionId": "fix-p04-paged_lock_04",
+            "assetId": "asset_sml_square_left",
+            "sourceDigest": "sha256:7ed84c6fe222da3b97fcef1c4d37a7f5eb7497bb5e548af9b4f86d1a7785a2a5"
+          }
+        }
+      ]
+    },
+    "fontAsset": {
+      "assetId": "asset_font_sml_noto_sc_400",
+      "role": "font",
+      "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+      "mimeType": "font/woff2",
+      "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+      "bytes": 1602144,
+      "metadata": {
+        "schemaVersion": 1,
+        "kind": "layout_font_asset_v1",
+        "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+        "familyName": "Noto Sans SC",
+        "displayName": "Noto Sans SC 受控常规体",
+        "face": {
+          "weight": 400,
+          "style": "normal"
+        },
+        "format": "woff2",
+        "license": {
+          "spdx": "OFL-1.1",
+          "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+          "embeddingAllowed": true
+        }
+      },
+      "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+      "status": "ready"
+    },
+    "dialogueLedger": {
+      "schemaVersion": 1,
+      "items": [
+        {
+          "itemId": "fix-p04-paged_dialogue_01_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p04-paged_shot_01",
+          "sourceOrder": 1,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "那天我本来应该在七码头值夜班，可调度室临时收到一张没有署名的换班单，上面写着让我去旧仓库检查一批已经报废的救生设备。",
+          "textDigest": "sha256:6e6475bccaf781610c99eb1d57e3abebabae35ab17934e6a03bfea03d5d7f11c",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p04-paged_caption_01",
+          "kind": "caption",
+          "source": "comic.caption",
+          "shotId": "fix-p04-paged_shot_01",
+          "sourceOrder": 1,
+          "characterId": null,
+          "speakerName": null,
+          "text": "高远的证词，从一场看似普通的换班开始。",
+          "textDigest": "sha256:4341b0adb0948f00b17245cb9d0023f134b2044b10ad7cd88ac227bec7160b19",
+          "expectedBalloonKind": "caption"
+        },
+        {
+          "itemId": "fix-p04-paged_dialogue_02_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p04-paged_shot_02",
+          "sourceOrder": 1,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "仓库里没有救生设备，只有一艘拆掉编号的小艇，还有三个人在搬没有登记的木箱。",
+          "textDigest": "sha256:e996852b187137f7ce6ddd8a02fe957ccdff682f8987f14f0866b58f9846a71c",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p04-paged_caption_02",
+          "kind": "caption",
+          "source": "comic.caption",
+          "shotId": "fix-p04-paged_shot_02",
+          "sourceOrder": 1,
+          "characterId": null,
+          "speakerName": null,
+          "text": "他没有注意到，门锁刚被人换过。",
+          "textDigest": "sha256:f62fb39c807a9709d713820efa7c581ce51ae493aca9e0be79de0d4c83633f7c",
+          "expectedBalloonKind": "caption"
+        },
+        {
+          "itemId": "fix-p04-paged_dialogue_03_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p04-paged_shot_03",
+          "sourceOrder": 1,
+          "characterId": "char_linzhou",
+          "speakerName": "林舟",
+          "text": "你说看不清他们的脸，可这张照片里，你正对着其中一个人。请你再想一次，他有没有叫过别人的名字？",
+          "textDigest": "sha256:ed6e282c7ff19c884b2e51f64da29a3ce5d1f64e8b506b9bb35fc5a03aa0a3f7",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p04-paged_dialogue_03_2",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p04-paged_shot_03",
+          "sourceOrder": 2,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "有。他叫了一声‘赵队’，但我不知道是不是赵妍，也可能只是同姓。",
+          "textDigest": "sha256:61858afaa89aa988fa802798f3a880780fec33701eb8c7f70dfc2aee8baf4573",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p04-paged_dialogue_04_1",
+          "kind": "dialogue",
+          "source": "motion.voiceLines",
+          "shotId": "fix-p04-paged_shot_04",
+          "sourceOrder": 1,
+          "characterId": "char_gaoyuan",
+          "speakerName": "高远",
+          "text": "我记得那个人的右手。他少了一截小指，而且一直戴着一枚黑色戒指。",
+          "textDigest": "sha256:9f76a221d003818eb438147c3ddfa25ec00f98a962677db88b8e6104a21ad39a",
+          "expectedBalloonKind": "speech"
+        },
+        {
+          "itemId": "fix-p04-paged_caption_04",
+          "kind": "caption",
+          "source": "comic.caption",
+          "shotId": "fix-p04-paged_shot_04",
+          "sourceOrder": 1,
+          "characterId": null,
+          "speakerName": null,
+          "text": "沉默持续了整整十秒。",
+          "textDigest": "sha256:edb8c02c729c6872449d17542c34b0a874d4c39e0fb680063458b4af84fe96b2",
+          "expectedBalloonKind": "caption"
+        }
+      ],
+      "digest": "sha256:2ae79d593dfdfce501f4f6e483700c79ce07bfdefbc621ec698cabcf22dd5fb7"
+    }
+  },
+  "replacementScenario": null,
+  "currentBaseline": {
+    "implementation": "initializeLayoutCanvasesFromSourcesV1",
+    "behavior": "每 4 镜固定成页，仅按镜头数量选择 single/two_horizontal/three_focus/four_panel",
+    "limitations": [
+      "不读取 scene/beat/frameType/panelRhythm",
+      "不创建对白、旁白或气泡",
+      "crop 固定 zoom=1 且居中"
+    ],
+    "layoutDocumentDigest": "sha256:b2f45d980fe8424ace8b26cb17621739cb3d4fa52b99bcc3c4c33cc72c5091fc",
+    "layoutDocument": {
+      "schemaVersion": 1,
+      "kind": "layout_document_v1",
+      "projectId": "project_fix-p04-paged",
+      "chapterId": "chapter_fix-p04-paged",
+      "comicFormat": "paged_comic",
+      "profile": {
+        "kind": "paged",
+        "presetId": "portrait_3_4",
+        "width": 1800,
+        "height": 2400,
+        "safeArea": {
+          "top": 72,
+          "right": 72,
+          "bottom": 72,
+          "left": 72
+        },
+        "panelReadingDirection": "ltr_ttb"
+      },
+      "fontPolicy": {
+        "defaultFontAssetId": "asset_font_sml_noto_sc_400",
+        "fallbackFontAssetIds": []
+      },
+      "canvases": [
+        {
+          "id": "fix-p04-paged_canvas_1",
+          "kind": "page",
+          "name": "第 1 页",
+          "width": 1800,
+          "height": 2400,
+          "backgroundColor": "#FFFFFFFF",
+          "panelReadingOrder": [
+            "fix-p04-paged_panel_1",
+            "fix-p04-paged_panel_2",
+            "fix-p04-paged_panel_3",
+            "fix-p04-paged_panel_4"
+          ],
+          "elements": [
+            {
+              "id": "fix-p04-paged_panel_1",
+              "type": "panel_frame",
+              "name": "画格 1",
+              "transform": {
+                "x": 72,
+                "y": 72,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p04-paged_image_1",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 1",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p04-paged_shot_01",
+                  "candidateId": "fix-p04-paged_candidate_01",
+                  "candidateLockRevisionId": "fix-p04-paged_lock_01",
+                  "assetId": "asset_sml_portrait_right",
+                  "sourceDigest": "sha256:6e366305bce6da5e52aa14b3116ca28e0dc21b5f66d480986ed85858c8db4c72"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p04-paged_panel_2",
+              "type": "panel_frame",
+              "name": "画格 2",
+              "transform": {
+                "x": 924,
+                "y": 72,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p04-paged_image_2",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 2",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p04-paged_shot_02",
+                  "candidateId": "fix-p04-paged_candidate_02",
+                  "candidateLockRevisionId": "fix-p04-paged_lock_02",
+                  "assetId": "asset_sml_wide_environment",
+                  "sourceDigest": "sha256:dbbd5b9155cc1f89a0cc3656626bc5ad900c39eebd5f6ccf8dd6c9bd141ceb75"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p04-paged_panel_3",
+              "type": "panel_frame",
+              "name": "画格 3",
+              "transform": {
+                "x": 72,
+                "y": 1224,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p04-paged_image_3",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 3",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p04-paged_shot_03",
+                  "candidateId": "fix-p04-paged_candidate_03",
+                  "candidateLockRevisionId": "fix-p04-paged_lock_03",
+                  "assetId": "asset_sml_portrait_pair",
+                  "sourceDigest": "sha256:d201d4c590c8965d338fac508d5111a0e2d2c54dee262982b55c1133377ef625"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            },
+            {
+              "id": "fix-p04-paged_panel_4",
+              "type": "panel_frame",
+              "name": "画格 4",
+              "transform": {
+                "x": 924,
+                "y": 1224,
+                "width": 804,
+                "height": 1104,
+                "rotation": 0,
+                "opacity": 1
+              },
+              "locked": false,
+              "hidden": false,
+              "shape": {
+                "kind": "rect",
+                "cornerRadius": 0
+              },
+              "border": {
+                "visible": true,
+                "color": "#111827FF",
+                "width": 8
+              },
+              "contentImage": {
+                "id": "fix-p04-paged_image_4",
+                "type": "image",
+                "placement": "panel_content",
+                "name": "镜头 4",
+                "locked": false,
+                "hidden": false,
+                "source": {
+                  "shotId": "fix-p04-paged_shot_04",
+                  "candidateId": "fix-p04-paged_candidate_04",
+                  "candidateLockRevisionId": "fix-p04-paged_lock_04",
+                  "assetId": "asset_sml_square_left",
+                  "sourceDigest": "sha256:7ed84c6fe222da3b97fcef1c4d37a7f5eb7497bb5e548af9b4f86d1a7785a2a5"
+                },
+                "crop": {
+                  "zoom": 1,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "rotation": 0,
+                  "flipX": false,
+                  "flipY": false
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "sourceLockSetDigest": "sha256:36adfd40c676ca24110e243ff00e0aa453d8f9bb28d2afdc1daca255725a2e69",
+    "publicationProfile": {
+      "schemaVersion": 1,
+      "kind": "paged_publication",
+      "outputScale": 1,
+      "includePdf": true,
+      "pdfPixelDpi": 96
+    },
+    "assetManifest": {
+      "schemaVersion": 1,
+      "images": [
+        {
+          "assetId": "asset_sml_portrait_pair",
+          "role": "candidate_image",
+          "relativePath": "assets/portrait_pair.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:da6ca0b303ea7974d3f1dd43fa4a5f64afe9faf1071fb5c189419c47aecd1e91",
+          "bytes": 12641,
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "assetId": "asset_sml_portrait_right",
+          "role": "candidate_image",
+          "relativePath": "assets/portrait_right.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:99768ae0493fc166aa1eaca3b7361457c9fffafd5651433b5d24c8b5892239af",
+          "bytes": 10325,
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "assetId": "asset_sml_square_left",
+          "role": "candidate_image",
+          "relativePath": "assets/square_left.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:164378681428d0e1a5a23916225c8e65736c4b9d2d5c196c0f514c1c093e5b11",
+          "bytes": 11570,
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "assetId": "asset_sml_wide_environment",
+          "role": "candidate_image",
+          "relativePath": "assets/wide_environment.png",
+          "mimeType": "image/png",
+          "sha256": "sha256:5e1b8afa2fe68674d330db1506e9d9c29ba5cc110943249aa02a06e8fb28e2b4",
+          "bytes": 12986,
+          "width": 1536,
+          "height": 864
+        }
+      ],
+      "fonts": [
+        {
+          "assetId": "asset_font_sml_noto_sc_400",
+          "role": "font",
+          "relativePath": "assets/noto-sans-sc-chinese-simplified-400.woff2",
+          "mimeType": "font/woff2",
+          "sha256": "sha256:e1f8a59c19da8a5d97b7703d07ee2416e86cbc3b30fb20cb0d6fd30df43364ce",
+          "bytes": 1602144,
+          "metadata": {
+            "schemaVersion": 1,
+            "kind": "layout_font_asset_v1",
+            "packageId": "@openfonts/noto-sans-sc_chinese-simplified@1.44.9",
+            "familyName": "Noto Sans SC",
+            "displayName": "Noto Sans SC 受控常规体",
+            "face": {
+              "weight": 400,
+              "style": "normal"
+            },
+            "format": "woff2",
+            "license": {
+              "spdx": "OFL-1.1",
+              "sourceUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE",
+              "embeddingAllowed": true
+            }
+          },
+          "metadataDigest": "sha256:d2cb0d8c1e8cecd25279750470aab21bec96c91eac2509eebf6419d636d01f8c",
+          "status": "ready"
+        }
+      ]
+    },
+    "assessment": {
+      "schemaVersion": 1,
+      "status": "red",
+      "reasonCodes": [
+        "CURRENT_LAYOUT_FIXED_COUNT_ONLY",
+        "CURRENT_LAYOUT_HAS_NO_DIALOGUE_OBJECTS",
+        "CURRENT_LAYOUT_HAS_NO_SEMANTIC_CROP"
+      ],
+      "scoringBasis": "deterministic_rubric_pending_two_independent_human_reviews",
+      "panelReview": [
+        {
+          "shotId": "fix-p04-paged_shot_01",
+          "shotOrder": 1,
+          "canvasId": "fix-p04-paged_canvas_1",
+          "panelId": "fix-p04-paged_panel_1",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            1,
+            2
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p04-paged_shot_02",
+          "shotOrder": 2,
+          "canvasId": "fix-p04-paged_canvas_1",
+          "panelId": "fix-p04-paged_panel_2",
+          "layoutIntent": "wide",
+          "targetNarrativeGroup": [
+            1,
+            2
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p04-paged_shot_03",
+          "shotOrder": 3,
+          "canvasId": "fix-p04-paged_canvas_1",
+          "panelId": "fix-p04-paged_panel_3",
+          "layoutIntent": "standard",
+          "targetNarrativeGroup": [
+            3,
+            4
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": true,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        },
+        {
+          "shotId": "fix-p04-paged_shot_04",
+          "shotOrder": 4,
+          "canvasId": "fix-p04-paged_canvas_1",
+          "panelId": "fix-p04-paged_panel_4",
+          "layoutIntent": "focus",
+          "targetNarrativeGroup": [
+            3,
+            4
+          ],
+          "currentCanvasOrders": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "groupMatches": false,
+          "geometryIntentOk": false,
+          "layoutOk": false,
+          "cropOk": false,
+          "readingOrderOk": true,
+          "subjectOcclusionOk": true,
+          "directUsable": false,
+          "requiredManualAdjustments": [
+            "layout",
+            "crop"
+          ]
+        }
+      ],
+      "balloonReview": {
+        "requiredSourceItemCount": 8,
+        "placedBalloonCount": 0,
+        "directUsableCount": 0,
+        "directUsableRate": 0,
+        "applicability": "failed_all_required_items_missing"
+      },
+      "summary": {
+        "shotCount": 4,
+        "panelCount": 4,
+        "panelDirectUsableCount": 0,
+        "panelDirectUsableRate": 0,
+        "panelsNeedingLayoutAdjustment": 4,
+        "panelsNeedingCropAdjustment": 4,
+        "dialogueOrCaptionItemsNeedingCreation": 8,
+        "minimumObjectAdjustments": 16,
+        "currentShotCoverageRate": 1,
+        "currentDialogueAndCaptionCoverageRate": 0
+      }
+    }
+  },
+  "futureAcceptanceTargets": {
+    "activeShotCoverageRate": 1,
+    "dialogueAndCaptionCoverageRate": 1,
+    "silentRewriteCount": 0,
+    "textOverflowCount": 0,
+    "aggregatePanelDirectUsableRate": 0.8,
+    "aggregateBoundBalloonDirectUsableRate": 0.8
+  }
+}

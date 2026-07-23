@@ -34,7 +34,7 @@ import type {
   ConfirmImportChapterRequest,
   VersionHistoryCopyRequest,
   InitializeLayoutWorkingCopyRequestV1,
-  SaveLayoutWorkingCopyRequestV1,
+  SaveLayoutWorkingCopyRequestV1OrV2,
   CommitLayoutSourceReplacementRequestV1,
   CreateLayoutRevisionRequestV1,
   PreviewLayoutSourceReplacementRequestV1,
@@ -42,6 +42,7 @@ import type {
   RunLayoutPreflightRequestV1,
   CreateLayoutPublicationRequestV1,
   CreatePendingEditorCommandSetRequestV1,
+  CreateLayoutCompositionRequestV1,
 } from "@airoaming/shared";
 import { ok } from "../http.js";
 import { ProjectsService } from "./projects.service.js";
@@ -55,6 +56,7 @@ import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
 import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
+import { LayoutCompositionService } from "./layout-composition.service.js";
 import { ScriptWorkflowSourceRepository } from "./script-workflow-source.repository.js";
 
 @Controller("projects")
@@ -72,6 +74,7 @@ export class ProjectsController {
     @Inject(LayoutWorkingCopyService) private readonly layoutWorkingCopyService: LayoutWorkingCopyService,
     @Inject(LayoutVersioningService) private readonly layoutVersioningService: LayoutVersioningService,
     @Inject(LayoutPendingCommandService) private readonly layoutPendingCommandService: LayoutPendingCommandService,
+    @Inject(LayoutCompositionService) private readonly layoutCompositionService?: LayoutCompositionService,
   ) {}
 
   @Get()
@@ -630,6 +633,33 @@ export class ProjectsController {
     return ok(await this.layoutWorkingCopyService.get({ projectId, chapterId }));
   }
 
+  @Post(":projectId/chapters/:chapterId/layout/compositions")
+  async createLayoutComposition(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() body: CreateLayoutCompositionRequestV1,
+  ) {
+    return ok(await this.layoutCompositionService!.create({ projectId, chapterId }, body));
+  }
+
+  @Get(":projectId/chapters/:chapterId/layout/compositions/:taskId")
+  async getLayoutComposition(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("taskId") taskId: string,
+  ) {
+    return ok(await this.layoutCompositionService!.get({ projectId, chapterId }, taskId));
+  }
+
+  @Post(":projectId/chapters/:chapterId/layout/compositions/:taskId/apply")
+  async applyLayoutComposition(
+    @Param("projectId") projectId: string,
+    @Param("chapterId") chapterId: string,
+    @Param("taskId") taskId: string,
+  ) {
+    return ok(await this.layoutCompositionService!.apply({ projectId, chapterId }, taskId));
+  }
+
   @Get(":projectId/chapters/:chapterId/layout/source-catalog")
   async getLayoutSourceCatalog(
     @Param("projectId") projectId: string,
@@ -707,7 +737,7 @@ export class ProjectsController {
   async saveLayoutWorkingCopy(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
-    @Body() body: SaveLayoutWorkingCopyRequestV1,
+    @Body() body: SaveLayoutWorkingCopyRequestV1OrV2,
   ) {
     return ok(await this.layoutWorkingCopyService.save({ projectId, chapterId }, body));
   }

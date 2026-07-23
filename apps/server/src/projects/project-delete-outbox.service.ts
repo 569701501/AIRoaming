@@ -623,6 +623,7 @@ export class ProjectDeleteOutboxService {
             OR "current_layout_revision_id" IS NOT NULL
             OR "current_export_revision_id" IS NOT NULL
             OR "last_script_revision_id" IS NOT NULL)`);
+      await q('DELETE FROM "layout_composition_applications" WHERE "project_id" = ?');
       await q('DELETE FROM "pending_dialogue_artifacts" WHERE "project_id" = ?');
       await q('DELETE FROM "chapter_script_pending_source_bindings" WHERE "pending_id" IN (SELECT pending."id" FROM "chapter_script_pending" AS pending JOIN "chapters" AS chapter ON chapter."id" = pending."chapter_id" WHERE chapter."project_id" = ?)');
       await q('DELETE FROM "chapter_script_pending" WHERE "chapter_id" IN (SELECT "id" FROM "chapters" WHERE "project_id" = ?)');

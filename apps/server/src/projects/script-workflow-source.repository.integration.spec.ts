@@ -297,11 +297,14 @@ describe("script workflow source repository", () => {
       previousScript: { chapterId: chapter1.id, sourceText: first.trimEnd() },
       sourceBindings: [{ role: "outline" }, { role: "chapter_card" }, { role: "previous_script" }],
     });
+    const staleSourceSetDigest = `${context.sourceSetDigest.slice(0, -1)}${
+      context.sourceSetDigest.endsWith("0") ? "1" : "0"
+    }` as `sha256:${string}`;
     await expect(repository.createAiChapterPending({
       projectId: project.id,
       chapterId: chapter2.id,
       outlineId: outline.outlineId,
-      expectedSourceSetDigest: context.sourceSetDigest.replace(/.$/, "0") as `sha256:${string}`,
+      expectedSourceSetDigest: staleSourceSetDigest,
       sourceText: second,
       threadId: "thread",
       messageId: "message",

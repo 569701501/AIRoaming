@@ -4,6 +4,7 @@ import {
   evaluateCoverCropV1,
   normalizeLayoutNumber,
   normalizeLayoutRotation,
+  resolveBalloonTailRootV1,
 } from "./index.js";
 
 describe("G5-M2 deterministic geometry", () => {
@@ -41,5 +42,16 @@ describe("G5-M2 deterministic geometry", () => {
     expect(new Set(paths).size).toBe(4);
     expect(paths.every((value) => value.startsWith("M") && value.endsWith("Z"))).toBe(true);
     expect(createBalloonPathV1({ ...input, kind: "speech" })).toBe(paths[0]);
+  });
+
+  it("attaches diagonal tails to the edge facing the target", () => {
+    const root = resolveBalloonTailRootV1(540, 348, {
+      enabled: true,
+      rootRatio: 0.12,
+      targetX: -124,
+      targetY: -343,
+      baseWidth: 38,
+    });
+    expect(root.side).toBe("top");
   });
 });

@@ -232,7 +232,7 @@
           <div><span>已确认出图准备</span><strong>{{ snapshot.imagePreflight ? "1 份" : "无" }}</strong></div>
           <div><span>已有候选图</span><strong>{{ downstreamCandidateCount }} 张</strong></div>
           <div><span>当前定稿图</span><strong>{{ downstreamLockCount }} 张</strong></div>
-          <div><span>排版 / 导出</span><strong>{{ downstreamLayoutExportCount }} 份</strong></div>
+          <div><span>成稿 / 导出</span><strong>{{ downstreamLayoutExportCount }} 份</strong></div>
         </div>
         <p class="storyboard-impact-warning">
           <AlertTriangle :size="17" />

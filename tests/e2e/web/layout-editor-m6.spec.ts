@@ -13,6 +13,7 @@ import {
   prepareG4CandidateFixture,
   replaceCandidate,
 } from "../support/g4-candidate-fixture.ts";
+import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
@@ -33,9 +34,14 @@ test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   const firstLock = await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
+  await initializeLegacyLayoutWorkingCopy(
+    api,
+    rainSmokeProject,
+    fixture.projectId,
+    fixture.chapterId,
+  );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "创建数据库草稿" }).click();
   await page.getByRole("button", { name: "版本与出版" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
   const initialWorkingCopy = await api.get<LayoutWorkingCopyResponseV1>(
@@ -64,13 +70,13 @@ test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成
   const saveNow = page.getByRole("button", { name: "立即保存" });
   await expect(saveNow).toBeEnabled();
   await saveNow.click();
-  await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
   await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
   await expect(page.getByTitle("重做")).toBeEnabled();
   await page.getByTitle("重做").click();
   await expect(saveNow).toBeEnabled();
   await saveNow.click();
-  await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
   await expect(controls).toContainText("当前定稿");
 
   await controls.getByRole("button", { name: "重新预检" }).click();
@@ -95,7 +101,7 @@ test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成
 
   await page.getByRole("button", { name: "新增段落", exact: true }).click();
   if (await saveNow.isEnabled()) await saveNow.click();
-  await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
   let changed = await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
   );
@@ -103,7 +109,7 @@ test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成
 
   page.once("dialog", (dialog) => dialog.accept());
   await history.getByRole("button", { name: "恢复到草稿" }).click();
-  await expect(page.locator(".editor-status")).toContainText("已保存到数据库", { timeout: 8_000 });
+  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
   changed = await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
   );

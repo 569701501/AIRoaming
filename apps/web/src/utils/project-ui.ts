@@ -29,7 +29,7 @@ export const projectStatusMeta: Record<ProjectStatus, { label: string; tone: str
   layout_ready: {
     label: "创作中",
     tone: "amber",
-    step: "排版导出",
+    step: "漫画成稿",
   },
   exported: {
     label: "已导出",
@@ -75,7 +75,7 @@ export function formatRelativeDate(value: string) {
 /**
  * 返回项目卡上展示的"当前进度"文字。
  * 已导出项目返回完成态文案，其余按当前步骤返回"当前 · 第 N 步 XXX"。
- * 7 步顺序与 workflow 定义一致：剧本 → 剧情结构 → 分镜 → 出图准备 → 候选图 → 排版导出 → 素材包。
+ * 7 步顺序与 workflow 定义一致：剧本 → 剧情结构 → 分镜 → 出图准备 → 候选图 → 漫画成稿 → 素材包。
  */
 const STATUS_STEP_INDEX: Record<ProjectStatus, number> = {
   draft: 1,

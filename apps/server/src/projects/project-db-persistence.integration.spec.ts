@@ -46,10 +46,12 @@ import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js
 import { CandidateDecisionService } from "./candidate-decision.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
+import { LayoutCompositionService } from "./layout-composition.service.js";
+import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutPublicationService } from "./layout-publication.service.js";
 import { LayoutVersioningService } from "./layout-versioning.service.js";
-import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, LayoutPublicationProfileCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, serializeScriptOutlineMarkdownV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
+import { buildTaskSourceProjection, digestCanonicalJson, encodePreflightDocumentV2, LayoutDocumentCodecV1, LayoutDocumentCodecV2, LayoutPublicationProfileCodecV1, PreflightDocumentCodecV2, encodeScriptTextV1, serializeScriptOutlineMarkdownV1, type CandidateLockCommitResponse, type CandidateLockImpactPreviewResponse, type StoryDocumentV2, type StoryboardDocumentV2 } from "@airoaming/shared";
 
 type DatabaseSync = InstanceType<typeof NodeDatabaseSync>;
 
@@ -360,7 +362,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("17 migrations found");
+    expect(deployed.stdout).toContain("18 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -2104,6 +2106,423 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       .toEqual([replacementShot.shotId]);
     expect(snapshotWithPending.shots.map((shot) => shot.id)).toEqual(formalShotIds);
   }, 30_000);
+
+  it("M4: persists smart composition, protects user edits, and previews full reflow before apply", async () => {
+    const { deployed } = await prepareDatabase();
+    expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+    expect(deployed.stdout).toContain("18 migrations found");
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+
+    const projects = app.get(ProjectsService);
+    const tasks = app.get(TasksService);
+    const scripts = app.get(ScriptVersionRepository);
+    const stories = app.get(StoryVersionRepository);
+    const boards = app.get(StoryboardVersionRepository);
+    const preflight = app.get(PreflightRevisionService);
+    const decisions = app.get(CandidateDecisionService);
+    const worker = app.get(PersistentTaskWorkerService);
+    const compositions = app.get(LayoutCompositionService);
+    const workingCopies = app.get(LayoutWorkingCopyService);
+    const prisma = app.get(PrismaService).database();
+
+    const project = await projects.createProject({
+      name: "M4 智能成稿持久化",
+      type: "comic",
+      comicFormat: "vertical_scroll",
+      artStyle: "comic_style",
+    });
+    const scope = {
+      projectId: project.id,
+      chapterId: project.currentChapterId!,
+    };
+    const chapter = await prisma.chapter.findUniqueOrThrow({
+      where: { id: scope.chapterId },
+    });
+    const scriptText = "雨夜里，旧门缓缓打开。";
+    const workingScript = await scripts.updateWorkingCopy(scope, {
+      sourceText: scriptText,
+      expectedChapterRowVersion: chapter.rowVersion,
+    });
+    const publishedScript = await scripts.publish(scope, {
+      expectedCurrentScriptVersionId: null,
+      expectedWorkingDigest: workingScript.value.digest,
+      expectedChapterRowVersion: workingScript.value.chapterRowVersion,
+      createNextChapter: false,
+    });
+    const story = await stories.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: publishedScript.scriptVersion.id,
+      expectedChapterRowVersion: publishedScript.workingCopy.chapterRowVersion,
+    });
+    const storyDocument: StoryDocumentV2 = {
+      schemaVersion: 2,
+      chapterId: scope.chapterId,
+      synopsis: "旧门在雨夜打开。",
+      direction: {
+        logline: "",
+        chapterGoal: "",
+        coreConflict: "",
+        emotionalArc: "",
+        endingHook: "",
+      },
+      characters: [],
+      scenes: [],
+      beats: [],
+      notes: "",
+    };
+    const updatedStory = await stories.updateWorkingCopy(scope, {
+      pendingVersionId: story.value.pending!.id,
+      document: storyDocument,
+      expectedPendingRowVersion: 0,
+      expectedChapterRowVersion: story.chapterRowVersion,
+    });
+    const confirmedStory = await stories.confirmWorkingCopy(scope, {
+      pendingVersionId: story.value.pending!.id,
+      expectedPendingDocumentDigest: updatedStory.value.pending!.documentDigest,
+      expectedPendingRowVersion: 1,
+      expectedCurrentVersionId: null,
+      expectedSourceScriptVersionId: publishedScript.scriptVersion.id,
+      expectedSourceDigest: publishedScript.scriptVersion.sourceDigest,
+      expectedChapterRowVersion: updatedStory.chapterRowVersion,
+    });
+    const board = await boards.createWorkingCopy(scope, {
+      mode: "empty",
+      expectedCurrentVersionId: null,
+      expectedSourceStoryVersionId: confirmedStory.value.current.id,
+      expectedChapterRowVersion: confirmedStory.chapterRowVersion,
+    });
+    const shot = await boards.createPendingShot(scope, {
+      pendingVersionId: board.value.pending!.id,
+      requestId: randomUUID(),
+      afterShotId: null,
+      expectedPendingRowVersion: 0,
+      expectedChapterRowVersion: board.chapterRowVersion,
+      initial: {
+        beatId: null,
+        sceneId: null,
+        characterIds: [],
+        coreAction: "旧门向内打开",
+        emotion: "紧张",
+        shotType: "medium",
+        cameraAngle: "eye_level",
+        comic: {
+          panelDescription: "雨夜门口",
+          composition: "旧门位于画面中心",
+          dialogue: "",
+          caption: "雨声盖住了门轴的轻响。",
+          panelRhythm: "normal",
+        },
+        motion: {
+          visualDescription: "雨夜门口，一扇旧门正在打开。",
+          compositionDesign: "门框占据中景。",
+          cameraMovement: "static",
+          frameType: "action",
+          durationMs: 0,
+          durationHint: "",
+          voiceLines: [],
+        },
+        promptDraft: "",
+      },
+    });
+    const confirmedBoard = await boards.confirmWorkingCopy(scope, {
+      pendingVersionId: shot.workingCopy.pending!.id,
+      expectedPendingDocumentDigest: shot.workingCopy.pending!.documentDigest,
+      expectedPendingRowVersion: shot.workingCopy.pending!.rowVersion ?? 0,
+      expectedCurrentVersionId: null,
+      expectedSourceStoryVersionId: confirmedStory.value.current.id,
+      expectedSourceDigest: confirmedStory.value.current.documentDigest,
+      expectedChapterRowVersion: shot.workingCopy.productionState.chapterRowVersion,
+    });
+    const preflightPreview = await preflight.getPreview(scope, "M4 智能成稿");
+    const confirmedPreflight = await preflight.confirm(scope, {
+      expectedSourceStoryboardVersionId: confirmedBoard.value.current.id,
+      expectedSourceDigest: preflightPreview.sourceDigest,
+      expectedChapterRowVersion: preflightPreview.chapterRowVersion,
+      notes: "M4 智能成稿",
+    });
+
+    const png = Buffer.from(
+      "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000005fe02fea20000000049454e44ae426082",
+      "hex",
+    );
+    worker.setHandler("image_generate", async () => ({
+      candidates: [{ index: 1, buffer: png, mimeType: "image/png" }],
+    }));
+    const imageTask = await tasks.create({
+      projectId: project.id,
+      type: "image_generate",
+      target: {
+        type: "shot",
+        id: shot.shotId,
+        chapterId: scope.chapterId,
+      },
+      input: {
+        chapterId: scope.chapterId,
+        shotId: shot.shotId,
+        requestId: randomUUID(),
+        candidateCount: 1,
+      },
+    });
+    expect(await worker.runOnce("m4-image-worker")).toMatchObject({
+      id: imageTask.id,
+      status: "succeeded",
+    });
+    const candidate = await prisma.candidate.findFirstOrThrow({
+      where: { taskId: imageTask.id },
+    });
+    const lockPreview = await decisions.preview(
+      project.id,
+      scope.chapterId,
+      shot.shotId,
+      { action: "lock", candidateId: candidate.id },
+    );
+    await decisions.commit(project.id, scope.chapterId, shot.shotId, {
+      action: "lock",
+      candidateId: candidate.id,
+      expectedCurrentRevisionId: lockPreview.expectedCurrentRevisionId,
+      impactDigest: lockPreview.impactDigest,
+      reason: "M4 initial composition",
+    });
+    expect(confirmedPreflight.preflight.lifecycle).toBe("confirmed");
+
+    const initialRequest = {
+      schemaVersion: 1,
+      mode: "initial",
+      intent: "standard",
+      scope: null,
+      expectedWorkingCopyRowVersion: null,
+      expectedDocumentDigest: null,
+    } as const;
+    const initial = await compositions.create(scope, initialRequest);
+    const duplicate = await compositions.create(scope, initialRequest);
+    expect(duplicate).toMatchObject({
+      replayed: true,
+      task: { id: initial.task.id },
+    });
+    const initialDone = await worker.runOnce("m4-layout-worker");
+    if (initialDone?.status === "failed") {
+      throw new Error(`M4_INITIAL_COMPOSITION_FAILED:${JSON.stringify(initialDone.error)}`);
+    }
+    expect(initialDone).toMatchObject({
+      id: initial.task.id,
+      type: "layout_compose",
+      status: "succeeded",
+      output: {
+        mode: "initial",
+        result: { kind: "initial_document" },
+        report: {
+          shotCoverage: { expected: 1, placed: 1 },
+          dialogueCoverage: {
+            expected: 1,
+            placedOriginal: 1,
+            userModified: 0,
+            userSuppressed: 0,
+          },
+        },
+      },
+    });
+    expect(
+      (await prisma.generationTask.findUniqueOrThrow({
+        where: { id: initial.task.id },
+      })).applicability,
+    ).toBe("current");
+    const applied = await compositions.apply(scope, initial.task.id);
+    expect(applied).toMatchObject({
+      result: "applied",
+      target: "working_copy",
+      rowVersion: 0,
+    });
+    expect(await compositions.apply(scope, initial.task.id)).toMatchObject({
+      result: "replayed",
+      targetId: applied.targetId,
+      documentDigest: applied.documentDigest,
+      rowVersion: 0,
+    });
+
+    let workingCopy = await workingCopies.get(scope);
+    expect(workingCopy).toMatchObject({
+      id: applied.targetId,
+      rowVersion: 0,
+      documentDigest: applied.documentDigest,
+      document: {
+        schemaVersion: 2,
+        kind: "layout_document_v2",
+        automation: {
+          policyVersion: "layout_automation_v1",
+          composition: {
+            compositionPolicyVersion: "layout_composition_v1",
+          },
+        },
+      },
+    });
+    expect(
+      workingCopy.document.canvases.flatMap((canvas) => canvas.elements)
+        .filter((element) => element.type === "panel_frame"),
+    ).toHaveLength(1);
+    expect(
+      workingCopy.document.canvases.flatMap((canvas) => canvas.elements)
+        .filter((element) => element.type === "balloon"),
+    ).toHaveLength(1);
+
+    const userEditedDocument = structuredClone(workingCopy.document);
+    userEditedDocument.canvases[0]!.name = "我手动调整过的第一段";
+    const userEdited = LayoutDocumentCodecV2.encode(userEditedDocument);
+    const saved = await workingCopies.save(scope, {
+      schemaVersion: 1,
+      expectedRowVersion: workingCopy.rowVersion,
+      baseDocumentDigest: workingCopy.documentDigest,
+      documentDigest: userEdited.digest,
+      document: userEdited.value,
+    });
+    expect(saved).toMatchObject({
+      result: "updated",
+      value: {
+        rowVersion: 1,
+        documentDigest: userEdited.digest,
+        document: { canvases: [{ name: "我手动调整过的第一段" }] },
+      },
+    });
+    await expect(compositions.apply(scope, initial.task.id)).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: "LAYOUT_COMPOSITION_BASE_CONFLICT" } },
+    });
+
+    await app.close();
+    app = null;
+    app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
+    const reopenedWorkingCopies = app.get(LayoutWorkingCopyService);
+    const reopenedCompositions = app.get(LayoutCompositionService);
+    const reopenedPending = app.get(LayoutPendingCommandService);
+    const reopenedWorker = app.get(PersistentTaskWorkerService);
+    workingCopy = await reopenedWorkingCopies.get(scope);
+    expect(workingCopy).toMatchObject({
+      rowVersion: 1,
+      documentDigest: userEdited.digest,
+      document: { canvases: [{ name: "我手动调整过的第一段" }] },
+    });
+
+    const reflow = await reopenedCompositions.create(scope, {
+      schemaVersion: 1,
+      mode: "full_reflow",
+      intent: "dialogue_readability",
+      scope: null,
+      expectedWorkingCopyRowVersion: workingCopy.rowVersion,
+      expectedDocumentDigest: workingCopy.documentDigest,
+    });
+    expect(await reopenedWorker.runOnce("m4-reflow-worker")).toMatchObject({
+      id: reflow.task.id,
+      type: "layout_compose",
+      status: "succeeded",
+      output: {
+        mode: "full_reflow",
+        result: { kind: "command_batch" },
+      },
+    });
+    expect(
+      (await app.get(PrismaService).database().generationTask.findUniqueOrThrow({
+        where: { id: reflow.task.id },
+      })).applicability,
+    ).toBe("current");
+    const reflowApplication = await reopenedCompositions.apply(scope, reflow.task.id);
+    expect(reflowApplication).toMatchObject({
+      result: "applied",
+      target: "pending_command",
+      rowVersion: 1,
+    });
+    const pendingPreview = await reopenedPending.current(scope);
+    expect(pendingPreview.item).toMatchObject({
+      id: reflowApplication.targetId,
+      schemaVersion: 2,
+      status: "pending",
+      payload: {
+        schemaVersion: 2,
+        expectedRowVersion: 1,
+        baseDocumentDigest: userEdited.digest,
+      },
+      resultDocument: {
+        schemaVersion: 2,
+        kind: "layout_document_v2",
+      },
+    });
+    expect(await reopenedWorkingCopies.get(scope)).toMatchObject({
+      rowVersion: 1,
+      documentDigest: userEdited.digest,
+      document: { canvases: [{ name: "我手动调整过的第一段" }] },
+    });
+    const acceptedReflow = await reopenedPending.apply(
+      scope,
+      reflowApplication.targetId,
+    );
+    expect(acceptedReflow).toMatchObject({
+      schemaVersion: 2,
+      pendingId: reflowApplication.targetId,
+      workingCopy: { rowVersion: 2 },
+    });
+    expect((await reopenedPending.current(scope)).item).toBeNull();
+
+    const scopedBase = await reopenedWorkingCopies.get(scope);
+    const scopedElement = scopedBase.document.canvases
+      .flatMap((canvas) => canvas.elements)
+      .find((element) => element.type === "balloon" || (
+        element.type === "panel_frame" && Boolean(element.contentImage)
+      ));
+    if (!scopedElement) throw new Error("M6_SCOPED_TARGET_MISSING");
+    const scopedReflow = await reopenedCompositions.create(scope, {
+      schemaVersion: 1,
+      mode: "scoped_reflow",
+      intent: "more_relaxed",
+      scope: {
+        canvasIds: [],
+        elementIds: [scopedElement.id],
+        shotIds: [],
+      },
+      expectedWorkingCopyRowVersion: scopedBase.rowVersion,
+      expectedDocumentDigest: scopedBase.documentDigest,
+    });
+    const scopedDone = await reopenedWorker.runOnce("m6-scoped-reflow-worker");
+    if (scopedDone?.status === "failed") {
+      throw new Error(`M6_SCOPED_REFLOW_FAILED:${JSON.stringify(scopedDone.error)}`);
+    }
+    expect(scopedDone).toMatchObject({
+      id: scopedReflow.task.id,
+      type: "layout_compose",
+      status: "succeeded",
+      output: {
+        mode: "scoped_reflow",
+        result: { kind: "command_batch" },
+      },
+    });
+    const scopedCommands = (
+      scopedDone?.output?.result as { commandBatch?: { commands?: Array<{ type?: string; actor?: string }> } }
+    )?.commandBatch?.commands ?? [];
+    expect(scopedCommands.length).toBeGreaterThan(0);
+    expect(scopedCommands.every((command) => (
+      command.actor === "smart" && command.type !== "layout.resize_profile"
+    ))).toBe(true);
+    const scopedApplication = await reopenedCompositions.apply(scope, scopedReflow.task.id);
+    expect(scopedApplication).toMatchObject({
+      result: "applied",
+      target: "pending_command",
+      rowVersion: scopedBase.rowVersion,
+    });
+    const scopedPending = await reopenedPending.current(scope);
+    expect(scopedPending.item).toMatchObject({
+      id: scopedApplication.targetId,
+      payload: {
+        expectedRowVersion: scopedBase.rowVersion,
+        selectionElementIds: expect.arrayContaining([scopedElement.id]),
+      },
+    });
+    expect((await reopenedWorkingCopies.get(scope)).documentDigest).toBe(scopedBase.documentDigest);
+    await reopenedPending.apply(scope, scopedApplication.targetId);
+    expect((await reopenedWorkingCopies.get(scope)).rowVersion).toBe(scopedBase.rowVersion + 1);
+
+    await expect(reopenedCompositions.apply(scope, reflow.task.id)).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: "LAYOUT_COMPOSITION_BASE_CONFLICT" } },
+    });
+  }, 60_000);
 
   it("P6/G4-D: keeps formal layout/publication sources gated across replacement, late task, new candidate, and restart", async () => {
     const { deployed, workspaceRoot } = await prepareDatabase();

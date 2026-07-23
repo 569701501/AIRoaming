@@ -12,7 +12,7 @@ export interface WorkingCopyCandidateBindingProjection {
 
 export interface ProjectLayoutWorkingCopyDependenciesInput {
   workingCopyId: string;
-  documentKind: "legacy_chapter_layout_v1" | "layout_document_v1";
+  documentKind: "legacy_chapter_layout_v1" | "layout_document_v1" | "layout_document_v2";
   documentDigest: string;
   documentJson: unknown;
   currentRevisionByShot: Readonly<Record<string, {
@@ -153,7 +153,8 @@ export function projectLayoutWorkingCopyDependencies(
   input: ProjectLayoutWorkingCopyDependenciesInput,
 ): WorkingCopyCandidateBindingProjection[] {
   const document = record(input.documentJson);
-  if (document.schemaVersion !== 1 || document.kind !== input.documentKind) fail();
+  const expectedSchemaVersion = input.documentKind === "layout_document_v2" ? 2 : 1;
+  if (document.schemaVersion !== expectedSchemaVersion || document.kind !== input.documentKind) fail();
   return input.documentKind === "legacy_chapter_layout_v1"
     ? projectLegacy(input, document)
     : projectV1(input, document);

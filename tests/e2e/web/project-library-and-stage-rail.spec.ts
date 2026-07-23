@@ -6,7 +6,7 @@ const EXPECTED_STAGE_LABELS = [
   "分镜工作台",
   "出图准备",
   "候选图工作台",
-  "排版导出",
+  "漫画成稿",
   "素材包",
 ] as const;
 

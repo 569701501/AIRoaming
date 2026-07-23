@@ -9,6 +9,12 @@ import {
   LayoutProfileCodecV1,
   type LayoutDocumentValidationContextV1,
 } from "./codec.js";
+import {
+  LayoutDocumentCodecV2,
+  LayoutDocumentCodecV1OrV2,
+  type LayoutDocumentV1OrV2,
+  type LayoutDocumentV2,
+} from "./automation.js";
 import type {
   CandidateImageSourceV1,
   EncodedLayoutValue,
@@ -36,12 +42,20 @@ export interface SaveLayoutWorkingCopyRequestV1 {
   document: LayoutDocumentV1;
 }
 
+export interface SaveLayoutWorkingCopyRequestV1OrV2 {
+  schemaVersion: 1;
+  expectedRowVersion: number;
+  baseDocumentDigest: LayoutDigest;
+  documentDigest: LayoutDigest;
+  document: LayoutDocumentV1OrV2;
+}
+
 export interface LayoutWorkingCopyResponseV1 {
   schemaVersion: 1;
   id: string;
   projectId: string;
   chapterId: string;
-  document: LayoutDocumentV1;
+  document: LayoutDocumentV1OrV2;
   documentDigest: LayoutDigest;
   sourceLockSetDigest: LayoutDigest | null;
   basedOnRevisionId: string | null;
@@ -80,7 +94,7 @@ export interface SaveLayoutWorkingCopyResponseV1 {
 
 export interface LayoutLegacyCutoverStatusV1 {
   schemaVersion: 1;
-  state: "none" | "layout_document_v1" | "legacy_convertible" | "legacy_unresolved";
+  state: "none" | "layout_document_v1" | "layout_document_v2" | "legacy_convertible" | "legacy_unresolved";
   workingCopyId: string | null;
   legacyDocumentDigest: LayoutDigest | null;
   sourceResolution: "complete" | "unresolved" | null;
@@ -102,7 +116,7 @@ export interface LayoutWorkingCopyRecoveryV1 {
   serverRowVersion: number;
   serverDocumentDigest: LayoutDigest;
   localDocumentDigest: LayoutDigest;
-  document: LayoutDocumentV1;
+  document: LayoutDocumentV1OrV2;
 }
 
 export class LayoutWorkingCopyContractError extends Error {
@@ -216,6 +230,35 @@ export function parseSaveLayoutWorkingCopyRequestV1(
   };
 }
 
+export function parseSaveLayoutWorkingCopyRequestV1OrV2(
+  input: unknown,
+  context: LayoutDocumentValidationContextV1 = {},
+): SaveLayoutWorkingCopyRequestV1OrV2 {
+  const row = exact(input, [
+    "schemaVersion",
+    "expectedRowVersion",
+    "baseDocumentDigest",
+    "documentDigest",
+    "document",
+  ], "request");
+  if (row.schemaVersion !== 1) fail("request.schemaVersion", "expected 1");
+  const documentRow = object(row.document, "request.document");
+  const encoded = documentRow.schemaVersion === 2 && documentRow.kind === "layout_document_v2"
+    ? LayoutDocumentCodecV2.encode(row.document as LayoutDocumentV2, context)
+    : LayoutDocumentCodecV1.encode(row.document, context);
+  const claimedDigest = digest(row.documentDigest, "request.documentDigest");
+  if (claimedDigest !== encoded.digest) {
+    fail("request.documentDigest", "does not match the canonical document digest");
+  }
+  return {
+    schemaVersion: 1,
+    expectedRowVersion: nonnegativeInteger(row.expectedRowVersion, "request.expectedRowVersion"),
+    baseDocumentDigest: digest(row.baseDocumentDigest, "request.baseDocumentDigest"),
+    documentDigest: claimedDigest,
+    document: encoded.value,
+  };
+}
+
 export function encodeLayoutWorkingCopyRecoveryV1(
   input: unknown,
 ): EncodedLayoutValue<LayoutWorkingCopyRecoveryV1> {
@@ -234,7 +277,7 @@ export function encodeLayoutWorkingCopyRecoveryV1(
   if (row.kind !== "layout_working_copy_recovery_v1") fail("recovery.kind", "unsupported kind");
   const projectId = id(row.projectId, "recovery.projectId");
   const chapterId = id(row.chapterId, "recovery.chapterId");
-  const encodedDocument = LayoutDocumentCodecV1.encode(row.document, { projectId, chapterId });
+  const encodedDocument = LayoutDocumentCodecV1OrV2.encode(row.document, { projectId, chapterId });
   const localDocumentDigest = digest(row.localDocumentDigest, "recovery.localDocumentDigest");
   if (localDocumentDigest !== encodedDocument.digest) {
     fail("recovery.localDocumentDigest", "does not match the canonical document digest");
