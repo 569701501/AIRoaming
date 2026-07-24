@@ -24,26 +24,25 @@
         <button type="button" :disabled="!session.canRedo.value" title="重做" aria-label="重做" @click="session.redo">
           <Redo2 :size="16" />
         </button>
-        <button type="button" :disabled="!session.isDirty.value || session.isReadOnly.value" @click="session.flush">
+        <button type="button" :disabled="!session.isDirty.value || session.isReadOnly.value" title="立即保存" aria-label="立即保存" @click="session.flush">
           <CloudUpload :size="16" />
-          立即保存
         </button>
+        <button type="button" :disabled="!session.server.value || mobilePreviewBusy" title="打开独立手机只读预览" aria-label="手机预览" @click="openMobilePreview"><Smartphone :size="16" /></button>
         <button
-          class="primary-action"
           type="button"
           :disabled="session.isReadOnly.value || !session.server.value || !session.isAutomatedDocument.value || session.isDirty.value || composition.busy.value"
-          title="保留当前成稿不变，先生成一版可对比的新排法"
-          @click="openOrCreateReflow"
-        ><Sparkles :size="16" />{{ session.pendingCommand.value ? '查看新排法' : composition.busy.value ? '正在重新排版' : '重新排一版' }}</button>
-        <button type="button" :disabled="!session.server.value || mobilePreviewBusy" title="打开独立手机只读预览" @click="openMobilePreview"><Smartphone :size="16" />{{ mobilePreviewBusy ? '正在准备预览' : '手机预览' }}</button>
+          title="整章、当前页段、场景或选中内容的智能重排；先预览对比，再决定使用"
+          @click="openScopedAdjustment"
+        ><Sparkles :size="16" />{{ session.pendingCommand.value ? '查看新排法' : composition.busy.value ? '正在智能排版' : '智能调整' }}</button>
         <button
+          class="primary-action"
           type="button"
           :aria-expanded="m6PanelOpen"
           aria-controls="layout-m6-control-center"
           :disabled="!session.server.value"
           title="成稿预检、不可变版本与正式出版"
           @click="m6PanelOpen = !m6PanelOpen"
-        ><History :size="16" />版本与出版</button>
+        ><Download :size="16" />导出本章</button>
       </div>
     </header>
 
@@ -163,14 +162,14 @@
           >使用这版新排法</button>
         </div>
       </section>
-      <section v-else-if="aiRequestKind === 'full'" class="ai-empty-state">
-        <strong>还没有另一版排法</strong>
-        <p>生成后先在这里对比，不满意就保留当前成稿。已经手动调整过的内容不会被悄悄覆盖。</p>
-        <button class="primary-action" type="button" :disabled="composition.busy.value" @click="requestFullReflow">生成一版看看</button>
-      </section>
       <section v-else class="ai-empty-state ai-adjust-options">
         <strong>调整哪里</strong>
         <div class="ai-option-row">
+          <button
+            type="button"
+            :class="{ 'is-active': aiRequestKind === 'full' }"
+            @click="aiRequestKind = 'full'"
+          >整章重排</button>
           <button
             type="button"
             :class="{ 'is-active': aiRequestKind === 'selection' }"
@@ -189,20 +188,26 @@
             @click="aiRequestKind = 'scene'"
           >当前场景</button>
         </div>
-        <strong>想怎么调</strong>
-        <div class="ai-option-row">
-          <button type="button" :class="{ 'is-active': aiIntent === 'dialogue_readability' }" @click="aiIntent = 'dialogue_readability'">对白更清楚</button>
-          <button type="button" :class="{ 'is-active': aiIntent === 'emphasize_focus' }" @click="aiIntent = 'emphasize_focus'">突出重点</button>
-          <button type="button" :class="{ 'is-active': aiIntent === 'more_compact' }" @click="aiIntent = 'more_compact'">更紧凑</button>
-          <button type="button" :class="{ 'is-active': aiIntent === 'more_relaxed' }" @click="aiIntent = 'more_relaxed'">更舒展</button>
-        </div>
-        <p>只会调整这个范围，并自动带上同一段连续对白。已锁定或手动保护的内容会保留。</p>
-        <button
-          class="primary-action"
-          type="button"
-          :disabled="!canRequestScopedAdjustment || composition.busy.value"
-          @click="requestScopedReflow"
-        >生成调整预览</button>
+        <template v-if="aiRequestKind === 'full'">
+          <p>根据本章分镜、候选图和对白整体重排一版；生成后先对比，不满意就保留当前成稿，已手动调整过的内容不会被悄悄覆盖。</p>
+          <button class="primary-action" type="button" :disabled="composition.busy.value" @click="requestFullReflow">生成一版看看</button>
+        </template>
+        <template v-else>
+          <strong>想怎么调</strong>
+          <div class="ai-option-row">
+            <button type="button" :class="{ 'is-active': aiIntent === 'dialogue_readability' }" @click="aiIntent = 'dialogue_readability'">对白更清楚</button>
+            <button type="button" :class="{ 'is-active': aiIntent === 'emphasize_focus' }" @click="aiIntent = 'emphasize_focus'">突出重点</button>
+            <button type="button" :class="{ 'is-active': aiIntent === 'more_compact' }" @click="aiIntent = 'more_compact'">更紧凑</button>
+            <button type="button" :class="{ 'is-active': aiIntent === 'more_relaxed' }" @click="aiIntent = 'more_relaxed'">更舒展</button>
+          </div>
+          <p>只会调整这个范围，并自动带上同一段连续对白。已锁定或手动保护的内容会保留。</p>
+          <button
+            class="primary-action"
+            type="button"
+            :disabled="!canRequestScopedAdjustment || composition.busy.value"
+            @click="requestScopedReflow"
+          >生成调整预览</button>
+        </template>
       </section>
     </aside>
 
@@ -252,8 +257,8 @@
 
     <section v-if="session.server.value && m6PanelOpen" class="m6-control-center" data-testid="layout-m6-control-center" aria-label="来源返修与版本管理">
       <div class="m6-panel-head">
-        <strong>版本与出版管理</strong>
-        <button type="button" aria-label="收起版本与出版管理" @click="m6PanelOpen = false"><X :size="15" /></button>
+        <strong>导出本章 · 预检与出版</strong>
+        <button type="button" aria-label="收起导出面板" @click="m6PanelOpen = false"><X :size="15" /></button>
       </div>
       <ol class="release-flow" data-testid="layout-release-flow" aria-label="正式成稿发布步骤">
         <li :class="`is-${revisionPreflightStepTone}`">
@@ -447,25 +452,7 @@
     </section>
 
     <div v-else-if="session.document.value && session.currentCanvas.value" class="editor-shell" :class="{ 'is-readonly': session.isReadOnly.value }">
-      <nav class="tool-rail" aria-label="画布工具">
-        <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" aria-label="选择工具" @click="activeTool = 'select'"><MousePointer2 :size="18" /></button>
-        <button :class="{ 'is-active': activeTool === 'pan' }" type="button" title="平移" aria-label="平移工具" @click="activeTool = 'pan'"><Hand :size="18" /></button>
-        <button
-          :class="{ 'is-active': activeTool === 'crop' }"
-          type="button"
-          title="画布内调整图片裁切"
-          aria-label="裁切工具"
-          :disabled="session.isReadOnly.value || !primaryCrop"
-          @click="activeTool = 'crop'"
-        ><Crop :size="18" /></button>
-        <span />
-        <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" aria-label="添加空画格" @click="addPanel"><SquareDashed :size="18" /></button>
-        <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" aria-label="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="18" /></button>
-        <button type="button" :class="{ 'is-active': activeTool === 'text' }" :disabled="session.isReadOnly.value" title="添加文字" aria-label="添加文字" @click="addText"><Type :size="18" /></button>
-        <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" aria-label="添加气泡" @click="addBalloon"><MessageCircle :size="18" /></button>
-      </nav>
-
-      <aside class="canvas-navigation">
+      <aside v-if="leftPanelOpen" class="canvas-navigation">
         <div class="panel-heading">
           <strong>{{ isPaged ? '页面' : '条漫段落' }}</strong>
           <small>{{ session.document.value.canvases.length }}</small>
@@ -527,18 +514,17 @@
       <main class="canvas-workspace">
         <div class="canvas-toolbar">
           <div>
+            <button
+              type="button"
+              :title="leftPanelOpen ? '收起页面与素材栏' : '展开页面与素材栏'"
+              :aria-label="leftPanelOpen ? '收起页面与素材栏' : '展开页面与素材栏'"
+              @click="leftPanelOpen = !leftPanelOpen"
+            ><PanelLeftClose v-if="leftPanelOpen" :size="14" /><PanelLeftOpen v-else :size="14" /></button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('left')">左对齐</button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('center')">水平居中</button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('top')">顶对齐</button>
             <button type="button" :disabled="session.selectedElementIds.value.length < 3 || session.isReadOnly.value" @click="distributeHorizontal">水平分布</button>
             <button type="button" :disabled="!primaryElement || session.isReadOnly.value" @click="duplicatePrimaryElement">复制对象</button>
-            <button
-              class="smart-scope-action"
-              type="button"
-              :disabled="session.isReadOnly.value || !session.isAutomatedDocument.value || session.isDirty.value || composition.busy.value"
-              title="先预览，只调整选中内容；没有选择时调整当前页或段落"
-              @click="openScopedAdjustment"
-            ><Sparkles :size="14" />智能调整</button>
           </div>
           <label>
             缩放
@@ -546,10 +532,45 @@
             <span>{{ Math.round(session.zoom.value * 100) }}%</span>
           </label>
         </div>
-        <div
-          ref="stageScroll"
-          class="stage-scroll"
-        >
+        <div class="stage-wrap">
+          <nav class="canvas-tool-float" aria-label="画布工具">
+            <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" aria-label="选择工具" @click="activeTool = 'select'"><MousePointer2 :size="16" /></button>
+            <button :class="{ 'is-active': activeTool === 'pan' }" type="button" title="平移" aria-label="平移工具" @click="activeTool = 'pan'"><Hand :size="16" /></button>
+            <button
+              :class="{ 'is-active': activeTool === 'crop' }"
+              type="button"
+              title="画布内调整图片裁切"
+              aria-label="裁切工具"
+              :disabled="session.isReadOnly.value || !primaryCrop"
+              @click="activeTool = 'crop'"
+            ><Crop :size="16" /></button>
+            <span />
+            <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" aria-label="添加空画格" @click="addPanel"><SquareDashed :size="16" /></button>
+            <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" aria-label="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="16" /></button>
+            <button type="button" :class="{ 'is-active': activeTool === 'text' }" :disabled="session.isReadOnly.value" title="添加文字" aria-label="添加文字" @click="addText"><Type :size="16" /></button>
+            <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" aria-label="添加气泡" @click="addBalloon"><MessageCircle :size="16" /></button>
+          </nav>
+          <nav
+            v-if="canReplacePrimarySource && !session.isReadOnly.value && sourceCatalogItems.length"
+            class="shot-replace-strip"
+            aria-label="换图镜头条"
+          >
+            <span>换图</span>
+            <button
+              v-for="item in sourceCatalogItems"
+              :key="item.source.shotId"
+              type="button"
+              :title="`替换为镜头 ${item.order}`"
+              @click="replacePrimarySource(item)"
+            >
+              <img :src="api.projectAssetFileUrl(snapshot.project.id, item.source.assetId)" :alt="`镜头 ${item.order}`" />
+              <small>{{ item.order }}</small>
+            </button>
+          </nav>
+          <div
+            ref="stageScroll"
+            class="stage-scroll"
+          >
           <div
             class="document-canvas"
             :style="canvasStyle"
@@ -609,6 +630,7 @@
               @zoom="zoomKonvaViewport"
             />
           </div>
+          </div>
         </div>
       </main>
 
@@ -619,66 +641,10 @@
         </div>
 
         <div v-if="inspectorTab === 'properties'" class="property-panel">
-          <section class="special-properties profile-resize" data-testid="layout-profile-resize-preview" aria-label="画布尺寸预览">
-            <div class="section-heading">
-              <strong>画布尺寸</strong>
-              <small>先预览，再作为一次可撤销命令应用</small>
-            </div>
-            <div class="number-grid">
-              <label>宽度 <input v-model.number="resizeWidth" type="number" min="320" :max="isPaged ? 8192 : 4096" :disabled="session.isReadOnly.value" /></label>
-              <label>{{ isPaged ? '高度' : '新段默认高' }} <input v-model.number="resizeHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" /></label>
-            </div>
-            <label>已有内容处理
-              <select v-model="resizeMode" :disabled="session.isReadOnly.value">
-                <option value="keep_coordinates">保留坐标</option>
-                <option value="scale_uniform">等比缩放</option>
-              </select>
-            </label>
-            <p v-if="profileResizeResult.preview" aria-live="polite">
-              {{ profileResizeResult.preview.mode === 'scale_uniform' ? '已有内容将等比缩放' : '已有内容坐标不变' }}；
-              {{ isPaged ? `全部页面变为 ${resizeWidth} × ${resizeHeight}` : `已有段落保持独立文档坐标，新段默认高 ${resizeHeight}` }}。
-            </p>
-            <p v-else role="alert">{{ profileResizeResult.error }}</p>
-            <button type="button" :disabled="session.isReadOnly.value || !profileResizeResult.preview" @click="applyProfileResize">应用尺寸调整（可撤销）</button>
-            <template v-if="!isPaged">
-              <label>当前段高度
-                <input v-model.number="currentSectionHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" />
-              </label>
-              <button type="button" :disabled="session.isReadOnly.value || currentSectionHeight < 320" @click="applyCurrentSectionHeight">调整当前段高（可撤销）</button>
-            </template>
-          </section>
-
-          <section class="preset-picker" data-testid="layout-preset-picker">
-            <div class="section-heading">
-              <strong>画格模板</strong>
-              <small>不删除文字、气泡或自由图</small>
-            </div>
-            <div class="preset-grid">
-              <button
-                v-for="preset in presetOptions"
-                :key="preset.id"
-                type="button"
-                :class="{ 'is-active': selectedPresetId === preset.id }"
-                :disabled="session.isReadOnly.value"
-                @click="selectedPresetId = preset.id"
-              >{{ preset.label }}<small>{{ preset.count }} 格</small></button>
-            </div>
-            <p>{{ presetPreviewLabel }}</p>
-            <button type="button" :disabled="session.isReadOnly.value || !canApplyPreset" @click="applySelectedPreset">应用到当前画布</button>
-          </section>
-
           <template v-if="primaryElement">
             <div class="selection-title">
               <strong>{{ primaryElement.name }}</strong>
               <small>{{ primaryElement.type }}</small>
-            </div>
-            <div class="number-grid">
-              <label>X <input :value="primaryElement.transform.x" type="number" :disabled="cannotEditPrimary" @change="updateTransform('x', $event)" /></label>
-              <label>Y <input :value="primaryElement.transform.y" type="number" :disabled="cannotEditPrimary" @change="updateTransform('y', $event)" /></label>
-              <label>宽 <input :value="primaryElement.transform.width" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('width', $event)" /></label>
-              <label>高 <input :value="primaryElement.transform.height" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('height', $event)" /></label>
-              <label>旋转 <input :value="primaryElement.transform.rotation" type="number" :disabled="cannotEditPrimary" @change="updateTransform('rotation', $event)" /></label>
-              <label>对象透明 <input :value="primaryElement.transform.opacity" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateTransform('opacity', $event)" /></label>
             </div>
             <div class="property-actions">
               <button type="button" :disabled="session.isReadOnly.value" @click="setSelectedLocked(!primaryElement.locked)">
@@ -697,6 +663,22 @@
             <p v-if="session.selectedSmartProtections.value.length > 0" class="property-help">
               这个对象有手动调整记录，系统默认不会覆盖。允许后，下次智能调整可以重新移动或修整它；“锁定对象”不会被解除。
             </p>
+            <section class="precision-adjust">
+              <button
+                type="button"
+                class="collapsible-head"
+                :aria-expanded="precisionOpen"
+                @click="precisionOpen = !precisionOpen"
+              ><ChevronDown :size="14" :class="{ 'is-collapsed': !precisionOpen }" />精确调整</button>
+              <div v-show="precisionOpen" class="number-grid">
+                <label>X <input :value="primaryElement.transform.x" type="number" :disabled="cannotEditPrimary" @change="updateTransform('x', $event)" /></label>
+                <label>Y <input :value="primaryElement.transform.y" type="number" :disabled="cannotEditPrimary" @change="updateTransform('y', $event)" /></label>
+                <label>宽 <input :value="primaryElement.transform.width" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('width', $event)" /></label>
+                <label>高 <input :value="primaryElement.transform.height" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('height', $event)" /></label>
+                <label>旋转 <input :value="primaryElement.transform.rotation" type="number" :disabled="cannotEditPrimary" @change="updateTransform('rotation', $event)" /></label>
+                <label>对象透明 <input :value="primaryElement.transform.opacity" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateTransform('opacity', $event)" /></label>
+              </div>
+            </section>
 
             <section v-if="primaryElement.type === 'panel_frame'" class="special-properties">
               <div class="section-heading"><strong>画格</strong><small>图片内嵌于画格</small></div>
@@ -718,6 +700,12 @@
 
             <section v-if="primaryImage" class="special-properties" data-testid="crop-controls">
               <div class="section-heading"><strong>图片与裁切</strong><small>源文件不会改写</small></div>
+              <button
+                v-if="primaryCrop"
+                type="button"
+                :disabled="cannotEditPrimary"
+                @click="activeTool = 'crop'"
+              >在画布上拖调裁切</button>
               <label v-if="primaryElement.type === 'free_image'">显示方式
                 <select :value="primaryElement.display.mode" :disabled="cannotEditPrimary" @change="setFreeImageDisplay($event)">
                   <option value="contain">完整显示</option>
@@ -850,7 +838,7 @@
                 <label>目标 X <input :value="primaryElement.tail.targetX" type="number" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('targetX', $event)" /></label>
                 <label>目标 Y <input :value="primaryElement.tail.targetY" type="number" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('targetY', $event)" /></label>
               </div>
-              <p>文字模式只编辑内部文字，不会拖动气泡；切回选择工具后才移动完整对象。</p>
+              <p>在画布上直接拖动即可移动气泡；尾巴端点显示为小圆点时也可拖动。文字内容在上方编辑器中修改。</p>
             </section>
 
             <section v-if="primaryElement.type === 'text' || primaryElement.type === 'balloon'" class="text-preflight-summary" data-testid="text-preflight-summary">
@@ -859,6 +847,9 @@
               <p v-for="(issue, index) in primaryTextIssues" :key="`${issue.code}-${index}`">{{ textIssueLabel(issue) }}</p>
             </section>
 
+          </template>
+          <template v-else>
+            <p class="inspector-hint">点选画布中的画格、图片或气泡，这里会出现对应的调整操作。</p>
             <section v-if="currentPanels.length" class="reading-order">
               <div class="section-heading"><strong>阅读顺序</strong><small>独立于图层顺序</small></div>
               <article v-for="(panelId, index) in session.currentCanvas.value.panelReadingOrder" :key="panelId">
@@ -870,7 +861,64 @@
               </article>
             </section>
           </template>
-          <p v-else>选择画布对象后，可在这里精确调整位置、尺寸、旋转、锁定和隐藏。</p>
+
+          <section class="page-settings">
+            <button
+              type="button"
+              class="collapsible-head"
+              :aria-expanded="pageSettingsOpen"
+              @click="pageSettingsOpen = !pageSettingsOpen"
+            ><ChevronDown :size="14" :class="{ 'is-collapsed': !pageSettingsOpen }" />页面设置</button>
+            <div v-show="pageSettingsOpen" class="page-settings-body">
+              <section class="special-properties profile-resize" data-testid="layout-profile-resize-preview" aria-label="画布尺寸预览">
+                <div class="section-heading">
+                  <strong>画布尺寸</strong>
+                  <small>先预览，再作为一次可撤销命令应用</small>
+                </div>
+                <div class="number-grid">
+                  <label>宽度 <input v-model.number="resizeWidth" type="number" min="320" :max="isPaged ? 8192 : 4096" :disabled="session.isReadOnly.value" /></label>
+                  <label>{{ isPaged ? '高度' : '新段默认高' }} <input v-model.number="resizeHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" /></label>
+                </div>
+                <label>已有内容处理
+                  <select v-model="resizeMode" :disabled="session.isReadOnly.value">
+                    <option value="keep_coordinates">保留坐标</option>
+                    <option value="scale_uniform">等比缩放</option>
+                  </select>
+                </label>
+                <p v-if="profileResizeResult.preview" aria-live="polite">
+                  {{ profileResizeResult.preview.mode === 'scale_uniform' ? '已有内容将等比缩放' : '已有内容坐标不变' }}；
+                  {{ isPaged ? `全部页面变为 ${resizeWidth} × ${resizeHeight}` : `已有段落保持独立文档坐标，新段默认高 ${resizeHeight}` }}。
+                </p>
+                <p v-else role="alert">{{ profileResizeResult.error }}</p>
+                <button type="button" :disabled="session.isReadOnly.value || !profileResizeResult.preview" @click="applyProfileResize">应用尺寸调整（可撤销）</button>
+                <template v-if="!isPaged">
+                  <label>当前段高度
+                    <input v-model.number="currentSectionHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" />
+                  </label>
+                  <button type="button" :disabled="session.isReadOnly.value || currentSectionHeight < 320" @click="applyCurrentSectionHeight">调整当前段高（可撤销）</button>
+                </template>
+              </section>
+
+              <section class="preset-picker" data-testid="layout-preset-picker">
+                <div class="section-heading">
+                  <strong>画格模板</strong>
+                  <small>不删除文字、气泡或自由图</small>
+                </div>
+                <div class="preset-grid">
+                  <button
+                    v-for="preset in presetOptions"
+                    :key="preset.id"
+                    type="button"
+                    :class="{ 'is-active': selectedPresetId === preset.id }"
+                    :disabled="session.isReadOnly.value"
+                    @click="selectedPresetId = preset.id"
+                  >{{ preset.label }}<small>{{ preset.count }} 格</small></button>
+                </div>
+                <p>{{ presetPreviewLabel }}</p>
+                <button type="button" :disabled="session.isReadOnly.value || !canApplyPreset" @click="applySelectedPreset">应用到当前画布</button>
+              </section>
+            </div>
+          </section>
         </div>
 
         <div v-else class="layer-panel">
@@ -907,16 +955,18 @@ import {
   ChevronUp,
   CloudUpload,
   Crop,
+  Download,
   Eye,
   EyeOff,
   Hand,
-  History,
   Image as ImageIcon,
   LayoutTemplate,
   LoaderCircle,
   Lock,
   MessageCircle,
   MousePointer2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Redo2,
   Sparkles,
   Smartphone,
@@ -1035,6 +1085,9 @@ const stageScroll = ref<HTMLElement | null>(null);
 const aiDrawerOpen = ref(false);
 const aiBusy = ref(false);
 const aiRequestKind = ref<"full" | "selection" | "canvas" | "scene">("full");
+const leftPanelOpen = ref(true);
+const pageSettingsOpen = ref(true);
+const precisionOpen = ref(false);
 const aiIntent = ref<LayoutCompositionIntentV1>("dialogue_readability");
 const authoritativePreviewOpen = ref(false);
 const authoritativePreviewReviewed = ref(false);
@@ -1165,6 +1218,11 @@ const canBatchInitialize = computed(() => {
   return session.document.value.canvases.every((canvas) => canvas.elements.every((element) => element.type === "panel_frame"));
 });
 const cannotEditPrimary = computed(() => session.isReadOnly.value || Boolean(primaryElement.value?.locked));
+
+watch(() => primaryElement.value?.id ?? null, (id) => {
+  pageSettingsOpen.value = !id;
+  if (!id) precisionOpen.value = false;
+});
 const pendingPreviewDocument = computed(() => {
   const value = session.pendingCommand.value?.resultDocument;
   if (!value) return null;
@@ -1425,23 +1483,6 @@ async function retryInitialComposition(): Promise<void> {
   autoCompositionKey = chapterId.value ? `${projectId.value}:${chapterId.value}` : null;
   composition.reset();
   await generateInitialComposition();
-}
-
-async function openOrCreateReflow(): Promise<void> {
-  aiRequestKind.value = "full";
-  aiDrawerOpen.value = true;
-  aiBusy.value = true;
-  actionError.value = null;
-  try {
-    await session.loadPendingCommand();
-    if (!session.pendingCommand.value && !composition.busy.value) {
-      await requestFullReflow();
-    }
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "新排法读取失败";
-  } finally {
-    aiBusy.value = false;
-  }
 }
 
 async function requestFullReflow(): Promise<void> {
@@ -2013,7 +2054,7 @@ function addText(): void {
   };
   session.execute(command("element.add", "添加文字", { canvasId: canvas.id, element, beforeElementId: null }));
   session.selectElement(element.id);
-  activeTool.value = "text";
+  activeTool.value = "select";
 }
 
 function addBalloon(): void {
@@ -2048,7 +2089,7 @@ function addBalloon(): void {
   };
   session.execute(command("element.add", "添加气泡", { canvasId: canvas.id, element, beforeElementId: null }));
   session.selectElement(element.id);
-  activeTool.value = "text";
+  activeTool.value = "select";
 }
 
 function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string; historyGroupId: string }): void {
@@ -3217,6 +3258,19 @@ onBeforeUnmount(() => {
 <style scoped>
 .layout-editor {
   --layout-topbar-offset: 53px;
+  --le-bg-app: #0b101c;
+  --le-bg-panel: #101827;
+  --le-bg-stage: #0a0e17;
+  --le-bg-control: rgba(22, 32, 51, 0.9);
+  --le-border: rgba(148, 163, 184, 0.14);
+  --le-border-strong: rgba(148, 163, 184, 0.22);
+  --le-text: #e8edf8;
+  --le-text-dim: #8b98b2;
+  --le-accent: #4f8cff;
+  --le-accent-soft: rgba(79, 140, 255, 0.16);
+  --le-accent-border: rgba(79, 140, 255, 0.5);
+  --le-paper: #f6f3ec;
+  --le-radius: 8px;
   position: relative;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
@@ -3224,10 +3278,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(116, 95, 255, 0.18);
-  border-radius: 14px;
-  background: #080d19;
-  color: #e8edf8;
+  border: 1px solid var(--le-border);
+  border-radius: 12px;
+  background: var(--le-bg-app);
+  color: var(--le-text);
 }
 
 .layout-ai-drawer {
@@ -3241,8 +3295,8 @@ onBeforeUnmount(() => {
   gap: 14px;
   width: min(780px, calc(100% - 24px));
   box-sizing: border-box;
-  border-left: 1px solid rgba(116, 95, 255, 0.34);
-  background: rgba(9, 15, 28, 0.98);
+  border-left: 1px solid var(--le-border-strong);
+  background: rgba(11, 16, 28, 0.98);
   box-shadow: -20px 0 50px rgba(0, 0, 0, 0.42);
   padding: 16px;
   overflow: auto;
@@ -3274,10 +3328,10 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 .ai-option-row button.is-active {
-  border-color: rgba(129, 116, 255, 0.78);
-  background: rgba(116, 95, 255, 0.22);
-  color: #eeeaff;
-  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.16);
+  border-color: var(--le-accent-border);
+  background: var(--le-accent-soft);
+  color: #e6efff;
+  box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.16);
 }
 .ai-pending-state {
   justify-content: center;
@@ -3307,8 +3361,8 @@ onBeforeUnmount(() => {
 }
 .authoritative-preview-toggle {
   justify-self: stretch;
-  border-color: rgba(34, 199, 169, 0.34);
-  color: #a7f3d0;
+  border-color: var(--le-accent-border);
+  color: #cfe0ff;
 }
 .authoritative-preview-comparison {
   display: grid;
@@ -3320,10 +3374,10 @@ onBeforeUnmount(() => {
   padding-top: 10px;
 }
 .authoritative-preview-review-state {
-  border: 1px solid rgba(34, 199, 169, 0.22);
+  border: 1px solid var(--le-accent-border);
   border-radius: 8px;
-  background: rgba(34, 199, 169, 0.08);
-  color: #a7f3d0 !important;
+  background: var(--le-accent-soft);
+  color: #cfe0ff !important;
   padding: 8px 10px;
 }
 .authoritative-preview-review-state.is-error {
@@ -3339,9 +3393,9 @@ input {
 }
 
 button {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 8px;
-  background: rgba(19, 28, 48, 0.9);
+  border: 1px solid var(--le-border-strong);
+  border-radius: var(--le-radius);
+  background: var(--le-bg-control);
   color: #d9e2f3;
   min-height: 32px;
   padding: 0 10px;
@@ -3369,17 +3423,9 @@ button:disabled {
 .editor-topbar {
   justify-content: space-between;
   min-height: 52px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid var(--le-border);
   padding: 8px 12px;
-  background: rgba(12, 18, 33, 0.96);
-}
-
-.smart-scope-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border-color: rgba(129, 116, 255, 0.42);
-  color: #d8d1ff;
+  background: var(--le-bg-panel);
 }
 
 .layout-source-attention {
@@ -3426,9 +3472,9 @@ button:disabled {
   gap: 10px;
   max-height: 286px;
   overflow: auto;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  border-bottom: 1px solid var(--le-border);
   padding: 10px 12px;
-  background: #0a1120;
+  background: var(--le-bg-app);
 }
 
 .m6-panel-head {
@@ -3497,8 +3543,8 @@ button:disabled {
   gap: 2px;
 }
 
-.release-flow li strong { font-size: 10px; }
-.release-flow li small { color: #71809c; font-size: 8px; }
+.release-flow li strong { font-size: 11px; }
+.release-flow li small { color: #71809c; font-size: 10px; }
 .release-flow li.is-ready { border-color: rgba(34, 197, 94, 0.3); }
 .release-flow li.is-ready > span { background: rgba(34, 197, 94, 0.16); color: #86efac; }
 .release-flow li.is-warning { border-color: rgba(245, 158, 11, 0.3); }
@@ -3740,30 +3786,72 @@ button:disabled {
 
 .editor-shell {
   display: grid;
-  grid-template-columns: 48px 238px minmax(0, 1fr) 320px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
 }
 
-.tool-rail,
 .canvas-navigation,
 .inspector {
   min-height: 0;
-  border-right: 1px solid rgba(148, 163, 184, 0.12);
-  background: #0c1322;
+  border-right: 1px solid var(--le-border);
+  background: var(--le-bg-panel);
 }
 
-.tool-rail {
+.canvas-navigation { width: 238px; grid-column: 1; }
+.canvas-workspace { grid-column: 2; }
+.inspector { width: 320px; grid-column: 3; }
+
+.stage-wrap {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-tool-float {
+  position: absolute;
+  z-index: 30;
+  top: 12px;
+  left: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px 7px;
+  gap: 4px;
+  border: 1px solid var(--le-border-strong);
+  border-radius: 10px;
+  background: rgba(16, 24, 39, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 6px;
 }
 
-.tool-rail button { width: 34px; padding: 0; }
-.tool-rail button.is-active { border-color: rgba(34, 199, 169, 0.5); background: rgba(34, 199, 169, 0.16); color: #8df0dc; }
-.tool-rail span { height: 1px; width: 26px; background: rgba(148, 163, 184, 0.16); }
+.canvas-tool-float button { width: 32px; min-height: 32px; padding: 0; }
+.canvas-tool-float button.is-active { border-color: var(--le-accent-border); background: var(--le-accent-soft); color: #cfe0ff; }
+.canvas-tool-float span { height: 1px; width: 20px; background: var(--le-border-strong); }
+
+.shot-replace-strip {
+  position: absolute;
+  z-index: 30;
+  right: 16px;
+  bottom: 16px;
+  left: 64px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--le-border-strong);
+  border-radius: 10px;
+  background: rgba(16, 24, 39, 0.94);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 8px 10px;
+}
+
+.shot-replace-strip > span { flex: none; color: var(--le-text-dim); font-size: 12px; }
+.shot-replace-strip button { display: grid; flex: none; justify-items: center; gap: 3px; min-height: 0; padding: 4px; }
+.shot-replace-strip button:hover { border-color: var(--le-accent-border); }
+.shot-replace-strip img { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; pointer-events: none; }
+.shot-replace-strip small { color: var(--le-text-dim); font-size: 10px; }
 
 .canvas-navigation {
   overflow: auto;
@@ -3784,23 +3872,23 @@ button:disabled {
 .canvas-nav-item > span { display: grid; place-items: center; width: 26px; height: 32px; border-radius: 6px; background: #e9edf5; color: #111827; font-weight: 900; }
 .canvas-nav-item > div:not(.canvas-nav-actions) { display: grid; gap: 3px; min-width: 0; flex: 1; }
 .canvas-nav-item small { color: #7f8ca8; }
-.canvas-nav-item.is-active { border-color: rgba(116, 95, 255, 0.55); background: rgba(116, 95, 255, 0.14); }
+.canvas-nav-item.is-active { border-color: var(--le-accent-border); background: var(--le-accent-soft); }
 .canvas-nav-actions { display: flex; margin-left: auto; }
 .canvas-nav-actions button { width: 25px; min-height: 25px; border: 0; padding: 0; background: transparent; }
 .canvas-list-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.canvas-list-actions button { min-width: 0; padding: 0 5px; font-size: 11px; }
+.canvas-list-actions button { min-width: 0; padding: 0 5px; font-size: 12px; }
 
-.shot-tray { margin-top: 18px; border-top: 1px solid rgba(148, 163, 184, 0.12); padding-top: 14px; }
-.shot-tray > p { color: #7f8ca8; font-size: 11px; line-height: 1.5; }
+.shot-tray { margin-top: 18px; border-top: 1px solid var(--le-border); padding-top: 14px; }
+.shot-tray > p { color: #7f8ca8; font-size: 12px; line-height: 1.5; }
 .shot-tray article { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 8px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 9px; padding: 7px; margin-bottom: 8px; cursor: pointer; }
-.shot-tray article.is-selected { border-color: rgba(34, 199, 169, 0.48); background: rgba(34, 199, 169, 0.08); }
+.shot-tray article.is-selected { border-color: var(--le-accent-border); background: var(--le-accent-soft); }
 .shot-tray article > img { width: 54px; height: 54px; border-radius: 6px; object-fit: cover; }
 .shot-tray article > div { display: grid; align-content: center; gap: 4px; min-width: 0; }
-.shot-tray article small { color: #8491aa; font-size: 10px; }
+.shot-tray article small { color: #8491aa; font-size: 11px; }
 .shot-actions { grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 4px !important; }
-.shot-actions button { min-width: 0; min-height: 27px; padding: 0 3px; font-size: 10px; }
+.shot-actions button { min-width: 0; min-height: 27px; padding: 0 3px; font-size: 11px; }
 
-.source-summary { display: grid; gap: 8px; margin-top: 18px; border-top: 1px solid rgba(148, 163, 184, 0.12); padding-top: 14px; }
+.source-summary { display: grid; gap: 8px; margin-top: 18px; border-top: 1px solid var(--le-border); padding-top: 14px; }
 .source-summary span { justify-self: start; }
 
 .canvas-workspace {
@@ -3809,27 +3897,25 @@ button:disabled {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #060a12;
+  background: var(--le-bg-stage);
 }
 
 .canvas-toolbar {
   justify-content: space-between;
   min-height: 44px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+  border-bottom: 1px solid var(--le-border);
   padding: 6px 10px;
-  background: #0b1220;
+  background: var(--le-bg-panel);
 }
-.canvas-toolbar button { min-height: 28px; font-size: 11px; }
-.canvas-toolbar label { color: #8491aa; font-size: 11px; }
+.canvas-toolbar button { min-height: 28px; font-size: 12px; }
+.canvas-toolbar label { color: var(--le-text-dim); font-size: 12px; }
 .canvas-toolbar input { width: 100px; }
 
 .stage-scroll {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 48px;
-  background-image: radial-gradient(rgba(148, 163, 184, 0.12) 1px, transparent 1px);
-  background-size: 20px 20px;
+  padding: 40px 48px;
 }
 
 .document-canvas {
@@ -3837,7 +3923,9 @@ button:disabled {
   margin: 0 auto;
   flex: none;
   overflow: hidden;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+  border-radius: 3px;
+  background: var(--le-paper);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
   touch-action: none;
 }
 
@@ -3864,7 +3952,7 @@ button:disabled {
   box-sizing: border-box;
   pointer-events: none;
 }
-.canvas-element.is-selected { outline: 3px solid #22c7a9; outline-offset: 2px; }
+.canvas-element.is-selected { outline: 3px solid var(--le-accent); outline-offset: 2px; }
 .canvas-element.is-locked { cursor: not-allowed; }
 .lock-mark { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; background: rgba(8, 13, 25, 0.78); color: white; }
 .canvas-element.has-text-overflow { outline: 3px solid #dc2626; outline-offset: 2px; }
@@ -3876,26 +3964,46 @@ button:disabled {
 }
 .inspector-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
 .inspector-tabs button { border: 0; background: transparent; }
-.inspector-tabs button.is-active { background: rgba(116, 95, 255, 0.16); color: #cbc5ff; }
+.inspector-tabs button.is-active { background: var(--le-accent-soft); color: #cfe0ff; }
 .property-panel,
 .layer-panel { height: calc(100% - 49px); overflow: auto; padding: 12px; }
 .property-panel > p { color: #7f8ca8; line-height: 1.6; }
 .number-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.number-grid label { display: grid; gap: 5px; color: #8491aa; font-size: 11px; }
+.number-grid label { display: grid; gap: 5px; color: #8491aa; font-size: 12px; }
+.collapsible-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--le-text);
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 30px;
+  padding: 0;
+}
+.collapsible-head svg { transition: transform 0.15s ease; }
+.collapsible-head svg.is-collapsed { transform: rotate(-90deg); }
+.precision-adjust { margin-bottom: 14px; }
+.precision-adjust .number-grid { margin-top: 9px; }
+.page-settings { border-top: 1px solid var(--le-border); padding-top: 12px; }
+.page-settings-body { display: grid; gap: 14px; margin-top: 10px; }
+.inspector-hint { color: #7f8ca8; font-size: 12px; line-height: 1.6; margin: 0 0 12px; }
 .number-grid input { width: 100%; box-sizing: border-box; }
 .property-actions { flex-wrap: wrap; margin-top: 14px; }
-.property-help { margin: 8px 0 14px; color: #8491aa; font-size: 10px; line-height: 1.55; }
+.property-help { margin: 8px 0 14px; color: #8491aa; font-size: 11px; line-height: 1.55; }
 .preset-picker,
 .special-properties,
-.reading-order { display: grid; gap: 9px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); padding-bottom: 14px; margin-bottom: 14px; }
+.reading-order { display: grid; gap: 9px; border-bottom: 1px solid var(--le-border); padding-bottom: 14px; margin-bottom: 14px; }
 .section-heading { display: grid; gap: 3px; }
-.section-heading small { color: #7f8ca8; font-size: 10px; }
+.section-heading small { color: #7f8ca8; font-size: 11px; }
 .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.preset-grid button { display: flex; justify-content: space-between; align-items: center; min-width: 0; padding: 6px 8px; font-size: 11px; }
-.preset-grid button.is-active { border-color: rgba(116, 95, 255, 0.55); background: rgba(116, 95, 255, 0.16); }
-.preset-grid small { color: #7f8ca8; font-size: 9px; }
+.preset-grid button { display: flex; justify-content: space-between; align-items: center; min-width: 0; padding: 6px 8px; font-size: 12px; }
+.preset-grid small { color: #7f8ca8; font-size: 10px; }
 .preset-picker > p,
-.special-properties > p { margin: 0; color: #8491aa; font-size: 10px; line-height: 1.5; }
+.special-properties > p { margin: 0; color: #8491aa; font-size: 11px; line-height: 1.5; }
 .special-properties > p.reserved-color-warning {
   border: 1px solid rgba(245, 158, 11, 0.28);
   border-radius: 7px;
@@ -3903,7 +4011,7 @@ button:disabled {
   color: #fcd34d;
   padding: 7px;
 }
-.special-properties > label { display: grid; gap: 5px; color: #8491aa; font-size: 11px; }
+.special-properties > label { display: grid; gap: 5px; color: #8491aa; font-size: 12px; }
 .special-properties .check-row { display: flex; align-items: center; grid-template-columns: auto 1fr; }
 .special-properties .check-row input { width: auto; }
 .balloon-preset-row,
@@ -3916,15 +4024,15 @@ button:disabled {
 .sfx-preset-row button {
   min-width: 0;
   padding: 0 6px;
-  font-size: 10px;
+  font-size: 11px;
 }
-.text-preflight-summary { display: grid; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.14); border-radius: 9px; padding: 10px; margin: 12px 0; }
-.text-preflight-summary p { margin: 0; color: #93a4bf; font-size: 10px; line-height: 1.5; }
-.reading-order article { display: flex; align-items: center; justify-content: space-between; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 7px; padding: 5px 7px; font-size: 11px; }
+.text-preflight-summary { display: grid; gap: 6px; border: 1px solid var(--le-border); border-radius: 9px; padding: 10px; margin: 12px 0; }
+.text-preflight-summary p { margin: 0; color: #93a4bf; font-size: 11px; line-height: 1.5; }
+.reading-order article { display: flex; align-items: center; justify-content: space-between; gap: 6px; border: 1px solid var(--le-border); border-radius: 7px; padding: 5px 7px; font-size: 12px; }
 .reading-order article div { display: flex; }
 .reading-order article button { width: 25px; min-height: 25px; padding: 0; border: 0; background: transparent; }
 .layer-panel article { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid transparent; border-radius: 8px; padding: 7px; margin-bottom: 5px; cursor: pointer; }
-.layer-panel article.is-selected { border-color: rgba(34, 199, 169, 0.36); background: rgba(34, 199, 169, 0.09); }
+.layer-panel article.is-selected { border-color: var(--le-accent-border); background: var(--le-accent-soft); }
 .layer-panel article > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .layer-panel article div { display: flex; }
 .layer-panel article button { width: 27px; min-height: 27px; padding: 0; border: 0; background: transparent; }
@@ -3933,7 +4041,9 @@ button:disabled {
 .editor-shell.is-readonly .canvas-element { pointer-events: none; }
 
 @media (max-width: 1260px) {
-  .editor-shell { grid-template-columns: 44px 210px minmax(0, 1fr) 280px; }
+  .editor-shell { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .canvas-navigation { width: 210px; }
+  .inspector { width: 280px; }
   .m6-control-center { grid-template-columns: 1fr 1fr; }
   .history-card { grid-column: 1 / -1; }
   .release-flow { grid-template-columns: 1fr 1fr; }
@@ -3954,7 +4064,8 @@ button:disabled {
   .editor-topbar { flex-wrap: wrap; }
   .top-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
   .editor-shell { grid-template-columns: 1fr; overflow: visible; }
-  .tool-rail,
+  .canvas-workspace { grid-column: auto; }
+  .canvas-tool-float,
   .canvas-navigation,
   .inspector { display: none; }
   .canvas-workspace { min-height: 560px; }

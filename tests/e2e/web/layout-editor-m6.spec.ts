@@ -42,7 +42,7 @@ test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成
   );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
   const initialWorkingCopy = await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
@@ -53,7 +53,7 @@ test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成
   const replacement = await replaceCandidate(api, fixture, fixture.candidateIds[1]!);
   expect(replacement.revision.previousRevisionId).toBe(firstLock.revision.id);
   await page.reload();
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
   const controls = page.getByTestId("layout-m6-control-center");
   await controls.getByLabel("裁切处理").selectOption("preserve_normalized_crop");

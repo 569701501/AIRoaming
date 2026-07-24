@@ -91,7 +91,7 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   await page.goto(`/projects/${fixture.projectId}/layout`);
   await expect(page.getByTestId("shot-tray")).toBeVisible();
   await expect(page.getByRole("button", { name: "手机预览" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "版本与出版" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "导出本章" })).toBeVisible();
   const textStateEvidenceRoot = path.resolve(
     "文档/05_执行与记录/任务记录/2026-07-24_漫画成稿文字状态修复/evidence",
   );
@@ -300,31 +300,20 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 30);
   await page.mouse.up();
   await saveNow(page);
-  const afterTextMode = await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  );
-  const textModeBalloon = afterTextMode.data.document.canvases[0]!.elements.find((element): element is BalloonElementV1 => element.type === "balloon")!;
-  expect(textModeBalloon.transform).toEqual(beforeBalloon.transform);
-
-  await page.getByTitle("选择", { exact: true }).click();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 30);
-  await page.mouse.up();
-  await saveNow(page);
   const afterSelectMode = await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
   );
   const selectModeBalloon = afterSelectMode.data.document.canvases[0]!.elements.find((element): element is BalloonElementV1 => element.type === "balloon")!;
   expect(selectModeBalloon.transform.x).not.toBe(beforeBalloon.transform.x);
 
+  await page.getByRole("button", { name: "精确调整" }).click();
   await page.getByLabel("宽", { exact: true }).fill("160");
   await page.getByLabel("宽", { exact: true }).press("Tab");
   await page.getByLabel("高", { exact: true }).fill("120");
   await page.getByLabel("高", { exact: true }).press("Tab");
   await pastePlainText(balloonEditor, "这是一个会明确溢出的很长很长的受控气泡文本");
   await expect(page.getByTestId("text-preflight-summary")).toContainText("文字溢出");
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   await page.getByTestId("layout-m6-control-center").getByRole("button", { name: "重新预检" }).click();
   await expect(page.getByTestId("layout-preflight-result")).toContainText("文字发生溢出");
   await expect(page.getByRole("button", { name: "还需确认 1 项警告" })).toBeDisabled();

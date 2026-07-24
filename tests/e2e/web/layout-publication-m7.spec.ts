@@ -56,7 +56,7 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
 
   // E2E 图片服务返回真实 1×1 PNG；把画格同步成 1×1，避免伪造来源尺寸，仍由渲染器读取原始字节。
@@ -82,7 +82,7 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   );
   await page.reload();
 
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   await page.getByTestId("layout-m6-control-center").getByRole("button", { name: "重新预检" }).click();
   const revisionPreflight = page.getByTestId("layout-preflight-result");
   await expect(revisionPreflight).toBeVisible();
@@ -277,7 +277,7 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   expect(replacementLock.revision.previousRevisionId).toBe(originalLock.revision.id);
   await page.reload();
   await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   const controls = page.getByTestId("layout-m6-control-center");
   await controls.getByRole("button", { name: "重新预检" }).click();
   const staleSourcePreflight = page.getByTestId("layout-preflight-result");
@@ -409,7 +409,7 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
     },
   );
   await page.reload();
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
 
   await controls.getByRole("button", { name: "重新预检" }).click();
   const revisionPreflight = page.getByTestId("layout-preflight-result");
@@ -600,7 +600,7 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   expect(changedWorkingCopy.documentDigest).not.toBe(finalRevisionDigest);
 
   await page.reload();
-  await page.getByRole("button", { name: "版本与出版" }).click();
+  await page.getByRole("button", { name: "导出本章" }).click();
   page.once("dialog", async (dialog) => {
     expect(dialog.type()).toBe("confirm");
     await dialog.accept();

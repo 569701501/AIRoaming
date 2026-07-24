@@ -63,7 +63,9 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
     await page.getByRole("button", { name: "应用到当前画布" }).click();
     const panels = page.locator(".canvas-element.type-panel_frame");
     await expect(panels).toHaveCount(2);
-    await panels.nth(0).click();
+    const panelBox = await panels.nth(0).boundingBox();
+    if (!panelBox) throw new Error("PANEL_BOX_MISSING");
+    await page.mouse.click(panelBox.x + panelBox.width / 2, panelBox.y + panelBox.height / 2);
     await expect(page.getByTestId("crop-controls")).toBeVisible();
     await page.getByRole("button", { name: "水平翻转" }).click();
     await expect(page.getByTestId("crop-controls")).toContainText("裁切覆盖完整");
@@ -79,6 +81,9 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
     await expect(page.locator(".canvas-element.type-free_image")).toHaveCount(1);
     await expect(shotTray).toContainText("已放置 2 处");
 
+    const canvasBox = await page.locator(".document-canvas").boundingBox();
+    if (!canvasBox) throw new Error("CANVAS_BOX_MISSING");
+    await page.mouse.click(canvasBox.x + 4, canvasBox.y + 4);
     const readingRows = page.locator(".reading-order article");
     await expect(readingRows).toHaveCount(2);
     const secondReadingButtons = readingRows.nth(1).locator("button");

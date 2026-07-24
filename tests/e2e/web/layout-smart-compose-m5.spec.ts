@@ -57,7 +57,10 @@ test("智能成稿：受控字体加载失败时完整预览保持关闭", async
   const generate = page.getByRole("button", { name: "生成完整成稿" });
   if (await generate.isVisible()) await generate.click();
   await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 35_000 });
-  await page.getByRole("button", { name: "重新排一版" }).click();
+  await page.getByRole("button", { name: "智能调整" }).click();
+  const fullReflowDrawer = page.getByTestId("layout-ai-drawer");
+  await fullReflowDrawer.getByRole("button", { name: "整章重排" }).click();
+  await fullReflowDrawer.getByRole("button", { name: "生成一版看看" }).click();
   const comparison = page.getByTestId("layout-ai-command-preview");
   await expect(comparison).toBeVisible({ timeout: 35_000 });
   await comparison.getByRole("button", { name: "展开完整视觉预览（应用前必看）" }).click();
@@ -99,7 +102,10 @@ test("智能成稿：资源就绪前的滚动不计入完整预览审核", async
     const generate = page.getByRole("button", { name: "生成完整成稿" });
     if (await generate.isVisible()) await generate.click();
     await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 35_000 });
-    await page.getByRole("button", { name: "重新排一版" }).click();
+    await page.getByRole("button", { name: "智能调整" }).click();
+    const fullReflowDrawer = page.getByTestId("layout-ai-drawer");
+    await fullReflowDrawer.getByRole("button", { name: "整章重排" }).click();
+    await fullReflowDrawer.getByRole("button", { name: "生成一版看看" }).click();
     const comparison = page.getByTestId("layout-ai-command-preview");
     await expect(comparison).toBeVisible({ timeout: 35_000 });
     await comparison.getByRole("button", { name: "展开完整视觉预览（应用前必看）" }).click();
@@ -160,7 +166,7 @@ test("智能成稿：自动生成、直接编辑与整章新排法预览形成�
   await expect(page.getByTestId("layout-smart-compose-state")).toBeVisible();
   await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 35_000 });
   await expect(page.getByRole("button", { name: "创建数据库草稿" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "重新排一版" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "智能调整" })).toBeEnabled();
 
   const initial = (await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
@@ -171,9 +177,11 @@ test("智能成稿：自动生成、直接编辑与整章新排法预览形成�
   expect(initialDocument.canvases[0]!.elements.some((element) => element.type === "panel_frame")).toBe(true);
   expect(initialDocument.automation.composition?.mode).toBe("rule_fallback");
 
-  await page.getByRole("button", { name: "重新排一版" }).click();
+  await page.getByRole("button", { name: "智能调整" }).click();
   const drawer = page.getByTestId("layout-ai-drawer");
   await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: "整章重排" }).click();
+  await drawer.getByRole("button", { name: "生成一版看看" }).click();
   const comparison = page.getByTestId("layout-ai-command-preview");
   await expect(comparison).toBeVisible({ timeout: 35_000 });
   await expect(comparison).toContainText("当前排法");
@@ -347,7 +355,10 @@ test("智能成稿：页漫零设置生成后再次进入不会重复生成", as
     expect(afterScopedDiscard.documentDigest).toBe(initial.documentDigest);
     expect(afterScopedDiscard.rowVersion).toBe(initial.rowVersion);
 
-    await page.getByRole("button", { name: "重新排一版" }).click();
+    await page.getByRole("button", { name: "智能调整" }).click();
+    const fullReflowDrawer = page.getByTestId("layout-ai-drawer");
+    await fullReflowDrawer.getByRole("button", { name: "整章重排" }).click();
+    await fullReflowDrawer.getByRole("button", { name: "生成一版看看" }).click();
     const comparison = page.getByTestId("layout-ai-command-preview");
     await expect(comparison).toBeVisible({ timeout: 35_000 });
     await comparison.getByRole("button", { name: "保留当前排法" }).click();
