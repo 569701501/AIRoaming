@@ -7,7 +7,7 @@ import {
 } from "./script-workflow-runtime-migration-ledger.js";
 
 describe("script workflow runtime migration ledger", () => {
-  it("extends the historical G5 ledger through source-state and LayoutDocumentV2", async () => {
+  it("extends the historical G5 ledger through LayoutDocumentV2 revision/publication", async () => {
     const expected = await loadScriptWorkflowRuntimeMigrationExpectationsV1();
     expect(expected.map((item) => item.migrationName)).toEqual(SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES);
     const rows = expected.map((item) => ({

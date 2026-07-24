@@ -390,13 +390,14 @@ function effectsForV1Command(document: LayoutDocumentV2, command: EditorCommandV
     case "panel.detach_image_to_free": return [imageEffect(document, p.canvasId, p.elementId, "existence", "crop", "source")];
     case "image.set_display": case "image.set_crop": return [imageEffect(document, p.canvasId, p.elementId, "crop")];
     case "image.replace_source": return [imageEffect(document, p.canvasId, p.elementId, "source", "crop")];
-    case "text.replace_range": case "text.replace_document": return [targetEffect("element", p.elementId, "text")];
+    case "text.replace_range": return [targetEffect("element", p.elementId, "text")];
+    case "text.replace_document": return [targetEffect("element", p.elementId, "text", "style")];
     case "text.apply_range_style": case "text.set_paragraph_style": case "text.set_semantic":
       return [targetEffect("element", p.elementId, "style")];
     case "balloon.set_kind": case "balloon.set_visual_style": return [targetEffect("element", p.elementId, "style")];
     case "balloon.set_tail": return [targetEffect("element", p.elementId, "tail")];
     case "balloon.set_source_refs": return [targetEffect("element", p.elementId, "source")];
-    case "balloon.replace_text_document": return [targetEffect("element", p.elementId, "text")];
+    case "balloon.replace_text_document": return [targetEffect("element", p.elementId, "text", "style")];
     case "layout.apply_preset": {
       const target = canvas(document, p.canvasId);
       return [

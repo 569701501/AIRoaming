@@ -105,7 +105,7 @@ describe("Smart layout M1 V2 command actor and protection contract", () => {
     })).toThrow(/unknown field/);
   });
 
-  it("SML-DLG-007 protects only user-edited bound text while leaving geometry smart-adjustable", async () => {
+  it("SML-DLG-007 protects user-edited bound rich text and style while leaving geometry smart-adjustable", async () => {
     const before = bind(await freshV2());
     const changedText = textWith(balloon(before).richText, "这是人工修改后的对白");
     const edited = applyLayoutCommandV2(before, command("balloon.replace_text_document", {
@@ -120,7 +120,7 @@ describe("Smart layout M1 V2 command actor and protection contract", () => {
     expect(edited.automation.protections).toContainEqual({
       targetKind: "element",
       targetId: "balloon_speech",
-      scopes: ["text"],
+      scopes: ["text", "style"],
       reason: "user_edit",
     });
     expect(() => applyLayoutCommandV2(edited, command("balloon.replace_text_document", {

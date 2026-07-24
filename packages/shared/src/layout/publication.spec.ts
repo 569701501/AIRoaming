@@ -6,9 +6,19 @@ import { describe, expect, it } from "vitest";
 import { digestCanonicalJson } from "../versioning/canonical-json.js";
 import type { LayoutDocumentV1 } from "./document.js";
 import {
+  LayoutDocumentCodecV2,
+  projectLayoutDocumentV2ToV1,
+  upgradeLayoutWorkingCopyV1ToV2,
+} from "./automation.js";
+import { LayoutDocumentCodecV1 } from "./codec.js";
+import {
   buildLayoutRenderPlanV1,
+  buildLayoutRenderPlanV2,
   buildPublicationManifestV1,
+  buildPublicationManifestV2,
   buildVerticalSlicePlanV1,
+  parseLayoutPublicationTaskInputV2,
+  parseCreateLayoutPublicationRequestV2,
   parseCreateLayoutPublicationRequestV1,
   type RenderAssetManifestV1,
 } from "./publication.js";
@@ -139,5 +149,135 @@ describe("G5-M7 publication contracts", () => {
     expect(manifest.value.outputs).toHaveLength(1);
     expect(manifest.value.outputs.some((output) => output.role === "publication_manifest" as never)).toBe(false);
     expect(manifest.digest).toBe(digestCanonicalJson(manifest.value));
+  });
+
+  it("freezes full and visible V2 digests in render plans, task input and manifests", async () => {
+    const sample = await fixture("paged-four-panel-rich-text");
+    const document = upgradeLayoutWorkingCopyV1ToV2(sample.document);
+    const revisionDocumentDigest = LayoutDocumentCodecV2.encode(document).digest;
+    const visibleDocumentDigest = LayoutDocumentCodecV1.encode(projectLayoutDocumentV2ToV1(document)).digest;
+    const plan = buildLayoutRenderPlanV2({
+      document,
+      sourceLockSetDigest: sample.expected.sourceLockSetDigest,
+      profile: sample.expected.profile,
+      assets: sample.expected.assetManifest,
+    });
+    expect(plan).toMatchObject({
+      schemaVersion: 2,
+      kind: "layout_render_plan_v2",
+      revisionDocumentDigest,
+      visibleDocumentDigest,
+    });
+    const { renderPlanDigest, ...unsignedPlan } = plan;
+    expect(renderPlanDigest).toBe(digestCanonicalJson(unsignedPlan));
+
+    const request = parseCreateLayoutPublicationRequestV2({
+      schemaVersion: 2,
+      requestId: "request_v2",
+      layoutRevisionId: "layout_revision_v2",
+      expectedCurrentLayoutRevisionId: "layout_revision_v2",
+      expectedRevisionDocumentDigest: revisionDocumentDigest,
+      expectedVisibleDocumentDigest: visibleDocumentDigest,
+      profile: sample.expected.profile,
+      profileDigest: sample.expected.profileDigest,
+      preflightDigest: sample.expected.documentDigest,
+      acknowledgedIssueKeys: [],
+    });
+    expect(request.expectedRevisionDocumentDigest).toBe(revisionDocumentDigest);
+
+    const taskInput = {
+      schemaVersion: 2,
+      kind: "layout_publication_task_v2",
+      requestId: "request_v2",
+      exportRevisionId: "export_v2",
+      layoutRevisionId: "layout_revision_v2",
+      revisionDocumentDigest,
+      visibleDocumentDigest,
+      sourceLockSetDigest: sample.expected.sourceLockSetDigest,
+      profile: sample.expected.profile,
+      profileDigest: sample.expected.profileDigest,
+      preflightDigest: sample.expected.documentDigest,
+      acknowledgedIssueKeys: [],
+      renderer: {
+        rendererId: "airoaming_layout_renderer",
+        rendererVersion: "chromium-149-layout-v1",
+        rendererPolicyVersion: "layout_render_policy_v1",
+        geometryPolicyVersion: "layout_geometry_v1",
+        textPolicyVersion: "layout_text_v1",
+        balloonPolicyVersion: "balloon_shape_v1",
+        rasterEngine: "chromium",
+        rasterEngineVersion: "149",
+        buildDigest: sample.expected.documentDigest,
+      },
+      assetManifest: sample.expected.assetManifest,
+      sourceProjection: {
+        schemaVersion: 1,
+        policyVersion: "layout-publication-source-v2",
+        projectId: "project_1",
+        chapterId: "chapter_1",
+        consumerType: "layout_export",
+        sources: [{
+          role: "layout_revision",
+          order: 1,
+          sourceType: "layout_revision",
+          sourceId: "layout_revision_v2",
+          sourceDigest: revisionDocumentDigest,
+        }],
+      },
+    } as const;
+    const task = parseLayoutPublicationTaskInputV2(taskInput);
+    expect(task).toMatchObject({ revisionDocumentDigest, visibleDocumentDigest });
+    expect(() => parseLayoutPublicationTaskInputV2({
+      ...taskInput,
+      sourceProjection: {
+        ...taskInput.sourceProjection,
+        policyVersion: "layout-publication-source-v3",
+      },
+    })).toThrow(/sourceProjection\.policyVersion/);
+
+    const manifest = buildPublicationManifestV2({
+      projectId: "project_1",
+      chapterId: "chapter_1",
+      exportRevisionId: "export_v2",
+      exportRevision: 1,
+      layoutRevisionId: "layout_revision_v2",
+      layoutRevision: 1,
+      revisionDocumentDigest,
+      visibleDocumentDigest,
+      sourceLockSetDigest: sample.expected.sourceLockSetDigest,
+      profile: sample.expected.profile as never,
+      renderer: task.renderer,
+      inputs: { images: [], fonts: [] },
+      outputs: [],
+    });
+    expect(manifest.value).toMatchObject({
+      schemaVersion: 2,
+      kind: "layout_publication_manifest_v2",
+      revisionDocumentDigest,
+      visibleDocumentDigest,
+    });
+    expect(manifest.digest).toBe(digestCanonicalJson(manifest.value));
+  });
+
+  it("makes automation-only V2 changes visible to the full digest but not the render projection digest", async () => {
+    const sample = await fixture("paged-four-panel-rich-text");
+    const firstDocument = upgradeLayoutWorkingCopyV1ToV2(sample.document);
+    const secondDocument = structuredClone(firstDocument);
+    secondDocument.automation.protections[0]!.reason = "user_edit";
+    const first = buildLayoutRenderPlanV2({
+      document: firstDocument,
+      sourceLockSetDigest: sample.expected.sourceLockSetDigest,
+      profile: sample.expected.profile,
+      assets: sample.expected.assetManifest,
+    });
+    const second = buildLayoutRenderPlanV2({
+      document: secondDocument,
+      sourceLockSetDigest: sample.expected.sourceLockSetDigest,
+      profile: sample.expected.profile,
+      assets: sample.expected.assetManifest,
+    });
+    expect(second.revisionDocumentDigest).not.toBe(first.revisionDocumentDigest);
+    expect(second.visibleDocumentDigest).toBe(first.visibleDocumentDigest);
+    expect(second.renderPlanDigest).not.toBe(first.renderPlanDigest);
   });
 });

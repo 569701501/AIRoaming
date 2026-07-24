@@ -80,7 +80,7 @@ describe("LayoutDocumentV2 Working Copy migration", () => {
 
     const database: DatabaseSync = new DatabaseSync(":memory:");
     database.exec("PRAGMA foreign_keys = ON;");
-    for (const migrationName of SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.slice(0, -1)) {
+    for (const migrationName of SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.slice(0, -2)) {
       database.exec(
         await readFile(
           path.join(migrationRoot, migrationName, "migration.sql"),

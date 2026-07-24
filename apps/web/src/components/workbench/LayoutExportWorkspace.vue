@@ -3,7 +3,7 @@
     <header class="editor-topbar">
       <div class="chapter-picker">
         <LayoutTemplate :size="17" />
-        <select :value="chapterId ?? ''" :disabled="loading" @change="selectChapter">
+        <select :value="chapterId ?? ''" :disabled="loading || mobilePreviewBusy" @change="selectChapter">
           <option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">
             {{ chapter.title }}
           </option>
@@ -35,17 +35,35 @@
           title="保留当前成稿不变，先生成一版可对比的新排法"
           @click="openOrCreateReflow"
         ><Sparkles :size="16" />{{ session.pendingCommand.value ? '查看新排法' : composition.busy.value ? '正在重新排版' : '重新排一版' }}</button>
-        <button type="button" :disabled="!session.server.value" title="打开独立手机只读预览" @click="openMobilePreview"><Smartphone :size="16" />手机预览</button>
+        <button type="button" :disabled="!session.server.value || mobilePreviewBusy" title="打开独立手机只读预览" @click="openMobilePreview"><Smartphone :size="16" />{{ mobilePreviewBusy ? '正在准备预览' : '手机预览' }}</button>
         <button
           type="button"
           :aria-expanded="m6PanelOpen"
           aria-controls="layout-m6-control-center"
-          :disabled="!session.server.value || session.isAutomatedDocument.value"
-          :title="session.isAutomatedDocument.value ? '新版智能成稿的正式导出将在后续阶段接通' : '版本、预检与出版管理'"
+          :disabled="!session.server.value"
+          title="成稿预检、不可变版本与正式出版"
           @click="m6PanelOpen = !m6PanelOpen"
-        ><History :size="16" />{{ session.isAutomatedDocument.value ? '导出（开发中）' : '版本与出版' }}</button>
+        ><History :size="16" />版本与出版</button>
       </div>
     </header>
+
+    <div
+      v-if="mobilePreviewFeedback"
+      class="mobile-preview-feedback"
+      :class="{ 'is-error': mobilePreviewFallbackUrl }"
+      :role="mobilePreviewFallbackUrl ? 'alert' : 'status'"
+      aria-live="polite"
+      data-testid="mobile-preview-feedback"
+    >
+      <Smartphone :size="17" />
+      <span>{{ mobilePreviewFeedback }}</span>
+      <a v-if="mobilePreviewFallbackUrl" :href="mobilePreviewFallbackUrl">在当前页打开手机预览</a>
+      <button
+        type="button"
+        aria-label="关闭手机预览提示"
+        @click="mobilePreviewFeedback = null; mobilePreviewFallbackUrl = null"
+      ><X :size="14" /></button>
+    </div>
 
     <aside
       v-if="aiDrawerOpen"
@@ -91,12 +109,58 @@
             badge="预览"
           />
         </div>
+        <button
+          type="button"
+          class="authoritative-preview-toggle"
+          :aria-expanded="authoritativePreviewOpen"
+          aria-controls="layout-authoritative-pending-preview"
+          @click="openAuthoritativePendingPreview"
+        >{{ authoritativePreviewOpen ? '收起完整视觉预览' : '展开完整视觉预览（应用前必看）' }}</button>
+        <div
+          v-if="authoritativePreviewOpen && session.document.value && pendingPreviewDocument"
+          id="layout-authoritative-pending-preview"
+          class="authoritative-preview-comparison"
+          data-testid="layout-authoritative-pending-preview"
+        >
+          <LayoutDocumentVisualPreview
+            :document="session.document.value"
+            :project-id="projectId"
+            label="当前完整视觉"
+            badge="当前"
+            :source-catalog="sourceCatalogItems"
+            :font-catalog="session.fontCatalog.value?.items ?? []"
+            :font-load-state="fontLoader.loadState.value"
+          />
+          <LayoutDocumentVisualPreview
+            :document="pendingPreviewDocument"
+            :project-id="projectId"
+            label="新排法完整视觉"
+            badge="待应用"
+            :source-catalog="sourceCatalogItems"
+            :font-catalog="session.fontCatalog.value?.items ?? []"
+            :font-load-state="fontLoader.loadState.value"
+            review-required
+            @review-state="captureAuthoritativePreviewReviewState"
+          />
+        </div>
         <ul v-if="session.pendingCommand.value.payload.warnings.length">
           <li v-for="warning in session.pendingCommand.value.payload.warnings" :key="warning">{{ compositionWarningLabel(warning) }}</li>
         </ul>
+        <p
+          class="authoritative-preview-review-state"
+          :class="{ 'is-error': authoritativePreviewReviewState.error }"
+          data-testid="layout-authoritative-preview-review-state"
+          aria-live="polite"
+        >{{ authoritativePreviewReviewLabel }}</p>
         <div class="ai-preview-actions">
           <button type="button" :disabled="aiBusy" @click="discardAiSuggestion">保留当前排法</button>
-          <button class="primary-action" type="button" :disabled="aiBusy" @click="applyAiSuggestion">使用这版新排法</button>
+          <button
+            class="primary-action"
+            type="button"
+            :disabled="aiBusy || !authoritativePreviewReviewed"
+            :title="authoritativePreviewReviewLabel"
+            @click="applyAiSuggestion"
+          >使用这版新排法</button>
         </div>
       </section>
       <section v-else-if="aiRequestKind === 'full'" class="ai-empty-state">
@@ -191,6 +255,24 @@
         <strong>版本与出版管理</strong>
         <button type="button" aria-label="收起版本与出版管理" @click="m6PanelOpen = false"><X :size="15" /></button>
       </div>
+      <ol class="release-flow" data-testid="layout-release-flow" aria-label="正式成稿发布步骤">
+        <li :class="`is-${revisionPreflightStepTone}`">
+          <span>1</span>
+          <div><strong>成稿预检</strong><small>错误阻断，warning 逐项确认</small></div>
+        </li>
+        <li :class="`is-${revisionStepTone}`">
+          <span>2</span>
+          <div><strong>保存 Revision</strong><small>冻结当前完整成稿</small></div>
+        </li>
+        <li :class="`is-${publicationPreflightStepTone}`">
+          <span>3</span>
+          <div><strong>出版预检</strong><small>针对当前 Revision 再确认</small></div>
+        </li>
+        <li :class="`is-${publicationTaskStepTone}`">
+          <span>4</span>
+          <div><strong>提交出版任务</strong><small>生成不可变产物</small></div>
+        </li>
+      </ol>
       <article class="m6-card source-repair-card">
         <header>
           <div><strong>来源返修</strong><small>{{ replaceableImageElementIds.length ? `${replaceableImageElementIds.length} 个图片待处理` : '来源已是当前定稿' }}</small></div>
@@ -209,7 +291,7 @@
         </div>
         <div v-if="session.sourceReplacementPreview.value" class="replacement-preview" data-testid="source-replacement-preview">
           <strong>不会改写旧版本：确认后只更新当前草稿</strong>
-          <p>共 {{ session.sourceReplacementPreview.value.items.length }} 项，结果摘要 {{ shortDigest(session.sourceReplacementPreview.value.resultDocumentDigest) }}</p>
+          <p>共 {{ session.sourceReplacementPreview.value.items.length }} 项，结果摘要 {{ shortDigest(sourceReplacementResultDigest) }}</p>
           <ul>
             <li v-for="item in session.sourceReplacementPreview.value.items" :key="item.imageElementId">
               {{ item.imageElementId }} · {{ item.cropMode === 'reset_cover' ? '重置裁切' : '保留裁切' }}
@@ -367,7 +449,15 @@
     <div v-else-if="session.document.value && session.currentCanvas.value" class="editor-shell" :class="{ 'is-readonly': session.isReadOnly.value }">
       <nav class="tool-rail" aria-label="画布工具">
         <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" aria-label="选择工具" @click="activeTool = 'select'"><MousePointer2 :size="18" /></button>
-        <button type="button" title="平移" aria-label="平移工具"><Hand :size="18" /></button>
+        <button :class="{ 'is-active': activeTool === 'pan' }" type="button" title="平移" aria-label="平移工具" @click="activeTool = 'pan'"><Hand :size="18" /></button>
+        <button
+          :class="{ 'is-active': activeTool === 'crop' }"
+          type="button"
+          title="画布内调整图片裁切"
+          aria-label="裁切工具"
+          :disabled="session.isReadOnly.value || !primaryCrop"
+          @click="activeTool = 'crop'"
+        ><Crop :size="18" /></button>
         <span />
         <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" aria-label="添加空画格" @click="addPanel"><SquareDashed :size="18" /></button>
         <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" aria-label="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="18" /></button>
@@ -457,10 +547,8 @@
           </label>
         </div>
         <div
+          ref="stageScroll"
           class="stage-scroll"
-          @pointermove="moveDrag"
-          @pointerup="finishDrag"
-          @pointercancel="cancelDrag"
         >
           <div
             class="document-canvas"
@@ -475,7 +563,7 @@
               :style="[elementStyle(element), panelFrameStyle(element)]"
               :aria-label="`${element.name}${element.locked ? '，已锁定' : ''}${element.hidden ? '，已隐藏' : ''}`"
               tabindex="0"
-              @pointerdown.stop="startDrag($event, element)"
+              @pointerdown.stop="selectDomElementInTextTool($event, element)"
               @keydown.enter.stop="session.selectElement(element.id, $event.shiftKey)"
               @keydown.space.prevent.stop="session.selectElement(element.id, $event.shiftKey)"
             >
@@ -488,6 +576,7 @@
                   draggable="false"
                 />
                 <span v-else>空画格</span>
+                <span class="panel-border-overlay" :style="panelBorderOverlayStyle(element)" aria-hidden="true" />
               </template>
               <img
                 v-else-if="element.type === 'free_image'"
@@ -499,12 +588,26 @@
               <LayoutElementTextPreview
                 v-else-if="element.type === 'text' || element.type === 'balloon'"
                 :element="element"
-                :fallback-font-asset-ids="session.document.value.fontPolicy.fallbackFontAssetIds"
+                :font-catalog="session.fontCatalog.value?.items ?? []"
                 :scale="session.zoom.value"
                 :overflow="textIssueElementIds.has(element.id)"
               />
               <span v-if="element.locked" class="lock-mark"><Lock :size="12" /></span>
             </article>
+            <LayoutKonvaInteractionLayer
+              :canvas="session.currentCanvas.value"
+              :selected-element-ids="session.selectedElementIds.value"
+              :zoom="session.zoom.value"
+              :active-tool="activeTool"
+              :read-only="session.isReadOnly.value"
+              @select-element="selectKonvaElement"
+              @replace-selection="replaceKonvaSelection"
+              @commit-transform="commitKonvaTransforms"
+              @commit-tail="commitKonvaTail"
+              @commit-crop="commitKonvaCrop"
+              @pan="panKonvaViewport"
+              @zoom="zoomKonvaViewport"
+            />
           </div>
         </div>
       </main>
@@ -575,7 +678,7 @@
               <label>宽 <input :value="primaryElement.transform.width" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('width', $event)" /></label>
               <label>高 <input :value="primaryElement.transform.height" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('height', $event)" /></label>
               <label>旋转 <input :value="primaryElement.transform.rotation" type="number" :disabled="cannotEditPrimary" @change="updateTransform('rotation', $event)" /></label>
-              <label>透明 <input :value="primaryElement.transform.opacity" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateTransform('opacity', $event)" /></label>
+              <label>对象透明 <input :value="primaryElement.transform.opacity" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateTransform('opacity', $event)" /></label>
             </div>
             <div class="property-actions">
               <button type="button" :disabled="session.isReadOnly.value" @click="setSelectedLocked(!primaryElement.locked)">
@@ -643,8 +746,27 @@
               >放入空画格</button>
             </section>
 
+            <section v-if="primaryElement.type === 'text'" class="special-properties" data-testid="text-semantic-controls">
+              <div class="section-heading"><strong>文字角色</strong><small>只改变既有 semantic，不改文字、样式或位置</small></div>
+              <label>用途
+                <select :value="primaryElement.semantic" :disabled="cannotEditPrimary" @change="setTextSemantic">
+                  <option value="custom">普通文字</option>
+                  <option value="title">标题</option>
+                  <option value="caption">说明文字</option>
+                  <option value="sfx">拟声字 / SFX</option>
+                </select>
+              </label>
+              <p v-if="primaryElement.semantic === 'sfx'">当前对象已标记为拟声字；几何、富文本与图层仍使用同一正式文字契约。</p>
+              <div class="sfx-preset-row" data-testid="sfx-preset-controls">
+                <button type="button" :disabled="cannotEditPrimary" @click="applySfxPreset('impact')">冲击拟声</button>
+                <button type="button" :disabled="cannotEditPrimary" @click="applySfxPreset('electric')">电光拟声</button>
+              </div>
+              <p>拟声预设会作为一个命令批应用 semantic、真实字体面、颜色、描边与可选旋转；文字、字号、大小和位置保持不变。</p>
+            </section>
+
             <LayoutRichTextEditor
               v-if="primaryElement.type === 'text' || primaryElement.type === 'balloon'"
+              :key="primaryElement.id"
               :model-value="primaryElement.richText"
               :font-catalog="session.fontCatalog.value?.items ?? []"
               :fallback-font-asset-ids="session.document.value.fontPolicy.fallbackFontAssetIds"
@@ -665,6 +787,62 @@
                   <option value="caption">旁白框</option>
                 </select>
               </label>
+              <div class="balloon-preset-row" data-testid="balloon-appearance-presets">
+                <button
+                  v-for="preset in balloonAppearancePresets"
+                  :key="preset.id"
+                  type="button"
+                  :disabled="cannotEditPrimary || Boolean(implicitReservedBalloonRole)"
+                  @click="applyBalloonAppearancePreset(preset)"
+                >{{ preset.label }}</button>
+              </div>
+              <p>外观预设只展开为当前气泡的填充、描边与描边宽；不会保存 preset id，也不会改气泡类型、文字或尾巴。</p>
+              <div class="number-grid">
+                <label>填充 RGBA
+                  <input
+                    :value="primaryElement.fillColor"
+                    type="text"
+                    maxlength="9"
+                    spellcheck="false"
+                    :disabled="cannotEditPrimary || Boolean(implicitReservedBalloonRole)"
+                    @change="updateBalloonVisualColor('fillColor', $event)"
+                  />
+                </label>
+                <label>描边 RGBA
+                  <input
+                    :value="primaryElement.strokeColor"
+                    type="text"
+                    maxlength="9"
+                    spellcheck="false"
+                    :disabled="cannotEditPrimary || Boolean(implicitReservedBalloonRole)"
+                    @change="updateBalloonVisualColor('strokeColor', $event)"
+                  />
+                </label>
+                <label>描边宽
+                  <input :value="primaryElement.strokeWidth" type="number" min="0" max="512" step="1" :disabled="cannotEditPrimary" @change="updateBalloonVisualNumber('strokeWidth', $event)" />
+                </label>
+                <label>文字垂直
+                  <select :value="primaryElement.verticalAlign" :disabled="cannotEditPrimary" @change="updateBalloonVerticalAlign">
+                    <option value="start">顶部</option>
+                    <option value="center">居中</option>
+                    <option value="end">底部</option>
+                  </select>
+                </label>
+                <label>上内边距 <input :value="primaryElement.padding.top" type="number" min="0" :disabled="cannotEditPrimary" @change="updateBalloonPadding('top', $event)" /></label>
+                <label>右内边距 <input :value="primaryElement.padding.right" type="number" min="0" :disabled="cannotEditPrimary" @change="updateBalloonPadding('right', $event)" /></label>
+                <label>下内边距 <input :value="primaryElement.padding.bottom" type="number" min="0" :disabled="cannotEditPrimary" @change="updateBalloonPadding('bottom', $event)" /></label>
+                <label>左内边距 <input :value="primaryElement.padding.left" type="number" min="0" :disabled="cannotEditPrimary" @change="updateBalloonPadding('left', $event)" /></label>
+              </div>
+              <p v-if="implicitReservedBalloonRole" class="reserved-color-warning">
+                这个旧气泡依赖保留色对表达“{{ implicitReservedBalloonRole === 'thought' ? '思考' : '喊叫' }}”轮廓。请先切换为普通对白，再自定义颜色，避免重新渲染时形状漂移。
+                <button
+                  type="button"
+                  data-testid="normalize-reserved-balloon"
+                  :disabled="cannotEditPrimary"
+                  @click="normalizeReservedBalloonToSpeech"
+                >转换为普通对白外观</button>
+              </p>
+              <p v-else>RGBA 色值控制泡体/描边自身透明度；上方“对象透明”同时作用于气泡与文字。</p>
               <label class="check-row"><input :checked="primaryElement.tail.enabled" type="checkbox" :disabled="cannotEditPrimary || primaryElement.balloonKind === 'caption'" @change="updateBalloonTailBoolean" />显示尾巴</label>
               <div class="number-grid">
                 <label>根位置 <input :value="primaryElement.tail.rootRatio" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateBalloonTailNumber('rootRatio', $event)" /></label>
@@ -722,12 +900,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
   CloudUpload,
+  Crop,
   Eye,
   EyeOff,
   Hand,
@@ -758,10 +937,12 @@ import type {
   LayoutCompositionIntentV1,
   LayoutPresetIdV1,
   LayoutProfileV1,
-  LayoutPreflightCodeV1,
+  LayoutPreflightCodeV2,
   LayoutPreflightReportV1,
+  LayoutPreflightReportV2,
   LayoutProfileResizeModeV1,
   LayoutPublicationHistoryResponseV1,
+  LayoutPublicationHistoryResponseV2,
   LayoutPublicationProfileV1,
   LayoutSourceCatalogItemV1,
   LayoutSourceReplacementCropModeV1,
@@ -794,8 +975,20 @@ import { useLayoutCompositionSession } from "../../composables/layout-compositio
 import { useLayoutFontLoader } from "../../composables/layout-font-loader";
 import { api } from "../../services/api";
 import LayoutDocumentMiniPreview from "./LayoutDocumentMiniPreview.vue";
+import LayoutDocumentVisualPreview from "./LayoutDocumentVisualPreview.vue";
 import LayoutElementTextPreview from "./LayoutElementTextPreview.vue";
+import LayoutKonvaInteractionLayer from "./LayoutKonvaInteractionLayer.vue";
 import LayoutRichTextEditor from "./LayoutRichTextEditor.vue";
+import {
+  buildBalloonVisualStyleCommandV1,
+  buildLayoutSfxPresetBatchV1,
+} from "./layout-editor-presets";
+import {
+  projectKonvaViewportZoomAnchorV1,
+  type KonvaTransformCommitV1,
+} from "./layout-konva-adapter";
+import { layoutImagePreviewStyleV1 } from "./layout-image-preview";
+import { openDetachedPreviewWindowAfterPreparation } from "./layout-preview-window";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -825,20 +1018,31 @@ const inspectorTab = ref<"properties" | "layers">("properties");
 const selectedSourceShotId = ref<string | null>(null);
 const selectedPresetId = ref<LayoutPresetIdV1>(isPaged.value ? "four_panel" : "single");
 const actionError = ref<string | null>(null);
+const mobilePreviewFeedback = ref<string | null>(null);
+const mobilePreviewFallbackUrl = ref<string | null>(null);
+const mobilePreviewBusy = ref(false);
 const m6Busy = ref(false);
 const m6PanelOpen = ref(false);
 const replacementCropMode = ref<LayoutSourceReplacementCropModeV1>("preserve_normalized_crop");
 const acknowledgedIssueKeys = ref<string[]>([]);
-const publicationPreflight = ref<LayoutPreflightReportV1 | null>(null);
-const publicationHistory = ref<LayoutPublicationHistoryResponseV1 | null>(null);
+const publicationPreflight = ref<LayoutPreflightReportV1 | LayoutPreflightReportV2 | null>(null);
+const publicationHistory = ref<LayoutPublicationHistoryResponseV1 | LayoutPublicationHistoryResponseV2 | null>(null);
 const publicationAcknowledgedIssueKeys = ref<string[]>([]);
 const publicationRequestId = ref<string | null>(null);
 const publicationBusy = ref(false);
-const activeTool = ref<"select" | "text">("select");
+const activeTool = ref<"select" | "text" | "pan" | "crop">("select");
+const stageScroll = ref<HTMLElement | null>(null);
 const aiDrawerOpen = ref(false);
 const aiBusy = ref(false);
 const aiRequestKind = ref<"full" | "selection" | "canvas" | "scene">("full");
 const aiIntent = ref<LayoutCompositionIntentV1>("dialogue_readability");
+const authoritativePreviewOpen = ref(false);
+const authoritativePreviewReviewed = ref(false);
+const authoritativePreviewReviewState = ref({
+  renderReady: false,
+  fullyViewed: false,
+  error: false,
+});
 const legacyCutoverBusy = ref(false);
 let publicationPollTimer: ReturnType<typeof setInterval> | null = null;
 let autoCompositionKey: string | null = null;
@@ -858,17 +1062,14 @@ const presetOptions: Array<{ id: LayoutPresetIdV1; label: string; count: number 
   { id: "action_focus", label: "动作聚焦", count: 3 },
 ];
 
-interface DragState {
-  elementId: string;
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
-  dx: number;
-  dy: number;
+interface BalloonAppearancePreset {
+  id: string;
+  label: string;
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
 }
 
-const drag = ref<DragState | null>(null);
 const currentElements = computed(() => session.currentCanvas.value?.elements ?? []);
 const currentPanels = computed(() => currentElements.value.filter((element): element is PanelFrameElementV1 => element.type === "panel_frame"));
 const visibleElements = computed(() => currentElements.value.filter((element) => !element.hidden));
@@ -919,6 +1120,40 @@ const primaryCrop = computed<CoverCropV1 | null>(() => {
   if (element?.type === "free_image" && element.display.mode === "cover") return element.display.crop;
   return null;
 });
+const implicitReservedBalloonRole = computed<"thought" | "shout" | null>(() => {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon" || element.balloonKind !== "speech") return null;
+  const role = resolveLayoutBalloonVisualRoleV1(element);
+  return role === "thought" || role === "shout" ? role : null;
+});
+const balloonAppearancePresets = computed<BalloonAppearancePreset[]>(() => {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon") return [];
+  const role = resolveLayoutBalloonVisualRoleV1(element);
+  const width = (value: number) => isPaged.value ? value + 1 : value;
+  if (role === "thought") {
+    return [
+      { id: "thought-soft", label: "柔和思绪", fillColor: "#FFFDF5FF", strokeColor: "#374151FF", strokeWidth: width(4) },
+      { id: "thought-blue", label: "蓝色思绪", fillColor: "#EFF6FFFF", strokeColor: "#1D4ED8FF", strokeWidth: width(4) },
+    ];
+  }
+  if (role === "shout") {
+    return [
+      { id: "shout-ember", label: "热烈喊叫", fillColor: "#FFF7EDFF", strokeColor: "#B91C1CFF", strokeWidth: width(6) },
+      { id: "shout-ink", label: "黑白冲击", fillColor: "#FFFFFFFF", strokeColor: "#111827FF", strokeWidth: width(8) },
+    ];
+  }
+  if (role === "caption") {
+    return [
+      { id: "caption-dark", label: "深色旁白", fillColor: "#111827EE", strokeColor: "#111827FF", strokeWidth: width(3) },
+      { id: "caption-paper", label: "纸张旁白", fillColor: "#FEF3C7F2", strokeColor: "#78350FFF", strokeWidth: width(3) },
+    ];
+  }
+  return [
+    { id: "speech-classic", label: "经典对白", fillColor: "#FFFFFFFF", strokeColor: "#111827FF", strokeWidth: width(4) },
+    { id: "speech-teal", label: "青绿对白", fillColor: "#F0FDFAF2", strokeColor: "#0F766EFF", strokeWidth: width(4) },
+  ];
+});
 const selectedPreset = computed(() => presetOptions.find((preset) => preset.id === selectedPresetId.value)!);
 const occupiedPanelCount = computed(() => currentPanels.value.filter((panel) => panel.contentImage).length);
 const canApplyPreset = computed(() => selectedPreset.value.count >= occupiedPanelCount.value && Boolean(session.currentCanvas.value));
@@ -934,6 +1169,13 @@ const pendingPreviewDocument = computed(() => {
   const value = session.pendingCommand.value?.resultDocument;
   if (!value) return null;
   return value.schemaVersion === 2 ? projectLayoutDocumentV2ToV1(value) : value;
+});
+const authoritativePreviewReviewLabel = computed(() => {
+  if (!authoritativePreviewOpen.value) return "请先展开完整视觉预览。";
+  if (authoritativePreviewReviewState.value.error) return "完整预览加载失败，暂不能应用。";
+  if (!authoritativePreviewReviewState.value.renderReady) return "正在加载完整预览的图片和字体…";
+  if (!authoritativePreviewReviewState.value.fullyViewed) return "完整预览已就绪，请浏览到底再应用。";
+  return "已浏览完整预览，可以应用。";
 });
 const sourceReadyForCompose = computed(() => (
   props.snapshot.candidateSources?.gates.buildLayoutWorkingCopy.allowed === true
@@ -984,6 +1226,13 @@ const selectedStaleImageId = computed(() => {
   const imageId = primaryImage.value?.id ?? null;
   return imageId && replaceableImageElementIds.value.includes(imageId) ? imageId : null;
 });
+const sourceReplacementResultDigest = computed(() => {
+  const preview = session.sourceReplacementPreview.value;
+  if (!preview) return "";
+  return preview.schemaVersion === 2
+    ? preview.resultRevisionDocumentDigest
+    : preview.resultDocumentDigest;
+});
 const sourceResolutionTone = computed(() => {
   const resolution = session.server.value?.sourceEvaluation.sourceResolution;
   return resolution === "current" ? "ready" : resolution === "stale" ? "warning" : "blocked";
@@ -1019,6 +1268,21 @@ const canCreateRevision = computed(() => Boolean(session.preflight.value)
   && !session.isDirty.value
   && session.saveState.value === "saved");
 const currentLayoutRevisionId = computed(() => session.revisionHistory.value?.currentLayoutRevisionId ?? null);
+const currentLayoutRevision = computed(() => session.revisionHistory.value?.items.find(
+  (revision) => revision.id === currentLayoutRevisionId.value,
+) ?? null);
+const currentRevisionDocumentSchemaVersion = computed<1 | 2>(() => {
+  const revision = currentLayoutRevision.value;
+  return revision && "documentSchemaVersion" in revision
+    ? revision.documentSchemaVersion
+    : 1;
+});
+const revisionPreflightStepTone = computed(() => {
+  if (!session.preflight.value) return "pending";
+  if (revisionBlockingIssueCount.value > 0) return "blocked";
+  return missingAcknowledgementCount.value > 0 ? "warning" : "ready";
+});
+const revisionStepTone = computed(() => currentLayoutRevisionId.value ? "ready" : "pending");
 const publicationProfile = computed<LayoutPublicationProfileV1>(() => isPaged.value
   ? { schemaVersion: 1, kind: "paged_publication", outputScale: 1, includePdf: true, pdfPixelDpi: 96 }
   : { schemaVersion: 1, kind: "vertical_publication", outputScale: 1, maxSliceHeightPx: 8192, cutPolicy: "prefer_section_boundary_then_exact", includeLongPng: true });
@@ -1030,11 +1294,23 @@ const canPublish = computed(() => Boolean(publicationPreflight.value)
   && publicationPreflight.value.target.id === currentLayoutRevisionId.value
   && publicationBlockingIssueCount.value === 0
   && publicationMissingAcknowledgementCount.value === 0);
+const publicationPreflightStepTone = computed(() => {
+  if (!publicationPreflight.value) return "pending";
+  if (publicationBlockingIssueCount.value > 0) return "blocked";
+  return publicationMissingAcknowledgementCount.value > 0 ? "warning" : "ready";
+});
+const publicationTaskStepTone = computed(() => {
+  const current = publicationHistory.value?.items.find(
+    (item) => item.layoutRevisionId === currentLayoutRevisionId.value,
+  );
+  if (!current) return "pending";
+  return current.status === "failed" || current.status === "cancelled" ? "blocked" : "ready";
+});
 const publicationStatusLabel = computed(() => ({ ready: "可出版", warning: "需要确认", blocked: "存在阻断" }[publicationPreflight.value?.status ?? "blocked"]));
 const canvasStyle = computed(() => ({
   width: `${session.currentCanvas.value!.width * session.zoom.value}px`,
   height: `${session.currentCanvas.value!.height * session.zoom.value}px`,
-  backgroundColor: session.currentCanvas.value!.backgroundColor.slice(0, 7),
+  backgroundColor: session.currentCanvas.value!.backgroundColor,
 }));
 const cropCoverageLabel = computed(() => {
   const crop = primaryCrop.value;
@@ -1102,10 +1378,34 @@ async function rebuildLegacyDraft(): Promise<void> {
   }
 }
 
-function openMobilePreview(): void {
-  if (!chapterId.value) return;
+async function openMobilePreview(): Promise<void> {
+  if (!chapterId.value || mobilePreviewBusy.value) return;
   const url = `/projects/${encodeURIComponent(projectId.value)}/layout/preview?chapterId=${encodeURIComponent(chapterId.value)}&source=working_copy`;
-  window.open(url, "_blank", "noopener,noreferrer");
+  mobilePreviewFeedback.value = null;
+  mobilePreviewFallbackUrl.value = null;
+  mobilePreviewBusy.value = true;
+
+  try {
+    const result = await openDetachedPreviewWindowAfterPreparation(url, async () => {
+      if (!session.isDirty.value) return true;
+      mobilePreviewFeedback.value = "正在保存当前成稿，保存成功后会打开手机预览…";
+      await session.flush();
+      return !session.isDirty.value && session.saveState.value === "saved";
+    });
+    if (result === "opened") {
+      mobilePreviewFeedback.value = "当前成稿已保存，并已在新标签页打开手机预览。";
+      return;
+    }
+
+    mobilePreviewFallbackUrl.value = url;
+    mobilePreviewFeedback.value = result === "preparation_failed"
+      ? "当前成稿保存失败，手机预览没有打开。请重试保存；也可以在当前页查看上次保存的版本。"
+      : result === "blocked"
+        ? "当前成稿已保存，但浏览器阻止了新标签页，你仍可在当前页打开手机预览。"
+        : "当前成稿已保存，但新标签页的手机预览跳转失败，你仍可在当前页打开。";
+  } finally {
+    mobilePreviewBusy.value = false;
+  }
 }
 
 async function generateInitialComposition(): Promise<void> {
@@ -1239,6 +1539,10 @@ function retryAiRequest(): void {
 }
 
 async function applyAiSuggestion(): Promise<void> {
+  if (!authoritativePreviewReviewed.value) {
+    authoritativePreviewOpen.value = true;
+    return;
+  }
   aiBusy.value = true;
   actionError.value = null;
   try {
@@ -1251,6 +1555,26 @@ async function applyAiSuggestion(): Promise<void> {
   } finally {
     aiBusy.value = false;
   }
+}
+
+function openAuthoritativePendingPreview(): void {
+  authoritativePreviewOpen.value = !authoritativePreviewOpen.value;
+  authoritativePreviewReviewed.value = false;
+  authoritativePreviewReviewState.value = {
+    renderReady: false,
+    fullyViewed: false,
+    error: false,
+  };
+}
+
+function captureAuthoritativePreviewReviewState(value: {
+  renderReady: boolean;
+  fullyViewed: boolean;
+  error: boolean;
+}): void {
+  if (!authoritativePreviewOpen.value) return;
+  authoritativePreviewReviewState.value = value;
+  authoritativePreviewReviewed.value = value.renderReady && value.fullyViewed && !value.error;
 }
 
 async function discardAiSuggestion(): Promise<void> {
@@ -1381,11 +1705,17 @@ async function preparePublication(): Promise<void> {
   try {
     await session.flush();
     if (session.isDirty.value) throw new Error("请先完成当前草稿保存。");
-    const report = await api.runLayoutPreflight(projectId.value, id, {
-      schemaVersion: 1,
-      target: { kind: "layout_revision", layoutRevisionId: revisionId },
-      profile: publicationProfile.value,
-    });
+    const report = currentRevisionDocumentSchemaVersion.value === 2
+      ? await api.runLayoutPreflight(projectId.value, id, {
+          schemaVersion: 2,
+          target: { kind: "layout_revision", layoutRevisionId: revisionId },
+          profile: publicationProfile.value,
+        })
+      : await api.runLayoutPreflight(projectId.value, id, {
+          schemaVersion: 1,
+          target: { kind: "layout_revision", layoutRevisionId: revisionId },
+          profile: publicationProfile.value,
+        });
     publicationPreflight.value = report;
     publicationAcknowledgedIssueKeys.value = publicationAcknowledgedIssueKeys.value.filter((issueKey) =>
       report.issues.some((issue) => issue.issueKey === issueKey && issue.requiresAcknowledgement));
@@ -1401,15 +1731,15 @@ async function preparePublication(): Promise<void> {
 async function publishCurrentRevision(): Promise<void> {
   const id = chapterId.value;
   const revisionId = currentLayoutRevisionId.value;
+  const revision = currentLayoutRevision.value;
   const report = publicationPreflight.value;
-  if (!id || !revisionId || !report || !canPublish.value) return;
+  if (!id || !revisionId || !revision || !report || !canPublish.value) return;
   publicationBusy.value = true;
   actionError.value = null;
   try {
     publicationRequestId.value ??= globalThis.crypto?.randomUUID?.() ?? `publication_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const profile = LayoutPublicationProfileCodecV1.encode(publicationProfile.value);
-    await api.createLayoutPublication(projectId.value, id, {
-      schemaVersion: 1,
+    const common = {
       requestId: publicationRequestId.value,
       layoutRevisionId: revisionId,
       expectedCurrentLayoutRevisionId: revisionId,
@@ -1417,7 +1747,20 @@ async function publishCurrentRevision(): Promise<void> {
       profileDigest: profile.digest,
       preflightDigest: report.preflightDigest,
       acknowledgedIssueKeys: [...publicationAcknowledgedIssueKeys.value],
-    });
+    };
+    if ("documentSchemaVersion" in revision && revision.documentSchemaVersion === 2) {
+      await api.createLayoutPublication(projectId.value, id, {
+        schemaVersion: 2,
+        ...common,
+        expectedRevisionDocumentDigest: revision.revisionDocumentDigest,
+        expectedVisibleDocumentDigest: revision.visibleDocumentDigest,
+      });
+    } else {
+      await api.createLayoutPublication(projectId.value, id, {
+        schemaVersion: 1,
+        ...common,
+      });
+    }
     await refreshPublicationHistory();
     publicationRequestId.value = null;
   } catch (error) {
@@ -1469,8 +1812,8 @@ function replacementWarningLabel(code: string): string {
   return code;
 }
 
-function preflightIssueLabel(code: LayoutPreflightCodeV1): string {
-  const labels: Partial<Record<LayoutPreflightCodeV1, string>> = {
+function preflightIssueLabel(code: LayoutPreflightCodeV2): string {
+  const labels: Record<string, string> = {
     ACTIVE_SHOT_UNPLACED: "当前镜头尚未放入画布",
     ACTIVE_SHOT_NOT_VISIBLE: "当前镜头不可见",
     SOURCE_LOCK_SET_INCOMPLETE: "来源集合不完整",
@@ -1485,6 +1828,7 @@ function preflightIssueLabel(code: LayoutPreflightCodeV1): string {
     FONT_ASSET_MISSING_OR_NOT_READY: "字体素材未就绪",
     FONT_EMBEDDING_FORBIDDEN: "字体不允许嵌入",
     FONT_GLYPH_MISSING: "字体缺少字符",
+    VISIBLE_TEXT_EMPTY: "可见文字内容为空",
     TEXT_OVERFLOW: "文字发生溢出",
     IMAGE_EFFECTIVE_RESOLUTION_CRITICAL: "图片有效分辨率不足",
     IMAGE_EFFECTIVE_RESOLUTION_LOW: "图片有效分辨率偏低",
@@ -1493,6 +1837,26 @@ function preflightIssueLabel(code: LayoutPreflightCodeV1): string {
     CANVAS_EMPTY: "存在空画布",
     HIDDEN_ELEMENT_PRESENT: "存在隐藏对象",
     WORKING_COPY_AHEAD_OF_REVISION: "草稿领先于该版本",
+    REVISION_DOCUMENT_DIGEST_MISMATCH: "完整成稿摘要与版本证据不一致",
+    VISIBLE_DOCUMENT_DIGEST_MISMATCH: "可见成稿摘要与投影证据不一致",
+    VISIBLE_PROJECTION_UNSTABLE: "可见投影结果不稳定",
+    DIALOGUE_LEDGER_INVALID: "对白台账不完整",
+    DIALOGUE_LEDGER_WARNING: "对白台账需要人工确认",
+    DIALOGUE_BINDING_MISSING: "对白缺少成稿绑定",
+    DIALOGUE_BINDING_UNEXPECTED: "成稿包含意外对白绑定",
+    DIALOGUE_BINDING_DUPLICATE: "对白被重复绑定",
+    DIALOGUE_BINDING_DANGLING: "对白绑定指向不存在对象",
+    DIALOGUE_BINDING_SOURCE_MISMATCH: "对白绑定的镜头来源不一致",
+    DIALOGUE_BALLOON_KIND_MISMATCH: "对白与气泡类型不一致",
+    DIALOGUE_BALLOON_SPEAKER_MISMATCH: "对白说话人与气泡引用不一致",
+    DIALOGUE_TEXT_UNPROTECTED: "手工对白修改尚未建立文字保护",
+    DIALOGUE_USER_MODIFIED: "对白文字已由用户修改",
+    DIALOGUE_USER_SUPPRESSED: "对白已由用户明确省略",
+    LAYOUT_COMPOSITION_MISSING: "缺少智能成稿规划证据",
+    LAYOUT_COMPOSITION_STALE: "智能成稿规划已过期",
+    LAYOUT_COMPOSITION_SOURCE_LOCK_MISMATCH: "智能成稿规划与当前来源锁不一致",
+    LAYOUT_COMPOSITION_SOURCE_OVERRIDE: "智能成稿沿用了人工确认的来源覆盖",
+    LAYOUT_PROTECTION_INVALID: "人工保护指向无效对象或范围",
   };
   return labels[code] ?? code;
 }
@@ -1687,19 +2051,23 @@ function addBalloon(): void {
   activeTool.value = "text";
 }
 
-function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string }): void {
+function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string; historyGroupId: string }): void {
   const element = primaryElement.value;
   const canvas = session.currentCanvas.value;
   if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  const { historyGroupId, ...range } = value;
   if (element.type === "text") {
     session.execute(command("text.replace_range", "编辑文字", {
       canvasId: canvas.id,
       elementId: element.id,
-      ...value,
-    }));
+      ...range,
+    }), { historyGroupId });
   } else {
-    const richText = replaceRichTextRange(element.richText, value);
-    session.execute(command("balloon.replace_text_document", "编辑气泡文字", { canvasId: canvas.id, elementId: element.id, richText }));
+    const richText = replaceRichTextRange(element.richText, range);
+    session.execute(
+      command("balloon.replace_text_document", "编辑气泡文字", { canvasId: canvas.id, elementId: element.id, richText }),
+      { historyGroupId },
+    );
   }
 }
 
@@ -1751,6 +2119,169 @@ function setSelectedParagraphStyle(value: { paragraphIndexes: number[]; align: "
     }
     replaceSelectedRichText(richText);
   }
+}
+
+function setTextSemantic(event: Event): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (element?.type !== "text" || !canvas) return;
+  const semantic = (event.target as HTMLSelectElement).value as typeof element.semantic;
+  session.execute(command("text.set_semantic", semantic === "sfx" ? "标记为拟声字" : "调整文字角色", {
+    canvasId: canvas.id,
+    elementId: element.id,
+    semantic,
+  }));
+}
+
+function applySfxPreset(preset: "impact" | "electric"): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (element?.type !== "text" || !canvas || element.locked) return;
+  session.executeBatch(buildLayoutSfxPresetBatchV1({
+    canvasId: canvas.id,
+    element,
+    fontCatalog: session.fontCatalog.value?.items ?? [],
+    preset,
+  }));
+}
+
+function reservedBalloonPairRole(
+  fillColor: string,
+  strokeColor: string,
+): "thought" | "shout" | null {
+  const normalizedFill = fillColor.toUpperCase();
+  const normalizedStroke = strokeColor.toUpperCase();
+  for (const role of ["thought", "shout"] as const) {
+    const preset = layoutBalloonVisualPresetV1(role, isPaged.value ? "paged_comic" : "vertical_scroll");
+    if (
+      normalizedFill === preset.fillColor.toUpperCase()
+      && normalizedStroke === preset.strokeColor.toUpperCase()
+    ) return role;
+  }
+  return null;
+}
+
+function applyBalloonAppearancePreset(preset: BalloonAppearancePreset): void {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon") return;
+  if (implicitReservedBalloonRole.value) {
+    actionError.value = "该旧气泡依赖保留色对表达轮廓；请先切换为显式气泡类型。";
+    return;
+  }
+  const collision = element.balloonKind === "speech"
+    ? reservedBalloonPairRole(preset.fillColor, preset.strokeColor)
+    : null;
+  if (collision) {
+    actionError.value = `“${collision === "thought" ? "思考" : "喊叫"}”保留色对不能作为普通对白外观。`;
+    return;
+  }
+  actionError.value = null;
+  applyBalloonVisualStyle(element, {
+    fillColor: preset.fillColor,
+    strokeColor: preset.strokeColor,
+    strokeWidth: preset.strokeWidth,
+  }, `应用${preset.label}外观`);
+}
+
+function normalizeReservedBalloonToSpeech(): void {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon" || !implicitReservedBalloonRole.value) return;
+  const visual = layoutBalloonVisualPresetV1(
+    "speech",
+    isPaged.value ? "paged_comic" : "vertical_scroll",
+  );
+  actionError.value = null;
+  applyBalloonVisualStyle(element, {
+    fillColor: visual.fillColor,
+    strokeColor: visual.strokeColor,
+    strokeWidth: visual.strokeWidth,
+  }, "转换为普通对白外观");
+}
+
+function applyBalloonVisualStyle(
+  element: Extract<LayoutTopLevelElementV1, { type: "balloon" }>,
+  patch: Partial<Pick<
+    typeof element,
+    "fillColor" | "strokeColor" | "strokeWidth" | "padding" | "verticalAlign"
+  >>,
+  label: string,
+): void {
+  const canvas = session.currentCanvas.value;
+  if (!canvas) return;
+  session.execute(buildBalloonVisualStyleCommandV1({
+    canvasId: canvas.id,
+    element,
+    patch,
+    label,
+  }));
+}
+
+function updateBalloonVisualColor(
+  field: "fillColor" | "strokeColor",
+  event: Event,
+): void {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon") return;
+  const value = (event.target as HTMLInputElement).value.trim().toUpperCase();
+  if (!/^#[0-9A-F]{8}$/u.test(value)) {
+    actionError.value = "气泡颜色必须是 #RRGGBBAA，例如 #FFFFFFFF。";
+    return;
+  }
+  if (implicitReservedBalloonRole.value) {
+    actionError.value = "该旧气泡依赖保留色对表达轮廓；请先切换为普通对白，再自定义颜色。";
+    return;
+  }
+  const fillColor = field === "fillColor" ? value : element.fillColor;
+  const strokeColor = field === "strokeColor" ? value : element.strokeColor;
+  const collision = element.balloonKind === "speech"
+    ? reservedBalloonPairRole(fillColor, strokeColor)
+    : null;
+  if (collision) {
+    actionError.value = `这个颜色组合保留给“${collision === "thought" ? "思考" : "喊叫"}”轮廓；请选择对应类型，或调整任一颜色。`;
+    return;
+  }
+  actionError.value = null;
+  applyBalloonVisualStyle(element, { [field]: value }, "调整气泡颜色");
+}
+
+function updateBalloonVisualNumber(
+  field: "strokeWidth",
+  event: Event,
+): void {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon") return;
+  const value = Number((event.target as HTMLInputElement).value);
+  if (!Number.isFinite(value)) return;
+  actionError.value = null;
+  applyBalloonVisualStyle(element, { [field]: Math.max(0, Math.min(512, value)) }, "调整气泡描边");
+}
+
+function updateBalloonVerticalAlign(event: Event): void {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon") return;
+  const verticalAlign = (event.target as HTMLSelectElement).value as typeof element.verticalAlign;
+  actionError.value = null;
+  applyBalloonVisualStyle(element, { verticalAlign }, "调整气泡文字位置");
+}
+
+function updateBalloonPadding(
+  field: "top" | "right" | "bottom" | "left",
+  event: Event,
+): void {
+  const element = primaryElement.value;
+  if (element?.type !== "balloon") return;
+  const value = Number((event.target as HTMLInputElement).value);
+  if (!Number.isFinite(value)) return;
+  const padding = { ...element.padding, [field]: Math.max(0, Math.min(8192, value)) };
+  if (
+    padding.left + padding.right >= element.transform.width
+    || padding.top + padding.bottom >= element.transform.height
+  ) {
+    actionError.value = "气泡内边距必须为文字保留至少 1px 的宽度和高度。";
+    return;
+  }
+  actionError.value = null;
+  applyBalloonVisualStyle(element, { padding }, "调整气泡内边距");
 }
 
 function setBalloonKind(event: Event): void {
@@ -2123,11 +2654,10 @@ function isSelected(elementId: string): boolean {
 }
 
 function elementStyle(element: LayoutTopLevelElementV1) {
-  const delta = drag.value?.elementId === element.id ? drag.value : null;
   const zoom = session.zoom.value;
   return {
-    left: `${element.transform.x * zoom + (delta?.dx ?? 0)}px`,
-    top: `${element.transform.y * zoom + (delta?.dy ?? 0)}px`,
+    left: `${element.transform.x * zoom}px`,
+    top: `${element.transform.y * zoom}px`,
     width: `${element.transform.width * zoom}px`,
     height: `${element.transform.height * zoom}px`,
     opacity: element.transform.opacity,
@@ -2140,9 +2670,19 @@ function panelFrameStyle(element: LayoutTopLevelElementV1) {
   if (element.type !== "panel_frame") return {};
   const zoom = session.zoom.value;
   return {
+    borderRadius: `${element.shape.cornerRadius * zoom}px`,
+  };
+}
+
+function panelBorderOverlayStyle(
+  element: Extract<LayoutTopLevelElementV1, { type: "panel_frame" }>,
+) {
+  const zoom = session.zoom.value;
+  return {
+    borderStyle: element.border.visible ? "solid" : "none",
     borderWidth: element.border.visible ? `${element.border.width * zoom}px` : "0",
-    borderColor: element.border.color.slice(0, 7),
-    borderRadius: element.shape.kind === "rounded_rect" ? `${element.shape.cornerRadius * zoom}px` : "0",
+    borderColor: element.border.color,
+    borderRadius: `${element.shape.cornerRadius * zoom}px`,
   };
 }
 
@@ -2159,30 +2699,15 @@ function imagePreviewStyle(element: LayoutTopLevelElementV1) {
       : null;
   if (!crop) return { objectFit: "contain" as const };
   const catalog = sourceCatalogItems.value.find((item) => item.source.assetId === source?.assetId);
-  if (catalog) {
-    const evaluation = evaluateCoverCropV1({
-      sourceWidth: catalog.width,
-      sourceHeight: catalog.height,
-      frameWidth: element.transform.width,
-      frameHeight: element.transform.height,
-      crop,
-    });
-    return {
-      position: "absolute" as const,
-      left: `calc(50% + ${crop.offsetX * session.zoom.value}px)`,
-      top: `calc(50% + ${crop.offsetY * session.zoom.value}px)`,
-      width: `${catalog.width * evaluation.baseScale * crop.zoom * session.zoom.value}px`,
-      height: `${catalog.height * evaluation.baseScale * crop.zoom * session.zoom.value}px`,
-      maxWidth: "none",
-      maxHeight: "none",
-      objectFit: "fill" as const,
-      transform: `translate(-50%, -50%) rotate(${crop.rotation}deg) scale(${crop.flipX ? -1 : 1}, ${crop.flipY ? -1 : 1})`,
-    };
-  }
-  return {
-    objectFit: "cover" as const,
-    transform: `translate(${crop.offsetX * session.zoom.value}px, ${crop.offsetY * session.zoom.value}px) rotate(${crop.rotation}deg) scale(${crop.flipX ? -crop.zoom : crop.zoom}, ${crop.flipY ? -crop.zoom : crop.zoom})`,
-  };
+  return layoutImagePreviewStyleV1({
+    mode: "cover",
+    crop,
+    frameWidth: element.transform.width,
+    frameHeight: element.transform.height,
+    sourceWidth: catalog?.width ?? null,
+    sourceHeight: catalog?.height ?? null,
+    scale: session.zoom.value,
+  });
 }
 
 function setPanelShape(event: Event): void {
@@ -2295,47 +2820,114 @@ function deletePrimaryElement(): void {
   session.selectedElementIds.value = [];
 }
 
-function startDrag(event: PointerEvent, element: LayoutTopLevelElementV1): void {
-  session.selectElement(element.id, event.metaKey || event.ctrlKey || event.shiftKey);
-  if (activeTool.value === "text" && (element.type === "text" || element.type === "balloon")) return;
-  if (session.isReadOnly.value || element.locked) return;
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-  drag.value = {
+function selectKonvaElement(value: { elementId: string; additive: boolean }): void {
+  session.selectElement(value.elementId, value.additive);
+}
+
+function selectDomElementInTextTool(
+  event: PointerEvent,
+  element: LayoutTopLevelElementV1,
+): void {
+  if (activeTool.value !== "text" || (element.type !== "text" && element.type !== "balloon")) return;
+  session.selectElement(element.id, event.shiftKey || event.metaKey || event.ctrlKey);
+}
+
+function replaceKonvaSelection(elementIds: string[]): void {
+  session.selectedElementIds.value = [...elementIds];
+}
+
+function sameTransform(
+  left: LayoutTopLevelElementV1["transform"],
+  right: LayoutTopLevelElementV1["transform"],
+): boolean {
+  return (
+    Math.abs(left.x - right.x) < 0.000001
+    && Math.abs(left.y - right.y) < 0.000001
+    && Math.abs(left.width - right.width) < 0.000001
+    && Math.abs(left.height - right.height) < 0.000001
+    && Math.abs(left.rotation - right.rotation) < 0.000001
+    && Math.abs(left.opacity - right.opacity) < 0.000001
+  );
+}
+
+function commitKonvaTransforms(changes: KonvaTransformCommitV1[]): void {
+  const canvas = session.currentCanvas.value;
+  if (!canvas || session.isReadOnly.value) return;
+  const commands = changes.flatMap((change) => {
+    const element = canvas.elements.find((item) => item.id === change.elementId);
+    if (!element || element.locked || sameTransform(element.transform, change.transform)) return [];
+    return [session.makeTransformCommand(change.elementId, change.transform)];
+  });
+  if (commands.length === 1) session.execute(commands[0]!);
+  else executeBatch("变换所选对象", commands);
+}
+
+function commitKonvaTail(value: { elementId: string; targetX: number; targetY: number }): void {
+  const canvas = session.currentCanvas.value;
+  const element = canvas?.elements.find((item) => item.id === value.elementId);
+  if (!canvas || element?.type !== "balloon" || element.locked || session.isReadOnly.value) return;
+  session.execute(command("balloon.set_tail", "调整气泡尾巴目标", {
+    canvasId: canvas.id,
     elementId: element.id,
-    startX: event.clientX,
-    startY: event.clientY,
-    originX: element.transform.x,
-    originY: element.transform.y,
-    dx: 0,
-    dy: 0,
-  };
-}
-
-function moveDrag(event: PointerEvent): void {
-  if (!drag.value) return;
-  drag.value = {
-    ...drag.value,
-    dx: event.clientX - drag.value.startX,
-    dy: event.clientY - drag.value.startY,
-  };
-}
-
-function finishDrag(): void {
-  const state = drag.value;
-  if (!state) return;
-  const element = currentElements.value.find((item) => item.id === state.elementId);
-  drag.value = null;
-  if (!element || (state.dx === 0 && state.dy === 0)) return;
-  session.execute(session.makeTransformCommand(element.id, {
-    ...element.transform,
-    x: state.originX + state.dx / session.zoom.value,
-    y: state.originY + state.dy / session.zoom.value,
+    tail: {
+      ...element.tail,
+      targetX: value.targetX,
+      targetY: value.targetY,
+    },
   }));
-  void session.flush();
 }
 
-function cancelDrag(): void {
-  drag.value = null;
+function commitKonvaCrop(value: { elementId: string; crop: CoverCropV1 }): void {
+  const element = session.currentCanvas.value?.elements.find((item) => item.id === value.elementId);
+  if (
+    !element
+    || primaryElement.value?.id !== value.elementId
+    || element.locked
+    || (element.type !== "panel_frame" && element.type !== "free_image")
+    || session.isReadOnly.value
+  ) return;
+  const current = element.type === "panel_frame"
+    ? element.contentImage?.crop ?? null
+    : element.display.mode === "cover"
+      ? element.display.crop
+      : null;
+  if (!current) return;
+  applyCrop(value.crop, "画布内调整图片裁切");
+}
+
+function panKonvaViewport(value: { dx: number; dy: number }): void {
+  const viewport = stageScroll.value;
+  if (!viewport) return;
+  viewport.scrollLeft -= value.dx;
+  viewport.scrollTop -= value.dy;
+}
+
+function zoomKonvaViewport(value: { zoom: number; clientX: number; clientY: number }): void {
+  const viewport = stageScroll.value;
+  const previousZoom = session.zoom.value;
+  const nextZoom = Math.max(0.1, Math.min(0.8, value.zoom));
+  if (!viewport || previousZoom === nextZoom) {
+    session.zoom.value = nextZoom;
+    return;
+  }
+  const previousLeft = viewport.scrollLeft;
+  const previousTop = viewport.scrollTop;
+  const viewportRect = viewport.getBoundingClientRect();
+  const nextScroll = projectKonvaViewportZoomAnchorV1({
+    scrollLeft: previousLeft,
+    scrollTop: previousTop,
+    viewportLeft: viewportRect.left,
+    viewportTop: viewportRect.top,
+    clientX: value.clientX,
+    clientY: value.clientY,
+    previousZoom,
+    nextZoom,
+  });
+  session.zoom.value = nextZoom;
+  void nextTick(() => {
+    viewport.scrollLeft = nextScroll.scrollLeft;
+    viewport.scrollTop = nextScroll.scrollTop;
+  });
 }
 
 function updateTransform(field: keyof LayoutTopLevelElementV1["transform"], event: Event): void {
@@ -2466,16 +3058,30 @@ function getSourceReasonLabel(code?: CandidateLockErrorCode): string {
 
 function handleKeydown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement | null;
-  if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
   const commandKey = event.metaKey || event.ctrlKey;
+  const key = event.key.toLowerCase();
+  const isUndoShortcut = commandKey && key === "z" && !event.shiftKey;
+  const isRedoShortcut = commandKey && (
+    (key === "z" && event.shiftKey)
+    || (key === "y" && !event.shiftKey)
+  );
+  if (
+    target?.closest("[contenteditable='true']")
+    && (isUndoShortcut || isRedoShortcut)
+  ) {
+    event.preventDefault();
+    if (isRedoShortcut) session.redo(); else session.undo();
+    return;
+  }
+  if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
   if (commandKey && event.key.toLowerCase() === "a") {
     event.preventDefault();
     session.selectedElementIds.value = currentElements.value.map((element) => element.id);
     return;
   }
-  if (commandKey && event.key.toLowerCase() === "z") {
+  if (isUndoShortcut || isRedoShortcut) {
     event.preventDefault();
-    if (event.shiftKey) session.redo(); else session.undo();
+    if (isRedoShortcut) session.redo(); else session.undo();
     return;
   }
   if (event.key === "Escape") {
@@ -2502,10 +3108,60 @@ watch(chapterId, () => {
   autoCompositionKey = null;
   aiDrawerOpen.value = false;
   aiRequestKind.value = "full";
+  mobilePreviewFeedback.value = null;
+  mobilePreviewFallbackUrl.value = null;
   publicationPreflight.value = null;
   publicationAcknowledgedIssueKeys.value = [];
   publicationRequestId.value = null;
+  authoritativePreviewOpen.value = false;
+  authoritativePreviewReviewed.value = false;
+  authoritativePreviewReviewState.value = {
+    renderReady: false,
+    fullyViewed: false,
+    error: false,
+  };
   void refreshPublicationHistory().catch(() => undefined);
+});
+watch(() => session.isDirty.value, (dirty) => {
+  if (!dirty) return;
+  acknowledgedIssueKeys.value = [];
+  session.preflight.value = null;
+  publicationAcknowledgedIssueKeys.value = [];
+  publicationPreflight.value = null;
+  publicationRequestId.value = null;
+});
+watch(() => [
+  session.server.value?.rowVersion ?? -1,
+  session.server.value?.documentDigest ?? "missing",
+  session.server.value?.sourceLockSetDigest ?? "missing",
+  session.preflight.value?.preflightDigest ?? "missing",
+  session.preflight.value?.issues.map((issue) => issue.issueKey).sort().join("|") ?? "missing",
+].join(":"), (_identity, previousIdentity) => {
+  if (previousIdentity === undefined) return;
+  acknowledgedIssueKeys.value = [];
+});
+watch(() => [
+  currentLayoutRevisionId.value ?? "missing",
+  session.server.value?.documentDigest ?? "missing",
+  session.server.value?.sourceLockSetDigest ?? "missing",
+  publicationPreflight.value?.preflightDigest ?? "missing",
+  publicationPreflight.value?.issues.map((issue) => issue.issueKey).sort().join("|") ?? "missing",
+].join(":"), (_identity, previousIdentity) => {
+  if (previousIdentity === undefined) return;
+  publicationAcknowledgedIssueKeys.value = [];
+  publicationRequestId.value = null;
+});
+watch(() => session.pendingCommand.value?.id ?? null, () => {
+  authoritativePreviewOpen.value = false;
+  authoritativePreviewReviewed.value = false;
+  authoritativePreviewReviewState.value = {
+    renderReady: false,
+    fullyViewed: false,
+    error: false,
+  };
+});
+watch(primaryCrop, (crop) => {
+  if (!crop && activeTool.value === "crop") activeTool.value = "select";
 });
 watch(
   () => [
@@ -2560,6 +3216,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .layout-editor {
+  --layout-topbar-offset: 53px;
   position: relative;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
@@ -2576,7 +3233,7 @@ onBeforeUnmount(() => {
 .layout-ai-drawer {
   position: absolute;
   z-index: 40;
-  top: 53px;
+  top: var(--layout-topbar-offset);
   right: 0;
   bottom: 0;
   display: grid;
@@ -2647,6 +3304,32 @@ onBeforeUnmount(() => {
   align-items: start;
   gap: 10px;
   min-width: 0;
+}
+.authoritative-preview-toggle {
+  justify-self: stretch;
+  border-color: rgba(34, 199, 169, 0.34);
+  color: #a7f3d0;
+}
+.authoritative-preview-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding-top: 10px;
+}
+.authoritative-preview-review-state {
+  border: 1px solid rgba(34, 199, 169, 0.22);
+  border-radius: 8px;
+  background: rgba(34, 199, 169, 0.08);
+  color: #a7f3d0 !important;
+  padding: 8px 10px;
+}
+.authoritative-preview-review-state.is-error {
+  border-color: rgba(251, 113, 133, 0.32);
+  background: rgba(127, 29, 29, 0.16);
+  color: #fecdd3 !important;
 }
 
 button,
@@ -2774,6 +3457,55 @@ button:disabled {
   color: #e2e8f0;
 }
 
+.release-flow {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release-flow li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.64);
+  padding: 8px;
+}
+
+.release-flow li > span {
+  display: grid;
+  flex: none;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.14);
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.release-flow li > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.release-flow li strong { font-size: 10px; }
+.release-flow li small { color: #71809c; font-size: 8px; }
+.release-flow li.is-ready { border-color: rgba(34, 197, 94, 0.3); }
+.release-flow li.is-ready > span { background: rgba(34, 197, 94, 0.16); color: #86efac; }
+.release-flow li.is-warning { border-color: rgba(245, 158, 11, 0.3); }
+.release-flow li.is-warning > span { background: rgba(245, 158, 11, 0.16); color: #fcd34d; }
+.release-flow li.is-blocked { border-color: rgba(244, 63, 94, 0.3); }
+.release-flow li.is-blocked > span { background: rgba(244, 63, 94, 0.16); color: #fda4af; }
+
 .m6-card {
   display: grid;
   align-content: start;
@@ -2880,6 +3612,44 @@ button:disabled {
 .editor-status.is-conflict .status-dot,
 .editor-status.is-error .status-dot { background: #fb7185; }
 .editor-status small { color: #7f8ca8; }
+
+.mobile-preview-feedback {
+  position: absolute;
+  z-index: 45;
+  top: calc(var(--layout-topbar-offset) + 9px);
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(560px, calc(100% - 24px));
+  border: 1px solid rgba(34, 197, 94, 0.34);
+  border-radius: 10px;
+  background: rgba(6, 78, 59, 0.96);
+  color: #d1fae5;
+  padding: 9px 10px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
+}
+.mobile-preview-feedback.is-error {
+  border-color: rgba(251, 146, 60, 0.38);
+  background: rgba(124, 45, 18, 0.97);
+  color: #ffedd5;
+}
+.mobile-preview-feedback > span { min-width: 0; flex: 1; font-size: 12px; line-height: 1.45; }
+.mobile-preview-feedback > a {
+  flex: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  text-underline-offset: 3px;
+}
+.mobile-preview-feedback > button {
+  flex: none;
+  width: 26px;
+  min-height: 26px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
 
 .mobile-readonly,
 .conflict-banner,
@@ -3083,10 +3853,17 @@ button:disabled {
   touch-action: none;
 }
 
-.canvas-element.type-panel_frame { border-style: solid; background: #d6dbe5; }
+.canvas-element.type-panel_frame { background: #d6dbe5; }
 .canvas-element.type-balloon,
 .canvas-element.type-text { overflow: visible; color: #111827; }
 .canvas-element img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.panel-border-overlay {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+}
 .canvas-element.is-selected { outline: 3px solid #22c7a9; outline-offset: 2px; }
 .canvas-element.is-locked { cursor: not-allowed; }
 .lock-mark { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; background: rgba(8, 13, 25, 0.78); color: white; }
@@ -3119,9 +3896,28 @@ button:disabled {
 .preset-grid small { color: #7f8ca8; font-size: 9px; }
 .preset-picker > p,
 .special-properties > p { margin: 0; color: #8491aa; font-size: 10px; line-height: 1.5; }
+.special-properties > p.reserved-color-warning {
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 7px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #fcd34d;
+  padding: 7px;
+}
 .special-properties > label { display: grid; gap: 5px; color: #8491aa; font-size: 11px; }
 .special-properties .check-row { display: flex; align-items: center; grid-template-columns: auto 1fr; }
 .special-properties .check-row input { width: auto; }
+.balloon-preset-row,
+.sfx-preset-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.balloon-preset-row button,
+.sfx-preset-row button {
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 10px;
+}
 .text-preflight-summary { display: grid; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.14); border-radius: 9px; padding: 10px; margin: 12px 0; }
 .text-preflight-summary p { margin: 0; color: #93a4bf; font-size: 10px; line-height: 1.5; }
 .reading-order article { display: flex; align-items: center; justify-content: space-between; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 7px; padding: 5px 7px; font-size: 11px; }
@@ -3138,23 +3934,36 @@ button:disabled {
 
 @media (max-width: 1260px) {
   .editor-shell { grid-template-columns: 44px 210px minmax(0, 1fr) 280px; }
-  .top-actions button:nth-last-child(-n + 2) { display: none; }
   .m6-control-center { grid-template-columns: 1fr 1fr; }
   .history-card { grid-column: 1 / -1; }
+  .release-flow { grid-template-columns: 1fr 1fr; }
+}
+
+@media (min-width: 1024px) and (max-width: 1260px) {
+  .layout-editor { --layout-topbar-offset: 91px; }
+  .editor-topbar { flex-wrap: wrap; }
+  .top-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 1023px) {
   .layout-editor { min-height: 680px; overflow: visible; }
   .editor-topbar { flex-wrap: wrap; }
+  .top-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
   .editor-shell { grid-template-columns: 1fr; overflow: visible; }
   .tool-rail,
   .canvas-navigation,
   .inspector { display: none; }
   .canvas-workspace { min-height: 560px; }
   .m6-control-center { grid-template-columns: 1fr; max-height: none; }
+  .release-flow { grid-template-columns: 1fr; }
   .history-card { grid-column: auto; }
   .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
-  .layout-preview-comparison { grid-template-columns: 1fr; }
+  .layout-preview-comparison,
+  .authoritative-preview-comparison { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

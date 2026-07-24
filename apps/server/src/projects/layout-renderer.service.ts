@@ -12,6 +12,7 @@ import {
   type LayoutRendererIdentityV1,
   type PublicationOutputRoleV1,
   type RenderPlanV1,
+  type RenderPlanV2,
 } from "@airoaming/shared";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -174,7 +175,9 @@ function pdfPageCount(bytes: Buffer): number {
   return count;
 }
 
-function assertOutputLimits(plan: RenderPlanV1, profile: LayoutPublicationProfileV1): void {
+type RenderPlanV1OrV2 = RenderPlanV1 | RenderPlanV2;
+
+function assertOutputLimits(plan: RenderPlanV1OrV2, profile: LayoutPublicationProfileV1): void {
   const scale = profile.outputScale;
   for (const canvas of plan.canvases) {
     const width = canvas.width * scale;
@@ -405,7 +408,7 @@ export class LayoutRendererService {
   }
 
   async render(
-    plan: RenderPlanV1,
+    plan: RenderPlanV1OrV2,
     profile: LayoutPublicationProfileV1,
     resolvedAssets: readonly ResolvedRenderAssetV1[],
   ): Promise<RenderedLayoutPublicationV1> {
@@ -483,7 +486,7 @@ export class LayoutRendererService {
 
   private async renderPaged(
     context: BrowserContext,
-    plan: RenderPlanV1,
+    plan: RenderPlanV1OrV2,
     profile: Extract<LayoutPublicationProfileV1, { kind: "paged_publication" }>,
     fontFaces: ResolvedRenderFontFaceV1[],
   ): Promise<RenderedPublicationArtifactV1[]> {
@@ -533,7 +536,7 @@ export class LayoutRendererService {
 
   private async renderVertical(
     context: BrowserContext,
-    plan: RenderPlanV1,
+    plan: RenderPlanV1OrV2,
     profile: Extract<LayoutPublicationProfileV1, { kind: "vertical_publication" }>,
     fontFaces: ResolvedRenderFontFaceV1[],
   ): Promise<RenderedPublicationArtifactV1[]> {

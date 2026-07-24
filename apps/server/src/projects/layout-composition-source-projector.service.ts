@@ -2,19 +2,27 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   LayoutDocumentCodecV2,
+  LayoutDocumentCodecV1,
   StoryboardDocumentCodecV2,
   buildTaskSourceProjection,
   digestCanonicalJson,
+  digestLayoutCompositionV1,
   digestLayoutCompositionScopeV1,
+  encodeLayoutCompositionTaskOutputV1,
+  normalizeLayoutDialogueV1,
   parseLayoutCompositionTaskInputV1,
+  parseLayoutCompositionTaskOutputV1,
+  projectLayoutDocumentV2ToV1,
   taskSourceProjectionDigest,
   type CreateLayoutCompositionRequestV1,
   type Digest,
   type LayoutCompositionCharacterV1,
   type LayoutCompositionFrozenSourceV1,
   type LayoutCompositionTaskInputV1,
+  type LayoutCurrentCompositionV2,
   type LayoutDigest,
   type LayoutFontPolicyV1,
+  type LayoutDialogueLedgerV1,
   type LayoutProfileV1,
   type LayoutTypographyFaceV1,
   type LayoutTypographyPresetV1,
@@ -74,10 +82,25 @@ function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
 }
 
+function compareUnicodeCodePoints(left: string, right: string): number {
+  const a = Array.from(left, (value) => value.codePointAt(0)!);
+  const b = Array.from(right, (value) => value.codePointAt(0)!);
+  for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
+    if (a[index] !== b[index]) return a[index]! - b[index]!;
+  }
+  return a.length - b.length;
+}
+
 interface CharacterProjectionV1 {
   token: string;
   databaseId: string;
   name: string;
+}
+
+export interface LayoutDialoguePreflightSourceV1 {
+  storyboardVersionId: string;
+  storyboardDigest: LayoutDigest;
+  dialogueLedger: LayoutDialogueLedgerV1;
 }
 
 @Injectable()
@@ -88,6 +111,186 @@ export class LayoutCompositionSourceProjector {
     @Inject(LayoutFontService) private readonly layoutFonts: LayoutFontService,
     @Inject(SettingsService) private readonly settings: SettingsService,
   ) {}
+
+  /**
+   * Projects only the current, chapter-scoped Storyboard dialogue facts needed
+   * by LayoutDocumentV2 preflight.  It deliberately does not expose a compose
+   * task source or mutable Working Copy state.
+   */
+  async currentDialoguePreflightSource(
+    scope: VersionScopeV1,
+    reader: Reader,
+  ): Promise<LayoutDialoguePreflightSourceV1> {
+    const chapter = await reader.chapter.findFirst({
+      where: {
+        id: scope.chapterId,
+        projectId: scope.projectId,
+        project: { lifecycleStatus: "active" },
+      },
+      select: { currentStoryboardVersionId: true },
+    });
+    if (!chapter?.currentStoryboardVersionId) {
+      sourceError("LAYOUT_COMPOSITION_SOURCE_INCOMPLETE", 409, {
+        field: "storyboard",
+      });
+    }
+    const storyboardRow = await reader.storyboardVersion.findFirst({
+      where: {
+        id: chapter.currentStoryboardVersionId,
+        projectId: scope.projectId,
+        chapterId: scope.chapterId,
+        status: "confirmed",
+      },
+      select: { id: true, documentJson: true, documentDigest: true },
+    });
+    if (!storyboardRow) {
+      sourceError("LAYOUT_COMPOSITION_SOURCE_INCOMPLETE", 409, {
+        field: "storyboard",
+      });
+    }
+    const storyboard = StoryboardDocumentCodecV2.encode(storyboardRow.documentJson);
+    if (storyboard.digest !== storyboardRow.documentDigest) {
+      sourceError("LAYOUT_COMPOSITION_SOURCE_INCOMPLETE", 409, {
+        field: "storyboardDigest",
+      });
+    }
+    const characters = await this.projectCharacters(
+      scope,
+      storyboardRow.id,
+      storyboard.value,
+      reader,
+    );
+    return {
+      storyboardVersionId: storyboardRow.id,
+      storyboardDigest: storyboard.digest,
+      dialogueLedger: normalizeLayoutDialogueV1({
+        storyboard: storyboard.value,
+        characterCatalog: characters.map((character) => ({
+          characterId: character.token,
+          name: character.name,
+        })),
+      }),
+    };
+  }
+
+  /**
+   * Resolves the immutable compose provenance behind a V2 document's
+   * composition digest.  A digest copied into JSON is not accepted as
+   * authority: the successful task, its initial application evidence, frozen
+   * lock set, output digest and recomputable composition digest must all
+   * agree.  Callers deliberately receive null so preflight can emit a
+   * blocking evidence issue instead of silently weakening freshness.
+   */
+  async compositionPreflightEvidence(
+    scope: VersionScopeV1,
+    compositionDigest: LayoutDigest,
+    reader: Reader,
+  ): Promise<LayoutCurrentCompositionV2 | null> {
+    const workingCopy = await reader.layoutWorkingCopy.findFirst({
+      where: { projectId: scope.projectId, chapterId: scope.chapterId },
+      select: { id: true },
+    });
+    if (!workingCopy) return null;
+    const applications = await reader.layoutCompositionApplication.findMany({
+      where: {
+        projectId: scope.projectId,
+        chapterId: scope.chapterId,
+        result: "initial_working_copy",
+        targetId: workingCopy.id,
+      },
+      include: { task: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    for (const application of applications) {
+      try {
+        const task = application.task;
+        if (
+          task.type !== "layout_compose"
+          || task.recordKind !== "runtime"
+          || task.provenanceStatus !== "complete"
+          || task.status !== "succeeded"
+          || task.projectId !== scope.projectId
+          || task.chapterId !== scope.chapterId
+          || task.targetType !== "chapter"
+          || task.targetId !== scope.chapterId
+          || !task.inputJson
+          || !task.outputJson
+          || task.inputSchemaVersion !== 1
+          || task.outputSchemaVersion !== 1
+          || !task.inputDigest
+          || !task.outputDigest
+          || !task.sourceSetSealedAt
+          || application.taskId !== task.id
+          || application.baseDocumentDigest !== null
+          || application.targetRowVersion !== 0
+        ) continue;
+        const input = parseLayoutCompositionTaskInputV1(task.inputJson);
+        const output = parseLayoutCompositionTaskOutputV1(task.outputJson);
+        if (
+          input.mode !== "initial"
+          || output.mode !== input.mode
+          || output.sourceProjectionDigest !== input.sourceProjectionDigest
+          || output.baseDocumentDigest !== null
+          || output.result.kind !== "initial_document"
+          || !output.result.document
+          || output.result.commandBatch !== null
+          || digestCanonicalJson(input) !== task.inputDigest
+          || encodeLayoutCompositionTaskOutputV1(output).digest !== task.outputDigest
+        ) continue;
+        const generated = LayoutDocumentCodecV2.encode(output.result.document, scope);
+        if (generated.digest !== application.resultDocumentDigest) continue;
+        const composition = generated.value.automation.composition;
+        if (
+          !composition
+          || composition.compositionDigest !== compositionDigest
+          || composition.storyboardVersionId !== input.source.storyboard.versionId
+          || composition.storyboardDigest !== input.source.storyboard.documentDigest
+          || composition.sourceLockSetDigest !== input.source.candidateLockSet.digest
+        ) continue;
+        const compositionSourceLocks = input.source.candidateLockSet.items
+          .map((item) => ({
+            shotId: item.source.shotId,
+            candidateLockRevisionId: item.source.candidateLockRevisionId,
+          }))
+          .sort((left, right) => compareUnicodeCodePoints(left.shotId, right.shotId));
+        if (
+          new Set(compositionSourceLocks.map((item) => item.shotId)).size
+            !== compositionSourceLocks.length
+          || digestCanonicalJson(compositionSourceLocks)
+            !== composition.sourceLockSetDigest
+        ) continue;
+        const visible = LayoutDocumentCodecV1.encode(
+          projectLayoutDocumentV2ToV1(generated.value, scope),
+          scope,
+        );
+        const recomputedCompositionDigest = digestLayoutCompositionV1({
+          compositionPolicyVersion: composition.compositionPolicyVersion,
+          storyboardVersionId: composition.storyboardVersionId,
+          storyboardDigest: composition.storyboardDigest,
+          sourceLockSetDigest: composition.sourceLockSetDigest,
+          visualAnalysisSetDigest: composition.visualAnalysisSetDigest,
+          mode: composition.mode,
+          planDigest: output.report.planDigest,
+          initialVisibleDocumentDigest: visible.digest,
+          initialDialogueBindingsDigest: digestCanonicalJson(
+            generated.value.automation.dialogueBindings,
+          ),
+        });
+        if (recomputedCompositionDigest !== composition.compositionDigest) continue;
+        return {
+          compositionDigest: composition.compositionDigest,
+          storyboardVersionId: composition.storyboardVersionId,
+          storyboardDigest: composition.storyboardDigest,
+          visualAnalysisSetDigest: composition.visualAnalysisSetDigest,
+          compositionSourceLocks,
+        };
+      } catch {
+        // Invalid or partially migrated evidence is not authoritative.
+      }
+    }
+    return null;
+  }
 
   async freeze(
     scope: VersionScopeV1,

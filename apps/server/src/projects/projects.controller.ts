@@ -36,11 +36,13 @@ import type {
   InitializeLayoutWorkingCopyRequestV1,
   SaveLayoutWorkingCopyRequestV1OrV2,
   CommitLayoutSourceReplacementRequestV1,
-  CreateLayoutRevisionRequestV1,
+  CommitLayoutSourceReplacementRequestV2,
+  CreateLayoutRevisionRequestV1OrV2,
   PreviewLayoutSourceReplacementRequestV1,
-  RestoreLayoutRevisionRequestV1,
-  RunLayoutPreflightRequestV1,
-  CreateLayoutPublicationRequestV1,
+  PreviewLayoutSourceReplacementRequestV2,
+  RestoreLayoutRevisionRequestV1OrV2,
+  RunLayoutPreflightRequestV1OrV2,
+  CreateLayoutPublicationRequestV1OrV2,
   CreatePendingEditorCommandSetRequestV1,
   CreateLayoutCompositionRequestV1,
 } from "@airoaming/shared";
@@ -746,7 +748,7 @@ export class ProjectsController {
   async previewLayoutSourceReplacements(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
-    @Body() body: PreviewLayoutSourceReplacementRequestV1,
+    @Body() body: PreviewLayoutSourceReplacementRequestV1 | PreviewLayoutSourceReplacementRequestV2,
   ) {
     return ok(await this.layoutVersioningService.previewSourceReplacements({ projectId, chapterId }, body));
   }
@@ -755,7 +757,7 @@ export class ProjectsController {
   async commitLayoutSourceReplacements(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
-    @Body() body: CommitLayoutSourceReplacementRequestV1,
+    @Body() body: CommitLayoutSourceReplacementRequestV1 | CommitLayoutSourceReplacementRequestV2,
   ) {
     return ok(await this.layoutVersioningService.commitSourceReplacements({ projectId, chapterId }, body));
   }
@@ -764,7 +766,7 @@ export class ProjectsController {
   async runLayoutPreflight(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
-    @Body() body: RunLayoutPreflightRequestV1,
+    @Body() body: RunLayoutPreflightRequestV1OrV2,
   ) {
     return ok(await this.layoutVersioningService.preflight({ projectId, chapterId }, body));
   }
@@ -773,7 +775,7 @@ export class ProjectsController {
   async createLayoutRevision(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
-    @Body() body: CreateLayoutRevisionRequestV1,
+    @Body() body: CreateLayoutRevisionRequestV1OrV2,
   ) {
     return ok(await this.layoutVersioningService.createRevision({ projectId, chapterId }, body));
   }
@@ -800,7 +802,7 @@ export class ProjectsController {
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
     @Param("revisionId") revisionId: string,
-    @Body() body: RestoreLayoutRevisionRequestV1,
+    @Body() body: RestoreLayoutRevisionRequestV1OrV2,
   ) {
     return ok(await this.layoutVersioningService.restoreRevision({ projectId, chapterId }, revisionId, body));
   }
@@ -844,7 +846,7 @@ export class ProjectsController {
   async createLayoutPublication(
     @Param("projectId") projectId: string,
     @Param("chapterId") chapterId: string,
-    @Body() body: CreateLayoutPublicationRequestV1,
+    @Body() body: CreateLayoutPublicationRequestV1OrV2,
   ) {
     return ok(await this.projectsService.createLayoutPublication(projectId, chapterId, body));
   }

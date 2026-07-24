@@ -4,13 +4,27 @@ import {
   parseStrictJson,
   sha256Bytes,
 } from "../versioning/canonical-json.js";
+import {
+  buildTaskSourceProjection,
+  type TaskSourceProjectionV1,
+} from "../versioning/task-source-projection.js";
 import type {
   EncodedLayoutValue,
   LayoutCanvasV1,
   LayoutDigest,
   LayoutPublicationProfileV1,
 } from "./document.js";
+
+export const LAYOUT_PUBLICATION_SOURCE_POLICY_V1 =
+  "layout-publication-source-v1" as const;
+export const LAYOUT_PUBLICATION_SOURCE_POLICY_V2 =
+  "layout-publication-source-v2" as const;
 import { LayoutDocumentCodecV1 } from "./codec.js";
+import {
+  LayoutDocumentCodecV2,
+  projectLayoutDocumentV2ToV1,
+  type LayoutDocumentV2,
+} from "./automation.js";
 import type { GenerationTaskItem } from "../dto.js";
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -121,6 +135,20 @@ export interface RenderPlanV1 {
   renderPlanDigest: LayoutDigest;
 }
 
+export interface RenderPlanV2 {
+  schemaVersion: 2;
+  kind: "layout_render_plan_v2";
+  revisionDocumentDigest: LayoutDigest;
+  visibleDocumentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest;
+  profileDigest: LayoutDigest;
+  rendererPolicyVersion: "layout_render_policy_v1";
+  canvases: RenderCanvasPlanV1[];
+  assets: RenderAssetManifestV1;
+  diagnostics: RenderPlanDiagnosticV1[];
+  renderPlanDigest: LayoutDigest;
+}
+
 export interface LayoutRendererIdentityV1 {
   rendererId: "airoaming_layout_renderer";
   rendererVersion: string;
@@ -164,6 +192,23 @@ export interface CreateLayoutPublicationRequestV1 {
   acknowledgedIssueKeys: string[];
 }
 
+export interface CreateLayoutPublicationRequestV2 {
+  schemaVersion: 2;
+  requestId: string;
+  layoutRevisionId: string;
+  expectedCurrentLayoutRevisionId: string;
+  expectedRevisionDocumentDigest: LayoutDigest;
+  expectedVisibleDocumentDigest: LayoutDigest;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  preflightDigest: LayoutDigest;
+  acknowledgedIssueKeys: string[];
+}
+
+export type CreateLayoutPublicationRequestV1OrV2 =
+  | CreateLayoutPublicationRequestV1
+  | CreateLayoutPublicationRequestV2;
+
 export interface LayoutPublicationArtifactV1 {
   assetId: string;
   role: PublicationOutputRoleV1 | "publication_manifest";
@@ -202,6 +247,33 @@ export interface LayoutPublicationSummaryV1 {
   cancelledAt: string | null;
 }
 
+export interface LayoutPublicationSummaryV2 {
+  schemaVersion: 2;
+  documentSchemaVersion: 2;
+  id: string;
+  projectId: string;
+  chapterId: string;
+  revision: number;
+  status: "queued" | "rendering" | "ready" | "failed" | "cancelled";
+  taskId: string;
+  layoutRevisionId: string;
+  revisionDocumentDigest: LayoutDigest;
+  visibleDocumentDigest: LayoutDigest;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  preflightDigest: LayoutDigest;
+  rendererVersion: string;
+  manifest: PublicationManifestV2 | null;
+  manifestDigest: LayoutDigest | null;
+  completionApplicability: "current" | "historical" | null;
+  revisionPosition: "current" | "historical";
+  artifacts: LayoutPublicationArtifactV1[];
+  createdAt: string;
+  readyAt: string | null;
+  failedAt: string | null;
+  cancelledAt: string | null;
+}
+
 export interface CreateLayoutPublicationResponseV1 {
   schemaVersion: 1;
   result: "created" | "replayed";
@@ -209,10 +281,26 @@ export interface CreateLayoutPublicationResponseV1 {
   task: GenerationTaskItem;
 }
 
+export interface CreateLayoutPublicationResponseV2 {
+  schemaVersion: 2;
+  result: "created" | "replayed";
+  exportRevision: LayoutPublicationSummaryV2;
+  task: GenerationTaskItem;
+}
+
 export interface LayoutPublicationHistoryResponseV1 {
   schemaVersion: 1;
   currentExportRevisionId: string | null;
   items: LayoutPublicationSummaryV1[];
+}
+
+export interface LayoutPublicationHistoryResponseV2 {
+  schemaVersion: 2;
+  currentExportRevisionId: string | null;
+  items: Array<
+    | (LayoutPublicationSummaryV1 & { documentSchemaVersion: 1 })
+    | LayoutPublicationSummaryV2
+  >;
 }
 
 export interface PublicationInputAssetV1 {
@@ -253,6 +341,51 @@ export interface PublicationManifestV1 {
   renderer: LayoutRendererIdentityV1;
   inputs: { images: PublicationInputAssetV1[]; fonts: PublicationInputAssetV1[] };
   outputs: PublicationOutputArtifactV1[];
+}
+
+export interface PublicationManifestV2 {
+  schemaVersion: 2;
+  kind: "layout_publication_manifest_v2";
+  projectId: string;
+  chapterId: string;
+  exportRevisionId: string;
+  exportRevision: number;
+  layoutRevisionId: string;
+  layoutRevision: number;
+  revisionDocumentDigest: LayoutDigest;
+  visibleDocumentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  renderer: LayoutRendererIdentityV1;
+  inputs: { images: PublicationInputAssetV1[]; fonts: PublicationInputAssetV1[] };
+  outputs: PublicationOutputArtifactV1[];
+}
+
+export interface EncodedPublicationManifestV2 {
+  schemaVersion: 2;
+  value: PublicationManifestV2;
+  canonical: string;
+  canonicalBytes: Uint8Array;
+  digest: LayoutDigest;
+}
+
+export interface LayoutPublicationTaskInputV2 {
+  schemaVersion: 2;
+  kind: "layout_publication_task_v2";
+  requestId: string;
+  exportRevisionId: string;
+  layoutRevisionId: string;
+  revisionDocumentDigest: LayoutDigest;
+  visibleDocumentDigest: LayoutDigest;
+  sourceLockSetDigest: LayoutDigest;
+  profile: LayoutPublicationProfileV1;
+  profileDigest: LayoutDigest;
+  preflightDigest: LayoutDigest;
+  acknowledgedIssueKeys: string[];
+  renderer: LayoutRendererIdentityV1;
+  assetManifest: RenderAssetManifestV1;
+  sourceProjection: TaskSourceProjectionV1;
 }
 
 function nonEmpty(value: unknown, label: string): string {
@@ -308,6 +441,95 @@ function digestCanonical(value: unknown): LayoutDigest {
   return sha256Bytes(canonicalJsonBytes(value));
 }
 
+function issueKeys(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.length > 5_000) throw new Error(`${label}: expected array with at most 5000 entries`);
+  const parsed = value.map((item, index) => nonEmpty(item, `${label}[${index}]`)).sort();
+  if (new Set(parsed).size !== parsed.length) throw new Error(`${label}: duplicate issue key`);
+  return parsed;
+}
+
+function parseRendererIdentityV1(input: unknown): LayoutRendererIdentityV1 {
+  const row = exact(input, [
+    "rendererId",
+    "rendererVersion",
+    "rendererPolicyVersion",
+    "geometryPolicyVersion",
+    "textPolicyVersion",
+    "balloonPolicyVersion",
+    "rasterEngine",
+    "rasterEngineVersion",
+    "buildDigest",
+  ], "renderer");
+  if (row.rendererId !== "airoaming_layout_renderer") throw new Error("renderer.rendererId: unsupported renderer");
+  if (row.rendererPolicyVersion !== "layout_render_policy_v1") throw new Error("renderer.rendererPolicyVersion: unsupported policy");
+  if (row.geometryPolicyVersion !== "layout_geometry_v1") throw new Error("renderer.geometryPolicyVersion: unsupported policy");
+  if (row.textPolicyVersion !== "layout_text_v1") throw new Error("renderer.textPolicyVersion: unsupported policy");
+  if (row.balloonPolicyVersion !== "balloon_shape_v1") throw new Error("renderer.balloonPolicyVersion: unsupported policy");
+  if (row.rasterEngine !== "chromium" && row.rasterEngine !== "resvg" && row.rasterEngine !== "other_approved") {
+    throw new Error("renderer.rasterEngine: unsupported engine");
+  }
+  return {
+    rendererId: "airoaming_layout_renderer",
+    rendererVersion: nonEmpty(row.rendererVersion, "renderer.rendererVersion"),
+    rendererPolicyVersion: "layout_render_policy_v1",
+    geometryPolicyVersion: "layout_geometry_v1",
+    textPolicyVersion: "layout_text_v1",
+    balloonPolicyVersion: "balloon_shape_v1",
+    rasterEngine: row.rasterEngine,
+    rasterEngineVersion: nonEmpty(row.rasterEngineVersion, "renderer.rasterEngineVersion"),
+    buildDigest: digest(row.buildDigest, "renderer.buildDigest"),
+  };
+}
+
+function parseTaskSourceProjectionV1(input: unknown): TaskSourceProjectionV1 {
+  const row = exact(input, [
+    "schemaVersion",
+    "policyVersion",
+    "projectId",
+    "chapterId",
+    "consumerType",
+    "sources",
+  ], "sourceProjection");
+  if (row.schemaVersion !== 1) throw new Error("sourceProjection.schemaVersion: expected 1");
+  if (!Array.isArray(row.sources)) throw new Error("sourceProjection.sources: expected array");
+  const sources = row.sources.map((entry, index) => {
+    const item = exact(entry, [
+      "role",
+      "order",
+      "sourceType",
+      "sourceId",
+      "sourceDigest",
+    ], `sourceProjection.sources[${index}]`);
+    return {
+      role: nonEmpty(item.role, `sourceProjection.sources[${index}].role`),
+      order: positiveInteger(item.order, `sourceProjection.sources[${index}].order`),
+      sourceType: nonEmpty(item.sourceType, `sourceProjection.sources[${index}].sourceType`),
+      sourceId: nonEmpty(item.sourceId, `sourceProjection.sources[${index}].sourceId`),
+      sourceDigest: digest(item.sourceDigest, `sourceProjection.sources[${index}].sourceDigest`),
+    };
+  });
+  const normalized = buildTaskSourceProjection({
+    policyVersion: nonEmpty(row.policyVersion, "sourceProjection.policyVersion"),
+    projectId: nonEmpty(row.projectId, "sourceProjection.projectId"),
+    chapterId: row.chapterId === null
+      ? null
+      : nonEmpty(row.chapterId, "sourceProjection.chapterId"),
+    consumerType: nonEmpty(row.consumerType, "sourceProjection.consumerType"),
+    sources: sources.map(({ order: _order, ...source }) => source),
+  });
+  if (canonicalizeJson(normalized) !== canonicalizeJson({
+    schemaVersion: 1,
+    policyVersion: row.policyVersion,
+    projectId: row.projectId,
+    chapterId: row.chapterId,
+    consumerType: row.consumerType,
+    sources,
+  })) {
+    throw new Error("sourceProjection: source order does not match canonical projection");
+  }
+  return normalized;
+}
+
 export function buildLayoutRenderPlanV1(input: {
   document: unknown;
   sourceLockSetDigest: unknown;
@@ -343,6 +565,37 @@ export function buildLayoutRenderPlanV1(input: {
     })),
     assets,
     diagnostics,
+  };
+  return { ...unsigned, renderPlanDigest: digestCanonical(unsigned) };
+}
+
+export function buildLayoutRenderPlanV2(input: {
+  document: LayoutDocumentV2;
+  sourceLockSetDigest: unknown;
+  profile: unknown;
+  assets: unknown;
+  diagnostics?: readonly RenderPlanDiagnosticV1[];
+}): RenderPlanV2 {
+  const revision = LayoutDocumentCodecV2.encode(input.document);
+  const visible = projectLayoutDocumentV2ToV1(revision.value);
+  const visiblePlan = buildLayoutRenderPlanV1({
+    document: visible,
+    sourceLockSetDigest: input.sourceLockSetDigest,
+    profile: input.profile,
+    assets: input.assets,
+    diagnostics: input.diagnostics,
+  });
+  const unsigned = {
+    schemaVersion: 2 as const,
+    kind: "layout_render_plan_v2" as const,
+    revisionDocumentDigest: revision.digest,
+    visibleDocumentDigest: visiblePlan.documentDigest,
+    sourceLockSetDigest: visiblePlan.sourceLockSetDigest,
+    profileDigest: visiblePlan.profileDigest,
+    rendererPolicyVersion: visiblePlan.rendererPolicyVersion,
+    canvases: visiblePlan.canvases,
+    assets: visiblePlan.assets,
+    diagnostics: visiblePlan.diagnostics,
   };
   return { ...unsigned, renderPlanDigest: digestCanonical(unsigned) };
 }
@@ -397,6 +650,126 @@ export function parseCreateLayoutPublicationRequestV1(input: unknown): CreateLay
   };
 }
 
+export function parseCreateLayoutPublicationRequestV2(input: unknown): CreateLayoutPublicationRequestV2 {
+  const value = typeof input === "string" ? parseStrictJson(input) : input;
+  const row = exact(value, [
+    "schemaVersion",
+    "requestId",
+    "layoutRevisionId",
+    "expectedCurrentLayoutRevisionId",
+    "expectedRevisionDocumentDigest",
+    "expectedVisibleDocumentDigest",
+    "profile",
+    "profileDigest",
+    "preflightDigest",
+    "acknowledgedIssueKeys",
+  ], "layoutPublicationRequest");
+  if (row.schemaVersion !== 2) throw new Error("layoutPublicationRequest.schemaVersion: expected 2");
+  const profile = LayoutPublicationProfileCodecV1.encode(row.profile);
+  const profileDigest = digest(row.profileDigest, "layoutPublicationRequest.profileDigest");
+  if (profile.digest !== profileDigest) {
+    throw new Error("layoutPublicationRequest.profileDigest: does not match canonical profile");
+  }
+  return {
+    schemaVersion: 2,
+    requestId: nonEmpty(row.requestId, "layoutPublicationRequest.requestId"),
+    layoutRevisionId: nonEmpty(row.layoutRevisionId, "layoutPublicationRequest.layoutRevisionId"),
+    expectedCurrentLayoutRevisionId: nonEmpty(
+      row.expectedCurrentLayoutRevisionId,
+      "layoutPublicationRequest.expectedCurrentLayoutRevisionId",
+    ),
+    expectedRevisionDocumentDigest: digest(
+      row.expectedRevisionDocumentDigest,
+      "layoutPublicationRequest.expectedRevisionDocumentDigest",
+    ),
+    expectedVisibleDocumentDigest: digest(
+      row.expectedVisibleDocumentDigest,
+      "layoutPublicationRequest.expectedVisibleDocumentDigest",
+    ),
+    profile: profile.value,
+    profileDigest,
+    preflightDigest: digest(row.preflightDigest, "layoutPublicationRequest.preflightDigest"),
+    acknowledgedIssueKeys: issueKeys(
+      row.acknowledgedIssueKeys,
+      "layoutPublicationRequest.acknowledgedIssueKeys",
+    ),
+  };
+}
+
+export function parseCreateLayoutPublicationRequestV1OrV2(
+  input: unknown,
+): CreateLayoutPublicationRequestV1OrV2 {
+  const value = typeof input === "string" ? parseStrictJson(input) : input;
+  return record(value, "layoutPublicationRequest").schemaVersion === 2
+    ? parseCreateLayoutPublicationRequestV2(value)
+    : parseCreateLayoutPublicationRequestV1(value);
+}
+
+export function parseLayoutPublicationTaskInputV2(input: unknown): LayoutPublicationTaskInputV2 {
+  const value = typeof input === "string" ? parseStrictJson(input) : input;
+  const row = exact(value, [
+    "schemaVersion",
+    "kind",
+    "requestId",
+    "exportRevisionId",
+    "layoutRevisionId",
+    "revisionDocumentDigest",
+    "visibleDocumentDigest",
+    "sourceLockSetDigest",
+    "profile",
+    "profileDigest",
+    "preflightDigest",
+    "acknowledgedIssueKeys",
+    "renderer",
+    "assetManifest",
+    "sourceProjection",
+  ], "layoutPublicationTask");
+  if (row.schemaVersion !== 2) throw new Error("layoutPublicationTask.schemaVersion: expected 2");
+  if (row.kind !== "layout_publication_task_v2") throw new Error("layoutPublicationTask.kind: expected layout_publication_task_v2");
+  const profile = LayoutPublicationProfileCodecV1.encode(row.profile);
+  const profileDigest = digest(row.profileDigest, "layoutPublicationTask.profileDigest");
+  if (profile.digest !== profileDigest) {
+    throw new Error("layoutPublicationTask.profileDigest: does not match canonical profile");
+  }
+  const sourceProjection = parseTaskSourceProjectionV1(row.sourceProjection);
+  if (sourceProjection.policyVersion !== LAYOUT_PUBLICATION_SOURCE_POLICY_V2) {
+    throw new Error(
+      `layoutPublicationTask.sourceProjection.policyVersion: expected ${LAYOUT_PUBLICATION_SOURCE_POLICY_V2}`,
+    );
+  }
+  if (sourceProjection.consumerType !== "layout_export") {
+    throw new Error(
+      "layoutPublicationTask.sourceProjection.consumerType: expected layout_export",
+    );
+  }
+  return {
+    schemaVersion: 2,
+    kind: "layout_publication_task_v2",
+    requestId: nonEmpty(row.requestId, "layoutPublicationTask.requestId"),
+    exportRevisionId: nonEmpty(row.exportRevisionId, "layoutPublicationTask.exportRevisionId"),
+    layoutRevisionId: nonEmpty(row.layoutRevisionId, "layoutPublicationTask.layoutRevisionId"),
+    revisionDocumentDigest: digest(
+      row.revisionDocumentDigest,
+      "layoutPublicationTask.revisionDocumentDigest",
+    ),
+    visibleDocumentDigest: digest(
+      row.visibleDocumentDigest,
+      "layoutPublicationTask.visibleDocumentDigest",
+    ),
+    sourceLockSetDigest: digest(row.sourceLockSetDigest, "layoutPublicationTask.sourceLockSetDigest"),
+    profile: profile.value,
+    profileDigest,
+    preflightDigest: digest(row.preflightDigest, "layoutPublicationTask.preflightDigest"),
+    acknowledgedIssueKeys: issueKeys(
+      row.acknowledgedIssueKeys,
+      "layoutPublicationTask.acknowledgedIssueKeys",
+    ),
+    renderer: parseRendererIdentityV1(row.renderer),
+    assetManifest: normalizeRenderAssets(row.assetManifest),
+    sourceProjection,
+  };
+}
+
 export function buildPublicationManifestV1(
   input: Omit<PublicationManifestV1, "schemaVersion" | "kind" | "profileDigest">,
 ): EncodedLayoutValue<PublicationManifestV1> {
@@ -425,4 +798,35 @@ export function buildPublicationManifestV1(
   const canonical = canonicalizeJson(value);
   const canonicalBytes = canonicalJsonBytes(value);
   return { schemaVersion: 1, value, canonical, canonicalBytes, digest: sha256Bytes(canonicalBytes) };
+}
+
+export function buildPublicationManifestV2(
+  input: Omit<PublicationManifestV2, "schemaVersion" | "kind" | "profileDigest">,
+): EncodedPublicationManifestV2 {
+  const profile = LayoutPublicationProfileCodecV1.encode(input.profile);
+  const outputs = [...input.outputs].sort((left, right) => left.role.localeCompare(right.role) || left.order - right.order);
+  const value: PublicationManifestV2 = {
+    schemaVersion: 2,
+    kind: "layout_publication_manifest_v2",
+    projectId: nonEmpty(input.projectId, "manifest.projectId"),
+    chapterId: nonEmpty(input.chapterId, "manifest.chapterId"),
+    exportRevisionId: nonEmpty(input.exportRevisionId, "manifest.exportRevisionId"),
+    exportRevision: positiveInteger(input.exportRevision, "manifest.exportRevision"),
+    layoutRevisionId: nonEmpty(input.layoutRevisionId, "manifest.layoutRevisionId"),
+    layoutRevision: positiveInteger(input.layoutRevision, "manifest.layoutRevision"),
+    revisionDocumentDigest: digest(input.revisionDocumentDigest, "manifest.revisionDocumentDigest"),
+    visibleDocumentDigest: digest(input.visibleDocumentDigest, "manifest.visibleDocumentDigest"),
+    sourceLockSetDigest: digest(input.sourceLockSetDigest, "manifest.sourceLockSetDigest"),
+    profile: profile.value,
+    profileDigest: profile.digest,
+    renderer: parseRendererIdentityV1(input.renderer),
+    inputs: {
+      images: [...input.inputs.images].sort((left, right) => left.assetId.localeCompare(right.assetId)),
+      fonts: [...input.inputs.fonts].sort((left, right) => left.assetId.localeCompare(right.assetId)),
+    },
+    outputs,
+  };
+  const canonical = canonicalizeJson(value);
+  const canonicalBytes = canonicalJsonBytes(value);
+  return { schemaVersion: 2, value, canonical, canonicalBytes, digest: sha256Bytes(canonicalBytes) };
 }

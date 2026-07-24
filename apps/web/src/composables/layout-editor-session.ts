@@ -12,6 +12,7 @@ import {
   applyLayoutCommandV2,
   canonicalJsonBytes,
   encodeLayoutWorkingCopyRecoveryV1,
+  LayoutDocumentCodecV1,
   LayoutDocumentCodecV1OrV2,
   LAYOUT_HISTORY_MAX_BATCHES,
   LAYOUT_HISTORY_MAX_BYTES,
@@ -28,16 +29,26 @@ import {
   type LayoutWorkingCopyInitializationModeV1,
   type LayoutWorkingCopyResponseV1,
   type LayoutPreflightReportV1,
+  type LayoutPreflightReportV2,
   type LayoutProtectionEntryV1,
   type LayoutRevisionHistoryResponseV1,
+  type LayoutRevisionHistoryResponseV2,
   type LayoutSourceReplacementCropModeV1,
   type LayoutSourceReplacementPreviewV1,
+  type LayoutSourceReplacementPreviewV2,
   type CreatePendingEditorCommandSetRequestV1,
   type PendingEditorCommandPreviewV1OrV2,
   type LayoutLegacyCutoverStatusV1,
 } from "@airoaming/shared";
 
 import { api, ApiClientError } from "../services/api";
+import {
+  commitLayoutSaveResultIfCurrent,
+  createAwaitableLayoutSaveFlight,
+  sameLayoutSaveContext,
+  type LayoutSaveContext,
+} from "./layout-save-flight";
+import { restoreRequestSchemaForWorkingCopyV1 } from "./layout-release-adapter";
 
 export const AUTOSAVE_IDLE_MS = 800;
 export const AUTOSAVE_MAX_DIRTY_MS = 5_000;
@@ -64,6 +75,10 @@ interface LayoutSnapshotHistory {
   bytes: number;
 }
 
+interface ExecuteLayoutCommandOptions {
+  historyGroupId?: string;
+}
+
 function commandId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -76,15 +91,22 @@ function pushSnapshotHistory(
   history: LayoutSnapshotHistory,
   input: Omit<LayoutSnapshotHistoryEntry, "byteSize">,
 ): LayoutSnapshotHistory {
+  const previous = history.undo.at(-1);
+  const mergesPrevious = previous?.batchId === input.batchId;
+  const normalizedInput = mergesPrevious
+    ? { ...input, label: previous.label, before: previous.before }
+    : input;
   const entry: LayoutSnapshotHistoryEntry = {
-    batchId: input.batchId,
-    label: input.label,
-    before: structuredClone(input.before),
-    after: structuredClone(input.after),
-    byteSize: canonicalJsonBytes(input).length,
+    batchId: normalizedInput.batchId,
+    label: normalizedInput.label,
+    before: structuredClone(normalizedInput.before),
+    after: structuredClone(normalizedInput.after),
+    byteSize: canonicalJsonBytes(normalizedInput).length,
   };
-  const undo = [...history.undo, entry];
-  let bytes = history.bytes + entry.byteSize;
+  const undo = mergesPrevious
+    ? [...history.undo.slice(0, -1), entry]
+    : [...history.undo, entry];
+  let bytes = history.bytes - (mergesPrevious ? previous?.byteSize ?? 0 : 0) + entry.byteSize;
   while (undo.length > LAYOUT_HISTORY_MAX_BATCHES || bytes > LAYOUT_HISTORY_MAX_BYTES) {
     bytes -= undo.shift()!.byteSize;
   }
@@ -168,9 +190,9 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   const sourceCatalog = shallowRef<LayoutSourceCatalogResponseV1 | null>(null);
   const fontCatalog = shallowRef<LayoutFontCatalogResponseV1 | null>(null);
   const conflictServer = shallowRef<LayoutWorkingCopyResponseV1 | null>(null);
-  const revisionHistory = shallowRef<LayoutRevisionHistoryResponseV1 | null>(null);
-  const preflight = shallowRef<LayoutPreflightReportV1 | null>(null);
-  const sourceReplacementPreview = shallowRef<LayoutSourceReplacementPreviewV1 | null>(null);
+  const revisionHistory = shallowRef<LayoutRevisionHistoryResponseV1 | LayoutRevisionHistoryResponseV2 | null>(null);
+  const preflight = shallowRef<LayoutPreflightReportV1 | LayoutPreflightReportV2 | null>(null);
+  const sourceReplacementPreview = shallowRef<LayoutSourceReplacementPreviewV1 | LayoutSourceReplacementPreviewV2 | null>(null);
   const pendingCommand = shallowRef<PendingEditorCommandPreviewV1OrV2 | null>(null);
   const legacyStatus = shallowRef<LayoutLegacyCutoverStatusV1 | null>(null);
   const history = shallowRef<LayoutSnapshotHistory>(createSnapshotHistory());
@@ -189,7 +211,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let maxTimer: ReturnType<typeof setTimeout> | null = null;
   let loadGeneration = 0;
-  let saveInFlight = false;
+  const saveFlight = createAwaitableLayoutSaveFlight();
 
   const currentCanvas = computed(() => {
     const value = document.value;
@@ -390,12 +412,13 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   }
 
   function markDirty(): void {
+    sourceReplacementPreview.value = null;
     isDirty.value = true;
     saveState.value = "unsaved";
     scheduleAutosave();
   }
 
-  function execute(command: EditorCommandV1): void {
+  function execute(command: EditorCommandV1, options: ExecuteLayoutCommandOptions = {}): void {
     const before = fullDocument.value;
     if (!before || isReadOnly.value || saveState.value === "conflict") return;
     try {
@@ -404,7 +427,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         : applyLayoutCommandV2(before, toV2UserCommand(before, command)).document;
       replaceLocalDocument(after);
       history.value = pushSnapshotHistory(history.value, {
-        batchId: command.commandId,
+        batchId: options.historyGroupId ?? command.commandId,
         label: command.label,
         before,
         after,
@@ -509,54 +532,81 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     markDirty();
   }
 
-  async function refreshConflictServer(): Promise<void> {
-    const chapterId = input.chapterId.value;
-    if (!chapterId) return;
-    conflictServer.value = await api.getLayoutWorkingCopy(input.projectId.value, chapterId);
+  function currentSaveContext(): LayoutSaveContext {
+    return {
+      projectId: input.projectId.value,
+      chapterId: input.chapterId.value ?? "",
+      loadGeneration,
+    };
+  }
+
+  async function refreshConflictServer(context: LayoutSaveContext): Promise<void> {
+    const value = await api.getLayoutWorkingCopy(context.projectId, context.chapterId);
+    if (sameLayoutSaveContext(context, currentSaveContext())) {
+      conflictServer.value = value;
+    }
   }
 
   async function flush(): Promise<void> {
+    const existingSave = saveFlight.joinCurrent();
+    if (existingSave) {
+      await existingSave;
+    }
+    const projectId = input.projectId.value;
     const chapterId = input.chapterId.value;
     const local = fullDocument.value;
     const base = server.value;
     if (!chapterId || !local || !base || !isDirty.value || isReadOnly.value || saveState.value === "conflict") return;
-    if (saveInFlight) return;
-    saveInFlight = true;
+    const context: LayoutSaveContext = { projectId, chapterId, loadGeneration };
     clearTimers();
     const encoded = LayoutDocumentCodecV1OrV2.encode(local);
     saveState.value = "saving";
-    try {
-      const result = await api.saveLayoutWorkingCopy(input.projectId.value, chapterId, {
-        schemaVersion: 1,
-        expectedRowVersion: base.rowVersion,
-        baseDocumentDigest: base.documentDigest,
-        documentDigest: encoded.digest,
-        document: encoded.value,
-      });
-      server.value = result.value;
-      const latestDigest = fullDocument.value
-        ? LayoutDocumentCodecV1OrV2.encode(fullDocument.value).digest
-        : null;
-      if (latestDigest === encoded.digest) {
-        replaceLocalDocument(result.value.document);
-        isDirty.value = false;
-        firstDirtyAt = null;
-        saveState.value = "saved";
-      } else {
-        saveState.value = "unsaved";
+    await saveFlight.start(async () => {
+      try {
+        await commitLayoutSaveResultIfCurrent({
+          captured: context,
+          current: currentSaveContext,
+          save: () => api.saveLayoutWorkingCopy(projectId, chapterId, {
+            schemaVersion: 1,
+            expectedRowVersion: base.rowVersion,
+            baseDocumentDigest: base.documentDigest,
+            documentDigest: encoded.digest,
+            document: encoded.value,
+          }),
+          commit: (result) => {
+            server.value = result.value;
+            const latestDigest = fullDocument.value
+              ? LayoutDocumentCodecV1OrV2.encode(fullDocument.value).digest
+              : null;
+            if (latestDigest === encoded.digest) {
+              replaceLocalDocument(result.value.document);
+              isDirty.value = false;
+              firstDirtyAt = null;
+              saveState.value = "saved";
+            } else {
+              saveState.value = "unsaved";
+            }
+          },
+        });
+      } catch (error) {
+        if (!sameLayoutSaveContext(context, currentSaveContext())) return;
+        if (error instanceof ApiClientError && error.code === "LAYOUT_WORKING_COPY_CONFLICT") {
+          saveState.value = "conflict";
+          await refreshConflictServer(context).catch(() => undefined);
+        } else {
+          errorMessage.value = error instanceof Error ? error.message : "自动保存失败";
+          saveState.value = "unsaved";
+        }
+      } finally {
+        if (
+          sameLayoutSaveContext(context, currentSaveContext())
+          && isDirty.value
+          && saveState.value !== "conflict"
+        ) {
+          scheduleAutosave();
+        }
       }
-    } catch (error) {
-      if (error instanceof ApiClientError && error.code === "LAYOUT_WORKING_COPY_CONFLICT") {
-        saveState.value = "conflict";
-        await refreshConflictServer().catch(() => undefined);
-      } else {
-        errorMessage.value = error instanceof Error ? error.message : "自动保存失败";
-        saveState.value = "unsaved";
-      }
-    } finally {
-      saveInFlight = false;
-      if (isDirty.value && saveState.value !== "conflict") scheduleAutosave();
-    }
+    });
   }
 
   async function reloadServer(): Promise<void> {
@@ -573,23 +623,42 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
   }
 
-  async function runPreflight(): Promise<LayoutPreflightReportV1 | null> {
+  function releaseDigests(value: LayoutWorkingCopyResponseV1): {
+    revisionDocumentDigest: typeof value.documentDigest;
+    visibleDocumentDigest: typeof value.documentDigest;
+  } {
+    return {
+      revisionDocumentDigest: value.documentDigest,
+      visibleDocumentDigest: LayoutDocumentCodecV1.encode(visibleDocument(value.document)).digest,
+    };
+  }
+
+  async function runPreflight(): Promise<LayoutPreflightReportV1 | LayoutPreflightReportV2 | null> {
     const chapterId = input.chapterId.value;
     if (!chapterId || !server.value) return null;
-    if (fullDocument.value?.schemaVersion === 2) {
-      throw new Error("新版智能成稿的正式版本与出版将在后续阶段接通；当前编辑和自动保存不受影响。");
-    }
     await flush();
     if (!server.value || isDirty.value) return null;
-    const report = await api.runLayoutPreflight(input.projectId.value, chapterId, {
-      schemaVersion: 1,
-      target: {
-        kind: "working_copy",
-        expectedRowVersion: server.value.rowVersion,
-        expectedDocumentDigest: server.value.documentDigest,
-      },
-      profile: null,
-    });
+    const current = server.value;
+    const report = current.document.schemaVersion === 2
+      ? await api.runLayoutPreflight(input.projectId.value, chapterId, {
+          schemaVersion: 2,
+          target: {
+            kind: "working_copy",
+            expectedRowVersion: current.rowVersion,
+            expectedRevisionDocumentDigest: releaseDigests(current).revisionDocumentDigest,
+            expectedVisibleDocumentDigest: releaseDigests(current).visibleDocumentDigest,
+          },
+          profile: null,
+        })
+      : await api.runLayoutPreflight(input.projectId.value, chapterId, {
+          schemaVersion: 1,
+          target: {
+            kind: "working_copy",
+            expectedRowVersion: current.rowVersion,
+            expectedDocumentDigest: current.documentDigest,
+          },
+          profile: null,
+        });
     preflight.value = report;
     return report;
   }
@@ -597,20 +666,27 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   async function previewSourceReplacement(
     imageElementIds: readonly string[],
     cropMode: LayoutSourceReplacementCropModeV1,
-  ): Promise<LayoutSourceReplacementPreviewV1 | null> {
+  ): Promise<LayoutSourceReplacementPreviewV1 | LayoutSourceReplacementPreviewV2 | null> {
     const chapterId = input.chapterId.value;
     if (!chapterId || !server.value || imageElementIds.length === 0 || isReadOnly.value) return null;
-    if (fullDocument.value?.schemaVersion === 2) {
-      throw new Error("新版智能成稿暂不支持在这里批量换图，请先回到候选图确认来源。");
-    }
     await flush();
     if (!server.value || isDirty.value) return null;
-    const preview = await api.previewLayoutSourceReplacements(input.projectId.value, chapterId, {
-      schemaVersion: 1,
-      expectedWorkingCopyRowVersion: server.value.rowVersion,
-      expectedDocumentDigest: server.value.documentDigest,
-      replacements: imageElementIds.map((imageElementId) => ({ imageElementId, cropMode })),
-    });
+    const current = server.value;
+    const replacements = imageElementIds.map((imageElementId) => ({ imageElementId, cropMode }));
+    const preview = current.document.schemaVersion === 2
+      ? await api.previewLayoutSourceReplacements(input.projectId.value, chapterId, {
+          schemaVersion: 2,
+          expectedWorkingCopyRowVersion: current.rowVersion,
+          expectedRevisionDocumentDigest: releaseDigests(current).revisionDocumentDigest,
+          expectedVisibleDocumentDigest: releaseDigests(current).visibleDocumentDigest,
+          replacements,
+        })
+      : await api.previewLayoutSourceReplacements(input.projectId.value, chapterId, {
+          schemaVersion: 1,
+          expectedWorkingCopyRowVersion: current.rowVersion,
+          expectedDocumentDigest: current.documentDigest,
+          replacements,
+        });
     sourceReplacementPreview.value = preview;
     return preview;
   }
@@ -620,22 +696,35 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     const preview = sourceReplacementPreview.value;
     const before = fullDocument.value;
     if (!chapterId || !preview || !before || isReadOnly.value) return null;
-    if (before.schemaVersion !== 1) {
-      throw new Error("新版智能成稿暂不支持在这里批量换图。");
-    }
-    const result = await api.commitLayoutSourceReplacements(input.projectId.value, chapterId, {
-      schemaVersion: 1,
-      expectedWorkingCopyRowVersion: preview.expectedWorkingCopyRowVersion,
-      expectedDocumentDigest: preview.expectedDocumentDigest,
-      replacements: preview.items.map((item) => ({ imageElementId: item.imageElementId, cropMode: item.cropMode })),
-      replacementDigest: preview.replacementDigest,
-      resultDocumentDigest: preview.resultDocumentDigest,
-    });
+    const result = preview.schemaVersion === 2
+      ? await api.commitLayoutSourceReplacements(input.projectId.value, chapterId, {
+          schemaVersion: 2,
+          expectedWorkingCopyRowVersion: preview.expectedWorkingCopyRowVersion,
+          expectedRevisionDocumentDigest: preview.expectedRevisionDocumentDigest,
+          expectedVisibleDocumentDigest: preview.expectedVisibleDocumentDigest,
+          replacements: preview.items
+            .filter((item) => item.selectionOrigin === "requested")
+            .map((item) => ({ imageElementId: item.imageElementId, cropMode: item.cropMode })),
+          replacementDigest: preview.replacementDigest,
+          resultRevisionDocumentDigest: preview.resultRevisionDocumentDigest,
+          resultVisibleDocumentDigest: preview.resultVisibleDocumentDigest,
+        })
+      : await api.commitLayoutSourceReplacements(input.projectId.value, chapterId, {
+          schemaVersion: 1,
+          expectedWorkingCopyRowVersion: preview.expectedWorkingCopyRowVersion,
+          expectedDocumentDigest: preview.expectedDocumentDigest,
+          replacements: preview.items.map((item) => ({ imageElementId: item.imageElementId, cropMode: item.cropMode })),
+          replacementDigest: preview.replacementDigest,
+          resultDocumentDigest: preview.resultDocumentDigest,
+        });
     replaceFromServer(result.workingCopy);
-    const entryId = commandId("source_replacement");
     history.value = pushSnapshotHistory(history.value, {
-      batchId: entryId,
-      label: "替换当前定稿来源",
+      batchId: preview.schemaVersion === 2
+        ? preview.commandBatch.batchId
+        : commandId("source_replacement"),
+      label: preview.schemaVersion === 2
+        ? preview.commandBatch.label
+        : "替换当前定稿来源",
       before,
       after: result.workingCopy.document,
     });
@@ -646,19 +735,27 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   async function createRevision(acknowledgedIssueKeys: readonly string[]): Promise<void> {
     const chapterId = input.chapterId.value;
     if (!chapterId || !server.value || isReadOnly.value) return;
-    if (fullDocument.value?.schemaVersion === 2) {
-      throw new Error("新版智能成稿的版本保存将在后续阶段接通；当前草稿已经自动保存。");
-    }
     await flush();
     if (!server.value || isDirty.value) return;
-    const result = await api.createLayoutRevision(input.projectId.value, chapterId, {
-      schemaVersion: 1,
-      expectedWorkingCopyRowVersion: server.value.rowVersion,
-      expectedDocumentDigest: server.value.documentDigest,
+    const current = server.value;
+    const common = {
+      expectedWorkingCopyRowVersion: current.rowVersion,
       expectedCurrentRevisionId: revisionHistory.value?.currentLayoutRevisionId ?? null,
-      saveReason: "user_checkpoint",
+      saveReason: "user_checkpoint" as const,
       acknowledgedIssueKeys: [...acknowledgedIssueKeys],
-    });
+    };
+    const result = current.document.schemaVersion === 2
+      ? await api.createLayoutRevision(input.projectId.value, chapterId, {
+          schemaVersion: 2,
+          ...common,
+          expectedRevisionDocumentDigest: releaseDigests(current).revisionDocumentDigest,
+          expectedVisibleDocumentDigest: releaseDigests(current).visibleDocumentDigest,
+        })
+      : await api.createLayoutRevision(input.projectId.value, chapterId, {
+          schemaVersion: 1,
+          ...common,
+          expectedDocumentDigest: current.documentDigest,
+        });
     replaceFromServer(result.workingCopy);
     preflight.value = result.preflight;
     revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
@@ -667,16 +764,21 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   async function restoreRevision(revisionId: string): Promise<void> {
     const chapterId = input.chapterId.value;
     if (!chapterId || !server.value || isReadOnly.value) return;
-    if (fullDocument.value?.schemaVersion === 2) {
-      throw new Error("新版智能成稿暂不支持从旧正式版本直接恢复。");
-    }
     await flush();
     if (!server.value || isDirty.value) return;
-    const result = await api.restoreLayoutRevision(input.projectId.value, chapterId, revisionId, {
-      schemaVersion: 1,
-      expectedWorkingCopyRowVersion: server.value.rowVersion,
-      expectedWorkingCopyDigest: server.value.documentDigest,
-    });
+    const current = server.value;
+    const result = restoreRequestSchemaForWorkingCopyV1(current.document) === 2
+      ? await api.restoreLayoutRevision(input.projectId.value, chapterId, revisionId, {
+          schemaVersion: 2,
+          expectedWorkingCopyRowVersion: current.rowVersion,
+          expectedWorkingCopyRevisionDocumentDigest: releaseDigests(current).revisionDocumentDigest,
+          expectedWorkingCopyVisibleDocumentDigest: releaseDigests(current).visibleDocumentDigest,
+        })
+      : await api.restoreLayoutRevision(input.projectId.value, chapterId, revisionId, {
+          schemaVersion: 1,
+          expectedWorkingCopyRowVersion: current.rowVersion,
+          expectedWorkingCopyDigest: current.documentDigest,
+        });
     replaceFromServer(result.workingCopy);
     revisionHistory.value = await api.listLayoutRevisions(input.projectId.value, chapterId);
   }

@@ -9,12 +9,14 @@ import {
 } from "./g5-runtime-migration-ledger.js";
 import type { G1RuntimeMigrationLedgerRowV1 } from "./g1-runtime-migration-ledger.js";
 import { LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME } from "./layout-document-v2-working-copy-contract.js";
+import { LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME } from "./layout-revision-v2-publication-contract.js";
 import { SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME } from "./script-workflow-source-state-contract.js";
 
 export const SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES = [
   ...G5_RUNTIME_MIGRATION_NAMES,
   SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME,
   LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME,
+  LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME,
 ] as const;
 
 export interface ScriptWorkflowRuntimeMigrationExpectationV1 {
@@ -40,7 +42,8 @@ async function readOverlayChecksum(
   root: string,
   migrationName:
     | typeof SCRIPT_WORKFLOW_SOURCE_STATE_MIGRATION_NAME
-    | typeof LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME,
+    | typeof LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME
+    | typeof LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME,
 ): Promise<string> {
   const filePath = path.join(root, migrationName, "migration.sql");
   let stat;
@@ -67,6 +70,10 @@ export async function loadScriptWorkflowRuntimeMigrationExpectationsV1(
     {
       migrationName: LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME,
       checksum: await readOverlayChecksum(root, LAYOUT_DOCUMENT_V2_WORKING_COPY_MIGRATION_NAME),
+    },
+    {
+      migrationName: LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME,
+      checksum: await readOverlayChecksum(root, LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME),
     },
   ];
 }

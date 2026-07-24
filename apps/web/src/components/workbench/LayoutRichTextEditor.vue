@@ -15,6 +15,7 @@
     </div>
 
     <div
+      :key="editorDomRevision"
       ref="editor"
       class="content-editor"
       :class="{ 'is-vertical': modelValue.writingMode === 'vertical-rl' }"
@@ -28,7 +29,8 @@
       @compositionend="handleCompositionEnd"
       @input="handleInput"
       @paste="handlePaste"
-      @focus="captureSelection"
+      @focus="handleFocus"
+      @blur="handleBlur"
       @keyup="captureSelection"
       @mouseup="captureSelection"
     >
@@ -120,7 +122,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  replaceRange: [value: RichTextRangeV1 & { text: string }];
+  replaceRange: [value: RichTextRangeV1 & { text: string; historyGroupId: string }];
   applyStyle: [value: RichTextRangeV1 & { style: RichTextRunStylePatchV1 }];
   replaceDocument: [value: RichTextDocumentV1];
   setParagraphStyle: [value: { paragraphIndexes: number[]; align: RichTextAlignV1; lineHeight: number }];
@@ -131,8 +133,11 @@ function firstRunFontAssetId(document: RichTextDocumentV1): string {
 }
 
 const editor = ref<HTMLElement | null>(null);
+const editorDomRevision = ref(0);
 const compositionActive = ref(false);
 let ignoreNextInput = false;
+let pendingCaretRecovery: number | null = null;
+let editSessionId: string | null = null;
 const selection = ref<RichTextRangeV1>({
   start: { paragraphIndex: 0, graphemeOffset: 0 },
   end: { paragraphIndex: 0, graphemeOffset: 0 },
@@ -185,6 +190,13 @@ watch(() => firstRunFontAssetId(props.modelValue), (assetId, previousAssetId) =>
 });
 
 watch(() => props.modelValue.textOrientation, (value) => { textOrientation.value = value; });
+watch(() => props.modelValue, () => {
+  if (pendingCaretRecovery === null) return;
+  const caretFlatOffset = pendingCaretRecovery;
+  pendingCaretRecovery = null;
+  editorDomRevision.value += 1;
+  void nextTick(() => restoreCaret(caretFlatOffset, true));
+});
 
 function runStyle(run: RichTextRunV1) {
   const chain = [run.fontAssetId, ...props.fallbackFontAssetIds.filter((assetId) => assetId !== run.fontAssetId)];
@@ -219,8 +231,57 @@ function paragraphKey(paragraph: RichTextParagraphV1, paragraphIndex: number): s
 
 function editorPlainText(): string {
   if (!editor.value) return richTextPlainTextV1(props.modelValue);
-  const paragraphs = [...editor.value.querySelectorAll<HTMLElement>(".editor-paragraph")];
-  return normalizePlainLayoutText(paragraphs.map((paragraph) => paragraph.innerText.replace(/\n$/u, "")).join("\n"));
+  const rootSegments = [...editor.value.childNodes].flatMap((node) => {
+    if (node.nodeType === Node.COMMENT_NODE) return [];
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? "";
+      return text.trim() ? [text] : [];
+    }
+    if (!(node instanceof HTMLElement)) return [];
+    return [node.innerText.replace(/\n$/u, "")];
+  });
+  return normalizePlainLayoutText(rootSegments.join("\n"));
+}
+
+function editorDomNeedsRehydration(): boolean {
+  if (!editor.value) return false;
+  const directChildren = [...editor.value.childNodes];
+  const paragraphs = directChildren.filter(
+    (node): node is HTMLElement => (
+      node instanceof HTMLElement
+      && node.classList.contains("editor-paragraph")
+    ),
+  );
+  const hasUnexpectedRootNode = directChildren.some((node) => (
+    node.nodeType === Node.ELEMENT_NODE
+      ? !(node instanceof HTMLElement && node.classList.contains("editor-paragraph"))
+      : node.nodeType === Node.TEXT_NODE
+        ? Boolean(node.textContent?.trim())
+        : node.nodeType !== Node.COMMENT_NODE
+  ));
+  return hasUnexpectedRootNode
+    || paragraphs.length !== directChildren.filter((node) => node.nodeType === Node.ELEMENT_NODE).length
+    || paragraphs.length !== props.modelValue.paragraphs.length
+    || paragraphs.some((paragraph, index) => paragraph.dataset.paragraphIndex !== String(index));
+}
+
+function ensureEditSessionId(): string {
+  if (!editSessionId) {
+    editSessionId = `rich_text_input_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+  return editSessionId;
+}
+
+function handleFocus(): void {
+  ensureEditSessionId();
+  captureSelection();
+}
+
+function handleBlur(): void {
+  window.setTimeout(() => {
+    if (editor.value?.contains(document.activeElement)) return;
+    editSessionId = null;
+  }, 0);
 }
 
 function diffAndEmit(): void {
@@ -240,9 +301,19 @@ function diffAndEmit(): void {
   const start = richTextPositionAtFlatGraphemeOffsetV1(props.modelValue, prefix);
   const end = richTextPositionAtFlatGraphemeOffsetV1(props.modelValue, before.length - suffix);
   const inserted = after.slice(prefix, after.length - suffix).join("");
-  emit("replaceRange", { start, end, text: inserted });
   const caretFlatOffset = prefix + layoutGraphemes(inserted).length;
-  void nextTick(() => restoreCaret(caretFlatOffset));
+  if (editorDomNeedsRehydration()) {
+    pendingCaretRecovery = caretFlatOffset;
+  }
+  emit("replaceRange", {
+    start,
+    end,
+    text: inserted,
+    historyGroupId: ensureEditSessionId(),
+  });
+  if (pendingCaretRecovery === null) {
+    void nextTick(() => restoreCaret(caretFlatOffset));
+  }
 }
 
 function handleInput(event: InputEvent): void {
@@ -317,7 +388,7 @@ function captureSelection(): void {
   strokeColor.value = run.stroke?.color.slice(0, 7) ?? "#FFFFFF";
 }
 
-function restoreCaret(flatOffset: number): void {
+function restoreCaret(flatOffset: number, focusEditor = false): void {
   if (!editor.value) return;
   let position: RichTextPositionV1;
   try { position = richTextPositionAtFlatGraphemeOffsetV1(props.modelValue, flatOffset); } catch { return; }
@@ -341,6 +412,7 @@ function restoreCaret(flatOffset: number): void {
   if (target) range.setStart(target, codeUnitOffset);
   else range.setStart(paragraph, 0);
   range.collapse(true);
+  if (focusEditor) editor.value.focus({ preventScroll: true });
   const domSelection = window.getSelection();
   domSelection?.removeAllRanges();
   domSelection?.addRange(range);

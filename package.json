@@ -10,7 +10,7 @@
     "dev:web": "pnpm --filter @airoaming/shared build && pnpm --filter @airoaming/web dev",
     "typecheck": "pnpm -r typecheck",
     "typecheck:e2e": "tsc -p tests/e2e/tsconfig.json --noEmit",
-    "test": "pnpm -r --parallel --filter @airoaming/shared --filter @airoaming/server test",
+    "test": "pnpm -r --parallel --filter @airoaming/shared --filter @airoaming/server --filter @airoaming/web test",
     "test:e2e:env": "node --import tsx --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/e2e/support/*.test.ts",
     "test:e2e:prepare": "node --import tsx --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/e2e/support/e2e-prepare.contract.ts",
     "pretest:e2e": "pnpm test:e2e:prepare",

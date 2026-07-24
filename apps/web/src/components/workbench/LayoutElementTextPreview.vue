@@ -15,19 +15,24 @@
         stroke-linejoin="round"
       />
     </svg>
-    <div class="rich-text-preview" :style="containerStyle">
-      <p
-        v-for="(paragraph, paragraphIndex) in element.richText.paragraphs"
-        :key="paragraphIndex"
-        :style="paragraphStyle(paragraph)"
-      >
-        <span
-          v-for="(run, runIndex) in paragraph.runs"
-          :key="runIndex"
-          :style="runStyle(run)"
-        >{{ run.text }}</span>
-        <br v-if="paragraph.runs.every((run) => run.text === '')" />
-      </p>
+    <div
+      class="text-body"
+      :class="{ 'balloon-body': element.type === 'balloon' }"
+      :style="bodyStyle"
+    >
+      <div class="rich-text-preview" :style="containerStyle">
+        <div
+          v-for="(paragraph, paragraphIndex) in element.richText.paragraphs"
+          :key="paragraphIndex"
+          :style="paragraphStyle(paragraph)"
+        >
+          <span
+            v-for="(run, runIndex) in paragraph.runs"
+            :key="runIndex"
+            :style="runStyle(run)"
+          >{{ run.text }}</span>
+        </div>
+      </div>
     </div>
     <span v-if="overflow" class="overflow-mark">文字溢出</span>
   </div>
@@ -40,6 +45,7 @@ import {
   layoutFontFamilyNameV1,
   resolveLayoutBalloonVisualRoleV1,
   type BalloonElementV1,
+  type LayoutFontCatalogItemV1,
   type RichTextParagraphV1,
   type RichTextRunV1,
   type TextElementV1,
@@ -47,7 +53,7 @@ import {
 
 const props = defineProps<{
   element: TextElementV1 | BalloonElementV1;
-  fallbackFontAssetIds: string[];
+  fontCatalog: LayoutFontCatalogItemV1[];
   scale: number;
   overflow: boolean;
 }>();
@@ -62,22 +68,31 @@ const balloonPath = computed(() => props.element.type === "balloon"
   : "");
 
 const containerStyle = computed(() => {
-  const padding = props.element.type === "balloon" ? props.element.padding : { top: 0, right: 0, bottom: 0, left: 0 };
   return {
-    inset: `${padding.top * props.scale}px ${padding.right * props.scale}px ${padding.bottom * props.scale}px ${padding.left * props.scale}px`,
     writingMode: props.element.richText.writingMode,
     textOrientation: props.element.richText.textOrientation,
-    alignContent: props.element.verticalAlign === "center" ? "center" : props.element.verticalAlign === "end" ? "end" : "start",
+  };
+});
+
+const bodyStyle = computed(() => {
+  if (props.element.type !== "balloon") return {};
+  return {
+    padding: `${props.element.padding.top * props.scale}px ${props.element.padding.right * props.scale}px ${props.element.padding.bottom * props.scale}px ${props.element.padding.left * props.scale}px`,
+    alignItems: props.element.verticalAlign === "start"
+      ? "flex-start"
+      : props.element.verticalAlign === "end"
+        ? "flex-end"
+        : "center",
   };
 });
 
 function runStyle(run: RichTextRunV1) {
-  const chain = [run.fontAssetId, ...props.fallbackFontAssetIds.filter((assetId) => assetId !== run.fontAssetId)];
+  const face = props.fontCatalog.find((font) => font.assetId === run.fontAssetId)?.metadata.face;
   return {
-    fontFamily: chain.map((assetId) => `"${layoutFontFamilyNameV1(assetId)}"`).join(","),
+    fontFamily: `"${layoutFontFamilyNameV1(run.fontAssetId)}"`,
     fontSize: `${run.fontSize * props.scale}px`,
-    fontWeight: run.fontWeight,
-    fontStyle: run.fontStyle,
+    fontWeight: face?.weight ?? run.fontWeight,
+    fontStyle: face?.style ?? run.fontStyle,
     color: run.color,
     letterSpacing: `${run.letterSpacing * props.scale}px`,
     WebkitTextStroke: run.stroke ? `${run.stroke.width * props.scale}px ${run.stroke.color}` : undefined,
@@ -85,11 +100,9 @@ function runStyle(run: RichTextRunV1) {
 }
 
 function paragraphStyle(paragraph: RichTextParagraphV1) {
-  const maximumFontSize = Math.max(...paragraph.runs.map((run) => run.fontSize), 1);
   return {
     textAlign: paragraph.align,
     lineHeight: paragraph.lineHeight,
-    fontSize: `${maximumFontSize * props.scale}px`,
   };
 }
 </script>
@@ -97,6 +110,7 @@ function paragraphStyle(paragraph: RichTextParagraphV1) {
 <style scoped>
 .element-text-root,
 .balloon-shape,
+.text-body,
 .rich-text-preview {
   position: absolute;
 }
@@ -113,18 +127,31 @@ function paragraphStyle(paragraph: RichTextParagraphV1) {
   overflow: visible;
 }
 
-.rich-text-preview {
-  display: grid;
-  overflow: visible;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: #111827;
+.text-body {
+  inset: 0;
 }
 
-.rich-text-preview p {
+.text-body.balloon-body {
+  display: flex;
+  box-sizing: border-box;
+}
+
+.rich-text-preview {
+  inset: 0;
+  overflow: visible;
+  white-space: pre-wrap;
+  font-synthesis: none;
+}
+
+.balloon-body > .rich-text-preview {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: max-content;
+}
+
+.rich-text-preview > div {
   margin: 0;
-  min-width: 1px;
-  min-height: 1em;
 }
 
 .overflow-mark {

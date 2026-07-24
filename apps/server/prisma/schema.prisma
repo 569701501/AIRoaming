@@ -1278,6 +1278,7 @@ model LayoutRevision {
   documentJson             Json      @map("document_json")
   schemaVersion            Int       @map("schema_version")
   documentDigest           String    @map("document_digest")
+  visibleDocumentDigest    String?   @map("visible_document_digest")
   sourceLockSetDigest      String?   @map("source_lock_set_digest")
   origin                   String
   saveReason               String    @map("save_reason")
@@ -1338,6 +1339,8 @@ model ExportRevision {
   status                  String
   taskId                  String?   @map("task_id")
   layoutRevisionId        String?   @map("layout_revision_id")
+  revisionDocumentDigest  String?   @map("revision_document_digest")
+  visibleDocumentDigest   String?   @map("visible_document_digest")
   sourceLockSetDigest     String?   @map("source_lock_set_digest")
   profileJson             Json?     @map("profile_json")
   profileSchemaVersion    Int?      @map("profile_schema_version")

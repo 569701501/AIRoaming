@@ -362,7 +362,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("18 migrations found");
+    expect(deployed.stdout).toContain("19 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -2118,7 +2118,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("M4: persists smart composition, protects user edits, and previews full reflow before apply", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("18 migrations found");
+    expect(deployed.stdout).toContain("19 migrations found");
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
 
     const projects = app.get(ProjectsService);
@@ -3190,6 +3190,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       replacements: [{ imageElementId: stalePanel.contentImage.id, cropMode: "preserve_normalized_crop" as const }],
     };
     const replacementPreview = await versioning.previewSourceReplacements(scope, replacementRequest);
+    if (replacementPreview.schemaVersion !== 1) throw new Error("G5_M6_V1_REPLACEMENT_EXPECTED");
     expect(replacementPreview.items).toMatchObject([{
       imageElementId: stalePanel.contentImage.id,
       from: { candidateLockRevisionId: stalePanel.contentImage.source.candidateLockRevisionId },
@@ -3200,6 +3201,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       replacementDigest: replacementPreview.replacementDigest,
       resultDocumentDigest: replacementPreview.resultDocumentDigest,
     });
+    if (committedReplacement.schemaVersion !== 1) throw new Error("G5_M6_V1_COMMIT_EXPECTED");
     expect(committedReplacement).toMatchObject({ result: "updated", workingCopy: { rowVersion: staleWorkingCopy.rowVersion + 1, sourceEvaluation: { sourceResolution: "current" } } });
     expect((await versioning.commitSourceReplacements(scope, {
       ...replacementRequest,
@@ -3232,6 +3234,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
       response: { error: { code: "LAYOUT_PREFLIGHT_ACKNOWLEDGEMENT_INVALID" } },
     });
     const createdRevision = await versioning.createRevision(scope, revisionRequest);
+    if (createdRevision.schemaVersion !== 1) throw new Error("G5_M6_V1_REVISION_EXPECTED");
     expect(createdRevision).toMatchObject({
       result: "created",
       revision: {
@@ -3253,7 +3256,9 @@ describe("Project/Chapter/Script DB-only persistence", () => {
         { id: layoutRevision.id, sourceResolution: "stale" },
       ],
     });
-    expect((await versioning.getRevision(scope, createdRevision.revision.id)).documentDigest).toBe(createdRevision.revision.documentDigest);
+    const loadedCreatedRevision = await versioning.getRevision(scope, createdRevision.revision.id);
+    if (!("documentDigest" in loadedCreatedRevision)) throw new Error("G5_M6_V1_REVISION_EXPECTED");
+    expect(loadedCreatedRevision.documentDigest).toBe(createdRevision.revision.documentDigest);
 
     const changedAfterRevision = structuredClone(createdRevision.workingCopy.document);
     changedAfterRevision.canvases[0]!.name = "M6 restore target";

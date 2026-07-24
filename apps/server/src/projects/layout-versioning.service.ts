@@ -4,36 +4,54 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile, realpath } from "node:fs/promises";
 import {
   buildLayoutSourceReplacementPreviewV1,
+  buildLayoutSourceReplacementPreviewV2,
   digestCandidateImageSourceV1,
   digestLayoutSourceLockSet,
   LayoutDocumentCodecV1,
+  LayoutDocumentCodecV1OrV2,
   LayoutDocumentValidationError,
   LayoutRevisionContractError,
   LayoutSourceReplacementContractError,
-  parseCommitLayoutSourceReplacementRequestV1,
-  parseCreateLayoutRevisionRequestV1,
-  parsePreviewLayoutSourceReplacementRequestV1,
-  parseRestoreLayoutRevisionRequestV1,
-  parseRunLayoutPreflightRequestV1,
+  parseCommitLayoutSourceReplacementRequestV1OrV2,
+  parseCreateLayoutRevisionRequestV1OrV2,
+  parsePreviewLayoutSourceReplacementRequestV1OrV2,
+  parseRestoreLayoutRevisionRequestV1OrV2,
+  parseRunLayoutPreflightRequestV1OrV2,
+  projectLayoutDocumentV2ToV1,
   projectLayoutSourceBindings,
   runLayoutPreflightV1,
+  runLayoutPreflightV2,
+  upgradeLayoutWorkingCopyV1ToV2,
   type CommitLayoutSourceReplacementResponseV1,
+  type CommitLayoutSourceReplacementResponseV2,
   type CreateLayoutRevisionResponseV1,
+  type CreateLayoutRevisionResponseV2,
   type LayoutDigest,
   type LayoutDocumentV1,
+  type LayoutDocumentV1OrV2,
+  type LayoutDocumentV2,
   type LayoutPreflightImageAssetV1,
   type LayoutPreflightReportV1,
+  type LayoutPreflightReportV2,
+  type LayoutPublicationProfileV1,
   type LayoutRevisionDetailV1,
+  type LayoutRevisionDetailV2,
   type LayoutRevisionHistoryResponseV1,
+  type LayoutRevisionHistoryResponseV2,
   type LayoutRevisionSummaryV1,
+  type LayoutRevisionSummaryV1OrV2,
+  type LayoutRevisionSummaryV2,
   type LayoutSourceCatalogItemV1,
   type LayoutSourceReplacementPreviewV1,
+  type LayoutSourceReplacementPreviewV2,
   type RestoreLayoutRevisionResponseV1,
+  type RestoreLayoutRevisionResponseV2,
 } from "@airoaming/shared";
 
 import { PrismaService } from "../persistence/prisma.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { CandidateSourceQueryService } from "./candidate-source-query.service.js";
+import { LayoutCompositionSourceProjector } from "./layout-composition-source-projector.service.js";
 import { inspectLayoutImageNormalizationV1 } from "./layout-image-normalization.util.js";
 import { LayoutFontService } from "./layout-font.service.js";
 import { LayoutWorkingCopyService } from "./layout-working-copy.service.js";
@@ -46,6 +64,13 @@ interface CurrentLayoutSources {
   items: LayoutSourceCatalogItemV1[];
   current: boolean;
   digest: LayoutDigest | null;
+}
+
+interface LayoutDocumentState {
+  document: LayoutDocumentV1OrV2;
+  visibleDocument: LayoutDocumentV1;
+  revisionDocumentDigest: LayoutDigest;
+  visibleDocumentDigest: LayoutDigest;
 }
 
 class LayoutVersioningServiceError extends Error {
@@ -72,6 +97,26 @@ function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
+export function assertLayoutRestoreSchemaPolicy(input: {
+  requestSchemaVersion: 1 | 2;
+  workingCopySchemaVersion: 1 | 2;
+  targetRevisionSchemaVersion: 1 | 2;
+}): void {
+  if (
+    input.requestSchemaVersion !== input.workingCopySchemaVersion
+    || (
+      input.requestSchemaVersion === 1
+      && input.targetRevisionSchemaVersion !== 1
+    )
+  ) {
+    serviceError("LAYOUT_DOCUMENT_SCHEMA_VERSION_MISMATCH", 409, {
+      requestSchemaVersion: input.requestSchemaVersion,
+      workingCopySchemaVersion: input.workingCopySchemaVersion,
+      targetRevisionSchemaVersion: input.targetRevisionSchemaVersion,
+    });
+  }
+}
+
 @Injectable()
 export class LayoutVersioningService {
   constructor(
@@ -79,27 +124,36 @@ export class LayoutVersioningService {
     @Inject(CandidateSourceQueryService) private readonly candidateSources: CandidateSourceQueryService,
     @Inject(LayoutFontService) private readonly layoutFonts: LayoutFontService,
     @Inject(LayoutWorkingCopyService) private readonly workingCopies: LayoutWorkingCopyService,
+    @Inject(LayoutCompositionSourceProjector) private readonly compositionSources: LayoutCompositionSourceProjector,
     @Inject(WorkspacePathService) private readonly workspacePath: WorkspacePathService,
   ) {}
 
   async previewSourceReplacements(
     scope: VersionScopeV1,
     input: unknown,
-  ): Promise<LayoutSourceReplacementPreviewV1> {
+  ): Promise<LayoutSourceReplacementPreviewV1 | LayoutSourceReplacementPreviewV2> {
     return this.execute(async () => {
-      const request = parsePreviewLayoutSourceReplacementRequestV1(input);
+      const request = parsePreviewLayoutSourceReplacementRequestV1OrV2(input);
       return this.prismaService.runReadTransaction(async (tx) => {
         const workingCopy = await this.loadWorkingCopy(scope, tx);
-        this.assertWorkingCopyExpectation(workingCopy, request.expectedWorkingCopyRowVersion, request.expectedDocumentDigest);
-        const document = this.parseWorkingCopyDocument(scope, workingCopy);
+        const state = this.parseWorkingCopyState(scope, workingCopy);
+        this.assertRequestMatchesDocumentSchema(request.schemaVersion, state.document.schemaVersion);
+        this.assertWorkingCopyRequestExpectation(workingCopy, state, request);
         const current = await this.loadCurrentSources(scope, tx, true);
-        const sourceDimensions = await this.loadSourceDimensions(document, tx);
-        const built = buildLayoutSourceReplacementPreviewV1({
-          document,
-          request,
-          currentSources: current.items,
-          sourceDimensions,
-        });
+        const sourceDimensions = await this.loadSourceDimensions(state.visibleDocument, tx);
+        const built = request.schemaVersion === 1
+          ? buildLayoutSourceReplacementPreviewV1({
+              document: state.document as LayoutDocumentV1,
+              request,
+              currentSources: current.items,
+              sourceDimensions,
+            })
+          : buildLayoutSourceReplacementPreviewV2({
+              document: state.document as LayoutDocumentV2,
+              request,
+              currentSources: current.items,
+              sourceDimensions,
+            });
         const { resultDocument: _resultDocument, ...preview } = built;
         return preview;
       });
@@ -109,43 +163,98 @@ export class LayoutVersioningService {
   async commitSourceReplacements(
     scope: VersionScopeV1,
     input: unknown,
-  ): Promise<CommitLayoutSourceReplacementResponseV1> {
+  ): Promise<
+    CommitLayoutSourceReplacementResponseV1
+    | CommitLayoutSourceReplacementResponseV2
+  > {
     return this.execute(async () => {
-      const request = parseCommitLayoutSourceReplacementRequestV1(input);
+      const request = parseCommitLayoutSourceReplacementRequestV1OrV2(input);
       return this.prismaService.runBusinessTransaction(async (tx) => {
         const workingCopy = await this.loadWorkingCopy(scope, tx);
-        if (
-          workingCopy.rowVersion === request.expectedWorkingCopyRowVersion + 1
-          && workingCopy.documentDigest === request.resultDocumentDigest
-        ) {
-          return {
-            schemaVersion: 1,
-            result: "replayed",
+        const state = this.parseWorkingCopyState(scope, workingCopy);
+        this.assertRequestMatchesDocumentSchema(request.schemaVersion, state.document.schemaVersion);
+        const replayed = workingCopy.rowVersion
+          === request.expectedWorkingCopyRowVersion + 1
+          && workingCopy.documentDigest === (
+            request.schemaVersion === 1
+              ? request.resultDocumentDigest
+              : request.resultRevisionDocumentDigest
+          )
+          && (
+            request.schemaVersion === 1
+            || state.visibleDocumentDigest === request.resultVisibleDocumentDigest
+          );
+        if (replayed) {
+          const common = {
+            result: "replayed" as const,
             replacementDigest: request.replacementDigest,
-            resultDocumentDigest: request.resultDocumentDigest,
-            workingCopy: await this.workingCopies.responseForReader(scope, workingCopy, tx),
+            workingCopy: await this.workingCopies.responseForReader(
+              scope,
+              workingCopy,
+              tx,
+            ),
           };
+          return request.schemaVersion === 1
+            ? {
+                schemaVersion: 1,
+                ...common,
+                resultDocumentDigest: request.resultDocumentDigest,
+              }
+            : {
+                schemaVersion: 2,
+                ...common,
+                resultRevisionDocumentDigest:
+                  request.resultRevisionDocumentDigest,
+                resultVisibleDocumentDigest: request.resultVisibleDocumentDigest,
+              };
         }
-        this.assertWorkingCopyExpectation(workingCopy, request.expectedWorkingCopyRowVersion, request.expectedDocumentDigest);
-        const document = this.parseWorkingCopyDocument(scope, workingCopy);
+        this.assertWorkingCopyRequestExpectation(workingCopy, state, request);
         const current = await this.loadCurrentSources(scope, tx, true);
-        const sourceDimensions = await this.loadSourceDimensions(document, tx);
-        const built = buildLayoutSourceReplacementPreviewV1({
-          document,
-          request,
-          currentSources: current.items,
-          sourceDimensions,
-        });
-        if (
-          built.replacementDigest !== request.replacementDigest
-          || built.resultDocumentDigest !== request.resultDocumentDigest
-        ) {
+        const sourceDimensions = await this.loadSourceDimensions(state.visibleDocument, tx);
+        const built = request.schemaVersion === 1
+          ? buildLayoutSourceReplacementPreviewV1({
+              document: state.document as LayoutDocumentV1,
+              request,
+              currentSources: current.items,
+              sourceDimensions,
+            })
+          : buildLayoutSourceReplacementPreviewV2({
+              document: state.document as LayoutDocumentV2,
+              request,
+              currentSources: current.items,
+              sourceDimensions,
+            });
+        const previewMatches = request.schemaVersion === 1
+          ? built.schemaVersion === 1
+            && built.replacementDigest === request.replacementDigest
+            && built.resultDocumentDigest === request.resultDocumentDigest
+          : built.schemaVersion === 2
+            && built.replacementDigest === request.replacementDigest
+            && built.resultRevisionDocumentDigest
+              === request.resultRevisionDocumentDigest
+            && built.resultVisibleDocumentDigest
+              === request.resultVisibleDocumentDigest;
+        if (!previewMatches) {
           serviceError("LAYOUT_SOURCE_REPLACEMENT_PREVIEW_MISMATCH", 409, {
             replacementDigest: built.replacementDigest,
-            resultDocumentDigest: built.resultDocumentDigest,
+            resultRevisionDocumentDigest: built.schemaVersion === 1
+              ? built.resultDocumentDigest
+              : built.resultRevisionDocumentDigest,
+            resultVisibleDocumentDigest: built.schemaVersion === 1
+              ? built.resultDocumentDigest
+              : built.resultVisibleDocumentDigest,
           });
         }
-        const sourceLockSetDigest = digestLayoutSourceLockSet(built.resultDocument, current.activeShotIds);
+        const resultVisibleDocument = built.schemaVersion === 1
+          ? built.resultDocument
+          : projectLayoutDocumentV2ToV1(built.resultDocument, scope);
+        const resultRevisionDocumentDigest = built.schemaVersion === 1
+          ? built.resultDocumentDigest
+          : built.resultRevisionDocumentDigest;
+        const sourceLockSetDigest = digestLayoutSourceLockSet(
+          resultVisibleDocument,
+          current.activeShotIds,
+        );
         const updatedAt = new Date(Math.max(Date.now(), workingCopy.updatedAt.getTime() + 1));
         const update = await tx.layoutWorkingCopy.updateMany({
           where: {
@@ -153,11 +262,11 @@ export class LayoutVersioningService {
             projectId: scope.projectId,
             chapterId: scope.chapterId,
             rowVersion: request.expectedWorkingCopyRowVersion,
-            documentDigest: request.expectedDocumentDigest,
+            documentDigest: workingCopy.documentDigest,
           },
           data: {
             documentJson: built.resultDocument as unknown as Prisma.InputJsonValue,
-            documentDigest: built.resultDocumentDigest,
+            documentDigest: resultRevisionDocumentDigest,
             sourceLockSetDigest,
             rowVersion: { increment: 1 },
             updatedAt,
@@ -165,18 +274,32 @@ export class LayoutVersioningService {
         });
         if (update.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
         const updated = await tx.layoutWorkingCopy.findUniqueOrThrow({ where: { id: workingCopy.id } });
-        return {
-          schemaVersion: 1,
-          result: "updated",
+        const common = {
+          result: "updated" as const,
           replacementDigest: request.replacementDigest,
-          resultDocumentDigest: request.resultDocumentDigest,
           workingCopy: await this.workingCopies.responseForReader(scope, updated, tx),
         };
+        return request.schemaVersion === 1
+          ? {
+              schemaVersion: 1,
+              ...common,
+              resultDocumentDigest: request.resultDocumentDigest,
+            }
+          : {
+              schemaVersion: 2,
+              ...common,
+              resultRevisionDocumentDigest:
+                request.resultRevisionDocumentDigest,
+              resultVisibleDocumentDigest: request.resultVisibleDocumentDigest,
+            };
       });
     });
   }
 
-  async preflight(scope: VersionScopeV1, input: unknown): Promise<LayoutPreflightReportV1> {
+  async preflight(
+    scope: VersionScopeV1,
+    input: unknown,
+  ): Promise<LayoutPreflightReportV1 | LayoutPreflightReportV2> {
     return this.execute(() => this.prismaService.runReadTransaction(
       (tx) => this.preflightForReader(scope, input, tx),
     ));
@@ -187,60 +310,100 @@ export class LayoutVersioningService {
     scope: VersionScopeV1,
     input: unknown,
     reader: Reader,
-  ): Promise<LayoutPreflightReportV1> {
-    const request = parseRunLayoutPreflightRequestV1(input);
+  ): Promise<LayoutPreflightReportV1 | LayoutPreflightReportV2> {
+    const request = parseRunLayoutPreflightRequestV1OrV2(input);
     const current = await this.loadCurrentSources(scope, reader, false);
     const fontCatalog = await this.layoutFonts.listForReader(scope, reader, false);
-    let document: LayoutDocumentV1;
-    let target: LayoutPreflightReportV1["target"];
-    let workingCopyDocumentDigest: LayoutDigest | null = null;
+    let state: ReturnType<LayoutVersioningService["parseDocumentState"]>;
+    let targetId: string;
+    let targetRowVersion: number | null;
+    let workingCopyRevisionDocumentDigest: LayoutDigest | null = null;
     if (request.target.kind === "working_copy") {
       const workingCopy = await this.loadWorkingCopy(scope, reader);
-      this.assertWorkingCopyExpectation(
-        workingCopy,
-        request.target.expectedRowVersion,
-        request.target.expectedDocumentDigest,
-      );
-      document = this.parseWorkingCopyDocument(scope, workingCopy);
-      target = {
-        kind: "working_copy",
-        id: workingCopy.id,
-        documentDigest: asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
-        rowVersion: workingCopy.rowVersion,
-      };
+      state = this.parseWorkingCopyState(scope, workingCopy);
+      this.assertRequestMatchesDocumentSchema(request.schemaVersion, state.document.schemaVersion);
+      this.assertPreflightWorkingCopyExpectation(workingCopy, state, request.target);
+      targetId = workingCopy.id;
+      targetRowVersion = workingCopy.rowVersion;
     } else {
       const revision = await this.loadRevision(scope, request.target.layoutRevisionId, reader);
-      document = this.parseRevisionDocument(scope, revision);
-      target = {
-        kind: "layout_revision",
-        id: revision.id,
-        documentDigest: asDigest(revision.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
-        rowVersion: null,
-      };
+      state = this.parseRevisionState(scope, revision);
+      this.assertRequestMatchesDocumentSchema(request.schemaVersion, state.document.schemaVersion);
+      targetId = revision.id;
+      targetRowVersion = null;
       const workingCopy = await reader.layoutWorkingCopy.findFirst({
-        where: { projectId: scope.projectId, chapterId: scope.chapterId, documentKind: "layout_document_v1" },
-        select: { documentDigest: true },
+        where: { projectId: scope.projectId, chapterId: scope.chapterId },
       });
-      workingCopyDocumentDigest = workingCopy
-        ? asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH")
+      workingCopyRevisionDocumentDigest = workingCopy
+        ? this.parseWorkingCopyState(scope, workingCopy).revisionDocumentDigest
         : null;
     }
-    const imageAssets = await this.loadImageAssets(document, current.items, reader);
-    return runLayoutPreflightV1({
+    const imageAssets = await this.loadImageAssets(
+      state.visibleDocument,
+      current.items,
+      reader,
+    );
+    if (request.schemaVersion === 1) {
+      return runLayoutPreflightV1({
+        document: state.document as LayoutDocumentV1,
+        target: {
+          kind: request.target.kind,
+          id: targetId,
+          documentDigest: state.revisionDocumentDigest,
+          rowVersion: targetRowVersion,
+        },
+        currentSources: current.current ? current.items : [],
+        activeShotIds: current.activeShotIds,
+        imageAssets,
+        fontCatalog,
+        profile: request.profile,
+        workingCopyDocumentDigest: workingCopyRevisionDocumentDigest,
+      });
+    }
+    const document = state.document as LayoutDocumentV2;
+    const [dialogue, evidence] = await Promise.all([
+      this.compositionSources.currentDialoguePreflightSource(scope, reader),
+      document.automation.composition
+        ? this.compositionSources.compositionPreflightEvidence(
+            scope,
+            document.automation.composition.compositionDigest,
+            reader,
+          )
+        : Promise.resolve(null),
+    ]);
+    const currentComposition = evidence
+      ? {
+          ...evidence,
+          storyboardVersionId: dialogue.storyboardVersionId,
+          storyboardDigest: dialogue.storyboardDigest,
+        }
+      : null;
+    return runLayoutPreflightV2({
       document,
-      target,
+      target: {
+        kind: request.target.kind,
+        id: targetId,
+        revisionDocumentDigest: state.revisionDocumentDigest,
+        visibleDocumentDigest: state.visibleDocumentDigest,
+        rowVersion: targetRowVersion,
+      },
       currentSources: current.current ? current.items : [],
       activeShotIds: current.activeShotIds,
       imageAssets,
       fontCatalog,
       profile: request.profile,
-      workingCopyDocumentDigest,
+      dialogueLedger: dialogue.dialogueLedger,
+      currentComposition,
+      workingCopyRevisionDocumentDigest,
     });
   }
 
-  async createRevision(scope: VersionScopeV1, input: unknown): Promise<CreateLayoutRevisionResponseV1> {
+  async createRevision(
+    scope: VersionScopeV1,
+    input: unknown,
+  ): Promise<CreateLayoutRevisionResponseV1 | CreateLayoutRevisionResponseV2> {
     return this.execute(async () => {
-      const request = parseCreateLayoutRevisionRequestV1(input);
+      const request = parseCreateLayoutRevisionRequestV1OrV2(input);
       return this.prismaService.runBusinessTransaction(async (tx) => {
         const [chapter, workingCopy] = await Promise.all([
           tx.chapter.findFirst({
@@ -252,6 +415,17 @@ export class LayoutVersioningService {
         if (!chapter || chapter.project.lifecycleStatus !== "active") {
           serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
         }
+        const state = this.parseWorkingCopyState(scope, workingCopy);
+        this.assertRequestMatchesDocumentSchema(
+          request.schemaVersion,
+          state.document.schemaVersion,
+        );
+        const expectedRevisionDocumentDigest = request.schemaVersion === 1
+          ? request.expectedDocumentDigest
+          : request.expectedRevisionDocumentDigest;
+        const expectedVisibleDocumentDigest = request.schemaVersion === 1
+          ? request.expectedDocumentDigest
+          : request.expectedVisibleDocumentDigest;
         const currentRevision = chapter.currentLayoutRevisionId
           ? await tx.layoutRevision.findFirst({
               where: { id: chapter.currentLayoutRevisionId, projectId: scope.projectId, chapterId: scope.chapterId },
@@ -260,33 +434,67 @@ export class LayoutVersioningService {
         if (
           currentRevision
           && currentRevision.previousRevisionId === request.expectedCurrentRevisionId
-          && currentRevision.documentDigest === request.expectedDocumentDigest
+          && currentRevision.schemaVersion === request.schemaVersion
+          && currentRevision.documentDigest === expectedRevisionDocumentDigest
+          && (
+            currentRevision.visibleDocumentDigest
+              ?? currentRevision.documentDigest
+          ) === expectedVisibleDocumentDigest
           && currentRevision.saveReason === request.saveReason
           && workingCopy.rowVersion === request.expectedWorkingCopyRowVersion + 1
-          && workingCopy.documentDigest === request.expectedDocumentDigest
+          && workingCopy.documentDigest === expectedRevisionDocumentDigest
           && workingCopy.basedOnRevisionId === currentRevision.id
         ) {
           const current = await this.loadCurrentSources(scope, tx, false);
           const detail = await this.toRevisionDetail(scope, current, currentRevision, tx);
-          const report = await this.runRevisionPreflight(scope, detail.document, currentRevision, current, workingCopy.documentDigest, tx);
-          return {
-            schemaVersion: 1,
-            result: "replayed",
+          const report = await this.runRevisionPreflight(
+            scope,
+            this.parseRevisionState(scope, currentRevision),
+            currentRevision,
+            current,
+            workingCopy.documentDigest,
+            tx,
+          );
+          const common = {
+            result: "replayed" as const,
             revision: detail,
             warnings: report.issues.filter((issue) => issue.severity !== "error"),
             preflight: report,
             workingCopy: await this.workingCopies.responseForReader(scope, workingCopy, tx),
           };
+          return request.schemaVersion === 1
+            ? {
+                schemaVersion: 1,
+                ...common,
+                revision: detail as LayoutRevisionDetailV1,
+                preflight: report as LayoutPreflightReportV1,
+                warnings: report.issues.filter(
+                  (issue) => issue.severity !== "error",
+                ) as LayoutPreflightReportV1["issues"],
+              }
+            : {
+                schemaVersion: 2,
+                ...common,
+                revision: detail as LayoutRevisionDetailV2,
+                preflight: report as LayoutPreflightReportV2,
+                warnings: report.issues.filter(
+                  (issue) => issue.severity !== "error",
+                ) as LayoutPreflightReportV2["issues"],
+              };
         }
-        this.assertWorkingCopyExpectation(workingCopy, request.expectedWorkingCopyRowVersion, request.expectedDocumentDigest);
+        this.assertCreateRevisionExpectation(workingCopy, state, request);
         if (chapter.currentLayoutRevisionId !== request.expectedCurrentRevisionId) {
           serviceError("LAYOUT_EXPECTED_CURRENT_REVISION_MISMATCH", 409, {
             currentLayoutRevisionId: chapter.currentLayoutRevisionId,
           });
         }
-        const document = this.parseWorkingCopyDocument(scope, workingCopy);
+        const document = state.document;
+        const visibleDocument = state.visibleDocument;
         const current = await this.loadCurrentSources(scope, tx, false);
-        const sourceLockSetDigest = digestLayoutSourceLockSet(document, current.activeShotIds);
+        const sourceLockSetDigest = digestLayoutSourceLockSet(
+          visibleDocument,
+          current.activeShotIds,
+        );
         const expectedCurrentDigest = current.current ? current.digest : null;
         if (sourceLockSetDigest !== expectedCurrentDigest) {
           serviceError("LAYOUT_SOURCE_DIGEST_MISMATCH", 409, {
@@ -294,13 +502,19 @@ export class LayoutVersioningService {
             currentLockSetDigest: expectedCurrentDigest,
           });
         }
-        const target = {
-          kind: "working_copy" as const,
-          id: workingCopy.id,
-          documentDigest: asDigest(workingCopy.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
-          rowVersion: workingCopy.rowVersion,
-        };
-        const report = await this.runPreflight(scope, document, target, current, null, tx);
+        const report = await this.runPreflight(
+          scope,
+          state,
+          {
+            kind: "working_copy",
+            id: workingCopy.id,
+            rowVersion: workingCopy.rowVersion,
+          },
+          current,
+          null,
+          null,
+          tx,
+        );
         const blockingIssues = report.issues.filter((issue) => issue.blockingScopes.includes("revision"));
         if (blockingIssues.length > 0) {
           serviceError("LAYOUT_REVISION_PREFLIGHT_BLOCKED", 409, {
@@ -338,8 +552,9 @@ export class LayoutVersioningService {
             previousRevisionId: chapter.currentLayoutRevisionId,
             contentBasedOnRevisionId: workingCopy.basedOnRevisionId,
             documentJson: document as unknown as Prisma.InputJsonValue,
-            schemaVersion: 1,
+            schemaVersion: document.schemaVersion,
             documentDigest: workingCopy.documentDigest,
+            visibleDocumentDigest: state.visibleDocumentDigest,
             sourceLockSetDigest,
             origin: "runtime",
             saveReason: request.saveReason,
@@ -347,7 +562,7 @@ export class LayoutVersioningService {
             createdAt: now,
           },
         });
-        for (const binding of projectLayoutSourceBindings(document)) {
+        for (const binding of projectLayoutSourceBindings(visibleDocument)) {
           await tx.layoutSourceBinding.create({
             data: {
               id: `layout_binding_${randomUUID()}`,
@@ -388,7 +603,7 @@ export class LayoutVersioningService {
             projectId: scope.projectId,
             chapterId: scope.chapterId,
             rowVersion: request.expectedWorkingCopyRowVersion,
-            documentDigest: request.expectedDocumentDigest,
+            documentDigest: expectedRevisionDocumentDigest,
           },
           data: {
             basedOnRevisionId: sealed.id,
@@ -398,19 +613,40 @@ export class LayoutVersioningService {
         });
         if (workingUpdate.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
         const updatedWorkingCopy = await tx.layoutWorkingCopy.findUniqueOrThrow({ where: { id: workingCopy.id } });
-        return {
-          schemaVersion: 1,
-          result: "created",
-          revision: await this.toRevisionDetail(scope, current, sealed, tx),
+        const detail = await this.toRevisionDetail(scope, current, sealed, tx);
+        const common = {
+          result: "created" as const,
+          revision: detail,
           warnings: report.issues.filter((issue) => issue.severity !== "error"),
           preflight: report,
           workingCopy: await this.workingCopies.responseForReader(scope, updatedWorkingCopy, tx),
         };
+        return request.schemaVersion === 1
+          ? {
+              schemaVersion: 1,
+              ...common,
+              revision: detail as LayoutRevisionDetailV1,
+              preflight: report as LayoutPreflightReportV1,
+              warnings: report.issues.filter(
+                (issue) => issue.severity !== "error",
+              ) as LayoutPreflightReportV1["issues"],
+            }
+          : {
+              schemaVersion: 2,
+              ...common,
+              revision: detail as LayoutRevisionDetailV2,
+              preflight: report as LayoutPreflightReportV2,
+              warnings: report.issues.filter(
+                (issue) => issue.severity !== "error",
+              ) as LayoutPreflightReportV2["issues"],
+            };
       });
     });
   }
 
-  async listRevisions(scope: VersionScopeV1): Promise<LayoutRevisionHistoryResponseV1> {
+  async listRevisions(
+    scope: VersionScopeV1,
+  ): Promise<LayoutRevisionHistoryResponseV1 | LayoutRevisionHistoryResponseV2> {
     return this.execute(() => this.prismaService.runReadTransaction(async (tx) => {
       const chapter = await tx.chapter.findFirst({
         where: { id: scope.chapterId, projectId: scope.projectId },
@@ -423,15 +659,30 @@ export class LayoutVersioningService {
         include: { layoutSourceBindingsByLayoutRevision: { orderBy: { order: "asc" } } },
         orderBy: { revision: "desc" },
       });
+      const items = rows.map((row) => this.toRevisionSummary(current, row));
+      if (items.every((item) => !("documentSchemaVersion" in item))) {
+        return {
+          schemaVersion: 1,
+          currentLayoutRevisionId: chapter.currentLayoutRevisionId,
+          items: items as LayoutRevisionSummaryV1[],
+        };
+      }
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         currentLayoutRevisionId: chapter.currentLayoutRevisionId,
-        items: rows.map((row) => this.toRevisionSummary(current, row)),
+        items: items.map((item): LayoutRevisionSummaryV1OrV2 => (
+          "documentSchemaVersion" in item
+            ? item
+            : { ...item, documentSchemaVersion: 1 }
+        )),
       };
     }));
   }
 
-  async getRevision(scope: VersionScopeV1, revisionId: string): Promise<LayoutRevisionDetailV1> {
+  async getRevision(
+    scope: VersionScopeV1,
+    revisionId: string,
+  ): Promise<LayoutRevisionDetailV1 | LayoutRevisionDetailV2> {
     return this.execute(() => this.prismaService.runReadTransaction(async (tx) => {
       const current = await this.loadCurrentSources(scope, tx, false);
       const revision = await this.loadRevision(scope, revisionId, tx, true);
@@ -443,32 +694,41 @@ export class LayoutVersioningService {
     scope: VersionScopeV1,
     revisionId: string,
     input: unknown,
-  ): Promise<RestoreLayoutRevisionResponseV1> {
+  ): Promise<RestoreLayoutRevisionResponseV1 | RestoreLayoutRevisionResponseV2> {
     return this.execute(async () => {
-      const request = parseRestoreLayoutRevisionRequestV1(input);
+      const request = parseRestoreLayoutRevisionRequestV1OrV2(input);
       return this.prismaService.runBusinessTransaction(async (tx) => {
         const [revision, workingCopy] = await Promise.all([
           this.loadRevision(scope, revisionId, tx, true),
           this.loadWorkingCopy(scope, tx),
         ]);
+        const workingState = this.parseWorkingCopyState(scope, workingCopy);
+        const revisionState = this.parseRevisionState(scope, revision);
+        assertLayoutRestoreSchemaPolicy({
+          requestSchemaVersion: request.schemaVersion,
+          workingCopySchemaVersion: workingState.document.schemaVersion,
+          targetRevisionSchemaVersion: revisionState.document.schemaVersion,
+        });
+        const finalDocument = request.schemaVersion === 2
+          && revisionState.document.schemaVersion === 1
+          ? upgradeLayoutWorkingCopyV1ToV2(revisionState.document, scope)
+          : revisionState.document;
+        const finalState = this.parseDocumentState(scope, finalDocument);
         if (
           workingCopy.rowVersion === request.expectedWorkingCopyRowVersion + 1
-          && workingCopy.documentDigest === revision.documentDigest
+          && workingCopy.documentDigest === finalState.revisionDocumentDigest
           && workingCopy.basedOnRevisionId === revision.id
         ) {
-          return {
-            schemaVersion: 1,
+          const common = {
             result: "replayed",
             restoredFromRevisionId: revision.id,
             workingCopy: await this.workingCopies.responseForReader(scope, workingCopy, tx),
           };
+          return finalDocument.schemaVersion === 1
+            ? { schemaVersion: 1, ...common } as RestoreLayoutRevisionResponseV1
+            : { schemaVersion: 2, ...common } as RestoreLayoutRevisionResponseV2;
         }
-        this.assertWorkingCopyExpectation(
-          workingCopy,
-          request.expectedWorkingCopyRowVersion,
-          request.expectedWorkingCopyDigest,
-        );
-        const document = this.parseRevisionDocument(scope, revision);
+        this.assertRestoreExpectation(workingCopy, workingState, request);
         const updatedAt = new Date(Math.max(Date.now(), workingCopy.updatedAt.getTime() + 1));
         const updated = await tx.layoutWorkingCopy.updateMany({
           where: {
@@ -476,11 +736,13 @@ export class LayoutVersioningService {
             projectId: scope.projectId,
             chapterId: scope.chapterId,
             rowVersion: request.expectedWorkingCopyRowVersion,
-            documentDigest: request.expectedWorkingCopyDigest,
+            documentDigest: workingState.revisionDocumentDigest,
           },
           data: {
-            documentJson: document as unknown as Prisma.InputJsonValue,
-            documentDigest: revision.documentDigest,
+            documentKind: finalDocument.kind,
+            documentJson: finalDocument as unknown as Prisma.InputJsonValue,
+            schemaVersion: finalDocument.schemaVersion,
+            documentDigest: finalState.revisionDocumentDigest,
             sourceLockSetDigest: revision.sourceLockSetDigest,
             basedOnRevisionId: revision.id,
             rowVersion: { increment: 1 },
@@ -489,55 +751,112 @@ export class LayoutVersioningService {
         });
         if (updated.count !== 1) serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409);
         const result = await tx.layoutWorkingCopy.findUniqueOrThrow({ where: { id: workingCopy.id } });
-        return {
-          schemaVersion: 1,
+        const common = {
           result: "restored",
           restoredFromRevisionId: revision.id,
           workingCopy: await this.workingCopies.responseForReader(scope, result, tx),
         };
+        return finalDocument.schemaVersion === 1
+          ? { schemaVersion: 1, ...common } as RestoreLayoutRevisionResponseV1
+          : { schemaVersion: 2, ...common } as RestoreLayoutRevisionResponseV2;
       });
     });
   }
 
   private async runRevisionPreflight(
     scope: VersionScopeV1,
-    document: LayoutDocumentV1,
-    revision: { id: string; documentDigest: string },
+    state: LayoutDocumentState,
+    revision: { id: string },
     current: CurrentLayoutSources,
-    workingCopyDocumentDigest: string | null,
+    workingCopyRevisionDocumentDigest: string | null,
     reader: Reader,
-  ): Promise<LayoutPreflightReportV1> {
-    return this.runPreflight(scope, document, {
-      kind: "layout_revision",
-      id: revision.id,
-      documentDigest: asDigest(revision.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
-      rowVersion: null,
-    }, current, workingCopyDocumentDigest, reader);
+  ): Promise<LayoutPreflightReportV1 | LayoutPreflightReportV2> {
+    return this.runPreflight(
+      scope,
+      state,
+      { kind: "layout_revision", id: revision.id, rowVersion: null },
+      current,
+      workingCopyRevisionDocumentDigest,
+      null,
+      reader,
+    );
   }
 
   private async runPreflight(
     scope: VersionScopeV1,
-    document: LayoutDocumentV1,
-    target: LayoutPreflightReportV1["target"],
+    state: LayoutDocumentState,
+    target: {
+      kind: "working_copy" | "layout_revision";
+      id: string;
+      rowVersion: number | null;
+    },
     current: CurrentLayoutSources,
-    workingCopyDocumentDigest: string | null,
+    workingCopyRevisionDocumentDigest: string | null,
+    profile: LayoutPublicationProfileV1 | null,
     reader: Reader,
-  ): Promise<LayoutPreflightReportV1> {
+  ): Promise<LayoutPreflightReportV1 | LayoutPreflightReportV2> {
     const [fontCatalog, imageAssets] = await Promise.all([
       this.layoutFonts.listForReader(scope, reader, false),
-      this.loadImageAssets(document, current.items, reader),
+      this.loadImageAssets(state.visibleDocument, current.items, reader),
     ]);
-    return runLayoutPreflightV1({
+    if (state.document.schemaVersion === 1) {
+      return runLayoutPreflightV1({
+        document: state.document,
+        target: {
+          ...target,
+          documentDigest: state.revisionDocumentDigest,
+        },
+        currentSources: current.current ? current.items : [],
+        activeShotIds: current.activeShotIds,
+        imageAssets,
+        fontCatalog,
+        profile,
+        workingCopyDocumentDigest: workingCopyRevisionDocumentDigest
+          ? asDigest(
+              workingCopyRevisionDocumentDigest,
+              "LAYOUT_DOCUMENT_DIGEST_MISMATCH",
+            )
+          : null,
+      });
+    }
+    const document = state.document;
+    const [dialogue, evidence] = await Promise.all([
+      this.compositionSources.currentDialoguePreflightSource(scope, reader),
+      document.automation.composition
+        ? this.compositionSources.compositionPreflightEvidence(
+            scope,
+            document.automation.composition.compositionDigest,
+            reader,
+          )
+        : Promise.resolve(null),
+    ]);
+    return runLayoutPreflightV2({
       document,
-      target,
+      target: {
+        ...target,
+        revisionDocumentDigest: state.revisionDocumentDigest,
+        visibleDocumentDigest: state.visibleDocumentDigest,
+      },
       currentSources: current.current ? current.items : [],
       activeShotIds: current.activeShotIds,
       imageAssets,
       fontCatalog,
-      profile: null,
-      workingCopyDocumentDigest: workingCopyDocumentDigest
-        ? asDigest(workingCopyDocumentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH")
+      profile,
+      dialogueLedger: dialogue.dialogueLedger,
+      currentComposition: evidence
+        ? {
+            ...evidence,
+            storyboardVersionId: dialogue.storyboardVersionId,
+            storyboardDigest: dialogue.storyboardDigest,
+          }
         : null,
+      workingCopyRevisionDocumentDigest:
+        workingCopyRevisionDocumentDigest
+          ? asDigest(
+              workingCopyRevisionDocumentDigest,
+              "LAYOUT_DOCUMENT_DIGEST_MISMATCH",
+            )
+          : null,
     });
   }
 
@@ -688,7 +1007,11 @@ export class LayoutVersioningService {
       where: { projectId: scope.projectId, chapterId: scope.chapterId },
     });
     if (!row) serviceError("LAYOUT_WORKING_COPY_NOT_FOUND", 404);
-    if (row.documentKind !== "layout_document_v1") {
+    if (
+      (row.documentKind !== "layout_document_v1"
+        && row.documentKind !== "layout_document_v2")
+      || (row.schemaVersion !== 1 && row.schemaVersion !== 2)
+    ) {
       serviceError("LAYOUT_WORKING_COPY_EXISTS", 409, { documentKind: row.documentKind });
     }
     return row;
@@ -710,35 +1033,158 @@ export class LayoutVersioningService {
     return row;
   }
 
-  private parseWorkingCopyDocument(
+  private parseDocumentState(
     scope: VersionScopeV1,
-    row: { documentJson: unknown; documentDigest: string },
-  ): LayoutDocumentV1 {
-    const document = LayoutDocumentCodecV1.parseAndNormalize(row.documentJson, scope);
-    const encoded = LayoutDocumentCodecV1.encode(document);
-    if (encoded.digest !== row.documentDigest) serviceError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
-    return encoded.value;
+    input: unknown,
+  ): LayoutDocumentState {
+    const revision = LayoutDocumentCodecV1OrV2.encode(input, scope);
+    const visible = revision.value.schemaVersion === 1
+      ? LayoutDocumentCodecV1.encode(revision.value, scope)
+      : LayoutDocumentCodecV1.encode(
+          projectLayoutDocumentV2ToV1(revision.value, scope),
+          scope,
+        );
+    return {
+      document: revision.value,
+      visibleDocument: visible.value,
+      revisionDocumentDigest: revision.digest,
+      visibleDocumentDigest: visible.digest,
+    };
   }
 
-  private parseRevisionDocument(
+  private parseWorkingCopyState(
     scope: VersionScopeV1,
-    row: { documentJson: unknown; documentDigest: string; schemaVersion: number },
-  ): LayoutDocumentV1 {
-    if (row.schemaVersion !== 1) serviceError("LAYOUT_REVISION_NOT_SUPPORTED", 409);
-    return this.parseWorkingCopyDocument(scope, row);
+    row: {
+      documentJson: unknown;
+      documentDigest: string;
+      documentKind: string;
+      schemaVersion: number;
+    },
+  ): LayoutDocumentState {
+    const state = this.parseDocumentState(scope, row.documentJson);
+    if (
+      state.document.schemaVersion !== row.schemaVersion
+      || state.document.kind !== row.documentKind
+      || state.revisionDocumentDigest !== row.documentDigest
+    ) serviceError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
+    return state;
   }
 
-  private assertWorkingCopyExpectation(
-    row: { rowVersion: number; documentDigest: string },
-    expectedRowVersion: number,
-    expectedDocumentDigest: string,
+  private parseRevisionState(
+    scope: VersionScopeV1,
+    row: {
+      documentJson: unknown;
+      documentDigest: string;
+      visibleDocumentDigest: string | null;
+      schemaVersion: number;
+    },
+  ): LayoutDocumentState {
+    const state = this.parseDocumentState(scope, row.documentJson);
+    const storedVisible = row.visibleDocumentDigest ?? (
+      row.schemaVersion === 1 ? row.documentDigest : null
+    );
+    if (
+      state.document.schemaVersion !== row.schemaVersion
+      || state.revisionDocumentDigest !== row.documentDigest
+      || storedVisible !== state.visibleDocumentDigest
+    ) serviceError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
+    return state;
+  }
+
+  private assertRequestMatchesDocumentSchema(
+    requestSchemaVersion: 1 | 2,
+    documentSchemaVersion: 1 | 2,
   ): void {
-    if (row.rowVersion !== expectedRowVersion || row.documentDigest !== expectedDocumentDigest) {
-      serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409, {
-        currentRowVersion: row.rowVersion,
-        currentDocumentDigest: row.documentDigest,
+    if (requestSchemaVersion !== documentSchemaVersion) {
+      serviceError("LAYOUT_DOCUMENT_SCHEMA_VERSION_MISMATCH", 409, {
+        requestSchemaVersion,
+        documentSchemaVersion,
       });
     }
+  }
+
+  private workingCopyConflict(
+    row: { rowVersion: number },
+    state: LayoutDocumentState,
+  ): never {
+    serviceError("LAYOUT_WORKING_COPY_CONFLICT", 409, {
+      currentRowVersion: row.rowVersion,
+      currentRevisionDocumentDigest: state.revisionDocumentDigest,
+      currentVisibleDocumentDigest: state.visibleDocumentDigest,
+    });
+  }
+
+  private assertWorkingCopyRequestExpectation(
+    row: { rowVersion: number },
+    state: LayoutDocumentState,
+    request:
+      | ReturnType<typeof parsePreviewLayoutSourceReplacementRequestV1OrV2>
+      | ReturnType<typeof parseCommitLayoutSourceReplacementRequestV1OrV2>,
+  ): void {
+    const valid = row.rowVersion === request.expectedWorkingCopyRowVersion
+      && (
+        request.schemaVersion === 1
+          ? state.revisionDocumentDigest === request.expectedDocumentDigest
+          : state.revisionDocumentDigest
+              === request.expectedRevisionDocumentDigest
+            && state.visibleDocumentDigest
+              === request.expectedVisibleDocumentDigest
+      );
+    if (!valid) this.workingCopyConflict(row, state);
+  }
+
+  private assertPreflightWorkingCopyExpectation(
+    row: { rowVersion: number },
+    state: LayoutDocumentState,
+    target: Extract<
+      ReturnType<typeof parseRunLayoutPreflightRequestV1OrV2>["target"],
+      { kind: "working_copy" }
+    >,
+  ): void {
+    const valid = row.rowVersion === target.expectedRowVersion
+      && (
+        "expectedDocumentDigest" in target
+          ? state.revisionDocumentDigest === target.expectedDocumentDigest
+          : state.revisionDocumentDigest
+              === target.expectedRevisionDocumentDigest
+            && state.visibleDocumentDigest
+              === target.expectedVisibleDocumentDigest
+      );
+    if (!valid) this.workingCopyConflict(row, state);
+  }
+
+  private assertCreateRevisionExpectation(
+    row: { rowVersion: number },
+    state: LayoutDocumentState,
+    request: ReturnType<typeof parseCreateLayoutRevisionRequestV1OrV2>,
+  ): void {
+    const valid = row.rowVersion === request.expectedWorkingCopyRowVersion
+      && (
+        request.schemaVersion === 1
+          ? state.revisionDocumentDigest === request.expectedDocumentDigest
+          : state.revisionDocumentDigest
+              === request.expectedRevisionDocumentDigest
+            && state.visibleDocumentDigest
+              === request.expectedVisibleDocumentDigest
+      );
+    if (!valid) this.workingCopyConflict(row, state);
+  }
+
+  private assertRestoreExpectation(
+    row: { rowVersion: number },
+    state: LayoutDocumentState,
+    request: ReturnType<typeof parseRestoreLayoutRevisionRequestV1OrV2>,
+  ): void {
+    const valid = row.rowVersion === request.expectedWorkingCopyRowVersion
+      && (
+        request.schemaVersion === 1
+          ? state.revisionDocumentDigest === request.expectedWorkingCopyDigest
+          : state.revisionDocumentDigest
+              === request.expectedWorkingCopyRevisionDocumentDigest
+            && state.visibleDocumentDigest
+              === request.expectedWorkingCopyVisibleDocumentDigest
+      );
+    if (!valid) this.workingCopyConflict(row, state);
   }
 
   private sourceResolution(
@@ -780,6 +1226,8 @@ export class LayoutVersioningService {
       previousRevisionId: string | null;
       contentBasedOnRevisionId: string | null;
       documentDigest: string;
+      visibleDocumentDigest: string | null;
+      schemaVersion: number;
       sourceLockSetDigest: string | null;
       saveReason: string;
       createdAt: Date;
@@ -791,26 +1239,51 @@ export class LayoutVersioningService {
         sourceDigest: string;
       }>;
     },
-  ): LayoutRevisionSummaryV1 {
-    const saveReason = row.saveReason === "user_checkpoint"
+  ): LayoutRevisionSummaryV1 | LayoutRevisionSummaryV2 {
+    const saveReason: LayoutRevisionSummaryV1["saveReason"] = row.saveReason === "user_checkpoint"
       || row.saveReason === "export_checkpoint"
       || row.saveReason === "history_restore"
       ? row.saveReason
       : "legacy_import";
-    return {
+    const common = {
       id: row.id,
       projectId: row.projectId,
       chapterId: row.chapterId,
       revision: row.revision,
       previousRevisionId: row.previousRevisionId,
       contentBasedOnRevisionId: row.contentBasedOnRevisionId,
-      documentDigest: asDigest(row.documentDigest, "LAYOUT_DOCUMENT_DIGEST_MISMATCH"),
       sourceLockSetDigest: row.sourceLockSetDigest
         ? asDigest(row.sourceLockSetDigest, "LAYOUT_SOURCE_DIGEST_MISMATCH")
         : null,
       saveReason,
       sourceResolution: this.sourceResolution(current, row.layoutSourceBindingsByLayoutRevision ?? []),
       createdAt: row.createdAt.toISOString(),
+    };
+    if (row.schemaVersion === 1) {
+      return {
+        ...common,
+        documentDigest: asDigest(
+          row.documentDigest,
+          "LAYOUT_DOCUMENT_DIGEST_MISMATCH",
+        ),
+      };
+    }
+    if (row.schemaVersion !== 2) serviceError("LAYOUT_REVISION_NOT_SUPPORTED", 409);
+    return {
+      documentSchemaVersion: 2,
+      ...common,
+      sourceLockSetDigest: asDigest(
+        row.sourceLockSetDigest,
+        "LAYOUT_SOURCE_DIGEST_MISMATCH",
+      ),
+      revisionDocumentDigest: asDigest(
+        row.documentDigest,
+        "LAYOUT_DOCUMENT_DIGEST_MISMATCH",
+      ),
+      visibleDocumentDigest: asDigest(
+        row.visibleDocumentDigest,
+        "LAYOUT_VISIBLE_DOCUMENT_DIGEST_MISMATCH",
+      ),
     };
   }
 
@@ -826,6 +1299,7 @@ export class LayoutVersioningService {
       contentBasedOnRevisionId: string | null;
       documentJson: unknown;
       documentDigest: string;
+      visibleDocumentDigest: string | null;
       sourceLockSetDigest: string | null;
       schemaVersion: number;
       saveReason: string;
@@ -840,18 +1314,29 @@ export class LayoutVersioningService {
       }>;
     },
     reader: Reader,
-  ): Promise<LayoutRevisionDetailV1> {
+  ): Promise<LayoutRevisionDetailV1 | LayoutRevisionDetailV2> {
     if (!row.bindingSetSealedAt) serviceError("LAYOUT_REVISION_NOT_FOUND", 404);
     const bindings = row.layoutSourceBindingsByLayoutRevision
       ?? await reader.layoutSourceBinding.findMany({
         where: { layoutRevisionId: row.id },
         orderBy: { order: "asc" },
       });
-    return {
-      ...this.toRevisionSummary(current, { ...row, layoutSourceBindingsByLayoutRevision: bindings }),
-      document: this.parseRevisionDocument(scope, row),
-      bindingSetSealedAt: row.bindingSetSealedAt.toISOString(),
-    };
+    const summary = this.toRevisionSummary(current, {
+      ...row,
+      layoutSourceBindingsByLayoutRevision: bindings,
+    });
+    const state = this.parseRevisionState(scope, row);
+    return row.schemaVersion === 1
+      ? {
+          ...(summary as LayoutRevisionSummaryV1),
+          document: state.document as LayoutDocumentV1,
+          bindingSetSealedAt: row.bindingSetSealedAt.toISOString(),
+        }
+      : {
+          ...(summary as LayoutRevisionSummaryV2),
+          document: state.document as LayoutDocumentV2,
+          bindingSetSealedAt: row.bindingSetSealedAt.toISOString(),
+        };
   }
 
   private async execute<T>(operation: () => Promise<T>): Promise<T> {

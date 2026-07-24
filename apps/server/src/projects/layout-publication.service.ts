@@ -3,17 +3,28 @@ import { Prisma } from "@prisma/client";
 import {
   buildTaskSourceProjection,
   digestCanonicalJson,
+  LAYOUT_PUBLICATION_SOURCE_POLICY_V1,
+  LAYOUT_PUBLICATION_SOURCE_POLICY_V2,
   LayoutDocumentCodecV1,
+  LayoutDocumentCodecV2,
   LayoutPublicationProfileCodecV1,
-  parseCreateLayoutPublicationRequestV1,
+  parseCreateLayoutPublicationRequestV1OrV2,
+  parseLayoutPublicationTaskInputV2,
+  projectLayoutDocumentV2ToV1,
   taskSourceProjectionDigest,
   type CreateLayoutPublicationResponseV1,
+  type CreateLayoutPublicationResponseV2,
+  type CreateLayoutPublicationRequestV1OrV2,
   type GenerationTaskItem,
   type LayoutDigest,
   type LayoutDocumentV1,
+  type LayoutDocumentV2,
   type LayoutPublicationHistoryResponseV1,
+  type LayoutPublicationHistoryResponseV2,
   type LayoutPublicationSummaryV1,
+  type LayoutPublicationSummaryV2,
   type PublicationManifestV1,
+  type PublicationManifestV2,
   type RenderAssetManifestV1,
 } from "@airoaming/shared";
 import { createHash, randomUUID } from "node:crypto";
@@ -47,7 +58,46 @@ function asDigest(value: string | null, code: string): LayoutDigest {
   return value as LayoutDigest;
 }
 
-function collectFontAssetIds(document: LayoutDocumentV1): string[] {
+export function layoutPublicationIntentMatchesRequest(
+  task: { inputSchemaVersion: number | null; inputJson: unknown },
+  request: CreateLayoutPublicationRequestV1OrV2,
+): boolean {
+  const intent = task.inputJson
+    && typeof task.inputJson === "object"
+    && !Array.isArray(task.inputJson)
+    ? task.inputJson as Record<string, unknown>
+    : {};
+  const acknowledgedIssueKeys = Array.isArray(intent.acknowledgedIssueKeys)
+    && intent.acknowledgedIssueKeys.every((value) => typeof value === "string")
+    && new Set(intent.acknowledgedIssueKeys).size
+      === intent.acknowledgedIssueKeys.length
+    ? [...intent.acknowledgedIssueKeys].sort()
+    : null;
+  const requestedAcknowledgedIssueKeys = request.schemaVersion === 2
+    ? [...request.acknowledgedIssueKeys].sort()
+    : null;
+  return task.inputSchemaVersion === request.schemaVersion
+    && intent.schemaVersion === request.schemaVersion
+    && (
+      request.schemaVersion === 1
+      || intent.kind === "layout_publication_task_v2"
+    )
+    && intent.layoutRevisionId === request.layoutRevisionId
+    && intent.profileDigest === request.profileDigest
+    && intent.preflightDigest === request.preflightDigest
+    && (
+      request.schemaVersion === 1
+      || (
+        intent.revisionDocumentDigest === request.expectedRevisionDocumentDigest
+        && intent.visibleDocumentDigest === request.expectedVisibleDocumentDigest
+        && acknowledgedIssueKeys !== null
+        && JSON.stringify(acknowledgedIssueKeys)
+          === JSON.stringify(requestedAcknowledgedIssueKeys)
+      )
+    );
+}
+
+function collectFontAssetIds(document: LayoutDocumentV1 | LayoutDocumentV2): string[] {
   const values = new Set<string>([
     document.fontPolicy.defaultFontAssetId,
     ...document.fontPolicy.fallbackFontAssetIds,
@@ -71,9 +121,12 @@ export class LayoutPublicationService {
     @Inject(WorkspacePathService) private readonly workspacePath: WorkspacePathService,
   ) {}
 
-  async create(scope: VersionScopeV1, input: unknown): Promise<CreateLayoutPublicationResponseV1> {
+  async create(
+    scope: VersionScopeV1,
+    input: unknown,
+  ): Promise<CreateLayoutPublicationResponseV1 | CreateLayoutPublicationResponseV2> {
     return this.execute(async () => {
-      const request = parseCreateLayoutPublicationRequestV1(input);
+      const request = parseCreateLayoutPublicationRequestV1OrV2(input);
       const encodedProfile = LayoutPublicationProfileCodecV1.encode(request.profile);
       if (encodedProfile.digest !== request.profileDigest) {
         publicationError("LAYOUT_EXPORT_PROFILE_DIGEST_MISMATCH", 400, { profileDigest: encodedProfile.digest });
@@ -83,14 +136,9 @@ export class LayoutPublicationService {
         const idempotencyKey = `layout-publication:${scope.projectId}:${scope.chapterId}:${request.requestId}`;
         const existingTask = await tx.generationTask.findUnique({ where: { idempotencyKey } });
         if (existingTask) {
-          const intent = existingTask.inputJson && typeof existingTask.inputJson === "object" && !Array.isArray(existingTask.inputJson)
-            ? existingTask.inputJson as Record<string, unknown>
-            : {};
-          if (
-            intent.layoutRevisionId !== request.layoutRevisionId
-            || intent.profileDigest !== request.profileDigest
-            || intent.preflightDigest !== request.preflightDigest
-          ) publicationError("LAYOUT_EXPORT_IDEMPOTENCY_KEY_REUSED", 409);
+          if (!layoutPublicationIntentMatchesRequest(existingTask, request)) {
+            publicationError("LAYOUT_EXPORT_IDEMPOTENCY_KEY_REUSED", 409);
+          }
           const existingExport = await tx.exportRevision.findUnique({ where: { taskId: existingTask.id } });
           if (!existingExport) publicationError("LAYOUT_EXPORT_TASK_MAPPING_INVALID", 409);
           return { taskId: existingTask.id, exportRevisionId: existingExport.id, result: "replayed" as const };
@@ -114,12 +162,53 @@ export class LayoutPublicationService {
           },
         });
         if (!revision) publicationError("LAYOUT_EXPORT_REVISION_NOT_CURRENT", 409);
-        const document = LayoutDocumentCodecV1.parseAndNormalize(revision.documentJson, scope);
-        if (LayoutDocumentCodecV1.encode(document).digest !== revision.documentDigest) {
-          publicationError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
+        if (revision.schemaVersion !== request.schemaVersion) {
+          publicationError("LAYOUT_EXPORT_REVISION_SCHEMA_MISMATCH", 409, {
+            revisionSchemaVersion: revision.schemaVersion,
+            requestSchemaVersion: request.schemaVersion,
+          });
+        }
+        let visibleDocument: LayoutDocumentV1;
+        let revisionDocumentDigest: LayoutDigest;
+        let visibleDocumentDigest: LayoutDigest;
+        if (revision.schemaVersion === 1) {
+          const encoded = LayoutDocumentCodecV1.encode(
+            LayoutDocumentCodecV1.parseAndNormalize(revision.documentJson, scope),
+            scope,
+          );
+          revisionDocumentDigest = encoded.digest;
+          visibleDocumentDigest = asDigest(
+            revision.visibleDocumentDigest ?? revision.documentDigest,
+            "LAYOUT_DOCUMENT_DIGEST_MISMATCH",
+          );
+          if (
+            revisionDocumentDigest !== revision.documentDigest
+            || visibleDocumentDigest !== revisionDocumentDigest
+          ) publicationError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
+          visibleDocument = encoded.value;
+        } else if (revision.schemaVersion === 2) {
+          const encoded = LayoutDocumentCodecV2.encode(revision.documentJson, scope);
+          const visible = LayoutDocumentCodecV1.encode(
+            projectLayoutDocumentV2ToV1(encoded.value, scope),
+            scope,
+          );
+          revisionDocumentDigest = encoded.digest;
+          visibleDocumentDigest = visible.digest;
+          if (
+            revisionDocumentDigest !== revision.documentDigest
+            || visibleDocumentDigest !== revision.visibleDocumentDigest
+            || request.schemaVersion !== 2
+            || request.expectedRevisionDocumentDigest !== revisionDocumentDigest
+            || request.expectedVisibleDocumentDigest !== visibleDocumentDigest
+          ) publicationError("LAYOUT_DOCUMENT_DIGEST_MISMATCH", 409);
+          visibleDocument = visible.value;
+        } else {
+          publicationError("LAYOUT_EXPORT_REVISION_SCHEMA_MISMATCH", 409, {
+            revisionSchemaVersion: revision.schemaVersion,
+          });
         }
         const report = await this.versioning.preflightForReader(scope, {
-          schemaVersion: 1,
+          schemaVersion: request.schemaVersion,
           target: { kind: "layout_revision", layoutRevisionId: revision.id },
           profile: request.profile,
         }, tx);
@@ -153,7 +242,7 @@ export class LayoutPublicationService {
         const imageAssetIds = [...new Set(bindings.flatMap((binding) => binding.assetId ? [binding.assetId] : []))].sort();
         const candidateLockIds = [...new Set(bindings.flatMap((binding) => binding.candidateLockRevisionId ? [binding.candidateLockRevisionId] : []))].sort();
         if (imageAssetIds.length === 0 || candidateLockIds.length === 0) publicationError("LAYOUT_RENDER_ASSET_INVALID", 422);
-        const fontAssetIds = collectFontAssetIds(document);
+        const fontAssetIds = collectFontAssetIds(visibleDocument);
         const assets = await tx.asset.findMany({ where: { id: { in: [...imageAssetIds, ...fontAssetIds] } } });
         const assetById = new Map(assets.map((asset) => [asset.id, asset]));
         const images = imageAssetIds.map((assetId) => {
@@ -172,7 +261,9 @@ export class LayoutPublicationService {
         });
         const assetManifest: RenderAssetManifestV1 = { schemaVersion: 1, images, fonts };
         const sourceProjection = buildTaskSourceProjection({
-          policyVersion: "layout-publication-source-v1",
+          policyVersion: request.schemaVersion === 1
+            ? LAYOUT_PUBLICATION_SOURCE_POLICY_V1
+            : LAYOUT_PUBLICATION_SOURCE_POLICY_V2,
           projectId: scope.projectId,
           chapterId: scope.chapterId,
           consumerType: "layout_export",
@@ -192,20 +283,38 @@ export class LayoutPublicationService {
         const exportRevisionId = `export_${randomUUID()}`;
         const taskId = randomUUID();
         const now = new Date();
-        const taskInput = {
-          schemaVersion: 1 as const,
-          requestId: request.requestId,
-          sourceProjection,
-          exportRevisionId,
-          layoutRevisionId: revision.id,
-          documentDigest: revision.documentDigest,
-          sourceLockSetDigest,
-          profile: request.profile,
-          profileDigest: request.profileDigest,
-          preflightDigest: request.preflightDigest,
-          renderer,
-          assetManifest,
-        };
+        const taskInput = request.schemaVersion === 1
+          ? {
+              schemaVersion: 1 as const,
+              requestId: request.requestId,
+              sourceProjection,
+              exportRevisionId,
+              layoutRevisionId: revision.id,
+              documentDigest: revisionDocumentDigest,
+              sourceLockSetDigest,
+              profile: request.profile,
+              profileDigest: request.profileDigest,
+              preflightDigest: request.preflightDigest,
+              renderer,
+              assetManifest,
+            }
+          : parseLayoutPublicationTaskInputV2({
+              schemaVersion: 2,
+              kind: "layout_publication_task_v2",
+              requestId: request.requestId,
+              sourceProjection,
+              exportRevisionId,
+              layoutRevisionId: revision.id,
+              revisionDocumentDigest,
+              visibleDocumentDigest,
+              sourceLockSetDigest,
+              profile: request.profile,
+              profileDigest: request.profileDigest,
+              preflightDigest: request.preflightDigest,
+              acknowledgedIssueKeys: request.acknowledgedIssueKeys,
+              renderer,
+              assetManifest,
+            });
         const inputDigest = digestCanonicalJson(taskInput);
         const sourceDigest = taskSourceProjectionDigest(sourceProjection);
         await tx.generationTask.create({
@@ -222,7 +331,7 @@ export class LayoutPublicationService {
             targetType: "export",
             targetId: exportRevisionId,
             inputJson: jsonValue(taskInput),
-            inputSchemaVersion: 1,
+            inputSchemaVersion: request.schemaVersion,
             inputDigest,
             sourceDigest,
             idempotencyKey,
@@ -263,6 +372,8 @@ export class LayoutPublicationService {
             status: "queued",
             taskId,
             layoutRevisionId: revision.id,
+            revisionDocumentDigest,
+            visibleDocumentDigest,
             sourceLockSetDigest,
             profileJson: jsonValue(request.profile),
             profileSchemaVersion: 1,
@@ -283,30 +394,74 @@ export class LayoutPublicationService {
         this.get(scope, created.exportRevisionId),
         this.tasks.get(created.taskId),
       ]);
-      return { schemaVersion: 1, result: created.result, exportRevision, task };
+      if (exportRevision.schemaVersion === 2) {
+        return {
+          schemaVersion: 2,
+          result: created.result,
+          exportRevision,
+          task,
+        };
+      }
+      return {
+        schemaVersion: 1,
+        result: created.result,
+        exportRevision,
+        task,
+      };
     });
   }
 
-  async list(scope: VersionScopeV1): Promise<LayoutPublicationHistoryResponseV1> {
+  async list(
+    scope: VersionScopeV1,
+  ): Promise<LayoutPublicationHistoryResponseV1 | LayoutPublicationHistoryResponseV2> {
     return this.execute(async () => {
       const [chapter, rows] = await Promise.all([
         this.prismaService.database().chapter.findFirst({ where: { id: scope.chapterId, projectId: scope.projectId }, select: { currentExportRevisionId: true } }),
         this.prismaService.database().exportRevision.findMany({
           where: { projectId: scope.projectId, chapterId: scope.chapterId, kind: "layout_publication" },
-          include: { exportArtifactsByExportRevision: { include: { asset: true }, orderBy: [{ role: "asc" }, { order: "asc" }] } },
+          include: {
+            layoutRevision: true,
+            exportArtifactsByExportRevision: {
+              include: { asset: true },
+              orderBy: [{ role: "asc" }, { order: "asc" }],
+            },
+          },
           orderBy: { revision: "desc" },
         }),
       ]);
       if (!chapter) publicationError("LAYOUT_EXPORT_NOT_FOUND", 404);
-      return { schemaVersion: 1, currentExportRevisionId: chapter.currentExportRevisionId, items: rows.map((row) => this.toSummary(row, chapter.currentExportRevisionId)) };
+      const items = rows.map((row) => this.toSummary(row, chapter.currentExportRevisionId));
+      if (items.some((item) => item.schemaVersion === 2)) {
+        return {
+          schemaVersion: 2,
+          currentExportRevisionId: chapter.currentExportRevisionId,
+          items: items.map((item) => item.schemaVersion === 1
+            ? { ...item, documentSchemaVersion: 1 as const }
+            : item),
+        };
+      }
+      return {
+        schemaVersion: 1,
+        currentExportRevisionId: chapter.currentExportRevisionId,
+        items: items as LayoutPublicationSummaryV1[],
+      };
     });
   }
 
-  async get(scope: VersionScopeV1, exportRevisionId: string): Promise<LayoutPublicationSummaryV1> {
+  async get(
+    scope: VersionScopeV1,
+    exportRevisionId: string,
+  ): Promise<LayoutPublicationSummaryV1 | LayoutPublicationSummaryV2> {
     return this.execute(async () => {
       const row = await this.prismaService.database().exportRevision.findFirst({
         where: { id: exportRevisionId, projectId: scope.projectId, chapterId: scope.chapterId, kind: "layout_publication" },
-        include: { exportArtifactsByExportRevision: { include: { asset: true }, orderBy: [{ role: "asc" }, { order: "asc" }] } },
+        include: {
+          layoutRevision: true,
+          exportArtifactsByExportRevision: {
+            include: { asset: true },
+            orderBy: [{ role: "asc" }, { order: "asc" }],
+          },
+        },
       });
       if (!row) publicationError("LAYOUT_EXPORT_NOT_FOUND", 404);
       const chapter = await this.prismaService.database().chapter.findUnique({ where: { id: scope.chapterId }, select: { currentExportRevisionId: true } });
@@ -314,7 +469,13 @@ export class LayoutPublicationService {
     });
   }
 
-  async cancel(scope: VersionScopeV1, exportRevisionId: string): Promise<{ schemaVersion: 1; exportRevision: LayoutPublicationSummaryV1; task: GenerationTaskItem }> {
+  async cancel(
+    scope: VersionScopeV1,
+    exportRevisionId: string,
+  ): Promise<
+    | { schemaVersion: 1; exportRevision: LayoutPublicationSummaryV1; task: GenerationTaskItem }
+    | { schemaVersion: 2; exportRevision: LayoutPublicationSummaryV2; task: GenerationTaskItem }
+  > {
     return this.execute(async () => {
       const taskId = await this.prismaService.runBusinessTransaction(async (tx) => {
         const row = await tx.exportRevision.findFirst({ where: { id: exportRevisionId, projectId: scope.projectId, chapterId: scope.chapterId, kind: "layout_publication" } });
@@ -332,7 +493,9 @@ export class LayoutPublicationService {
         return task.id;
       });
       const [exportRevision, task] = await Promise.all([this.get(scope, exportRevisionId), this.tasks.get(taskId)]);
-      return { schemaVersion: 1, exportRevision, task };
+      return exportRevision.schemaVersion === 2
+        ? { schemaVersion: 2, exportRevision, task }
+        : { schemaVersion: 1, exportRevision, task };
     });
   }
 
@@ -361,13 +524,22 @@ export class LayoutPublicationService {
     });
   }
 
-  private toSummary(row: Prisma.ExportRevisionGetPayload<{ include: { exportArtifactsByExportRevision: { include: { asset: true } } } }>, currentExportRevisionId: string | null): LayoutPublicationSummaryV1 {
+  private toSummary(
+    row: Prisma.ExportRevisionGetPayload<{
+      include: {
+        layoutRevision: true;
+        exportArtifactsByExportRevision: { include: { asset: true } };
+      };
+    }>,
+    currentExportRevisionId: string | null,
+  ): LayoutPublicationSummaryV1 | LayoutPublicationSummaryV2 {
     const profile = LayoutPublicationProfileCodecV1.parse(row.profileJson);
-    const manifest = row.manifestJson && typeof row.manifestJson === "object" && !Array.isArray(row.manifestJson)
-      ? row.manifestJson as unknown as PublicationManifestV1
+    const manifestJson = row.manifestJson
+      && typeof row.manifestJson === "object"
+      && !Array.isArray(row.manifestJson)
+      ? row.manifestJson
       : null;
-    return {
-      schemaVersion: 1,
+    const common = {
       id: row.id,
       projectId: row.projectId,
       chapterId: row.chapterId!,
@@ -379,10 +551,9 @@ export class LayoutPublicationService {
       profileDigest: asDigest(row.profileDigest, "LAYOUT_EXPORT_TASK_MAPPING_INVALID"),
       preflightDigest: asDigest(row.preflightDigest, "LAYOUT_EXPORT_TASK_MAPPING_INVALID"),
       rendererVersion: row.rendererVersion!,
-      manifest,
-      manifestDigest: row.manifestDigest ? asDigest(row.manifestDigest, "LAYOUT_EXPORT_TASK_MAPPING_INVALID") : null,
-      completionApplicability: row.completionApplicability as LayoutPublicationSummaryV1["completionApplicability"],
-      revisionPosition: currentExportRevisionId === row.id ? "current" : "historical",
+      revisionPosition: (
+        currentExportRevisionId === row.id ? "current" : "historical"
+      ) as LayoutPublicationSummaryV1["revisionPosition"],
       artifacts: row.exportArtifactsByExportRevision.map(({ asset, ...artifact }) => {
         const metadata = asset.metadataJson && typeof asset.metadataJson === "object" && !Array.isArray(asset.metadataJson) ? asset.metadataJson as Record<string, unknown> : {};
         return {
@@ -403,6 +574,38 @@ export class LayoutPublicationService {
       readyAt: row.readyAt?.toISOString() ?? null,
       failedAt: row.failedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
+    };
+    const manifestDigest = row.manifestDigest
+      ? asDigest(row.manifestDigest, "LAYOUT_EXPORT_TASK_MAPPING_INVALID")
+      : null;
+    const completionApplicability = row.completionApplicability as
+      | "current"
+      | "historical"
+      | null;
+    if (row.layoutRevision?.schemaVersion === 2) {
+      return {
+        ...common,
+        schemaVersion: 2,
+        documentSchemaVersion: 2,
+        revisionDocumentDigest: asDigest(
+          row.revisionDocumentDigest,
+          "LAYOUT_EXPORT_TASK_MAPPING_INVALID",
+        ),
+        visibleDocumentDigest: asDigest(
+          row.visibleDocumentDigest,
+          "LAYOUT_EXPORT_TASK_MAPPING_INVALID",
+        ),
+        manifest: manifestJson as unknown as PublicationManifestV2 | null,
+        manifestDigest,
+        completionApplicability,
+      };
+    }
+    return {
+      ...common,
+      schemaVersion: 1,
+      manifest: manifestJson as unknown as PublicationManifestV1 | null,
+      manifestDigest,
+      completionApplicability,
     };
   }
 

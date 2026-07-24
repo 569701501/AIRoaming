@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import type { LayoutDocumentV1, LayoutDigest } from "./document.js";
+import {
+  LayoutDocumentCodecV2,
+  projectLayoutDocumentV2ToV1,
+  upgradeLayoutWorkingCopyV1ToV2,
+} from "./automation.js";
 import { LayoutDocumentCodecV1 } from "./codec.js";
-import { digestCandidateImageSourceV1, projectLayoutSourceBindings } from "./digest.js";
+import {
+  digestCandidateImageSourceV1,
+  digestLayoutSourceLockSet,
+  projectLayoutSourceBindings,
+} from "./digest.js";
 import {
   buildLayoutSourceReplacementPreviewV1,
+  buildLayoutSourceReplacementPreviewV2,
   parseCommitLayoutSourceReplacementRequestV1,
   parsePreviewLayoutSourceReplacementRequestV1,
+  parsePreviewLayoutSourceReplacementRequestV2,
 } from "./source-replacement.js";
 
 const shaA = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as LayoutDigest;
@@ -138,5 +149,107 @@ describe("G5-M6 source replacement contract", () => {
       resultDocumentDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       unknown: true,
     })).toThrow(/unknown field/i);
+  });
+
+  it("expands a V2 replacement to every appearance of the selected shot and preserves automation", () => {
+    const visible = document();
+    visible.canvases[0]!.elements.push({
+      id: "image_free_1",
+      type: "free_image",
+      name: "A duplicate",
+      transform: { x: 20, y: 20, width: 200, height: 100, rotation: 0, opacity: 1 },
+      locked: false,
+      hidden: false,
+      source: source("a"),
+      display: {
+        mode: "cover",
+        crop: { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false },
+      },
+    });
+    const documentV2 = upgradeLayoutWorkingCopyV1ToV2(visible);
+    documentV2.automation.composition = {
+      compositionDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      compositionPolicyVersion: "layout_composition_v1",
+      storyboardVersionId: "storyboard_revision_1",
+      storyboardDigest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      sourceLockSetDigest: digestLayoutSourceLockSet(visible, ["shot_1"])!,
+      visualAnalysisSetDigest: null,
+      mode: "rule_fallback",
+    };
+    const originalComposition = structuredClone(documentV2.automation.composition);
+    const originalProtections = structuredClone(documentV2.automation.protections);
+    const revision = LayoutDocumentCodecV2.encode(documentV2);
+    const visibleDigest = LayoutDocumentCodecV1.encode(projectLayoutDocumentV2ToV1(documentV2)).digest;
+    const request = parsePreviewLayoutSourceReplacementRequestV2({
+      schemaVersion: 2,
+      expectedWorkingCopyRowVersion: 3,
+      expectedRevisionDocumentDigest: revision.digest,
+      expectedVisibleDocumentDigest: visibleDigest,
+      replacements: [{ imageElementId: "image_1", cropMode: "reset_cover" }],
+    });
+    const preview = buildLayoutSourceReplacementPreviewV2({
+      document: documentV2,
+      request,
+      currentSources: [{ order: 1, source: source("b"), width: 600, height: 1200 }],
+      sourceDimensions: { asset_a: { width: 1200, height: 600 } },
+    });
+
+    expect(preview.items.map((item) => item.imageElementId)).toEqual(["image_1", "image_free_1"]);
+    expect(preview.items.map((item) => item.selectionOrigin)).toEqual(["requested", "same_shot_expansion"]);
+    expect(preview.commandBatch.commands).toHaveLength(1);
+    expect(preview.commandBatch.commands[0]).toMatchObject({
+      schemaVersion: 2,
+      actor: "user",
+      type: "layout.replace_sources",
+      payload: {
+        replacements: [
+          { canvasId: "page_1", elementId: "panel_1", source: { candidateLockRevisionId: "lock_b" } },
+          { canvasId: "page_1", elementId: "image_free_1", source: { candidateLockRevisionId: "lock_b" } },
+        ],
+      },
+    });
+    expect(preview.resultDocument.automation.dialogueBindings).toEqual(documentV2.automation.dialogueBindings);
+    expect(preview.resultDocument.automation.composition).toEqual(originalComposition);
+    expect(preview.resultDocument.automation.protections).toEqual(expect.arrayContaining(originalProtections));
+    const resultBindings = projectLayoutSourceBindings(
+      projectLayoutDocumentV2ToV1(preview.resultDocument),
+    );
+    expect(resultBindings.every((binding) => binding.candidateLockRevisionId === "lock_b")).toBe(true);
+    expect(preview.resultRevisionDocumentDigest).toBe(LayoutDocumentCodecV2.encode(preview.resultDocument).digest);
+    expect(preview.resultVisibleDocumentDigest).toBe(
+      LayoutDocumentCodecV1.encode(projectLayoutDocumentV2ToV1(preview.resultDocument)).digest,
+    );
+  });
+
+  it("rejects mixed crop decisions for appearances of the same V2 shot", () => {
+    const visible = document();
+    visible.canvases[0]!.elements.push({
+      id: "image_free_1",
+      type: "free_image",
+      name: "A duplicate",
+      transform: { x: 20, y: 20, width: 200, height: 100, rotation: 0, opacity: 1 },
+      locked: false,
+      hidden: false,
+      source: source("a"),
+      display: { mode: "contain" },
+    });
+    const documentV2 = upgradeLayoutWorkingCopyV1ToV2(visible);
+    const revision = LayoutDocumentCodecV2.encode(documentV2);
+    const visibleDigest = LayoutDocumentCodecV1.encode(projectLayoutDocumentV2ToV1(documentV2)).digest;
+    expect(() => buildLayoutSourceReplacementPreviewV2({
+      document: documentV2,
+      request: parsePreviewLayoutSourceReplacementRequestV2({
+        schemaVersion: 2,
+        expectedWorkingCopyRowVersion: 3,
+        expectedRevisionDocumentDigest: revision.digest,
+        expectedVisibleDocumentDigest: visibleDigest,
+        replacements: [
+          { imageElementId: "image_1", cropMode: "reset_cover" },
+          { imageElementId: "image_free_1", cropMode: "preserve_normalized_crop" },
+        ],
+      }),
+      currentSources: [{ order: 1, source: source("b"), width: 600, height: 1200 }],
+      sourceDimensions: { asset_a: { width: 1200, height: 600 } },
+    })).toThrow(/same shot.*crop mode/i);
   });
 });

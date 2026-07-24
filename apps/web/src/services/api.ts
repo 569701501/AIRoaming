@@ -90,21 +90,32 @@ import type {
   SaveLayoutWorkingCopyRequestV1OrV2,
   SaveLayoutWorkingCopyResponseV1,
   CommitLayoutSourceReplacementRequestV1,
+  CommitLayoutSourceReplacementRequestV2,
   CommitLayoutSourceReplacementResponseV1,
-  CreateLayoutRevisionRequestV1,
+  CommitLayoutSourceReplacementResponseV2,
+  CreateLayoutRevisionRequestV1OrV2,
   CreateLayoutRevisionResponseV1,
+  CreateLayoutRevisionResponseV2,
   LayoutPreflightReportV1,
-  LayoutRevisionDetailV1,
+  LayoutPreflightReportV2,
+  LayoutRevisionDetailV1OrV2,
   LayoutRevisionHistoryResponseV1,
+  LayoutRevisionHistoryResponseV2,
   LayoutSourceReplacementPreviewV1,
+  LayoutSourceReplacementPreviewV2,
   PreviewLayoutSourceReplacementRequestV1,
-  RestoreLayoutRevisionRequestV1,
+  PreviewLayoutSourceReplacementRequestV2,
+  RestoreLayoutRevisionRequestV1OrV2,
   RestoreLayoutRevisionResponseV1,
-  RunLayoutPreflightRequestV1,
-  CreateLayoutPublicationRequestV1,
+  RestoreLayoutRevisionResponseV2,
+  RunLayoutPreflightRequestV1OrV2,
+  CreateLayoutPublicationRequestV1OrV2,
   CreateLayoutPublicationResponseV1,
+  CreateLayoutPublicationResponseV2,
   LayoutPublicationHistoryResponseV1,
+  LayoutPublicationHistoryResponseV2,
   LayoutPublicationSummaryV1,
+  LayoutPublicationSummaryV2,
   CreatePendingEditorCommandSetRequestV1,
   PendingEditorCommandCurrentResponseV1OrV2,
   PendingEditorCommandPreviewV1OrV2,
@@ -662,62 +673,62 @@ export const api = {
   previewLayoutSourceReplacements: (
     projectId: string,
     chapterId: string,
-    input: PreviewLayoutSourceReplacementRequestV1,
-  ) => request<LayoutSourceReplacementPreviewV1>(
+    input: PreviewLayoutSourceReplacementRequestV1 | PreviewLayoutSourceReplacementRequestV2,
+  ) => request<LayoutSourceReplacementPreviewV1 | LayoutSourceReplacementPreviewV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-replacements/preview`,
     { method: "POST", body: JSON.stringify(input) },
   ),
   commitLayoutSourceReplacements: (
     projectId: string,
     chapterId: string,
-    input: CommitLayoutSourceReplacementRequestV1,
-  ) => request<CommitLayoutSourceReplacementResponseV1>(
+    input: CommitLayoutSourceReplacementRequestV1 | CommitLayoutSourceReplacementRequestV2,
+  ) => request<CommitLayoutSourceReplacementResponseV1 | CommitLayoutSourceReplacementResponseV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/source-replacements/commit`,
     { method: "POST", body: JSON.stringify(input) },
   ),
   runLayoutPreflight: (
     projectId: string,
     chapterId: string,
-    input: RunLayoutPreflightRequestV1,
-  ) => request<LayoutPreflightReportV1>(
+    input: RunLayoutPreflightRequestV1OrV2,
+  ) => request<LayoutPreflightReportV1 | LayoutPreflightReportV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/preflight`,
     { method: "POST", body: JSON.stringify(input) },
   ),
   createLayoutRevision: (
     projectId: string,
     chapterId: string,
-    input: CreateLayoutRevisionRequestV1,
-  ) => request<CreateLayoutRevisionResponseV1>(
+    input: CreateLayoutRevisionRequestV1OrV2,
+  ) => request<CreateLayoutRevisionResponseV1 | CreateLayoutRevisionResponseV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions`,
     { method: "POST", body: JSON.stringify(input) },
   ),
-  listLayoutRevisions: (projectId: string, chapterId: string) => request<LayoutRevisionHistoryResponseV1>(
+  listLayoutRevisions: (projectId: string, chapterId: string) => request<LayoutRevisionHistoryResponseV1 | LayoutRevisionHistoryResponseV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions`,
   ),
-  getLayoutRevision: (projectId: string, chapterId: string, revisionId: string) => request<LayoutRevisionDetailV1>(
+  getLayoutRevision: (projectId: string, chapterId: string, revisionId: string) => request<LayoutRevisionDetailV1OrV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions/${encodeURIComponent(revisionId)}`,
   ),
   restoreLayoutRevision: (
     projectId: string,
     chapterId: string,
     revisionId: string,
-    input: RestoreLayoutRevisionRequestV1,
-  ) => request<RestoreLayoutRevisionResponseV1>(
+    input: RestoreLayoutRevisionRequestV1OrV2,
+  ) => request<RestoreLayoutRevisionResponseV1 | RestoreLayoutRevisionResponseV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/layout/revisions/${encodeURIComponent(revisionId)}/restore-to-working-copy`,
     { method: "POST", body: JSON.stringify(input) },
   ),
   createLayoutPublication: (
     projectId: string,
     chapterId: string,
-    input: CreateLayoutPublicationRequestV1,
-  ) => request<CreateLayoutPublicationResponseV1>(
+    input: CreateLayoutPublicationRequestV1OrV2,
+  ) => request<CreateLayoutPublicationResponseV1 | CreateLayoutPublicationResponseV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications`,
     { method: "POST", body: JSON.stringify(input) },
   ),
-  listLayoutPublications: (projectId: string, chapterId: string) => request<LayoutPublicationHistoryResponseV1>(
+  listLayoutPublications: (projectId: string, chapterId: string) => request<LayoutPublicationHistoryResponseV1 | LayoutPublicationHistoryResponseV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications`,
   ),
-  getLayoutPublication: (projectId: string, chapterId: string, exportRevisionId: string) => request<LayoutPublicationSummaryV1>(
+  getLayoutPublication: (projectId: string, chapterId: string, exportRevisionId: string) => request<LayoutPublicationSummaryV1 | LayoutPublicationSummaryV2>(
     `/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}/exports/layout-publications/${encodeURIComponent(exportRevisionId)}`,
   ),
   cancelLayoutPublication: (projectId: string, chapterId: string, exportRevisionId: string) => request<unknown>(

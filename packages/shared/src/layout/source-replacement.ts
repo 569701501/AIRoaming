@@ -1,5 +1,16 @@
 import { digestCanonicalJson } from "../versioning/canonical-json.js";
+import {
+  LayoutDocumentCodecV2,
+  projectLayoutDocumentV2ToV1,
+  type LayoutDocumentV2,
+} from "./automation.js";
 import { LayoutDocumentCodecV1 } from "./codec.js";
+import {
+  applyLayoutCommandBatchV2,
+  type EditorCommandBatchV2,
+  type EditorCommandV2,
+} from "./commands-v2.js";
+import { projectLayoutSourceBindings } from "./digest.js";
 import type {
   CandidateImageSourceV1,
   CoverCropV1,
@@ -31,6 +42,20 @@ export interface CommitLayoutSourceReplacementRequestV1 extends PreviewLayoutSou
   resultDocumentDigest: LayoutDigest;
 }
 
+export interface PreviewLayoutSourceReplacementRequestV2 {
+  schemaVersion: 2;
+  expectedWorkingCopyRowVersion: number;
+  expectedRevisionDocumentDigest: LayoutDigest;
+  expectedVisibleDocumentDigest: LayoutDigest;
+  replacements: LayoutSourceReplacementSelectionV1[];
+}
+
+export interface CommitLayoutSourceReplacementRequestV2 extends PreviewLayoutSourceReplacementRequestV2 {
+  replacementDigest: LayoutDigest;
+  resultRevisionDocumentDigest: LayoutDigest;
+  resultVisibleDocumentDigest: LayoutDigest;
+}
+
 export interface LayoutSourceReplacementPreviewItemV1 {
   imageElementId: string;
   from: CandidateImageSourceV1;
@@ -55,11 +80,43 @@ export interface BuiltLayoutSourceReplacementPreviewV1 extends LayoutSourceRepla
   resultDocument: LayoutDocumentV1;
 }
 
+export interface LayoutSourceReplacementPreviewItemV2 extends LayoutSourceReplacementPreviewItemV1 {
+  canvasId: string;
+  commandElementId: string;
+  selectionOrigin: "requested" | "same_shot_expansion";
+}
+
+export interface LayoutSourceReplacementPreviewV2 {
+  schemaVersion: 2;
+  policyVersion: "layout_source_replace_v2";
+  expectedWorkingCopyRowVersion: number;
+  expectedRevisionDocumentDigest: LayoutDigest;
+  expectedVisibleDocumentDigest: LayoutDigest;
+  replacementDigest: LayoutDigest;
+  resultRevisionDocumentDigest: LayoutDigest;
+  resultVisibleDocumentDigest: LayoutDigest;
+  items: LayoutSourceReplacementPreviewItemV2[];
+  commandBatch: EditorCommandBatchV2;
+}
+
+export interface BuiltLayoutSourceReplacementPreviewV2 extends LayoutSourceReplacementPreviewV2 {
+  resultDocument: LayoutDocumentV2;
+}
+
 export interface CommitLayoutSourceReplacementResponseV1 {
   schemaVersion: 1;
   result: "updated" | "replayed";
   replacementDigest: LayoutDigest;
   resultDocumentDigest: LayoutDigest;
+  workingCopy: LayoutWorkingCopyResponseV1;
+}
+
+export interface CommitLayoutSourceReplacementResponseV2 {
+  schemaVersion: 2;
+  result: "updated" | "replayed";
+  replacementDigest: LayoutDigest;
+  resultRevisionDocumentDigest: LayoutDigest;
+  resultVisibleDocumentDigest: LayoutDigest;
   workingCopy: LayoutWorkingCopyResponseV1;
 }
 
@@ -165,6 +222,82 @@ export function parseCommitLayoutSourceReplacementRequestV1(
     replacementDigest: digest(row.replacementDigest, "request.replacementDigest"),
     resultDocumentDigest: digest(row.resultDocumentDigest, "request.resultDocumentDigest"),
   };
+}
+
+export function parsePreviewLayoutSourceReplacementRequestV2(
+  input: unknown,
+): PreviewLayoutSourceReplacementRequestV2 {
+  const row = exact(input, [
+    "schemaVersion",
+    "expectedWorkingCopyRowVersion",
+    "expectedRevisionDocumentDigest",
+    "expectedVisibleDocumentDigest",
+    "replacements",
+  ], "request");
+  if (row.schemaVersion !== 2) fail("request.schemaVersion", "expected 2");
+  return {
+    schemaVersion: 2,
+    expectedWorkingCopyRowVersion: rowVersion(row.expectedWorkingCopyRowVersion, "request.expectedWorkingCopyRowVersion"),
+    expectedRevisionDocumentDigest: digest(
+      row.expectedRevisionDocumentDigest,
+      "request.expectedRevisionDocumentDigest",
+    ),
+    expectedVisibleDocumentDigest: digest(
+      row.expectedVisibleDocumentDigest,
+      "request.expectedVisibleDocumentDigest",
+    ),
+    replacements: parseSelections(row.replacements),
+  };
+}
+
+export function parseCommitLayoutSourceReplacementRequestV2(
+  input: unknown,
+): CommitLayoutSourceReplacementRequestV2 {
+  const row = exact(input, [
+    "schemaVersion",
+    "expectedWorkingCopyRowVersion",
+    "expectedRevisionDocumentDigest",
+    "expectedVisibleDocumentDigest",
+    "replacements",
+    "replacementDigest",
+    "resultRevisionDocumentDigest",
+    "resultVisibleDocumentDigest",
+  ], "request");
+  const preview = parsePreviewLayoutSourceReplacementRequestV2({
+    schemaVersion: row.schemaVersion,
+    expectedWorkingCopyRowVersion: row.expectedWorkingCopyRowVersion,
+    expectedRevisionDocumentDigest: row.expectedRevisionDocumentDigest,
+    expectedVisibleDocumentDigest: row.expectedVisibleDocumentDigest,
+    replacements: row.replacements,
+  });
+  return {
+    ...preview,
+    replacementDigest: digest(row.replacementDigest, "request.replacementDigest"),
+    resultRevisionDocumentDigest: digest(
+      row.resultRevisionDocumentDigest,
+      "request.resultRevisionDocumentDigest",
+    ),
+    resultVisibleDocumentDigest: digest(
+      row.resultVisibleDocumentDigest,
+      "request.resultVisibleDocumentDigest",
+    ),
+  };
+}
+
+export function parsePreviewLayoutSourceReplacementRequestV1OrV2(
+  input: unknown,
+): PreviewLayoutSourceReplacementRequestV1 | PreviewLayoutSourceReplacementRequestV2 {
+  return record(input, "request").schemaVersion === 2
+    ? parsePreviewLayoutSourceReplacementRequestV2(input)
+    : parsePreviewLayoutSourceReplacementRequestV1(input);
+}
+
+export function parseCommitLayoutSourceReplacementRequestV1OrV2(
+  input: unknown,
+): CommitLayoutSourceReplacementRequestV1 | CommitLayoutSourceReplacementRequestV2 {
+  return record(input, "request").schemaVersion === 2
+    ? parseCommitLayoutSourceReplacementRequestV2(input)
+    : parseCommitLayoutSourceReplacementRequestV1(input);
 }
 
 interface LocatedImage {
@@ -308,5 +441,122 @@ export function buildLayoutSourceReplacementPreviewV1(input: {
     resultDocumentDigest: result.digest,
     items,
     resultDocument: result.value,
+  };
+}
+
+function shortDigestId(prefix: string, value: unknown): string {
+  return `${prefix}_${digestCanonicalJson(value).slice(7, 31)}`;
+}
+
+export function buildLayoutSourceReplacementPreviewV2(input: {
+  document: LayoutDocumentV2;
+  request: PreviewLayoutSourceReplacementRequestV2;
+  currentSources: readonly LayoutSourceCatalogItemV1[];
+  sourceDimensions: Readonly<Record<string, { width: number; height: number }>>;
+}): BuiltLayoutSourceReplacementPreviewV2 {
+  const revision = LayoutDocumentCodecV2.encode(input.document);
+  if (revision.digest !== input.request.expectedRevisionDocumentDigest) {
+    fail("request.expectedRevisionDocumentDigest", "does not match document");
+  }
+  const visible = projectLayoutDocumentV2ToV1(revision.value);
+  const visibleEncoded = LayoutDocumentCodecV1.encode(visible);
+  if (visibleEncoded.digest !== input.request.expectedVisibleDocumentDigest) {
+    fail("request.expectedVisibleDocumentDigest", "does not match the V2 visible projection");
+  }
+
+  const selectedElementIds = new Set(input.request.replacements.map((entry) => entry.imageElementId));
+  const cropModeByShot = new Map<string, LayoutSourceReplacementCropModeV1>();
+  for (const selection of input.request.replacements) {
+    const located = locateImage(structuredClone(visible), selection.imageElementId);
+    const previous = cropModeByShot.get(located.source.shotId);
+    if (previous !== undefined && previous !== selection.cropMode) {
+      fail("request.replacements", `same shot ${located.source.shotId} must use one crop mode`);
+    }
+    cropModeByShot.set(located.source.shotId, selection.cropMode);
+  }
+
+  const expandedSelections = projectLayoutSourceBindings(visible)
+    .filter((binding) => cropModeByShot.has(binding.shotId))
+    .map((binding) => ({
+      imageElementId: binding.elementId,
+      cropMode: cropModeByShot.get(binding.shotId)!,
+    }));
+  if (expandedSelections.length === 0) fail("request.replacements", "selected shots have no image appearances");
+
+  const visiblePreview = buildLayoutSourceReplacementPreviewV1({
+    document: visible,
+    request: {
+      schemaVersion: 1,
+      expectedWorkingCopyRowVersion: input.request.expectedWorkingCopyRowVersion,
+      expectedDocumentDigest: visibleEncoded.digest,
+      replacements: expandedSelections,
+    },
+    currentSources: input.currentSources,
+    sourceDimensions: input.sourceDimensions,
+  });
+  const items = visiblePreview.items.map((item): LayoutSourceReplacementPreviewItemV2 => {
+    const located = locateImage(structuredClone(visible), item.imageElementId);
+    return {
+      ...item,
+      canvasId: located.canvasId,
+      commandElementId: located.commandElementId,
+      selectionOrigin: selectedElementIds.has(item.imageElementId)
+        ? "requested"
+        : "same_shot_expansion",
+    };
+  });
+
+  const identity = {
+    policyVersion: "layout_source_replace_v2",
+    expectedWorkingCopyRowVersion: input.request.expectedWorkingCopyRowVersion,
+    expectedRevisionDocumentDigest: input.request.expectedRevisionDocumentDigest,
+    expectedVisibleDocumentDigest: input.request.expectedVisibleDocumentDigest,
+    items,
+  };
+  const command: EditorCommandV2<"layout.replace_sources"> = {
+    schemaVersion: 2,
+    commandId: shortDigestId("command", identity),
+    type: "layout.replace_sources",
+    label: "替换镜头来源",
+    actor: "user",
+    payload: {
+      replacements: items.map((item) => ({
+        canvasId: item.canvasId,
+        elementId: item.commandElementId,
+        source: structuredClone(item.to),
+        crop: structuredClone(item.resultCrop),
+      })),
+    },
+  };
+  const commandBatch: EditorCommandBatchV2 = {
+    schemaVersion: 2,
+    batchId: shortDigestId("batch", { ...identity, command }),
+    label: "替换镜头来源",
+    commands: [command],
+  };
+  const applied = applyLayoutCommandBatchV2(revision.value, commandBatch);
+  const resultRevision = LayoutDocumentCodecV2.encode(applied.document);
+  const resultVisible = LayoutDocumentCodecV1.encode(projectLayoutDocumentV2ToV1(resultRevision.value));
+  if (resultVisible.digest !== visiblePreview.resultDocumentDigest) {
+    fail("resultDocument", "V2 command projection does not match the deterministic V1 replacement preview");
+  }
+  const replacementDigest = digestCanonicalJson({
+    ...identity,
+    commandBatch,
+    resultRevisionDocumentDigest: resultRevision.digest,
+    resultVisibleDocumentDigest: resultVisible.digest,
+  });
+  return {
+    schemaVersion: 2,
+    policyVersion: "layout_source_replace_v2",
+    expectedWorkingCopyRowVersion: input.request.expectedWorkingCopyRowVersion,
+    expectedRevisionDocumentDigest: input.request.expectedRevisionDocumentDigest,
+    expectedVisibleDocumentDigest: input.request.expectedVisibleDocumentDigest,
+    replacementDigest,
+    resultRevisionDocumentDigest: resultRevision.digest,
+    resultVisibleDocumentDigest: resultVisible.digest,
+    items,
+    commandBatch,
+    resultDocument: resultRevision.value,
   };
 }

@@ -43,8 +43,11 @@ import {
   type DeleteProjectResponse,
   type ExportAssetPackageResponse,
   type CreateLayoutPublicationResponseV1,
+  type CreateLayoutPublicationResponseV2,
   type LayoutPublicationHistoryResponseV1,
+  type LayoutPublicationHistoryResponseV2,
   type LayoutPublicationSummaryV1,
+  type LayoutPublicationSummaryV2,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
   type GenerateCharacterReferenceRequest,
@@ -741,17 +744,17 @@ export class ProjectsService implements OnModuleInit {
     return this.imageCandidate.completeChapterImages(projectId, chapterId);
   }
 
-  async createLayoutPublication(projectId: string, chapterId: string, input: unknown): Promise<CreateLayoutPublicationResponseV1> {
+  async createLayoutPublication(projectId: string, chapterId: string, input: unknown): Promise<CreateLayoutPublicationResponseV1 | CreateLayoutPublicationResponseV2> {
     if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
     return this.layoutPublication.create({ projectId, chapterId }, input);
   }
 
-  async listLayoutPublications(projectId: string, chapterId: string): Promise<LayoutPublicationHistoryResponseV1> {
+  async listLayoutPublications(projectId: string, chapterId: string): Promise<LayoutPublicationHistoryResponseV1 | LayoutPublicationHistoryResponseV2> {
     if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
     return this.layoutPublication.list({ projectId, chapterId });
   }
 
-  async getLayoutPublication(projectId: string, chapterId: string, exportRevisionId: string): Promise<LayoutPublicationSummaryV1> {
+  async getLayoutPublication(projectId: string, chapterId: string, exportRevisionId: string): Promise<LayoutPublicationSummaryV1 | LayoutPublicationSummaryV2> {
     if (!this.layoutPublication) throw new Error("LAYOUT_PUBLICATION_SERVICE_REQUIRED");
     return this.layoutPublication.get({ projectId, chapterId }, exportRevisionId);
   }

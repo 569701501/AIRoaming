@@ -34,37 +34,15 @@
       </nav>
 
       <section class="scene-list" :class="{ 'is-strip': !isPaged }" aria-label="成稿内容">
-        <article
+        <LayoutCanvasVisualPreview
           v-for="canvas in visibleCanvases"
           :key="canvas.id"
-          :ref="(node) => registerCanvas(canvas.id, node)"
-          class="readonly-canvas"
-          :data-canvas-id="canvas.id"
-          :style="canvasStyle(canvas)"
-          :aria-label="`${canvas.name}，阅读顺序 ${canvas.panelReadingOrder.join('、') || '无画格'}`"
-        >
-          <div
-            v-for="element in canvas.elements.filter((item) => !item.hidden)"
-            :key="element.id"
-            class="readonly-element"
-            :class="`type-${element.type}`"
-            :style="elementStyle(element, canvas)"
-            :aria-label="element.name"
-          >
-            <template v-if="element.type === 'panel_frame'">
-              <img v-if="element.contentImage" :src="api.projectAssetFileUrl(projectId, element.contentImage.source.assetId)" :alt="element.name" />
-              <span v-else>空画格</span>
-            </template>
-            <img v-else-if="element.type === 'free_image'" :src="api.projectAssetFileUrl(projectId, element.source.assetId)" :alt="element.name" />
-            <LayoutElementTextPreview
-              v-else-if="element.type === 'text' || element.type === 'balloon'"
-              :element="element"
-              :fallback-font-asset-ids="documentValue.fontPolicy.fallbackFontAssetIds"
-              :scale="canvasScale(canvas)"
-              :overflow="overflowElementIds.has(element.id)"
-            />
-          </div>
-        </article>
+          :canvas="canvas"
+          :project-id="projectId"
+          :font-catalog="fontCatalog"
+          :source-catalog="sourceCatalog"
+          :overflow-element-ids="overflowElementIds"
+        />
       </section>
 
       <section v-if="publicationArtifacts.length" class="publication-files" aria-label="出版产物">
@@ -87,21 +65,18 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
-  type ComponentPublicInstance,
-  type CSSProperties,
 } from "vue";
 import { useRoute } from "vue-router";
 import {
   collectLayoutTextIssuesV1,
   layoutFontFamilyNameV1,
   projectLayoutDocumentV2ToV1,
-  type LayoutCanvasV1,
   type LayoutDocumentV1,
+  type LayoutDocumentV1OrV2,
   type LayoutPublicationArtifactV1,
-  type LayoutTopLevelElementV1,
 } from "@airoaming/shared";
 
-import LayoutElementTextPreview from "../components/workbench/LayoutElementTextPreview.vue";
+import LayoutCanvasVisualPreview from "../components/workbench/LayoutCanvasVisualPreview.vue";
 import { api } from "../services/api";
 
 const route = useRoute();
@@ -120,6 +95,7 @@ const loading = ref(true);
 const errorMessage = ref<string | null>(null);
 const activePage = ref(0);
 const fontCatalog = ref<Awaited<ReturnType<typeof api.getLayoutFonts>>["items"]>([]);
+const sourceCatalog = ref<Awaited<ReturnType<typeof api.getLayoutSourceCatalog>>["items"]>([]);
 const publicationArtifacts = ref<LayoutPublicationArtifactV1[]>([]);
 const publicationId = ref<string | null>(null);
 const editorUrl = computed(() => `/projects/${encodeURIComponent(projectId)}/layout`);
@@ -136,32 +112,22 @@ const overflowElementIds = computed(() => new Set(
     .filter((issue) => issue.code === "LAYOUT_TEXT_OVERFLOW")
     .map((issue) => issue.elementId),
 ));
-const canvasWidths = ref<Record<string, number>>({});
-const canvasElements = new Map<string, HTMLElement>();
-let canvasResizeObserver: ResizeObserver | null = null;
 let installedFontStyle: HTMLStyleElement | null = null;
 
 onMounted(async () => {
-  if (typeof ResizeObserver !== "undefined") {
-    canvasResizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const canvasId = (entry.target as HTMLElement).dataset.canvasId;
-        if (canvasId) updateCanvasWidth(canvasId, entry.contentRect.width);
-      }
-    });
-    for (const element of canvasElements.values()) canvasResizeObserver.observe(element);
-  }
   if (!projectId || !chapterId) {
     errorMessage.value = "缺少 projectId 或 chapterId。";
     loading.value = false;
     return;
   }
   try {
-    const [fonts, workbench] = await Promise.all([
+    const [fonts, catalog, workbench] = await Promise.all([
       api.getLayoutFonts(projectId, chapterId),
+      api.getLayoutSourceCatalog(projectId, chapterId).catch(() => null),
       api.workbench(projectId, chapterId),
     ]);
     fontCatalog.value = fonts.items;
+    sourceCatalog.value = catalog?.items ?? [];
     title.value = workbench.snapshot.currentChapter?.title || "成稿预览";
     installFonts(fonts.items);
     if (requestedSource === "working_copy") {
@@ -175,18 +141,18 @@ onMounted(async () => {
     } else if (requestedSource === "revision") {
       if (!requestedId) throw new Error("缺少成稿版本 id。 ");
       const revision = await api.getLayoutRevision(projectId, chapterId, requestedId);
-      documentValue.value = revision.document;
+      documentValue.value = visibleDocument(revision.document as LayoutDocumentV1OrV2);
       sourceResolution.value = revision.sourceResolution;
       sourceLabel.value = `不可变成稿版本 ${revision.revision}`;
-      digestLabel.value = shortDigest(revision.documentDigest);
+      digestLabel.value = shortDigest(revisionDigest(revision));
     } else {
       if (!requestedId) throw new Error("缺少出版版本 id。 ");
       const publication = await api.getLayoutPublication(projectId, chapterId, requestedId);
       const revision = await api.getLayoutRevision(projectId, chapterId, publication.layoutRevisionId);
-      documentValue.value = revision.document;
+      documentValue.value = visibleDocument(revision.document as LayoutDocumentV1OrV2);
       sourceResolution.value = revision.sourceResolution;
       sourceLabel.value = `出版 ${publication.revision} · ${getPublicationStatusLabel(publication.status)} · ${publication.revisionPosition === 'current' ? '当前' : '历史'}`;
-      digestLabel.value = shortDigest(revision.documentDigest);
+      digestLabel.value = shortDigest(revisionDigest(revision));
       publicationArtifacts.value = publication.artifacts;
       publicationId.value = publication.id;
     }
@@ -198,9 +164,6 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  canvasResizeObserver?.disconnect();
-  canvasResizeObserver = null;
-  canvasElements.clear();
   installedFontStyle?.remove();
   installedFontStyle = null;
 });
@@ -215,32 +178,18 @@ function installFonts(items: Awaited<ReturnType<typeof api.getLayoutFonts>>["ite
   globalThis.document.head.append(style);
 }
 
-function registerCanvas(canvasId: string, node: Element | ComponentPublicInstance | null): void {
-  const next = node instanceof HTMLElement ? node : null;
-  const previous = canvasElements.get(canvasId);
-  if (previous && previous !== next) canvasResizeObserver?.unobserve(previous);
-  if (!next) {
-    canvasElements.delete(canvasId);
-    const nextWidths = { ...canvasWidths.value };
-    delete nextWidths[canvasId];
-    canvasWidths.value = nextWidths;
-    return;
-  }
-  canvasElements.set(canvasId, next);
-  updateCanvasWidth(canvasId, next.getBoundingClientRect().width);
-  canvasResizeObserver?.observe(next);
+function visibleDocument(value: LayoutDocumentV1OrV2): LayoutDocumentV1 {
+  return value.schemaVersion === 2
+    ? projectLayoutDocumentV2ToV1(value)
+    : value;
 }
 
-function updateCanvasWidth(canvasId: string, width: number): void {
-  if (!(width > 0) || canvasWidths.value[canvasId] === width) return;
-  canvasWidths.value = { ...canvasWidths.value, [canvasId]: width };
-}
-
-function canvasScale(canvas: LayoutCanvasV1): number {
-  const measuredWidth = canvasWidths.value[canvas.id];
-  if (measuredWidth && measuredWidth > 0) return measuredWidth / canvas.width;
-  const viewportWidth = typeof globalThis.innerWidth === "number" ? globalThis.innerWidth : canvas.width + 28;
-  return Math.max(1, Math.min(760, viewportWidth - 28)) / canvas.width;
+function revisionDigest(
+  value: Awaited<ReturnType<typeof api.getLayoutRevision>>,
+): string {
+  return "revisionDocumentDigest" in value
+    ? value.revisionDocumentDigest
+    : value.documentDigest;
 }
 
 function getPublicationStatusLabel(status: string): string {
@@ -257,22 +206,6 @@ function shortDigest(value: string): string {
   return `${value.slice(0, 15)}…${value.slice(-8)}`;
 }
 
-function canvasStyle(canvas: LayoutCanvasV1): CSSProperties {
-  return { aspectRatio: `${canvas.width} / ${canvas.height}`, backgroundColor: canvas.backgroundColor.slice(0, 7) };
-}
-
-function elementStyle(element: LayoutTopLevelElementV1, canvas: LayoutCanvasV1): CSSProperties {
-  const transform = element.transform;
-  return {
-    left: `${transform.x / canvas.width * 100}%`,
-    top: `${transform.y / canvas.height * 100}%`,
-    width: `${transform.width / canvas.width * 100}%`,
-    height: `${transform.height / canvas.height * 100}%`,
-    opacity: transform.opacity,
-    transform: `rotate(${transform.rotation}deg)`,
-    zIndex: canvas.elements.findIndex((candidate) => candidate.id === element.id) + 1,
-  };
-}
 </script>
 
 <style scoped>
@@ -292,12 +225,6 @@ function elementStyle(element: LayoutTopLevelElementV1, canvas: LayoutCanvasV1):
 .page-nav { display: flex; align-items: center; justify-content: center; gap: 14px; }
 .page-nav button:disabled { opacity: .35; }
 .scene-list { display: grid; gap: 12px; }
-.readonly-canvas { position: relative; width: 100%; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,.38); }
-.readonly-element { position: absolute; display: grid; place-items: center; box-sizing: border-box; overflow: hidden; color: #111827; white-space: pre-wrap; text-align: center; transform-origin: center; }
-.readonly-element.type-panel_frame { border: 1px solid #111827; background: #d7dce5; }
-.readonly-element.type-balloon, .readonly-element.type-text { overflow: visible; }
-.readonly-element img { width: 100%; height: 100%; object-fit: cover; }
-.readonly-element.type-panel_frame > span { font-size: clamp(8px, 2.4vw, 20px); line-height: 1.25; }
 .publication-files { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .publication-files strong { width: 100%; }
 @media (min-width: 800px) { .mobile-layout-preview { padding-top: 28px; } }
