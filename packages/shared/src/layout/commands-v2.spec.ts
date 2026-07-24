@@ -138,6 +138,49 @@ describe("Smart layout M1 V2 command actor and protection contract", () => {
     expect(richTextPlainTextV1(balloon(moved).richText)).toBe("这是人工修改后的对白");
   });
 
+  it("does not turn an old unowned balloon into user-owned content by hiding and showing it", async () => {
+    const before = await freshV2();
+    const edited = applyLayoutCommandV2(before, command("balloon.replace_text_document", {
+      canvasId: "canvas_balloons",
+      elementId: "balloon_speech",
+      richText: textWith(balloon(before).richText, "旧气泡被人工改字"),
+    })).document;
+    const hidden = applyLayoutCommandV2(edited, command("element.set_hidden", {
+      canvasId: "canvas_balloons",
+      elementId: "balloon_speech",
+      hidden: true,
+    })).document;
+    const shown = applyLayoutCommandV2(hidden, command("element.set_hidden", {
+      canvasId: "canvas_balloons",
+      elementId: "balloon_speech",
+      hidden: false,
+    })).document;
+
+    expect(shown.automation.protections.find((item) => item.targetId === "balloon_speech")?.scopes)
+      .toEqual(["text", "style"]);
+  });
+
+  it("does not turn old unowned text into user-owned content through canvas or profile resize", async () => {
+    const before = await freshV2();
+    const assertNotOwned = (value: LayoutDocumentV2) => {
+      const scopes = value.automation.protections.find((item) => item.targetId === "balloon_speech")?.scopes ?? [];
+      expect(scopes).not.toContain("existence");
+      expect(scopes).not.toContain("text");
+      expect(scopes).not.toContain("source");
+    };
+    const canvasResized = applyLayoutCommandV2(before, command("canvas.resize", {
+      canvasId: before.canvases[0]!.id,
+      canvas: structuredClone(before.canvases[0]!),
+    })).document;
+    assertNotOwned(canvasResized);
+
+    const profileResized = applyLayoutCommandV2(before, command("layout.resize_profile", {
+      profile: structuredClone(before.profile),
+      canvases: structuredClone(before.canvases),
+    })).document;
+    assertNotOwned(profileResized);
+  });
+
   it("SML-PRO-001/003/004/005 maps crop, geometry, style and tail edits to independent scopes", async () => {
     const cropDocument = await freshV2("crop-rotate-flip");
     const cropped = applyLayoutCommandV2(cropDocument, command("image.set_crop", {
@@ -311,6 +354,34 @@ describe("Smart layout M1 V2 command actor and protection contract", () => {
     expect(restored.document.automation.dialogueBindings[0]?.disposition).toBe("placed");
     expect(restored.document.automation.protections.some((item) => item.targetId === "balloon_speech")).toBe(false);
     expect(digest(applyLayoutCommandV2(restored.document, restored.inverse).document)).toBe(digest(suppressed.document));
+  });
+
+  it("restores a hidden bound balloon with its protected user-edited text intact", async () => {
+    const before = bind(await freshV2());
+    const changedText = textWith(balloon(before).richText, "保留这句人工修改");
+    const edited = applyLayoutCommandV2(before, command("balloon.replace_text_document", {
+      canvasId: "canvas_balloons",
+      elementId: "balloon_speech",
+      richText: changedText,
+    })).document;
+    const suppressed = applyLayoutCommandV2(edited, command("balloon.suppress_bound", {
+      canvasId: "canvas_balloons",
+      elementId: "balloon_speech",
+      mode: "hide",
+    })).document;
+
+    const restored = applyLayoutCommandV2(suppressed, command("balloon.restore_bound", {
+      dialogueItemId: "dialogue_balloon_speech",
+      canvasId: "canvas_balloons",
+      richText: balloon(suppressed).richText,
+      create: null,
+      clearProtectionScopes: ["existence"],
+    })).document;
+
+    expect(balloon(restored).hidden).toBe(false);
+    expect(richTextPlainTextV1(balloon(restored).richText)).toBe("保留这句人工修改");
+    expect(restored.automation.protections.find((item) => item.targetId === "balloon_speech")?.scopes)
+      .toEqual(["text", "style"]);
   });
 
   it("SML-DLG-008 restores a deleted binding tombstone with a new visible balloon and full inverse", async () => {

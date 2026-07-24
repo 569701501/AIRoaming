@@ -5,19 +5,20 @@ import test from "node:test";
 const workspaceUrl = new URL("./LayoutExportWorkspace.vue", import.meta.url);
 const presetsUrl = new URL("./layout-editor-presets.ts", import.meta.url);
 const sessionUrl = new URL("../../composables/layout-editor-session.ts", import.meta.url);
+const compositionSessionUrl = new URL("../../composables/layout-composition-session.ts", import.meta.url);
 const apiUrl = new URL("../../services/api.ts", import.meta.url);
 
-test("pending proposals keep structural comparison and require the complete visual preview", async () => {
+test("the basic editor exposes autosave, preview and one export action without secondary AI controls", async () => {
   const source = await readFile(workspaceUrl, "utf8");
 
-  assert.match(source, /<LayoutDocumentMiniPreview[\s\S]*<LayoutDocumentMiniPreview/);
-  assert.match(source, /data-testid="layout-authoritative-pending-preview"/);
-  assert.match(source, /<LayoutDocumentVisualPreview[\s\S]*<LayoutDocumentVisualPreview/);
-  assert.match(source, /authoritativePreviewReviewed/);
-  assert.match(source, /review-required/);
-  assert.match(source, /@review-state="captureAuthoritativePreviewReviewState"/);
-  assert.match(source, /data-testid="layout-authoritative-preview-review-state"/);
-  assert.match(source, /:disabled="aiBusy \|\| !authoritativePreviewReviewed"/);
+  assert.match(source, /data-testid="layout-simple-export"/);
+  assert.match(source, /saveStateLabel/);
+  assert.match(source, /aria-label="手机预览"/);
+  assert.doesNotMatch(source, /layout-ai-drawer/);
+  assert.doesNotMatch(source, />智能调整</);
+  assert.doesNotMatch(source, /session\.undo/);
+  assert.doesNotMatch(source, /session\.redo/);
+  assert.doesNotMatch(source, /aria-label="立即保存"/);
 });
 
 test("mobile preview reports popup failures and keeps a same-page fallback reachable", async () => {
@@ -52,7 +53,7 @@ test("mobile preview preparation prevents switching the active chapter", async (
 
   assert.match(
     source,
-    /<select\s+:value="chapterId \?\? ''"\s+:disabled="loading \|\| mobilePreviewBusy"/,
+    /<select\s+:value="chapterId \?\? ''"\s+:disabled="loading \|\| mobilePreviewBusy \|\| exportOperationBusy"/,
   );
 });
 
@@ -67,7 +68,6 @@ test("editable mid-width layouts wrap all top actions instead of hiding preview 
   assert.match(responsiveDesktop, /\.editor-topbar\s*\{[^}]*flex-wrap:\s*wrap/);
   assert.match(responsiveDesktop, /\.top-actions\s*\{[^}]*flex:\s*1 1 100%[^}]*flex-wrap:\s*wrap/);
   assert.match(responsiveDesktop, /\.layout-editor\s*\{[^}]*--layout-topbar-offset:\s*91px/);
-  assert.match(source, /\.layout-ai-drawer\s*\{[^}]*top:\s*var\(--layout-topbar-offset\)/);
   assert.match(source, /\.mobile-preview-feedback\s*\{[^}]*top:\s*calc\(var\(--layout-topbar-offset\) \+ 9px\)/);
   assert.doesNotMatch(source, /\.top-actions button:nth-last-child\(-n \+ 2\)\s*\{\s*display:\s*none/);
 });
@@ -111,7 +111,7 @@ test("reserved legacy color pairs are guarded in both directions and have an exp
   assert.match(source, /layoutBalloonVisualPresetV1\(\s*"speech"/);
 });
 
-test("SFX presets are one undoable batch and preserve content, size and position", async () => {
+test("SFX presets are one atomic batch and preserve content, size and position", async () => {
   const [source, presetSource] = await Promise.all([
     readFile(workspaceUrl, "utf8"),
     readFile(presetsUrl, "utf8"),
@@ -154,38 +154,111 @@ test("Konva stays an interaction adapter with crop, guides, pan and text focus e
   assert.match(source, /target\?\.closest\("input, textarea, select, \[contenteditable='true'\]"\)/);
 });
 
-test("formal release follows preflight, warning acknowledgement, Revision, publication preflight and publication", async () => {
+test("one export action internally runs save, both preflights, Revision and publication", async () => {
   const source = await readFile(workspaceUrl, "utf8");
+  const flow = source.slice(
+    source.indexOf("async function startSimpleExport"),
+    source.indexOf("function publicationArtifactUrl"),
+  );
 
-  assert.match(source, /data-testid="layout-release-flow"/);
-  assert.match(source, />成稿预检</);
-  assert.match(source, />保存 Revision</);
-  assert.match(source, />出版预检</);
-  assert.match(source, />提交出版任务</);
-  assert.match(source, /missingAcknowledgementCount/);
-  assert.match(source, /publicationMissingAcknowledgementCount/);
-  assert.match(source, /schemaVersion: 2,[\s\S]*expectedRevisionDocumentDigest: revision\.revisionDocumentDigest/);
-  assert.match(source, /expectedVisibleDocumentDigest: revision\.visibleDocumentDigest/);
+  assert.match(source, /data-testid="layout-simple-export"/);
+  assert.match(source, /data-testid="layout-export-dialog"/);
+  assert.doesNotMatch(source, /data-testid="layout-release-flow"/);
+  assert.doesNotMatch(source, />保存 Revision</);
+  assert.doesNotMatch(source, />出版预检</);
+  assert.match(flow, /await session\.flush\(\)/);
+  assert.match(flow, /session\.runPreflight/);
+  assert.match(flow, /session\.createRevision/);
+  assert.match(flow, /const revision = created\.revision/);
+  assert.match(flow, /api\.runLayoutPreflight/);
+  assert.match(flow, /api\.createLayoutPublication/);
+  assert.match(flow, /expectedRevisionDocumentDigest: revision\.revisionDocumentDigest/);
+  assert.match(flow, /expectedVisibleDocumentDigest: revision\.visibleDocumentDigest/);
+});
+
+test("a committed Revision remains usable when its follow-up history refresh fails", async () => {
+  const source = await readFile(sessionUrl, "utf8");
+  const createRevision = source.slice(
+    source.indexOf("async function createRevision"),
+    source.indexOf("async function keepLocalAndRetry"),
+  );
+
+  assert.match(createRevision, /expectedCurrentRevisionId:\s*current\.basedOnRevisionId/);
+  assert.match(createRevision, /api\.listLayoutRevisions[\s\S]*\.catch\(\(\) => null\)/);
+  assert.match(createRevision, /currentLayoutRevisionId:\s*result\.revision\.id/);
+  assert.ok(createRevision.indexOf("return result") > createRevision.indexOf("api.listLayoutRevisions"));
+});
+
+test("an ambiguous Revision response is retried from the exact retained attempt before fresh preflight", async () => {
+  const [workspaceSource, sessionSource] = await Promise.all([
+    readFile(workspaceUrl, "utf8"),
+    readFile(sessionUrl, "utf8"),
+  ]);
+  const createRevision = sessionSource.slice(
+    sessionSource.indexOf("async function createRevision"),
+    sessionSource.indexOf("async function keepLocalAndRetry"),
+  );
+  const retryExport = workspaceSource.slice(
+    workspaceSource.indexOf("async function retrySimpleExport"),
+    workspaceSource.indexOf("async function confirmSimpleExport"),
+  );
+
+  assert.match(createRevision, /pendingRevisionAttempt\.value = attempt/);
+  assert.match(createRevision, /api\.createLayoutRevision\([\s\S]*attempt\.request/);
+  assert.match(createRevision, /error instanceof ApiClientError[\s\S]*error\.status >= 400[\s\S]*error\.status < 500/);
+  assert.match(retryExport, /session\.hasPendingRevisionAttempt\.value/);
+  assert.match(retryExport, /await createRevisionAndPublication\(\)/);
+});
+
+test("publication state survives history failure and an ambiguous POST stays in recovery", async () => {
+  const source = await readFile(workspaceUrl, "utf8");
+  const submit = source.slice(
+    source.indexOf("async function submitCurrentPublication"),
+    source.indexOf("function publicationArtifactUrl"),
+  );
+
+  assert.match(source, /activeExportPublicationSnapshot/);
+  assert.match(
+    submit,
+    /activeExportPublicationSnapshot\.value = mergeLayoutPublicationSnapshot\(\s*activeExportPublicationSnapshot\.value,\s*result\.exportRevision/,
+  );
+  assert.match(source, /api\.getLayoutPublication/);
+  assert.match(submit, /publicationRetryAfter = Date\.now\(\) \+ 3_000/);
+  assert.match(submit, /exportDialogStage\.value = "publishing"/);
+  assert.match(source, /正在确认导出状态/);
 });
 
 test("visible empty text preflight is presented with a Chinese label", async () => {
   const source = await readFile(workspaceUrl, "utf8");
 
   assert.match(source, /VISIBLE_TEXT_EMPTY:\s*"可见文字内容为空"/);
+  assert.match(source, /CUSTOM_TEXT_PRESENT:\s*"你添加了自定义文字"/);
+  assert.match(source, /UNOWNED_TEXT_PRESENT:\s*"发现无来源文字"/);
 });
 
-test("warning acknowledgements and request ids invalidate with mutable release identity", async () => {
+test("the export dialog compares source and current text and never offers force export for blockers", async () => {
   const source = await readFile(workspaceUrl, "utf8");
 
-  assert.match(source, /watch\(\(\) => session\.isDirty\.value/);
-  assert.match(source, /session\.server\.value\?\.documentDigest/);
-  assert.match(source, /session\.server\.value\?\.sourceLockSetDigest/);
-  assert.match(source, /session\.preflight\.value\?\.preflightDigest/);
-  assert.match(source, /publicationPreflight\.value\?\.preflightDigest/);
-  assert.match(source, /publicationRequestId\.value = null/);
+  assert.match(source, />原文</);
+  assert.match(source, /issue\.details\.sourceText/);
+  assert.match(source, />当前文字</);
+  assert.match(source, /issue\.details\.currentText/);
+  assert.match(source, /sourceCatalogItems\.value\.find\(\(item\) => item\.source\.shotId === issue\.shotId\)/);
+  assert.match(source, /canvas\?\.name/);
+  assert.match(source, /exportIssueBlockingText\(issue\)/);
+  assert.match(source, /bound_balloon_outside_canvas[\s\S]*对白气泡完全在画布外/);
+  assert.match(source, /bound_balloon_not_visible[\s\S]*对白气泡已隐藏或完全透明/);
+  assert.match(source, />返回修改</);
+  assert.match(source, />按当前文字导出</);
+  const blocked = source.slice(
+    source.indexOf("exportDialogStage === 'blocked'"),
+    source.indexOf("exportDialogStage === 'review'"),
+  );
+  assert.doesNotMatch(blocked, /按当前文字导出/);
+  assert.doesNotMatch(source, /缺少智能成稿规划证据/);
 });
 
-test("V1/V2 API unions and session release/source-repair requests carry the correct digests", async () => {
+test("V1/V2 API unions and session release/source-sync requests carry the correct digests", async () => {
   const [apiSource, sessionSource] = await Promise.all([
     readFile(apiUrl, "utf8"),
     readFile(sessionUrl, "utf8"),
@@ -200,19 +273,44 @@ test("V1/V2 API unions and session release/source-repair requests carry the corr
   assert.match(sessionSource, /expectedVisibleDocumentDigest/);
   assert.match(sessionSource, /resultRevisionDocumentDigest/);
   assert.match(sessionSource, /resultVisibleDocumentDigest/);
-  assert.match(sessionSource, /preview\.commandBatch\.batchId/);
-  assert.match(sessionSource, /restoreRequestSchemaForWorkingCopyV1\(current\.document\) === 2\s*\?\s*await api\.restoreLayoutRevision/);
 });
 
-test("command batches create one history entry and Undo/Redo restore the exact endpoints", async () => {
+test("the editor session no longer maintains undo, redo or pending AI proposal state", async () => {
   const source = await readFile(sessionUrl, "utf8");
-  const executeBatch = source.slice(
-    source.indexOf("function executeBatch"),
-    source.indexOf("function clearSelectedSmartProtections"),
-  );
+  assert.doesNotMatch(source, /function undo\(/);
+  assert.doesNotMatch(source, /function redo\(/);
+  assert.doesNotMatch(source, /pushSnapshotHistory/);
+  assert.doesNotMatch(source, /pendingCommand/);
+  assert.doesNotMatch(source, /previewPendingCommand/);
+});
 
-  assert.match(executeBatch, /for \(const command of batch\.commands\)/);
-  assert.equal((executeBatch.match(/pushSnapshotHistory/g) ?? []).length, 1);
-  assert.match(source, /function undo\(\)[\s\S]*replaceLocalDocument\(entry\.before\)/);
-  assert.match(source, /function redo\(\)[\s\S]*replaceLocalDocument\(entry\.after\)/);
+test("automatic composition runs only for a missing working copy and exposes no later reflow entry", async () => {
+  const [workspaceSource, compositionSource] = await Promise.all([
+    readFile(workspaceUrl, "utf8"),
+    readFile(compositionSessionUrl, "utf8"),
+  ]);
+
+  assert.match(workspaceSource, /session\.saveState\.value !== "missing"/);
+  assert.match(workspaceSource, /autoCompositionKey === key/);
+  assert.match(workspaceSource, /composition\.busy\.value/);
+  assert.match(workspaceSource, /void generateInitialComposition\(\)/);
+  assert.match(compositionSource, /async function startInitial/);
+  assert.doesNotMatch(compositionSource, /startFullReflow/);
+  assert.doesNotMatch(compositionSource, /startScopedReflow/);
+  assert.doesNotMatch(workspaceSource, /retryInitialComposition/);
+  assert.doesNotMatch(workspaceSource, />按镜头排版</);
+});
+
+test("removing a bound formal balloon keeps a hidden recoverable element", async () => {
+  const source = await readFile(sessionUrl, "utf8");
+
+  assert.match(source, /type:\s*"balloon\.suppress_bound"[\s\S]*mode:\s*"hide"/);
+  assert.doesNotMatch(source, /mode:\s*command\.type === "element\.delete" \? "delete"/);
+});
+
+test("a selected hidden object offers a real restore action instead of hiding it twice", async () => {
+  const source = await readFile(workspaceUrl, "utf8");
+
+  assert.match(source, /@click="setSelectedHidden\(!primaryElement\.hidden\)"/);
+  assert.match(source, /\{\{ primaryElement\.hidden \? '显示对象' : '隐藏对象' \}\}/);
 });

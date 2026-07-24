@@ -3,7 +3,7 @@
     <header class="editor-topbar">
       <div class="chapter-picker">
         <LayoutTemplate :size="17" />
-        <select :value="chapterId ?? ''" :disabled="loading || mobilePreviewBusy" @change="selectChapter">
+        <select :value="chapterId ?? ''" :disabled="loading || mobilePreviewBusy || exportOperationBusy" @change="selectChapter">
           <option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">
             {{ chapter.title }}
           </option>
@@ -18,31 +18,15 @@
       </div>
 
       <div class="top-actions">
-        <button type="button" :disabled="!session.canUndo.value" title="撤销" aria-label="撤销" @click="session.undo">
-          <Undo2 :size="16" />
-        </button>
-        <button type="button" :disabled="!session.canRedo.value" title="重做" aria-label="重做" @click="session.redo">
-          <Redo2 :size="16" />
-        </button>
-        <button type="button" :disabled="!session.isDirty.value || session.isReadOnly.value" title="立即保存" aria-label="立即保存" @click="session.flush">
-          <CloudUpload :size="16" />
-        </button>
-        <button type="button" :disabled="!session.server.value || mobilePreviewBusy" title="打开独立手机只读预览" aria-label="手机预览" @click="openMobilePreview"><Smartphone :size="16" /></button>
-        <button
-          type="button"
-          :disabled="session.isReadOnly.value || !session.server.value || !session.isAutomatedDocument.value || session.isDirty.value || composition.busy.value"
-          title="整章、当前页段、场景或选中内容的智能重排；先预览对比，再决定使用"
-          @click="openScopedAdjustment"
-        ><Sparkles :size="16" />{{ session.pendingCommand.value ? '查看新排法' : composition.busy.value ? '正在智能排版' : '智能调整' }}</button>
+        <button type="button" :disabled="!session.server.value || mobilePreviewBusy || exportOperationBusy" title="打开独立手机只读预览" aria-label="手机预览" @click="openMobilePreview"><Smartphone :size="16" /></button>
         <button
           class="primary-action"
+          data-testid="layout-simple-export"
           type="button"
-          :aria-expanded="m6PanelOpen"
-          aria-controls="layout-m6-control-center"
-          :disabled="!session.server.value"
-          title="成稿预检、不可变版本与正式出版"
-          @click="m6PanelOpen = !m6PanelOpen"
-        ><Download :size="16" />导出本章</button>
+          :disabled="!session.server.value || session.isReadOnly.value || exportOperationBusy"
+          title="检查文字后导出本章"
+          @click="startSimpleExport"
+        ><Download :size="16" />{{ simpleExportBusy ? '导出中…' : '导出' }}</button>
       </div>
     </header>
 
@@ -64,153 +48,6 @@
       ><X :size="14" /></button>
     </div>
 
-    <aside
-      v-if="aiDrawerOpen"
-      id="layout-ai-drawer"
-      class="layout-ai-drawer"
-      data-testid="layout-ai-drawer"
-      :aria-label="aiDrawerTitle"
-    >
-      <header>
-        <div><Sparkles :size="18" /><strong>{{ aiDrawerTitle }}</strong></div>
-        <button type="button" :aria-label="`关闭${aiDrawerTitle}`" @click="aiDrawerOpen = false">×</button>
-      </header>
-      <p>{{ aiDrawerDescription }}</p>
-      <div v-if="composition.busy.value || aiBusy" class="ai-pending-state">
-        <LoaderCircle class="spin" :size="18" />
-        <div>
-          <strong>{{ composition.phaseLabel.value }}</strong>
-          <small>{{ composition.progressPercent.value }}%</small>
-        </div>
-      </div>
-      <div v-else-if="composition.errorMessage.value" class="ai-error-state" role="alert">
-        <AlertTriangle :size="18" />
-        <div>
-          <strong>这次没有生成新排法</strong>
-          <p>{{ composition.errorMessage.value }}</p>
-          <button type="button" @click="retryAiRequest">再试一次</button>
-        </div>
-      </div>
-      <section v-else-if="session.pendingCommand.value" class="ai-command-preview" data-testid="layout-ai-command-preview">
-        <strong>{{ session.pendingCommand.value.payload.summary }}</strong>
-        <small>{{ composition.analysisLabel.value || '已根据本章分镜与对白重新整理' }}</small>
-        <div class="layout-preview-comparison">
-          <LayoutDocumentMiniPreview
-            :document="session.document.value"
-            :project-id="projectId"
-            label="当前排法"
-            badge="保持不变"
-          />
-          <LayoutDocumentMiniPreview
-            :document="pendingPreviewDocument"
-            :project-id="projectId"
-            label="新排法"
-            badge="预览"
-          />
-        </div>
-        <button
-          type="button"
-          class="authoritative-preview-toggle"
-          :aria-expanded="authoritativePreviewOpen"
-          aria-controls="layout-authoritative-pending-preview"
-          @click="openAuthoritativePendingPreview"
-        >{{ authoritativePreviewOpen ? '收起完整视觉预览' : '展开完整视觉预览（应用前必看）' }}</button>
-        <div
-          v-if="authoritativePreviewOpen && session.document.value && pendingPreviewDocument"
-          id="layout-authoritative-pending-preview"
-          class="authoritative-preview-comparison"
-          data-testid="layout-authoritative-pending-preview"
-        >
-          <LayoutDocumentVisualPreview
-            :document="session.document.value"
-            :project-id="projectId"
-            label="当前完整视觉"
-            badge="当前"
-            :source-catalog="sourceCatalogItems"
-            :font-catalog="session.fontCatalog.value?.items ?? []"
-            :font-load-state="fontLoader.loadState.value"
-          />
-          <LayoutDocumentVisualPreview
-            :document="pendingPreviewDocument"
-            :project-id="projectId"
-            label="新排法完整视觉"
-            badge="待应用"
-            :source-catalog="sourceCatalogItems"
-            :font-catalog="session.fontCatalog.value?.items ?? []"
-            :font-load-state="fontLoader.loadState.value"
-            review-required
-            @review-state="captureAuthoritativePreviewReviewState"
-          />
-        </div>
-        <ul v-if="session.pendingCommand.value.payload.warnings.length">
-          <li v-for="warning in session.pendingCommand.value.payload.warnings" :key="warning">{{ compositionWarningLabel(warning) }}</li>
-        </ul>
-        <p
-          class="authoritative-preview-review-state"
-          :class="{ 'is-error': authoritativePreviewReviewState.error }"
-          data-testid="layout-authoritative-preview-review-state"
-          aria-live="polite"
-        >{{ authoritativePreviewReviewLabel }}</p>
-        <div class="ai-preview-actions">
-          <button type="button" :disabled="aiBusy" @click="discardAiSuggestion">保留当前排法</button>
-          <button
-            class="primary-action"
-            type="button"
-            :disabled="aiBusy || !authoritativePreviewReviewed"
-            :title="authoritativePreviewReviewLabel"
-            @click="applyAiSuggestion"
-          >使用这版新排法</button>
-        </div>
-      </section>
-      <section v-else class="ai-empty-state ai-adjust-options">
-        <strong>调整哪里</strong>
-        <div class="ai-option-row">
-          <button
-            type="button"
-            :class="{ 'is-active': aiRequestKind === 'full' }"
-            @click="aiRequestKind = 'full'"
-          >整章重排</button>
-          <button
-            type="button"
-            :class="{ 'is-active': aiRequestKind === 'selection' }"
-            :disabled="!session.selectedElementIds.value.length"
-            @click="aiRequestKind = 'selection'"
-          >选中内容</button>
-          <button
-            type="button"
-            :class="{ 'is-active': aiRequestKind === 'canvas' }"
-            @click="aiRequestKind = 'canvas'"
-          >当前{{ isPaged ? '页' : '段' }}</button>
-          <button
-            type="button"
-            :class="{ 'is-active': aiRequestKind === 'scene' }"
-            :disabled="!primarySourceShotId"
-            @click="aiRequestKind = 'scene'"
-          >当前场景</button>
-        </div>
-        <template v-if="aiRequestKind === 'full'">
-          <p>根据本章分镜、候选图和对白整体重排一版；生成后先对比，不满意就保留当前成稿，已手动调整过的内容不会被悄悄覆盖。</p>
-          <button class="primary-action" type="button" :disabled="composition.busy.value" @click="requestFullReflow">生成一版看看</button>
-        </template>
-        <template v-else>
-          <strong>想怎么调</strong>
-          <div class="ai-option-row">
-            <button type="button" :class="{ 'is-active': aiIntent === 'dialogue_readability' }" @click="aiIntent = 'dialogue_readability'">对白更清楚</button>
-            <button type="button" :class="{ 'is-active': aiIntent === 'emphasize_focus' }" @click="aiIntent = 'emphasize_focus'">突出重点</button>
-            <button type="button" :class="{ 'is-active': aiIntent === 'more_compact' }" @click="aiIntent = 'more_compact'">更紧凑</button>
-            <button type="button" :class="{ 'is-active': aiIntent === 'more_relaxed' }" @click="aiIntent = 'more_relaxed'">更舒展</button>
-          </div>
-          <p>只会调整这个范围，并自动带上同一段连续对白。已锁定或手动保护的内容会保留。</p>
-          <button
-            class="primary-action"
-            type="button"
-            :disabled="!canRequestScopedAdjustment || composition.busy.value"
-            @click="requestScopedReflow"
-          >生成调整预览</button>
-        </template>
-      </section>
-    </aside>
-
     <section
       v-if="sourceAttention"
       class="layout-source-attention"
@@ -221,15 +58,14 @@
       <div>
         <strong>{{ sourceAttention.title }}</strong>
         <p>{{ sourceAttention.message }}</p>
-        <small>旧排版、旧版本和旧导出保持不变；可在下方先预览换图及裁切，再显式提交到当前草稿。</small>
       </div>
       <button type="button" :disabled="loading" @click="$emit('goCandidates')">查看候选定稿</button>
       <button
         v-if="replaceableImageElementIds.length"
         type="button"
-        :disabled="session.isReadOnly.value || m6Busy"
-        @click="previewStaleReplacement(false)"
-      >预览全部替换</button>
+        :disabled="session.isReadOnly.value || sourceSyncBusy"
+        @click="syncLatestSources"
+      >{{ sourceSyncBusy ? '同步中…' : '同步最新镜头' }}</button>
     </section>
 
     <div v-if="session.isReadOnly.value" class="mobile-readonly">
@@ -255,140 +91,107 @@
       {{ actionError || session.errorMessage.value || fontLoader.loadError.value }}
     </div>
 
-    <section v-if="session.server.value && m6PanelOpen" class="m6-control-center" data-testid="layout-m6-control-center" aria-label="来源返修与版本管理">
-      <div class="m6-panel-head">
-        <strong>导出本章 · 预检与出版</strong>
-        <button type="button" aria-label="收起导出面板" @click="m6PanelOpen = false"><X :size="15" /></button>
-      </div>
-      <ol class="release-flow" data-testid="layout-release-flow" aria-label="正式成稿发布步骤">
-        <li :class="`is-${revisionPreflightStepTone}`">
-          <span>1</span>
-          <div><strong>成稿预检</strong><small>错误阻断，warning 逐项确认</small></div>
-        </li>
-        <li :class="`is-${revisionStepTone}`">
-          <span>2</span>
-          <div><strong>保存 Revision</strong><small>冻结当前完整成稿</small></div>
-        </li>
-        <li :class="`is-${publicationPreflightStepTone}`">
-          <span>3</span>
-          <div><strong>出版预检</strong><small>针对当前 Revision 再确认</small></div>
-        </li>
-        <li :class="`is-${publicationTaskStepTone}`">
-          <span>4</span>
-          <div><strong>提交出版任务</strong><small>生成不可变产物</small></div>
-        </li>
-      </ol>
-      <article class="m6-card source-repair-card">
+    <div v-if="exportDialogOpen" class="export-dialog-backdrop" @click.self="closeExportDialog">
+      <section
+        class="export-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="layout-export-dialog-title"
+        data-testid="layout-export-dialog"
+      >
         <header>
-          <div><strong>来源返修</strong><small>{{ replaceableImageElementIds.length ? `${replaceableImageElementIds.length} 个图片待处理` : '来源已是当前定稿' }}</small></div>
-          <span :class="`tone-${sourceResolutionTone}`">{{ sourceStateLabel }}</span>
+          <div>
+            <strong id="layout-export-dialog-title">{{ exportDialogTitle }}</strong>
+            <small>{{ exportDialogSubtitle }}</small>
+          </div>
+          <button v-if="!exportOperationBusy" type="button" aria-label="关闭导出提示" @click="closeExportDialog"><X :size="16" /></button>
         </header>
-        <label>
-          裁切处理
-          <select v-model="replacementCropMode" :disabled="m6Busy || session.isReadOnly.value">
-            <option value="preserve_normalized_crop">保留现有裁切并自动补足覆盖</option>
-            <option value="reset_cover">重置为居中覆盖</option>
-          </select>
-        </label>
-        <div class="m6-actions">
-          <button type="button" :disabled="!selectedStaleImageId || m6Busy || session.isReadOnly.value" @click="previewStaleReplacement(true)">预览所选</button>
-          <button type="button" :disabled="!replaceableImageElementIds.length || m6Busy || session.isReadOnly.value" @click="previewStaleReplacement(false)">预览全部</button>
-        </div>
-        <div v-if="session.sourceReplacementPreview.value" class="replacement-preview" data-testid="source-replacement-preview">
-          <strong>不会改写旧版本：确认后只更新当前草稿</strong>
-          <p>共 {{ session.sourceReplacementPreview.value.items.length }} 项，结果摘要 {{ shortDigest(sourceReplacementResultDigest) }}</p>
-          <ul>
-            <li v-for="item in session.sourceReplacementPreview.value.items" :key="item.imageElementId">
-              {{ item.imageElementId }} · {{ item.cropMode === 'reset_cover' ? '重置裁切' : '保留裁切' }}
-              <span v-if="item.warningCodes.length">· {{ item.warningCodes.map(replacementWarningLabel).join('、') }}</span>
+
+        <template v-if="exportDialogStage === 'blocked'">
+          <div class="export-dialog-state is-blocked">
+            <AlertTriangle :size="28" />
+            <p>这不是可以忽略的提醒。请先修正下面的问题，再重新导出。</p>
+          </div>
+          <ul class="export-issue-list">
+            <li v-for="issue in exportDialogIssues" :key="issue.issueKey">
+              <strong>{{ preflightIssueLabel(issue) }}</strong>
+              <small>{{ exportIssueLocation(issue) }}</small>
+              <p v-if="exportIssueBlockingText(issue)">{{ exportIssueBlockingText(issue) }}</p>
             </li>
           </ul>
-          <button class="primary-action" type="button" :disabled="m6Busy || session.isReadOnly.value" @click="commitStaleReplacement">确认提交替换</button>
-        </div>
-      </article>
+          <footer>
+            <button class="primary-action" type="button" @click="closeExportDialog">返回修改</button>
+          </footer>
+        </template>
 
-      <article class="m6-card preflight-card">
-        <header>
-          <div><strong>正式版本预检</strong><small>存在错误时无法保存；警告需逐项确认</small></div>
-          <span v-if="session.preflight.value" :class="`tone-${session.preflight.value.status}`">{{ preflightStatusLabel }}</span>
-        </header>
-        <button type="button" :disabled="m6Busy || session.isReadOnly.value" @click="prepareRevision">重新预检</button>
-        <div v-if="session.preflight.value" class="preflight-result" data-testid="layout-preflight-result">
-          <p v-if="!session.preflight.value.issues.length">未发现阻断项或警告，可以保存正式版本。</p>
-          <label v-for="issue in session.preflight.value.issues" :key="issue.issueKey" class="issue-row" :class="`severity-${issue.severity}`">
-            <input
-              v-if="issue.requiresAcknowledgement"
-              v-model="acknowledgedIssueKeys"
-              type="checkbox"
-              :value="issue.issueKey"
-              :disabled="m6Busy || session.isReadOnly.value"
-            />
-            <span v-else class="issue-marker">{{ issue.severity === 'error' ? '×' : '·' }}</span>
-            <span><strong>{{ preflightIssueLabel(issue.code) }}</strong><small>{{ issue.elementId || issue.shotId || issue.canvasId || '文档级检查' }}</small></span>
-          </label>
-          <button class="primary-action" type="button" :disabled="!canCreateRevision || m6Busy || session.isReadOnly.value" @click="saveRevision">
-            {{ missingAcknowledgementCount ? `还需确认 ${missingAcknowledgementCount} 项警告` : '保存不可变版本' }}
-          </button>
-        </div>
-      </article>
+        <template v-else-if="exportDialogStage === 'review'">
+          <p class="export-review-intro">下面是你主动修改、删除或添加的文字。请确认成稿就按当前内容导出。</p>
+          <div class="export-review-list">
+            <article v-for="issue in exportDialogIssues" :key="issue.issueKey">
+              <header>
+                <strong>{{ preflightIssueLabel(issue) }}</strong>
+                <small>{{ exportIssueLocation(issue) }}</small>
+              </header>
+              <dl v-if="isTextDifferenceIssue(issue)">
+                <div>
+                  <dt>原文</dt>
+                  <dd>{{ exportIssueText(issue.details.sourceText, '无正式原文') }}</dd>
+                </div>
+                <div>
+                  <dt>当前文字</dt>
+                  <dd>{{ exportIssueText(issue.details.currentText, '已删除') }}</dd>
+                </div>
+              </dl>
+              <p v-else>{{ exportIssueDescription(issue) }}</p>
+            </article>
+          </div>
+          <footer>
+            <button type="button" @click="closeExportDialog">返回修改</button>
+            <button class="primary-action" type="button" @click="confirmSimpleExport">按当前文字导出</button>
+          </footer>
+        </template>
 
-      <article class="m6-card history-card">
-        <header>
-          <div><strong>版本历史</strong><small>恢复只覆盖当前草稿，不影响正式版本</small></div>
-          <span>{{ session.revisionHistory.value?.items.length ?? 0 }}</span>
-        </header>
-        <p v-if="!session.revisionHistory.value?.items.length" class="muted-copy">尚无正式版本。</p>
-        <div v-else class="revision-list" data-testid="layout-revision-history">
-          <section v-for="revision in session.revisionHistory.value.items" :key="revision.id">
-            <div>
-              <strong>版本 {{ revision.revision }}</strong>
-              <small>{{ revision.sourceResolution === 'current' ? '来源当前' : revision.sourceResolution === 'stale' ? '来源已更新' : '来源不可解析' }} · {{ revision.saveReason === 'legacy_import' ? '旧版导入' : '用户保存' }}</small>
-            </div>
-            <span v-if="revision.id === session.revisionHistory.value.currentLayoutRevisionId">当前正式</span>
-            <button type="button" :disabled="m6Busy || session.isReadOnly.value" @click="restoreRevision(revision.id, revision.revision)">恢复到草稿</button>
-          </section>
-        </div>
-      </article>
+        <template v-else-if="activeExportPublication?.status === 'ready'">
+          <div class="export-dialog-state is-ready">
+            <Download :size="30" />
+            <strong>导出完成</strong>
+            <p>成品已经生成，可以直接下载。</p>
+          </div>
+          <nav class="export-artifacts" aria-label="导出产物">
+            <a
+              v-for="artifact in activeExportPublication.artifacts"
+              :key="artifact.assetId"
+              :href="publicationArtifactUrl(activeExportPublication.id, artifact.assetId)"
+              target="_blank"
+              rel="noopener"
+            >{{ artifactLabel(artifact.role, artifact.order) }}</a>
+          </nav>
+          <footer>
+            <button class="primary-action" type="button" @click="closeExportDialog">完成</button>
+          </footer>
+        </template>
 
-      <article class="m6-card publication-card" data-testid="layout-publication-center">
-        <header>
-          <div><strong>正式出版</strong><small>{{ isPaged ? '逐页 PNG + PDF' : '条漫切片 + 条件长图' }}；只读取当前不可变版本</small></div>
-          <span v-if="publicationPreflight" :class="`tone-${publicationPreflight.status}`">{{ publicationStatusLabel }}</span>
-        </header>
-        <button type="button" :disabled="publicationBusy || session.isReadOnly.value || !currentLayoutRevisionId" @click="preparePublication">运行导出预检</button>
-        <div v-if="publicationPreflight" class="preflight-result" data-testid="layout-publication-preflight">
-          <p v-if="!publicationPreflight.issues.length">导出门禁已通过，可以提交持久出版任务。</p>
-          <label v-for="issue in publicationPreflight.issues" :key="issue.issueKey" class="issue-row" :class="`severity-${issue.severity}`">
-            <input
-              v-if="issue.requiresAcknowledgement"
-              v-model="publicationAcknowledgedIssueKeys"
-              type="checkbox"
-              :value="issue.issueKey"
-              :disabled="publicationBusy || session.isReadOnly.value"
-            />
-            <span v-else class="issue-marker">{{ issue.severity === 'error' ? '×' : '·' }}</span>
-            <span><strong>{{ preflightIssueLabel(issue.code) }}</strong><small>{{ issue.elementId || issue.shotId || issue.canvasId || '文档级检查' }}</small></span>
-          </label>
-          <button class="primary-action" type="button" :disabled="!canPublish || publicationBusy || session.isReadOnly.value" @click="publishCurrentRevision">
-            {{ publicationMissingAcknowledgementCount ? `还需确认 ${publicationMissingAcknowledgementCount} 项警告` : publicationBusy ? '正在提交…' : '开始正式出版' }}
-          </button>
-        </div>
-        <p v-if="!publicationHistory?.items.length" class="muted-copy">尚无正式出版记录。</p>
-        <div v-else class="revision-list publication-list" data-testid="layout-publication-history">
-          <section v-for="publication in publicationHistory.items" :key="publication.id">
-            <div>
-              <strong>出版 {{ publication.revision }} · {{ publicationStateLabel(publication.status) }}</strong>
-              <small>版面 v{{ revisionNumber(publication.layoutRevisionId) }} · {{ publication.completionApplicability === 'historical' ? '历史结果' : publication.revisionPosition === 'current' ? '当前成品' : '等待完成' }}</small>
-              <nav v-if="publication.status === 'ready'" class="publication-artifacts" aria-label="出版产物">
-                <a v-for="artifact in publication.artifacts" :key="artifact.assetId" :href="publicationArtifactUrl(publication.id, artifact.assetId)" target="_blank" rel="noopener">{{ artifactLabel(artifact.role, artifact.order) }}</a>
-              </nav>
-            </div>
-            <span v-if="publication.revisionPosition === 'current'">当前</span>
-            <button v-if="publication.status === 'queued' || publication.status === 'rendering'" type="button" :disabled="publicationBusy" @click="cancelPublication(publication.id)">取消</button>
-          </section>
-        </div>
-      </article>
-    </section>
+        <template v-else-if="exportDialogStage === 'failed' || activeExportPublication?.status === 'failed' || activeExportPublication?.status === 'cancelled'">
+          <div class="export-dialog-state is-blocked">
+            <AlertTriangle :size="28" />
+            <strong>导出没有完成</strong>
+            <p>{{ exportDialogError || '导出任务失败，请稍后重试。' }}</p>
+          </div>
+          <footer>
+            <button type="button" @click="closeExportDialog">返回修改</button>
+            <button class="primary-action" type="button" @click="retrySimpleExport">重新导出</button>
+          </footer>
+        </template>
+
+        <template v-else>
+          <div class="export-dialog-state">
+            <LoaderCircle class="spin" :size="30" />
+            <strong>{{ activeExportPublication ? publicationStateLabel(activeExportPublication.status) : publicationRequestId ? '正在确认导出状态' : '正在检查成稿' }}</strong>
+            <p>{{ activeExportPublication ? '正在生成正式成品，完成后会在这里提供下载。' : exportDialogError || '正在核对文字、图片来源和导出条件。' }}</p>
+          </div>
+        </template>
+      </section>
+    </div>
 
     <section v-if="session.saveState.value === 'loading'" class="center-state">
       <LoaderCircle class="spin" :size="28" />
@@ -432,8 +235,7 @@
           <AlertTriangle class="compose-mark is-error" :size="34" />
           <h2>这次成稿没有生成完成</h2>
           <p>{{ composition.errorMessage.value }}</p>
-          <button class="primary-action" type="button" :disabled="session.isReadOnly.value || !sourceReadyForCompose" @click="retryInitialComposition">重新生成完整成稿</button>
-          <button type="button" @click="$emit('goCandidates')">返回候选图检查</button>
+          <button class="primary-action" type="button" @click="$emit('goCandidates')">返回候选图检查</button>
         </template>
         <template v-else-if="!sourceReadyForCompose">
           <AlertTriangle class="compose-mark" :size="34" />
@@ -442,10 +244,9 @@
           <button class="primary-action" type="button" @click="$emit('goCandidates')">去确认候选图</button>
         </template>
         <template v-else>
-          <Sparkles class="compose-mark" :size="34" />
-          <h2>准备生成完整成稿</h2>
-          <p>不需要先选模板或填写尺寸。系统会根据项目类型、分镜、候选图和对白自动完成第一版，你再按需要调整。</p>
-          <button class="primary-action" type="button" :disabled="session.isReadOnly.value" @click="retryInitialComposition">生成完整成稿</button>
+          <LoaderCircle class="spin compose-mark" :size="34" />
+          <h2>正在启动首次排版</h2>
+          <p>系统会根据项目类型、分镜、候选图和对白自动完成第一版，你不需要选择模式或参数。</p>
           <button type="button" @click="$emit('goCandidates')">返回候选图检查</button>
         </template>
       </div>
@@ -477,7 +278,6 @@
         </div>
         <div class="canvas-list-actions">
           <button type="button" :disabled="session.isReadOnly.value" @click="addCanvas">新增{{ isPaged ? '页面' : '段落' }}</button>
-          <button type="button" :disabled="session.isReadOnly.value || !canBatchInitialize" @click="batchInitializeFromSources">按镜头排版</button>
         </div>
 
         <section class="shot-tray" data-testid="shot-tray" aria-label="镜头素材栏">
@@ -651,18 +451,12 @@
                 {{ primaryElement.locked ? '解除锁定' : '锁定对象' }}
               </button>
               <button
-                v-if="session.selectedSmartProtections.value.length > 0"
                 type="button"
-                data-testid="allow-smart-adjustment"
-                :disabled="session.isReadOnly.value"
-                @click="session.clearSelectedSmartProtections"
-              >允许智能再次调整</button>
-              <button type="button" :disabled="session.isReadOnly.value || primaryElement.locked" @click="setSelectedHidden(true)">隐藏对象</button>
+                :disabled="session.isReadOnly.value || primaryElement.locked"
+                @click="setSelectedHidden(!primaryElement.hidden)"
+              >{{ primaryElement.hidden ? '显示对象' : '隐藏对象' }}</button>
               <button type="button" :disabled="session.isReadOnly.value || primaryElement.locked" @click="deletePrimaryElement">删除对象</button>
             </div>
-            <p v-if="session.selectedSmartProtections.value.length > 0" class="property-help">
-              这个对象有手动调整记录，系统默认不会覆盖。允许后，下次智能调整可以重新移动或修整它；“锁定对象”不会被解除。
-            </p>
             <section class="precision-adjust">
               <button
                 type="button"
@@ -676,7 +470,7 @@
                 <label>宽 <input :value="primaryElement.transform.width" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('width', $event)" /></label>
                 <label>高 <input :value="primaryElement.transform.height" type="number" min="1" :disabled="cannotEditPrimary" @change="updateTransform('height', $event)" /></label>
                 <label>旋转 <input :value="primaryElement.transform.rotation" type="number" :disabled="cannotEditPrimary" @change="updateTransform('rotation', $event)" /></label>
-                <label>对象透明 <input :value="primaryElement.transform.opacity" type="number" min="0" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateTransform('opacity', $event)" /></label>
+                <label>对象透明 <input :value="primaryElement.transform.opacity" type="number" min="0.05" max="1" step="0.05" :disabled="cannotEditPrimary" @change="updateTransform('opacity', $event)" /></label>
               </div>
             </section>
 
@@ -873,7 +667,7 @@
               <section class="special-properties profile-resize" data-testid="layout-profile-resize-preview" aria-label="画布尺寸预览">
                 <div class="section-heading">
                   <strong>画布尺寸</strong>
-                  <small>先预览，再作为一次可撤销命令应用</small>
+                  <small>先预览，再一次应用到当前成稿</small>
                 </div>
                 <div class="number-grid">
                   <label>宽度 <input v-model.number="resizeWidth" type="number" min="320" :max="isPaged ? 8192 : 4096" :disabled="session.isReadOnly.value" /></label>
@@ -890,12 +684,12 @@
                   {{ isPaged ? `全部页面变为 ${resizeWidth} × ${resizeHeight}` : `已有段落保持独立文档坐标，新段默认高 ${resizeHeight}` }}。
                 </p>
                 <p v-else role="alert">{{ profileResizeResult.error }}</p>
-                <button type="button" :disabled="session.isReadOnly.value || !profileResizeResult.preview" @click="applyProfileResize">应用尺寸调整（可撤销）</button>
+                <button type="button" :disabled="session.isReadOnly.value || !profileResizeResult.preview" @click="applyProfileResize">应用尺寸调整</button>
                 <template v-if="!isPaged">
                   <label>当前段高度
                     <input v-model.number="currentSectionHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" />
                   </label>
-                  <button type="button" :disabled="session.isReadOnly.value || currentSectionHeight < 320" @click="applyCurrentSectionHeight">调整当前段高（可撤销）</button>
+                  <button type="button" :disabled="session.isReadOnly.value || currentSectionHeight < 320" @click="applyCurrentSectionHeight">调整当前段高</button>
                 </template>
               </section>
 
@@ -953,7 +747,6 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  CloudUpload,
   Crop,
   Download,
   Eye,
@@ -967,12 +760,9 @@ import {
   MousePointer2,
   PanelLeftClose,
   PanelLeftOpen,
-  Redo2,
-  Sparkles,
   Smartphone,
   SquareDashed,
   Type,
-  Undo2,
   Unlock,
   X,
 } from "lucide-vue-next";
@@ -984,18 +774,21 @@ import type {
   EditorCommandTypeV1,
   EditorCommandV1,
   LayoutCanvasV1,
-  LayoutCompositionIntentV1,
   LayoutPresetIdV1,
   LayoutProfileV1,
   LayoutPreflightCodeV2,
+  LayoutPreflightIssueV1,
+  LayoutPreflightIssueV2,
   LayoutPreflightReportV1,
   LayoutPreflightReportV2,
   LayoutProfileResizeModeV1,
   LayoutPublicationHistoryResponseV1,
   LayoutPublicationHistoryResponseV2,
   LayoutPublicationProfileV1,
+  LayoutPublicationSummaryV1,
+  LayoutPublicationSummaryV2,
+  LayoutRevisionDetailV1OrV2,
   LayoutSourceCatalogItemV1,
-  LayoutSourceReplacementCropModeV1,
   LayoutTextIssueV1,
   LayoutTopLevelElementV1,
   RichTextDocumentV1,
@@ -1010,10 +803,8 @@ import {
   applyRichTextRangeStyle,
   collectLayoutTextIssuesV1,
   generateLayoutPresetV1,
-  initializeLayoutCanvasesFromSourcesV1,
   layoutBalloonVisualPresetV1,
   resolveLayoutBalloonVisualRoleV1,
-  projectLayoutDocumentV2ToV1,
   projectVisibleShotPlacementsV1,
   replaceRichTextRange,
   LayoutPublicationProfileCodecV1,
@@ -1023,9 +814,7 @@ import {
 import { useLayoutEditorSession } from "../../composables/layout-editor-session";
 import { useLayoutCompositionSession } from "../../composables/layout-composition-session";
 import { useLayoutFontLoader } from "../../composables/layout-font-loader";
-import { api } from "../../services/api";
-import LayoutDocumentMiniPreview from "./LayoutDocumentMiniPreview.vue";
-import LayoutDocumentVisualPreview from "./LayoutDocumentVisualPreview.vue";
+import { api, ApiClientError } from "../../services/api";
 import LayoutElementTextPreview from "./LayoutElementTextPreview.vue";
 import LayoutKonvaInteractionLayer from "./LayoutKonvaInteractionLayer.vue";
 import LayoutRichTextEditor from "./LayoutRichTextEditor.vue";
@@ -1038,7 +827,12 @@ import {
   type KonvaTransformCommitV1,
 } from "./layout-konva-adapter";
 import { layoutImagePreviewStyleV1 } from "./layout-image-preview";
+import { mergeLayoutPublicationSnapshot } from "./layout-publication-state";
 import { openDetachedPreviewWindowAfterPreparation } from "./layout-preview-window";
+
+type LayoutPreflightIssue = LayoutPreflightIssueV1 | LayoutPreflightIssueV2;
+type ExportDialogStage = "checking" | "blocked" | "review" | "publishing" | "failed";
+type ExportResumeTarget = "revision" | "publication";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -1071,33 +865,33 @@ const actionError = ref<string | null>(null);
 const mobilePreviewFeedback = ref<string | null>(null);
 const mobilePreviewFallbackUrl = ref<string | null>(null);
 const mobilePreviewBusy = ref(false);
-const m6Busy = ref(false);
-const m6PanelOpen = ref(false);
-const replacementCropMode = ref<LayoutSourceReplacementCropModeV1>("preserve_normalized_crop");
-const acknowledgedIssueKeys = ref<string[]>([]);
+const exportOperationBusy = ref(false);
+const exportDialogOpen = ref(false);
+const exportDialogStage = ref<ExportDialogStage>("checking");
+const exportDialogIssues = ref<LayoutPreflightIssue[]>([]);
+const exportDialogError = ref<string | null>(null);
+const exportResumeTarget = ref<ExportResumeTarget>("revision");
+const exportRevisionAcknowledgementKeys = ref<string[]>([]);
+const exportReviewedIssueKeys = ref<string[]>([]);
+const exportChapterId = ref<string | null>(null);
+const exportLayoutRevision = ref<LayoutRevisionDetailV1OrV2 | null>(null);
+const activeExportPublicationId = ref<string | null>(null);
+const sourceSyncBusy = ref(false);
 const publicationPreflight = ref<LayoutPreflightReportV1 | LayoutPreflightReportV2 | null>(null);
 const publicationHistory = ref<LayoutPublicationHistoryResponseV1 | LayoutPublicationHistoryResponseV2 | null>(null);
-const publicationAcknowledgedIssueKeys = ref<string[]>([]);
+const activeExportPublicationSnapshot = ref<LayoutPublicationSummaryV1 | LayoutPublicationSummaryV2 | null>(null);
 const publicationRequestId = ref<string | null>(null);
 const publicationBusy = ref(false);
 const activeTool = ref<"select" | "text" | "pan" | "crop">("select");
 const stageScroll = ref<HTMLElement | null>(null);
-const aiDrawerOpen = ref(false);
-const aiBusy = ref(false);
-const aiRequestKind = ref<"full" | "selection" | "canvas" | "scene">("full");
 const leftPanelOpen = ref(true);
 const pageSettingsOpen = ref(true);
 const precisionOpen = ref(false);
-const aiIntent = ref<LayoutCompositionIntentV1>("dialogue_readability");
-const authoritativePreviewOpen = ref(false);
-const authoritativePreviewReviewed = ref(false);
-const authoritativePreviewReviewState = ref({
-  renderReady: false,
-  fullyViewed: false,
-  error: false,
-});
 const legacyCutoverBusy = ref(false);
 let publicationPollTimer: ReturnType<typeof setInterval> | null = null;
+let publicationRefreshGeneration = 0;
+let publicationRefreshFlight: { key: string; promise: Promise<void> } | null = null;
+let publicationRetryAfter = 0;
 let autoCompositionKey: string | null = null;
 const fontLoader = useLayoutFontLoader({
   projectId,
@@ -1129,28 +923,6 @@ const visibleElements = computed(() => currentElements.value.filter((element) =>
 const reversedLayers = computed(() => [...currentElements.value].reverse());
 const hiddenCount = computed(() => currentElements.value.filter((element) => element.hidden).length);
 const primaryElement = computed(() => session.selectedElements.value[0] ?? null);
-const primarySourceShotId = computed(() => {
-  const element = primaryElement.value;
-  if (element?.type === "panel_frame") return element.contentImage?.source.shotId ?? null;
-  if (element?.type === "free_image") return element.source.shotId;
-  if (element?.type === "balloon") return element.sourceShotId;
-  return null;
-});
-const aiDrawerTitle = computed(() => {
-  if (aiRequestKind.value === "full") return "整章新排法";
-  if (aiRequestKind.value === "selection") return "选中内容智能调整";
-  if (aiRequestKind.value === "scene") return "当前场景智能调整";
-  return `当前${isPaged.value ? "页" : "段"}智能调整`;
-});
-const aiDrawerDescription = computed(() => aiRequestKind.value === "full"
-  ? "当前成稿不会被直接覆盖。系统会先生成另一版画格、图片、对白和气泡布局，你看着更顺眼再使用。"
-  : "系统会先读取画面和对白，再给出局部调整预览。当前成稿不会被直接覆盖，应用后也可以一次撤销。");
-const canRequestScopedAdjustment = computed(() => {
-  if (!session.server.value || !session.currentCanvas.value || session.isReadOnly.value) return false;
-  if (aiRequestKind.value === "selection") return session.selectedElementIds.value.length > 0;
-  if (aiRequestKind.value === "scene") return Boolean(primarySourceShotId.value);
-  return aiRequestKind.value === "canvas";
-});
 const sourceCatalogItems = computed(() => session.sourceCatalog.value?.items ?? []);
 const selectedSource = computed(() => sourceCatalogItems.value.find((item) => item.source.shotId === selectedSourceShotId.value) ?? sourceCatalogItems.value[0] ?? null);
 const visiblePlacements = computed(() => session.document.value ? projectVisibleShotPlacementsV1(session.document.value) : {});
@@ -1213,27 +985,11 @@ const canApplyPreset = computed(() => selectedPreset.value.count >= occupiedPane
 const presetPreviewLabel = computed(() => canApplyPreset.value
   ? `将 ${occupiedPanelCount.value} 张已放置图片按阅读顺序映射到 ${selectedPreset.value.count} 个正式画格。`
   : `当前有 ${occupiedPanelCount.value} 个已占用画格，${selectedPreset.value.count} 格模板会丢图，已阻止应用。`);
-const canBatchInitialize = computed(() => {
-  if (!session.document.value || !sourceCatalogItems.value.length) return false;
-  return session.document.value.canvases.every((canvas) => canvas.elements.every((element) => element.type === "panel_frame"));
-});
 const cannotEditPrimary = computed(() => session.isReadOnly.value || Boolean(primaryElement.value?.locked));
 
 watch(() => primaryElement.value?.id ?? null, (id) => {
   pageSettingsOpen.value = !id;
   if (!id) precisionOpen.value = false;
-});
-const pendingPreviewDocument = computed(() => {
-  const value = session.pendingCommand.value?.resultDocument;
-  if (!value) return null;
-  return value.schemaVersion === 2 ? projectLayoutDocumentV2ToV1(value) : value;
-});
-const authoritativePreviewReviewLabel = computed(() => {
-  if (!authoritativePreviewOpen.value) return "请先展开完整视觉预览。";
-  if (authoritativePreviewReviewState.value.error) return "完整预览加载失败，暂不能应用。";
-  if (!authoritativePreviewReviewState.value.renderReady) return "正在加载完整预览的图片和字体…";
-  if (!authoritativePreviewReviewState.value.fullyViewed) return "完整预览已就绪，请浏览到底再应用。";
-  return "已浏览完整预览，可以应用。";
 });
 const sourceReadyForCompose = computed(() => (
   props.snapshot.candidateSources?.gates.buildLayoutWorkingCopy.allowed === true
@@ -1280,21 +1036,6 @@ const replaceableImageElementIds = computed(() => [...new Set([
   ...(session.server.value?.sourceEvaluation.staleElementIds ?? []),
   ...(session.server.value?.sourceEvaluation.unresolvedElementIds ?? []),
 ])]);
-const selectedStaleImageId = computed(() => {
-  const imageId = primaryImage.value?.id ?? null;
-  return imageId && replaceableImageElementIds.value.includes(imageId) ? imageId : null;
-});
-const sourceReplacementResultDigest = computed(() => {
-  const preview = session.sourceReplacementPreview.value;
-  if (!preview) return "";
-  return preview.schemaVersion === 2
-    ? preview.resultRevisionDocumentDigest
-    : preview.resultDocumentDigest;
-});
-const sourceResolutionTone = computed(() => {
-  const resolution = session.server.value?.sourceEvaluation.sourceResolution;
-  return resolution === "current" ? "ready" : resolution === "stale" ? "warning" : "blocked";
-});
 const sourceStateLabel = computed(() => {
   const source = session.server.value?.sourceEvaluation;
   if (!source) return "尚未建立草稿";
@@ -1311,60 +1052,35 @@ const saveStateLabel = computed(() => ({
   conflict: "保存冲突",
   error: "读取失败",
 }[session.saveState.value]));
-const preflightStatusLabel = computed(() => ({
-  ready: "可保存",
-  warning: "需要确认",
-  blocked: "存在阻断",
-}[session.preflight.value?.status ?? "blocked"]));
-const revisionBlockingIssueCount = computed(() => session.preflight.value?.issues.filter((issue) =>
-  issue.blockingScopes.includes("revision")).length ?? 0);
-const missingAcknowledgementCount = computed(() => session.preflight.value?.issues.filter((issue) =>
-  issue.requiresAcknowledgement && !acknowledgedIssueKeys.value.includes(issue.issueKey)).length ?? 0);
-const canCreateRevision = computed(() => Boolean(session.preflight.value)
-  && revisionBlockingIssueCount.value === 0
-  && missingAcknowledgementCount.value === 0
-  && !session.isDirty.value
-  && session.saveState.value === "saved");
-const currentLayoutRevisionId = computed(() => session.revisionHistory.value?.currentLayoutRevisionId ?? null);
-const currentLayoutRevision = computed(() => session.revisionHistory.value?.items.find(
-  (revision) => revision.id === currentLayoutRevisionId.value,
-) ?? null);
-const currentRevisionDocumentSchemaVersion = computed<1 | 2>(() => {
-  const revision = currentLayoutRevision.value;
-  return revision && "documentSchemaVersion" in revision
-    ? revision.documentSchemaVersion
-    : 1;
-});
-const revisionPreflightStepTone = computed(() => {
-  if (!session.preflight.value) return "pending";
-  if (revisionBlockingIssueCount.value > 0) return "blocked";
-  return missingAcknowledgementCount.value > 0 ? "warning" : "ready";
-});
-const revisionStepTone = computed(() => currentLayoutRevisionId.value ? "ready" : "pending");
 const publicationProfile = computed<LayoutPublicationProfileV1>(() => isPaged.value
   ? { schemaVersion: 1, kind: "paged_publication", outputScale: 1, includePdf: true, pdfPixelDpi: 96 }
   : { schemaVersion: 1, kind: "vertical_publication", outputScale: 1, maxSliceHeightPx: 8192, cutPolicy: "prefer_section_boundary_then_exact", includeLongPng: true });
-const publicationBlockingIssueCount = computed(() => publicationPreflight.value?.issues.filter((issue) => issue.blockingScopes.includes("export")).length ?? 0);
-const publicationMissingAcknowledgementCount = computed(() => publicationPreflight.value?.issues.filter((issue) =>
-  issue.requiresAcknowledgement && !publicationAcknowledgedIssueKeys.value.includes(issue.issueKey)).length ?? 0);
-const canPublish = computed(() => Boolean(publicationPreflight.value)
-  && publicationPreflight.value?.target.kind === "layout_revision"
-  && publicationPreflight.value.target.id === currentLayoutRevisionId.value
-  && publicationBlockingIssueCount.value === 0
-  && publicationMissingAcknowledgementCount.value === 0);
-const publicationPreflightStepTone = computed(() => {
-  if (!publicationPreflight.value) return "pending";
-  if (publicationBlockingIssueCount.value > 0) return "blocked";
-  return publicationMissingAcknowledgementCount.value > 0 ? "warning" : "ready";
+const activeExportPublication = computed(() => {
+  const activeId = activeExportPublicationId.value;
+  if (!activeId) return null;
+  if (activeExportPublicationSnapshot.value?.id === activeId) {
+    return activeExportPublicationSnapshot.value;
+  }
+  return publicationHistory.value?.items.find((publication) => publication.id === activeId) ?? null;
 });
-const publicationTaskStepTone = computed(() => {
-  const current = publicationHistory.value?.items.find(
-    (item) => item.layoutRevisionId === currentLayoutRevisionId.value,
-  );
-  if (!current) return "pending";
-  return current.status === "failed" || current.status === "cancelled" ? "blocked" : "ready";
+const exportTaskPending = computed(() => (
+  activeExportPublication.value?.status === "queued"
+  || activeExportPublication.value?.status === "rendering"
+));
+const simpleExportBusy = computed(() => exportOperationBusy.value || exportTaskPending.value);
+const exportDialogTitle = computed(() => {
+  if (exportDialogStage.value === "blocked") return "暂时不能导出";
+  if (exportDialogStage.value === "review") return "请确认文字变化";
+  if (exportDialogStage.value === "failed") return "导出失败";
+  if (activeExportPublication.value?.status === "ready") return "导出完成";
+  return "正在导出";
 });
-const publicationStatusLabel = computed(() => ({ ready: "可出版", warning: "需要确认", blocked: "存在阻断" }[publicationPreflight.value?.status ?? "blocked"]));
+const exportDialogSubtitle = computed(() => {
+  if (exportDialogStage.value === "blocked") return "系统发现会影响成稿准确性的问题";
+  if (exportDialogStage.value === "review") return "只确认你主动改变的内容";
+  if (activeExportPublication.value?.status === "ready") return "正式版本与导出产物均已保存";
+  return "系统会自动完成保存、检查和成品生成";
+});
 const canvasStyle = computed(() => ({
   width: `${session.currentCanvas.value!.width * session.zoom.value}px`,
   height: `${session.currentCanvas.value!.height * session.zoom.value}px`,
@@ -1479,304 +1195,419 @@ async function generateInitialComposition(): Promise<void> {
   }
 }
 
-async function retryInitialComposition(): Promise<void> {
-  autoCompositionKey = chapterId.value ? `${projectId.value}:${chapterId.value}` : null;
-  composition.reset();
-  await generateInitialComposition();
-}
-
-async function requestFullReflow(): Promise<void> {
-  const server = session.server.value;
-  if (!server || !session.isAutomatedDocument.value || session.isReadOnly.value) return;
-  aiRequestKind.value = "full";
-  aiDrawerOpen.value = true;
-  actionError.value = null;
-  try {
-    await session.flush();
-    if (session.isDirty.value || session.saveState.value !== "saved") {
-      throw new Error("请等当前调整保存完成后再生成另一版排法。");
-    }
-    const latest = session.server.value;
-    if (!latest) return;
-    const applied = await composition.startFullReflow(
-      latest.rowVersion,
-      latest.documentDigest,
-    );
-    if (applied?.target === "pending_command") {
-      await session.loadPendingCommand();
-    }
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "整章重新排版失败";
-  }
-}
-
-async function openScopedAdjustment(): Promise<void> {
-  aiRequestKind.value = session.selectedElementIds.value.length ? "selection" : "canvas";
-  aiDrawerOpen.value = true;
-  aiBusy.value = true;
-  actionError.value = null;
-  try {
-    await session.loadPendingCommand();
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "智能调整预览读取失败";
-  } finally {
-    aiBusy.value = false;
-  }
-}
-
-async function requestScopedReflow(): Promise<void> {
-  const server = session.server.value;
-  const canvas = session.currentCanvas.value;
-  if (
-    !server
-    || !canvas
-    || !session.isAutomatedDocument.value
-    || session.isReadOnly.value
-    || !canRequestScopedAdjustment.value
-  ) return;
-  aiDrawerOpen.value = true;
-  actionError.value = null;
-  try {
-    await session.flush();
-    if (session.isDirty.value || session.saveState.value !== "saved") {
-      throw new Error("请等当前调整保存完成后再生成局部预览。");
-    }
-    const latest = session.server.value;
-    if (!latest) return;
-    const scope = aiRequestKind.value === "selection"
-      ? {
-          canvasIds: [],
-          elementIds: [...session.selectedElementIds.value],
-          shotIds: [],
-        }
-      : aiRequestKind.value === "scene"
-        ? {
-            canvasIds: [],
-            elementIds: [],
-            shotIds: primarySourceShotId.value ? [primarySourceShotId.value] : [],
-          }
-        : {
-            canvasIds: [canvas.id],
-            elementIds: [],
-            shotIds: [],
-          };
-    const applied = await composition.startScopedReflow(
-      latest.rowVersion,
-      latest.documentDigest,
-      scope,
-      aiIntent.value,
-    );
-    if (applied?.target === "pending_command") {
-      await session.loadPendingCommand();
-    }
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "局部智能调整失败";
-  }
-}
-
-function retryAiRequest(): void {
-  if (aiRequestKind.value === "full") void requestFullReflow();
-  else void requestScopedReflow();
-}
-
-async function applyAiSuggestion(): Promise<void> {
-  if (!authoritativePreviewReviewed.value) {
-    authoritativePreviewOpen.value = true;
-    return;
-  }
-  aiBusy.value = true;
-  actionError.value = null;
-  try {
-    await session.applyPendingCommand();
-    composition.reset();
-    aiDrawerOpen.value = false;
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "新排法已过期，请重新生成";
-    await session.loadPendingCommand().catch(() => null);
-  } finally {
-    aiBusy.value = false;
-  }
-}
-
-function openAuthoritativePendingPreview(): void {
-  authoritativePreviewOpen.value = !authoritativePreviewOpen.value;
-  authoritativePreviewReviewed.value = false;
-  authoritativePreviewReviewState.value = {
-    renderReady: false,
-    fullyViewed: false,
-    error: false,
-  };
-}
-
-function captureAuthoritativePreviewReviewState(value: {
-  renderReady: boolean;
-  fullyViewed: boolean;
-  error: boolean;
-}): void {
-  if (!authoritativePreviewOpen.value) return;
-  authoritativePreviewReviewState.value = value;
-  authoritativePreviewReviewed.value = value.renderReady && value.fullyViewed && !value.error;
-}
-
-async function discardAiSuggestion(): Promise<void> {
-  aiBusy.value = true;
-  actionError.value = null;
-  try {
-    await session.discardPendingCommand();
-    composition.reset();
-    aiDrawerOpen.value = false;
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "保留当前排法失败";
-  } finally {
-    aiBusy.value = false;
-  }
-}
-
-function compositionWarningLabel(code: string): string {
-  const labels: Record<string, string> = {
-    BALLOON_LAYOUT_FALLBACK: "个别对白气泡使用了保守位置，应用后可以继续手动调整。",
-    BALLOON_TAIL_FALLBACK: "个别气泡尾巴没有可靠的说话人位置，应用后可以继续手动调整。",
-    VISUAL_ANALYSIS_MISSING: "这次主要根据分镜、图片尺寸和对白规则排版。",
-    LAYOUT_TEXT_OVERFLOW: "个别文字区域需要应用后再检查。",
-    visual_analysis_not_configured: "当前没有可用的画面分析模型，这次使用了安全排版规则。",
-    visual_analysis_timeout: "个别图片分析超时，已自动改用安全排版规则。",
-    visual_analysis_provider_failed: "个别图片没有完成视觉分析，已自动改用安全排版规则。",
-    visual_analysis_subject_not_detected: "个别画面没有可靠识别出人物，系统采用了保守裁切。",
-    visual_analysis_text_safe_region_not_detected: "个别画面没有可靠文字空白区，气泡采用了保守位置。",
-    SCOPED_REFLOW_EXPANDED_TO_SCENE: "为了保持场景连续，预览包含了当前场景的完整镜头。",
-    SCOPED_REFLOW_EXPANDED_TO_NARRATIVE_GROUP: "为了不拆开连续对白，预览带上了同一小段内容。",
-    SMART_PROTECTED_ITEMS_PRESERVED: "你手动调整或锁定的内容已保留，未被这次智能调整覆盖。",
-    SMART_TARGET_MATCH_MISSING: "个别对象没有可靠的新位置，已保持当前排法。",
-  };
-  return labels[code] ?? "这版有一处需要应用后再看一下。";
-}
-
-async function prepareRevision(): Promise<void> {
-  m6PanelOpen.value = true;
-  m6Busy.value = true;
-  actionError.value = null;
-  try {
-    const report = await session.runPreflight();
-    if (!report) throw new Error("请先完成当前草稿保存，再运行正式版本预检。");
-    acknowledgedIssueKeys.value = acknowledgedIssueKeys.value.filter((issueKey) =>
-      report.issues.some((issue) => issue.issueKey === issueKey && issue.requiresAcknowledgement));
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "正式版本预检失败";
-  } finally {
-    m6Busy.value = false;
-  }
-}
-
-async function previewStaleReplacement(selectedOnly: boolean): Promise<void> {
-  const ids = selectedOnly && selectedStaleImageId.value
-    ? [selectedStaleImageId.value]
-    : replaceableImageElementIds.value;
-  if (!ids.length) return;
-  m6PanelOpen.value = true;
-  m6Busy.value = true;
-  actionError.value = null;
-  try {
-    const preview = await session.previewSourceReplacement(ids, replacementCropMode.value);
-    if (!preview) throw new Error("请先完成当前草稿保存，再预览来源替换。");
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "来源替换预览失败";
-  } finally {
-    m6Busy.value = false;
-  }
-}
-
-async function commitStaleReplacement(): Promise<void> {
-  m6Busy.value = true;
-  actionError.value = null;
-  try {
-    const result = await session.commitSourceReplacement();
-    if (!result) throw new Error("来源替换预览已失效，请重新预览。");
-    acknowledgedIssueKeys.value = [];
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "来源替换提交失败";
-  } finally {
-    m6Busy.value = false;
-  }
-}
-
-async function saveRevision(): Promise<void> {
-  if (!canCreateRevision.value) return;
-  m6Busy.value = true;
-  actionError.value = null;
-  try {
-    await session.createRevision(acknowledgedIssueKeys.value);
-    acknowledgedIssueKeys.value = [];
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "正式版本保存失败";
-  } finally {
-    m6Busy.value = false;
-  }
-}
-
-async function restoreRevision(revisionId: string, revision: number): Promise<void> {
-  if (!window.confirm(`将版本 ${revision} 的内容恢复到当前草稿。当前正式版本不会改变，是否继续？`)) return;
-  m6Busy.value = true;
-  actionError.value = null;
-  try {
-    await session.restoreRevision(revisionId);
-    acknowledgedIssueKeys.value = [];
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "版本恢复失败";
-  } finally {
-    m6Busy.value = false;
-  }
-}
-
-async function refreshPublicationHistory(): Promise<void> {
+function refreshPublicationHistory(): Promise<void> {
   const id = chapterId.value;
   if (!id) {
+    publicationRefreshGeneration += 1;
     publicationHistory.value = null;
-    return;
+    return Promise.resolve();
   }
-  publicationHistory.value = await api.listLayoutPublications(projectId.value, id);
+  const requestedProjectId = projectId.value;
+  const key = `${requestedProjectId}:${id}`;
+  if (publicationRefreshFlight?.key === key) return publicationRefreshFlight.promise;
+  const generation = ++publicationRefreshGeneration;
+  const promise = (async () => {
+    const history = await api.listLayoutPublications(requestedProjectId, id);
+    if (
+      generation !== publicationRefreshGeneration
+      || projectId.value !== requestedProjectId
+      || chapterId.value !== id
+    ) return;
+    publicationHistory.value = history;
+    if (activeExportPublicationId.value) {
+      const incoming = history.items.find(
+        (item) => item.id === activeExportPublicationId.value,
+      );
+      if (incoming) {
+        activeExportPublicationSnapshot.value = mergeLayoutPublicationSnapshot(
+          activeExportPublicationSnapshot.value,
+          incoming,
+        );
+      }
+      return;
+    }
+    if (session.isDirty.value) return;
+    const server = session.server.value;
+    if (server?.document.schemaVersion !== 2) return;
+    const expectedProfileDigest = LayoutPublicationProfileCodecV1.encode(publicationProfile.value).digest;
+    const matching = history.items
+      .filter((item) => (
+        "revisionDocumentDigest" in item
+        && item.revisionDocumentDigest === server.documentDigest
+        && item.profileDigest === expectedProfileDigest
+        && (item.status === "queued" || item.status === "rendering" || item.status === "ready")
+      ))
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+    const current = history.currentExportRevisionId
+      ? matching.find((item) => item.id === history.currentExportRevisionId)
+      : null;
+    const selected = current ?? matching[0] ?? null;
+    activeExportPublicationId.value = selected?.id ?? null;
+    activeExportPublicationSnapshot.value = selected;
+    if (selected && publicationRequestId.value) {
+      publicationRequestId.value = null;
+      publicationRetryAfter = 0;
+    }
+  })();
+  publicationRefreshFlight = { key, promise };
+  const clearPublicationRefreshFlight = () => {
+    if (publicationRefreshFlight?.promise === promise) publicationRefreshFlight = null;
+  };
+  void promise.then(clearPublicationRefreshFlight, clearPublicationRefreshFlight);
+  return promise;
 }
 
-async function preparePublication(): Promise<void> {
+async function refreshActivePublication(): Promise<void> {
   const id = chapterId.value;
-  const revisionId = currentLayoutRevisionId.value;
-  if (!id || !revisionId) return;
-  m6PanelOpen.value = true;
-  publicationBusy.value = true;
+  const activeId = activeExportPublicationId.value;
+  if (!id || !activeId) return;
+  const requestedProjectId = projectId.value;
+  const publication = await api.getLayoutPublication(requestedProjectId, id, activeId);
+  if (
+    projectId.value !== requestedProjectId
+    || chapterId.value !== id
+    || activeExportPublicationId.value !== activeId
+  ) return;
+  activeExportPublicationSnapshot.value = mergeLayoutPublicationSnapshot(
+    activeExportPublicationSnapshot.value,
+    publication,
+  );
+}
+
+function uniquePreflightIssues(...groups: readonly LayoutPreflightIssue[][]): LayoutPreflightIssue[] {
+  const byKey = new Map<string, LayoutPreflightIssue>();
+  for (const issue of groups.flat()) byKey.set(issue.issueKey, issue);
+  const shotOrder = (issue: LayoutPreflightIssue): number => {
+    if (typeof issue.details.shotOrder === "number") return issue.details.shotOrder;
+    return sourceCatalogItems.value.find((item) => item.source.shotId === issue.shotId)?.order
+      ?? Number.MAX_SAFE_INTEGER;
+  };
+  const lineOrder = (issue: LayoutPreflightIssue): number => (
+    typeof issue.details.lineOrder === "number" ? issue.details.lineOrder : Number.MAX_SAFE_INTEGER
+  );
+  return [...byKey.values()].sort((left, right) => (
+    shotOrder(left) - shotOrder(right)
+    || lineOrder(left) - lineOrder(right)
+    || left.code.localeCompare(right.code)
+    || left.issueKey.localeCompare(right.issueKey)
+  ));
+}
+
+function setExportBlocked(issues: readonly LayoutPreflightIssue[]): void {
+  exportDialogIssues.value = [...issues];
+  exportDialogStage.value = "blocked";
+}
+
+function failSimpleExport(error: unknown): void {
+  exportDialogError.value = error instanceof Error ? error.message : "导出失败，请稍后重试。";
+  exportDialogStage.value = "failed";
+}
+
+function exportContextIsCurrent(id: string): boolean {
+  return exportChapterId.value === id && chapterId.value === id;
+}
+
+function closeExportDialog(): void {
+  if (exportOperationBusy.value) return;
+  exportDialogOpen.value = false;
+}
+
+function isTextDifferenceIssue(issue: LayoutPreflightIssue): boolean {
+  return issue.code === "DIALOGUE_USER_MODIFIED"
+    || issue.code === "DIALOGUE_USER_SUPPRESSED"
+    || issue.code === "CUSTOM_TEXT_PRESENT";
+}
+
+function exportIssueText(value: string | number | boolean | null | undefined, fallback: string): string {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function exportIssueLocation(issue: LayoutPreflightIssue): string {
+  const speaker = typeof issue.details.speakerName === "string" && issue.details.speakerName
+    ? issue.details.speakerName
+    : null;
+  const source = issue.shotId
+    ? sourceCatalogItems.value.find((item) => item.source.shotId === issue.shotId)
+    : null;
+  const explicitShotOrder = typeof issue.details.shotOrder === "number"
+    ? issue.details.shotOrder
+    : null;
+  const canvas = issue.canvasId
+    ? session.document.value?.canvases.find((item) => item.id === issue.canvasId)
+    : null;
+  return [
+    speaker,
+    explicitShotOrder !== null
+      ? `镜头 ${explicitShotOrder}`
+      : source
+        ? `镜头 ${source.order}`
+        : issue.shotId
+          ? "来源镜头"
+          : null,
+    canvas?.name ?? null,
+  ].filter(Boolean).join(" · ") || "本章";
+}
+
+function exportIssueBlockingText(issue: LayoutPreflightIssue): string {
+  const sourceText = typeof issue.details.sourceText === "string" ? issue.details.sourceText : "";
+  const currentText = typeof issue.details.currentText === "string" ? issue.details.currentText : "";
+  if (issue.details.reason === "bound_balloon_outside_canvas") {
+    return `${sourceText ? `应有文字：${sourceText}。` : ""}请把对白气泡移回画布内。`;
+  }
+  if (issue.details.reason === "bound_balloon_not_visible") {
+    return `${sourceText ? `应有文字：${sourceText}。` : ""}请恢复显示，并把对象透明度调到可见范围。`;
+  }
+  if (sourceText && currentText && sourceText !== currentText) {
+    return `原文：${sourceText}；当前：${currentText}`;
+  }
+  if (sourceText) return `应有文字：${sourceText}`;
+  if (currentText) return `当前文字：${currentText}`;
+  return "";
+}
+
+function exportIssueDescription(issue: LayoutPreflightIssue): string {
+  if (issue.code === "LAYOUT_COMPOSITION_SOURCE_OVERRIDE") return "你主动更换了镜头图片，将按当前图片导出。";
+  if (issue.code === "TEXT_OVERFLOW") return "有文字可能超出容器，请确认当前版面可以接受。";
+  return "这项变化需要你确认后才能继续导出。";
+}
+
+async function syncLatestSources(): Promise<void> {
+  const ids = replaceableImageElementIds.value;
+  if (!ids.length || sourceSyncBusy.value) return;
+  sourceSyncBusy.value = true;
   actionError.value = null;
   try {
-    await session.flush();
-    if (session.isDirty.value) throw new Error("请先完成当前草稿保存。");
-    const report = currentRevisionDocumentSchemaVersion.value === 2
-      ? await api.runLayoutPreflight(projectId.value, id, {
-          schemaVersion: 2,
-          target: { kind: "layout_revision", layoutRevisionId: revisionId },
-          profile: publicationProfile.value,
-        })
-      : await api.runLayoutPreflight(projectId.value, id, {
-          schemaVersion: 1,
-          target: { kind: "layout_revision", layoutRevisionId: revisionId },
-          profile: publicationProfile.value,
-        });
-    publicationPreflight.value = report;
-    publicationAcknowledgedIssueKeys.value = publicationAcknowledgedIssueKeys.value.filter((issueKey) =>
-      report.issues.some((issue) => issue.issueKey === issueKey && issue.requiresAcknowledgement));
-    publicationRequestId.value = null;
-    await refreshPublicationHistory();
+    const preview = await session.previewSourceReplacement(ids, "preserve_normalized_crop");
+    if (!preview) throw new Error("当前草稿尚未保存，暂时不能同步最新镜头。");
+    const result = await session.commitSourceReplacement();
+    if (!result) throw new Error("镜头同步条件已经变化，请重试。");
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "导出预检失败";
+    actionError.value = error instanceof Error ? error.message : "同步最新镜头失败";
   } finally {
-    publicationBusy.value = false;
+    sourceSyncBusy.value = false;
   }
 }
 
-async function publishCurrentRevision(): Promise<void> {
+async function startSimpleExport(): Promise<void> {
+  if (exportOperationBusy.value || session.isReadOnly.value || !session.server.value) return;
   const id = chapterId.value;
-  const revisionId = currentLayoutRevisionId.value;
-  const revision = currentLayoutRevision.value;
-  const report = publicationPreflight.value;
-  if (!id || !revisionId || !revision || !report || !canPublish.value) return;
-  publicationBusy.value = true;
+  if (!id) return;
+  if (session.server.value.document.schemaVersion !== 2) {
+    exportDialogOpen.value = true;
+    exportDialogError.value = "当前成稿还是旧格式，无法可靠核对全部对白。请先转换或按当前定稿重建，再导出。";
+    exportDialogStage.value = "failed";
+    return;
+  }
+  if (
+    exportChapterId.value
+    && exportContextIsCurrent(exportChapterId.value)
+    && publicationRequestId.value
+    && publicationPreflight.value
+    && exportLayoutRevision.value
+  ) {
+    await retrySimpleExport();
+    return;
+  }
+  exportOperationBusy.value = true;
+  try {
+    await refreshPublicationHistory();
+  } catch {
+    exportDialogOpen.value = true;
+    exportDialogError.value = "暂时无法确认已有导出任务，请稍后再试。";
+    exportDialogStage.value = "failed";
+    return;
+  } finally {
+    exportOperationBusy.value = false;
+  }
+  if (chapterId.value !== id) return;
+  const existing = activeExportPublication.value;
+  if (
+    existing
+    && !session.isDirty.value
+    && (existing.status === "queued" || existing.status === "rendering" || existing.status === "ready")
+  ) {
+    exportDialogOpen.value = true;
+    exportDialogStage.value = "publishing";
+    return;
+  }
+
+  exportDialogOpen.value = true;
+  exportDialogStage.value = "checking";
+  exportDialogIssues.value = [];
+  exportDialogError.value = null;
+  exportResumeTarget.value = "revision";
+  exportRevisionAcknowledgementKeys.value = [];
+  exportReviewedIssueKeys.value = [];
+  exportChapterId.value = id;
+  exportLayoutRevision.value = null;
+  publicationPreflight.value = null;
+  publicationRequestId.value = null;
+  activeExportPublicationId.value = null;
+  activeExportPublicationSnapshot.value = null;
+  publicationRetryAfter = 0;
+  exportOperationBusy.value = true;
   actionError.value = null;
+
+  try {
+    await session.flush();
+    if (!exportContextIsCurrent(id)) return;
+    if (session.isDirty.value || session.saveState.value !== "saved") {
+      throw new Error("自动保存还没有完成，请稍后再试。");
+    }
+    const revisionReport = await session.runPreflight();
+    if (!exportContextIsCurrent(id)) return;
+    if (!revisionReport) throw new Error("无法检查当前成稿，请稍后再试。");
+    const exportReport = await session.runPreflight(publicationProfile.value);
+    if (!exportContextIsCurrent(id)) return;
+    if (!exportReport) throw new Error("无法检查导出条件，请稍后再试。");
+
+    const blockers = uniquePreflightIssues(
+      revisionReport.issues.filter((issue) => issue.blockingScopes.includes("revision")),
+      exportReport.issues.filter((issue) => issue.blockingScopes.includes("export")),
+    );
+    if (blockers.length > 0) {
+      setExportBlocked(blockers);
+      return;
+    }
+
+    exportRevisionAcknowledgementKeys.value = revisionReport.issues
+      .filter((issue) => issue.requiresAcknowledgement)
+      .map((issue) => issue.issueKey);
+    const reviewIssues = uniquePreflightIssues(
+      revisionReport.issues.filter((issue) => issue.requiresAcknowledgement),
+      exportReport.issues.filter((issue) => issue.requiresAcknowledgement),
+    );
+    if (reviewIssues.length > 0) {
+      exportDialogIssues.value = reviewIssues;
+      exportDialogStage.value = "review";
+      return;
+    }
+
+    await createRevisionAndPublication();
+  } catch (error) {
+    failSimpleExport(error);
+  } finally {
+    exportOperationBusy.value = false;
+  }
+}
+
+async function retrySimpleExport(): Promise<void> {
+  if (exportOperationBusy.value) return;
+  if (
+    exportChapterId.value
+    && exportContextIsCurrent(exportChapterId.value)
+    && publicationRequestId.value
+    && publicationPreflight.value
+    && exportLayoutRevision.value
+  ) {
+    exportDialogOpen.value = true;
+    exportDialogError.value = null;
+    exportDialogStage.value = "publishing";
+    exportOperationBusy.value = true;
+    try {
+      await submitCurrentPublication();
+    } catch (error) {
+      failSimpleExport(error);
+    } finally {
+      exportOperationBusy.value = false;
+    }
+    return;
+  }
+  if (
+    exportChapterId.value
+    && exportContextIsCurrent(exportChapterId.value)
+    && session.hasPendingRevisionAttempt.value
+  ) {
+    exportDialogOpen.value = true;
+    exportDialogError.value = null;
+    exportDialogStage.value = "checking";
+    exportOperationBusy.value = true;
+    try {
+      await createRevisionAndPublication();
+    } catch (error) {
+      failSimpleExport(error);
+    } finally {
+      exportOperationBusy.value = false;
+    }
+    return;
+  }
+  await startSimpleExport();
+}
+
+async function confirmSimpleExport(): Promise<void> {
+  if (exportOperationBusy.value) return;
+  exportReviewedIssueKeys.value = [...new Set([
+    ...exportReviewedIssueKeys.value,
+    ...exportDialogIssues.value.map((issue) => issue.issueKey),
+  ])];
+  exportDialogIssues.value = [];
+  exportDialogStage.value = exportResumeTarget.value === "revision" ? "checking" : "publishing";
+  exportOperationBusy.value = true;
+  try {
+    if (exportResumeTarget.value === "revision") await createRevisionAndPublication();
+    else await submitCurrentPublication();
+  } catch (error) {
+    failSimpleExport(error);
+  } finally {
+    exportOperationBusy.value = false;
+  }
+}
+
+async function createRevisionAndPublication(): Promise<void> {
+  const id = exportChapterId.value;
+  if (!id || !exportContextIsCurrent(id)) throw new Error("当前章节不存在。");
+  const created = await session.createRevision(exportRevisionAcknowledgementKeys.value);
+  if (!created || !exportContextIsCurrent(id)) throw new Error("导出期间章节已经变化，请重新导出。");
+  const revision = created.revision;
+  if (!("documentSchemaVersion" in revision) || revision.documentSchemaVersion !== 2) {
+    throw new Error("当前成稿还是旧格式，无法核对正式对白。请先完成格式转换。");
+  }
+  exportLayoutRevision.value = revision;
+  const report = await api.runLayoutPreflight(projectId.value, id, {
+    schemaVersion: 2,
+    target: { kind: "layout_revision", layoutRevisionId: revision.id },
+    profile: publicationProfile.value,
+  });
+  if (!exportContextIsCurrent(id) || exportLayoutRevision.value?.id !== revision.id) return;
+  publicationPreflight.value = report;
+
+  const blockers = report.issues.filter((issue) => issue.blockingScopes.includes("export"));
+  if (blockers.length > 0) {
+    setExportBlocked(blockers);
+    return;
+  }
+  const unreviewed = report.issues.filter((issue) => (
+    issue.requiresAcknowledgement && !exportReviewedIssueKeys.value.includes(issue.issueKey)
+  ));
+  if (unreviewed.length > 0) {
+    exportResumeTarget.value = "publication";
+    exportDialogIssues.value = unreviewed;
+    exportDialogStage.value = "review";
+    return;
+  }
+  await submitCurrentPublication();
+}
+
+async function submitCurrentPublication(): Promise<void> {
+  const id = exportChapterId.value;
+  const revision = exportLayoutRevision.value;
+  const revisionId = revision?.id ?? null;
+  const report = publicationPreflight.value;
+  if (!id || !exportContextIsCurrent(id) || !revisionId || !revision || !report) {
+    throw new Error("导出上下文已经变化，请重新导出。");
+  }
+  if (!("documentSchemaVersion" in revision) || revision.documentSchemaVersion !== 2 || report.schemaVersion !== 2) {
+    throw new Error("当前成稿还是旧格式，无法核对正式对白。请先完成格式转换。");
+  }
+  const requiredAcknowledgements = report.issues
+    .filter((issue) => issue.requiresAcknowledgement)
+    .map((issue) => issue.issueKey);
+  const missingAcknowledgements = requiredAcknowledgements.filter(
+    (issueKey) => !exportReviewedIssueKeys.value.includes(issueKey),
+  );
+  if (missingAcknowledgements.length > 0) throw new Error("还有文字变化没有确认。");
+
+  publicationBusy.value = true;
   try {
     publicationRequestId.value ??= globalThis.crypto?.randomUUID?.() ?? `publication_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const profile = LayoutPublicationProfileCodecV1.encode(publicationProfile.value);
@@ -1787,40 +1618,36 @@ async function publishCurrentRevision(): Promise<void> {
       profile: profile.value,
       profileDigest: profile.digest,
       preflightDigest: report.preflightDigest,
-      acknowledgedIssueKeys: [...publicationAcknowledgedIssueKeys.value],
+      acknowledgedIssueKeys: requiredAcknowledgements,
     };
-    if ("documentSchemaVersion" in revision && revision.documentSchemaVersion === 2) {
-      await api.createLayoutPublication(projectId.value, id, {
-        schemaVersion: 2,
-        ...common,
-        expectedRevisionDocumentDigest: revision.revisionDocumentDigest,
-        expectedVisibleDocumentDigest: revision.visibleDocumentDigest,
-      });
-    } else {
-      await api.createLayoutPublication(projectId.value, id, {
-        schemaVersion: 1,
-        ...common,
-      });
-    }
-    await refreshPublicationHistory();
+    const result = await api.createLayoutPublication(projectId.value, id, {
+      schemaVersion: 2,
+      ...common,
+      expectedRevisionDocumentDigest: revision.revisionDocumentDigest,
+      expectedVisibleDocumentDigest: revision.visibleDocumentDigest,
+    });
+    if (!exportContextIsCurrent(id) || exportLayoutRevision.value?.id !== revisionId) return;
+    activeExportPublicationId.value = result.exportRevision.id;
+    activeExportPublicationSnapshot.value = mergeLayoutPublicationSnapshot(
+      activeExportPublicationSnapshot.value,
+      result.exportRevision,
+    );
     publicationRequestId.value = null;
+    publicationRetryAfter = 0;
+    exportDialogStage.value = "publishing";
+    await refreshPublicationHistory().catch(() => undefined);
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "正式出版提交失败";
-  } finally {
-    publicationBusy.value = false;
-  }
-}
-
-async function cancelPublication(exportRevisionId: string): Promise<void> {
-  const id = chapterId.value;
-  if (!id) return;
-  publicationBusy.value = true;
-  actionError.value = null;
-  try {
-    await api.cancelLayoutPublication(projectId.value, id, exportRevisionId);
-    await refreshPublicationHistory();
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : "取消出版失败";
+    if (error instanceof ApiClientError && error.status >= 400 && error.status < 500) {
+      publicationRequestId.value = null;
+      publicationRetryAfter = 0;
+      publicationPreflight.value = null;
+      exportLayoutRevision.value = null;
+      throw error;
+    }
+    exportDialogError.value = "网络响应中断，正在用同一导出请求确认状态。";
+    exportDialogStage.value = "publishing";
+    publicationRetryAfter = Date.now() + 3_000;
+    await refreshPublicationHistory().catch(() => undefined);
   } finally {
     publicationBusy.value = false;
   }
@@ -1839,21 +1666,16 @@ function artifactLabel(role: string, order: number): string {
   return role === "page_png" || role === "strip_slice_png" ? `${label} ${order}` : label;
 }
 
-function revisionNumber(revisionId: string): number | string {
-  return session.revisionHistory.value?.items.find((revision) => revision.id === revisionId)?.revision ?? "—";
-}
-
 function shortDigest(digest: string): string {
   return `${digest.slice(0, 14)}…${digest.slice(-8)}`;
 }
 
-function replacementWarningLabel(code: string): string {
-  if (code === "CROP_ZOOM_ADJUSTED") return "已自动补足覆盖";
-  if (code === "CROP_REVIEW_RECOMMENDED") return "建议复核裁切";
-  return code;
-}
-
-function preflightIssueLabel(code: LayoutPreflightCodeV2): string {
+function preflightIssueLabel(issue: LayoutPreflightIssue): string {
+  if (issue.code === "DIALOGUE_BINDING_DANGLING") {
+    if (issue.details.reason === "bound_balloon_outside_canvas") return "对白气泡完全在画布外";
+    if (issue.details.reason === "bound_balloon_not_visible") return "对白气泡已隐藏或完全透明";
+  }
+  const code = issue.code as LayoutPreflightCodeV2;
   const labels: Record<string, string> = {
     ACTIVE_SHOT_UNPLACED: "当前镜头尚未放入画布",
     ACTIVE_SHOT_NOT_VISIBLE: "当前镜头不可见",
@@ -1893,10 +1715,12 @@ function preflightIssueLabel(code: LayoutPreflightCodeV2): string {
     DIALOGUE_TEXT_UNPROTECTED: "手工对白修改尚未建立文字保护",
     DIALOGUE_USER_MODIFIED: "对白文字已由用户修改",
     DIALOGUE_USER_SUPPRESSED: "对白已由用户明确省略",
-    LAYOUT_COMPOSITION_MISSING: "缺少智能成稿规划证据",
-    LAYOUT_COMPOSITION_STALE: "智能成稿规划已过期",
-    LAYOUT_COMPOSITION_SOURCE_LOCK_MISMATCH: "智能成稿规划与当前来源锁不一致",
-    LAYOUT_COMPOSITION_SOURCE_OVERRIDE: "智能成稿沿用了人工确认的来源覆盖",
+    CUSTOM_TEXT_PRESENT: "你添加了自定义文字",
+    UNOWNED_TEXT_PRESENT: "发现无来源文字",
+    LAYOUT_COMPOSITION_MISSING: "缺少首次排版记录",
+    LAYOUT_COMPOSITION_STALE: "首次排版记录已失效",
+    LAYOUT_COMPOSITION_SOURCE_LOCK_MISMATCH: "首次排版记录与当前镜头不一致",
+    LAYOUT_COMPOSITION_SOURCE_OVERRIDE: "首次排版沿用了人工确认的镜头更换",
     LAYOUT_PROTECTION_INVALID: "人工保护指向无效对象或范围",
   };
   return labels[code] ?? code;
@@ -2092,23 +1916,23 @@ function addBalloon(): void {
   activeTool.value = "select";
 }
 
-function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string; historyGroupId: string }): void {
+function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string }): void {
   const element = primaryElement.value;
   const canvas = session.currentCanvas.value;
   if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
-  const { historyGroupId, ...range } = value;
   if (element.type === "text") {
     session.execute(command("text.replace_range", "编辑文字", {
       canvasId: canvas.id,
       elementId: element.id,
-      ...range,
-    }), { historyGroupId });
+      ...value,
+    }));
   } else {
-    const richText = replaceRichTextRange(element.richText, range);
-    session.execute(
-      command("balloon.replace_text_document", "编辑气泡文字", { canvasId: canvas.id, elementId: element.id, richText }),
-      { historyGroupId },
-    );
+    const richText = replaceRichTextRange(element.richText, value);
+    session.execute(command(
+      "balloon.replace_text_document",
+      "编辑气泡文字",
+      { canvasId: canvas.id, elementId: element.id, richText },
+    ));
   }
 }
 
@@ -2559,23 +2383,6 @@ function applySelectedPreset(): void {
   session.selectedElementIds.value = [];
 }
 
-function batchInitializeFromSources(): void {
-  const document = session.document.value;
-  if (!document || !canBatchInitialize.value) return;
-  if (!window.confirm("将按当前 G4 定稿重新建立画格与页面；现有画格布局会被替换。是否继续？")) return;
-  actionError.value = null;
-  const canvases = initializeLayoutCanvasesFromSourcesV1({
-    profile: document.profile,
-    sources: sourceCatalogItems.value,
-    createId: (kind) => newId(kind),
-  });
-  session.execute(command("layout.resize_profile", "按镜头批量建立排版", {
-    profile: structuredClone(document.profile),
-    canvases,
-  }));
-  if (canvases[0]) session.selectCanvas(canvases[0].id);
-}
-
 function addCanvas(): void {
   const document = session.document.value;
   if (!document) return;
@@ -2976,17 +2783,22 @@ function updateTransform(field: keyof LayoutTopLevelElementV1["transform"], even
   if (!element || element.locked) return;
   const value = Number((event.target as HTMLInputElement).value);
   if (!Number.isFinite(value)) return;
+  if (field === "opacity" && value <= 0) {
+    setElementHidden(element.id, true);
+    return;
+  }
+  const normalizedValue = field === "opacity" ? Math.min(1, Math.max(0.05, value)) : value;
   if (element.type === "balloon") {
     const minimum = field === "width" ? element.padding.left + element.padding.right + 1
       : field === "height" ? element.padding.top + element.padding.bottom + 1
         : 0;
-    if (minimum > 0 && value < minimum) {
+    if (minimum > 0 && normalizedValue < minimum) {
       actionError.value = `气泡${field === "width" ? "宽度" : "高度"}必须大于内边距 ${minimum - 1}px。`;
       return;
     }
   }
   actionError.value = null;
-  session.execute(session.makeTransformCommand(element.id, { ...element.transform, [field]: value }));
+  session.execute(session.makeTransformCommand(element.id, { ...element.transform, [field]: normalizedValue }));
 }
 
 function setElementLocked(elementId: string, locked: boolean): void {
@@ -3098,31 +2910,13 @@ function getSourceReasonLabel(code?: CandidateLockErrorCode): string {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
+  if (exportDialogOpen.value || exportOperationBusy.value) return;
   const target = event.target as HTMLElement | null;
   const commandKey = event.metaKey || event.ctrlKey;
-  const key = event.key.toLowerCase();
-  const isUndoShortcut = commandKey && key === "z" && !event.shiftKey;
-  const isRedoShortcut = commandKey && (
-    (key === "z" && event.shiftKey)
-    || (key === "y" && !event.shiftKey)
-  );
-  if (
-    target?.closest("[contenteditable='true']")
-    && (isUndoShortcut || isRedoShortcut)
-  ) {
-    event.preventDefault();
-    if (isRedoShortcut) session.redo(); else session.undo();
-    return;
-  }
   if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
   if (commandKey && event.key.toLowerCase() === "a") {
     event.preventDefault();
     session.selectedElementIds.value = currentElements.value.map((element) => element.id);
-    return;
-  }
-  if (isUndoShortcut || isRedoShortcut) {
-    event.preventDefault();
-    if (isRedoShortcut) session.redo(); else session.undo();
     return;
   }
   if (event.key === "Escape") {
@@ -3147,59 +2941,36 @@ function handleKeydown(event: KeyboardEvent): void {
 
 watch(chapterId, () => {
   autoCompositionKey = null;
-  aiDrawerOpen.value = false;
-  aiRequestKind.value = "full";
   mobilePreviewFeedback.value = null;
   mobilePreviewFallbackUrl.value = null;
+  exportDialogOpen.value = false;
+  exportDialogStage.value = "checking";
+  exportDialogIssues.value = [];
+  exportDialogError.value = null;
+  exportRevisionAcknowledgementKeys.value = [];
+  exportReviewedIssueKeys.value = [];
+  exportChapterId.value = null;
+  exportLayoutRevision.value = null;
+  activeExportPublicationId.value = null;
+  activeExportPublicationSnapshot.value = null;
   publicationPreflight.value = null;
-  publicationAcknowledgedIssueKeys.value = [];
   publicationRequestId.value = null;
-  authoritativePreviewOpen.value = false;
-  authoritativePreviewReviewed.value = false;
-  authoritativePreviewReviewState.value = {
-    renderReady: false,
-    fullyViewed: false,
-    error: false,
-  };
+  publicationRetryAfter = 0;
   void refreshPublicationHistory().catch(() => undefined);
 });
 watch(() => session.isDirty.value, (dirty) => {
   if (!dirty) return;
-  acknowledgedIssueKeys.value = [];
   session.preflight.value = null;
-  publicationAcknowledgedIssueKeys.value = [];
   publicationPreflight.value = null;
   publicationRequestId.value = null;
-});
-watch(() => [
-  session.server.value?.rowVersion ?? -1,
-  session.server.value?.documentDigest ?? "missing",
-  session.server.value?.sourceLockSetDigest ?? "missing",
-  session.preflight.value?.preflightDigest ?? "missing",
-  session.preflight.value?.issues.map((issue) => issue.issueKey).sort().join("|") ?? "missing",
-].join(":"), (_identity, previousIdentity) => {
-  if (previousIdentity === undefined) return;
-  acknowledgedIssueKeys.value = [];
-});
-watch(() => [
-  currentLayoutRevisionId.value ?? "missing",
-  session.server.value?.documentDigest ?? "missing",
-  session.server.value?.sourceLockSetDigest ?? "missing",
-  publicationPreflight.value?.preflightDigest ?? "missing",
-  publicationPreflight.value?.issues.map((issue) => issue.issueKey).sort().join("|") ?? "missing",
-].join(":"), (_identity, previousIdentity) => {
-  if (previousIdentity === undefined) return;
-  publicationAcknowledgedIssueKeys.value = [];
-  publicationRequestId.value = null;
-});
-watch(() => session.pendingCommand.value?.id ?? null, () => {
-  authoritativePreviewOpen.value = false;
-  authoritativePreviewReviewed.value = false;
-  authoritativePreviewReviewState.value = {
-    renderReady: false,
-    fullyViewed: false,
-    error: false,
-  };
+  publicationRetryAfter = 0;
+  exportRevisionAcknowledgementKeys.value = [];
+  exportReviewedIssueKeys.value = [];
+  exportChapterId.value = null;
+  exportLayoutRevision.value = null;
+  activeExportPublicationId.value = null;
+  activeExportPublicationSnapshot.value = null;
+  if (!exportOperationBusy.value) exportDialogOpen.value = false;
 });
 watch(primaryCrop, (crop) => {
   if (!crop && activeTool.value === "crop") activeTool.value = "select";
@@ -3244,7 +3015,28 @@ onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
   void refreshPublicationHistory().catch(() => undefined);
   publicationPollTimer = setInterval(() => {
-    if (publicationHistory.value?.items.some((item) => item.status === "queued" || item.status === "rendering")) {
+    const activePublicationNeedsRefresh = Boolean(
+      activeExportPublicationId.value
+      && (!activeExportPublication.value || exportTaskPending.value),
+    );
+    const ambiguousPublicationNeedsReplay = Boolean(
+      publicationRequestId.value
+      && !activeExportPublicationId.value
+      && publicationPreflight.value
+      && exportLayoutRevision.value
+      && !publicationBusy.value
+      && Date.now() >= publicationRetryAfter
+    );
+    const historyHasPendingPublication = publicationHistory.value?.items.some(
+      (item) => item.status === "queued" || item.status === "rendering",
+    );
+    if (ambiguousPublicationNeedsReplay) {
+      publicationRetryAfter = Date.now() + 3_000;
+      void submitCurrentPublication().catch(failSimpleExport);
+    }
+    if (activePublicationNeedsRefresh) {
+      void refreshActivePublication().catch(() => refreshPublicationHistory().catch(() => undefined));
+    } else if (historyHasPendingPublication || (publicationRequestId.value && !activeExportPublicationId.value)) {
       void refreshPublicationHistory().catch(() => undefined);
     }
   }, 1_000);
@@ -3282,108 +3074,6 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   background: var(--le-bg-app);
   color: var(--le-text);
-}
-
-.layout-ai-drawer {
-  position: absolute;
-  z-index: 40;
-  top: var(--layout-topbar-offset);
-  right: 0;
-  bottom: 0;
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  width: min(780px, calc(100% - 24px));
-  box-sizing: border-box;
-  border-left: 1px solid var(--le-border-strong);
-  background: rgba(11, 16, 28, 0.98);
-  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.42);
-  padding: 16px;
-  overflow: auto;
-}
-
-.layout-ai-drawer > header,
-.layout-ai-drawer > header > div,
-.ai-preview-actions,
-.ai-pending-state {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.layout-ai-drawer > header { justify-content: space-between; }
-.layout-ai-drawer > header button { width: 32px; padding: 0; font-size: 20px; }
-.layout-ai-drawer > p,
-.ai-empty-state p,
-.ai-command-preview p { margin: 0; color: #9eabc3; font-size: 12px; line-height: 1.65; }
-.ai-command-preview,
-.ai-empty-state { display: grid; gap: 10px; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 12px; background: rgba(19, 28, 48, 0.72); padding: 13px; }
-.ai-command-preview small { color: #8da0c2; overflow-wrap: anywhere; }
-.ai-command-preview ul { margin: 0; padding-left: 18px; color: #fcd34d; font-size: 11px; }
-.ai-preview-actions { justify-content: flex-end; flex-wrap: wrap; }
-.ai-adjust-options { gap: 12px; }
-.ai-option-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.ai-option-row button.is-active {
-  border-color: var(--le-accent-border);
-  background: var(--le-accent-soft);
-  color: #e6efff;
-  box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.16);
-}
-.ai-pending-state {
-  justify-content: center;
-  min-height: 150px;
-  color: #bdb5ff;
-}
-.ai-pending-state > div { display: grid; gap: 4px; }
-.ai-pending-state small { color: #8e9ab5; }
-.ai-error-state {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  border: 1px solid rgba(251, 113, 133, 0.28);
-  border-radius: 12px;
-  background: rgba(127, 29, 29, 0.16);
-  padding: 13px;
-  color: #fecdd3;
-}
-.ai-error-state > div { display: grid; gap: 8px; }
-.ai-error-state p { margin: 0; color: #fda4af; font-size: 12px; line-height: 1.55; }
-.layout-preview-comparison {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: start;
-  gap: 10px;
-  min-width: 0;
-}
-.authoritative-preview-toggle {
-  justify-self: stretch;
-  border-color: var(--le-accent-border);
-  color: #cfe0ff;
-}
-.authoritative-preview-comparison {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: start;
-  gap: 10px;
-  min-width: 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
-  padding-top: 10px;
-}
-.authoritative-preview-review-state {
-  border: 1px solid var(--le-accent-border);
-  border-radius: 8px;
-  background: var(--le-accent-soft);
-  color: #cfe0ff !important;
-  padding: 8px 10px;
-}
-.authoritative-preview-review-state.is-error {
-  border-color: rgba(251, 113, 133, 0.32);
-  background: rgba(127, 29, 29, 0.16);
-  color: #fecdd3 !important;
 }
 
 button,
@@ -3466,161 +3156,144 @@ button:disabled {
   font-weight: 800;
 }
 
-.m6-control-center {
+.export-dialog-backdrop {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  max-height: 286px;
-  overflow: auto;
-  border-bottom: 1px solid var(--le-border);
-  padding: 10px 12px;
-  background: var(--le-bg-app);
+  place-items: center;
+  background: rgba(3, 7, 18, 0.76);
+  backdrop-filter: blur(4px);
+  padding: 20px;
 }
 
-.m6-panel-head {
+.export-dialog {
+  display: grid;
+  gap: 18px;
+  width: min(620px, 100%);
+  max-height: min(720px, calc(100% - 24px));
+  overflow: auto;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  background: #111a2b;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+  padding: 22px;
+}
+
+.export-dialog > header,
+.export-dialog > footer,
+.export-review-list article > header {
   display: flex;
-  grid-column: 1 / -1;
   align-items: center;
   justify-content: space-between;
-  color: #cbd5e1;
-  font-size: 12px;
+  gap: 12px;
 }
 
-.m6-panel-head button {
+.export-dialog > header > div {
   display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
+  gap: 4px;
 }
 
-.m6-panel-head button:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+.export-dialog > header strong { font-size: 18px; }
+.export-dialog > header small,
+.export-review-list article small { color: #8f9db8; }
+.export-dialog > header button {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
 }
 
-.release-flow {
+.export-dialog > footer {
+  justify-content: flex-end;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 16px;
+}
+
+.export-dialog-state {
   display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  justify-items: center;
+  gap: 9px;
+  text-align: center;
+  color: #b9c5da;
+  padding: 30px 12px;
+}
+
+.export-dialog-state strong { color: #eef4ff; font-size: 16px; }
+.export-dialog-state p,
+.export-review-intro,
+.export-review-list article > p {
+  margin: 0;
+  color: #95a4bd;
+  line-height: 1.6;
+}
+.export-dialog-state.is-blocked { color: #fb7185; }
+.export-dialog-state.is-ready { color: #34d399; }
+
+.export-issue-list,
+.export-review-list {
+  display: grid;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.release-flow li {
-  display: flex;
-  align-items: center;
+.export-issue-list li,
+.export-review-list article {
+  display: grid;
   gap: 8px;
-  min-width: 0;
   border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 9px;
-  background: rgba(15, 23, 42, 0.64);
-  padding: 8px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 12px;
 }
 
-.release-flow li > span {
+.export-issue-list li { border-color: rgba(251, 113, 133, 0.25); }
+.export-issue-list small { color: #9ca9c0; }
+.export-issue-list p {
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(251, 113, 133, 0.08);
+  color: #edf3ff;
+  padding: 8px 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.export-review-list dl { display: grid; gap: 8px; margin: 0; }
+.export-review-list dl > div {
   display: grid;
-  flex: none;
-  width: 23px;
-  height: 23px;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(148, 163, 184, 0.14);
-  color: #94a3b8;
-  font-size: 10px;
-  font-weight: 900;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+}
+.export-review-list dt { color: #7887a3; font-size: 12px; font-weight: 800; }
+.export-review-list dd {
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+  color: #edf3ff;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.release-flow li > div {
+.export-artifacts {
   display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.release-flow li strong { font-size: 11px; }
-.release-flow li small { color: #71809c; font-size: 10px; }
-.release-flow li.is-ready { border-color: rgba(34, 197, 94, 0.3); }
-.release-flow li.is-ready > span { background: rgba(34, 197, 94, 0.16); color: #86efac; }
-.release-flow li.is-warning { border-color: rgba(245, 158, 11, 0.3); }
-.release-flow li.is-warning > span { background: rgba(245, 158, 11, 0.16); color: #fcd34d; }
-.release-flow li.is-blocked { border-color: rgba(244, 63, 94, 0.3); }
-.release-flow li.is-blocked > span { background: rgba(244, 63, 94, 0.16); color: #fda4af; }
-
-.m6-card {
-  display: grid;
-  align-content: start;
-  gap: 9px;
-  min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 11px;
-  background: rgba(15, 23, 42, 0.76);
-  padding: 11px;
-}
-
-.m6-card > header,
-.revision-list section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
-
-.m6-card > header > div,
-.revision-list section > div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
+.export-artifacts a {
+  border: 1px solid rgba(79, 140, 255, 0.36);
+  border-radius: 10px;
+  background: rgba(79, 140, 255, 0.12);
+  color: #cfe0ff;
+  padding: 10px 12px;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 800;
 }
-
-.m6-card small,
-.muted-copy,
-.replacement-preview p,
-.preflight-result > p {
-  margin: 0;
-  color: #8d9ab3;
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.m6-card > header > span,
-.revision-list section > span {
-  flex: none;
-  border-radius: 999px;
-  background: rgba(116, 95, 255, 0.14);
-  color: #c8c1ff;
-  padding: 4px 7px;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.m6-card .tone-ready { background: rgba(34, 197, 94, 0.14); color: #86efac; }
-.m6-card .tone-warning { background: rgba(245, 158, 11, 0.14); color: #fcd34d; }
-.m6-card .tone-blocked { background: rgba(244, 63, 94, 0.14); color: #fda4af; }
-.m6-card > label { display: grid; gap: 5px; color: #9eabc3; font-size: 10px; font-weight: 800; }
-.m6-card select { min-height: 31px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 7px; background: #0b1323; color: #dce5f5; padding: 0 7px; }
-.m6-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.replacement-preview,
-.preflight-result { display: grid; gap: 7px; border-top: 1px solid rgba(148, 163, 184, 0.12); padding-top: 8px; }
-.replacement-preview ul { max-height: 66px; overflow: auto; margin: 0; padding-left: 17px; color: #aeb9cc; font-size: 9px; line-height: 1.55; }
-.issue-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 6px; border-radius: 7px; padding: 5px 6px; background: rgba(148, 163, 184, 0.06); }
-.issue-row input { width: auto; margin: 2px 0 0; }
-.issue-row > span:last-child { display: grid; gap: 2px; font-size: 10px; }
-.issue-row.severity-error { color: #fda4af; background: rgba(190, 18, 60, 0.1); }
-.issue-marker { text-align: center; font-weight: 900; }
-.revision-list { display: grid; gap: 6px; max-height: 175px; overflow: auto; }
-.revision-list section { border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 8px; padding: 7px; }
-.revision-list section button { min-height: 27px; padding: 0 6px; font-size: 9px; }
-.publication-card { grid-column: 1 / -1; }
-.publication-list { max-height: 230px; }
-.publication-artifacts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-.publication-artifacts a { color: #93c5fd; font-size: 9px; font-weight: 800; text-decoration: none; border: 1px solid rgba(96, 165, 250, 0.24); border-radius: 999px; padding: 2px 6px; }
-.publication-artifacts a:hover { background: rgba(59, 130, 246, 0.12); }
+.export-artifacts a:hover { background: rgba(79, 140, 255, 0.2); }
 
 .chapter-picker select,
 .create-card select,
@@ -4044,9 +3717,6 @@ button:disabled {
   .editor-shell { grid-template-columns: auto minmax(0, 1fr) auto; }
   .canvas-navigation { width: 210px; }
   .inspector { width: 280px; }
-  .m6-control-center { grid-template-columns: 1fr 1fr; }
-  .history-card { grid-column: 1 / -1; }
-  .release-flow { grid-template-columns: 1fr 1fr; }
 }
 
 @media (min-width: 1024px) and (max-width: 1260px) {
@@ -4066,16 +3736,13 @@ button:disabled {
   .editor-shell { grid-template-columns: 1fr; overflow: visible; }
   .canvas-workspace { grid-column: auto; }
   .canvas-tool-float,
-  .canvas-navigation,
-  .inspector { display: none; }
-  .canvas-workspace { min-height: 560px; }
-  .m6-control-center { grid-template-columns: 1fr; max-height: none; }
-  .release-flow { grid-template-columns: 1fr; }
-  .history-card { grid-column: auto; }
-  .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
-  .layout-preview-comparison,
-  .authoritative-preview-comparison { grid-template-columns: 1fr; }
-}
+    .canvas-navigation,
+    .inspector { display: none; }
+    .canvas-workspace { min-height: 560px; }
+    .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
+    .export-dialog-backdrop { position: fixed; padding: 12px; }
+    .export-artifacts { grid-template-columns: 1fr; }
+  }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }

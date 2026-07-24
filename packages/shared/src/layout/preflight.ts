@@ -101,6 +101,8 @@ export type LayoutPreflightCodeV2 =
   | "DIALOGUE_TEXT_UNPROTECTED"
   | "DIALOGUE_USER_MODIFIED"
   | "DIALOGUE_USER_SUPPRESSED"
+  | "CUSTOM_TEXT_PRESENT"
+  | "UNOWNED_TEXT_PRESENT"
   | "LAYOUT_COMPOSITION_MISSING"
   | "LAYOUT_COMPOSITION_STALE"
   | "LAYOUT_COMPOSITION_SOURCE_LOCK_MISMATCH"
@@ -749,11 +751,66 @@ export function runLayoutPreflightV2(input: {
   }
   const balloonById = new Map<string, {
     canvasId: string;
+    canvasWidth: number;
+    canvasHeight: number;
     balloon: Extract<LayoutDocumentV1["canvases"][number]["elements"][number], { type: "balloon" }>;
   }>();
   for (const canvas of document.canvases) {
     for (const element of canvas.elements) {
-      if (element.type === "balloon") balloonById.set(element.id, { canvasId: canvas.id, balloon: element });
+      if (element.type === "balloon") {
+        balloonById.set(element.id, {
+          canvasId: canvas.id,
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height,
+          balloon: element,
+        });
+      }
+    }
+  }
+  const boundElementIds = new Set(
+    document.automation.dialogueBindings.flatMap((binding) => (
+      binding.elementId === null ? [] : [binding.elementId]
+    )),
+  );
+  for (const canvas of document.canvases) {
+    for (const element of canvas.elements) {
+      if (
+        (element.type !== "text" && element.type !== "balloon")
+        || element.hidden
+        || element.transform.opacity <= 0
+        || boundElementIds.has(element.id)
+      ) {
+        continue;
+      }
+      const requiredScopes = element.type === "balloon"
+        ? ["existence", "text", "source"] as const
+        : ["existence", "text"] as const;
+      const userOwned = document.automation.protections.some((entry) => (
+        entry.targetKind === "element"
+        && entry.targetId === element.id
+        && entry.reason === "user_edit"
+        && requiredScopes.every((scope) => entry.scopes.includes(scope))
+      ));
+      const currentText = richTextPlainTextV1(element.richText);
+      const details = {
+        sourceText: "",
+        currentText,
+        elementType: element.type,
+        semantic: element.type === "text" ? element.semantic : element.balloonKind,
+      };
+      if (userOwned) {
+        add("CUSTOM_TEXT_PRESENT", "warning", [], true, {
+          canvasId: canvas.id,
+          elementId: element.id,
+          shotId: element.type === "balloon" ? element.sourceShotId : null,
+        }, details);
+      } else {
+        add("UNOWNED_TEXT_PRESENT", "error", ["revision", "export"], false, {
+          canvasId: canvas.id,
+          elementId: element.id,
+          shotId: element.type === "balloon" ? element.sourceShotId : null,
+        }, details);
+      }
     }
   }
   const dialogueCoverage: LayoutDialogueCoverageSummaryV2 = {
@@ -763,10 +820,19 @@ export function runLayoutPreflightV2(input: {
     userSuppressed: 0,
   };
   for (const item of input.dialogueLedger.items) {
+    const dialogueDetails = {
+      dialogueItemId: item.id,
+      shotOrder: item.shotOrder,
+      lineOrder: item.lineOrder,
+      speakerName: item.speakerName,
+      kind: item.kind,
+      sourceText: item.text,
+    };
     const binding = bindingById.get(item.id);
     if (!binding) {
       add("DIALOGUE_BINDING_MISSING", "error", ["revision", "export"], false, { shotId: item.shotId }, {
-        dialogueItemId: item.id,
+        ...dialogueDetails,
+        currentText: "",
       });
       continue;
     }
@@ -778,7 +844,7 @@ export function runLayoutPreflightV2(input: {
       add("DIALOGUE_BINDING_SOURCE_MISMATCH", "error", ["revision", "export"], false, {
         elementId: binding.elementId,
         shotId: item.shotId,
-      }, { dialogueItemId: item.id });
+      }, dialogueDetails);
     }
     if (binding.disposition === "user_suppressed") {
       dialogueCoverage.userSuppressed += 1;
@@ -788,7 +854,8 @@ export function runLayoutPreflightV2(input: {
         elementId: binding.elementId,
         shotId: item.shotId,
       }, {
-        dialogueItemId: item.id,
+        ...dialogueDetails,
+        currentText: "",
         tombstone: binding.elementId === null,
       });
       continue;
@@ -796,7 +863,7 @@ export function runLayoutPreflightV2(input: {
     if (binding.elementId === null) {
       add("DIALOGUE_BINDING_DANGLING", "error", ["revision", "export"], false, {
         shotId: item.shotId,
-      }, { dialogueItemId: item.id });
+      }, dialogueDetails);
       continue;
     }
     const located = balloonById.get(binding.elementId);
@@ -804,7 +871,31 @@ export function runLayoutPreflightV2(input: {
       add("DIALOGUE_BINDING_DANGLING", "error", ["revision", "export"], false, {
         elementId: binding.elementId,
         shotId: item.shotId,
-      }, { dialogueItemId: item.id });
+      }, dialogueDetails);
+      continue;
+    }
+    if (located.balloon.hidden || located.balloon.transform.opacity <= 0) {
+      add("DIALOGUE_BINDING_DANGLING", "error", ["revision", "export"], false, {
+        canvasId: located.canvasId,
+        elementId: located.balloon.id,
+        shotId: item.shotId,
+      }, {
+        ...dialogueDetails,
+        currentText: richTextPlainTextV1(located.balloon.richText),
+        reason: "bound_balloon_not_visible",
+      });
+      continue;
+    }
+    if (boxOutside(located.balloon.transform, located.canvasWidth, located.canvasHeight)) {
+      add("DIALOGUE_BINDING_DANGLING", "error", ["revision", "export"], false, {
+        canvasId: located.canvasId,
+        elementId: located.balloon.id,
+        shotId: item.shotId,
+      }, {
+        ...dialogueDetails,
+        currentText: richTextPlainTextV1(located.balloon.richText),
+        reason: "bound_balloon_outside_canvas",
+      });
       continue;
     }
     const location = {
@@ -814,21 +905,20 @@ export function runLayoutPreflightV2(input: {
     };
     if (located.balloon.balloonKind !== item.kind) {
       add("DIALOGUE_BALLOON_KIND_MISMATCH", "error", ["revision", "export"], false, location, {
-        dialogueItemId: item.id,
+        ...dialogueDetails,
         actualKind: located.balloon.balloonKind,
         expectedKind: item.kind,
       });
     }
     if (located.balloon.speakerCharacterId !== item.speakerCharacterId) {
       add("DIALOGUE_BALLOON_SPEAKER_MISMATCH", "error", ["revision", "export"], false, location, {
-        dialogueItemId: item.id,
+        ...dialogueDetails,
         actualSpeakerCharacterId: located.balloon.speakerCharacterId,
         expectedSpeakerCharacterId: item.speakerCharacterId,
       });
     }
-    const actualTextDigest = digestLayoutDialogueTextV1(
-      richTextPlainTextV1(located.balloon.richText),
-    );
+    const currentText = richTextPlainTextV1(located.balloon.richText);
+    const actualTextDigest = digestLayoutDialogueTextV1(currentText);
     if (actualTextDigest === item.textDigest) {
       dialogueCoverage.placedOriginal += 1;
       continue;
@@ -841,13 +931,15 @@ export function runLayoutPreflightV2(input: {
     ));
     if (!textProtected) {
       add("DIALOGUE_TEXT_UNPROTECTED", "error", ["revision", "export"], false, location, {
-        dialogueItemId: item.id,
+        ...dialogueDetails,
+        currentText,
       });
       continue;
     }
     dialogueCoverage.userModified += 1;
     add("DIALOGUE_USER_MODIFIED", "warning", [], true, location, {
-      dialogueItemId: item.id,
+      ...dialogueDetails,
+      currentText,
       actualTextDigest,
       initialTextDigest: item.textDigest,
     });

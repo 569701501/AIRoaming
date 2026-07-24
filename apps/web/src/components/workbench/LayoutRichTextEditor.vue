@@ -2,7 +2,7 @@
   <section class="rich-text-editor" data-testid="rich-text-controls">
     <div class="section-heading">
       <strong>富文本</strong>
-      <small>受控字体 · Unicode grapheme 选区 · 一次样式应用对应一次撤销</small>
+      <small>受控字体 · Unicode grapheme 选区 · 样式一次应用</small>
     </div>
 
     <div class="writing-controls">
@@ -30,7 +30,6 @@
       @input="handleInput"
       @paste="handlePaste"
       @focus="handleFocus"
-      @blur="handleBlur"
       @keyup="captureSelection"
       @mouseup="captureSelection"
     >
@@ -122,7 +121,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  replaceRange: [value: RichTextRangeV1 & { text: string; historyGroupId: string }];
+  replaceRange: [value: RichTextRangeV1 & { text: string }];
   applyStyle: [value: RichTextRangeV1 & { style: RichTextRunStylePatchV1 }];
   replaceDocument: [value: RichTextDocumentV1];
   setParagraphStyle: [value: { paragraphIndexes: number[]; align: RichTextAlignV1; lineHeight: number }];
@@ -137,7 +136,6 @@ const editorDomRevision = ref(0);
 const compositionActive = ref(false);
 let ignoreNextInput = false;
 let pendingCaretRecovery: number | null = null;
-let editSessionId: string | null = null;
 const selection = ref<RichTextRangeV1>({
   start: { paragraphIndex: 0, graphemeOffset: 0 },
   end: { paragraphIndex: 0, graphemeOffset: 0 },
@@ -265,23 +263,8 @@ function editorDomNeedsRehydration(): boolean {
     || paragraphs.some((paragraph, index) => paragraph.dataset.paragraphIndex !== String(index));
 }
 
-function ensureEditSessionId(): string {
-  if (!editSessionId) {
-    editSessionId = `rich_text_input_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  }
-  return editSessionId;
-}
-
 function handleFocus(): void {
-  ensureEditSessionId();
   captureSelection();
-}
-
-function handleBlur(): void {
-  window.setTimeout(() => {
-    if (editor.value?.contains(document.activeElement)) return;
-    editSessionId = null;
-  }, 0);
 }
 
 function diffAndEmit(): void {
@@ -309,7 +292,6 @@ function diffAndEmit(): void {
     start,
     end,
     text: inserted,
-    historyGroupId: ensureEditSessionId(),
   });
   if (pendingCaretRecovery === null) {
     void nextTick(() => restoreCaret(caretFlatOffset));

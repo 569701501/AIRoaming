@@ -384,7 +384,7 @@ function effectsForV1Command(document: LayoutDocumentV2, command: EditorCommandV
       ];
     case "element.set_transform": return [targetEffect("element", p.elementId, "geometry")];
     case "element.set_locked": return [];
-    case "element.set_hidden": return [targetEffect("element", p.elementId, "existence")];
+    case "element.set_hidden": return [];
     case "panel.set_shape": case "panel.set_border": return [targetEffect("element", p.elementId, "style")];
     case "panel.attach_image": return [targetEffect("element", p.elementId, "existence")];
     case "panel.detach_image_to_free": return [imageEffect(document, p.canvasId, p.elementId, "existence", "crop", "source")];
@@ -520,6 +520,23 @@ function addUserProtections(
   return { ...document, automation };
 }
 
+function userProtectionEffects(
+  before: LayoutDocumentV2,
+  command: EditorCommandV1,
+  effects: readonly MutationEffectV1[],
+): MutationEffectV1[] {
+  if (command.type !== "canvas.resize" && command.type !== "layout.resize_profile") {
+    return [...effects];
+  }
+  const existingTargets = targetIndex(before);
+  const ownershipScopes = new Set<LayoutProtectionScopeV1>(["existence", "text", "source"]);
+  return effects.flatMap((effect) => {
+    if (!existingTargets.has(targetKey(effect.targetKind, effect.targetId))) return [effect];
+    const scopes = effect.scopes.filter((scope) => !ownershipScopes.has(scope));
+    return scopes.length > 0 ? [{ ...effect, scopes }] : [];
+  });
+}
+
 function toV1(command: EditorCommandV2<EditorCommandTypeV1>): EditorCommandV1 {
   return {
     schemaVersion: 1,
@@ -603,7 +620,10 @@ function applyGenericSingle(
   const applied = applyLayoutCommand(projectLayoutDocumentV2ToV1(before), v1Command);
   let after = composeVisible(before, applied.document, command.actor === "user");
   if (command.actor === "user") {
-    after = addUserProtections(after, [...effects, ...createdEffects(after, v1Command)]);
+    after = addUserProtections(
+      after,
+      userProtectionEffects(before, v1Command, [...effects, ...createdEffects(after, v1Command)]),
+    );
     after = LayoutDocumentCodecV2.parseAndNormalize(after);
   }
   return {
@@ -724,9 +744,7 @@ function applyRestoreBound(
   const p = command.payload;
   const binding = before.automation.dialogueBindings.find((item) => item.dialogueItemId === p.dialogueItemId);
   if (!binding || binding.disposition !== "user_suppressed") fail(`dialogue binding ${p.dialogueItemId} is not suppressed`);
-  if (digestLayoutDialogueTextV1(richTextPlainTextV1(p.richText)) !== binding.initialTextDigest) {
-    fail(`restored dialogue text does not match initialTextDigest for ${p.dialogueItemId}`);
-  }
+  const restoredTextDigest = digestLayoutDialogueTextV1(richTextPlainTextV1(p.richText));
   const draft = structuredClone(before);
   const draftBinding = draft.automation.dialogueBindings.find((item) => item.dialogueItemId === p.dialogueItemId)!;
   let restoredId: string;
@@ -738,10 +756,25 @@ function applyRestoreBound(
     }
     if (located.element.locked) fail(`element ${located.element.id} is locked`);
     if (!located.element.hidden) fail(`bound balloon ${located.element.id} is not hidden`);
+    if (canonicalizeJson(located.element.richText) !== canonicalizeJson(p.richText)) {
+      fail(`hidden bound balloon ${located.element.id} richText must stay unchanged while restoring`);
+    }
+    const hasUserTextProtection = before.automation.protections.some((entry) => (
+      entry.targetKind === "element"
+      && entry.targetId === located.element!.id
+      && entry.reason === "user_edit"
+      && entry.scopes.includes("text")
+    ));
+    if (restoredTextDigest !== binding.initialTextDigest && !hasUserTextProtection) {
+      fail(`modified restored dialogue is missing user text protection for ${p.dialogueItemId}`);
+    }
     located.element.hidden = false;
     located.element.richText = structuredClone(p.richText);
     restoredId = located.element.id;
   } else {
+    if (restoredTextDigest !== binding.initialTextDigest) {
+      fail(`restored dialogue text does not match initialTextDigest for ${p.dialogueItemId}`);
+    }
     if (p.create === null) fail("deleted bound balloon restore requires create element");
     const targetCanvas = canvas(draft, p.canvasId);
     const parsed = LayoutElementCodecV1.parseAndNormalize(p.create.element, {

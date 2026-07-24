@@ -173,6 +173,9 @@ function v2Fixture(): {
   };
 } {
   const visible = document();
+  visible.canvases[0]!.elements = visible.canvases[0]!.elements.filter(
+    (element) => element.id !== "text_1",
+  );
   visible.canvases[0]!.elements.push({
     id: "balloon_1",
     type: "balloon",
@@ -565,7 +568,17 @@ describe("G5-M6 layout preflight", () => {
 
     const missing = v2Fixture();
     missing.document.automation.dialogueBindings = [];
-    expect(runV2(missing).issues.map((issue) => issue.code)).toContain("DIALOGUE_BINDING_MISSING");
+    const missingIssue = runV2(missing).issues.find((issue) => issue.code === "DIALOGUE_BINDING_MISSING");
+    expect(missingIssue).toMatchObject({
+      shotId: "shot_1",
+      details: {
+        dialogueItemId: "dialogue_1",
+        speakerName: "A",
+        kind: "speech",
+        sourceText: "OK",
+        currentText: "",
+      },
+    });
 
     const unexpected = v2Fixture();
     unexpected.document.automation.dialogueBindings[0]!.dialogueItemId = "dialogue_unexpected";
@@ -618,6 +631,55 @@ describe("G5-M6 layout preflight", () => {
     expect(runV2(invalidProtection).issues.map((issue) => issue.code)).toContain("LAYOUT_PROTECTION_INVALID");
   });
 
+  it("blocks a formally bound balloon that is visually hidden without a suppression disposition", () => {
+    const invisible = v2Fixture();
+    const boundBalloon = invisible.document.canvases[0]!.elements.find((element) => element.id === "balloon_1");
+    if (!boundBalloon || boundBalloon.type !== "balloon") throw new Error("missing balloon fixture");
+    boundBalloon.transform.opacity = 0;
+
+    const report = runV2(invisible);
+    const issue = report.issues.find((candidate) => (
+      candidate.code === "DIALOGUE_BINDING_DANGLING"
+      && candidate.details.reason === "bound_balloon_not_visible"
+    ));
+
+    expect(report.status).toBe("blocked");
+    expect(report.dialogueCoverage.placedOriginal).toBe(0);
+    expect(issue).toMatchObject({
+      severity: "error",
+      blockingScopes: ["revision", "export"],
+      details: {
+        sourceText: "OK",
+        currentText: "OK",
+      },
+    });
+  });
+
+  it("blocks a formally bound balloon that is completely outside its canvas", () => {
+    const outside = v2Fixture();
+    const targetCanvas = outside.document.canvases[0]!;
+    const boundBalloon = targetCanvas.elements.find((element) => element.id === "balloon_1");
+    if (!boundBalloon || boundBalloon.type !== "balloon") throw new Error("missing balloon fixture");
+    boundBalloon.transform.x = targetCanvas.width + 100;
+
+    const report = runV2(outside);
+    const issue = report.issues.find((candidate) => (
+      candidate.code === "DIALOGUE_BINDING_DANGLING"
+      && candidate.details.reason === "bound_balloon_outside_canvas"
+    ));
+
+    expect(report.status).toBe("blocked");
+    expect(report.dialogueCoverage.placedOriginal).toBe(0);
+    expect(issue).toMatchObject({
+      severity: "error",
+      blockingScopes: ["revision", "export"],
+      details: {
+        sourceText: "OK",
+        currentText: "OK",
+      },
+    });
+  });
+
   it("requires acknowledgement for protected user edits and legal suppression tombstones", () => {
     const modified = v2Fixture();
     const balloon = modified.document.canvases[0]!.elements.find((element) => element.id === "balloon_1");
@@ -629,7 +691,18 @@ describe("G5-M6 layout preflight", () => {
     const modifiedReport = runV2(modified);
     const modifiedIssue = modifiedReport.issues.find((issue) => issue.code === "DIALOGUE_USER_MODIFIED");
     expect(modifiedReport.status).toBe("warning");
-    expect(modifiedIssue).toMatchObject({ severity: "warning", requiresAcknowledgement: true });
+    expect(modifiedIssue).toMatchObject({
+      severity: "warning",
+      requiresAcknowledgement: true,
+      shotId: "shot_1",
+      details: {
+        dialogueItemId: "dialogue_1",
+        speakerName: "A",
+        kind: "speech",
+        sourceText: "OK",
+        currentText: "Edited",
+      },
+    });
     expect(modifiedReport.dialogueCoverage.userModified).toBe(1);
 
     const suppressed = v2Fixture();
@@ -640,8 +713,74 @@ describe("G5-M6 layout preflight", () => {
     const suppressedReport = runV2(suppressed);
     const suppressedIssue = suppressedReport.issues.find((issue) => issue.code === "DIALOGUE_USER_SUPPRESSED");
     expect(suppressedReport.status).toBe("warning");
-    expect(suppressedIssue).toMatchObject({ severity: "warning", requiresAcknowledgement: true });
+    expect(suppressedIssue).toMatchObject({
+      severity: "warning",
+      requiresAcknowledgement: true,
+      shotId: "shot_1",
+      details: {
+        dialogueItemId: "dialogue_1",
+        speakerName: "A",
+        kind: "speech",
+        sourceText: "OK",
+        currentText: "",
+      },
+    });
     expect(suppressedReport.dialogueCoverage.userSuppressed).toBe(1);
+  });
+
+  it("requires one acknowledgement for visible text explicitly added by the user", () => {
+    const fixture = v2Fixture();
+    const text = document("User note").canvases[0]!.elements.find(
+      (element) => element.id === "text_1",
+    );
+    if (!text || text.type !== "text") throw new Error("missing text fixture");
+    fixture.document.canvases[0]!.elements.push(text);
+    fixture.document.automation.protections.push({
+      targetKind: "element",
+      targetId: text.id,
+      scopes: ["existence", "geometry", "text", "style", "reading_order"],
+      reason: "user_edit",
+    });
+
+    const report = runV2(fixture);
+    expect(report.status, JSON.stringify(report.issues, null, 2)).toBe("warning");
+    expect(report.issues.find((issue) => issue.code === "CUSTOM_TEXT_PRESENT")).toMatchObject({
+      severity: "warning",
+      blockingScopes: [],
+      requiresAcknowledgement: true,
+      canvasId: "page_1",
+      elementId: "text_1",
+      details: {
+        sourceText: "",
+        currentText: "User note",
+        elementType: "text",
+        semantic: "caption",
+      },
+    });
+  });
+
+  it("blocks visible narrative text without a formal binding or user ownership evidence", () => {
+    const fixture = v2Fixture();
+    const text = document("System extra text").canvases[0]!.elements.find(
+      (element) => element.id === "text_1",
+    );
+    if (!text || text.type !== "text") throw new Error("missing text fixture");
+    fixture.document.canvases[0]!.elements.push(text);
+
+    const report = runV2(fixture);
+    expect(report.status).toBe("blocked");
+    expect(report.issues.find((issue) => issue.code === "UNOWNED_TEXT_PRESENT")).toMatchObject({
+      severity: "error",
+      blockingScopes: ["revision", "export"],
+      requiresAcknowledgement: false,
+      canvasId: "page_1",
+      elementId: "text_1",
+      details: {
+        currentText: "System extra text",
+        elementType: "text",
+        semantic: "caption",
+      },
+    });
   });
 
   it("blocks stale storyboard composition and source-lock provenance", () => {

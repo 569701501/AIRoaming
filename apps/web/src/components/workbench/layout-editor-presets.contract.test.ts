@@ -160,7 +160,7 @@ function applyBatch(value: LayoutDocumentV1, batch: EditorCommandBatchV1): Layou
   );
 }
 
-test("SFX preset is one batch and preserves text, font size, box geometry and position across snapshot Undo/Redo", () => {
+test("SFX preset is one atomic batch and preserves text, font size, box geometry and position", () => {
   const before = document();
   const batch = buildLayoutSfxPresetBatchV1({
     canvasId: "page",
@@ -196,11 +196,6 @@ test("SFX preset is one batch and preserves text, font size, box geometry and po
       opacity: textElement.transform.opacity,
     },
   );
-
-  const undoSnapshot = structuredClone(before);
-  const redoSnapshot = structuredClone(after);
-  assert.deepEqual(undoSnapshot.canvases[0]?.elements[0], textElement);
-  assert.deepEqual(redoSnapshot.canvases[0]?.elements[0], changed);
 });
 
 test("balloon appearance preset is one visual command and preserves kind, text, tail, object opacity and geometry", () => {
@@ -226,9 +221,4 @@ test("balloon appearance preset is one visual command and preserves kind, text, 
   assert.deepEqual(changed.richText, balloonElement.richText);
   assert.deepEqual(changed.tail, balloonElement.tail);
   assert.deepEqual(changed.transform, balloonElement.transform);
-
-  const undoSnapshot = structuredClone(before);
-  const redoSnapshot = structuredClone(after);
-  assert.deepEqual(undoSnapshot.canvases[0]?.elements[1], balloonElement);
-  assert.deepEqual(redoSnapshot.canvases[0]?.elements[1], changed);
 });
