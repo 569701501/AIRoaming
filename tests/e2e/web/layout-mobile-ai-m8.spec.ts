@@ -30,29 +30,47 @@ test("G5-M8：手机只读与 Pending preview/discard/apply/expire 形成 DB-onl
   );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "导出本章" }).click();
-  await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
 
-  await test.step("画布尺寸两种模式均先预览，并可由一次 Undo 完整恢复", async () => {
+  await test.step("画布尺寸调整先预览后应用，可再次应用改回", async () => {
     const resize = page.getByTestId("layout-profile-resize-preview");
     await expect(resize).toBeVisible();
+    const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
+
     await resize.getByLabel("已有内容处理").selectOption("keep_coordinates");
     await resize.getByLabel("新段默认高").fill("2048");
     await expect(resize).toContainText("已有内容坐标不变");
-    await resize.getByRole("button", { name: "应用尺寸调整（可撤销）" }).click();
-    await page.getByRole("button", { name: "撤销", exact: true }).click();
+    await resize.getByRole("button", { name: "应用尺寸调整" }).click();
+    await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
+    let current = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+    expect(current.document.profile).toMatchObject({ defaultSectionHeight: 2048 });
 
     await resize.getByLabel("已有内容处理").selectOption("scale_uniform");
-    await resize.getByLabel("宽度").fill("1200");
+    await resize.getByLabel("宽度").fill("1080");
     await expect(resize).toContainText("已有内容将等比缩放");
-    await resize.getByRole("button", { name: "应用尺寸调整（可撤销）" }).click();
-    await page.getByRole("button", { name: "撤销", exact: true }).click();
+    await resize.getByLabel("新段默认高").fill("1920");
+    await resize.getByRole("button", { name: "应用尺寸调整" }).click();
+    await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
+    current = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+    expect(current.document.profile).toMatchObject({ width: 1080, defaultSectionHeight: 1920 });
 
     await resize.getByLabel("当前段高度").fill("2000");
-    await resize.getByRole("button", { name: "调整当前段高（可撤销）" }).click();
-    await page.getByRole("button", { name: "撤销", exact: true }).click();
-    await page.getByRole("button", { name: "立即保存" }).click();
+    await resize.getByRole("button", { name: "调整当前段高" }).click();
     await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
+    current = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+    expect(current.document.canvases[0]?.height).toBe(2000);
+
+    await resize.getByLabel("当前段高度").fill("1920");
+    await resize.getByRole("button", { name: "调整当前段高" }).click();
+    await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
+  });
+
+  await test.step("V1 旧格式成稿不能导出", async () => {
+    await page.getByTestId("layout-simple-export").click();
+    const dialog = page.getByTestId("layout-export-dialog");
+    await expect(dialog).toContainText("当前成稿还是旧格式");
+    await dialog.getByRole("button", { name: "返回修改" }).click();
+    await expect(dialog).toBeHidden();
   });
 
   const before = (await api.get<LayoutWorkingCopyResponseV1>(
@@ -201,7 +219,7 @@ test("G5-M8：手机只读与 Pending preview/discard/apply/expire 形成 DB-onl
     const apiRequests = previewRequests.filter((request) => request.url.startsWith(runtime.apiBaseUrl));
     expect(apiRequests.length).toBeGreaterThan(0);
     expect(apiRequests.filter((request) => !["GET", "HEAD"].includes(request.method))).toEqual([]);
-    const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence");
+    const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence");
     await mkdir(evidenceRoot, { recursive: true });
     await page.screenshot({ path: path.join(evidenceRoot, "g5_m8_mobile_ai.png"), fullPage: true });
   });

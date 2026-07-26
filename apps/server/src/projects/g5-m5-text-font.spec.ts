@@ -52,6 +52,6 @@ describe("G5-M5 font, rich text, and balloon authority", () => {
     expect(renderer).toContain("resolveLayoutBalloonVisualRoleV1");
     expect(workspace).toContain("collectLayoutTextIssuesV1");
     expect(workspace).toContain("balloon.set_tail");
-    expect(workspace).toContain("文字模式只编辑内部文字");
+    expect(workspace).toContain("在画布上直接拖动即可移动气泡");
   });
 });

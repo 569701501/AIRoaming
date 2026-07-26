@@ -88,7 +88,7 @@ describe("W1 DB-only Web route gate", () => {
     expect(service).toContain('LAYOUT_PREFLIGHT_ACKNOWLEDGEMENT_REQUIRED');
     expect(webApi).toContain('previewLayoutSourceReplacements');
     expect(webApi).toContain('commitLayoutSourceReplacements');
-    expect(workspace).toContain('不会改写旧版本');
-    expect(workspace).toContain('恢复只覆盖当前草稿，不影响正式版本');
+    expect(workspace).not.toContain('layout-revision-history');
+    expect(workspace).not.toContain('恢复到草稿');
   });
 });

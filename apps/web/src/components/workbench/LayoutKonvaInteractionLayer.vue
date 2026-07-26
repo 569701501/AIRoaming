@@ -2,7 +2,7 @@
   <div
     ref="container"
     class="layout-konva-interaction-layer"
-    :class="{ 'is-pass-through': activeTool === 'text' || readOnly }"
+    :class="{ 'is-pass-through': readOnly }"
     data-testid="layout-konva-interaction-layer"
     role="application"
     aria-label="成稿画布直接操作层"
@@ -34,7 +34,7 @@ const props = defineProps<{
   canvas: LayoutCanvasV1;
   selectedElementIds: string[];
   zoom: number;
-  activeTool: "select" | "text" | "pan" | "crop";
+  activeTool: "select" | "pan" | "crop";
   readOnly: boolean;
 }>();
 
@@ -537,7 +537,7 @@ function handleStagePointerUp(event: Konva.KonvaEventObject<PointerEvent>): void
 }
 
 function handleStageWheel(event: Konva.KonvaEventObject<WheelEvent>): void {
-  if (props.readOnly || props.activeTool === "text") return;
+  if (props.readOnly) return;
   event.evt.preventDefault();
   const factor = Math.exp(-event.evt.deltaY * 0.0015);
   const zoom = Math.max(0.1, Math.min(0.8, Math.round(props.zoom * factor * 100) / 100));

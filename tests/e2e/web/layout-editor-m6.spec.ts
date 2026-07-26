@@ -2,118 +2,125 @@ import { createRequire } from "node:module";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { DatabaseSync as NodeDatabaseSync } from "node:sqlite";
-import type {
-  LayoutRevisionHistoryResponseV1,
-  LayoutWorkingCopyResponseV1,
+import {
+  LayoutDocumentCodecV1,
+  LayoutDocumentCodecV2,
+  projectLayoutDocumentV2ToV1,
+  type LayoutDocumentV2,
+  type LayoutRevisionHistoryResponseV2,
+  type LayoutWorkingCopyResponseV1,
+  type RestoreLayoutRevisionResponseV2,
 } from "@airoaming/shared";
 
 import { expect, test } from "../support/e2e-fixture.ts";
+import { completeSimpleExportFlow } from "../support/layout-export-flow.ts";
 import {
   lockCandidate,
   prepareG4CandidateFixture,
   replaceCandidate,
 } from "../support/g4-candidate-fixture.ts";
-import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
 };
 
-test("G5-M6：来源返修、不可变版本、预检确认与历史恢复形成 DB-only 闭环", async ({
+test("G5-M6 基础版：来源同步、正式版本与 API 历史恢复形成 DB-only 闭环", async ({
   api,
   page,
   rainSmokeProject,
   runtime,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence");
+  const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence");
   await mkdir(evidenceRoot, { recursive: true });
 
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   const firstLock = await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
-  await initializeLegacyLayoutWorkingCopy(
-    api,
-    rainSmokeProject,
-    fixture.projectId,
-    fixture.chapterId,
-  );
 
+  const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "导出本章" }).click();
-  await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
-  const initialWorkingCopy = await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  );
+  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
+  const initialWorkingCopy = await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl);
   const initialSource = initialWorkingCopy.data.document.canvases[0]!.elements[0];
   if (initialSource?.type !== "panel_frame" || !initialSource.contentImage) throw new Error("G5_M6_INITIAL_SOURCE_MISSING");
 
   const replacement = await replaceCandidate(api, fixture, fixture.candidateIds[1]!);
   expect(replacement.revision.previousRevisionId).toBe(firstLock.revision.id);
   await page.reload();
-  await page.getByRole("button", { name: "导出本章" }).click();
-  await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
-  const controls = page.getByTestId("layout-m6-control-center");
-  await controls.getByLabel("裁切处理").selectOption("preserve_normalized_crop");
-  await controls.getByRole("button", { name: "预览全部", exact: true }).click();
-  const preview = page.getByTestId("source-replacement-preview");
-  await expect(preview).toContainText("不会改写旧版本");
-  await expect(preview).toContainText(initialSource.contentImage.id);
-  await page.screenshot({ path: path.join(evidenceRoot, "g5_m6_source_replacement_preview.png"), fullPage: true });
-  await preview.getByRole("button", { name: "确认提交替换" }).click();
-  await expect(controls).toContainText("当前定稿");
-
-  await expect(page.getByTitle("撤销")).toBeEnabled();
-  await page.getByTitle("撤销").click();
-  const saveNow = page.getByRole("button", { name: "立即保存" });
-  await expect(saveNow).toBeEnabled();
-  await saveNow.click();
+  const sourceBanner = page.getByTestId("candidate-source-status");
+  await expect(sourceBanner).toContainText("候选定稿已变化");
+  await page.screenshot({ path: path.join(evidenceRoot, "g5_m6_source_attention.png"), fullPage: true });
+  await sourceBanner.getByRole("button", { name: "同步最新镜头" }).click();
+  await expect(page.getByTestId("candidate-source-status")).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
-  await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
-  await expect(page.getByTitle("重做")).toBeEnabled();
-  await page.getByTitle("重做").click();
-  await expect(saveNow).toBeEnabled();
-  await saveNow.click();
-  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
-  await expect(controls).toContainText("当前定稿");
 
-  await controls.getByRole("button", { name: "重新预检" }).click();
-  const preflight = page.getByTestId("layout-preflight-result");
-  await expect(preflight).toBeVisible();
-  const acknowledgementBoxes = preflight.locator('input[type="checkbox"]');
-  for (let index = 0; index < await acknowledgementBoxes.count(); index += 1) {
-    await acknowledgementBoxes.nth(index).check();
-  }
-  const saveRevision = preflight.getByRole("button", { name: "保存不可变版本" });
-  await expect(saveRevision).toBeEnabled();
-  await saveRevision.click();
-  const history = page.getByTestId("layout-revision-history");
-  await expect(history).toContainText("版本 1");
-  await expect(history).toContainText("当前正式");
+  // E2E 图片服务返回真实 1×1 PNG；导出前把画格校准为 1×1，避免有效分辨率阻断。
+  const synced = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+  const syncedDocument = structuredClone(synced.document) as LayoutDocumentV2;
+  const syncedPanel = syncedDocument.canvases[0]?.elements.find((element) => element.type === "panel_frame");
+  if (syncedPanel?.type !== "panel_frame" || !syncedPanel.contentImage) throw new Error("G5_M6_SYNCED_PANEL_MISSING");
+  syncedPanel.transform = { ...syncedPanel.transform, x: 64, y: 64, width: 1, height: 1 };
+  syncedPanel.shape.cornerRadius = 0;
+  syncedPanel.contentImage.crop = { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false };
+  const syncedEncoded = LayoutDocumentCodecV2.encode(syncedDocument);
+  await api.put(workingCopyUrl, {
+    schemaVersion: 1,
+    expectedRowVersion: synced.rowVersion,
+    baseDocumentDigest: synced.documentDigest,
+    documentDigest: syncedEncoded.digest,
+    document: syncedEncoded.value,
+  });
+  await page.reload();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
 
-  const createdHistory = await api.get<LayoutRevisionHistoryResponseV1>(
+  await page.getByTestId("layout-simple-export").click();
+  const exportDialog = page.getByTestId("layout-export-dialog");
+  await expect(exportDialog).toBeVisible();
+  await completeSimpleExportFlow(exportDialog, async () => {
+    await expect(exportDialog).toContainText("首次排版沿用了人工确认的镜头更换");
+  });
+  await exportDialog.getByRole("button", { name: "完成" }).click();
+  await expect(exportDialog).toBeHidden();
+
+  const createdHistory = await api.get<LayoutRevisionHistoryResponseV2>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions`,
   );
   expect(createdHistory.data.items).toHaveLength(1);
   expect(createdHistory.data.items[0]).toMatchObject({ revision: 1, sourceResolution: "current" });
+  const currentRevisionId = createdHistory.data.currentLayoutRevisionId;
+  if (!currentRevisionId) throw new Error("G5_M6_CURRENT_REVISION_MISSING");
 
   await page.getByRole("button", { name: "新增段落", exact: true }).click();
-  if (await saveNow.isEnabled()) await saveNow.click();
   await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
-  let changed = await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  );
-  expect(changed.data.document.canvases).toHaveLength(2);
+  const changed = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+  expect(changed.document.canvases).toHaveLength(2);
 
-  page.once("dialog", (dialog) => dialog.accept());
-  await history.getByRole("button", { name: "恢复到草稿" }).click();
-  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
-  changed = await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  );
-  expect(changed.data.document.canvases).toHaveLength(1);
+  const changedRevisionDigest = LayoutDocumentCodecV2.encode(changed.document as LayoutDocumentV2).digest;
+  const changedVisibleDigest = LayoutDocumentCodecV1.encode(
+    projectLayoutDocumentV2ToV1(changed.document as LayoutDocumentV2),
+  ).digest;
+  const restored = (await api.post<RestoreLayoutRevisionResponseV2>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions/${currentRevisionId}/restore-to-working-copy`,
+    {
+      schemaVersion: 2,
+      expectedWorkingCopyRowVersion: changed.rowVersion,
+      expectedWorkingCopyRevisionDocumentDigest: changedRevisionDigest,
+      expectedWorkingCopyVisibleDocumentDigest: changedVisibleDigest,
+    },
+  )).data;
+  expect(restored).toMatchObject({
+    result: "restored",
+    restoredFromRevisionId: currentRevisionId,
+  });
+  const afterRestore = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+  expect(afterRestore.document.canvases).toHaveLength(1);
+  expect(afterRestore.basedOnRevisionId).toBe(currentRevisionId);
+  expect((await api.get<LayoutRevisionHistoryResponseV2>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions`,
+  )).data.currentLayoutRevisionId).toBe(currentRevisionId);
 
   const database = new DatabaseSync(runtime.databasePath);
   try {

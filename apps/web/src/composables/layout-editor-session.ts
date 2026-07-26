@@ -133,7 +133,7 @@ function toV2UserCommand(
     }
   }
   return {
-    ...structuredClone(command),
+    ...JSON.parse(JSON.stringify(command)) as EditorCommandV1,
     schemaVersion: 2,
     actor: "user",
   } as EditorCommandV2;

@@ -9,7 +9,6 @@ import {
   lockCandidate,
   prepareG4CandidateFixture,
 } from "../support/g4-candidate-fixture.ts";
-import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
@@ -27,12 +26,6 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
-  await initializeLegacyLayoutWorkingCopy(
-    api,
-    rainSmokeProject,
-    fixture.projectId,
-    fixture.chapterId,
-  );
 
   const database = new DatabaseSync(runtime.databasePath);
   const sourceBefore = await api.get<LayoutSourceCatalogResponseV1>(
@@ -50,13 +43,11 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
     await expect(page.getByRole("region", { name: "成稿编辑器", exact: true })).toBeVisible();
 
     const shotTray = page.getByTestId("shot-tray");
-    await expect(shotTray).toBeVisible();
+    await expect(shotTray).toBeVisible({ timeout: 45_000 });
     await expect(shotTray).toContainText("镜头 1");
     await expect(shotTray).toContainText("已放置 1 处");
     await expect(page.getByTestId("layout-preset-picker")).toBeVisible();
 
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "按镜头排版", exact: true }).click();
     await expect(page.locator(".canvas-navigation .canvas-nav-item")).toHaveCount(1);
 
     await page.getByRole("button", { name: "左右双格 2 格" }).click();
@@ -112,7 +103,7 @@ test("G5-M4：当前定稿素材、模板、裁切与 DB-only 保存形成真实
     expect(pageErrors).toEqual([]);
 
     const evidenceRoot = path.resolve(
-      "文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence",
+      "文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence",
     );
     await mkdir(evidenceRoot, { recursive: true });
     await page.screenshot({ path: path.join(evidenceRoot, "g5_m4_layout_editor.png"), fullPage: true });

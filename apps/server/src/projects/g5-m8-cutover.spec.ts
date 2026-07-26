@@ -25,8 +25,8 @@ describe("G5-M8 mobile, AI and legacy cutover contract", () => {
       readFile(new URL("./layout-pending-command.service.ts", import.meta.url), "utf8"),
       readFile(new URL("../../../../packages/shared/src/layout/pending.ts", import.meta.url), "utf8"),
     ]);
-    expect(workspace).toContain("const aiDrawerOpen = ref(false)");
-    expect(workspace).toContain('data-testid="layout-ai-command-preview"');
+    expect(workspace).not.toContain("aiDrawerOpen");
+    expect(workspace).not.toContain('data-testid="layout-ai-command-preview"');
     expect(workspace).toContain("session.currentCanvas.value");
     expect(workspace).toContain('data-testid="layout-profile-resize-preview"');
     expect(workspace).toContain("previewLayoutProfileResizeV1");

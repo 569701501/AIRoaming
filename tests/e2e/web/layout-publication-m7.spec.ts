@@ -13,7 +13,6 @@ import {
   taskSourceProjectionDigest,
   type CandidateImageSourceV1,
   type GenerationTaskItem,
-  type LayoutPublicationHistoryResponseV1,
   type LayoutPublicationHistoryResponseV2,
   type LayoutPreflightReportV2,
   type LayoutRevisionHistoryResponseV2,
@@ -24,18 +23,22 @@ import {
 } from "@airoaming/shared";
 
 import { expect, test } from "../support/e2e-fixture.ts";
+import { completeSimpleExportFlow } from "../support/layout-export-flow.ts";
 import {
   lockCandidate,
   prepareG4CandidateFixture,
   replaceCandidate,
 } from "../support/g4-candidate-fixture.ts";
-import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
 };
 
-test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 闭环", async ({
+const evidenceRoot = path.resolve(
+  "文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence",
+);
+
+test("G5-M7 基础版：首次自动排版后一次导出形成 DB-only 闭环", async ({
   api,
   page,
   rainSmokeProject,
@@ -48,77 +51,37 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
-  await initializeLegacyLayoutWorkingCopy(
-    api,
-    rainSmokeProject,
-    fixture.projectId,
-    fixture.chapterId,
-  );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await page.getByRole("button", { name: "导出本章" }).click();
-  await expect(page.getByTestId("layout-m6-control-center")).toBeVisible();
+  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
 
   // E2E 图片服务返回真实 1×1 PNG；把画格同步成 1×1，避免伪造来源尺寸，仍由渲染器读取原始字节。
-  const workingCopy = (await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  )).data;
-  const document = structuredClone(workingCopy.document);
+  const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
+  const workingCopy = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
+  expect(workingCopy.document.schemaVersion).toBe(2);
+  const document = structuredClone(workingCopy.document) as LayoutDocumentV2;
   const panel = document.canvases[0]?.elements[0];
   if (panel?.type !== "panel_frame" || !panel.contentImage) throw new Error("G5_M7_E2E_PANEL_MISSING");
   panel.transform = { ...panel.transform, x: 64, y: 64, width: 1, height: 1 };
   panel.shape.cornerRadius = 0;
   panel.contentImage.crop = { zoom: 1, offsetX: 0, offsetY: 0, rotation: 0, flipX: false, flipY: false };
-  const encoded = LayoutDocumentCodecV1.encode(document);
-  await api.put<SaveLayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-    {
-      schemaVersion: 1,
-      expectedRowVersion: workingCopy.rowVersion,
-      baseDocumentDigest: workingCopy.documentDigest,
-      documentDigest: encoded.digest,
-      document: encoded.value,
-    },
-  );
+  const encoded = LayoutDocumentCodecV2.encode(document);
+  await api.put<SaveLayoutWorkingCopyResponseV1>(workingCopyUrl, {
+    schemaVersion: 1,
+    expectedRowVersion: workingCopy.rowVersion,
+    baseDocumentDigest: workingCopy.documentDigest,
+    documentDigest: encoded.digest,
+    document: encoded.value,
+  });
   await page.reload();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
 
-  await page.getByRole("button", { name: "导出本章" }).click();
-  await page.getByTestId("layout-m6-control-center").getByRole("button", { name: "重新预检" }).click();
-  const revisionPreflight = page.getByTestId("layout-preflight-result");
-  await expect(revisionPreflight).toBeVisible();
-  const revisionAcknowledgements = revisionPreflight.locator('input[type="checkbox"]');
-  for (let index = 0; index < await revisionAcknowledgements.count(); index += 1) {
-    await revisionAcknowledgements.nth(index).check();
-  }
-  await revisionPreflight.getByRole("button", { name: "保存不可变版本" }).click();
-  await expect(page.getByTestId("layout-revision-history")).toContainText("当前正式");
+  await page.getByTestId("layout-simple-export").click();
+  const exportDialog = page.getByTestId("layout-export-dialog");
+  await expect(exportDialog).toBeVisible();
+  await completeSimpleExportFlow(exportDialog);
 
-  const publicationCenter = page.getByTestId("layout-publication-center");
-  await publicationCenter.getByRole("button", { name: "运行导出预检" }).click();
-  const publicationPreflight = page.getByTestId("layout-publication-preflight");
-  await expect(publicationPreflight).toBeVisible();
-  const publicationAcknowledgements = publicationPreflight.locator('input[type="checkbox"]');
-  for (let index = 0; index < await publicationAcknowledgements.count(); index += 1) {
-    await publicationAcknowledgements.nth(index).check();
-  }
-  await publicationPreflight.getByRole("button", { name: "开始正式出版" }).click();
-
-  const publicationHistory = page.getByTestId("layout-publication-history");
-  await expect.poll(async () => {
-    const publications = (await api.get<LayoutPublicationHistoryResponseV1>(
-      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/exports/layout-publications`,
-    )).data;
-    const publication = publications.items[0];
-    if (publication?.status === "failed") {
-      const tasks = (await api.get<{ items: GenerationTaskItem[] }>("/tasks")).data.items;
-      const task = tasks.find((item) => item.id === publication.taskId);
-      throw new Error(`G5_M7_E2E_PUBLICATION_FAILED:${JSON.stringify(task?.error ?? null)}`);
-    }
-    return publication?.status;
-  }, { timeout: 45_000 }).toBe("ready");
-  await expect(publicationHistory).toContainText("出版 1 · 已完成");
-  await expect(publicationHistory).toContainText("当前成品");
-  const sliceLink = publicationHistory.getByRole("link", { name: "条漫切片 1" });
+  const sliceLink = exportDialog.getByRole("link", { name: "条漫切片 1" });
   await expect(sliceLink).toBeVisible();
   const sliceHref = await sliceLink.getAttribute("href");
   if (!sliceHref) throw new Error("G5_M7_E2E_SLICE_HREF_MISSING");
@@ -127,7 +90,7 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   expect(sliceResponse.headers()["content-type"]).toContain("image/png");
   expect((await sliceResponse.body()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
 
-  const history = (await api.get<LayoutPublicationHistoryResponseV1>(
+  const history = (await api.get<LayoutPublicationHistoryResponseV2>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/exports/layout-publications`,
   )).data;
   expect(history.currentExportRevisionId).toBe(history.items[0]?.id);
@@ -169,12 +132,11 @@ test("G5-M7：页面正式出版、持久任务和可读取产物形成 DB-only 
   }
 
   expect(pageErrors).toEqual([]);
-  const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence");
   await mkdir(evidenceRoot, { recursive: true });
   await page.screenshot({ path: path.join(evidenceRoot, "g5_m7_publication_ready.png"), fullPage: true });
 });
 
-test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成真实用户闭环", async ({
+test("专业成稿 V2 基础版：来源同步、并发冲突、导出、API 恢复与手机预览闭环", async ({
   api,
   page,
   rainSmokeProject,
@@ -191,9 +153,8 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   await page.goto(`/projects/${fixture.projectId}/layout`);
   await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 35_000 });
 
-  const initial = (await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  )).data;
+  const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
+  const initial = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
   expect(initial.document.schemaVersion).toBe(2);
   const initialDocument = initial.document as LayoutDocumentV2;
   const canvas = initialDocument.canvases[0];
@@ -262,36 +223,23 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
     ],
   }).document;
   const tuned = LayoutDocumentCodecV2.encode(tunedDocument);
-  await api.put<SaveLayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-    {
-      schemaVersion: 1,
-      expectedRowVersion: initial.rowVersion,
-      baseDocumentDigest: initial.documentDigest,
-      documentDigest: tuned.digest,
-      document: tuned.value,
-    },
-  );
+  await api.put<SaveLayoutWorkingCopyResponseV1>(workingCopyUrl, {
+    schemaVersion: 1,
+    expectedRowVersion: initial.rowVersion,
+    baseDocumentDigest: initial.documentDigest,
+    documentDigest: tuned.digest,
+    document: tuned.value,
+  });
 
   const replacementLock = await replaceCandidate(api, fixture, fixture.candidateIds[1]!);
   expect(replacementLock.revision.previousRevisionId).toBe(originalLock.revision.id);
   await page.reload();
-  await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
-  await page.getByRole("button", { name: "导出本章" }).click();
-  const controls = page.getByTestId("layout-m6-control-center");
-  await controls.getByRole("button", { name: "重新预检" }).click();
-  const staleSourcePreflight = page.getByTestId("layout-preflight-result");
-  await expect(staleSourcePreflight).toContainText("图片仍引用旧定稿");
-  await expect(staleSourcePreflight.getByRole("button", { name: "保存不可变版本" })).toBeDisabled();
-  await controls.getByRole("button", { name: "预览全部", exact: true }).click();
-  const replacementPreview = page.getByTestId("source-replacement-preview");
-  await expect(replacementPreview).toContainText("不会改写旧版本");
-  await replacementPreview.getByRole("button", { name: "确认提交替换" }).click();
-  await expect(controls).toContainText("当前定稿");
+  const sourceBanner = page.getByTestId("candidate-source-status");
+  await expect(sourceBanner).toContainText("候选定稿已变化");
+  await sourceBanner.getByRole("button", { name: "同步最新镜头" }).click();
+  await expect(page.getByTestId("candidate-source-status")).toHaveCount(0, { timeout: 15_000 });
 
-  const replaced = (await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  )).data;
+  const replaced = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
   expect(replaced.document.schemaVersion).toBe(2);
   const replacedDocument = replaced.document as LayoutDocumentV2;
   expect(replacedDocument.automation.composition).toEqual(tuned.value.automation.composition);
@@ -332,22 +280,9 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
     }));
   }
 
-  // 来源替换在编辑器中只形成一条历史记录。
-  const saveNow = page.getByRole("button", { name: "立即保存" });
-  await expect(page.getByTitle("撤销")).toBeEnabled();
-  await page.getByTitle("撤销").click();
-  await expect(saveNow).toBeEnabled();
-  await saveNow.click();
-  await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿已变化");
-  await expect(page.getByTitle("重做")).toBeEnabled();
-  await page.getByTitle("重做").click();
-  await expect(saveNow).toBeEnabled();
-  await saveNow.click();
-  await expect(controls).toContainText("当前定稿");
-
-  const finalWorkingCopy = (await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  )).data;
+  // 基础版没有撤销：来源同步由自动保存直接落库，服务端草稿必须与提交结果一致。
+  await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
+  const finalWorkingCopy = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
   expect(finalWorkingCopy.documentDigest).toBe(replaced.documentDigest);
   const finalDocument = finalWorkingCopy.document as LayoutDocumentV2;
   const finalRevisionDigest = LayoutDocumentCodecV2.encode(finalDocument).digest;
@@ -371,16 +306,13 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   const concurrentlyChangedDocument = structuredClone(finalDocument);
   concurrentlyChangedDocument.canvases[0]!.name = "预检后并发摘要变化";
   const concurrentlyChanged = LayoutDocumentCodecV2.encode(concurrentlyChangedDocument);
-  const concurrentlyChangedSave = (await api.put<SaveLayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-    {
-      schemaVersion: 1,
-      expectedRowVersion: finalWorkingCopy.rowVersion,
-      baseDocumentDigest: finalWorkingCopy.documentDigest,
-      documentDigest: concurrentlyChanged.digest,
-      document: concurrentlyChanged.value,
-    },
-  )).data.value;
+  const concurrentlyChangedSave = (await api.put<SaveLayoutWorkingCopyResponseV1>(workingCopyUrl, {
+    schemaVersion: 1,
+    expectedRowVersion: finalWorkingCopy.rowVersion,
+    baseDocumentDigest: finalWorkingCopy.documentDigest,
+    documentDigest: concurrentlyChanged.digest,
+    document: concurrentlyChanged.value,
+  })).data.value;
   await expect(api.post(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions`,
     {
@@ -398,28 +330,22 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   expect((await api.get<LayoutRevisionHistoryResponseV2>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions`,
   )).data.items).toHaveLength(0);
-  await api.put<SaveLayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-    {
-      schemaVersion: 1,
-      expectedRowVersion: concurrentlyChangedSave.rowVersion,
-      baseDocumentDigest: concurrentlyChangedSave.documentDigest,
-      documentDigest: finalRevisionDigest,
-      document: finalDocument,
-    },
-  );
-  await page.reload();
-  await page.getByRole("button", { name: "导出本章" }).click();
+  await api.put<SaveLayoutWorkingCopyResponseV1>(workingCopyUrl, {
+    schemaVersion: 1,
+    expectedRowVersion: concurrentlyChangedSave.rowVersion,
+    baseDocumentDigest: concurrentlyChangedSave.documentDigest,
+    documentDigest: finalRevisionDigest,
+    document: finalDocument,
+  });
 
-  await controls.getByRole("button", { name: "重新预检" }).click();
-  const revisionPreflight = page.getByTestId("layout-preflight-result");
-  await expect(revisionPreflight).toContainText("智能成稿沿用了人工确认的来源覆盖");
-  const revisionAcknowledgements = revisionPreflight.locator('input[type="checkbox"]');
-  for (let index = 0; index < await revisionAcknowledgements.count(); index += 1) {
-    await revisionAcknowledgements.nth(index).check();
-  }
-  await revisionPreflight.getByRole("button", { name: "保存不可变版本" }).click();
-  await expect(page.getByTestId("layout-revision-history")).toContainText("当前正式");
+  await page.reload();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
+  await page.getByTestId("layout-simple-export").click();
+  const exportDialog = page.getByTestId("layout-export-dialog");
+  await expect(exportDialog).toBeVisible();
+  await completeSimpleExportFlow(exportDialog, async () => {
+    await expect(exportDialog).toContainText("首次排版沿用了人工确认的镜头更换");
+  });
 
   const revisionHistory = (await api.get<LayoutRevisionHistoryResponseV2>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions`,
@@ -433,32 +359,6 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   }
   expect(currentRevision.revisionDocumentDigest).toBe(finalRevisionDigest);
   expect(currentRevision.visibleDocumentDigest).toBe(finalVisibleDigest);
-
-  const publicationCenter = page.getByTestId("layout-publication-center");
-  await publicationCenter.getByRole("button", { name: "运行导出预检" }).click();
-  const publicationPreflight = page.getByTestId("layout-publication-preflight");
-  await expect(publicationPreflight).toContainText("智能成稿沿用了人工确认的来源覆盖");
-  const publicationAcknowledgements = publicationPreflight.locator('input[type="checkbox"]');
-  for (let index = 0; index < await publicationAcknowledgements.count(); index += 1) {
-    await publicationAcknowledgements.nth(index).check();
-  }
-  await publicationPreflight.getByRole("button", { name: "开始正式出版" }).click();
-
-  await expect.poll(async () => {
-    const history = (await api.get<LayoutPublicationHistoryResponseV2>(
-      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/exports/layout-publications`,
-    )).data;
-    const publication = history.items[0];
-    if (publication?.status === "failed") {
-      const tasks = (await api.get<{ items: GenerationTaskItem[] }>("/tasks")).data.items;
-      const task = tasks.find((item) => item.id === publication.taskId);
-      throw new Error(`LAYOUT_V2_E2E_PUBLICATION_FAILED:${JSON.stringify(task?.error ?? null)}`);
-    }
-    return publication?.status;
-  }, { timeout: 45_000 }).toBe("ready");
-  const publicationHistoryPanel = page.getByTestId("layout-publication-history");
-  await expect(publicationHistoryPanel).toContainText("出版 1 · 已完成", { timeout: 15_000 });
-  await expect(publicationHistoryPanel).toContainText("当前成品");
 
   const publicationHistory = (await api.get<LayoutPublicationHistoryResponseV2>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/exports/layout-publications`,
@@ -484,6 +384,7 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
     "publication_manifest",
     "strip_slice_png",
   ]);
+  await expect(exportDialog.getByRole("link", { name: "条漫切片 1" })).toBeVisible();
 
   const database = new DatabaseSync(runtime.databasePath);
   try {
@@ -567,72 +468,53 @@ test("专业成稿 V2：来源覆盖确认、双摘要版本与 V2 出版形成�
   }
 
   expect(pageErrors).toEqual([]);
-  const evidenceRoot = path.resolve(
-    "文档/05_执行与记录/任务记录/2026-07-24_漫画成稿专业编辑实施/evidence",
-  );
   await mkdir(evidenceRoot, { recursive: true });
   await page.screenshot({
-    path: path.join(evidenceRoot, "v2来源覆盖与正式出版.png"),
+    path: path.join(evidenceRoot, "v2来源同步与正式导出.png"),
     fullPage: true,
   });
 
-  // V2 历史恢复必须走真实服务事务：先保存一份不同草稿，再从 UI 恢复
+  // V2 历史恢复必须走真实服务事务：先保存一份不同草稿，再经 API 恢复
   // 当前不可变版本；相同旧期望重试应精确 replay，且不移动正式版本指针。
-  const beforeRestore = (await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-  )).data;
+  const beforeRestore = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
   const changedBeforeRestore = structuredClone(beforeRestore.document as LayoutDocumentV2);
   changedBeforeRestore.canvases[0]!.name = "V2 历史恢复事务验证";
   const changedBeforeRestoreEncoded = LayoutDocumentCodecV2.encode(changedBeforeRestore);
   const changedBeforeRestoreVisibleDigest = LayoutDocumentCodecV1.encode(
     projectLayoutDocumentV2ToV1(changedBeforeRestoreEncoded.value),
   ).digest;
-  const changedWorkingCopy = (await api.put<SaveLayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-    {
-      schemaVersion: 1,
-      expectedRowVersion: beforeRestore.rowVersion,
-      baseDocumentDigest: beforeRestore.documentDigest,
-      documentDigest: changedBeforeRestoreEncoded.digest,
-      document: changedBeforeRestoreEncoded.value,
-    },
-  )).data.value;
+  const changedWorkingCopy = (await api.put<SaveLayoutWorkingCopyResponseV1>(workingCopyUrl, {
+    schemaVersion: 1,
+    expectedRowVersion: beforeRestore.rowVersion,
+    baseDocumentDigest: beforeRestore.documentDigest,
+    documentDigest: changedBeforeRestoreEncoded.digest,
+    document: changedBeforeRestoreEncoded.value,
+  })).data.value;
   expect(changedWorkingCopy.documentDigest).not.toBe(finalRevisionDigest);
 
-  await page.reload();
-  await page.getByRole("button", { name: "导出本章" }).click();
-  page.once("dialog", async (dialog) => {
-    expect(dialog.type()).toBe("confirm");
-    await dialog.accept();
-  });
-  await page.getByTestId("layout-revision-history")
-    .getByRole("button", { name: "恢复到草稿" })
-    .first()
-    .click();
-  await expect.poll(async () => (
-    await api.get<LayoutWorkingCopyResponseV1>(
-      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
-    )
-  ).data.documentDigest).toBe(finalRevisionDigest);
-  const restoredWorkingCopy = (await api.get<LayoutWorkingCopyResponseV1>(
-    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
+  const restoreBody = {
+    schemaVersion: 2 as const,
+    expectedWorkingCopyRowVersion: changedWorkingCopy.rowVersion,
+    expectedWorkingCopyRevisionDocumentDigest: changedBeforeRestoreEncoded.digest,
+    expectedWorkingCopyVisibleDocumentDigest: changedBeforeRestoreVisibleDigest,
+  };
+  const restored = (await api.post<RestoreLayoutRevisionResponseV2>(
+    `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions/${currentRevision.id}/restore-to-working-copy`,
+    restoreBody,
   )).data;
-  expect(restoredWorkingCopy).toMatchObject({
-    basedOnRevisionId: currentRevision.id,
-    documentDigest: finalRevisionDigest,
-    document: {
-      schemaVersion: 2,
-      automation: finalDocument.automation,
+  expect(restored).toMatchObject({
+    schemaVersion: 2,
+    result: "restored",
+    restoredFromRevisionId: currentRevision.id,
+    workingCopy: {
+      basedOnRevisionId: currentRevision.id,
+      documentDigest: finalRevisionDigest,
+      document: { schemaVersion: 2 },
     },
   });
   const replayedRestore = (await api.post<RestoreLayoutRevisionResponseV2>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/revisions/${currentRevision.id}/restore-to-working-copy`,
-    {
-      schemaVersion: 2,
-      expectedWorkingCopyRowVersion: changedWorkingCopy.rowVersion,
-      expectedWorkingCopyRevisionDocumentDigest: changedBeforeRestoreEncoded.digest,
-      expectedWorkingCopyVisibleDocumentDigest: changedBeforeRestoreVisibleDigest,
-    },
+    restoreBody,
   )).data;
   expect(replayedRestore).toMatchObject({
     schemaVersion: 2,

@@ -11,15 +11,12 @@ import type {
 
 import { expect, test } from "../support/e2e-fixture.ts";
 import { lockCandidate, prepareG4CandidateFixture } from "../support/g4-candidate-fixture.ts";
-import { initializeLegacyLayoutWorkingCopy } from "../support/g5-layout-fixture.ts";
 
 const { DatabaseSync } = createRequire(path.join(process.cwd(), "package.json"))("node:sqlite") as {
   readonly DatabaseSync: typeof NodeDatabaseSync;
 };
 
 async function saveNow(page: import("@playwright/test").Page): Promise<void> {
-  const button = page.getByRole("button", { name: "立即保存" });
-  if (await button.isEnabled()) await button.click();
   await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
 }
 
@@ -80,20 +77,14 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
   await lockCandidate(api, fixture, fixture.candidateIds[0]!);
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
-  await initializeLegacyLayoutWorkingCopy(
-    api,
-    rainSmokeProject,
-    fixture.projectId,
-    fixture.chapterId,
-  );
 
   await page.setViewportSize({ width: 1180, height: 900 });
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await expect(page.getByTestId("shot-tray")).toBeVisible();
+  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
   await expect(page.getByRole("button", { name: "手机预览" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "导出本章" })).toBeVisible();
+  await expect(page.getByTestId("layout-simple-export")).toBeVisible();
   const textStateEvidenceRoot = path.resolve(
-    "文档/05_执行与记录/任务记录/2026-07-24_漫画成稿文字状态修复/evidence",
+    "文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence",
   );
   await mkdir(textStateEvidenceRoot, { recursive: true });
   await page.screenshot({
@@ -134,8 +125,6 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
     (element): element is TextElementV1 => element.type === "text",
   )!;
   expect(replacedWholeText.richText.paragraphs.flatMap((paragraph) => paragraph.runs).map((run) => run.text).join("")).toBe("整段替换");
-  await page.getByTitle("撤销").click();
-  await expect(editor).toContainText("输入文字");
   await editor.evaluate((element) => {
     const span = element.querySelector(".editor-paragraph span");
     if (!span) throw new Error("RICH_TEXT_SPAN_MISSING");
@@ -145,22 +134,9 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
     element.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "中文输入" }));
   });
   await expect(editor).toContainText("中文输入");
-  await page.getByTitle("撤销").click();
-  await expect(editor).toContainText("输入文字");
-  await page.getByTitle("重做").click();
-  await expect(editor).toContainText("中文输入");
   await editor.click();
   await editor.press("ControlOrMeta+A");
   await editor.type("连续输入");
-  await expect(editor).toHaveText("连续输入");
-  await page.getByTitle("撤销").click();
-  await expect(editor).toHaveText("中文输入");
-  await page.getByTitle("重做").click();
-  await expect(editor).toHaveText("连续输入");
-  await editor.press("ControlOrMeta+Z");
-  await expect(editor).toHaveText("中文输入");
-  await expect(page.getByTitle("重做")).toBeEnabled();
-  await editor.press("ControlOrMeta+Shift+Z");
   await expect(editor).toHaveText("连续输入");
 
   await pastePlainText(editor, "你好世界", `<a href="https://example.invalid"><script>bad()</script>你好世界</a>`);
@@ -202,12 +178,6 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
     letterSpacing: 4,
     stroke: { color: "#FFFFFFFF", width: 2 },
   });
-  await page.getByTitle("撤销").click();
-  await saveNow(page);
-  saved = await api.get(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`);
-  text = (saved.data as LayoutWorkingCopyResponseV1).document.canvases[0]!.elements.find((element): element is TextElementV1 => element.type === "text")!;
-  expect(text.richText.paragraphs[0]!.runs).toHaveLength(1);
-  await page.getByTitle("重做").click();
   await page.getByRole("button", { name: "竖排", exact: true }).click();
   await saveNow(page);
 
@@ -274,17 +244,6 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   });
   await expect(balloon.locator(".rich-text-preview")).toHaveCSS("writing-mode", "vertical-rl");
 
-  for (const expectedState of [state2, state1, state0]) {
-    await page.getByTitle("撤销").click();
-    await saveNow(page);
-    expect(await readCurrentBalloonState()).toEqual(expectedState);
-  }
-  for (const expectedState of [state1, state2, state3]) {
-    await page.getByTitle("重做").click();
-    await saveNow(page);
-    expect(await readCurrentBalloonState()).toEqual(expectedState);
-  }
-
   await page.getByTestId("balloon-controls").getByLabel("目标 X").fill("180");
   await page.getByTestId("balloon-controls").getByLabel("目标 X").press("Tab");
   await saveNow(page);
@@ -313,11 +272,13 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   await page.getByLabel("高", { exact: true }).press("Tab");
   await pastePlainText(balloonEditor, "这是一个会明确溢出的很长很长的受控气泡文本");
   await expect(page.getByTestId("text-preflight-summary")).toContainText("文字溢出");
-  await page.getByRole("button", { name: "导出本章" }).click();
-  await page.getByTestId("layout-m6-control-center").getByRole("button", { name: "重新预检" }).click();
-  await expect(page.getByTestId("layout-preflight-result")).toContainText("文字发生溢出");
-  await expect(page.getByRole("button", { name: "还需确认 1 项警告" })).toBeDisabled();
   await saveNow(page);
+  await page.getByTestId("layout-simple-export").click();
+  const exportDialog = page.getByTestId("layout-export-dialog");
+  await expect(exportDialog).toContainText("文字发生溢出", { timeout: 30_000 });
+  await expect(exportDialog).toContainText("这不是可以忽略的提醒");
+  await exportDialog.getByRole("button", { name: "返回修改" }).click();
+  await expect(exportDialog).toBeHidden();
 
   const beforeElementSwitch = await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
@@ -419,7 +380,7 @@ test("G5-M5：受控字体、IME 富文本、溢出和四类气泡形成 DB-only
   }
 
   expect(pageErrors).toEqual([]);
-  const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence");
+  const evidenceRoot = path.resolve("文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence");
   await mkdir(evidenceRoot, { recursive: true });
   await page.screenshot({ path: path.join(evidenceRoot, "g5_m5_text_balloon_fonts.png"), fullPage: true });
 });

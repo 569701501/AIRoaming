@@ -4,7 +4,6 @@ import test from "node:test";
 
 const previewUrl = new URL("./LayoutReadOnlyPreviewView.vue", import.meta.url);
 const canvasPreviewUrl = new URL("../components/workbench/LayoutCanvasVisualPreview.vue", import.meta.url);
-const documentPreviewUrl = new URL("../components/workbench/LayoutDocumentVisualPreview.vue", import.meta.url);
 const textPreviewUrl = new URL("../components/workbench/LayoutElementTextPreview.vue", import.meta.url);
 const imageProjectionUrl = new URL("../components/workbench/layout-image-preview.ts", import.meta.url);
 
@@ -77,16 +76,6 @@ test("rich text and every balloon silhouette stay on the shared render semantics
   assert.doesNotMatch(source, /fillColor\.slice\(0,\s*7\)/);
   assert.doesNotMatch(source, /strokeColor\.slice\(0,\s*7\)/);
   assert.doesNotMatch(source, /fallbackFontAssetIds/);
-});
-
-test("pending full preview is reusable and evaluates overflow from the same document", async () => {
-  const source = await readFile(documentPreviewUrl, "utf8");
-
-  assert.match(source, /data-testid="layout-authoritative-visual-preview"/);
-  assert.match(source, /collectLayoutTextIssuesV1\(props\.document, props\.fontCatalog\)/);
-  assert.match(source, /<LayoutCanvasVisualPreview/);
-  assert.match(source, /:font-catalog="fontCatalog"/);
-  assert.match(source, /:source-catalog="sourceCatalog"/);
 });
 
 test("read-only output stays clean of editor safe-area and slice guides", async () => {

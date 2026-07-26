@@ -328,7 +328,7 @@
           </div>
           <label>
             缩放
-            <input v-model.number="session.zoom.value" type="range" min="0.1" max="0.6" step="0.02" />
+            <input v-model.number="session.zoom.value" type="range" min="0.1" max="0.8" step="0.02" />
             <span>{{ Math.round(session.zoom.value * 100) }}%</span>
           </label>
         </div>
@@ -347,7 +347,7 @@
             <span />
             <button type="button" :disabled="session.isReadOnly.value" title="添加空画格" aria-label="添加空画格" @click="addPanel"><SquareDashed :size="16" /></button>
             <button type="button" :disabled="session.isReadOnly.value || !selectedSource" title="添加所选镜头为自由图片" aria-label="添加所选镜头为自由图片" @click="selectedSource && addFreeImage(selectedSource)"><ImageIcon :size="16" /></button>
-            <button type="button" :class="{ 'is-active': activeTool === 'text' }" :disabled="session.isReadOnly.value" title="添加文字" aria-label="添加文字" @click="addText"><Type :size="16" /></button>
+            <button type="button" :disabled="session.isReadOnly.value" title="添加文字" aria-label="添加文字" @click="addText"><Type :size="16" /></button>
             <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" aria-label="添加气泡" @click="addBalloon"><MessageCircle :size="16" /></button>
           </nav>
           <nav
@@ -374,7 +374,6 @@
           <div
             class="document-canvas"
             :style="canvasStyle"
-            @pointerdown.self="session.selectedElementIds.value = []"
           >
             <article
               v-for="element in visibleElements"
@@ -384,7 +383,6 @@
               :style="[elementStyle(element), panelFrameStyle(element)]"
               :aria-label="`${element.name}${element.locked ? '，已锁定' : ''}${element.hidden ? '，已隐藏' : ''}`"
               tabindex="0"
-              @pointerdown.stop="selectDomElementInTextTool($event, element)"
               @keydown.enter.stop="session.selectElement(element.id, $event.shiftKey)"
               @keydown.space.prevent.stop="session.selectElement(element.id, $event.shiftKey)"
             >
@@ -882,7 +880,7 @@ const publicationHistory = ref<LayoutPublicationHistoryResponseV1 | LayoutPublic
 const activeExportPublicationSnapshot = ref<LayoutPublicationSummaryV1 | LayoutPublicationSummaryV2 | null>(null);
 const publicationRequestId = ref<string | null>(null);
 const publicationBusy = ref(false);
-const activeTool = ref<"select" | "text" | "pan" | "crop">("select");
+const activeTool = ref<"select" | "pan" | "crop">("select");
 const stageScroll = ref<HTMLElement | null>(null);
 const leftPanelOpen = ref(true);
 const pageSettingsOpen = ref(true);
@@ -2655,29 +2653,39 @@ function resetCrop(): void {
   applyCrop(defaultCrop(), "重置图片裁切");
 }
 
+const ELEMENT_TYPE_LABELS: Record<LayoutTopLevelElementV1["type"], string> = {
+  panel_frame: "画格",
+  free_image: "自由图",
+  text: "文字",
+  balloon: "气泡",
+};
+
+function deleteElementsWithConfirm(elements: LayoutTopLevelElementV1[]): void {
+  const canvas = session.currentCanvas.value;
+  if (!canvas || !elements.length) return;
+  const occupiedPanel = elements.some((element) => element.type === "panel_frame" && element.contentImage);
+  const message = elements.length === 1
+    ? occupiedPanel
+      ? "删除此画格会让对应镜头回到“未放置”。是否继续？"
+      : `确认删除这个${ELEMENT_TYPE_LABELS[elements[0]!.type]}？此操作不可撤销。`
+    : `确认删除选中的 ${elements.length} 个对象？${occupiedPanel ? "其中有已放置镜头的画格，删除后对应镜头会回到“未放置”。" : ""}此操作不可撤销。`;
+  if (!window.confirm(message)) return;
+  executeBatch("删除对象", elements.map((element) => command("element.delete", "删除对象", { canvasId: canvas.id, elementId: element.id })));
+  session.selectedElementIds.value = [];
+}
+
 function deletePrimaryElement(): void {
   const element = primaryElement.value;
-  const canvas = session.currentCanvas.value;
-  if (!element || !canvas) return;
-  if (
-    element.type === "panel_frame"
-    && element.contentImage
-    && !window.confirm("删除此画格会让对应镜头回到“未放置”。是否继续？")
-  ) return;
-  session.execute(command("element.delete", "删除对象", { canvasId: canvas.id, elementId: element.id }));
-  session.selectedElementIds.value = [];
+  if (!element) return;
+  deleteElementsWithConfirm([element]);
+}
+
+function deleteSelectedElements(): void {
+  deleteElementsWithConfirm([...session.selectedElements.value].filter((element) => !element.locked));
 }
 
 function selectKonvaElement(value: { elementId: string; additive: boolean }): void {
   session.selectElement(value.elementId, value.additive);
-}
-
-function selectDomElementInTextTool(
-  event: PointerEvent,
-  element: LayoutTopLevelElementV1,
-): void {
-  if (activeTool.value !== "text" || (element.type !== "text" && element.type !== "balloon")) return;
-  session.selectElement(element.id, event.shiftKey || event.metaKey || event.ctrlKey);
 }
 
 function replaceKonvaSelection(elementIds: string[]): void {
@@ -2921,6 +2929,11 @@ function handleKeydown(event: KeyboardEvent): void {
   }
   if (event.key === "Escape") {
     session.selectedElementIds.value = [];
+    return;
+  }
+  if ((event.key === "Delete" || event.key === "Backspace") && session.selectedElements.value.length && !session.isReadOnly.value) {
+    event.preventDefault();
+    deleteSelectedElements();
     return;
   }
   const step = event.shiftKey ? 10 : 1;

@@ -58,7 +58,7 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
   // 该用例包含一次真实 LayoutRevision + Chromium publication worker，不能沿用旧同步复制导出的 60 秒上限。
   test.setTimeout(120_000);
   const evidenceRoot = path.resolve(
-    "文档/05_执行与记录/任务记录/2026-07-14_G0至G5剩余连续施工/evidence",
+    "文档/05_执行与记录/任务记录/2026-07-26_漫画成稿体验评估与P0修复/evidence",
   );
   await mkdir(evidenceRoot, { recursive: true });
   const fixture = await prepareG4CandidateFixture(api, rainSmokeProject);
@@ -251,16 +251,20 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
     await page.goto(`/projects/${fixture.projectId}/layout`);
     const sourceStatus = page.getByTestId("candidate-source-status");
     await expect(sourceStatus).toContainText("候选定稿已变化");
-    await expect(sourceStatus).toContainText("可在下方先预览换图及裁切，再显式提交到当前草稿");
-    await page.getByRole("button", { name: "导出本章" }).click();
-    await page.getByTestId("layout-publication-center").getByRole("button", { name: "运行导出预检" }).click();
-    await expect(page.getByTestId("layout-publication-preflight")).toBeVisible();
-    await expect(page.getByText("存在阻断", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "开始正式出版" })).toBeDisabled();
+    await expect(sourceStatus).toContainText("排版仍引用更换前的候选定稿");
     await page.screenshot({
       path: path.join(evidenceRoot, "g4_f_layout_stale.png"),
       fullPage: true,
     });
+    const stalePreflight = await api.post<LayoutPreflightReportV1>(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/preflight`,
+      {
+        schemaVersion: 1,
+        target: { kind: "layout_revision", layoutRevisionId: formalRevision.data.revision.id },
+        profile: publicationProfile,
+      },
+    );
+    expect(stalePreflight.data.issues.some((issue) => issue.blockingScopes.includes("export"))).toBe(true);
   });
 
   await test.step("清空当前定稿同样走影响确认，排版页保持 fail-closed", async () => {
@@ -274,11 +278,15 @@ test("G4-F：候选决策完整链、导出后新候选、双窗口冲突、历�
 
     await page.goto(`/projects/${fixture.projectId}/layout`);
     await expect(page.getByTestId("candidate-source-status")).toContainText("候选定稿尚未完整");
-    await expect(page.getByRole("button", { name: "按镜头排版" })).toBeDisabled();
-    await page.getByRole("button", { name: "导出本章" }).click();
-    await page.getByTestId("layout-publication-center").getByRole("button", { name: "运行导出预检" }).click();
-    await expect(page.getByTestId("layout-publication-preflight")).toBeVisible();
-    await expect(page.getByRole("button", { name: "开始正式出版" })).toBeDisabled();
+    const incompletePreflight = await api.post<LayoutPreflightReportV1>(
+      `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/preflight`,
+      {
+        schemaVersion: 1,
+        target: { kind: "layout_revision", layoutRevisionId: formalRevision.data.revision.id },
+        profile: publicationProfile,
+      },
+    );
+    expect(incompletePreflight.data.issues.some((issue) => issue.blockingScopes.includes("export"))).toBe(true);
   });
 });
 
