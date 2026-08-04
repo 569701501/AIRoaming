@@ -15,9 +15,14 @@ describe("G5-M4 panel, image, preset and crop contract", () => {
   });
 
   it("wires formal commands for Shot tray, crop, templates, reading order and batch initialization", async () => {
-    const workspace = await readFile(new URL("../../../web/src/components/workbench/LayoutExportWorkspace.vue", import.meta.url), "utf8");
+    const [workspace, settingsDrawer] = await Promise.all([
+      readFile(new URL("../../../web/src/components/workbench/LayoutExportWorkspace.vue", import.meta.url), "utf8"),
+      readFile(new URL("../../../web/src/components/workbench/LayoutCanvasSettingsDrawer.vue", import.meta.url), "utf8"),
+    ]);
     expect(workspace).toContain('data-testid="shot-tray"');
-    expect(workspace).toContain('data-testid="layout-preset-picker"');
+    // 画格模板已收进「画布设置」抽屉（ADR-0023），抽屉独立承载模板选择契约
+    expect(settingsDrawer).toContain('data-testid="layout-preset-picker"');
+    expect(settingsDrawer).toContain("generateLayoutPresetV1");
     expect(workspace).toContain('data-testid="crop-controls"');
     expect(workspace).toContain("panel.detach_image_to_free");
     expect(workspace).toContain("panel.attach_image");

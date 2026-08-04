@@ -53,7 +53,9 @@ test("G5-M7 基础版：首次自动排版后一次导出形成 DB-only 闭环",
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   // E2E 图片服务返回真实 1×1 PNG；把画格同步成 1×1，避免伪造来源尺寸，仍由渲染器读取原始字节。
   const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
@@ -74,6 +76,8 @@ test("G5-M7 基础版：首次自动排版后一次导出形成 DB-only 闭环",
     document: encoded.value,
   });
   await page.reload();
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
   await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   await page.getByTestId("layout-simple-export").click();
@@ -151,7 +155,9 @@ test("专业成稿 V2 基础版：来源同步、并发冲突、导出、API 恢
   await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 35_000 });
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
   const initial = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
@@ -339,6 +345,8 @@ test("专业成稿 V2 基础版：来源同步、并发冲突、导出、API 恢
   });
 
   await page.reload();
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
   await expect(page.getByTestId("shot-tray")).toBeVisible();
   await page.getByTestId("layout-simple-export").click();
   const exportDialog = page.getByTestId("layout-export-dialog");

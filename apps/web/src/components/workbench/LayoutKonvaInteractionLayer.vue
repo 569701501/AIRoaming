@@ -41,11 +41,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectElement: [value: { elementId: string; additive: boolean }];
   replaceSelection: [elementIds: string[]];
+  clearSelection: [];
+  previewTransform: [changes: KonvaTransformCommitV1[] | null];
   commitTransform: [changes: KonvaTransformCommitV1[]];
   commitTail: [value: { elementId: string; targetX: number; targetY: number }];
   commitCrop: [value: { elementId: string; crop: CoverCropV1 }];
   pan: [value: { dx: number; dy: number }];
   zoom: [value: { zoom: number; clientX: number; clientY: number }];
+  contextMenu: [value: { elementId: string; clientX: number; clientY: number }];
+  editText: [elementId: string];
 }>();
 
 const container = ref<HTMLDivElement | null>(null);
@@ -190,6 +194,17 @@ function configureShape(node: Konva.Rect): void {
       additive: pointer.shiftKey || pointer.metaKey || pointer.ctrlKey,
     });
   });
+  node.on("dblclick", (event) => {
+    if (props.readOnly || props.activeTool !== "select") return;
+    event.cancelBubble = true;
+    emit("editText", elementId);
+  });
+  node.on("contextmenu", (event) => {
+    if (props.readOnly) return;
+    event.cancelBubble = true;
+    event.evt.preventDefault();
+    emit("contextMenu", { elementId, clientX: event.evt.clientX, clientY: event.evt.clientY });
+  });
   node.on("dragstart", () => {
     if (props.readOnly || props.activeTool !== "select") return;
     gestureActive = true;
@@ -214,6 +229,7 @@ function configureShape(node: Konva.Rect): void {
       exactPeer?.position({ x: origin.x + dx, y: origin.y + dy });
     }
     controlsLayer?.batchDraw();
+    emit("previewTransform", currentTransformChanges([...dragStart.nodes.keys()]));
   });
   node.on("dragend", () => {
     if (!gestureActive) return;
@@ -434,7 +450,7 @@ function syncSelection(): void {
   controlsLayer.batchDraw();
 }
 
-function commitTransforms(elementIds: string[]): void {
+function currentTransformChanges(elementIds: string[]): KonvaTransformCommitV1[] {
   const elementIdSet = new Set(elementIds);
   const nodes = elementNodes()
     .filter((node) => elementIdSet.has(String(node.getAttr("elementId"))))
@@ -448,15 +464,21 @@ function commitTransforms(elementIds: string[]): void {
       scaleY: node.scaleY(),
       rotation: node.rotation(),
     }));
-  const changes = normalizeKonvaTransformBatchV1(props.canvas, nodes, {
+  return normalizeKonvaTransformBatchV1(props.canvas, nodes, {
     zoom: props.zoom,
     devicePixelRatio: devicePixelRatio(),
   });
+}
+
+function commitTransforms(elementIds: string[]): void {
+  const elementIdSet = new Set(elementIds);
+  const changes = currentTransformChanges(elementIds);
   for (const node of elementNodes()) {
     if (!elementIdSet.has(String(node.getAttr("elementId")))) continue;
     node.scale({ x: 1, y: 1 });
   }
   gestureActive = false;
+  emit("previewTransform", null);
   if (changes.length) emit("commitTransform", changes);
   queueMicrotask(syncProjection);
 }
@@ -469,6 +491,7 @@ function cancelGesture(): void {
   marqueeStart = null;
   panPoint = null;
   clearGuides();
+  emit("previewTransform", null);
   if (selectionRect) selectionRect.visible(false);
   syncProjection();
 }
@@ -536,6 +559,12 @@ function handleStagePointerUp(event: Konva.KonvaEventObject<PointerEvent>): void
   controlsLayer?.batchDraw();
 }
 
+function handleStageContextMenu(event: Konva.KonvaEventObject<PointerEvent>): void {
+  if (props.readOnly || event.target !== stage) return;
+  event.evt.preventDefault();
+  emit("clearSelection");
+}
+
 function handleStageWheel(event: Konva.KonvaEventObject<WheelEvent>): void {
   if (props.readOnly) return;
   event.evt.preventDefault();
@@ -594,6 +623,12 @@ onMounted(() => {
     ),
   });
   transformer.on("transformstart", () => { gestureActive = true; });
+  transformer.on("transform", () => {
+    if (!gestureActive) return;
+    emit("previewTransform", currentTransformChanges(
+      transformer?.nodes().map((node) => String(node.getAttr("elementId"))) ?? [],
+    ));
+  });
   transformer.on("transformend", () => {
     if (!gestureActive) return;
     commitTransforms(
@@ -608,6 +643,7 @@ onMounted(() => {
   stage.on("pointermove", handleStagePointerMove);
   stage.on("pointerup", handleStagePointerUp);
   stage.on("pointercancel", cancelGesture);
+  stage.on("contextmenu", handleStageContextMenu);
   stage.on("wheel", handleStageWheel);
   globalThis.addEventListener("keydown", handleEscape, true);
   globalThis.addEventListener("blur", cancelGesture);

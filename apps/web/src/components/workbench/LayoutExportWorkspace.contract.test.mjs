@@ -3,22 +3,31 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workspaceUrl = new URL("./LayoutExportWorkspace.vue", import.meta.url);
+const exportDialogUrl = new URL("./LayoutExportDialog.vue", import.meta.url);
+const settingsDrawerUrl = new URL("./LayoutCanvasSettingsDrawer.vue", import.meta.url);
 const presetsUrl = new URL("./layout-editor-presets.ts", import.meta.url);
 const sessionUrl = new URL("../../composables/layout-editor-session.ts", import.meta.url);
 const compositionSessionUrl = new URL("../../composables/layout-composition-session.ts", import.meta.url);
 const apiUrl = new URL("../../services/api.ts", import.meta.url);
 
-test("the basic editor exposes autosave, preview and one export action without secondary AI controls", async () => {
-  const source = await readFile(workspaceUrl, "utf8");
+test("the basic editor exposes autosave, preview, local undo and one export action without secondary AI controls", async () => {
+  const [source, sessionSource] = await Promise.all([
+    readFile(workspaceUrl, "utf8"),
+    readFile(sessionUrl, "utf8"),
+  ]);
 
   assert.match(source, /data-testid="layout-simple-export"/);
   assert.match(source, /saveStateLabel/);
   assert.match(source, /aria-label="手机预览"/);
   assert.doesNotMatch(source, /layout-ai-drawer/);
   assert.doesNotMatch(source, />智能调整</);
-  assert.doesNotMatch(source, /session\.undo/);
-  assert.doesNotMatch(source, /session\.redo/);
   assert.doesNotMatch(source, /aria-label="立即保存"/);
+  // 本地撤销:内存快照栈、Cmd/Ctrl+Z、顶栏撤销按钮;不引入 redo、不持久化
+  assert.match(source, /data-testid="layout-undo"/);
+  assert.match(source, /session\.undo\(\)/);
+  assert.match(sessionSource, /LAYOUT_UNDO_STACK_LIMIT = 50/);
+  assert.match(sessionSource, /undoStack\.push\(structuredClone\(before\)\)/);
+  assert.doesNotMatch(sessionSource, /redo/);
 });
 
 test("mobile preview reports popup failures and keeps a same-page fallback reachable", async () => {
@@ -154,15 +163,32 @@ test("Konva stays an interaction adapter with crop, guides, pan and text focus e
   assert.match(source, /target\?\.closest\("input, textarea, select, \[contenteditable='true'\]"\)/);
 });
 
-test("one export action internally runs save, both preflights, Revision and publication", async () => {
+test("elements and layers expose a right-click context menu wired to existing actions", async () => {
   const source = await readFile(workspaceUrl, "utf8");
+
+  assert.match(source, /@context-menu="openElementContextMenu"/);
+  assert.match(source, /@contextmenu\.prevent="openElementContextMenu/);
+  assert.match(source, /data-testid="layout-context-menu"/);
+  assert.match(source, /role="menu"/);
+  assert.match(source, /runContextMenuAction\(duplicatePrimaryElement\)/);
+  assert.match(source, /runContextMenuAction\(deletePrimaryElement\)/);
+  assert.match(source, /moveLayer\(contextMenuElement!\.id, 'up'\)/);
+  assert.match(source, /if \(contextMenu\.value\) \{\s*closeContextMenu\(\);\s*return;\s*\}/);
+  assert.doesNotMatch(source, /oncontextmenu\s*=\s*"return false"/);
+});
+
+test("one export action internally runs save, both preflights, Revision and publication", async () => {
+  const [source, dialogSource] = await Promise.all([
+    readFile(workspaceUrl, "utf8"),
+    readFile(exportDialogUrl, "utf8"),
+  ]);
   const flow = source.slice(
     source.indexOf("async function startSimpleExport"),
     source.indexOf("function publicationArtifactUrl"),
   );
 
   assert.match(source, /data-testid="layout-simple-export"/);
-  assert.match(source, /data-testid="layout-export-dialog"/);
+  assert.match(dialogSource, /data-testid="layout-export-dialog"/);
   assert.doesNotMatch(source, /data-testid="layout-release-flow"/);
   assert.doesNotMatch(source, />保存 Revision</);
   assert.doesNotMatch(source, />出版预检</);
@@ -211,7 +237,10 @@ test("an ambiguous Revision response is retried from the exact retained attempt 
 });
 
 test("publication state survives history failure and an ambiguous POST stays in recovery", async () => {
-  const source = await readFile(workspaceUrl, "utf8");
+  const [source, dialogSource] = await Promise.all([
+    readFile(workspaceUrl, "utf8"),
+    readFile(exportDialogUrl, "utf8"),
+  ]);
   const submit = source.slice(
     source.indexOf("async function submitCurrentPublication"),
     source.indexOf("function publicationArtifactUrl"),
@@ -225,11 +254,11 @@ test("publication state survives history failure and an ambiguous POST stays in 
   assert.match(source, /api\.getLayoutPublication/);
   assert.match(submit, /publicationRetryAfter = Date\.now\(\) \+ 3_000/);
   assert.match(submit, /exportDialogStage\.value = "publishing"/);
-  assert.match(source, /正在确认导出状态/);
+  assert.match(dialogSource, /正在确认导出状态/);
 });
 
 test("visible empty text preflight is presented with a Chinese label", async () => {
-  const source = await readFile(workspaceUrl, "utf8");
+  const source = await readFile(exportDialogUrl, "utf8");
 
   assert.match(source, /VISIBLE_TEXT_EMPTY:\s*"可见文字内容为空"/);
   assert.match(source, /CUSTOM_TEXT_PRESENT:\s*"你添加了自定义文字"/);
@@ -237,13 +266,13 @@ test("visible empty text preflight is presented with a Chinese label", async () 
 });
 
 test("the export dialog compares source and current text and never offers force export for blockers", async () => {
-  const source = await readFile(workspaceUrl, "utf8");
+  const source = await readFile(exportDialogUrl, "utf8");
 
   assert.match(source, />原文</);
   assert.match(source, /issue\.details\.sourceText/);
   assert.match(source, />当前文字</);
   assert.match(source, /issue\.details\.currentText/);
-  assert.match(source, /sourceCatalogItems\.value\.find\(\(item\) => item\.source\.shotId === issue\.shotId\)/);
+  assert.match(source, /props\.catalogItems\.find\(\(item\) => item\.source\.shotId === issue\.shotId\)/);
   assert.match(source, /canvas\?\.name/);
   assert.match(source, /exportIssueBlockingText\(issue\)/);
   assert.match(source, /bound_balloon_outside_canvas[\s\S]*对白气泡完全在画布外/);
@@ -251,8 +280,8 @@ test("the export dialog compares source and current text and never offers force 
   assert.match(source, />返回修改</);
   assert.match(source, />按当前文字导出</);
   const blocked = source.slice(
-    source.indexOf("exportDialogStage === 'blocked'"),
-    source.indexOf("exportDialogStage === 'review'"),
+    source.indexOf("stage === 'blocked'"),
+    source.indexOf("stage === 'review'"),
   );
   assert.doesNotMatch(blocked, /按当前文字导出/);
   assert.doesNotMatch(source, /缺少智能成稿规划证据/);
@@ -275,9 +304,10 @@ test("V1/V2 API unions and session release/source-sync requests carry the correc
   assert.match(sessionSource, /resultVisibleDocumentDigest/);
 });
 
-test("the editor session no longer maintains undo, redo or pending AI proposal state", async () => {
+test("the editor session keeps only bounded local undo snapshots and no redo or pending AI proposal state", async () => {
   const source = await readFile(sessionUrl, "utf8");
-  assert.doesNotMatch(source, /function undo\(/);
+  assert.match(source, /function undo\(/);
+  assert.match(source, /LAYOUT_UNDO_STACK_LIMIT/);
   assert.doesNotMatch(source, /function redo\(/);
   assert.doesNotMatch(source, /pushSnapshotHistory/);
   assert.doesNotMatch(source, /pendingCommand/);

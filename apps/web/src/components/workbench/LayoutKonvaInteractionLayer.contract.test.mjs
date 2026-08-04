@@ -51,6 +51,8 @@ test("interaction layer exposes selection, snapping, crop pan/zoom, rotated tail
   assert.match(source, /name: "crop-zoom-handle"/);
   assert.match(source, /normalizeKonvaTailTargetV1/);
   assert.match(source, /emit\("commitCrop"/);
+  assert.match(source, /node\.on\("contextmenu"[\s\S]*emit\("contextMenu", \{ elementId, clientX: event\.evt\.clientX, clientY: event\.evt\.clientY \}\)/);
+  assert.match(source, /event\.evt\.preventDefault\(\)/);
   assert.match(source, /clientX: event\.evt\.clientX/);
   assert.match(source, /clientY: event\.evt\.clientY/);
   assert.match(source, /\.is-pass-through\s*\{[^}]*pointer-events:\s*none/s);

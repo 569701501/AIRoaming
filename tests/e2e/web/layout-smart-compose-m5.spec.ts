@@ -31,7 +31,9 @@ test("智能成稿基础版：自动生成与直接编辑形成同一条路径",
   await mkdir(evidenceRoot, { recursive: true });
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   const initial = (await api.get<LayoutWorkingCopyResponseV1>(
     `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
@@ -87,7 +89,9 @@ test("智能成稿基础版：页漫零设置生成后再次进入不会重复�
     await api.post(`/projects/${fixture.projectId}/chapters/${fixture.chapterId}/images/complete`);
 
     await page.goto(`/projects/${fixture.projectId}/layout`);
-    await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
+    await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+    await page.getByLabel("展开页面与素材栏").click();
+    await expect(page.getByTestId("shot-tray")).toBeVisible();
 
     const initial = (await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,
@@ -99,6 +103,8 @@ test("智能成稿基础版：页漫零设置生成后再次进入不会重复�
     expect(initialDocument.canvases[0]!.elements.some((element) => element.type === "panel_frame")).toBe(true);
 
     await page.reload();
+    await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+    await page.getByLabel("展开页面与素材栏").click();
     await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 15_000 });
     const restored = (await api.get<LayoutWorkingCopyResponseV1>(
       `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`,

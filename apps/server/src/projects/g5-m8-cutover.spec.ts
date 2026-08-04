@@ -20,16 +20,19 @@ describe("G5-M8 mobile, AI and legacy cutover contract", () => {
   });
 
   it("keeps AI closed by default and applies only strict server-side command batches", async () => {
-    const [workspace, service, shared] = await Promise.all([
+    const [workspace, settingsDrawer, service, shared] = await Promise.all([
       readFile(new URL("../../../web/src/components/workbench/LayoutExportWorkspace.vue", import.meta.url), "utf8"),
+      readFile(new URL("../../../web/src/components/workbench/LayoutCanvasSettingsDrawer.vue", import.meta.url), "utf8"),
       readFile(new URL("./layout-pending-command.service.ts", import.meta.url), "utf8"),
       readFile(new URL("../../../../packages/shared/src/layout/pending.ts", import.meta.url), "utf8"),
     ]);
     expect(workspace).not.toContain("aiDrawerOpen");
     expect(workspace).not.toContain('data-testid="layout-ai-command-preview"');
     expect(workspace).toContain("session.currentCanvas.value");
-    expect(workspace).toContain('data-testid="layout-profile-resize-preview"');
-    expect(workspace).toContain("previewLayoutProfileResizeV1");
+    // 画布尺寸预览已收进「画布设置」抽屉（ADR-0023），抽屉独立承载预览契约
+    expect(workspace).not.toContain('data-testid="layout-profile-resize-preview"');
+    expect(settingsDrawer).toContain('data-testid="layout-profile-resize-preview"');
+    expect(settingsDrawer).toContain("previewLayoutProfileResizeV1");
     expect(workspace).toContain('aria-label="选择工具"');
     expect(workspace).toContain("prefers-reduced-motion: reduce");
     expect(service).toContain("applyLayoutCommandBatch");

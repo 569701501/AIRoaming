@@ -49,6 +49,7 @@ import {
 
 export const AUTOSAVE_IDLE_MS = 800;
 export const AUTOSAVE_MAX_DIRTY_MS = 5_000;
+export const LAYOUT_UNDO_STACK_LIMIT = 50;
 const EDITOR_MIN_WIDTH = 1_024;
 
 type SaveState = "loading" | "missing" | "saved" | "unsaved" | "saving" | "conflict" | "error";
@@ -154,11 +155,14 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   const errorMessage = ref<string | null>(null);
   const selectedCanvasId = ref<string | null>(null);
   const selectedElementIds = ref<string[]>([]);
-  const zoom = ref(0.24);
+  const zoom = ref(0.4);
   const viewportWidth = ref(typeof window === "undefined" ? EDITOR_MIN_WIDTH : window.innerWidth);
   const isReadOnly = computed(() => viewportWidth.value < EDITOR_MIN_WIDTH);
   const isDirty = ref(false);
   const pendingRevisionAttempt = shallowRef<PendingLayoutRevisionAttempt | null>(null);
+  const undoStack: LayoutDocumentV1OrV2[] = [];
+  const undoDepth = ref(0);
+  const canUndo = computed(() => undoDepth.value > 0);
   let firstDirtyAt: number | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let maxTimer: ReturnType<typeof setTimeout> | null = null;
@@ -209,6 +213,8 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
   function replaceFromServer(value: LayoutWorkingCopyResponseV1): void {
     server.value = value;
     replaceLocalDocument(value.document);
+    undoStack.length = 0;
+    undoDepth.value = 0;
     selectedCanvasId.value = document.value?.canvases[0]?.id ?? null;
     selectedElementIds.value = [];
     conflictServer.value = null;
@@ -351,6 +357,25 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     scheduleAutosave();
   }
 
+  function pushUndoSnapshot(before: LayoutDocumentV1OrV2): void {
+    undoStack.push(structuredClone(before));
+    if (undoStack.length > LAYOUT_UNDO_STACK_LIMIT) undoStack.shift();
+    undoDepth.value = undoStack.length;
+  }
+
+  function undo(): void {
+    const snapshot = undoStack.pop();
+    undoDepth.value = undoStack.length;
+    if (!snapshot || isReadOnly.value || saveState.value === "conflict" || !fullDocument.value) return;
+    try {
+      replaceLocalDocument(snapshot);
+      errorMessage.value = null;
+      markDirty();
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : "撤销失败";
+    }
+  }
+
   function execute(command: EditorCommandV1): void {
     const before = fullDocument.value;
     if (!before || isReadOnly.value || saveState.value === "conflict") return;
@@ -358,6 +383,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
       const after = before.schemaVersion === 1
         ? applyLayoutCommand(before, command).document
         : applyLayoutCommandV2(before, toV2UserCommand(before, command)).document;
+      pushUndoSnapshot(before);
       replaceLocalDocument(after);
       errorMessage.value = null;
       markDirty();
@@ -382,6 +408,7 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
         }
         after = current;
       }
+      pushUndoSnapshot(before);
       replaceLocalDocument(after);
       errorMessage.value = null;
       markDirty();
@@ -776,6 +803,8 @@ export function useLayoutEditorSession(input: LayoutEditorSessionInput) {
     isReadOnly,
     isDirty,
     hasPendingRevisionAttempt,
+    canUndo,
+    undo,
     selectCanvas,
     selectElement,
     initialize,

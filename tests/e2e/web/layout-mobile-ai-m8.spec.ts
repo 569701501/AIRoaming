@@ -30,9 +30,13 @@ test("G5-M8：手机只读与 Pending preview/discard/apply/expire 形成 DB-onl
   );
 
   await page.goto(`/projects/${fixture.projectId}/layout`);
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
   await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   await test.step("画布尺寸调整先预览后应用，可再次应用改回", async () => {
+    // 画布尺寸收进「画布设置」抽屉
+    await page.getByLabel("画布设置").click();
     const resize = page.getByTestId("layout-profile-resize-preview");
     await expect(resize).toBeVisible();
     const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;

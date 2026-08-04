@@ -42,7 +42,9 @@ test("G5-M6 基础版：来源同步、正式版本与 API 历史恢复形成 DB
 
   const workingCopyUrl = `/projects/${fixture.projectId}/chapters/${fixture.chapterId}/layout/working-copy`;
   await page.goto(`/projects/${fixture.projectId}/layout`);
-  await expect(page.getByTestId("shot-tray")).toBeVisible({ timeout: 45_000 });
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
+  await expect(page.getByTestId("shot-tray")).toBeVisible();
   const initialWorkingCopy = await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl);
   const initialSource = initialWorkingCopy.data.document.canvases[0]!.elements[0];
   if (initialSource?.type !== "panel_frame" || !initialSource.contentImage) throw new Error("G5_M6_INITIAL_SOURCE_MISSING");
@@ -74,6 +76,8 @@ test("G5-M6 基础版：来源同步、正式版本与 API 历史恢复形成 DB
     document: syncedEncoded.value,
   });
   await page.reload();
+  await expect(page.locator(".document-canvas")).toBeVisible({ timeout: 45_000 });
+  await page.getByLabel("展开页面与素材栏").click();
   await expect(page.getByTestId("shot-tray")).toBeVisible();
 
   await page.getByTestId("layout-simple-export").click();
@@ -93,10 +97,11 @@ test("G5-M6 基础版：来源同步、正式版本与 API 历史恢复形成 DB
   const currentRevisionId = createdHistory.data.currentLayoutRevisionId;
   if (!currentRevisionId) throw new Error("G5_M6_CURRENT_REVISION_MISSING");
 
-  await page.getByRole("button", { name: "新增段落", exact: true }).click();
+  await page.getByTitle("添加文字").click();
   await expect(page.locator(".editor-status")).toContainText("已保存", { timeout: 8_000 });
   const changed = (await api.get<LayoutWorkingCopyResponseV1>(workingCopyUrl)).data;
-  expect(changed.document.canvases).toHaveLength(2);
+  expect(changed.document.canvases).toHaveLength(1);
+  expect(changed.document.canvases[0]!.elements.some((element) => element.type === "text")).toBe(true);
 
   const changedRevisionDigest = LayoutDocumentCodecV2.encode(changed.document as LayoutDocumentV2).digest;
   const changedVisibleDigest = LayoutDocumentCodecV1.encode(

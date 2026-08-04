@@ -18,6 +18,22 @@
       </div>
 
       <div class="top-actions">
+        <button
+          type="button"
+          data-testid="layout-undo"
+          :disabled="!session.canUndo.value || session.isReadOnly.value || exportOperationBusy"
+          title="撤销上一步调整（Cmd/Ctrl+Z）"
+          aria-label="撤销"
+          @click="session.undo"
+        ><Undo2 :size="16" /></button>
+        <button
+          type="button"
+          :class="{ 'is-active': settingsOpen }"
+          :disabled="!session.server.value"
+          title="画布尺寸与画格模板"
+          aria-label="画布设置"
+          @click="toggleSettings"
+        ><Settings2 :size="16" /></button>
         <button type="button" :disabled="!session.server.value || mobilePreviewBusy || exportOperationBusy" title="打开独立手机只读预览" aria-label="手机预览" @click="openMobilePreview"><Smartphone :size="16" /></button>
         <button
           class="primary-action"
@@ -91,107 +107,31 @@
       {{ actionError || session.errorMessage.value || fontLoader.loadError.value }}
     </div>
 
-    <div v-if="exportDialogOpen" class="export-dialog-backdrop" @click.self="closeExportDialog">
-      <section
-        class="export-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="layout-export-dialog-title"
-        data-testid="layout-export-dialog"
-      >
-        <header>
-          <div>
-            <strong id="layout-export-dialog-title">{{ exportDialogTitle }}</strong>
-            <small>{{ exportDialogSubtitle }}</small>
-          </div>
-          <button v-if="!exportOperationBusy" type="button" aria-label="关闭导出提示" @click="closeExportDialog"><X :size="16" /></button>
-        </header>
+    <LayoutExportDialog
+      :open="exportDialogOpen"
+      :stage="exportDialogStage"
+      :issues="exportDialogIssues"
+      :error="exportDialogError"
+      :busy="exportOperationBusy"
+      :publication="activeExportPublication"
+      :publication-request-pending="Boolean(publicationRequestId)"
+      :catalog-items="sourceCatalogItems"
+      :canvases="session.document.value?.canvases ?? []"
+      :artifact-url="publicationArtifactUrl"
+      @close="closeExportDialog"
+      @confirm="confirmSimpleExport"
+      @retry="retrySimpleExport"
+    />
 
-        <template v-if="exportDialogStage === 'blocked'">
-          <div class="export-dialog-state is-blocked">
-            <AlertTriangle :size="28" />
-            <p>这不是可以忽略的提醒。请先修正下面的问题，再重新导出。</p>
-          </div>
-          <ul class="export-issue-list">
-            <li v-for="issue in exportDialogIssues" :key="issue.issueKey">
-              <strong>{{ preflightIssueLabel(issue) }}</strong>
-              <small>{{ exportIssueLocation(issue) }}</small>
-              <p v-if="exportIssueBlockingText(issue)">{{ exportIssueBlockingText(issue) }}</p>
-            </li>
-          </ul>
-          <footer>
-            <button class="primary-action" type="button" @click="closeExportDialog">返回修改</button>
-          </footer>
-        </template>
-
-        <template v-else-if="exportDialogStage === 'review'">
-          <p class="export-review-intro">下面是你主动修改、删除或添加的文字。请确认成稿就按当前内容导出。</p>
-          <div class="export-review-list">
-            <article v-for="issue in exportDialogIssues" :key="issue.issueKey">
-              <header>
-                <strong>{{ preflightIssueLabel(issue) }}</strong>
-                <small>{{ exportIssueLocation(issue) }}</small>
-              </header>
-              <dl v-if="isTextDifferenceIssue(issue)">
-                <div>
-                  <dt>原文</dt>
-                  <dd>{{ exportIssueText(issue.details.sourceText, '无正式原文') }}</dd>
-                </div>
-                <div>
-                  <dt>当前文字</dt>
-                  <dd>{{ exportIssueText(issue.details.currentText, '已删除') }}</dd>
-                </div>
-              </dl>
-              <p v-else>{{ exportIssueDescription(issue) }}</p>
-            </article>
-          </div>
-          <footer>
-            <button type="button" @click="closeExportDialog">返回修改</button>
-            <button class="primary-action" type="button" @click="confirmSimpleExport">按当前文字导出</button>
-          </footer>
-        </template>
-
-        <template v-else-if="activeExportPublication?.status === 'ready'">
-          <div class="export-dialog-state is-ready">
-            <Download :size="30" />
-            <strong>导出完成</strong>
-            <p>成品已经生成，可以直接下载。</p>
-          </div>
-          <nav class="export-artifacts" aria-label="导出产物">
-            <a
-              v-for="artifact in activeExportPublication.artifacts"
-              :key="artifact.assetId"
-              :href="publicationArtifactUrl(activeExportPublication.id, artifact.assetId)"
-              target="_blank"
-              rel="noopener"
-            >{{ artifactLabel(artifact.role, artifact.order) }}</a>
-          </nav>
-          <footer>
-            <button class="primary-action" type="button" @click="closeExportDialog">完成</button>
-          </footer>
-        </template>
-
-        <template v-else-if="exportDialogStage === 'failed' || activeExportPublication?.status === 'failed' || activeExportPublication?.status === 'cancelled'">
-          <div class="export-dialog-state is-blocked">
-            <AlertTriangle :size="28" />
-            <strong>导出没有完成</strong>
-            <p>{{ exportDialogError || '导出任务失败，请稍后重试。' }}</p>
-          </div>
-          <footer>
-            <button type="button" @click="closeExportDialog">返回修改</button>
-            <button class="primary-action" type="button" @click="retrySimpleExport">重新导出</button>
-          </footer>
-        </template>
-
-        <template v-else>
-          <div class="export-dialog-state">
-            <LoaderCircle class="spin" :size="30" />
-            <strong>{{ activeExportPublication ? publicationStateLabel(activeExportPublication.status) : publicationRequestId ? '正在确认导出状态' : '正在检查成稿' }}</strong>
-            <p>{{ activeExportPublication ? '正在生成正式成品，完成后会在这里提供下载。' : exportDialogError || '正在核对文字、图片来源和导出条件。' }}</p>
-          </div>
-        </template>
-      </section>
-    </div>
+    <LayoutConfirmDialog
+      :open="confirmDialogOpen"
+      :title="confirmDialogState?.title ?? ''"
+      :message="confirmDialogState?.message ?? ''"
+      :confirm-label="confirmDialogState?.confirmLabel"
+      :danger="confirmDialogState?.danger"
+      @close="confirmDialogOpen = false"
+      @confirm="runConfirmAction"
+    />
 
     <section v-if="session.saveState.value === 'loading'" class="center-state">
       <LoaderCircle class="spin" :size="28" />
@@ -253,33 +193,7 @@
     </section>
 
     <div v-else-if="session.document.value && session.currentCanvas.value" class="editor-shell" :class="{ 'is-readonly': session.isReadOnly.value }">
-      <aside v-if="leftPanelOpen" class="canvas-navigation">
-        <div class="panel-heading">
-          <strong>{{ isPaged ? '页面' : '条漫段落' }}</strong>
-          <small>{{ session.document.value.canvases.length }}</small>
-        </div>
-        <div
-          v-for="(canvas, index) in session.document.value.canvases"
-          :key="canvas.id"
-          class="canvas-nav-item"
-          :class="{ 'is-active': canvas.id === session.selectedCanvasId.value }"
-          @click="session.selectCanvas(canvas.id)"
-        >
-          <span>{{ index + 1 }}</span>
-          <div>
-            <strong>{{ canvas.name }}</strong>
-            <small>{{ canvas.width }} × {{ canvas.height }}</small>
-          </div>
-          <div class="canvas-nav-actions">
-            <button type="button" :disabled="session.isReadOnly.value" :aria-label="`复制${canvas.name}`" title="复制画布" @click.stop="duplicateCanvas(canvas.id)">＋</button>
-            <button type="button" :disabled="session.isReadOnly.value || index === 0" :aria-label="`${canvas.name}前移`" title="前移" @click.stop="moveCanvas(canvas.id, 'up')"><ChevronUp :size="13" /></button>
-            <button type="button" :disabled="session.isReadOnly.value || index === session.document.value.canvases.length - 1" :aria-label="`${canvas.name}后移`" title="后移" @click.stop="moveCanvas(canvas.id, 'down')"><ChevronDown :size="13" /></button>
-          </div>
-        </div>
-        <div class="canvas-list-actions">
-          <button type="button" :disabled="session.isReadOnly.value" @click="addCanvas">新增{{ isPaged ? '页面' : '段落' }}</button>
-        </div>
-
+      <aside v-if="leftPanelOpen" class="canvas-navigation is-overlay">
         <section class="shot-tray" data-testid="shot-tray" aria-label="镜头素材栏">
           <div class="panel-heading">
             <strong>镜头素材</strong>
@@ -290,7 +204,7 @@
             v-for="item in sourceCatalogItems"
             :key="item.source.shotId"
             :class="{ 'is-selected': selectedSource?.source.shotId === item.source.shotId }"
-            @click="selectedSourceShotId = item.source.shotId"
+            @click="selectSourceShot(item)"
           >
             <img :src="api.projectAssetFileUrl(snapshot.project.id, item.source.assetId)" :alt="`镜头 ${item.order}`" />
             <div>
@@ -320,11 +234,14 @@
               :aria-label="leftPanelOpen ? '收起页面与素材栏' : '展开页面与素材栏'"
               @click="leftPanelOpen = !leftPanelOpen"
             ><PanelLeftClose v-if="leftPanelOpen" :size="14" /><PanelLeftOpen v-else :size="14" /></button>
-            <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('left')">左对齐</button>
-            <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('center')">水平居中</button>
-            <button type="button" :disabled="session.selectedElementIds.value.length < 2 || session.isReadOnly.value" @click="alignSelected('top')">顶对齐</button>
-            <button type="button" :disabled="session.selectedElementIds.value.length < 3 || session.isReadOnly.value" @click="distributeHorizontal">水平分布</button>
-            <button type="button" :disabled="!primaryElement || session.isReadOnly.value" @click="duplicatePrimaryElement">复制对象</button>
+            <button
+              v-if="advancedToolsVisible"
+              type="button"
+              :class="{ 'is-active': inspectorOpen }"
+              title="选中对象的详细设置"
+              aria-label="对象设置面板"
+              @click="toggleInspector"
+            ><SlidersHorizontal :size="14" />属性</button>
           </div>
           <label>
             缩放
@@ -332,11 +249,12 @@
             <span>{{ Math.round(session.zoom.value * 100) }}%</span>
           </label>
         </div>
-        <div class="stage-wrap">
+        <div class="stage-wrap" :class="{ 'has-left-panel': leftPanelOpen }">
           <nav class="canvas-tool-float" aria-label="画布工具">
             <button :class="{ 'is-active': activeTool === 'select' }" type="button" title="选择" aria-label="选择工具" @click="activeTool = 'select'"><MousePointer2 :size="16" /></button>
             <button :class="{ 'is-active': activeTool === 'pan' }" type="button" title="平移" aria-label="平移工具" @click="activeTool = 'pan'"><Hand :size="16" /></button>
             <button
+              v-if="advancedToolsVisible"
               :class="{ 'is-active': activeTool === 'crop' }"
               type="button"
               title="画布内调整图片裁切"
@@ -351,7 +269,7 @@
             <button type="button" :disabled="session.isReadOnly.value" title="添加气泡" aria-label="添加气泡" @click="addBalloon"><MessageCircle :size="16" /></button>
           </nav>
           <nav
-            v-if="canReplacePrimarySource && !session.isReadOnly.value && sourceCatalogItems.length"
+            v-if="advancedToolsVisible && canReplacePrimarySource && !session.isReadOnly.value && sourceCatalogItems.length"
             class="shot-replace-strip"
             aria-label="换图镜头条"
           >
@@ -370,6 +288,8 @@
           <div
             ref="stageScroll"
             class="stage-scroll"
+            @scroll="handleStageScroll"
+            @pointerdown="handleStageBackgroundPointerDown"
           >
           <div
             class="document-canvas"
@@ -421,21 +341,141 @@
               :read-only="session.isReadOnly.value"
               @select-element="selectKonvaElement"
               @replace-selection="replaceKonvaSelection"
+              @clear-selection="session.selectedElementIds.value = []"
+              @preview-transform="previewKonvaTransforms"
               @commit-transform="commitKonvaTransforms"
               @commit-tail="commitKonvaTail"
               @commit-crop="commitKonvaCrop"
               @pan="panKonvaViewport"
               @zoom="zoomKonvaViewport"
+              @context-menu="openElementContextMenu"
+              @edit-text="startInlineTextEdit"
             />
+            <div
+              v-if="inlineTextEdit && inlineEditElement"
+              class="inline-text-editor"
+              data-testid="layout-inline-text-editor"
+              :style="inlineEditStyle"
+              @pointerdown.stop
+              @mousedown.stop
+              @click.stop
+              @contextmenu.stop
+            >
+              <textarea
+                ref="inlineTextarea"
+                v-model="inlineTextEdit.value"
+                :style="inlineEditTextareaStyle"
+                aria-label="画布内编辑文字"
+                @keydown.esc.stop="cancelInlineTextEdit"
+                @keydown.meta.enter.prevent="commitInlineTextEdit"
+                @keydown.ctrl.enter.prevent="commitInlineTextEdit"
+                @blur="commitInlineTextEdit"
+              />
+              <small>点击其他位置或 Cmd+Enter 完成 · Esc 取消</small>
+            </div>
           </div>
+          </div>
+          <div
+            v-if="selectionToolbarVisible"
+            ref="selectionToolbarEl"
+            class="selection-toolbar"
+            data-testid="layout-selection-toolbar"
+            :style="selectionToolbarStyle"
+            @pointerdown.stop
+            @mousedown.stop
+            @click.stop
+            @contextmenu.stop
+          >
+            <template v-if="isMultiSelection">
+              <button type="button" :disabled="session.isReadOnly.value" title="左对齐" aria-label="左对齐" @click="alignSelected('left')"><AlignStartVertical :size="15" /></button>
+              <button type="button" :disabled="session.isReadOnly.value" title="水平居中" aria-label="水平居中" @click="alignSelected('center')"><AlignCenterVertical :size="15" /></button>
+              <button type="button" :disabled="session.isReadOnly.value" title="顶对齐" aria-label="顶对齐" @click="alignSelected('top')"><AlignStartHorizontal :size="15" /></button>
+              <button type="button" :disabled="session.isReadOnly.value || session.selectedElementIds.value.length < 3" title="水平分布" aria-label="水平分布" @click="distributeHorizontal"><AlignHorizontalDistributeCenter :size="15" /></button>
+              <span class="toolbar-divider" />
+              <button type="button" class="is-danger" :disabled="session.isReadOnly.value" title="删除选中对象" aria-label="删除选中对象" @click="deleteSelectedElements"><Trash2 :size="15" /></button>
+            </template>
+            <template v-else-if="primaryElement">
+              <button
+                v-if="advancedToolsVisible && primaryCrop"
+                type="button"
+                :disabled="cannotEditPrimary"
+                title="在画布上拖调裁切"
+                aria-label="调整裁切"
+                @click="activeTool = 'crop'"
+              ><Crop :size="15" /></button>
+              <template v-if="primaryElement.type === 'balloon'">
+                <select
+                  class="toolbar-select"
+                  :value="resolveLayoutBalloonVisualRoleV1(primaryElement)"
+                  :disabled="cannotEditPrimary"
+                  title="气泡类型"
+                  aria-label="气泡类型"
+                  @change="setBalloonKind"
+                >
+                  <option value="speech">对白</option>
+                  <option value="thought">思考</option>
+                  <option value="shout">喊叫</option>
+                  <option value="caption">旁白框</option>
+                </select>
+                <button
+                  type="button"
+                  :class="{ 'is-active': primaryElement.tail.enabled }"
+                  :disabled="cannotEditPrimary || primaryElement.balloonKind === 'caption'"
+                  title="尾巴"
+                  aria-label="切换气泡尾巴"
+                  @click="toggleBalloonTail"
+                ><Spline :size="15" /></button>
+              </template>
+              <template v-if="primaryElement.type === 'text' || primaryElement.type === 'balloon'">
+                <span class="toolbar-divider" />
+                <button type="button" :disabled="cannotEditPrimary" title="缩小文字" aria-label="缩小文字" @click="adjustTextFontSize(-4)"><Minus :size="15" /></button>
+                <button type="button" :disabled="cannotEditPrimary" title="放大文字" aria-label="放大文字" @click="adjustTextFontSize(4)"><Plus :size="15" /></button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': (primaryElement.richText.paragraphs.flatMap((paragraph) => paragraph.runs)[0]?.fontWeight ?? 400) >= 700 }"
+                  :disabled="cannotEditPrimary"
+                  title="加粗"
+                  aria-label="粗体"
+                  @click="toggleTextBold"
+                ><Bold :size="15" /></button>
+                <div class="toolbar-color-swatches" role="group" aria-label="文字颜色">
+                  <button
+                    v-for="color in TEXT_COLOR_PALETTE"
+                    :key="color"
+                    type="button"
+                    class="color-swatch"
+                    :class="{ 'is-active': (primaryElement.richText.paragraphs.flatMap((paragraph) => paragraph.runs)[0]?.color ?? '').toUpperCase().startsWith(color) }"
+                    :style="{ backgroundColor: color }"
+                    :title="TEXT_COLOR_NAMES[color] ?? color"
+                    :aria-label="`文字颜色 ${TEXT_COLOR_NAMES[color] ?? color}`"
+                    :disabled="cannotEditPrimary"
+                    @click="setTextColor(color)"
+                  />
+                </div>
+              </template>
+              <button
+                v-if="advancedToolsVisible && primaryElement.type === 'free_image' && emptyTargetPanel"
+                type="button"
+                :disabled="cannotEditPrimary"
+                title="自由图放回空画格"
+                aria-label="自由图放回画格"
+                @click="attachPrimaryFreeToPanel"
+              ><PictureInPicture2 :size="15" /></button>
+              <span class="toolbar-divider" />
+              <button type="button" :disabled="session.isReadOnly.value" title="复制" aria-label="复制" @click="duplicatePrimaryElement"><Copy :size="15" /></button>
+              <button type="button" :disabled="session.isReadOnly.value" :title="primaryElement.locked ? '解锁' : '锁定'" :aria-label="primaryElement.locked ? '解锁' : '锁定'" @click="setElementLocked(primaryElement.id, !primaryElement.locked)">
+                <Unlock v-if="primaryElement.locked" :size="15" /><Lock v-else :size="15" />
+              </button>
+              <button type="button" class="is-danger" :disabled="session.isReadOnly.value || primaryElement.locked" title="删除" aria-label="删除" @click="deletePrimaryElement"><Trash2 :size="15" /></button>
+            </template>
           </div>
         </div>
       </main>
 
-      <aside class="inspector">
+      <aside v-if="advancedToolsVisible && inspectorOpen" class="inspector is-overlay">
         <div class="inspector-tabs">
           <button type="button" :class="{ 'is-active': inspectorTab === 'properties' }" @click="inspectorTab = 'properties'">属性</button>
-          <button type="button" :class="{ 'is-active': inspectorTab === 'layers' }" @click="inspectorTab = 'layers'">图层</button>
+          <button v-if="advancedToolsVisible" type="button" :class="{ 'is-active': inspectorTab === 'layers' }" @click="inspectorTab = 'layers'">图层</button>
         </div>
 
         <div v-if="inspectorTab === 'properties'" class="property-panel">
@@ -455,7 +495,7 @@
               >{{ primaryElement.hidden ? '显示对象' : '隐藏对象' }}</button>
               <button type="button" :disabled="session.isReadOnly.value || primaryElement.locked" @click="deletePrimaryElement">删除对象</button>
             </div>
-            <section class="precision-adjust">
+            <section v-if="advancedToolsVisible" class="precision-adjust">
               <button
                 type="button"
                 class="collapsible-head"
@@ -472,7 +512,7 @@
               </div>
             </section>
 
-            <section v-if="primaryElement.type === 'panel_frame'" class="special-properties">
+            <section v-if="advancedToolsVisible && primaryElement.type === 'panel_frame'" class="special-properties">
               <div class="section-heading"><strong>画格</strong><small>图片内嵌于画格</small></div>
               <label>形状
                 <select :value="primaryElement.shape.kind" :disabled="cannotEditPrimary" @change="setPanelShape($event)">
@@ -490,7 +530,7 @@
               </div>
             </section>
 
-            <section v-if="primaryImage" class="special-properties" data-testid="crop-controls">
+            <section v-if="advancedToolsVisible && primaryImage" class="special-properties" data-testid="crop-controls">
               <div class="section-heading"><strong>图片与裁切</strong><small>源文件不会改写</small></div>
               <button
                 v-if="primaryCrop"
@@ -526,7 +566,7 @@
               >放入空画格</button>
             </section>
 
-            <section v-if="primaryElement.type === 'text'" class="special-properties" data-testid="text-semantic-controls">
+            <section v-if="advancedToolsVisible && primaryElement.type === 'text'" class="special-properties" data-testid="text-semantic-controls">
               <div class="section-heading"><strong>文字角色</strong><small>只改变既有 semantic，不改文字、样式或位置</small></div>
               <label>用途
                 <select :value="primaryElement.semantic" :disabled="cannotEditPrimary" @change="setTextSemantic">
@@ -545,7 +585,7 @@
             </section>
 
             <LayoutRichTextEditor
-              v-if="primaryElement.type === 'text' || primaryElement.type === 'balloon'"
+              v-if="advancedToolsVisible && (primaryElement.type === 'text' || primaryElement.type === 'balloon')"
               :key="primaryElement.id"
               :model-value="primaryElement.richText"
               :font-catalog="session.fontCatalog.value?.items ?? []"
@@ -557,7 +597,7 @@
               @set-paragraph-style="setSelectedParagraphStyle"
             />
 
-            <section v-if="primaryElement.type === 'balloon'" class="special-properties" data-testid="balloon-controls">
+            <section v-if="advancedToolsVisible && primaryElement.type === 'balloon'" class="special-properties" data-testid="balloon-controls">
               <div class="section-heading"><strong>气泡</strong><small>固定四种形状；只允许一个受控尾巴</small></div>
               <label>类型
                 <select :value="resolveLayoutBalloonVisualRoleV1(primaryElement)" :disabled="cannotEditPrimary" @change="setBalloonKind">
@@ -642,7 +682,7 @@
           </template>
           <template v-else>
             <p class="inspector-hint">点选画布中的画格、图片或气泡，这里会出现对应的调整操作。</p>
-            <section v-if="currentPanels.length" class="reading-order">
+            <section v-if="advancedToolsVisible && currentPanels.length" class="reading-order">
               <div class="section-heading"><strong>阅读顺序</strong><small>独立于图层顺序</small></div>
               <article v-for="(panelId, index) in session.currentCanvas.value.panelReadingOrder" :key="panelId">
                 <span>{{ index + 1 }} · {{ panelName(panelId) }}</span>
@@ -653,64 +693,6 @@
               </article>
             </section>
           </template>
-
-          <section class="page-settings">
-            <button
-              type="button"
-              class="collapsible-head"
-              :aria-expanded="pageSettingsOpen"
-              @click="pageSettingsOpen = !pageSettingsOpen"
-            ><ChevronDown :size="14" :class="{ 'is-collapsed': !pageSettingsOpen }" />页面设置</button>
-            <div v-show="pageSettingsOpen" class="page-settings-body">
-              <section class="special-properties profile-resize" data-testid="layout-profile-resize-preview" aria-label="画布尺寸预览">
-                <div class="section-heading">
-                  <strong>画布尺寸</strong>
-                  <small>先预览，再一次应用到当前成稿</small>
-                </div>
-                <div class="number-grid">
-                  <label>宽度 <input v-model.number="resizeWidth" type="number" min="320" :max="isPaged ? 8192 : 4096" :disabled="session.isReadOnly.value" /></label>
-                  <label>{{ isPaged ? '高度' : '新段默认高' }} <input v-model.number="resizeHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" /></label>
-                </div>
-                <label>已有内容处理
-                  <select v-model="resizeMode" :disabled="session.isReadOnly.value">
-                    <option value="keep_coordinates">保留坐标</option>
-                    <option value="scale_uniform">等比缩放</option>
-                  </select>
-                </label>
-                <p v-if="profileResizeResult.preview" aria-live="polite">
-                  {{ profileResizeResult.preview.mode === 'scale_uniform' ? '已有内容将等比缩放' : '已有内容坐标不变' }}；
-                  {{ isPaged ? `全部页面变为 ${resizeWidth} × ${resizeHeight}` : `已有段落保持独立文档坐标，新段默认高 ${resizeHeight}` }}。
-                </p>
-                <p v-else role="alert">{{ profileResizeResult.error }}</p>
-                <button type="button" :disabled="session.isReadOnly.value || !profileResizeResult.preview" @click="applyProfileResize">应用尺寸调整</button>
-                <template v-if="!isPaged">
-                  <label>当前段高度
-                    <input v-model.number="currentSectionHeight" type="number" min="320" max="8192" :disabled="session.isReadOnly.value" />
-                  </label>
-                  <button type="button" :disabled="session.isReadOnly.value || currentSectionHeight < 320" @click="applyCurrentSectionHeight">调整当前段高</button>
-                </template>
-              </section>
-
-              <section class="preset-picker" data-testid="layout-preset-picker">
-                <div class="section-heading">
-                  <strong>画格模板</strong>
-                  <small>不删除文字、气泡或自由图</small>
-                </div>
-                <div class="preset-grid">
-                  <button
-                    v-for="preset in presetOptions"
-                    :key="preset.id"
-                    type="button"
-                    :class="{ 'is-active': selectedPresetId === preset.id }"
-                    :disabled="session.isReadOnly.value"
-                    @click="selectedPresetId = preset.id"
-                  >{{ preset.label }}<small>{{ preset.count }} 格</small></button>
-                </div>
-                <p>{{ presetPreviewLabel }}</p>
-                <button type="button" :disabled="session.isReadOnly.value || !canApplyPreset" @click="applySelectedPreset">应用到当前画布</button>
-              </section>
-            </div>
-          </section>
         </div>
 
         <div v-else class="layer-panel">
@@ -719,6 +701,7 @@
             :key="element.id"
             :class="{ 'is-selected': isSelected(element.id) }"
             @click="session.selectElement(element.id, false)"
+            @contextmenu.prevent="openElementContextMenu({ elementId: element.id, clientX: $event.clientX, clientY: $event.clientY })"
           >
             <span>{{ element.name }}</span>
             <div>
@@ -735,6 +718,84 @@
           <div v-if="hiddenCount" class="hidden-summary">另有 {{ hiddenCount }} 个隐藏对象，可在图层中恢复显示。</div>
         </div>
       </aside>
+
+      <LayoutCanvasSettingsDrawer
+        :open="settingsOpen"
+        :is-paged="isPaged"
+        :read-only="session.isReadOnly.value"
+        :advanced-tools-visible="advancedToolsVisible"
+        :layout-document="session.document.value"
+        :canvas="session.currentCanvas.value"
+        :panels="currentPanels"
+        @close="settingsOpen = false"
+        @apply-profile-resize="applyProfileResizeFromDrawer"
+        @apply-section-height="applySectionHeightFromDrawer"
+        @apply-preset="applyPresetFromDrawer"
+      />
+    </div>
+
+    <div
+      v-if="contextMenu && contextMenuElement"
+      class="layout-context-menu"
+      data-testid="layout-context-menu"
+      role="menu"
+      :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+    >
+      <button type="button" role="menuitem" :disabled="session.isReadOnly.value" @click="runContextMenuAction(duplicatePrimaryElement)">复制对象</button>
+      <button
+        v-if="advancedToolsVisible && primaryCrop"
+        type="button"
+        role="menuitem"
+        :disabled="session.isReadOnly.value || contextMenuElement.locked"
+        @click="runContextMenuAction(() => { activeTool = 'crop'; })"
+      >在画布上拖调裁切</button>
+      <button
+        v-if="contextMenuElement.type === 'panel_frame' && contextMenuElement.contentImage"
+        type="button"
+        role="menuitem"
+        :disabled="session.isReadOnly.value || contextMenuElement.locked"
+        @click="runContextMenuAction(detachPanelImage)"
+      >分离为自由图</button>
+      <button
+        v-if="contextMenuElement.type === 'free_image' && emptyTargetPanel"
+        type="button"
+        role="menuitem"
+        :disabled="session.isReadOnly.value || contextMenuElement.locked"
+        @click="runContextMenuAction(attachPrimaryFreeToPanel)"
+      >自由图放回画格</button>
+      <hr />
+      <button
+        type="button"
+        role="menuitem"
+        :disabled="contextMenuLayerIndex <= 0"
+        @click="runContextMenuAction(() => moveLayer(contextMenuElement!.id, 'up'))"
+      >上移一层</button>
+      <button
+        type="button"
+        role="menuitem"
+        :disabled="contextMenuLayerIndex < 0 || contextMenuLayerIndex >= reversedLayers.length - 1"
+        @click="runContextMenuAction(() => moveLayer(contextMenuElement!.id, 'down'))"
+      >下移一层</button>
+      <hr />
+      <button
+        type="button"
+        role="menuitem"
+        :disabled="session.isReadOnly.value"
+        @click="runContextMenuAction(() => setElementLocked(contextMenuElement!.id, !contextMenuElement!.locked))"
+      >{{ contextMenuElement.locked ? '解锁对象' : '锁定对象' }}</button>
+      <button
+        type="button"
+        role="menuitem"
+        :disabled="session.isReadOnly.value || contextMenuElement.locked"
+        @click="runContextMenuAction(() => setElementHidden(contextMenuElement!.id, !contextMenuElement!.hidden))"
+      >{{ contextMenuElement.hidden ? '显示对象' : '隐藏对象' }}</button>
+      <button
+        type="button"
+        role="menuitem"
+        class="is-danger"
+        :disabled="session.isReadOnly.value || contextMenuElement.locked"
+        @click="runContextMenuAction(deletePrimaryElement)"
+      >删除对象</button>
     </div>
   </section>
 </template>
@@ -742,9 +803,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  AlignCenterVertical,
+  AlignHorizontalDistributeCenter,
+  AlignStartHorizontal,
+  AlignStartVertical,
   AlertTriangle,
+  Bold,
   ChevronDown,
   ChevronUp,
+  Copy,
   Crop,
   Download,
   Eye,
@@ -755,12 +822,20 @@ import {
   LoaderCircle,
   Lock,
   MessageCircle,
+  Minus,
   MousePointer2,
   PanelLeftClose,
   PanelLeftOpen,
+  PictureInPicture2,
+  Plus,
+  Settings2,
+  SlidersHorizontal,
   Smartphone,
+  Spline,
   SquareDashed,
+  Trash2,
   Type,
+  Undo2,
   Unlock,
   X,
 } from "lucide-vue-next";
@@ -772,14 +847,11 @@ import type {
   EditorCommandTypeV1,
   EditorCommandV1,
   LayoutCanvasV1,
-  LayoutPresetIdV1,
-  LayoutProfileV1,
-  LayoutPreflightCodeV2,
   LayoutPreflightIssueV1,
   LayoutPreflightIssueV2,
   LayoutPreflightReportV1,
   LayoutPreflightReportV2,
-  LayoutProfileResizeModeV1,
+  LayoutProfileV1,
   LayoutPublicationHistoryResponseV1,
   LayoutPublicationHistoryResponseV2,
   LayoutPublicationProfileV1,
@@ -789,24 +861,24 @@ import type {
   LayoutSourceCatalogItemV1,
   LayoutTextIssueV1,
   LayoutTopLevelElementV1,
+  PanelFrameElementV1,
+  PanelImageElementV1,
   RichTextDocumentV1,
   RichTextRangeV1,
   RichTextRunStylePatchV1,
-  PanelFrameElementV1,
-  PanelImageElementV1,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import {
   evaluateCoverCropV1,
   applyRichTextRangeStyle,
   collectLayoutTextIssuesV1,
-  generateLayoutPresetV1,
+  countLayoutGraphemes,
   layoutBalloonVisualPresetV1,
   resolveLayoutBalloonVisualRoleV1,
   projectVisibleShotPlacementsV1,
   replaceRichTextRange,
+  richTextPlainTextV1,
   LayoutPublicationProfileCodecV1,
-  previewLayoutProfileResizeV1,
 } from "@airoaming/shared";
 
 import { useLayoutEditorSession } from "../../composables/layout-editor-session";
@@ -814,6 +886,10 @@ import { useLayoutCompositionSession } from "../../composables/layout-compositio
 import { useLayoutFontLoader } from "../../composables/layout-font-loader";
 import { api, ApiClientError } from "../../services/api";
 import LayoutElementTextPreview from "./LayoutElementTextPreview.vue";
+import LayoutExportDialog from "./LayoutExportDialog.vue";
+import type { LayoutExportDialogStage } from "./layout-export-dialog";
+import LayoutCanvasSettingsDrawer from "./LayoutCanvasSettingsDrawer.vue";
+import LayoutConfirmDialog from "./LayoutConfirmDialog.vue";
 import LayoutKonvaInteractionLayer from "./LayoutKonvaInteractionLayer.vue";
 import LayoutRichTextEditor from "./LayoutRichTextEditor.vue";
 import {
@@ -829,7 +905,6 @@ import { mergeLayoutPublicationSnapshot } from "./layout-publication-state";
 import { openDetachedPreviewWindowAfterPreparation } from "./layout-preview-window";
 
 type LayoutPreflightIssue = LayoutPreflightIssueV1 | LayoutPreflightIssueV2;
-type ExportDialogStage = "checking" | "blocked" | "review" | "publishing" | "failed";
 type ExportResumeTarget = "revision" | "publication";
 
 const props = defineProps<{
@@ -852,20 +927,17 @@ const formatLabel = computed(() => isPaged.value ? "页漫" : "条漫");
 const initializationMode = ref<"default_storyboard_layout" | "blank">("default_storyboard_layout");
 const profileWidth = ref(isPaged.value ? 1800 : 1080);
 const profileHeight = ref(isPaged.value ? 2400 : 1920);
-const resizeWidth = ref(isPaged.value ? 1800 : 1080);
-const resizeHeight = ref(isPaged.value ? 2400 : 1920);
-const resizeMode = ref<LayoutProfileResizeModeV1>("keep_coordinates");
-const currentSectionHeight = ref(1920);
 const inspectorTab = ref<"properties" | "layers">("properties");
+const inspectorOpen = ref(false);
+const settingsOpen = ref(false);
 const selectedSourceShotId = ref<string | null>(null);
-const selectedPresetId = ref<LayoutPresetIdV1>(isPaged.value ? "four_panel" : "single");
 const actionError = ref<string | null>(null);
 const mobilePreviewFeedback = ref<string | null>(null);
 const mobilePreviewFallbackUrl = ref<string | null>(null);
 const mobilePreviewBusy = ref(false);
 const exportOperationBusy = ref(false);
 const exportDialogOpen = ref(false);
-const exportDialogStage = ref<ExportDialogStage>("checking");
+const exportDialogStage = ref<LayoutExportDialogStage>("checking");
 const exportDialogIssues = ref<LayoutPreflightIssue[]>([]);
 const exportDialogError = ref<string | null>(null);
 const exportResumeTarget = ref<ExportResumeTarget>("revision");
@@ -881,9 +953,9 @@ const activeExportPublicationSnapshot = ref<LayoutPublicationSummaryV1 | LayoutP
 const publicationRequestId = ref<string | null>(null);
 const publicationBusy = ref(false);
 const activeTool = ref<"select" | "pan" | "crop">("select");
+const advancedToolsVisible = ref(false);
 const stageScroll = ref<HTMLElement | null>(null);
-const leftPanelOpen = ref(true);
-const pageSettingsOpen = ref(true);
+const leftPanelOpen = ref(false);
 const precisionOpen = ref(false);
 const legacyCutoverBusy = ref(false);
 let publicationPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -896,16 +968,6 @@ const fontLoader = useLayoutFontLoader({
   chapterId,
   catalog: session.fontCatalog,
 });
-
-const presetOptions: Array<{ id: LayoutPresetIdV1; label: string; count: number }> = [
-  { id: "single", label: "单格", count: 1 },
-  { id: "two_vertical", label: "上下双格", count: 2 },
-  { id: "two_horizontal", label: "左右双格", count: 2 },
-  { id: "three_focus", label: "一大两小", count: 3 },
-  { id: "four_panel", label: "四格", count: 4 },
-  { id: "dialogue_two", label: "对话双格", count: 2 },
-  { id: "action_focus", label: "动作聚焦", count: 3 },
-];
 
 interface BalloonAppearancePreset {
   id: string;
@@ -924,6 +986,20 @@ const primaryElement = computed(() => session.selectedElements.value[0] ?? null)
 const sourceCatalogItems = computed(() => session.sourceCatalog.value?.items ?? []);
 const selectedSource = computed(() => sourceCatalogItems.value.find((item) => item.source.shotId === selectedSourceShotId.value) ?? sourceCatalogItems.value[0] ?? null);
 const visiblePlacements = computed(() => session.document.value ? projectVisibleShotPlacementsV1(session.document.value) : {});
+
+function selectSourceShot(item: LayoutSourceCatalogItemV1): void {
+  selectedSourceShotId.value = item.source.shotId;
+  const placement = visiblePlacements.value[item.source.shotId]?.[0];
+  if (!placement) return;
+  session.selectCanvas(placement.canvasId);
+  const canvas = session.document.value?.canvases.find((entry) => entry.id === placement.canvasId);
+  const element = canvas?.elements.find((entry) => entry.id === placement.elementId);
+  const scroller = stageScroll.value;
+  if (!element || !scroller) return;
+  const zoom = session.zoom.value;
+  const targetTop = Math.max(0, element.transform.y * zoom - scroller.clientHeight / 2 + element.transform.height * zoom / 2);
+  scroller.scrollTo({ top: targetTop, behavior: "smooth" });
+}
 const emptyTargetPanel = computed(() => {
   const selected = session.selectedElements.value.find((element): element is PanelFrameElementV1 => element.type === "panel_frame" && !element.contentImage && !element.locked);
   return selected ?? currentPanels.value.find((panel) => !panel.contentImage && !panel.locked) ?? null;
@@ -977,16 +1053,9 @@ const balloonAppearancePresets = computed<BalloonAppearancePreset[]>(() => {
     { id: "speech-teal", label: "青绿对白", fillColor: "#F0FDFAF2", strokeColor: "#0F766EFF", strokeWidth: width(4) },
   ];
 });
-const selectedPreset = computed(() => presetOptions.find((preset) => preset.id === selectedPresetId.value)!);
-const occupiedPanelCount = computed(() => currentPanels.value.filter((panel) => panel.contentImage).length);
-const canApplyPreset = computed(() => selectedPreset.value.count >= occupiedPanelCount.value && Boolean(session.currentCanvas.value));
-const presetPreviewLabel = computed(() => canApplyPreset.value
-  ? `将 ${occupiedPanelCount.value} 张已放置图片按阅读顺序映射到 ${selectedPreset.value.count} 个正式画格。`
-  : `当前有 ${occupiedPanelCount.value} 个已占用画格，${selectedPreset.value.count} 格模板会丢图，已阻止应用。`);
 const cannotEditPrimary = computed(() => session.isReadOnly.value || Boolean(primaryElement.value?.locked));
 
 watch(() => primaryElement.value?.id ?? null, (id) => {
-  pageSettingsOpen.value = !id;
   if (!id) precisionOpen.value = false;
 });
 const sourceReadyForCompose = computed(() => (
@@ -1002,22 +1071,6 @@ const textIssues = computed(() => session.document.value
 const textIssueElementIds = computed(() => new Set(textIssues.value.filter((issue) => issue.code === "LAYOUT_TEXT_OVERFLOW").map((issue) => issue.elementId)));
 const primaryTextIssues = computed(() => primaryElement.value ? textIssues.value.filter((issue) => issue.elementId === primaryElement.value!.id) : []);
 const canInitialize = computed(() => Boolean(chapterId.value) && profileWidth.value >= 320 && profileHeight.value >= 320);
-const profileResizeResult = computed(() => {
-  if (!session.document.value) return { preview: null, error: "排版草稿尚未加载。" };
-  try {
-    return {
-      preview: previewLayoutProfileResizeV1({
-        document: session.document.value,
-        width: resizeWidth.value,
-        height: resizeHeight.value,
-        mode: resizeMode.value,
-      }),
-      error: null,
-    };
-  } catch (error) {
-    return { preview: null, error: error instanceof Error ? error.message : "尺寸预览失败" };
-  }
-});
 const sourceAttention = computed(() => {
   if (session.server.value?.sourceEvaluation.sourceResolution === "current") return null;
   const sources = props.snapshot.candidateSources;
@@ -1066,19 +1119,6 @@ const exportTaskPending = computed(() => (
   || activeExportPublication.value?.status === "rendering"
 ));
 const simpleExportBusy = computed(() => exportOperationBusy.value || exportTaskPending.value);
-const exportDialogTitle = computed(() => {
-  if (exportDialogStage.value === "blocked") return "暂时不能导出";
-  if (exportDialogStage.value === "review") return "请确认文字变化";
-  if (exportDialogStage.value === "failed") return "导出失败";
-  if (activeExportPublication.value?.status === "ready") return "导出完成";
-  return "正在导出";
-});
-const exportDialogSubtitle = computed(() => {
-  if (exportDialogStage.value === "blocked") return "系统发现会影响成稿准确性的问题";
-  if (exportDialogStage.value === "review") return "只确认你主动改变的内容";
-  if (activeExportPublication.value?.status === "ready") return "正式版本与导出产物均已保存";
-  return "系统会自动完成保存、检查和成品生成";
-});
 const canvasStyle = computed(() => ({
   width: `${session.currentCanvas.value!.width * session.zoom.value}px`,
   height: `${session.currentCanvas.value!.height * session.zoom.value}px`,
@@ -1138,7 +1178,17 @@ async function convertLegacyDraft(): Promise<void> {
 }
 
 async function rebuildLegacyDraft(): Promise<void> {
-  if (!window.confirm("将使用当前定稿重新建立 V1 草稿。旧排版证据仍保留，但不会被猜测为 current。确认继续？")) return;
+  requestConfirm({
+    title: "用当前定稿重建？",
+    message: "将使用当前定稿重新建立 V1 草稿。旧排版证据仍保留，但不会被猜测为 current。此操作不可撤销。",
+    confirmLabel: "确认重建",
+    danger: true,
+  }, () => {
+    void runRebuildLegacyDraft();
+  });
+}
+
+async function runRebuildLegacyDraft(): Promise<void> {
   legacyCutoverBusy.value = true;
   actionError.value = null;
   try {
@@ -1310,63 +1360,196 @@ function closeExportDialog(): void {
   exportDialogOpen.value = false;
 }
 
-function isTextDifferenceIssue(issue: LayoutPreflightIssue): boolean {
-  return issue.code === "DIALOGUE_USER_MODIFIED"
-    || issue.code === "DIALOGUE_USER_SUPPRESSED"
-    || issue.code === "CUSTOM_TEXT_PRESENT";
+function toggleInspector(): void {
+  inspectorOpen.value = !inspectorOpen.value;
+  if (inspectorOpen.value) settingsOpen.value = false;
 }
 
-function exportIssueText(value: string | number | boolean | null | undefined, fallback: string): string {
-  return typeof value === "string" && value.length > 0 ? value : fallback;
+const isMultiSelection = computed(() => session.selectedElementIds.value.length > 1);
+
+const previewTransforms = ref<KonvaTransformCommitV1[] | null>(null);
+
+function previewKonvaTransforms(changes: KonvaTransformCommitV1[] | null): void {
+  previewTransforms.value = changes;
 }
 
-function exportIssueLocation(issue: LayoutPreflightIssue): string {
-  const speaker = typeof issue.details.speakerName === "string" && issue.details.speakerName
-    ? issue.details.speakerName
-    : null;
-  const source = issue.shotId
-    ? sourceCatalogItems.value.find((item) => item.source.shotId === issue.shotId)
-    : null;
-  const explicitShotOrder = typeof issue.details.shotOrder === "number"
-    ? issue.details.shotOrder
-    : null;
-  const canvas = issue.canvasId
-    ? session.document.value?.canvases.find((item) => item.id === issue.canvasId)
-    : null;
-  return [
-    speaker,
-    explicitShotOrder !== null
-      ? `镜头 ${explicitShotOrder}`
-      : source
-        ? `镜头 ${source.order}`
-        : issue.shotId
-          ? "来源镜头"
-          : null,
-    canvas?.name ?? null,
-  ].filter(Boolean).join(" · ") || "本章";
+function previewTransformFor(elementId: string) {
+  return previewTransforms.value?.find((change) => change.elementId === elementId)?.transform ?? null;
 }
 
-function exportIssueBlockingText(issue: LayoutPreflightIssue): string {
-  const sourceText = typeof issue.details.sourceText === "string" ? issue.details.sourceText : "";
-  const currentText = typeof issue.details.currentText === "string" ? issue.details.currentText : "";
-  if (issue.details.reason === "bound_balloon_outside_canvas") {
-    return `${sourceText ? `应有文字：${sourceText}。` : ""}请把对白气泡移回画布内。`;
+const inlineTextEdit = ref<{ elementId: string; value: string } | null>(null);
+const inlineTextarea = ref<HTMLTextAreaElement | null>(null);
+const inlineEditElement = computed(() => inlineTextEdit.value
+  ? currentElements.value.find((element) => element.id === inlineTextEdit.value!.elementId) ?? null
+  : null);
+
+function startInlineTextEdit(elementId: string): void {
+  const element = currentElements.value.find((item) => item.id === elementId);
+  if (!element || (element.type !== "text" && element.type !== "balloon")) return;
+  if (session.isReadOnly.value || element.locked || element.hidden) return;
+  session.selectElement(elementId);
+  inlineTextEdit.value = { elementId, value: richTextPlainTextV1(element.richText) };
+  void nextTick(() => {
+    inlineTextarea.value?.focus();
+    inlineTextarea.value?.select();
+  });
+}
+
+function cancelInlineTextEdit(): void {
+  inlineTextEdit.value = null;
+}
+
+function commitInlineTextEdit(): void {
+  const edit = inlineTextEdit.value;
+  const element = edit ? currentElements.value.find((item) => item.id === edit.elementId) : null;
+  const canvas = session.currentCanvas.value;
+  inlineTextEdit.value = null;
+  if (!edit || !element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  const next = edit.value.replace(/\r\n/g, "\n");
+  if (next === richTextPlainTextV1(element.richText)) return;
+  const firstParagraph = element.richText.paragraphs[0];
+  const firstRun = firstParagraph?.runs[0];
+  const baseRun = firstRun ? structuredClone(firstRun) : structuredClone(defaultRichText("").paragraphs[0]!.runs[0]!);
+  const richText: RichTextDocumentV1 = {
+    ...structuredClone(element.richText),
+    paragraphs: next.split("\n").map((line) => ({
+      align: firstParagraph?.align ?? "start",
+      lineHeight: firstParagraph?.lineHeight ?? 1.2,
+      runs: [{ ...structuredClone(baseRun), text: line }],
+    })),
+  };
+  session.execute(element.type === "text"
+    ? command("text.replace_document", "画布内编辑文字", { canvasId: canvas.id, elementId: element.id, richText })
+    : command("balloon.replace_text_document", "画布内编辑气泡文字", { canvasId: canvas.id, elementId: element.id, richText }));
+}
+
+const inlineEditStyle = computed(() => {
+  const element = inlineEditElement.value;
+  if (!element) return {};
+  const zoom = session.zoom.value;
+  return {
+    left: `${element.transform.x * zoom}px`,
+    top: `${element.transform.y * zoom}px`,
+    width: `${Math.max(120, element.transform.width * zoom)}px`,
+    minHeight: `${Math.max(72, element.transform.height * zoom)}px`,
+  };
+});
+
+const inlineEditTextareaStyle = computed(() => {
+  const element = inlineEditElement.value;
+  if (!element || (element.type !== "text" && element.type !== "balloon")) return {};
+  const firstRun = element.richText.paragraphs[0]?.runs[0];
+  const zoom = session.zoom.value;
+  return {
+    fontSize: `${Math.max(11, (firstRun?.fontSize ?? 64) * zoom)}px`,
+    fontWeight: String(firstRun?.fontWeight ?? 400),
+    color: firstRun?.color ? `#${firstRun.color.slice(1, 7)}` : "#111827",
+    minHeight: `${Math.max(48, element.transform.height * zoom - 20)}px`,
+  };
+});
+
+const selectionToolbarVisible = computed(() => (
+  Boolean(primaryElement.value)
+  && Boolean(session.currentCanvas.value)
+  && !session.isReadOnly.value
+  && activeTool.value !== "crop"
+  && !contextMenu.value
+  && !inlineTextEdit.value
+));
+
+const selectionToolbarEl = ref<HTMLElement | null>(null);
+const selectionToolbarSize = ref({ width: 0, height: 0 });
+watch(selectionToolbarEl, (element) => {
+  if (!element) {
+    selectionToolbarSize.value = { width: 0, height: 0 };
+    return;
   }
-  if (issue.details.reason === "bound_balloon_not_visible") {
-    return `${sourceText ? `应有文字：${sourceText}。` : ""}请恢复显示，并把对象透明度调到可见范围。`;
-  }
-  if (sourceText && currentText && sourceText !== currentText) {
-    return `原文：${sourceText}；当前：${currentText}`;
-  }
-  if (sourceText) return `应有文字：${sourceText}`;
-  if (currentText) return `当前文字：${currentText}`;
-  return "";
+  const measure = () => {
+    const rect = element.getBoundingClientRect();
+    selectionToolbarSize.value = { width: rect.width, height: rect.height };
+  };
+  measure();
+  const observer = new ResizeObserver(measure);
+  observer.observe(element);
+  watch(selectionToolbarEl, (next) => {
+    if (next !== element) observer.disconnect();
+  }, { immediate: true });
+});
+
+const stageScrollPos = ref({ left: 0, top: 0 });
+function handleStageScroll(): void {
+  const el = stageScroll.value;
+  if (!el) return;
+  stageScrollPos.value = { left: el.scrollLeft, top: el.scrollTop };
 }
 
-function exportIssueDescription(issue: LayoutPreflightIssue): string {
-  if (issue.code === "LAYOUT_COMPOSITION_SOURCE_OVERRIDE") return "你主动更换了镜头图片，将按当前图片导出。";
-  if (issue.code === "TEXT_OVERFLOW") return "有文字可能超出容器，请确认当前版面可以接受。";
-  return "这项变化需要你确认后才能继续导出。";
+function handleStageBackgroundPointerDown(event: PointerEvent): void {
+  if (session.isReadOnly.value) return;
+  if (!session.selectedElementIds.value.length) return;
+  if (inlineTextEdit.value || contextMenu.value) return;
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+  if (target.closest(".document-canvas")) return;
+  session.selectedElementIds.value = [];
+}
+
+const selectionToolbarStyle = computed(() => {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  const scrollEl = stageScroll.value;
+  if (!element || !canvas) return {};
+  const zoom = session.zoom.value;
+  const transform = previewTransformFor(element.id) ?? element.transform;
+  const x = transform.x * zoom;
+  const y = transform.y * zoom;
+  const height = transform.height * zoom;
+  const canvasWidth = canvas.width * zoom;
+  const canvasHeight = canvas.height * zoom;
+  const toolbarWidth = Math.max(120, selectionToolbarSize.value.width);
+  const toolbarHeight = Math.max(40, selectionToolbarSize.value.height);
+  const gap = 8;
+  const viewportWidth = scrollEl?.clientWidth ?? Math.max(canvasWidth, 320);
+  const viewportHeight = scrollEl?.clientHeight ?? Math.max(canvasHeight, 320);
+  // 画布在滚动容器内的居中偏移（stage-scroll padding: 40px 48px）
+  const paddingTop = 40;
+  const paddingLeft = 48;
+  const availableWidth = Math.max(0, viewportWidth - paddingLeft * 2);
+  const canvasLeft = paddingLeft + Math.max(0, (availableWidth - canvasWidth) / 2);
+  const scroll = stageScrollPos.value;
+  // 元素相对可视区的坐标（画布居中偏移 + 元素画布坐标 - 滚动偏移）
+  const elementViewX = canvasLeft + x - scroll.left;
+  const elementViewY = paddingTop + y - scroll.top;
+  // 工具条钳制在可视区内（不被画布边缘裁切，也尽量不盖住左栏）
+  const leftLimit = leftPanelOpen.value ? 272 : 4;
+  const left = Math.max(leftLimit, Math.min(elementViewX, Math.max(leftLimit, viewportWidth - toolbarWidth - 4)));
+  const placeAbove = elementViewY >= toolbarHeight + gap;
+  let top = placeAbove ? elementViewY : elementViewY + height;
+  if (placeAbove) {
+    if (top - toolbarHeight - gap < 0) top = toolbarHeight + gap;
+  } else {
+    if (top + toolbarHeight + gap > viewportHeight) top = Math.max(4, viewportHeight - toolbarHeight - gap);
+  }
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    transform: placeAbove ? "translateY(calc(-100% - 8px))" : "translateY(8px)",
+  };
+});
+
+function toggleBalloonTail(): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (element?.type !== "balloon" || !canvas || element.balloonKind === "caption") return;
+  session.execute(command("balloon.set_tail", element.tail.enabled ? "隐藏气泡尾巴" : "显示气泡尾巴", {
+    canvasId: canvas.id,
+    elementId: element.id,
+    tail: { ...element.tail, enabled: !element.tail.enabled },
+  }));
+}
+
+function toggleSettings(): void {
+  settingsOpen.value = !settingsOpen.value;
+  if (settingsOpen.value) inspectorOpen.value = false;
 }
 
 async function syncLatestSources(): Promise<void> {
@@ -1655,73 +1838,8 @@ function publicationArtifactUrl(exportRevisionId: string, assetId: string): stri
   return api.layoutPublicationArtifactUrl(projectId.value, chapterId.value!, exportRevisionId, assetId);
 }
 
-function publicationStateLabel(status: string): string {
-  return ({ queued: "排队中", rendering: "渲染中", ready: "已完成", failed: "失败", cancelled: "已取消" } as Record<string, string>)[status] ?? status;
-}
-
-function artifactLabel(role: string, order: number): string {
-  const label = ({ page_png: "页面 PNG", document_pdf: "PDF", strip_slice_png: "条漫切片", long_png: "长图", publication_manifest: "清单" } as Record<string, string>)[role] ?? role;
-  return role === "page_png" || role === "strip_slice_png" ? `${label} ${order}` : label;
-}
-
 function shortDigest(digest: string): string {
   return `${digest.slice(0, 14)}…${digest.slice(-8)}`;
-}
-
-function preflightIssueLabel(issue: LayoutPreflightIssue): string {
-  if (issue.code === "DIALOGUE_BINDING_DANGLING") {
-    if (issue.details.reason === "bound_balloon_outside_canvas") return "对白气泡完全在画布外";
-    if (issue.details.reason === "bound_balloon_not_visible") return "对白气泡已隐藏或完全透明";
-  }
-  const code = issue.code as LayoutPreflightCodeV2;
-  const labels: Record<string, string> = {
-    ACTIVE_SHOT_UNPLACED: "当前镜头尚未放入画布",
-    ACTIVE_SHOT_NOT_VISIBLE: "当前镜头不可见",
-    SOURCE_LOCK_SET_INCOMPLETE: "来源集合不完整",
-    SOURCE_STALE: "图片仍引用旧定稿",
-    SOURCE_UNRESOLVED: "图片来源不可解析",
-    SOURCE_DIGEST_MISMATCH: "图片来源摘要不一致",
-    IMAGE_ASSET_MISSING_OR_NOT_READY: "图片素材未就绪",
-    IMAGE_SHA_MISMATCH: "图片素材摘要不一致",
-    IMAGE_ORIENTATION_UNNORMALIZED: "图片 EXIF 方向尚未规范",
-    IMAGE_COLORSPACE_UNSUPPORTED: "图片色彩空间不是 sRGB",
-    IMAGE_ANIMATION_UNSUPPORTED: "动画图片不能用于正式成稿",
-    FONT_ASSET_MISSING_OR_NOT_READY: "字体素材未就绪",
-    FONT_EMBEDDING_FORBIDDEN: "字体不允许嵌入",
-    FONT_GLYPH_MISSING: "字体缺少字符",
-    VISIBLE_TEXT_EMPTY: "可见文字内容为空",
-    TEXT_OVERFLOW: "文字发生溢出",
-    IMAGE_EFFECTIVE_RESOLUTION_CRITICAL: "图片有效分辨率不足",
-    IMAGE_EFFECTIVE_RESOLUTION_LOW: "图片有效分辨率偏低",
-    ELEMENT_FULLY_OUTSIDE_CANVAS: "对象完全位于画布外",
-    ELEMENT_PARTLY_OUTSIDE_SAFE_AREA: "对象超出安全区",
-    CANVAS_EMPTY: "存在空画布",
-    HIDDEN_ELEMENT_PRESENT: "存在隐藏对象",
-    WORKING_COPY_AHEAD_OF_REVISION: "草稿领先于该版本",
-    REVISION_DOCUMENT_DIGEST_MISMATCH: "完整成稿摘要与版本证据不一致",
-    VISIBLE_DOCUMENT_DIGEST_MISMATCH: "可见成稿摘要与投影证据不一致",
-    VISIBLE_PROJECTION_UNSTABLE: "可见投影结果不稳定",
-    DIALOGUE_LEDGER_INVALID: "对白台账不完整",
-    DIALOGUE_LEDGER_WARNING: "对白台账需要人工确认",
-    DIALOGUE_BINDING_MISSING: "对白缺少成稿绑定",
-    DIALOGUE_BINDING_UNEXPECTED: "成稿包含意外对白绑定",
-    DIALOGUE_BINDING_DUPLICATE: "对白被重复绑定",
-    DIALOGUE_BINDING_DANGLING: "对白绑定指向不存在对象",
-    DIALOGUE_BINDING_SOURCE_MISMATCH: "对白绑定的镜头来源不一致",
-    DIALOGUE_BALLOON_KIND_MISMATCH: "对白与气泡类型不一致",
-    DIALOGUE_BALLOON_SPEAKER_MISMATCH: "对白说话人与气泡引用不一致",
-    DIALOGUE_TEXT_UNPROTECTED: "手工对白修改尚未建立文字保护",
-    DIALOGUE_USER_MODIFIED: "对白文字已由用户修改",
-    DIALOGUE_USER_SUPPRESSED: "对白已由用户明确省略",
-    CUSTOM_TEXT_PRESENT: "你添加了自定义文字",
-    UNOWNED_TEXT_PRESENT: "发现无来源文字",
-    LAYOUT_COMPOSITION_MISSING: "缺少首次排版记录",
-    LAYOUT_COMPOSITION_STALE: "首次排版记录已失效",
-    LAYOUT_COMPOSITION_SOURCE_LOCK_MISMATCH: "首次排版记录与当前镜头不一致",
-    LAYOUT_COMPOSITION_SOURCE_OVERRIDE: "首次排版沿用了人工确认的镜头更换",
-    LAYOUT_PROTECTION_INVALID: "人工保护指向无效对象或范围",
-  };
-  return labels[code] ?? code;
 }
 
 function command<T extends EditorCommandTypeV1>(
@@ -1932,6 +2050,86 @@ function replaceSelectedTextRange(value: RichTextRangeV1 & { text: string }): vo
       { canvasId: canvas.id, elementId: element.id, richText },
     ));
   }
+}
+
+function fullTextRangeV1(richText: RichTextDocumentV1): RichTextRangeV1 {
+  const paragraphs = richText.paragraphs;
+  const last = paragraphs[paragraphs.length - 1];
+  if (!last) return { start: { paragraphIndex: 0, graphemeOffset: 0 }, end: { paragraphIndex: 0, graphemeOffset: 0 } };
+  const lastLength = last.runs.reduce((sum, run) => sum + countLayoutGraphemes(run.text), 0);
+  return {
+    start: { paragraphIndex: 0, graphemeOffset: 0 },
+    end: { paragraphIndex: paragraphs.length - 1, graphemeOffset: lastLength },
+  };
+}
+
+const TEXT_COLOR_PALETTE = ["#111827", "#FFFFFF", "#DC2626", "#2563EB", "#F59E0B", "#059669", "#7C3AED"] as const;
+const TEXT_COLOR_NAMES: Record<string, string> = {
+  "#111827": "黑色",
+  "#FFFFFF": "白色",
+  "#DC2626": "红色",
+  "#2563EB": "蓝色",
+  "#F59E0B": "橙色",
+  "#059669": "绿色",
+  "#7C3AED": "紫色",
+};
+
+function applyTextStylePatch(style: RichTextRunStylePatchV1, label: string): void {
+  const element = primaryElement.value;
+  const canvas = session.currentCanvas.value;
+  if (!element || !canvas || (element.type !== "text" && element.type !== "balloon")) return;
+  const range = fullTextRangeV1(element.richText);
+  if (element.type === "text") {
+    session.execute(command("text.apply_range_style", label, {
+      canvasId: canvas.id,
+      elementId: element.id,
+      ...range,
+      style,
+    }));
+  } else {
+    const richText = applyRichTextRangeStyle(element.richText, range, style);
+    session.execute(command("balloon.replace_text_document", label, {
+      canvasId: canvas.id,
+      elementId: element.id,
+      richText,
+    }));
+  }
+}
+
+function adjustTextFontSize(delta: number): void {
+  const element = primaryElement.value;
+  if (!element || (element.type !== "text" && element.type !== "balloon")) return;
+  const firstRun = element.richText.paragraphs.flatMap((paragraph) => paragraph.runs)[0];
+  const current = firstRun?.fontSize ?? 64;
+  const next = Math.max(6, Math.min(512, Math.round(current + delta)));
+  if (next === current) return;
+  applyTextStylePatch({ fontSize: next }, delta > 0 ? "放大文字" : "缩小文字");
+}
+
+function toggleTextBold(): void {
+  const element = primaryElement.value;
+  if (!element || (element.type !== "text" && element.type !== "balloon")) return;
+  const firstRun = element.richText.paragraphs.flatMap((paragraph) => paragraph.runs)[0];
+  if (!firstRun) return;
+  const targetWeight = firstRun.fontWeight >= 700 ? 400 : 700;
+  const catalog = session.fontCatalog.value?.items ?? [];
+  const currentFace = catalog.find((font) => font.assetId === firstRun.fontAssetId);
+  const targetFace = currentFace
+    ? catalog.find((font) => (
+        font.metadata.familyName === currentFace.metadata.familyName
+        && font.metadata.face.weight === targetWeight
+        && font.metadata.face.style === "normal"
+      ))
+    : null;
+  applyTextStylePatch({
+    fontWeight: targetWeight,
+    fontStyle: "normal",
+    ...(targetFace ? { fontAssetId: targetFace.assetId } : {}),
+  }, targetWeight >= 700 ? "加粗文字" : "取消加粗");
+}
+
+function setTextColor(color: string): void {
+  applyTextStylePatch({ color: `${color}FF` }, "调整文字颜色");
 }
 
 function applySelectedTextStyle(value: RichTextRangeV1 & { style: RichTextRunStylePatchV1 }): void {
@@ -2339,64 +2537,15 @@ function attachFreeToPanel(
   session.selectElement(panel.id);
 }
 
-function presetInset() {
-  const profile = session.document.value!.profile;
-  return profile.kind === "paged"
-    ? profile.safeArea
-    : { top: 64, right: profile.safeInsetX, bottom: 64, left: profile.safeInsetX };
-}
-
-function buildPresetPanels(
-  canvas: LayoutCanvasV1,
-  presetId: LayoutPresetIdV1,
-  images: PanelImageElementV1[],
-): PanelFrameElementV1[] {
-  const count = presetOptions.find((preset) => preset.id === presetId)!.count;
-  const panels = generateLayoutPresetV1({
-    presetId,
-    presetVersion: 1,
-    width: canvas.width,
-    height: canvas.height,
-    inset: presetInset(),
-    gap: session.document.value!.profile.kind === "paged" ? 48 : 24,
-    panelIds: Array.from({ length: count }, () => newId("panel")),
-  });
-  return panels.map((panel, index) => ({
-    ...panel,
-    name: `画格 ${index + 1}`,
-    contentImage: images[index] ? structuredClone(images[index]) : null,
-  }));
-}
-
-function applySelectedPreset(): void {
+function applyPresetFromDrawer(value: { panels: PanelFrameElementV1[]; panelReadingOrder: string[] }): void {
   const canvas = session.currentCanvas.value;
-  if (!canvas || !canApplyPreset.value) return;
-  const images = currentPanels.value.flatMap((panel) => panel.contentImage ? [panel.contentImage] : []);
-  const panels = buildPresetPanels(canvas, selectedPresetId.value, images);
+  if (!canvas) return;
   session.execute(command("layout.apply_preset", "应用画格模板", {
     canvasId: canvas.id,
-    panels,
-    panelReadingOrder: panels.map((panel) => panel.id),
+    panels: value.panels,
+    panelReadingOrder: value.panelReadingOrder,
   }));
   session.selectedElementIds.value = [];
-}
-
-function addCanvas(): void {
-  const document = session.document.value;
-  if (!document) return;
-  const index = document.canvases.length;
-  const canvas: LayoutCanvasV1 = {
-    id: newId(document.profile.kind === "paged" ? "page" : "section"),
-    kind: document.profile.kind === "paged" ? "page" : "strip_section",
-    name: document.profile.kind === "paged" ? `第 ${index + 1} 页` : `第 ${index + 1} 段`,
-    width: document.profile.width,
-    height: document.profile.kind === "paged" ? document.profile.height : document.profile.defaultSectionHeight,
-    backgroundColor: "#FFFFFFFF",
-    panelReadingOrder: [],
-    elements: [],
-  };
-  session.execute(command("canvas.add", "新增画布", { canvas, beforeCanvasId: null }));
-  session.selectCanvas(canvas.id);
 }
 
 function cloneElementWithNewIds(element: LayoutTopLevelElementV1): LayoutTopLevelElementV1 {
@@ -2422,58 +2571,22 @@ function duplicatePrimaryElement(): void {
   session.selectElement(cloned.id);
 }
 
-function duplicateCanvas(canvasId: string): void {
-  const document = session.document.value;
-  const source = document?.canvases.find((canvas) => canvas.id === canvasId);
-  if (!document || !source) return;
-  const cloned = structuredClone(source);
-  cloned.id = newId(source.kind);
-  cloned.name = `${source.name} 副本`;
-  const idMap = new Map<string, string>();
-  cloned.elements = source.elements.map((element) => {
-    const copied = cloneElementWithNewIds(element);
-    idMap.set(element.id, copied.id);
-    return copied;
-  });
-  cloned.panelReadingOrder = source.panelReadingOrder.map((id) => idMap.get(id)!).filter(Boolean);
-  const sourceIndex = document.canvases.findIndex((canvas) => canvas.id === source.id);
-  const beforeCanvasId = document.canvases[sourceIndex + 1]?.id ?? null;
-  session.execute(command("canvas.duplicate", `复制${source.name}`, {
-    sourceCanvasId: source.id,
-    canvas: cloned,
-    beforeCanvasId,
-  }));
-  session.selectCanvas(cloned.id);
-}
-
-function applyProfileResize(): void {
-  const preview = profileResizeResult.value.preview;
+function applyProfileResizeFromDrawer(preview: { profile: LayoutProfileV1; canvases: LayoutCanvasV1[] }): void {
   const selectedCanvasId = session.currentCanvas.value?.id ?? null;
-  if (!preview) return;
-  session.execute(command("layout.resize_profile", resizeMode.value === "scale_uniform" ? "等比调整画布尺寸" : "保坐标调整画布尺寸", {
+  session.execute(command("layout.resize_profile", "调整画布尺寸", {
     profile: preview.profile,
     canvases: preview.canvases,
   }));
   if (selectedCanvasId) session.selectCanvas(selectedCanvasId);
 }
 
-function applyCurrentSectionHeight(): void {
+function applySectionHeightFromDrawer(height: number): void {
   const canvas = session.currentCanvas.value;
-  if (!canvas || isPaged.value || currentSectionHeight.value < 320 || currentSectionHeight.value > 8192) return;
+  if (!canvas || isPaged.value) return;
   session.execute(command("canvas.resize", "调整当前段高", {
     canvasId: canvas.id,
-    canvas: { ...structuredClone(canvas), height: currentSectionHeight.value },
+    canvas: { ...structuredClone(canvas), height },
   }));
-}
-
-function moveCanvas(canvasId: string, direction: "up" | "down"): void {
-  const canvases = session.document.value?.canvases ?? [];
-  const index = canvases.findIndex((canvas) => canvas.id === canvasId);
-  if (index < 0) return;
-  const beforeCanvasId = direction === "up"
-    ? canvases[index - 1]?.id ?? null
-    : canvases[index + 2]?.id ?? null;
-  session.execute(command("canvas.reorder", direction === "up" ? "画布前移" : "画布后移", { canvasId, beforeCanvasId }));
 }
 
 function moveReadingOrder(panelId: string, direction: "up" | "down"): void {
@@ -2501,13 +2614,14 @@ function isSelected(elementId: string): boolean {
 
 function elementStyle(element: LayoutTopLevelElementV1) {
   const zoom = session.zoom.value;
+  const transform = previewTransformFor(element.id) ?? element.transform;
   return {
-    left: `${element.transform.x * zoom}px`,
-    top: `${element.transform.y * zoom}px`,
-    width: `${element.transform.width * zoom}px`,
-    height: `${element.transform.height * zoom}px`,
-    opacity: element.transform.opacity,
-    transform: `rotate(${element.transform.rotation}deg)`,
+    left: `${transform.x * zoom}px`,
+    top: `${transform.y * zoom}px`,
+    width: `${transform.width * zoom}px`,
+    height: `${transform.height * zoom}px`,
+    opacity: transform.opacity,
+    transform: `rotate(${transform.rotation}deg)`,
     zIndex: currentElements.value.indexOf(element) + 1,
   };
 }
@@ -2660,18 +2774,41 @@ const ELEMENT_TYPE_LABELS: Record<LayoutTopLevelElementV1["type"], string> = {
   balloon: "气泡",
 };
 
+interface ConfirmDialogState {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  danger?: boolean;
+  action: () => void;
+}
+
+const confirmDialogOpen = ref(false);
+const confirmDialogState = ref<ConfirmDialogState | null>(null);
+
+function requestConfirm(state: Omit<ConfirmDialogState, "action">, action: () => void): void {
+  confirmDialogState.value = { ...state, action };
+  confirmDialogOpen.value = true;
+}
+
+function runConfirmAction(): void {
+  const state = confirmDialogState.value;
+  confirmDialogOpen.value = false;
+  confirmDialogState.value = null;
+  state?.action();
+}
+
 function deleteElementsWithConfirm(elements: LayoutTopLevelElementV1[]): void {
   const canvas = session.currentCanvas.value;
   if (!canvas || !elements.length) return;
   const occupiedPanel = elements.some((element) => element.type === "panel_frame" && element.contentImage);
-  const message = elements.length === 1
-    ? occupiedPanel
-      ? "删除此画格会让对应镜头回到“未放置”。是否继续？"
-      : `确认删除这个${ELEMENT_TYPE_LABELS[elements[0]!.type]}？此操作不可撤销。`
-    : `确认删除选中的 ${elements.length} 个对象？${occupiedPanel ? "其中有已放置镜头的画格，删除后对应镜头会回到“未放置”。" : ""}此操作不可撤销。`;
-  if (!window.confirm(message)) return;
-  executeBatch("删除对象", elements.map((element) => command("element.delete", "删除对象", { canvasId: canvas.id, elementId: element.id })));
-  session.selectedElementIds.value = [];
+  const title = elements.length === 1 ? `删除这个${ELEMENT_TYPE_LABELS[elements[0]!.type]}？` : `删除选中的 ${elements.length} 个对象？`;
+  const message = occupiedPanel
+    ? "其中有已放置镜头的画格，删除后对应镜头会回到“未放置”。此操作不可撤销。"
+    : "删除后无法恢复，此操作不可撤销。";
+  requestConfirm({ title, message, confirmLabel: "删除", danger: true }, () => {
+    executeBatch("删除对象", elements.map((element) => command("element.delete", "删除对象", { canvasId: canvas.id, elementId: element.id })));
+    session.selectedElementIds.value = [];
+  });
 }
 
 function deletePrimaryElement(): void {
@@ -2683,6 +2820,45 @@ function deletePrimaryElement(): void {
 function deleteSelectedElements(): void {
   deleteElementsWithConfirm([...session.selectedElements.value].filter((element) => !element.locked));
 }
+
+const contextMenu = ref<{ elementId: string; x: number; y: number } | null>(null);
+const contextMenuElement = computed(() => contextMenu.value
+  ? currentElements.value.find((element) => element.id === contextMenu.value!.elementId) ?? null
+  : null);
+const contextMenuLayerIndex = computed(() => contextMenuElement.value
+  ? reversedLayers.value.findIndex((element) => element.id === contextMenuElement.value!.id)
+  : -1);
+
+function openElementContextMenu(value: { elementId: string; clientX: number; clientY: number }): void {
+  if (session.isReadOnly.value) return;
+  if (!currentElements.value.some((element) => element.id === value.elementId)) return;
+  if (!session.selectedElementIds.value.includes(value.elementId)) {
+    session.selectedElementIds.value = [value.elementId];
+  }
+  contextMenu.value = {
+    elementId: value.elementId,
+    x: Math.max(8, Math.min(value.clientX, window.innerWidth - 196)),
+    y: Math.max(8, Math.min(value.clientY, window.innerHeight - 340)),
+  };
+}
+
+function closeContextMenu(): void {
+  contextMenu.value = null;
+}
+
+function runContextMenuAction(action: () => void): void {
+  action();
+  closeContextMenu();
+}
+
+watch(contextMenu, (open, _previous, onCleanup) => {
+  if (!open) return;
+  const handler = (event: PointerEvent) => {
+    if (!(event.target as HTMLElement | null)?.closest(".layout-context-menu")) closeContextMenu();
+  };
+  window.addEventListener("pointerdown", handler, true);
+  onCleanup(() => window.removeEventListener("pointerdown", handler, true));
+});
 
 function selectKonvaElement(value: { elementId: string; additive: boolean }): void {
   session.selectElement(value.elementId, value.additive);
@@ -2927,7 +3103,16 @@ function handleKeydown(event: KeyboardEvent): void {
     session.selectedElementIds.value = currentElements.value.map((element) => element.id);
     return;
   }
+  if (commandKey && event.key.toLowerCase() === "z" && !event.shiftKey) {
+    event.preventDefault();
+    session.undo();
+    return;
+  }
   if (event.key === "Escape") {
+    if (contextMenu.value) {
+      closeContextMenu();
+      return;
+    }
     session.selectedElementIds.value = [];
     return;
   }
@@ -3013,17 +3198,6 @@ watch(
   },
   { immediate: true },
 );
-watch(() => {
-  const profile = session.document.value?.profile;
-  const canvas = session.currentCanvas.value;
-  return profile ? `${profile.kind}:${profile.width}:${profile.kind === "paged" ? profile.height : profile.defaultSectionHeight}:${canvas?.id ?? ""}:${canvas?.height ?? 0}` : "";
-}, () => {
-  const profile = session.document.value?.profile;
-  if (!profile) return;
-  resizeWidth.value = profile.width;
-  resizeHeight.value = profile.kind === "paged" ? profile.height : profile.defaultSectionHeight;
-  currentSectionHeight.value = session.currentCanvas.value?.height ?? resizeHeight.value;
-}, { immediate: true });
 onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
   void refreshPublicationHistory().catch(() => undefined);
@@ -3063,17 +3237,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .layout-editor {
   --layout-topbar-offset: 53px;
-  --le-bg-app: #0b101c;
-  --le-bg-panel: #101827;
-  --le-bg-stage: #0a0e17;
-  --le-bg-control: rgba(22, 32, 51, 0.9);
+  --le-bg-app: #0a0d14;
+  --le-bg-panel: #10141f;
+  --le-bg-stage: #090c13;
+  --le-bg-control: rgba(22, 28, 44, 0.9);
   --le-border: rgba(148, 163, 184, 0.14);
   --le-border-strong: rgba(148, 163, 184, 0.22);
   --le-text: #e8edf8;
   --le-text-dim: #8b98b2;
-  --le-accent: #4f8cff;
-  --le-accent-soft: rgba(79, 140, 255, 0.16);
-  --le-accent-border: rgba(79, 140, 255, 0.5);
+  --le-accent: #8b5cf6;
+  --le-accent-soft: rgba(139, 92, 246, 0.16);
+  --le-accent-border: rgba(139, 92, 246, 0.5);
   --le-paper: #f6f3ec;
   --le-radius: 8px;
   position: relative;
@@ -3169,145 +3343,6 @@ button:disabled {
   font-weight: 800;
 }
 
-.export-dialog-backdrop {
-  position: absolute;
-  z-index: 80;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(3, 7, 18, 0.76);
-  backdrop-filter: blur(4px);
-  padding: 20px;
-}
-
-.export-dialog {
-  display: grid;
-  gap: 18px;
-  width: min(620px, 100%);
-  max-height: min(720px, calc(100% - 24px));
-  overflow: auto;
-  box-sizing: border-box;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 18px;
-  background: #111a2b;
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
-  padding: 22px;
-}
-
-.export-dialog > header,
-.export-dialog > footer,
-.export-review-list article > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.export-dialog > header > div {
-  display: grid;
-  gap: 4px;
-}
-
-.export-dialog > header strong { font-size: 18px; }
-.export-dialog > header small,
-.export-review-list article small { color: #8f9db8; }
-.export-dialog > header button {
-  width: 32px;
-  min-height: 32px;
-  padding: 0;
-}
-
-.export-dialog > footer {
-  justify-content: flex-end;
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
-  padding-top: 16px;
-}
-
-.export-dialog-state {
-  display: grid;
-  justify-items: center;
-  gap: 9px;
-  text-align: center;
-  color: #b9c5da;
-  padding: 30px 12px;
-}
-
-.export-dialog-state strong { color: #eef4ff; font-size: 16px; }
-.export-dialog-state p,
-.export-review-intro,
-.export-review-list article > p {
-  margin: 0;
-  color: #95a4bd;
-  line-height: 1.6;
-}
-.export-dialog-state.is-blocked { color: #fb7185; }
-.export-dialog-state.is-ready { color: #34d399; }
-
-.export-issue-list,
-.export-review-list {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.export-issue-list li,
-.export-review-list article {
-  display: grid;
-  gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.72);
-  padding: 12px;
-}
-
-.export-issue-list li { border-color: rgba(251, 113, 133, 0.25); }
-.export-issue-list small { color: #9ca9c0; }
-.export-issue-list p {
-  margin: 0;
-  border-radius: 8px;
-  background: rgba(251, 113, 133, 0.08);
-  color: #edf3ff;
-  padding: 8px 10px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.export-review-list dl { display: grid; gap: 8px; margin: 0; }
-.export-review-list dl > div {
-  display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  gap: 10px;
-}
-.export-review-list dt { color: #7887a3; font-size: 12px; font-weight: 800; }
-.export-review-list dd {
-  margin: 0;
-  border-radius: 8px;
-  background: rgba(148, 163, 184, 0.08);
-  color: #edf3ff;
-  padding: 8px 10px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.export-artifacts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.export-artifacts a {
-  border: 1px solid rgba(79, 140, 255, 0.36);
-  border-radius: 10px;
-  background: rgba(79, 140, 255, 0.12);
-  color: #cfe0ff;
-  padding: 10px 12px;
-  text-align: center;
-  text-decoration: none;
-  font-weight: 800;
-}
-.export-artifacts a:hover { background: rgba(79, 140, 255, 0.2); }
-
 .chapter-picker select,
 .create-card select,
 .create-card input,
@@ -3399,8 +3434,8 @@ button:disabled {
 }
 
 .mobile-readonly {
-  border: 1px solid rgba(96, 165, 250, 0.28);
-  background: rgba(30, 64, 175, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(139, 92, 246, 0.1);
 }
 
 .mobile-readonly p,
@@ -3471,22 +3506,43 @@ button:disabled {
 }
 
 .editor-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
+  --editor-toolbar-h: 45px;
 }
 
 .canvas-navigation,
 .inspector {
   min-height: 0;
-  border-right: 1px solid var(--le-border);
   background: var(--le-bg-panel);
 }
 
-.canvas-navigation { width: 238px; grid-column: 1; }
-.canvas-workspace { grid-column: 2; }
-.inspector { width: 320px; grid-column: 3; }
+.canvas-navigation.is-overlay {
+  position: absolute;
+  z-index: 40;
+  top: var(--editor-toolbar-h);
+  bottom: 0;
+  left: 0;
+  width: 260px;
+  max-width: calc(100% - 48px);
+  border-right: 1px solid var(--le-border);
+  box-shadow: 18px 0 44px rgba(2, 6, 17, 0.5);
+}
+
+.inspector.is-overlay {
+  position: absolute;
+  z-index: 40;
+  top: var(--editor-toolbar-h);
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  max-width: calc(100% - 48px);
+  border-left: 1px solid var(--le-border);
+  box-shadow: -18px 0 44px rgba(2, 6, 17, 0.5);
+}
 
 .stage-wrap {
   position: relative;
@@ -3515,6 +3571,8 @@ button:disabled {
 .canvas-tool-float button { width: 32px; min-height: 32px; padding: 0; }
 .canvas-tool-float button.is-active { border-color: var(--le-accent-border); background: var(--le-accent-soft); color: #cfe0ff; }
 .canvas-tool-float span { height: 1px; width: 20px; background: var(--le-border-strong); }
+
+.stage-wrap.has-left-panel .canvas-tool-float { left: 272px; }
 
 .shot-replace-strip {
   position: absolute;
@@ -3644,8 +3702,6 @@ button:disabled {
 .canvas-element.has-text-overflow { outline: 3px solid #dc2626; outline-offset: 2px; }
 
 .inspector {
-  border-right: 0;
-  border-left: 1px solid rgba(148, 163, 184, 0.12);
   overflow: hidden;
 }
 .inspector-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
@@ -3674,21 +3730,131 @@ button:disabled {
 .collapsible-head svg.is-collapsed { transform: rotate(-90deg); }
 .precision-adjust { margin-bottom: 14px; }
 .precision-adjust .number-grid { margin-top: 9px; }
-.page-settings { border-top: 1px solid var(--le-border); padding-top: 12px; }
-.page-settings-body { display: grid; gap: 14px; margin-top: 10px; }
 .inspector-hint { color: #7f8ca8; font-size: 12px; line-height: 1.6; margin: 0 0 12px; }
+
+.layout-context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  display: grid;
+  gap: 1px;
+  padding: 5px;
+  background: var(--le-bg-panel);
+  border: 1px solid var(--le-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(2, 6, 17, 0.55);
+}
+.layout-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--le-text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.layout-context-menu button:hover:not(:disabled) { background: var(--le-accent-soft); }
+.layout-context-menu button:disabled { opacity: 0.4; cursor: default; }
+.layout-context-menu button.is-danger { color: #fda4af; }
+.layout-context-menu hr { border: none; border-top: 1px solid var(--le-border); margin: 3px 4px; }
+
+.selection-toolbar {
+  position: absolute;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--le-border-strong);
+  border-radius: 10px;
+  background: rgba(16, 20, 31, 0.96);
+  box-shadow: 0 10px 28px rgba(2, 6, 17, 0.55);
+  padding: 4px;
+}
+
+.selection-toolbar button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--le-text);
+  padding: 0;
+}
+
+.selection-toolbar button:hover:not(:disabled) { background: var(--le-accent-soft); }
+.selection-toolbar button.is-active { background: var(--le-accent-soft); color: #ddd3ff; }
+.selection-toolbar button.is-danger { color: #fda4af; }
+.selection-toolbar .toolbar-divider { width: 1px; height: 18px; background: var(--le-border-strong); }
+.selection-toolbar .toolbar-select {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--le-text);
+  min-height: 30px;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.selection-toolbar .toolbar-select option { background: var(--le-bg-panel); color: var(--le-text); }
+.selection-toolbar .toolbar-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 2px;
+}
+.selection-toolbar .color-swatch {
+  width: 16px;
+  min-height: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.selection-toolbar .color-swatch.is-active {
+  outline: 2px solid var(--le-accent);
+  outline-offset: 1px;
+}
+
+.inline-text-editor {
+  position: absolute;
+  z-index: 55;
+  display: grid;
+  gap: 4px;
+  border: 2px solid var(--le-accent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 34px rgba(2, 6, 17, 0.5);
+  padding: 6px;
+}
+
+.inline-text-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  line-height: 1.35;
+  padding: 2px 4px;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.inline-text-editor small {
+  color: #6b7686;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 0 2px;
+}
 .number-grid input { width: 100%; box-sizing: border-box; }
 .property-actions { flex-wrap: wrap; margin-top: 14px; }
 .property-help { margin: 8px 0 14px; color: #8491aa; font-size: 11px; line-height: 1.55; }
-.preset-picker,
 .special-properties,
 .reading-order { display: grid; gap: 9px; border-bottom: 1px solid var(--le-border); padding-bottom: 14px; margin-bottom: 14px; }
 .section-heading { display: grid; gap: 3px; }
 .section-heading small { color: #7f8ca8; font-size: 11px; }
-.preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.preset-grid button { display: flex; justify-content: space-between; align-items: center; min-width: 0; padding: 6px 8px; font-size: 12px; }
-.preset-grid small { color: #7f8ca8; font-size: 10px; }
-.preset-picker > p,
 .special-properties > p { margin: 0; color: #8491aa; font-size: 11px; line-height: 1.5; }
 .special-properties > p.reserved-color-warning {
   border: 1px solid rgba(245, 158, 11, 0.28);
@@ -3727,9 +3893,8 @@ button:disabled {
 .editor-shell.is-readonly .canvas-element { pointer-events: none; }
 
 @media (max-width: 1260px) {
-  .editor-shell { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .canvas-navigation { width: 210px; }
-  .inspector { width: 280px; }
+  .canvas-navigation.is-overlay { width: 230px; }
+  .inspector.is-overlay { width: 300px; }
 }
 
 @media (min-width: 1024px) and (max-width: 1260px) {
@@ -3746,15 +3911,13 @@ button:disabled {
   .layout-editor { min-height: 680px; overflow: visible; }
   .editor-topbar { flex-wrap: wrap; }
   .top-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
-  .editor-shell { grid-template-columns: 1fr; overflow: visible; }
-  .canvas-workspace { grid-column: auto; }
+  .editor-shell { overflow: visible; }
   .canvas-tool-float,
     .canvas-navigation,
-    .inspector { display: none; }
+    .inspector,
+    .canvas-settings-drawer { display: none; }
     .canvas-workspace { min-height: 560px; }
     .layout-source-attention { grid-template-columns: auto minmax(0, 1fr); }
-    .export-dialog-backdrop { position: fixed; padding: 12px; }
-    .export-artifacts { grid-template-columns: 1fr; }
   }
 
 @media (prefers-reduced-motion: reduce) {
