@@ -4,6 +4,8 @@ export * from "./candidate-lock.js";
 export * from "./character-visual-policy.js";
 export * from "./dto.js";
 export * from "./script-format.js";
+export * from "./document-splitter.js";
+export * from "./document-encoding.js";
 export * from "./script-workflow-contract.js";
 export * from "./script-workflow-state.js";
 export * from "./storyboard-normalize.js";

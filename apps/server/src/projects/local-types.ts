@@ -51,6 +51,9 @@ export interface LocalChapter {
   completedAt: string | null;
   scriptVersions: LocalChapterScriptVersion[];
   lastScriptRevision: ScriptRevisionItem | null;
+  /** 引用文稿库（全局文稿）章节；正文按需从文稿原文读取，不复制 */
+  documentWorkId?: string | null;
+  documentChapterId?: string | null;
 }
 
 export interface LocalProjectPersistenceCompatibility {

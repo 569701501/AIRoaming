@@ -65,6 +65,7 @@
           <span v-else>正在打开项目...</span>
         </main>
         <AppSettingsView v-else-if="isSettingsRoute" />
+        <DocumentLibraryView v-else-if="isDocumentsRoute" />
         <ProjectLibraryView v-else />
         <ProjectCharactersModal
           v-if="isProjectRoute && snapshot"
@@ -89,6 +90,7 @@ import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
 import ProjectLibraryView from "../projects/ProjectLibraryView.vue";
+import DocumentLibraryView from "../documents/DocumentLibraryView.vue";
 import ProjectCharactersModal from "../workbench/ProjectCharactersModal.vue";
 import ProjectWorkbenchView from "../workbench/ProjectWorkbenchView.vue";
 import { getStepKeyFromSlug, getStepSlugFromKey, projectRoute } from "../../router";
@@ -132,12 +134,16 @@ const routeChapterId = computed(() => {
 });
 const isProjectRoute = computed(() => Boolean(routeProjectId.value));
 const isSettingsRoute = computed(() => route.name === "settings");
+const isDocumentsRoute = computed(() => route.name === "documents");
 const mainAriaLabel = computed(() => {
   if (isProjectRoute.value) {
     return "绘界漫画项目工作区";
   }
   if (isSettingsRoute.value) {
     return "绘界漫画设置";
+  }
+  if (isDocumentsRoute.value) {
+    return "绘界漫画文稿库";
   }
   return "绘界漫画项目库";
 });

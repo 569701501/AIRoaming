@@ -386,7 +386,7 @@ const tabs = [
 
 const providerOptions = [
   { providerId: "self", providerName: "自定义 OpenAI 兼容" },
-  { providerId: "aurora", providerName: "Aurora GPT 对话" },
+  { providerId: "gpt", providerName: "GPT 对话" },
   { providerId: "xai", providerName: "xAI Grok 对话" },
   { providerId: "kimi", providerName: "Moonshot Kimi 对话" },
   { providerId: "deepseek", providerName: "DeepSeek 对话" },

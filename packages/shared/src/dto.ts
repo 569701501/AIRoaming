@@ -151,6 +151,7 @@ export interface CreateProjectRequest {
   artStyle?: ArtStyle;
   description?: string;
   sourceText?: string;
+  documentWorkId?: string;
 }
 
 export interface UpdateProjectDraftRequest {
@@ -1369,4 +1370,43 @@ export interface VersioningCapability {
     persistentTaskRuntime: boolean;
     importer: boolean;
   };
+}
+
+// ---------- 文稿库（Document Library） ----------
+
+export interface DocumentWorkListItem {
+  id: string;
+  name: string;
+  kind: string;
+  status: string;
+  chapterCount: number;
+  unassignedCount: number;
+  importError: string | null;
+  sourceBytes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentChapterListItem {
+  id: string;
+  order: number;
+  title: string;
+  groupLabel: string;
+  startOffset: number;
+  endOffset: number;
+  charCount: number;
+}
+
+export interface DocumentWorkDetail {
+  work: DocumentWorkListItem;
+  chapters: DocumentChapterListItem[];
+  groups: Array<{ label: string; chapterCount: number }>;
+  sourceStorageKey: string;
+  sourceEncoding: string | null;
+}
+
+export interface DocumentImportResult {
+  work: DocumentWorkListItem;
+  chapters: DocumentChapterListItem[];
+  encoding: "utf-8" | "gb18030";
 }

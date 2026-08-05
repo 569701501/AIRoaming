@@ -17,6 +17,9 @@ import type {
   CreateProjectRequest,
   ClearChapterScriptResponse,
   DeleteProjectResponse,
+  DocumentImportResult,
+  DocumentWorkDetail,
+  DocumentWorkListItem,
   DiscardChapterPendingSourceResponse,
   DialogueStreamEvent,
   DialogueThread,
@@ -276,6 +279,32 @@ function parseSseBlock(block: string): DialogueStreamEvent | null {
 }
 
 export const api = {
+  listDocuments: () => request<{ items: DocumentWorkListItem[] }>("/documents"),
+  getDocument: (id: string) => request<DocumentWorkDetail>(`/documents/${encodeURIComponent(id)}`),
+  uploadDocument: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return fetch(`${API_BASE}/documents`, {
+      method: "POST",
+      body: form,
+    }).then(async (response) => {
+      const payload = (await response.json()) as ApiResponse<DocumentImportResult> | Record<string, unknown>;
+      if (!response.ok || !isApiSuccess<DocumentImportResult>(payload)) {
+        throw parseApiClientError(payload, response.status, "上传失败");
+      }
+      return payload.data;
+    });
+  },
+  renameDocument: (id: string, name: string) => request<{ work: DocumentWorkListItem }>(`/documents/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  }),
+  deleteDocument: (id: string) => request<{ removed: boolean }>(`/documents/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }),
+  getDocumentChapterText: (id: string, chapterId: string) => request<{ text: string }>(
+    `/documents/${encodeURIComponent(id)}/chapters/${encodeURIComponent(chapterId)}`,
+  ),
   health: () => request<HealthResponse>("/health"),
   workspace: () => request<WorkspaceInfo>("/workspace"),
   settings: () => request<AppSettings>("/settings"),

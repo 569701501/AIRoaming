@@ -177,6 +177,8 @@ model Chapter {
   scriptWorkingDigest        String    @map("script_working_digest")
   scriptWorkingState         String    @default("empty") @map("script_working_state")
   summary                    String?
+  documentWorkId             String?   @map("document_work_id")
+  documentChapterId          String?   @map("document_chapter_id")
   completedAt                DateTime? @map("completed_at")
   currentScriptVersionId     String?   @map("current_script_version_id")
   currentStoryVersionId      String?   @map("current_story_version_id")
@@ -1414,4 +1416,45 @@ model OutboxEvent {
   @@index([status(sort: Asc), availableAt(sort: Asc), createdAt(sort: Asc)], map: "ix_outbox_events_claim")
   @@index([status(sort: Asc), leaseExpiresAt(sort: Asc)], map: "ix_outbox_events_recovery")
   @@map("outbox_events")
+}
+
+model DocumentWork {
+  id             String    @id @default(uuid())
+  name           String
+  kind           String    @default("text") @map("kind")
+  status         String    @default("importing") @map("status")
+  sourceStorageKey String  @map("source_storage_key")
+  sourceSha256   String    @map("source_sha256")
+  sourceBytes    Int       @map("source_bytes")
+  sourceEncoding String?   @map("source_encoding")
+  chapterCount   Int       @default(0) @map("chapter_count")
+  unassignedCount Int      @default(0) @map("unassigned_count")
+  importError    String?   @map("import_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  chapters DocumentChapter[] @relation("DocumentChapter_work_DocumentWork")
+
+  @@index([status(sort: Asc), createdAt(sort: Asc)], map: "ix_document_works_status_created")
+  @@map("document_works")
+}
+
+model DocumentChapter {
+  id             String    @id @default(uuid())
+  workId         String    @map("work_id")
+  order          Int
+  title          String
+  groupLabel     String    @map("group_label")
+  startOffset    Int       @map("start_offset")
+  endOffset      Int       @map("end_offset")
+  charCount      Int       @map("char_count")
+  anomaliesJson  Json?     @map("anomalies_json")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  work DocumentWork @relation("DocumentChapter_work_DocumentWork", fields: [workId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([workId, order], map: "uq_document_chapters_work_order")
+  @@index([workId(sort: Asc), order(sort: Asc)], map: "ix_document_chapters_work_order")
+  @@map("document_chapters")
 }

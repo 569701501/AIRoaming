@@ -402,13 +402,18 @@ export class ProjectRepository {
       currentExportRevisionId: null,
       lastScriptRevisionId: null,
       rowVersion: 0,
+      documentWorkId: chapter.documentWorkId ?? null,
+      documentChapterId: chapter.documentChapterId ?? null,
       createdAt: this.parseDate(chapter.createdAt, "chapter.createdAt"),
       updatedAt: this.parseDate(chapter.updatedAt, "chapter.updatedAt"),
     };
   }
 
   private async createProjectInDatabase(project: LocalProject): Promise<void> {
-    if (project.chapters.length !== 1 || project.chapters[0]?.scriptVersions.length) {
+    if (
+      project.chapters.length === 0
+      || project.chapters.some((chapter) => chapter.scriptVersions.length)
+    ) {
       throw new BadRequestException("DB_PERSISTENCE_CREATE_PROJECT_SHAPE_INVALID");
     }
     const currentChapterId = project.currentChapterId;
@@ -438,9 +443,11 @@ export class ProjectRepository {
           deletingAt: null,
         },
       });
-      await transaction.chapter.create({
-        data: this.chapterCreateData(project.chapters[0]),
-      });
+      for (const chapter of project.chapters) {
+        await transaction.chapter.create({
+          data: this.chapterCreateData(chapter),
+        });
+      }
       await transaction.project.update({
         where: { id: project.id },
         data: { currentChapterId },
@@ -724,6 +731,8 @@ export class ProjectRepository {
           completedAt: chapter.completedAt?.toISOString() ?? null,
           scriptVersions: versions,
           lastScriptRevision: revision ? this.databaseRevisionToLocal(revision, chapter.projectId, chapter.id) : null,
+          documentWorkId: chapter.documentWorkId,
+          documentChapterId: chapter.documentChapterId,
         };
       });
     if (row.currentChapterId === null) {

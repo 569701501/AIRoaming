@@ -26,6 +26,7 @@ export const POST_G1_OPTIONAL_OVERLAY_MIGRATION_NAMES = [
   "0017_script_dual_flow_source_state",
   "0018_layout_document_v2_working_copy",
   "0019_layout_revision_v2_publication",
+  "0020_document_library",
 ] as const;
 
 export interface G1RuntimeMigrationExpectationV1 {

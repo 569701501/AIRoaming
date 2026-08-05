@@ -70,6 +70,11 @@ const EXPECTED_SMART_LAYOUT_OVERLAY_MODELS = [
   "LayoutCompositionApplication",
 ] as const;
 
+const EXPECTED_DOCUMENT_LIBRARY_OVERLAY_MODELS = [
+  "DocumentWork",
+  "DocumentChapter",
+] as const;
+
 const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly string[]> = {
   PersistenceState: ["storageContractVersion", "activationState", "firstBusinessWriteAt"],
   MigrationRun: ["kind", "status", "sourceManifestDigest", "snapshotManifestDigest", "reportDigest"],
@@ -129,9 +134,10 @@ describe("SCH-00 G1 schema public contract", () => {
         ...EXPECTED_G1_MODELS,
         ...EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS,
         ...EXPECTED_SMART_LAYOUT_OVERLAY_MODELS,
+        ...EXPECTED_DOCUMENT_LIBRARY_OVERLAY_MODELS,
       ].sort(),
     );
-    expect(contract.models).toHaveLength(54);
+    expect(contract.models).toHaveLength(56);
     expect(contract.prismaVersion).toBe("6.19.3");
     expect(contract.prismaClientVersion).toBe("6.19.3");
   });

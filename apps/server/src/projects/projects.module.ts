@@ -35,6 +35,10 @@ import { PersistentTaskWorkerService } from "./persistent-task-worker.service.js
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 import { ScriptWorkflowSourceRepository } from "./script-workflow-source.repository.js";
+import { DocumentLibraryRepository } from "./document-library.repository.js";
+import { DocumentLibraryStore } from "./document-library.store.js";
+import { DocumentLibraryService } from "./document-library.service.js";
+import { DocumentLibraryController } from "./document-library.controller.js";
 import { ProjectDeleteOutboxService } from "./project-delete-outbox.service.js";
 import { CandidateLockRepository } from "./candidate-lock.repository.js";
 import { CandidateDecisionService } from "./candidate-decision.service.js";
@@ -53,11 +57,14 @@ import { LayoutVisualAnalyzerService } from "./layout-visual-analyzer.service.js
 
 @Module({
   imports: [WorkspaceModule, TasksModule, SettingsModule, PersistenceModule, AIRuntimeModule],
-  controllers: [ProjectsController],
+  controllers: [ProjectsController, DocumentLibraryController],
   providers: [
     ProjectRepository,
     ProjectScriptCommandRepository,
     ScriptWorkflowSourceRepository,
+    DocumentLibraryRepository,
+    DocumentLibraryStore,
+    DocumentLibraryService,
     ImageProviderService,
     CandidateReferenceResolver,
     ProjectStore,

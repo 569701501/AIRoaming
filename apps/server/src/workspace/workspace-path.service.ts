@@ -15,6 +15,7 @@ export class WorkspacePathService {
 
   async ensureReady(): Promise<void> {
     await mkdir(path.join(this.rootPath, "projects"), { recursive: true });
+    await mkdir(path.join(this.rootPath, "documents"), { recursive: true });
   }
 
   getInfo() {

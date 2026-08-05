@@ -1,5 +1,5 @@
 <template>
-  <RouterView v-if="isLayoutPreviewRoute" />
+  <RouterView v-if="isFullscreenRoute" />
   <AppShell v-else />
 </template>
 
@@ -11,9 +11,9 @@ import { useSettingsStore } from "./stores/settings-store";
 const AppShell = defineAsyncComponent(() => import("./components/layout/AppShell.vue"));
 const route = useRoute();
 const settings = useSettingsStore();
-const isLayoutPreviewRoute = computed(() => route.name === "layout-preview");
+const isFullscreenRoute = computed(() => route.name === "layout-preview" || route.name === "document-detail");
 
 onMounted(() => {
-  if (!isLayoutPreviewRoute.value) void settings.loadSettings();
+  if (!isFullscreenRoute.value) void settings.loadSettings();
 });
 </script>

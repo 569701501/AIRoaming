@@ -69,6 +69,20 @@
             <span v-if="errorMessage" id="comic-format-error" class="field-error" role="alert" aria-live="polite">{{ errorMessage }}</span>
           </div>
 
+          <label class="form-field">
+            <span class="field-label">引用文稿（可选）</span>
+            <span class="input-frame">
+              <select v-model="form.documentWorkId" class="document-select" :disabled="loading || !documents.length">
+                <option value="">不引用，创建空白项目</option>
+                <option v-for="document in documents" :key="document.id" :value="document.id">
+                  {{ document.name }}（{{ document.chapterCount }} 章）
+                </option>
+              </select>
+            </span>
+            <span v-if="documents.length" class="field-help">选择后项目会按文稿章节自动建好全部章节，正文可在剧本页逐章查看。</span>
+            <span v-else class="field-help">文稿库为空，可先到「文稿库」上传剧本或小说。</span>
+          </label>
+
           <footer class="modal-footer">
             <button class="secondary-action" type="button" :disabled="loading" @click="requestClose">取消</button>
             <button class="primary-action" type="submit" :disabled="loading || !canSubmit">
@@ -90,9 +104,11 @@ import {
   isComicFormat,
   type ComicFormat,
   type CreateProjectRequest,
+  type DocumentWorkListItem,
   type ProjectType,
 } from "@airoaming/shared";
 import type { CreateProjectErrorCode } from "../../stores/workbench-store";
+import { api } from "../../services/api";
 
 const props = defineProps<{
   open: boolean;
@@ -106,11 +122,13 @@ const emit = defineEmits<{
 }>();
 
 const nameInput = ref<HTMLInputElement | null>(null);
+const documents = ref<DocumentWorkListItem[]>([]);
 
 const form = reactive({
   name: "",
   type: "comic" as ProjectType,
   comicFormat: "" as "" | ComicFormat,
+  documentWorkId: "",
 });
 
 const errorMessage = computed(() => {
@@ -142,6 +160,13 @@ watch(
     form.name = "";
     form.type = "comic";
     form.comicFormat = "";
+    form.documentWorkId = "";
+    try {
+      const result = await api.listDocuments();
+      documents.value = result.items;
+    } catch {
+      documents.value = [];
+    }
     await nextTick();
     nameInput.value?.focus();
   },
@@ -162,6 +187,7 @@ function submit() {
     name: form.name.trim(),
     type: form.type,
     comicFormat: form.comicFormat,
+    ...(form.documentWorkId ? { documentWorkId: form.documentWorkId } : {}),
   });
 }
 </script>
@@ -330,6 +356,30 @@ function submit() {
   color: #6f7c94;
   font-size: 12px;
   pointer-events: none;
+}
+
+.document-select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(206, 216, 244, 0.14);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.045);
+  color: #f8fbff;
+  padding: 0 14px;
+  font-size: 15px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.document-select:focus {
+  border-color: rgba(142, 121, 255, 0.74);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.16);
+}
+
+.document-select option {
+  background: #0d1526;
+  color: #eef3fb;
 }
 
 .modal-footer {

@@ -18,6 +18,7 @@ const CREATE_FIELDS = [
   "artStyle",
   "description",
   "sourceText",
+  "documentWorkId",
 ] as const satisfies readonly ProjectInputField[];
 
 const UPDATE_FIELDS = [
@@ -128,11 +129,13 @@ export function parseCreateProjectRequestV1(value: unknown): CreateProjectReques
   const artStyle = readOptionalString(value, "artStyle");
   const description = readOptionalString(value, "description");
   const sourceText = readOptionalString(value, "sourceText");
+  const documentWorkId = readOptionalString(value, "documentWorkId");
   if (storyTitle !== undefined) result.storyTitle = storyTitle;
   if (genreTags !== undefined) result.genreTags = genreTags;
   if (artStyle !== undefined) result.artStyle = artStyle as ArtStyle;
   if (description !== undefined) result.description = description;
   if (sourceText !== undefined) result.sourceText = sourceText;
+  if (documentWorkId !== undefined) result.documentWorkId = documentWorkId;
   return result;
 }
 

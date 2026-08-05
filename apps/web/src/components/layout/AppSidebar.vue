@@ -21,13 +21,20 @@
 </template>
 
 <script setup lang="ts">
-import { FolderKanban, Images, ListTodo, Settings } from "lucide-vue-next";
+import { BookOpen, FolderKanban, Images, ListTodo, Settings } from "lucide-vue-next";
 import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
 const router = useRouter();
 
 const navItems = [
+  {
+    label: "文稿库",
+    status: "current",
+    badge: "",
+    icon: BookOpen,
+    path: "/documents",
+  },
   {
     label: "项目库",
     status: "current",

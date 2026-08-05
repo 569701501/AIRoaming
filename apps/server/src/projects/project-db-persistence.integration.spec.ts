@@ -362,7 +362,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("persists the public create/draft/complete path across a Nest restart without a workspace project tree", async () => {
     const { workspaceRoot, deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("19 migrations found");
+    expect(deployed.stdout).toContain("20 migrations found");
     expect(deployed.stdout).toContain("All migrations have been successfully applied.");
 
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
@@ -2118,7 +2118,7 @@ describe("Project/Chapter/Script DB-only persistence", () => {
   it("M4: persists smart composition, protects user edits, and previews full reflow before apply", async () => {
     const { deployed } = await prepareDatabase();
     expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
-    expect(deployed.stdout).toContain("19 migrations found");
+    expect(deployed.stdout).toContain("20 migrations found");
     app = await NestFactory.createApplicationContext(ProjectsModule, { logger: false });
 
     const projects = app.get(ProjectsService);

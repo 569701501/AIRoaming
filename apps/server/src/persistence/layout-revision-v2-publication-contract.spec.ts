@@ -106,7 +106,8 @@ describe("LayoutRevision V2 publication migration", () => {
 
     const database: DatabaseSync = new DatabaseSync(":memory:");
     database.exec("PRAGMA foreign_keys = ON;");
-    for (const migrationName of SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.slice(0, -1)) {
+    const beforeSelf = SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.indexOf(LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME);
+    for (const migrationName of SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.slice(0, beforeSelf)) {
       database.exec(await readFile(
         path.join(migrationRoot, migrationName, "migration.sql"),
         "utf8",
@@ -298,7 +299,8 @@ describe("LayoutRevision V2 publication migration", () => {
     const sql = await readLayoutRevisionV2PublicationSql(migrationRoot);
     const database: DatabaseSync = new DatabaseSync(":memory:");
     database.exec("PRAGMA foreign_keys = ON;");
-    for (const migrationName of SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.slice(0, -1)) {
+    const beforeSelf = SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.indexOf(LAYOUT_REVISION_V2_PUBLICATION_MIGRATION_NAME);
+    for (const migrationName of SCRIPT_WORKFLOW_RUNTIME_MIGRATION_NAMES.slice(0, beforeSelf)) {
       database.exec(await readFile(
         path.join(migrationRoot, migrationName, "migration.sql"),
         "utf8",

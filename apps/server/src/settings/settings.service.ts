@@ -77,7 +77,7 @@ const RUNWARE_DEFAULT_BASE_URL = "https://api.runware.ai/v1";
 const RUNWARE_DEFAULT_MODEL = "runware:100@1";
 const PROVIDER_NAME_BY_ID: Record<string, string> = {
   self: "自定义 OpenAI 兼容",
-  aurora: "Aurora GPT 对话",
+  gpt: "GPT 对话",
   xai: "xAI Grok 对话",
   kimi: "Moonshot Kimi 对话",
   deepseek: "DeepSeek 对话",

@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, HttpException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
   extractChapterScriptName,
@@ -27,6 +27,8 @@ import type {
 import * as wsDomain from "./project-domain.util.js";
 import { getDefaultChapterTitle } from "./project-domain.util.js";
 import { ProjectRepository } from "./project-repository.service.js";
+import { DocumentLibraryRepository } from "./document-library.repository.js";
+import { DocumentLibraryStore } from "./document-library.store.js";
 import { ProjectStore } from "./project-store.service.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 import { G2DatabaseError } from "./versioning/g2-database-error.mapper.js";
@@ -42,6 +44,8 @@ export class ChapterScriptService {
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
     @Inject(ProjectScriptCommandRepository) private readonly scriptCommands?: ProjectScriptCommandRepository,
+    @Optional() @Inject(DocumentLibraryRepository) private readonly documentLibrary?: DocumentLibraryRepository,
+    @Optional() @Inject(DocumentLibraryStore) private readonly documentLibraryStore?: DocumentLibraryStore,
   ) {}
 
   private isDatabaseMode(): boolean {
@@ -542,6 +546,30 @@ export class ChapterScriptService {
   async getChapter(projectId: string, chapterId: string): Promise<GetChapterResponse> {
     const project = await this.projectStore.getReadyProject(projectId);
     const chapter = this.projectStore.findChapter(project, chapterId);
+    // 文稿引用章节：sourceText 为空时按需从文稿库原文读取（不落库，只读投影）
+    if (
+      chapter.documentChapterId
+      && chapter.documentWorkId
+      && !chapter.sourceText.trim()
+      && this.documentLibrary
+      && this.documentLibraryStore
+    ) {
+      const document = await this.documentLibrary.getWorkWithChapters(chapter.documentWorkId);
+      const documentChapter = document?.chapters.find(
+        (item) => item.id === chapter.documentChapterId,
+      );
+      if (document && documentChapter) {
+        const text = await this.documentLibraryStore.readChapterText(
+          document.work.sourceStorageKey,
+          documentChapter.startOffset,
+          documentChapter.endOffset,
+          document.work.sourceEncoding === "gb18030" ? "gb18030" : "utf-8",
+        );
+        return {
+          chapter: wsDomain.toChapterDetail({ ...chapter, sourceText: text }),
+        };
+      }
+    }
     return {
       chapter: wsDomain.toChapterDetail(chapter),
     };

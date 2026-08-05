@@ -65,6 +65,16 @@ export const router = createRouter({
       component: RouteStub,
     },
     {
+      path: "/documents",
+      name: "documents",
+      component: RouteStub,
+    },
+    {
+      path: "/documents/:id",
+      name: "document-detail",
+      component: () => import("../components/documents/DocumentDetailView.vue"),
+    },
+    {
       path: "/settings",
       name: "settings",
       component: RouteStub,

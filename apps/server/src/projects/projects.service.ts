@@ -84,6 +84,8 @@ import { TasksService } from "../tasks/tasks.service.js";
 import { PersistentG2TaskCreateGuardService } from "./persistent-g2-task-create-guard.service.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
 import { ProjectRepository } from "./project-repository.service.js";
+import { DocumentLibraryRepository } from "./document-library.repository.js";
+import { DocumentLibraryStore } from "./document-library.store.js";
 import { ProjectScriptCommandRepository } from "./project-script-command.repository.js";
 import { G2DatabaseError } from "./versioning/g2-database-error.mapper.js";
 import { ChapterProductionQueryService } from "./versioning/chapter-production-query.service.js";
@@ -184,6 +186,8 @@ export class ProjectsService implements OnModuleInit {
     @Optional() @Inject(ChapterProductionQueryService) private readonly chapterProductionQuery?: ChapterProductionQueryService,
     @Optional() @Inject(CandidateDecisionService) private readonly candidateDecision?: CandidateDecisionService,
     @Optional() @Inject(LayoutPublicationService) private readonly layoutPublication?: LayoutPublicationService,
+    @Optional() @Inject(DocumentLibraryRepository) private readonly documentLibrary?: DocumentLibraryRepository,
+    @Optional() @Inject(DocumentLibraryStore) private readonly documentLibraryStore?: DocumentLibraryStore,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -231,13 +235,56 @@ export class ProjectsService implements OnModuleInit {
     const genreTags = this.normalizeGenreTags(input.genreTags);
     const sourceText = input.sourceText?.trim() ?? "";
     const projectId = randomUUID();
-    const defaultChapter = this.createDefaultChapter(projectId, sourceText, now);
+
+    // 从文稿库导入：直接引用文稿章节建立章节壳（不复制正文、不触发 AI）
+    let chapters: LocalChapter[];
+    if (input.documentWorkId) {
+      if (!this.documentLibrary) {
+        throw new BadRequestException("DOCUMENT_LIBRARY_UNAVAILABLE");
+      }
+      const document = await this.documentLibrary.getWorkWithChapters(input.documentWorkId);
+      if (!document) {
+        throw new BadRequestException("DOCUMENT_NOT_FOUND");
+      }
+      if (document.chapters.length === 0) {
+        throw new BadRequestException("DOCUMENT_HAS_NO_CHAPTERS");
+      }
+      chapters = document.chapters.map((chapter, index) => ({
+        id: `${projectId}_chapter_${String(index + 1).padStart(3, "0")}`,
+        projectId,
+        slug: `chapter-${String(index + 1).padStart(3, "0")}`,
+        order: index + 1,
+        title: chapter.title,
+        status: "draft" as const,
+        currentScriptVersionId: null,
+        currentStoryVersionId: null,
+        sourceText: "",
+        summary: "",
+        storyStructure: null,
+        storyboard: null,
+        pendingStoryboard: null,
+        pendingSourceText: null,
+        imagePreflight: null,
+        candidates: [],
+        layout: null,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        scriptVersions: [],
+        lastScriptRevision: null,
+        documentWorkId: document.work.id,
+        documentChapterId: chapter.id,
+      }));
+    } else {
+      const defaultChapter = this.createDefaultChapter(projectId, sourceText, now);
+      chapters = [defaultChapter];
+    }
 
     const project: LocalProject = {
       id: projectId,
       name,
       type: this.normalizeProjectType(input.type),
-      currentChapterId: defaultChapter.id,
+      currentChapterId: chapters[0]!.id,
       storyTitle,
       genreTags,
       comicFormat,
@@ -247,7 +294,7 @@ export class ProjectsService implements OnModuleInit {
       scriptOutline: null,
       characters: [],
       assets: [],
-      chapters: [defaultChapter],
+      chapters,
       createdAt: now,
       updatedAt: now,
     };
@@ -822,6 +869,29 @@ export class ProjectsService implements OnModuleInit {
       : await this.projectStore.getReadyProject(projectId);
     const readyProject = await this.projectStore.selectCurrentChapter(sourceProject, chapterId);
     const currentChapter = this.getCurrentChapter(readyProject);
+    // 文稿引用章节：正文按需从文稿库原文读取（只读投影，不落库）
+    if (
+      currentChapter
+      && currentChapter.documentChapterId
+      && currentChapter.documentWorkId
+      && !currentChapter.sourceText.trim()
+      && this.documentLibrary
+      && this.documentLibraryStore
+    ) {
+      const document = await this.documentLibrary.getWorkWithChapters(currentChapter.documentWorkId);
+      const documentChapter = document?.chapters.find(
+        (item) => item.id === currentChapter.documentChapterId,
+      );
+      if (document && documentChapter) {
+        const text = await this.documentLibraryStore.readChapterText(
+          document.work.sourceStorageKey,
+          documentChapter.startOffset,
+          documentChapter.endOffset,
+          document.work.sourceEncoding === "gb18030" ? "gb18030" : "utf-8",
+        );
+        currentChapter.sourceText = text;
+      }
+    }
     const sourceText = stripChapterScriptName(currentChapter?.sourceText ?? readyProject.sourceText);
     const hasStory = sourceText.trim().length > 0;
     const chapters = this.sortChapters(readyProject.chapters).map((chapter) => this.toChapterListItem(chapter));
