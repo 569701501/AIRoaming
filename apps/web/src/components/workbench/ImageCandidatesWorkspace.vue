@@ -11,6 +11,34 @@
         <span v-if="snapshot.project.storyTitle" class="story-title">{{ snapshot.project.storyTitle }}</span>
       </div>
 
+      <div class="image-model-switcher" :class="{ 'is-open': imageModelPickerOpen }">
+        <button class="image-model-switcher-btn" type="button" :title="'图片生成模型：' + activeImageModelLabel" @click="toggleImageModelPicker">
+          <ImagePlus :size="14" />
+          <span>{{ activeImageModelLabel }}</span>
+          <ChevronDown :size="12" />
+        </button>
+        <div v-if="imageModelPickerOpen" class="image-model-picker">
+          <p class="image-model-picker-title">切换图片生成模型</p>
+          <button
+            v-for="model in imageModels"
+            :key="model.id"
+            class="image-model-picker-item"
+            :class="{ 'is-active': model.active }"
+            type="button"
+            :title="model.configured ? '' : '未配置密钥，可能无法生成'"
+            @click="pickImageModel(model)"
+          >
+            <span class="image-model-picker-radio"><Check v-if="model.active" :size="11" /></span>
+            <span class="image-model-picker-name">
+              <strong>{{ model.displayName }}</strong>
+              <small>{{ model.providerId }} / {{ model.modelId }}</small>
+            </span>
+            <span v-if="!model.configured" class="image-model-picker-nokey">无密钥</span>
+          </button>
+          <p v-if="imageModels.length === 0" class="image-model-picker-empty">暂无图片模型，请到设置页「模型管理」添加。</p>
+        </div>
+      </div>
+
       <div class="candidate-actions">
         <button
           v-if="isDatabaseCandidateMode && selectedShot"
@@ -469,12 +497,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   ChevronDown,
   Image as ImageIcon,
+  ImagePlus,
   Images,
   History,
   Layers,
@@ -505,10 +535,12 @@ import type {
   ChapterListItem,
   GenerationTaskItem,
   GenerationTaskStatus,
+  ManagedModelItem,
   WorkbenchCandidate,
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { ApiClientError, api } from "../../services/api";
+import { useSettingsStore } from "../../stores/settings-store";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -529,6 +561,35 @@ const emit = defineEmits<{
 const selectedShotId = ref<string | null>(null);
 const candidateCount = ref(4);
 const promptExpanded = ref(false);
+const settingsStore = useSettingsStore();
+const imageModelPickerOpen = ref(false);
+
+const imageModels = computed(() => (settingsStore.settings?.models ?? []).filter((model) => model.kind === "image"));
+const activeImageModelLabel = computed(() => {
+  const active = imageModels.value.find((model) => model.active);
+  return active?.displayName ?? "图片模型";
+});
+
+function toggleImageModelPicker() {
+  imageModelPickerOpen.value = !imageModelPickerOpen.value;
+}
+
+async function pickImageModel(model: ManagedModelItem) {
+  imageModelPickerOpen.value = false;
+  if (model.active || settingsStore.saving) {
+    return;
+  }
+  await settingsStore.activateManagedModel(model.id);
+}
+
+function onDocumentClick(event: MouseEvent) {
+  if (imageModelPickerOpen.value && !(event.target as HTMLElement).closest(".image-model-switcher")) {
+    imageModelPickerOpen.value = false;
+  }
+}
+
+onMounted(() => document.addEventListener("click", onDocumentClick));
+onUnmounted(() => document.removeEventListener("click", onDocumentClick));
 const previewCandidate = ref<WorkbenchCandidate | null>(null);
 const candidateGenerationSpec = ref<CandidateGenerationSpec | null>(null);
 const promptPreviewLoading = ref(false);
@@ -1470,6 +1531,147 @@ function getArtStyleLabel(value: ArtStyle): string {
   padding: 0 34px 0 12px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.image-model-switcher {
+  position: relative;
+  margin-left: 12px;
+}
+
+.image-model-switcher-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  max-width: 220px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.08);
+  color: #c4b5fd;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.image-model-switcher-btn:hover {
+  border-color: rgba(139, 92, 246, 0.55);
+  background: rgba(139, 92, 246, 0.16);
+  color: #f1f5f9;
+}
+
+.image-model-switcher-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-model-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  display: grid;
+  width: 260px;
+  max-height: 320px;
+  gap: 4px;
+  overflow-y: auto;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 10px;
+  background: rgba(15, 18, 28, 0.97);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 8px;
+}
+
+.image-model-picker-title {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 6px 4px;
+}
+
+.image-model-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.image-model-picker-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.image-model-picker-item.is-active {
+  background: rgba(139, 92, 246, 0.16);
+}
+
+.image-model-picker-radio {
+  display: flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(204, 215, 245, 0.3);
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.image-model-picker-item.is-active .image-model-picker-radio {
+  border-color: #8b5cf6;
+  background: #8b5cf6;
+}
+
+.image-model-picker-name {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.image-model-picker-name strong {
+  overflow: hidden;
+  color: #f8fbff;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-model-picker-name small {
+  overflow: hidden;
+  color: #8a94ab;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-model-picker-nokey {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.image-model-picker-empty {
+  margin: 0;
+  color: #8a94ab;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px;
 }
 
 .story-title {

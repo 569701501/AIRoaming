@@ -304,6 +304,99 @@
         </form>
       </section>
 
+      <section v-else-if="activeTab === 'models'" class="settings-panel">
+        <div class="panel-title-row">
+          <div>
+            <span>模型管理</span>
+            <h2>对话与图片模型</h2>
+          </div>
+        </div>
+        <p class="panel-hint">
+          <Check :size="14" />
+          <span>点击模型行即选中；删除按钮对被选中的模型禁用</span>
+        </p>
+
+        <section class="model-section">
+          <div class="model-section-head">
+            <strong>对话模型</strong>
+            <button class="model-add-btn" type="button" :disabled="settings.saving" @click="openAddForm('text')">
+              <Plus :size="14" />
+              <span>添加对话模型</span>
+            </button>
+          </div>
+          <div v-if="textModels.length === 0" class="model-empty">还没有对话模型，点击上方按钮添加。</div>
+          <ul class="model-list">
+            <li
+              v-for="model in textModels"
+              :key="model.id"
+              class="model-item"
+              :class="{ 'is-active': model.active }"
+              role="button"
+              tabindex="0"
+              :title="model.active ? '当前选中' : '点击选中'"
+              @click="activateModel(model)"
+              @keydown.enter="activateModel(model)"
+            >
+              <span class="model-radio" aria-hidden="true"><Check v-if="model.active" :size="12" /></span>
+              <div class="model-info">
+                <strong>{{ model.displayName }}</strong>
+                <span>{{ model.providerId }} / {{ model.modelId }}<template v-if="model.baseUrl"> · {{ model.baseUrl }}</template></span>
+              </div>
+              <span class="status-pill" :class="{ 'is-ready': model.configured }">{{ model.configured ? "已配置" : "未配置密钥" }}</span>
+              <button
+                class="model-delete-btn"
+                type="button"
+                :disabled="settings.saving || model.active"
+                :title="model.active ? '当前选中，先选其他模型再删除' : '删除该模型'"
+                @click.stop="deleteModel(model)"
+              >
+                <Trash2 :size="14" />
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        <section class="model-section">
+          <div class="model-section-head">
+            <strong>图片生成模型</strong>
+            <button class="model-add-btn" type="button" :disabled="settings.saving" @click="openAddForm('image')">
+              <Plus :size="14" />
+              <span>添加图片模型</span>
+            </button>
+          </div>
+          <div v-if="imageModels.length === 0" class="model-empty">还没有图片模型，点击上方按钮添加。</div>
+          <ul class="model-list">
+            <li
+              v-for="model in imageModels"
+              :key="model.id"
+              class="model-item"
+              :class="{ 'is-active': model.active }"
+              role="button"
+              tabindex="0"
+              :title="model.active ? '当前选中' : '点击选中'"
+              @click="activateModel(model)"
+              @keydown.enter="activateModel(model)"
+            >
+              <span class="model-radio" aria-hidden="true"><Check v-if="model.active" :size="12" /></span>
+              <div class="model-info">
+                <strong>{{ model.displayName }}</strong>
+                <span>{{ model.providerId }} / {{ model.modelId }}<template v-if="model.baseUrl"> · {{ model.baseUrl }}</template></span>
+              </div>
+              <span class="status-pill" :class="{ 'is-ready': model.configured }">{{ model.configured ? "已配置" : "未配置密钥" }}</span>
+              <button
+                class="model-delete-btn"
+                type="button"
+                :disabled="settings.saving || model.active"
+                :title="model.active ? '当前选中，先选其他模型再删除' : '删除该模型'"
+                @click.stop="deleteModel(model)"
+              >
+                <Trash2 :size="14" />
+              </button>
+            </li>
+          </ul>
+        </section>
+      </section>
+
       <section v-else class="settings-panel">
         <div class="panel-title-row">
           <div>
@@ -330,17 +423,27 @@
         </div>
       </section>
     </section>
+
+    <AddModelModal
+      :open="addFormOpen"
+      :initial-kind="addFormKind"
+      :saving="settings.saving"
+      :error="settings.error"
+      @close="addFormOpen = false"
+      @create="handleCreateModel"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import type { AppearanceTheme, ImageProviderType } from "@airoaming/shared";
-import { Check, Eye, EyeOff, ImagePlus, KeyRound, Monitor, Moon, Palette, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
+import type { AppearanceTheme, CreateManagedModelRequest, ImageProviderType, ManagedModelItem, ManagedModelKind } from "@airoaming/shared";
+import { Boxes, Check, Eye, EyeOff, ImagePlus, KeyRound, Monitor, Moon, Palette, Plus, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
+import AddModelModal from "./AddModelModal.vue";
 import { useSettingsStore } from "../../stores/settings-store";
 
 const settings = useSettingsStore();
-const activeTab = ref<"ai-key" | "image-provider" | "appearance">("ai-key");
+const activeTab = ref<"ai-key" | "image-provider" | "models" | "appearance">("ai-key");
 const showAiKey = ref(false);
 const aiForm = reactive({
   providerId: "self",
@@ -377,10 +480,16 @@ const runwareImageForm = reactive({
   baseUrl: "https://api.runware.ai/v1",
   apiKey: "",
 });
+const addFormOpen = ref(false);
+const addFormKind = ref<ManagedModelKind>("text");
+
+const textModels = computed(() => (settings.settings?.models ?? []).filter((model) => model.kind === "text"));
+const imageModels = computed(() => (settings.settings?.models ?? []).filter((model) => model.kind === "image"));
 
 const tabs = [
   { key: "ai-key", label: "AI 密钥", icon: KeyRound },
   { key: "image-provider", label: "图片生成", icon: ImagePlus },
+  { key: "models", label: "模型管理", icon: Boxes },
   { key: "appearance", label: "外观设置", icon: Palette },
 ] as const;
 
@@ -682,6 +791,32 @@ async function onSwitchProvider(event: Event) {
 
 async function saveAppearance(theme: AppearanceTheme) {
   await settings.saveAppearance({ theme });
+}
+
+function openAddForm(kind: ManagedModelKind) {
+  addFormKind.value = kind;
+  addFormOpen.value = true;
+}
+
+async function handleCreateModel(input: CreateManagedModelRequest) {
+  await settings.createManagedModel(input);
+  if (!settings.error) {
+    addFormOpen.value = false;
+  }
+}
+
+async function activateModel(model: ManagedModelItem) {
+  if (model.active || settings.saving) {
+    return;
+  }
+  await settings.activateManagedModel(model.id);
+}
+
+async function deleteModel(model: ManagedModelItem) {
+  if (model.active || settings.saving) {
+    return;
+  }
+  await settings.deleteManagedModel(model.id);
 }
 
 function formatTime(value: string): string {
@@ -1031,5 +1166,204 @@ select:focus {
   .theme-options {
     grid-template-columns: 1fr;
   }
+}
+
+.model-section {
+  display: grid;
+  gap: 12px;
+}
+
+.model-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 2px;
+}
+
+.model-section-head > strong {
+  color: #f8fbff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.model-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid rgba(142, 121, 255, 0.42);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(79, 70, 229, 0.1));
+  color: #c4b5fd;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.model-add-btn:hover:not(:disabled) {
+  border-color: rgba(142, 121, 255, 0.7);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.26), rgba(79, 70, 229, 0.16));
+  color: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.model-add-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.model-empty {
+  border: 1px dashed rgba(204, 215, 245, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #8a94ab;
+  padding: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.model-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+  overflow: hidden;
+  border: 1px solid rgba(206, 216, 244, 0.12);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(10, 16, 30, 0.5);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.model-item::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: transparent;
+  content: "";
+  transition: background 0.18s ease;
+}
+
+.model-item:hover {
+  border-color: rgba(142, 121, 255, 0.4);
+  background:
+    linear-gradient(180deg, rgba(124, 58, 237, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(10, 16, 30, 0.6);
+}
+
+.model-item.is-active {
+  border-color: rgba(142, 121, 255, 0.65);
+  background:
+    linear-gradient(90deg, rgba(124, 58, 237, 0.16), rgba(79, 70, 229, 0.05) 62%),
+    rgba(10, 16, 30, 0.6);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.model-item.is-active::before {
+  background: linear-gradient(180deg, #9d8bff, #7c3aed);
+}
+
+.model-radio {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(206, 216, 244, 0.32);
+  border-radius: 50%;
+  color: #ffffff;
+  background: transparent;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.model-item.is-active .model-radio {
+  border-color: #9d8bff;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+
+.model-info {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.model-info strong {
+  overflow: hidden;
+  color: #f8fbff;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-info span {
+  overflow: hidden;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.model-delete-btn:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.model-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+
+.model-add-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
 }
 </style>

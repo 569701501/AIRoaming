@@ -9,10 +9,14 @@ import {
   type AppAppearanceSettings,
   type AppImageProviderSettings,
   type AppSettings,
+  type CreateManagedModelRequest,
   type ImageProviderType,
+  type ManagedModelItem,
+  type ManagedModelKind,
   type UpdateAIKeySettingsRequest,
   type UpdateImageProviderSettingsRequest,
   type UpdateAppSettingsRequest,
+  type UpdateManagedModelRequest,
   type AppearanceTheme,
 } from "@airoaming/shared";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
@@ -37,14 +41,31 @@ interface StoredAIKeySettings {
   updatedAt: string | null;
 }
 
+/** 模型管理:用户可添加的对话/图片模型条目 */
+interface StoredManagedModel {
+  id: string;
+  kind: ManagedModelKind;
+  displayName: string;
+  providerId: string;
+  modelId: string;
+  baseUrl: string | null;
+  secretRef: string | null;
+  keyFingerprint: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface StoredAppSettings {
-  version: 1;
+  version: 2;
   aiKey: StoredAIKeySettings;
   openaiImageProvider: StoredAIKeySettings;
   doubaoImageProvider: StoredAIKeySettings;
   grokImageProvider: StoredAIKeySettings;
   runwareImageProvider: StoredAIKeySettings;
   activeImageProvider: ImageProviderType;
+  models: StoredManagedModel[];
+  activeTextModelId: string | null;
+  activeImageModelId: string | null;
   appearance: AppAppearanceSettings;
   updatedAt: string;
 }
@@ -75,6 +96,15 @@ const GROK_DEFAULT_MODEL = "grok-imagine-image-quality";
 /** Runware REST 任务入口；Schnell 用作低成本无参考草稿模型。 */
 const RUNWARE_DEFAULT_BASE_URL = "https://api.runware.ai/v1";
 const RUNWARE_DEFAULT_MODEL = "runware:100@1";
+/** 模型管理预置项(首次进入/旧文件升级时初始化,不带凭证) */
+const PRESET_MANAGED_MODELS: ReadonlyArray<Omit<StoredManagedModel, "id" | "secretRef" | "keyFingerprint" | "createdAt" | "updatedAt">> = [
+  { kind: "text", displayName: "GPT 对话", providerId: "gpt", modelId: "gpt-5.5", baseUrl: null },
+  { kind: "text", displayName: "Kimi 对话", providerId: "kimi", modelId: "kimi-k2", baseUrl: null },
+  { kind: "text", displayName: "DeepSeek 对话", providerId: "deepseek", modelId: "deepseek-chat", baseUrl: null },
+  { kind: "image", displayName: "OpenAI 图片", providerId: "openai_image", modelId: "gpt-image-2", baseUrl: null },
+  { kind: "image", displayName: "Grok 图片", providerId: "grok_image", modelId: GROK_DEFAULT_MODEL, baseUrl: GROK_DEFAULT_BASE_URL },
+  { kind: "image", displayName: "Runware 图片", providerId: "runware_image", modelId: RUNWARE_DEFAULT_MODEL, baseUrl: RUNWARE_DEFAULT_BASE_URL },
+];
 const PROVIDER_NAME_BY_ID: Record<string, string> = {
   self: "自定义 OpenAI 兼容",
   gpt: "GPT 对话",
@@ -131,6 +161,7 @@ export class SettingsService implements OnModuleInit {
   private settings: StoredAppSettings = this.defaultSettings();
   private runtimeAIKey: string | null = null;
   private readonly runtimeImageSecrets = new Map<string, SecretString>();
+  private readonly runtimeManagedModelSecrets = new Map<string, SecretString>();
 
   constructor(
     @Inject(WorkspacePathService) private readonly workspacePathService: WorkspacePathService,
@@ -144,6 +175,22 @@ export class SettingsService implements OnModuleInit {
   }
 
   getRuntimeAIKeySettings(): RuntimeAIKeySettings {
+    const activeModel = this.resolveActiveTextManagedModel();
+    if (activeModel) {
+      const managedKey = activeModel.secretRef
+        ? this.runtimeManagedModelSecrets.get(activeModel.id)?.reveal() ?? null
+        : null;
+      // 与当前 aiKey 同 provider 时复用其凭证(镜像模型/同源中转),其余模型走自身凭证或 OpenCode 原生 auth。
+      const sharedKey = activeModel.providerId === this.settings.aiKey.providerId
+        ? this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime()
+        : null;
+      return {
+        providerId: activeModel.providerId,
+        modelId: activeModel.modelId,
+        baseUrl: activeModel.baseUrl,
+        apiKey: managedKey ?? sharedKey,
+      };
+    }
     const recoveredSharedKey = this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime();
     if (!this.runtimeAIKey && recoveredSharedKey) {
       this.runtimeAIKey = recoveredSharedKey;
@@ -156,7 +203,35 @@ export class SettingsService implements OnModuleInit {
     };
   }
 
+  /** 模型管理选中的对话模型;无选中或未配置时回退 null(调用方回退 aiKey)。 */
+  private resolveActiveTextManagedModel(): StoredManagedModel | null {
+    const activeId = this.settings.activeTextModelId;
+    if (!activeId) {
+      return null;
+    }
+    return this.settings.models.find((model) => model.kind === "text" && model.id === activeId) ?? null;
+  }
+
   getRuntimeImageProviderSettings(): RuntimeImageProviderSettings {
+    const activeModel = this.resolveActiveImageManagedModel();
+    if (activeModel) {
+      const type = this.inferImageProviderType(activeModel.providerId);
+      const managedKey = activeModel.secretRef
+        ? this.runtimeManagedModelSecrets.get(activeModel.id)?.reveal() ?? null
+        : null;
+      // 与对应固定槽位同 provider 时复用其凭证(DB 模式模型行共享槽位行凭证)。
+      const slot = this.getStoredImageProvider(this.settings, type);
+      const sharedKey = activeModel.providerId === slot.providerId
+        ? this.runtimeImageSecrets.get(this.credentialIdForImageProvider(type, slot.providerId))?.reveal() ?? null
+        : null;
+      return {
+        type,
+        providerId: activeModel.providerId,
+        modelId: activeModel.modelId,
+        baseUrl: activeModel.baseUrl,
+        apiKey: managedKey ?? sharedKey,
+      };
+    }
     const active = this.settings.activeImageProvider;
     const stored = this.getStoredImageProvider(this.settings, active);
     return {
@@ -166,6 +241,30 @@ export class SettingsService implements OnModuleInit {
       baseUrl: stored.baseUrl,
       apiKey: this.runtimeImageSecrets.get(this.credentialIdForImageProvider(active, stored.providerId))?.reveal() ?? null,
     };
+  }
+
+  /** 模型管理选中的图片模型;无选中时回退 null(调用方回退固定槽位)。 */
+  private resolveActiveImageManagedModel(): StoredManagedModel | null {
+    const activeId = this.settings.activeImageModelId;
+    if (!activeId) {
+      return null;
+    }
+    return this.settings.models.find((model) => model.kind === "image" && model.id === activeId) ?? null;
+  }
+
+  /** 从模型 providerId 推断图片生成协议分支(与固定槽位命名约定一致)。 */
+  private inferImageProviderType(providerId: string): ImageProviderType {
+    const lower = providerId.toLowerCase();
+    if (lower.includes("doubao")) {
+      return "doubao";
+    }
+    if (lower.includes("grok")) {
+      return "grok";
+    }
+    if (lower.includes("runware")) {
+      return "runware";
+    }
+    return "openai";
   }
 
   private findMatchingImageCredentialForTextRuntime(): string | null {
@@ -204,7 +303,7 @@ export class SettingsService implements OnModuleInit {
     const execute = async () => {
       const current = await this.readSettings();
       const now = new Date().toISOString();
-      const next: StoredAppSettings = {
+      let next: StoredAppSettings = {
         ...current,
         aiKey: input.aiKey ? this.updateAIKeySettings(current.aiKey, input.aiKey, now) : current.aiKey,
         activeImageProvider: input.activeImageProvider === undefined
@@ -213,6 +312,14 @@ export class SettingsService implements OnModuleInit {
         appearance: input.appearance ? this.updateAppearanceSettings(current.appearance, input.appearance.theme) : current.appearance,
         updatedAt: now,
       };
+      // 旧「AI 密钥」tab 保存 = 设置对话默认模型:同步模型管理选中(镜像/复用同源模型),保证运行时与列表一致。
+      if (input.aiKey) {
+        next = this.syncActiveTextModelWithAIKey(next, now);
+      }
+      // 「图片生成」tab 切换生效 provider 时,同步模型管理选中的图片模型(镜像/复用同源模型)。
+      if (input.activeImageProvider !== undefined) {
+        next = this.syncActiveImageModelWithProvider(next, now);
+      }
 
       if (input.openaiImageProvider) {
         next.openaiImageProvider = await this.updateImageProviderSettings("openai", current.openaiImageProvider, input.openaiImageProvider, now);
@@ -232,6 +339,285 @@ export class SettingsService implements OnModuleInit {
       return this.toPublicSettings(next);
     };
     return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
+  }
+
+  async createManagedModel(input: CreateManagedModelRequest): Promise<AppSettings> {
+    const execute = async () => {
+      const current = await this.readSettings();
+      const now = new Date().toISOString();
+      const next = await this.createManagedModelInner(current, input, now);
+      await this.writeSettings(next);
+      this.settings = next;
+      return this.toPublicSettings(next);
+    };
+    return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
+  }
+
+  async updateManagedModel(id: string, input: UpdateManagedModelRequest): Promise<AppSettings> {
+    const execute = async () => {
+      const current = await this.readSettings();
+      const now = new Date().toISOString();
+      const next = await this.updateManagedModelInner(current, id, input, now);
+      await this.writeSettings(next);
+      this.settings = next;
+      return this.toPublicSettings(next);
+    };
+    return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
+  }
+
+  async deleteManagedModel(id: string): Promise<AppSettings> {
+    const execute = async () => {
+      const current = await this.readSettings();
+      const now = new Date().toISOString();
+      const next = await this.deleteManagedModelInner(current, id, now);
+      await this.writeSettings(next);
+      this.settings = next;
+      return this.toPublicSettings(next);
+    };
+    return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
+  }
+
+  async activateManagedModel(id: string): Promise<AppSettings> {
+    const execute = async () => {
+      const current = await this.readSettings();
+      const now = new Date().toISOString();
+      const next = this.activateManagedModelInner(current, id, now);
+      await this.writeSettings(next);
+      this.settings = next;
+      return this.toPublicSettings(next);
+    };
+    return this.maintenance ? this.maintenance.runMutation("settings.update", execute, "settings") : execute();
+  }
+
+  private async createManagedModelInner(current: StoredAppSettings, input: CreateManagedModelRequest, now: string): Promise<StoredAppSettings> {
+    const kind = this.normalizeManagedModelKind(input.kind);
+    const providerId = this.normalizeProviderId(input.providerId);
+    const modelId = this.normalizeModelId(input.modelId);
+    const displayName = this.normalizeManagedModelName(input.displayName);
+    if (!input.baseUrl?.trim()) {
+      throw new BadRequestException("MANAGED_MODEL_BASE_URL_REQUIRED: Base URL 不能为空");
+    }
+    const baseUrl = this.normalizeBaseUrl(input.baseUrl);
+    // DB 模式下模型行按 providerId 唯一,id 稳定为 model_<providerId>;文件模式用 uuid 避免同 providerId 冲突。
+    const id = this.prismaService?.isDatabaseMode()
+      ? `model_${providerId}`
+      : `model_${randomUUID()}`;
+    let secretRef: string | null = null;
+    let keyFingerprint: string | null = null;
+    const apiKey = input.apiKey?.trim();
+    if (apiKey) {
+      // G1 credential_metadata trigger 只允许固定 owner 组合,且轮换/清除需要 Outbox;
+      // 数据库模式下本期不支持带凭证的模型管理,避免与不可变约束冲突。
+      if (this.prismaService?.isDatabaseMode()) {
+        throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持为模型配置密钥，请使用“AI 密钥/图片生成”页或等待运行时衔接");
+      }
+      const metadata = await this.requireSecretStore().put({
+        credentialId: this.managedModelCredentialId(kind, id),
+        secret: SecretString.from(apiKey),
+      });
+      secretRef = metadata.secretRef;
+      keyFingerprint = metadata.fingerprint;
+      this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
+    }
+    const model: StoredManagedModel = {
+      id,
+      kind,
+      displayName,
+      providerId,
+      modelId,
+      baseUrl,
+      secretRef,
+      keyFingerprint,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return {
+      ...current,
+      models: [...current.models, model],
+      // 新模型默认不激活;仅当该类型列表原本为空时才自动激活。
+      activeTextModelId: kind === "text" && current.models.every((item) => item.kind !== "text") ? id : current.activeTextModelId,
+      activeImageModelId: kind === "image" && current.models.every((item) => item.kind !== "image") ? id : current.activeImageModelId,
+      updatedAt: now,
+    };
+  }
+
+  private async updateManagedModelInner(
+    current: StoredAppSettings,
+    id: string,
+    input: UpdateManagedModelRequest,
+    now: string,
+  ): Promise<StoredAppSettings> {
+    const model = current.models.find((item) => item.id === id);
+    if (!model) {
+      throw new BadRequestException("MANAGED_MODEL_NOT_FOUND");
+    }
+    const providerId = input.providerId === undefined ? model.providerId : this.normalizeProviderId(input.providerId);
+    const modelId = input.modelId === undefined ? model.modelId : this.normalizeModelId(input.modelId);
+    const displayName = input.displayName === undefined ? model.displayName : this.normalizeManagedModelName(input.displayName);
+    const baseUrl = input.baseUrl === undefined ? model.baseUrl : this.normalizeBaseUrl(input.baseUrl ?? null);
+    const credentialId = this.managedModelCredentialId(model.kind, model.id);
+    let secretRef = model.secretRef;
+    let keyFingerprint = model.keyFingerprint;
+    const apiKeyInput = input.apiKey?.trim();
+    const shouldClearApiKey = input.clearApiKey === true && !apiKeyInput;
+    if (this.prismaService?.isDatabaseMode() && (apiKeyInput || shouldClearApiKey)) {
+      // G1 trigger 限制凭证轮换/清除需 Outbox;数据库模式下本期不支持模型密钥变更。
+      throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持修改模型密钥，请使用“AI 密钥/图片生成”页或等待运行时衔接");
+    }
+    if (shouldClearApiKey && model.secretRef) {
+      await this.requireSecretStore().delete(credentialId);
+      secretRef = null;
+      keyFingerprint = null;
+      this.runtimeManagedModelSecrets.delete(model.id);
+    }
+    if (apiKeyInput) {
+      const metadata = await this.requireSecretStore().put({
+        credentialId,
+        secret: SecretString.from(apiKeyInput),
+      });
+      secretRef = metadata.secretRef;
+      keyFingerprint = metadata.fingerprint;
+      this.runtimeManagedModelSecrets.set(model.id, SecretString.from(apiKeyInput));
+    }
+    return {
+      ...current,
+      models: current.models.map((item) => item.id === id
+        ? { ...item, displayName, providerId, modelId, baseUrl, secretRef, keyFingerprint, updatedAt: now }
+        : item),
+      updatedAt: now,
+    };
+  }
+
+  private async deleteManagedModelInner(current: StoredAppSettings, id: string, now: string): Promise<StoredAppSettings> {
+    const model = current.models.find((item) => item.id === id);
+    if (!model) {
+      throw new BadRequestException("MANAGED_MODEL_NOT_FOUND");
+    }
+    const activeId = model.kind === "text" ? current.activeTextModelId : current.activeImageModelId;
+    if (activeId === model.id) {
+      throw new BadRequestException("MANAGED_MODEL_ACTIVE_DELETE_FORBIDDEN");
+    }
+    if (this.prismaService?.isDatabaseMode()) {
+      // G1 trigger 不允许删除带凭证的 credential_metadata;数据库模式下带凭证模型暂不可删。
+      if (model.secretRef) {
+        throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下带凭证的模型暂不支持删除");
+      }
+      const fixedProviderIds = new Set([
+        current.aiKey.providerId,
+        current.openaiImageProvider.providerId,
+        current.doubaoImageProvider.providerId,
+        current.grokImageProvider.providerId,
+        current.runwareImageProvider.providerId,
+      ]);
+      if (fixedProviderIds.has(model.providerId)) {
+        throw new BadRequestException("MANAGED_MODEL_FIXED_SLOT_DELETE_FORBIDDEN: 该模型由“AI 密钥/图片生成”槽位管理，不能在模型管理中删除");
+      }
+      const database = this.prismaService.database();
+      const provider = await database.providerConfig.findUnique({ where: { providerId: model.providerId } });
+      if (provider) {
+        await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
+        await database.providerConfig.delete({ where: { id: provider.id } });
+      }
+    } else if (model.secretRef) {
+      await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id));
+      this.runtimeManagedModelSecrets.delete(model.id);
+    }
+    return {
+      ...current,
+      models: current.models.filter((item) => item.id !== id),
+      updatedAt: now,
+    };
+  }
+
+  private activateManagedModelInner(current: StoredAppSettings, id: string, now: string): StoredAppSettings {
+    const model = current.models.find((item) => item.id === id);
+    if (!model) {
+      throw new BadRequestException("MANAGED_MODEL_NOT_FOUND");
+    }
+    return {
+      ...current,
+      activeTextModelId: model.kind === "text" ? model.id : current.activeTextModelId,
+      activeImageModelId: model.kind === "image" ? model.id : current.activeImageModelId,
+      updatedAt: now,
+    };
+  }
+
+  private syncActiveTextModelWithAIKey(next: StoredAppSettings, now: string): StoredAppSettings {
+    const aiKey = next.aiKey;
+    const exactMatch = next.models.find((model) => model.kind === "text" && model.providerId === aiKey.providerId && model.modelId === aiKey.modelId);
+    if (exactMatch) {
+      // 同源模型同步凭证指纹(复用 aiKey 凭证,展示"已配置")。
+      const keyFingerprint = aiKey.keyFingerprint ?? exactMatch.keyFingerprint;
+      return keyFingerprint === exactMatch.keyFingerprint
+        ? { ...next, activeTextModelId: exactMatch.id }
+        : {
+            ...next,
+            models: next.models.map((model) => model.id === exactMatch.id ? { ...model, keyFingerprint, updatedAt: now } : model),
+            activeTextModelId: exactMatch.id,
+          };
+    }
+    const sameProvider = next.models.find((model) => model.kind === "text" && model.providerId === aiKey.providerId);
+    if (sameProvider) {
+      return {
+        ...next,
+        models: next.models.map((model) => model.id === sameProvider.id
+          ? { ...model, displayName: aiKey.providerName || model.displayName, modelId: aiKey.modelId, baseUrl: aiKey.baseUrl, keyFingerprint: aiKey.keyFingerprint ?? model.keyFingerprint, updatedAt: now }
+          : model),
+        activeTextModelId: sameProvider.id,
+      };
+    }
+    const mirrorModel: StoredManagedModel = {
+      id: `model_${aiKey.providerId}`,
+      kind: "text",
+      displayName: aiKey.providerName || aiKey.providerId,
+      providerId: aiKey.providerId,
+      modelId: aiKey.modelId,
+      baseUrl: aiKey.baseUrl,
+      secretRef: null,
+      keyFingerprint: aiKey.keyFingerprint ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return {
+      ...next,
+      models: [...next.models, mirrorModel],
+      activeTextModelId: mirrorModel.id,
+    };
+  }
+
+  private syncActiveImageModelWithProvider(next: StoredAppSettings, now: string): StoredAppSettings {
+    const slot = this.getStoredImageProvider(next, next.activeImageProvider);
+    const match = next.models.find((model) => model.kind === "image" && model.providerId === slot.providerId);
+    if (match) {
+      const displayName = slot.providerName || match.displayName;
+      const modelChanged = match.displayName !== displayName || match.modelId !== slot.modelId || match.baseUrl !== slot.baseUrl;
+      return {
+        ...next,
+        models: modelChanged
+          ? next.models.map((model) => model.id === match.id
+            ? { ...model, displayName, modelId: slot.modelId, baseUrl: slot.baseUrl, updatedAt: now }
+            : model)
+          : next.models,
+        activeImageModelId: match.id,
+      };
+    }
+    const mirrorModel: StoredManagedModel = {
+      id: `model_${slot.providerId}`,
+      kind: "image",
+      displayName: slot.providerName || slot.providerId,
+      providerId: slot.providerId,
+      modelId: slot.modelId,
+      baseUrl: slot.baseUrl,
+      secretRef: null,
+      keyFingerprint: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return {
+      ...next,
+      models: [...next.models, mirrorModel],
+      activeImageModelId: mirrorModel.id,
+    };
   }
 
   private async updateImageProviderSettings(
@@ -344,8 +730,14 @@ export class SettingsService implements OnModuleInit {
     const filePath = this.getSettingsFilePath();
     try {
       const raw = await readFile(filePath, "utf8");
-      const settings = this.normalizeStoredSettings(JSON.parse(raw) as Partial<StoredAppSettings>);
-      return this.prepareRuntimeSecrets(settings, true);
+      const parsed = JSON.parse(raw) as Partial<StoredAppSettings>;
+      const settings = this.normalizeStoredSettings(parsed);
+      const prepared = await this.prepareRuntimeSecrets(settings, true);
+      // 旧版(v1,无 models)升级后立即写回预置列表,避免内存态与磁盘不一致。
+      if (!Array.isArray(parsed.models)) {
+        await this.writeSettings(prepared);
+      }
+      return prepared;
     } catch (error) {
       if (this.isNotFoundError(error)) {
         const defaults = this.defaultSettings();
@@ -405,6 +797,23 @@ export class SettingsService implements OnModuleInit {
         this.runtimeImageSecrets.set(credentialId, secret);
       } else {
         this.runtimeImageSecrets.delete(credentialId);
+      }
+    }
+
+    // 模型管理凭证预加载:带 secretRef 的模型在运行时切换时直接可用。
+    // DB 模式的模型行与固定槽位共享 providerConfig/credentialMetadata(id 与 managed 凭证不匹配),跳过加载。
+    if (!this.prismaService?.isDatabaseMode()) {
+      for (const model of settings.models) {
+        if (model.secretRef) {
+          const secret = this.runtimeManagedModelSecrets.get(model.id)
+            ?? await this.requireSecretStore().get(this.managedModelCredentialId(model.kind, model.id));
+          if (model.keyFingerprint && fingerprintSecret(secret) !== model.keyFingerprint) {
+            throw new SecretStoreError("SECRET_STORE_ENTRY_MISSING");
+          }
+          this.runtimeManagedModelSecrets.set(model.id, secret);
+        } else {
+          this.runtimeManagedModelSecrets.delete(model.id);
+        }
       }
     }
 
@@ -492,14 +901,38 @@ export class SettingsService implements OnModuleInit {
         : activeProviderId.includes("runware")
           ? "runware"
           : "openai";
+    // 模型管理列表 = provider_configs 全部行(runtimeKind=text|image)。
+    // 说明:DB 模式不持久化 active 指针(activeTextModelId/activeImageModelId),
+    // 读取时与当前 aiKey/activeImageProvider 对齐(保证运行时与设置一致),重启后保持。
+    const models: StoredManagedModel[] = providers.map((provider) => ({
+      id: `model_${provider.providerId}`,
+      kind: provider.runtimeKind === "text" ? "text" : "image",
+      displayName: provider.displayName,
+      providerId: provider.providerId,
+      modelId: provider.modelId,
+      baseUrl: provider.baseUrl,
+      secretRef: provider.credentialMetadataByProviderConfig?.secretRef ?? null,
+      keyFingerprint: provider.credentialMetadataByProviderConfig?.fingerprint ?? null,
+      createdAt: provider.createdAt.toISOString(),
+      updatedAt: provider.updatedAt.toISOString(),
+    }));
+    const activeTextModelId = models.find((model) => model.kind === "text" && model.providerId === textProvider?.providerId)?.id
+      ?? models.find((model) => model.kind === "text")?.id
+      ?? null;
+    const activeImageModelId = models.find((model) => model.kind === "image" && model.providerId === activeProviderId)?.id
+      ?? models.find((model) => model.kind === "image")?.id
+      ?? null;
     const settings: StoredAppSettings = {
-      version: 1,
+      version: 2,
       aiKey: toStored(textProvider, defaults.aiKey),
       openaiImageProvider: toStored(imageProvider("openai"), defaults.openaiImageProvider),
       doubaoImageProvider: toStored(imageProvider("doubao"), defaults.doubaoImageProvider),
       grokImageProvider: toStored(imageProvider("grok"), defaults.grokImageProvider),
       runwareImageProvider: toStored(imageProvider("runware"), defaults.runwareImageProvider),
       activeImageProvider,
+      models,
+      activeTextModelId,
+      activeImageModelId,
       appearance: { theme: preference.theme as AppAppearanceSettings["theme"] },
       updatedAt: preference.updatedAt.toISOString(),
     };
@@ -567,6 +1000,49 @@ export class SettingsService implements OnModuleInit {
       } else {
         await tx.appPreference.create({ data: { id: "primary", ...preferenceData } });
       }
+      // 模型管理列表落库:providerId 与固定槽位(aiKey/4 个图片槽位)重复的行由固定槽位维护,跳过。
+      const fixedProviderIds = new Set(providers.map((item) => item.settings.providerId));
+      for (const model of settings.models) {
+        if (fixedProviderIds.has(model.providerId)) {
+          continue;
+        }
+        const provider = await tx.providerConfig.upsert({
+          where: { providerId: model.providerId },
+          create: {
+            providerId: model.providerId,
+            runtimeKind: model.kind,
+            displayName: model.displayName,
+            modelId: model.modelId,
+            baseUrl: model.baseUrl,
+            enabled: model.kind === "text" || Boolean(model.secretRef),
+          },
+          update: {
+            displayName: model.displayName,
+            modelId: model.modelId,
+            baseUrl: model.baseUrl,
+            enabled: model.kind === "text" || Boolean(model.secretRef),
+          },
+        });
+        await tx.credentialMetadata.upsert({
+          where: { providerConfigId: provider.id },
+          create: {
+            providerConfigId: provider.id,
+            // G1 trigger 白名单:text 行只允许 owner=opencode,image 行只允许 image_secret_store/environment。
+            // CHECK ck_credential_metadata_text_owner_shape:text 行 configured=1 时 secret_ref 必须为 NULL。
+            owner: model.kind === "text" ? "opencode" : "image_secret_store",
+            status: (model.secretRef || model.keyFingerprint) ? "configured" : "unconfigured",
+            secretRef: model.kind === "text" ? null : (model.secretRef ?? null),
+            fingerprint: model.keyFingerprint ?? null,
+            configured: Boolean(model.secretRef || model.keyFingerprint),
+          },
+          update: {
+            status: (model.secretRef || model.keyFingerprint) ? "configured" : "unconfigured",
+            secretRef: model.kind === "text" ? null : (model.secretRef ?? null),
+            fingerprint: model.keyFingerprint ?? null,
+            configured: Boolean(model.secretRef || model.keyFingerprint),
+          },
+        });
+      }
     });
   }
 
@@ -579,6 +1055,43 @@ export class SettingsService implements OnModuleInit {
     const doubaoSource = (input.doubaoImageProvider ?? defaults.doubaoImageProvider) as StoredAIKeySettings;
     const grokSource = (input.grokImageProvider ?? defaults.grokImageProvider) as StoredAIKeySettings;
     const runwareSource = (input.runwareImageProvider ?? defaults.runwareImageProvider) as StoredAIKeySettings;
+    const now = new Date().toISOString();
+    // 迁移:旧文件没有 models → 补预置列表与默认选中。
+    // 若 aiKey 是已配置凭证的自定义 provider(如 xai 中转),镜像一条同源模型并设为默认选中,保证默认对话行为不变。
+    let models: StoredManagedModel[];
+    let presetActiveTextModelId: string | null = null;
+    if (Array.isArray(input.models)) {
+      models = input.models.map((model) => this.normalizeManagedModel(model, now));
+    } else {
+      const preset = this.createPresetManagedModels(now);
+      const aiKeyProviderId = (typeof aiKey.providerId === "string" ? aiKey.providerId.trim() : "") || "self";
+      const aiKeyConfigured = Boolean(
+        aiKey.keyFingerprint
+        || (typeof aiKey.apiKey === "string" && aiKey.apiKey.trim()),
+      );
+      const mirror = aiKeyConfigured ? preset.find((model) => model.kind === "text" && model.providerId === aiKeyProviderId) : undefined;
+      if (mirror) {
+        presetActiveTextModelId = mirror.id;
+      } else if (aiKeyConfigured) {
+        const mirrorModel: StoredManagedModel = {
+          id: `model_${aiKeyProviderId}`,
+          kind: "text",
+          displayName: typeof aiKey.providerName === "string" && aiKey.providerName.trim() ? aiKey.providerName.trim() : aiKeyProviderId,
+          providerId: aiKeyProviderId,
+          modelId: typeof aiKey.modelId === "string" && aiKey.modelId.trim() ? aiKey.modelId.trim() : "gpt-5.5",
+          baseUrl: typeof aiKey.baseUrl === "string" && aiKey.baseUrl.trim() ? aiKey.baseUrl.trim() : null,
+          secretRef: null,
+          keyFingerprint: typeof aiKey.keyFingerprint === "string" ? aiKey.keyFingerprint : null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        preset.push(mirrorModel);
+        presetActiveTextModelId = mirrorModel.id;
+      }
+      models = preset;
+    }
+    const activeTextModelId = this.resolveActiveManagedModelId(input.activeTextModelId, models, "text", presetActiveTextModelId ?? defaults.activeTextModelId);
+    const activeImageModelId = this.resolveActiveManagedModelId(input.activeImageModelId, models, "image", defaults.activeImageModelId);
 
     const providerId = this.normalizeProviderId(aiKey.providerId ?? defaults.aiKey.providerId);
     const openaiProviderId = this.normalizeProviderId(openaiSource.providerId ?? defaults.openaiImageProvider.providerId);
@@ -596,7 +1109,7 @@ export class SettingsService implements OnModuleInit {
     const activeImageProvider = this.normalizeImageProviderType(input.activeImageProvider);
 
     return {
-      version: 1,
+      version: 2,
       aiKey: {
         providerId,
         providerName: this.normalizeProviderName(aiKey.providerName ?? this.resolveProviderName(providerId), providerId),
@@ -659,9 +1172,65 @@ export class SettingsService implements OnModuleInit {
         updatedAt: typeof runwareSource.updatedAt === "string" ? runwareSource.updatedAt : null,
       },
       activeImageProvider,
+      models,
+      activeTextModelId,
+      activeImageModelId,
       appearance: { theme },
       updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : defaults.updatedAt,
     };
+  }
+
+  private normalizeManagedModel(model: Partial<StoredManagedModel> & { kind?: unknown }, now: string): StoredManagedModel {
+    const kind = model.kind === "image" ? "image" : "text";
+    const providerId = this.normalizeProviderId(typeof model.providerId === "string" && model.providerId.trim() ? model.providerId : kind === "image" ? "openai_image" : "gpt");
+    return {
+      id: typeof model.id === "string" && model.id.trim() ? model.id : `model_${randomUUID()}`,
+      kind,
+      displayName: this.normalizeManagedModelName(model.displayName),
+      providerId,
+      modelId: this.normalizeModelId(typeof model.modelId === "string" && model.modelId.trim() ? model.modelId : "gpt-5.5"),
+      baseUrl: this.normalizeBaseUrl(typeof model.baseUrl === "string" ? model.baseUrl : null),
+      secretRef: typeof model.secretRef === "string" ? model.secretRef : null,
+      keyFingerprint: typeof model.keyFingerprint === "string" ? model.keyFingerprint : null,
+      createdAt: typeof model.createdAt === "string" ? model.createdAt : now,
+      updatedAt: typeof model.updatedAt === "string" ? model.updatedAt : now,
+    };
+  }
+
+  private normalizeManagedModelKind(value: unknown): ManagedModelKind {
+    if (value === "image") {
+      return "image";
+    }
+    if (value === "text") {
+      return "text";
+    }
+    throw new BadRequestException("kind 只能是 text 或 image");
+  }
+
+  private normalizeManagedModelName(value: unknown): string {
+    const normalized = typeof value === "string" ? value.trim() : "";
+    if (!normalized) {
+      throw new BadRequestException("模型显示名称不能为空");
+    }
+    if (normalized.length > 80) {
+      throw new BadRequestException("模型显示名称不能超过 80 个字符");
+    }
+    return normalized;
+  }
+
+  private resolveActiveManagedModelId(value: unknown, models: StoredManagedModel[], kind: ManagedModelKind, fallback: string | null): string | null {
+    const candidates = models.filter((model) => model.kind === kind);
+    if (candidates.length === 0) {
+      return null;
+    }
+    if (typeof value === "string" && candidates.some((model) => model.id === value)) {
+      return value;
+    }
+    return fallback && candidates.some((model) => model.id === fallback) ? fallback : (candidates[0]?.id ?? null);
+  }
+
+  private managedModelCredentialId(kind: ManagedModelKind, id: string): string {
+    return `managed_${kind}_${id}`;
   }
 
   private defaultSettings(): StoredAppSettings {
@@ -680,9 +1249,10 @@ export class SettingsService implements OnModuleInit {
     const runwareImageBaseUrl = process.env.RUNWARE_IMAGE_BASE_URL?.trim() || RUNWARE_DEFAULT_BASE_URL;
     const runwareImageApiKey = process.env.RUNWARE_IMAGE_API_KEY?.trim() || null;
     const now = new Date().toISOString();
+    const presetModels = this.createPresetManagedModels(now);
 
     return {
-      version: 1,
+      version: 2,
       aiKey: {
         providerId,
         providerName: this.resolveProviderName(providerId),
@@ -733,11 +1303,25 @@ export class SettingsService implements OnModuleInit {
         updatedAt: runwareImageApiKey ? now : null,
       },
       activeImageProvider: "openai",
+      models: presetModels,
+      activeTextModelId: presetModels.find((model) => model.kind === "text")?.id ?? null,
+      activeImageModelId: presetModels.find((model) => model.kind === "image")?.id ?? null,
       appearance: {
         theme: "dark",
       },
       updatedAt: now,
     };
+  }
+
+  private createPresetManagedModels(now: string): StoredManagedModel[] {
+    return PRESET_MANAGED_MODELS.map((preset) => ({
+      ...preset,
+      id: `model_${preset.providerId}`,
+      secretRef: null,
+      keyFingerprint: null,
+      createdAt: now,
+      updatedAt: now,
+    }));
   }
 
   private toPublicSettings(settings: StoredAppSettings): AppSettings {
@@ -748,9 +1332,28 @@ export class SettingsService implements OnModuleInit {
       grokImageProvider: this.toPublicImageProvider(settings.grokImageProvider),
       runwareImageProvider: this.toPublicImageProvider(settings.runwareImageProvider),
       activeImageProvider: settings.activeImageProvider,
+      models: settings.models.map((model) => this.toPublicManagedModel(model, settings)),
       appearance: settings.appearance,
       settingsPath: SETTINGS_VIRTUAL_PATH,
       updatedAt: settings.updatedAt,
+    };
+  }
+
+  private toPublicManagedModel(model: StoredManagedModel, settings: StoredAppSettings): ManagedModelItem {
+    return {
+      id: model.id,
+      kind: model.kind,
+      displayName: model.displayName,
+      providerId: model.providerId,
+      modelId: model.modelId,
+      baseUrl: model.baseUrl,
+      // 对话模型凭证为 OpenCode-owned(fingerprint 存在、secretRef 恒 null);
+      // 图片模型凭证在 SecretStore(secretRef)。任一存在即视为已配置。
+      configured: Boolean(model.secretRef || model.keyFingerprint),
+      keyFingerprint: model.keyFingerprint,
+      active: model.id === (model.kind === "text" ? settings.activeTextModelId : settings.activeImageModelId),
+      createdAt: model.createdAt,
+      updatedAt: model.updatedAt,
     };
   }
 

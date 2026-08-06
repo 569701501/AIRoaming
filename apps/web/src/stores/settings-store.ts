@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
-import type { AppSettings, AppearanceTheme, ImageProviderType, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest, UpdateImageProviderSettingsRequest } from "@airoaming/shared";
+import type { AppSettings, AppearanceTheme, CreateManagedModelRequest, ImageProviderType, UpdateAIKeySettingsRequest, UpdateAppearanceSettingsRequest, UpdateImageProviderSettingsRequest, UpdateManagedModelRequest } from "@airoaming/shared";
 import { api } from "../services/api";
 
-export type SettingsNoticeScope = "ai-key" | "image-provider" | "appearance";
+export type SettingsNoticeScope = "ai-key" | "image-provider" | "appearance" | "models";
 
 interface SettingsState {
   settings: AppSettings | null;
@@ -199,6 +199,70 @@ export const useSettingsStore = defineStore("settings", {
         this.noticeScope = null;
         applyAppearance(previousTheme);
         this.error = error instanceof Error ? error.message : "外观设置保存失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async createManagedModel(input: CreateManagedModelRequest) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.createManagedModel(input);
+        this.notice = input.kind === "image" ? "图片模型已添加" : "对话模型已添加";
+        this.noticeScope = "models";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "模型添加失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async updateManagedModel(id: string, input: UpdateManagedModelRequest) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.updateManagedModel(id, input);
+        this.notice = "模型已更新";
+        this.noticeScope = "models";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "模型更新失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async deleteManagedModel(id: string) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.deleteManagedModel(id);
+        this.notice = "模型已删除";
+        this.noticeScope = "models";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "模型删除失败";
+      } finally {
+        this.saving = false;
+      }
+    },
+    async activateManagedModel(id: string) {
+      this.saving = true;
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+      try {
+        this.settings = await api.activateManagedModel(id);
+        this.notice = "已选中该模型";
+        this.noticeScope = "models";
+      } catch (error) {
+        this.noticeScope = null;
+        this.error = error instanceof Error ? error.message : "模型选中失败";
       } finally {
         this.saving = false;
       }

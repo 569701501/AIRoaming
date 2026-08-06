@@ -9,8 +9,10 @@
     <section class="workbench-content" :class="{ 'is-layout-step': isLayoutStep, 'is-dialogue-collapsed': !isLayoutStep && dialogueCollapsed }" :aria-label="`${currentStageLabel}工作区`">
       <ProjectDialoguePanel
         v-if="!isLayoutStep && !dialogueCollapsed"
+        :active-dialogue-model="workbench.selectedDialogueModel"
         :active-step-key="activeStepKey"
         :dialogue-error="dialogueError"
+        :dialogue-models="dialogueModels"
         :dialogue-notice="dialogueNotice"
         :dialogue-sending="dialogueSending"
         :dialogue-thread="dialogueThread"
@@ -20,6 +22,7 @@
         :step-label="currentStageLabel"
         @send="emitDialogue"
         @retry-import-item="$emit('retryImportItem', $event)"
+        @select-dialogue-model="$emit('selectDialogueModel', $event)"
         @collapse="workbench.toggleDialogueCollapsed(activeStepKey)"
       />
       <button
@@ -161,7 +164,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ChevronsRight, Sparkles } from "lucide-vue-next";
-import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, SaveChapterDraftRequest, ScriptWorkingCopyDto, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, ManagedModelItem, SaveChapterDraftRequest, ScriptWorkingCopyDto, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { useWorkbenchStore } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
@@ -189,6 +192,7 @@ const props = defineProps<{
   dialogueError: string | null;
   dialogueNotice: string | null;
   runtimeModelError: string | null;
+  dialogueModels: ManagedModelItem[];
   scriptWorkingCopy: ScriptWorkingCopyDto | null;
 }>();
 
@@ -207,6 +211,7 @@ const emit = defineEmits<{
   selectStep: [stepKey: string];
   dismissCompletionPrompt: [];
   sendDialogue: [input: SendDialogueMessageRequest];
+  selectDialogueModel: [model: ManagedModelItem];
   retryImportItem: [payload: { batchId: string; itemId: string }];
   extractCharacters: [];
   regenerateCharacterReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];

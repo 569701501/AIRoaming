@@ -17,6 +17,7 @@ import {
   type DialogueToolResult,
   type GenerationTaskItem,
   type HealthResponse,
+  type ManagedModelItem,
   type ProjectCharacter,
   type ProjectListItem,
   type ResolveImagePreflightCharacterRequest,
@@ -34,6 +35,7 @@ import {
   digestCanonicalJson,
 } from "@airoaming/shared";
 import { ApiClientError, api } from "../services/api";
+import { useSettingsStore } from "./settings-store";
 import {
   getCurrentChapterId,
   getCurrentChapterSourceText,
@@ -288,6 +290,17 @@ export const useWorkbenchStore = defineStore("workbench", {
       } catch (error) {
         this.runtimeModelError = error instanceof Error ? error.message : "模型列表加载失败";
       }
+    },
+    /** 对话面板快捷切换模型:持久化选中(activate)+ 更新运行时选择,后续消息立即生效。 */
+    async selectDialogueModel(model: ManagedModelItem) {
+      const settingsStore = useSettingsStore();
+      if (!model.active) {
+        await settingsStore.activateManagedModel(model.id);
+      }
+      this.selectedDialogueModel = {
+        providerId: model.providerId,
+        modelId: model.modelId,
+      };
     },
     applyChapterUpdate(chapter: ChapterDetail, chapters: ChapterListItem[] | null = null) {
       if (!this.snapshot) {

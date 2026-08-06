@@ -14,6 +14,7 @@ import type {
   ConfirmChapterImagePreflightRequest,
   ConfirmChapterStoryStructureRequest,
   ConfirmChapterStoryboardRequest,
+  CreateManagedModelRequest,
   CreateProjectRequest,
   ClearChapterScriptResponse,
   DeleteProjectResponse,
@@ -59,6 +60,7 @@ import type {
   UpdateChapterStoryStructureRequest,
   UpdateChapterStoryboardRequest,
   UpdateAppSettingsRequest,
+  UpdateManagedModelRequest,
   UpdateProjectDraftRequest,
   WorkspaceInfo,
   WorkbenchSnapshot,
@@ -311,6 +313,20 @@ export const api = {
   updateSettings: (input: UpdateAppSettingsRequest) => request<AppSettings>("/settings", {
     method: "PATCH",
     body: JSON.stringify(input),
+  }),
+  createManagedModel: (input: CreateManagedModelRequest) => request<AppSettings>("/settings/models", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }),
+  updateManagedModel: (id: string, input: UpdateManagedModelRequest) => request<AppSettings>(`/settings/models/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  }),
+  deleteManagedModel: (id: string) => request<AppSettings>(`/settings/models/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }),
+  activateManagedModel: (id: string) => request<AppSettings>(`/settings/models/${encodeURIComponent(id)}/activate`, {
+    method: "PUT",
   }),
   listRuntimeModels: () => request<{
     defaultModel: AIRuntimeModelSelection;

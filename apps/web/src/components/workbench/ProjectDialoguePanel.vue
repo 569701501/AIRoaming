@@ -5,9 +5,38 @@
         <Sparkles :size="16" class="title-icon" />
         <h2>{{ dialogueCopy.title }}</h2>
       </div>
-      <button class="collapse-btn" type="button" title="收起对话" @click="emit('collapse')">
-        <ChevronsLeft :size="16" />
-      </button>
+      <div class="header-actions">
+        <div class="model-switcher" :class="{ 'is-open': modelPickerOpen }">
+          <button class="model-switcher-btn" type="button" :title="'当前模型：' + activeDialogueModelLabel" @click="toggleModelPicker">
+            <Cpu :size="13" />
+            <span>{{ activeDialogueModelLabel }}</span>
+            <ChevronDown :size="12" />
+          </button>
+          <div v-if="modelPickerOpen" class="model-picker">
+            <p class="model-picker-title">切换对话模型</p>
+            <button
+              v-for="model in dialogueModels"
+              :key="model.id"
+              class="model-picker-item"
+              :class="{ 'is-active': model.active }"
+              type="button"
+              :title="model.configured ? '' : '未配置密钥，可能无法调用'"
+              @click="pickDialogueModel(model)"
+            >
+              <span class="model-picker-radio"><Check v-if="model.active" :size="11" /></span>
+              <span class="model-picker-name">
+                <strong>{{ model.displayName }}</strong>
+                <small>{{ model.providerId }} / {{ model.modelId }}</small>
+              </span>
+              <span v-if="!model.configured" class="model-picker-nokey">无密钥</span>
+            </button>
+            <p v-if="dialogueModels.length === 0" class="model-picker-empty">暂无对话模型，请到设置页「模型管理」添加。</p>
+          </div>
+        </div>
+        <button class="collapse-btn" type="button" title="收起对话" @click="emit('collapse')">
+          <ChevronsLeft :size="16" />
+        </button>
+      </div>
     </header>
 
     <section ref="messageListRef" class="dialogue-messages" aria-label="对话记录">
@@ -224,6 +253,7 @@
 
             <div v-if="shouldShowMessageText(message)" class="message-body final-message-body" :class="{ 'is-failed': message.status === 'failed' }">
               <p class="message-text">{{ getMessageContent(message) }}</p>
+              <span v-if="message.model" class="message-model-tag">{{ message.model.modelId }}</span>
             </div>
           </div>
         </template>
@@ -303,9 +333,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import { ArrowUp, Bot, Brain, CheckCircle2, ChevronsLeft, CircleAlert, FileText, Loader2, Paperclip, Sparkles, Wrench } from "lucide-vue-next";
-import type { DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, StoryboardJson, WorkbenchSnapshot } from "@airoaming/shared";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { ArrowUp, Bot, Brain, Check, CheckCircle2, ChevronDown, ChevronsLeft, CircleAlert, Cpu, FileText, Loader2, Paperclip, Sparkles, Wrench } from "lucide-vue-next";
+import type { AIRuntimeModelSelection, DialogueAttachmentInput, DialogueMessageItem, DialogueThread, DialogueToolResult, ManagedModelItem, ProjectScriptOutline, ScriptInspirationSeed, SendDialogueMessageRequest, StoryboardJson, WorkbenchSnapshot } from "@airoaming/shared";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -317,12 +347,15 @@ const props = defineProps<{
   dialogueNotice: string | null;
   runtimeModelError: string | null;
   loading: boolean;
+  dialogueModels: ManagedModelItem[];
+  activeDialogueModel: AIRuntimeModelSelection | null;
 }>();
 
 const emit = defineEmits<{
   send: [input: SendDialogueMessageRequest];
   retryImportItem: [payload: { batchId: string; itemId: string }];
   collapse: [];
+  selectDialogueModel: [model: ManagedModelItem];
 }>();
 
 const draft = ref("");
@@ -331,6 +364,36 @@ const attachmentError = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const composerTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
+const modelPickerOpen = ref(false);
+
+const activeDialogueModelLabel = computed(() => {
+  const current = props.activeDialogueModel;
+  const matched = current
+    ? props.dialogueModels.find((model) => model.providerId === current.providerId && model.modelId === current.modelId)
+    : null;
+  return matched?.displayName ?? (current ? `${current.providerId}/${current.modelId}` : "未选择模型");
+});
+
+function toggleModelPicker() {
+  modelPickerOpen.value = !modelPickerOpen.value;
+}
+
+function pickDialogueModel(model: ManagedModelItem) {
+  modelPickerOpen.value = false;
+  if (model.active) {
+    return;
+  }
+  emit("selectDialogueModel", model);
+}
+
+function onDocumentClick(event: MouseEvent) {
+  if (modelPickerOpen.value && !(event.target as HTMLElement).closest(".model-switcher")) {
+    modelPickerOpen.value = false;
+  }
+}
+
+onMounted(() => document.addEventListener("click", onDocumentClick));
+onUnmounted(() => document.removeEventListener("click", onDocumentClick));
 
 interface DialogueQuickAction {
   label: string;
@@ -911,6 +974,163 @@ function getImportItemStatusLabel(status: string) {
 .collapse-btn:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #e2e8f0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-switcher {
+  position: relative;
+}
+
+.model-switcher-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 200px;
+  min-height: 26px;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.08);
+  color: #c4b5fd;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.model-switcher-btn:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.14);
+  color: #f1f5f9;
+}
+
+.model-switcher-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  width: 260px;
+  max-height: 320px;
+  gap: 4px;
+  overflow-y: auto;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 10px;
+  background: rgba(15, 18, 28, 0.97);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 8px;
+}
+
+.model-picker-title {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 6px 4px;
+}
+
+.model-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.model-picker-item.is-active {
+  background: rgba(139, 92, 246, 0.16);
+}
+
+.model-picker-radio {
+  display: flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(204, 215, 245, 0.3);
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.model-picker-item.is-active .model-picker-radio {
+  border-color: #8b5cf6;
+  background: #8b5cf6;
+}
+
+.model-picker-name {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.model-picker-name strong {
+  overflow: hidden;
+  color: #f8fbff;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-name small {
+  overflow: hidden;
+  color: #8a94ab;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-nokey {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.model-picker-empty {
+  margin: 0;
+  color: #8a94ab;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px;
+}
+
+.message-model-tag {
+  display: inline-flex;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+  padding: 1px 7px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
 }
 
 

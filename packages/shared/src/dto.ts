@@ -81,6 +81,25 @@ export interface AppImageProviderSettings {
 /** 图片生成 provider 类型:OpenAI 协议 / 豆包协议 / Grok Imagine / Runware */
 export type ImageProviderType = "openai" | "doubao" | "grok" | "runware";
 
+/** 模型管理:模型用途分类 */
+export type ManagedModelKind = "text" | "image";
+
+/** 模型管理:用户可添加的对话/图片模型条目 */
+export interface ManagedModelItem {
+  id: string;
+  kind: ManagedModelKind;
+  displayName: string;
+  providerId: string;
+  modelId: string;
+  baseUrl: string | null;
+  configured: boolean;
+  keyFingerprint: string | null;
+  /** 是否当前选中(同一 kind 内唯一) */
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppSettings {
   aiKey: AppAIKeySettings;
   openaiImageProvider: AppImageProviderSettings;
@@ -88,6 +107,7 @@ export interface AppSettings {
   grokImageProvider: AppImageProviderSettings;
   runwareImageProvider: AppImageProviderSettings;
   activeImageProvider: ImageProviderType;
+  models: ManagedModelItem[];
   appearance: AppAppearanceSettings;
   settingsPath: "/workspace/settings/app-settings.json";
   updatedAt: string;
@@ -113,6 +133,24 @@ export interface UpdateImageProviderSettingsRequest {
 
 export interface UpdateAppearanceSettingsRequest {
   theme?: AppearanceTheme;
+}
+
+export interface CreateManagedModelRequest {
+  kind: ManagedModelKind;
+  displayName: string;
+  providerId: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey?: string;
+}
+
+export interface UpdateManagedModelRequest {
+  displayName?: string;
+  providerId?: string;
+  modelId?: string;
+  baseUrl?: string | null;
+  apiKey?: string;
+  clearApiKey?: boolean;
 }
 
 export interface UpdateAppSettingsRequest {

@@ -21,6 +21,7 @@
           :dialogue-notice="dialogueNotice"
           :dialogue-sending="dialogueSending"
           :dialogue-thread="dialogueThread"
+          :dialogue-models="dialogueModels"
           :loading="loading"
           :running-tasks="workbench.runningTaskCount"
           :runtime-model-error="runtimeModelError"
@@ -28,6 +29,7 @@
           :snapshot="snapshot"
           :tasks="tasks"
           @send-dialogue="sendDialogue"
+          @select-dialogue-model="selectDialogueModel"
           @retry-import-item="retryImportItem"
           @open-characters="openCharacterLibrary"
           @save-chapter-draft="saveChapterDraft"
@@ -85,7 +87,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { CandidatePromptOverrides, CompleteChapterRequest, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, ManagedModelItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -94,9 +96,11 @@ import DocumentLibraryView from "../documents/DocumentLibraryView.vue";
 import ProjectCharactersModal from "../workbench/ProjectCharactersModal.vue";
 import ProjectWorkbenchView from "../workbench/ProjectWorkbenchView.vue";
 import { getStepKeyFromSlug, getStepSlugFromKey, projectRoute } from "../../router";
+import { useSettingsStore } from "../../stores/settings-store";
 import { useWorkbenchStore } from "../../stores/workbench-store";
 
 const workbench = useWorkbenchStore();
+const settingsStore = useSettingsStore();
 const route = useRoute();
 const router = useRouter();
 const {
@@ -114,6 +118,8 @@ const {
   snapshot,
   tasks,
 } = storeToRefs(workbench);
+
+const dialogueModels = computed(() => (settingsStore.settings?.models ?? []).filter((model) => model.kind === "text"));
 
 let runtimePoller: ReturnType<typeof setInterval> | null = null;
 let taskPoller: ReturnType<typeof setInterval> | null = null;
@@ -223,6 +229,9 @@ onBeforeUnmount(() => {
   stopTaskPolling();
   stopImportPolling();
 });
+
+// 模型管理列表(对话面板切换器数据源)在应用级预加载。
+void settingsStore.loadSettings();
 
 async function saveChapterDraft(payload: { chapterId: string; input: SaveChapterDraftRequest }) {
   await workbench.saveChapterDraft(payload.chapterId, payload.input);
@@ -335,6 +344,10 @@ async function clearCurrentChapterScript() {
 
 async function sendDialogue(input: SendDialogueMessageRequest) {
   await workbench.sendDialogueMessage(input);
+}
+
+async function selectDialogueModel(model: ManagedModelItem) {
+  await workbench.selectDialogueModel(model);
 }
 
 async function retryImportItem(payload: { batchId: string; itemId: string }) {
