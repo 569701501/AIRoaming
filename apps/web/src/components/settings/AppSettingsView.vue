@@ -25,286 +25,7 @@
         </button>
       </div>
 
-      <div v-if="settings.error" class="settings-alert is-error">
-        {{ settings.error }}
-      </div>
-      <div v-else-if="visibleNotice" class="settings-alert is-success">
-        {{ visibleNotice }}
-      </div>
-
-      <form v-if="activeTab === 'ai-key'" class="settings-panel" @submit.prevent="saveAIKey">
-        <div class="panel-title-row">
-          <div>
-            <span>OpenCode 对话</span>
-            <h2>AI 密钥</h2>
-          </div>
-          <span class="status-pill" :class="{ 'is-ready': aiKeyStatus.configured }">
-            {{ aiKeyStatus.configured ? "已配置" : "未配置" }}
-          </span>
-        </div>
-
-        <p class="panel-hint">
-          <Check :size="14" />
-          <span>密钥仅保存在本机，不会在页面回显</span>
-        </p>
-
-        <div class="field-grid">
-          <label>
-            <span>服务商</span>
-            <select v-model="aiForm.providerId" @change="onTextProviderChange">
-              <option v-for="provider in providerOptions" :key="provider.providerId" :value="provider.providerId">
-                {{ provider.providerName }}
-              </option>
-            </select>
-          </label>
-          <label>
-            <span>模型</span>
-            <input v-model.trim="aiForm.modelId" autocomplete="off" placeholder="gpt-5.5" />
-          </label>
-          <label class="is-wide">
-            <span>Base URL</span>
-            <input v-model.trim="aiForm.baseUrl" autocomplete="off" placeholder="可选，例如 https://api.openai.com/v1" />
-          </label>
-          <label class="is-wide">
-            <span>API Key</span>
-            <div class="secret-input">
-              <input
-                v-model.trim="aiForm.apiKey"
-                autocomplete="off"
-                placeholder="留空则保留当前密钥"
-                spellcheck="false"
-                :type="showAiKey ? 'text' : 'password'"
-              />
-              <button type="button" :aria-label="showAiKey ? '隐藏密钥' : '显示密钥'" @click="showAiKey = !showAiKey">
-                <EyeOff v-if="showAiKey" :size="16" />
-                <Eye v-else :size="16" />
-              </button>
-            </div>
-          </label>
-        </div>
-
-        <div class="key-meta">
-          <div>
-            <span>当前密钥</span>
-            <strong>{{ aiKeyStatus.configured ? "已配置（不显示明文）" : "未配置" }}</strong>
-          </div>
-          <div>
-            <span>指纹</span>
-            <strong>{{ aiKeyStatus.keyFingerprint ?? "无" }}</strong>
-          </div>
-          <div>
-            <span>更新时间</span>
-            <strong>{{ aiKeyStatus.updatedAt ? formatTime(aiKeyStatus.updatedAt) : "无" }}</strong>
-          </div>
-        </div>
-
-        <div class="settings-actions">
-          <button class="secondary-action" type="button" :disabled="settings.saving || !aiKeyStatus.configured" @click="clearAIKey">
-            <Trash2 :size="16" />
-            <span>清除密钥</span>
-          </button>
-          <button class="primary-action" type="submit" :disabled="settings.saving">
-            <Save :size="16" />
-            <span>{{ settings.saving ? "保存中" : "保存密钥" }}</span>
-          </button>
-        </div>
-      </form>
-
-      <section v-else-if="activeTab === 'image-provider'" class="settings-panel">
-        <div class="panel-title-row">
-          <div>
-            <span>角色与候选图</span>
-            <h2>图片生成</h2>
-          </div>
-          <span class="status-pill" :class="{ 'is-ready': activeImageProviderStatus.configured }">
-            {{ activeImageProviderStatus.configured ? "已配置" : "未配置" }}
-          </span>
-        </div>
-
-        <label class="provider-switch">
-          <span>当前生效的服务商</span>
-          <select :value="settings.settings?.activeImageProvider" :disabled="settings.saving" @change="onSwitchProvider">
-            <option value="openai">OpenAI 图片生成</option>
-            <option value="doubao">豆包图片生成</option>
-            <option value="grok">Grok 图片生成</option>
-            <option value="runware">Runware 图片生成（低成本）</option>
-          </select>
-        </label>
-
-        <form v-if="settings.settings?.activeImageProvider === 'openai'" class="provider-form" @submit.prevent="saveOpenaiProvider">
-          <div class="provider-form-head">
-            <strong>OpenAI 图片生成</strong>
-            <span class="status-pill" :class="{ 'is-ready': openaiImageProviderStatus.configured }">
-              {{ openaiImageProviderStatus.configured ? "已配置" : "未配置" }}
-            </span>
-          </div>
-          <div class="field-grid">
-            <label>
-              <span>服务商</span>
-              <input v-model.trim="openaiImageForm.providerName" autocomplete="off" />
-            </label>
-            <label>
-              <span>模型</span>
-              <input v-model.trim="openaiImageForm.modelId" autocomplete="off" placeholder="gpt-image-2" />
-            </label>
-            <label class="is-wide">
-              <span>Base URL</span>
-              <input v-model.trim="openaiImageForm.baseUrl" autocomplete="off" placeholder="例如 https://api.example.com/v1" />
-            </label>
-            <label class="is-wide">
-              <span>API Key</span>
-              <input
-                v-model.trim="openaiImageForm.apiKey"
-                autocomplete="new-password"
-                placeholder="留空则保留当前密钥"
-                type="password"
-              />
-            </label>
-          </div>
-          <div class="settings-actions">
-            <button class="secondary-action" type="button" :disabled="settings.saving || !openaiImageProviderStatus.configured" @click="clearOpenaiProvider">
-              <Trash2 :size="16" />
-              <span>清除密钥</span>
-            </button>
-            <button class="primary-action" type="submit" :disabled="settings.saving">
-              <Save :size="16" />
-              <span>{{ settings.saving ? "保存中" : "保存 OpenAI 设置" }}</span>
-            </button>
-          </div>
-        </form>
-
-        <form v-else-if="settings.settings?.activeImageProvider === 'grok'" class="provider-form" @submit.prevent="saveGrokProvider">
-          <div class="provider-form-head">
-            <strong>Grok 图片生成</strong>
-            <span class="status-pill" :class="{ 'is-ready': grokImageProviderStatus.configured }">
-              {{ grokImageProviderStatus.configured ? "已配置" : "未配置" }}
-            </span>
-          </div>
-          <div class="field-grid">
-            <label>
-              <span>服务商</span>
-              <input v-model.trim="grokImageForm.providerName" autocomplete="off" placeholder="Grok 图片生成" />
-            </label>
-            <label>
-              <span>模型</span>
-              <input v-model.trim="grokImageForm.modelId" autocomplete="off" placeholder="grok-imagine-image-quality" />
-            </label>
-            <label class="is-wide">
-              <span>Base URL</span>
-              <input v-model.trim="grokImageForm.baseUrl" autocomplete="off" placeholder="https://api.x.ai/v1 或你的中转地址" />
-            </label>
-            <label class="is-wide">
-              <span>API Key</span>
-              <input
-                v-model.trim="grokImageForm.apiKey"
-                autocomplete="new-password"
-                placeholder="留空则保留当前密钥"
-                type="password"
-              />
-            </label>
-          </div>
-          <div class="settings-actions">
-            <button class="secondary-action" type="button" :disabled="settings.saving || !grokImageProviderStatus.configured" @click="clearGrokProvider">
-              <Trash2 :size="16" />
-              <span>清除密钥</span>
-            </button>
-            <button class="primary-action" type="submit" :disabled="settings.saving">
-              <Save :size="16" />
-              <span>{{ settings.saving ? "保存中" : "保存 Grok 设置" }}</span>
-            </button>
-          </div>
-        </form>
-
-        <form v-else-if="settings.settings?.activeImageProvider === 'runware'" class="provider-form" @submit.prevent="saveRunwareProvider">
-          <div class="provider-form-head">
-            <strong>Runware 图片生成</strong>
-            <span class="status-pill" :class="{ 'is-ready': runwareImageProviderStatus.configured }">
-              {{ runwareImageProviderStatus.configured ? "已配置" : "未配置" }}
-            </span>
-          </div>
-          <div class="provider-note">
-            <strong>低成本管线</strong>
-            <span>无参考图默认用 FLUX.1 Schnell；挑中草稿后用 FLUX.2 Dev 精修；多角色/场景参考自动改用 FLUX.1 Dev + IP-Adapter。</span>
-          </div>
-          <div class="field-grid">
-            <label>
-              <span>服务商</span>
-              <input v-model.trim="runwareImageForm.providerName" autocomplete="off" placeholder="Runware 图片生成" />
-            </label>
-            <label>
-              <span>草稿模型（无参考图）</span>
-              <input v-model.trim="runwareImageForm.modelId" autocomplete="off" placeholder="runware:100@1" />
-            </label>
-            <label class="is-wide">
-              <span>API 地址</span>
-              <input v-model.trim="runwareImageForm.baseUrl" autocomplete="off" placeholder="https://api.runware.ai/v1" />
-            </label>
-            <label class="is-wide">
-              <span>API Key</span>
-              <input
-                v-model.trim="runwareImageForm.apiKey"
-                autocomplete="new-password"
-                placeholder="留空则保留当前密钥"
-                type="password"
-              />
-            </label>
-          </div>
-          <div class="settings-actions">
-            <button class="secondary-action" type="button" :disabled="settings.saving || !runwareImageProviderStatus.configured" @click="clearRunwareProvider">
-              <Trash2 :size="16" />
-              <span>清除密钥</span>
-            </button>
-            <button class="primary-action" type="submit" :disabled="settings.saving">
-              <Save :size="16" />
-              <span>{{ settings.saving ? "保存中" : "保存 Runware 设置" }}</span>
-            </button>
-          </div>
-        </form>
-
-        <form v-else class="provider-form" @submit.prevent="saveDoubaoProvider">
-          <div class="provider-form-head">
-            <strong>豆包图片生成</strong>
-            <span class="status-pill" :class="{ 'is-ready': doubaoImageProviderStatus.configured }">
-              {{ doubaoImageProviderStatus.configured ? "已配置" : "未配置" }}
-            </span>
-          </div>
-          <div class="field-grid">
-            <label>
-              <span>服务商</span>
-              <input v-model.trim="doubaoImageForm.providerName" autocomplete="off" placeholder="豆包图片生成" />
-            </label>
-            <label>
-              <span>模型</span>
-              <input v-model.trim="doubaoImageForm.modelId" autocomplete="off" placeholder="doubao-seedream-4-5-251128" />
-            </label>
-            <label class="is-wide">
-              <span>Base URL</span>
-              <input v-model.trim="doubaoImageForm.baseUrl" autocomplete="off" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
-            </label>
-            <label class="is-wide">
-              <span>API Key</span>
-              <input
-                v-model.trim="doubaoImageForm.apiKey"
-                autocomplete="new-password"
-                placeholder="留空则保留当前密钥"
-                type="password"
-              />
-            </label>
-          </div>
-          <div class="settings-actions">
-            <button class="secondary-action" type="button" :disabled="settings.saving || !doubaoImageProviderStatus.configured" @click="clearDoubaoProvider">
-              <Trash2 :size="16" />
-              <span>清除密钥</span>
-            </button>
-            <button class="primary-action" type="submit" :disabled="settings.saving">
-              <Save :size="16" />
-              <span>{{ settings.saving ? "保存中" : "保存豆包设置" }}</span>
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section v-else-if="activeTab === 'models'" class="settings-panel">
+      <section v-if="activeTab === 'models'" class="settings-panel">
         <div class="panel-title-row">
           <div>
             <span>模型管理</span>
@@ -313,85 +34,91 @@
         </div>
         <p class="panel-hint">
           <Check :size="14" />
-          <span>点击模型行即选中；删除按钮对被选中的模型禁用</span>
+          <span>点击「设为当前」切换生效模型；当前生效的模型不可删除</span>
         </p>
 
-        <section class="model-section">
+        <section v-for="group in modelGroups" :key="group.kind" class="model-section">
           <div class="model-section-head">
-            <strong>对话模型</strong>
-            <button class="model-add-btn" type="button" :disabled="settings.saving" @click="openAddForm('text')">
+            <div class="model-section-title">
+              <span class="model-section-icon" :class="`is-${group.kind}`" aria-hidden="true">
+                <component :is="group.icon" :size="15" />
+              </span>
+              <strong>{{ group.label }}</strong>
+              <span class="model-count">{{ group.models.length }}</span>
+            </div>
+            <button class="model-add-btn" type="button" :disabled="settings.saving" @click="openAddForm(group.kind)">
               <Plus :size="14" />
-              <span>添加对话模型</span>
+              <span>{{ group.addLabel }}</span>
             </button>
           </div>
-          <div v-if="textModels.length === 0" class="model-empty">还没有对话模型，点击上方按钮添加。</div>
-          <ul class="model-list">
-            <li
-              v-for="model in textModels"
-              :key="model.id"
-              class="model-item"
-              :class="{ 'is-active': model.active }"
-              role="button"
-              tabindex="0"
-              :title="model.active ? '当前选中' : '点击选中'"
-              @click="activateModel(model)"
-              @keydown.enter="activateModel(model)"
-            >
-              <span class="model-radio" aria-hidden="true"><Check v-if="model.active" :size="12" /></span>
-              <div class="model-info">
-                <strong>{{ model.displayName }}</strong>
-                <span>{{ model.providerId }} / {{ model.modelId }}<template v-if="model.baseUrl"> · {{ model.baseUrl }}</template></span>
-              </div>
-              <span class="status-pill" :class="{ 'is-ready': model.configured }">{{ model.configured ? "已配置" : "未配置密钥" }}</span>
-              <button
-                class="model-delete-btn"
-                type="button"
-                :disabled="settings.saving || model.active"
-                :title="model.active ? '当前选中，先选其他模型再删除' : '删除该模型'"
-                @click.stop="deleteModel(model)"
-              >
-                <Trash2 :size="14" />
-              </button>
-            </li>
-          </ul>
-        </section>
 
-        <section class="model-section">
-          <div class="model-section-head">
-            <strong>图片生成模型</strong>
-            <button class="model-add-btn" type="button" :disabled="settings.saving" @click="openAddForm('image')">
-              <Plus :size="14" />
-              <span>添加图片模型</span>
-            </button>
+          <div v-if="group.models.length === 0" class="model-empty">
+            <component :is="group.icon" :size="18" />
+            <span>还没有{{ group.label }}，点击右上角按钮添加。</span>
           </div>
-          <div v-if="imageModels.length === 0" class="model-empty">还没有图片模型，点击上方按钮添加。</div>
+
           <ul class="model-list">
             <li
-              v-for="model in imageModels"
+              v-for="model in group.models"
               :key="model.id"
-              class="model-item"
-              :class="{ 'is-active': model.active }"
-              role="button"
-              tabindex="0"
-              :title="model.active ? '当前选中' : '点击选中'"
-              @click="activateModel(model)"
-              @keydown.enter="activateModel(model)"
+              class="model-card"
+              :class="{ 'is-active': model.active, 'is-unconfigured': !model.configured }"
             >
-              <span class="model-radio" aria-hidden="true"><Check v-if="model.active" :size="12" /></span>
-              <div class="model-info">
-                <strong>{{ model.displayName }}</strong>
-                <span>{{ model.providerId }} / {{ model.modelId }}<template v-if="model.baseUrl"> · {{ model.baseUrl }}</template></span>
+              <span class="model-avatar" :class="`is-${group.kind}`" aria-hidden="true">{{ modelInitial(model) }}</span>
+              <div class="model-card-body">
+                <div class="model-card-title">
+                  <strong :title="model.displayName">{{ model.displayName }}</strong>
+                  <span v-if="model.active" class="model-active-badge">
+                    <Check :size="11" />
+                    <span>使用中</span>
+                  </span>
+                </div>
+                <span class="model-card-meta" :title="`${model.providerId} / ${model.modelId}`">
+                  {{ model.providerId }} · {{ model.modelId }}<template v-if="model.baseUrl"> · {{ model.baseUrl }}</template>
+                </span>
+                <span class="model-key-status" :class="{ 'is-ok': model.configured }">
+                  <KeyRound v-if="model.configured" :size="12" />
+                  <AlertTriangle v-else :size="12" />
+                  <span>{{ model.configured ? "已配置密钥" : "未配置密钥，切换前请先编辑补充" }}</span>
+                </span>
               </div>
-              <span class="status-pill" :class="{ 'is-ready': model.configured }">{{ model.configured ? "已配置" : "未配置密钥" }}</span>
-              <button
-                class="model-delete-btn"
-                type="button"
-                :disabled="settings.saving || model.active"
-                :title="model.active ? '当前选中，先选其他模型再删除' : '删除该模型'"
-                @click.stop="deleteModel(model)"
-              >
-                <Trash2 :size="14" />
-              </button>
+              <div class="model-card-actions">
+                <button
+                  v-if="!model.active"
+                  class="model-use-btn"
+                  :class="{ 'is-warn': !model.configured }"
+                  type="button"
+                  :disabled="settings.saving"
+                  @click="activateModel(model)"
+                >
+                  设为当前
+                </button>
+                <span v-else class="model-use-placeholder" aria-hidden="true"></span>
+                <div class="model-icon-actions">
+                  <button class="model-icon-btn" type="button" title="编辑模型" :disabled="settings.saving" @click="openEditForm(model)">
+                    <Pencil :size="14" />
+                  </button>
+                  <button
+                    v-if="pendingDeleteId === model.id"
+                    class="model-delete-confirm"
+                    type="button"
+                    :disabled="settings.saving"
+                    @click="confirmDeleteModel(model)"
+                  >
+                    确认删除？
+                  </button>
+                  <button
+                    v-else
+                    class="model-icon-btn is-danger"
+                    type="button"
+                    :disabled="settings.saving || model.active"
+                    :title="model.active ? '当前生效，先切换其他模型再删除' : '删除该模型'"
+                    @click="requestDeleteModel(model)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
+              </div>
             </li>
           </ul>
         </section>
@@ -424,82 +151,58 @@
       </section>
     </section>
 
+    <Teleport to="body">
+      <Transition name="settings-toast">
+        <div v-if="activeToast" class="settings-toast" :class="`is-${activeToast.type}`" role="alert" aria-live="polite">
+          <AlertCircle v-if="activeToast.type === 'error'" :size="16" />
+          <CheckCircle2 v-else :size="16" />
+          <span class="settings-toast-text">{{ activeToast.message }}</span>
+          <button class="settings-toast-close" type="button" aria-label="关闭提示" @click="dismissToast">
+            <X :size="14" />
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
+
     <AddModelModal
       :open="addFormOpen"
       :initial-kind="addFormKind"
+      :editing="editingModel"
       :saving="settings.saving"
       :error="settings.error"
-      @close="addFormOpen = false"
+      @close="closeModelForm"
       @create="handleCreateModel"
+      @update="handleUpdateModel"
     />
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
-import type { AppearanceTheme, CreateManagedModelRequest, ImageProviderType, ManagedModelItem, ManagedModelKind } from "@airoaming/shared";
-import { Boxes, Check, Eye, EyeOff, ImagePlus, KeyRound, Monitor, Moon, Palette, Plus, RefreshCw, Save, Sun, Trash2 } from "lucide-vue-next";
+import { computed, onUnmounted, ref, watch } from "vue";
+import type { AppearanceTheme, CreateManagedModelRequest, ManagedModelItem, ManagedModelKind, UpdateManagedModelRequest } from "@airoaming/shared";
+import { AlertCircle, AlertTriangle, Boxes, Check, CheckCircle2, Image, KeyRound, MessageSquareText, Monitor, Moon, Palette, Pencil, Plus, RefreshCw, Sun, Trash2, X } from "lucide-vue-next";
 import AddModelModal from "./AddModelModal.vue";
 import { useSettingsStore } from "../../stores/settings-store";
 
 const settings = useSettingsStore();
-const activeTab = ref<"ai-key" | "image-provider" | "models" | "appearance">("ai-key");
-const showAiKey = ref(false);
-const aiForm = reactive({
-  providerId: "self",
-  providerName: "自定义 OpenAI 兼容",
-  modelId: "gpt-5.5",
-  baseUrl: "",
-  apiKey: "",
-});
-const openaiImageForm = reactive({
-  providerId: "openai_image",
-  providerName: "OpenAI 图片生成",
-  modelId: "gpt-image-2",
-  baseUrl: "",
-  apiKey: "",
-});
-const doubaoImageForm = reactive({
-  providerId: "doubao_image",
-  providerName: "豆包图片生成",
-  modelId: "doubao-seedream-4-5-251128",
-  baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
-  apiKey: "",
-});
-const grokImageForm = reactive({
-  providerId: "grok_image",
-  providerName: "Grok 图片生成",
-  modelId: "grok-imagine-image-quality",
-  baseUrl: "https://api.x.ai/v1",
-  apiKey: "",
-});
-const runwareImageForm = reactive({
-  providerId: "runware_image",
-  providerName: "Runware 图片生成",
-  modelId: "runware:100@1",
-  baseUrl: "https://api.runware.ai/v1",
-  apiKey: "",
-});
+const activeTab = ref<"models" | "appearance">("models");
 const addFormOpen = ref(false);
 const addFormKind = ref<ManagedModelKind>("text");
+const editingModel = ref<ManagedModelItem | null>(null);
+const pendingDeleteId = ref<string | null>(null);
+let pendingDeleteTimer: ReturnType<typeof setTimeout> | null = null;
 
 const textModels = computed(() => (settings.settings?.models ?? []).filter((model) => model.kind === "text"));
 const imageModels = computed(() => (settings.settings?.models ?? []).filter((model) => model.kind === "image"));
 
+const modelGroups = computed(() => [
+  { kind: "text" as const, label: "对话模型", icon: MessageSquareText, models: textModels.value, addLabel: "添加对话模型" },
+  { kind: "image" as const, label: "图片生成模型", icon: Image, models: imageModels.value, addLabel: "添加图片模型" },
+]);
+
 const tabs = [
-  { key: "ai-key", label: "AI 密钥", icon: KeyRound },
-  { key: "image-provider", label: "图片生成", icon: ImagePlus },
   { key: "models", label: "模型管理", icon: Boxes },
   { key: "appearance", label: "外观设置", icon: Palette },
-] as const;
-
-const providerOptions = [
-  { providerId: "self", providerName: "自定义 OpenAI 兼容" },
-  { providerId: "gpt", providerName: "GPT 对话" },
-  { providerId: "xai", providerName: "xAI Grok 对话" },
-  { providerId: "kimi", providerName: "Moonshot Kimi 对话" },
-  { providerId: "deepseek", providerName: "DeepSeek 对话" },
-  { providerId: "mimo", providerName: "Xiaomi MiMo 对话" },
 ] as const;
 
 const themeOptions = [
@@ -515,278 +218,55 @@ const themeOptions = [
 const activeTabLabel = computed(() => tabs.find((item) => item.key === activeTab.value)?.label ?? "设置");
 const appearanceTheme = computed(() => settings.settings?.appearance.theme ?? "dark");
 const visibleNotice = computed(() => settings.noticeScope === activeTab.value ? settings.notice : null);
-const aiKeyStatus = computed(() => settings.settings?.aiKey ?? {
-  providerId: "self",
-  providerName: "自定义 OpenAI 兼容",
-  modelId: "gpt-5.5",
-  baseUrl: null,
-  configured: false,
-  keyPreview: null,
-  keyFingerprint: null,
-  updatedAt: null,
-});
-const openaiImageProviderStatus = computed(() => settings.settings?.openaiImageProvider ?? {
-  providerId: "openai_image",
-  providerName: "OpenAI 图片生成",
-  modelId: "gpt-image-2",
-  baseUrl: null,
-  configured: false,
-  keyPreview: null,
-  keyFingerprint: null,
-  updatedAt: null,
-});
-const doubaoImageProviderStatus = computed(() => settings.settings?.doubaoImageProvider ?? {
-  providerId: "doubao_image",
-  providerName: "豆包图片生成",
-  modelId: "doubao-seedream-4-5-251128",
-  baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
-  configured: false,
-  keyPreview: null,
-  keyFingerprint: null,
-  updatedAt: null,
-});
-const grokImageProviderStatus = computed(() => settings.settings?.grokImageProvider ?? {
-  providerId: "grok_image",
-  providerName: "Grok 图片生成",
-  modelId: "grok-imagine-image-quality",
-  baseUrl: "https://api.x.ai/v1",
-  configured: false,
-  keyPreview: null,
-  keyFingerprint: null,
-  updatedAt: null,
-});
-const runwareImageProviderStatus = computed(() => settings.settings?.runwareImageProvider ?? {
-  providerId: "runware_image",
-  providerName: "Runware 图片生成",
-  modelId: "runware:100@1",
-  baseUrl: "https://api.runware.ai/v1",
-  configured: false,
-  keyPreview: null,
-  keyFingerprint: null,
-  updatedAt: null,
-});
-/** 当前生效 provider 的状态(用于顶部标题徽章) */
-const activeImageProviderStatus = computed(() => {
-  if (settings.settings?.activeImageProvider === "doubao") {
-    return doubaoImageProviderStatus.value;
+
+const TOAST_DURATION_MS = 4500;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 去掉服务端错误码前缀(如 MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB:),只展示可读信息 */
+function formatToastMessage(message: string): string {
+  return message.replace(/^[A-Z][A-Z0-9_]{2,}:\s*/, "");
+}
+
+const activeToast = computed<{ type: "error" | "success"; message: string } | null>(() => {
+  if (settings.error) {
+    return { type: "error", message: formatToastMessage(settings.error) };
   }
-  if (settings.settings?.activeImageProvider === "grok") {
-    return grokImageProviderStatus.value;
+  if (visibleNotice.value) {
+    return { type: "success", message: visibleNotice.value };
   }
-  if (settings.settings?.activeImageProvider === "runware") {
-    return runwareImageProviderStatus.value;
-  }
-  return openaiImageProviderStatus.value;
+  return null;
 });
 
-watch(
-  () => settings.settings?.aiKey,
-  (aiKey) => {
-    if (!aiKey) {
-      return;
-    }
-    aiForm.providerId = aiKey.providerId;
-    aiForm.providerName = aiKey.providerName;
-    aiForm.modelId = aiKey.modelId;
-    aiForm.baseUrl = aiKey.baseUrl ?? "";
-    aiForm.apiKey = "";
-  },
-  { immediate: true },
-);
+watch(activeToast, (toast) => {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+  if (toast) {
+    toastTimer = setTimeout(() => {
+      toastTimer = null;
+      settings.clearFeedback();
+    }, TOAST_DURATION_MS);
+  }
+});
 
-watch(
-  () => settings.settings?.openaiImageProvider,
-  (provider) => {
-    if (!provider) {
-      return;
-    }
-    openaiImageForm.providerId = provider.providerId;
-    openaiImageForm.providerName = provider.providerName;
-    openaiImageForm.modelId = provider.modelId;
-    openaiImageForm.baseUrl = provider.baseUrl ?? "";
-    openaiImageForm.apiKey = "";
-  },
-  { immediate: true },
-);
+onUnmounted(() => {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+});
 
-watch(
-  () => settings.settings?.doubaoImageProvider,
-  (provider) => {
-    if (!provider) {
-      return;
-    }
-    doubaoImageForm.providerId = provider.providerId;
-    doubaoImageForm.providerName = provider.providerName;
-    doubaoImageForm.modelId = provider.modelId;
-    doubaoImageForm.baseUrl = provider.baseUrl ?? "";
-    doubaoImageForm.apiKey = "";
-  },
-  { immediate: true },
-);
-
-watch(
-  () => settings.settings?.grokImageProvider,
-  (provider) => {
-    if (!provider) {
-      return;
-    }
-    grokImageForm.providerId = provider.providerId;
-    grokImageForm.providerName = provider.providerName;
-    grokImageForm.modelId = provider.modelId;
-    grokImageForm.baseUrl = provider.baseUrl ?? "";
-    grokImageForm.apiKey = "";
-  },
-  { immediate: true },
-);
-
-watch(
-  () => settings.settings?.runwareImageProvider,
-  (provider) => {
-    if (!provider) {
-      return;
-    }
-    runwareImageForm.providerId = provider.providerId;
-    runwareImageForm.providerName = provider.providerName;
-    runwareImageForm.modelId = provider.modelId;
-    runwareImageForm.baseUrl = provider.baseUrl ?? "";
-    runwareImageForm.apiKey = "";
-  },
-  { immediate: true },
-);
-
-watch(
-  () => aiForm.providerId,
-  (providerId) => {
-    const provider = providerOptions.find((item) => item.providerId === providerId);
-    aiForm.providerName = provider?.providerName ?? providerId;
-  },
-);
+function dismissToast() {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+  settings.clearFeedback();
+}
 
 async function reload() {
   await settings.loadSettings();
-}
-
-function onTextProviderChange() {
-  if (aiForm.providerId !== "xai") {
-    return;
-  }
-  aiForm.modelId = "grok-4.5";
-  aiForm.baseUrl = "https://api.x.ai/v1";
-}
-
-async function saveAIKey() {
-  await settings.saveAIKey({
-    providerId: aiForm.providerId,
-    providerName: aiForm.providerName,
-    modelId: aiForm.modelId,
-    baseUrl: aiForm.baseUrl || null,
-    apiKey: aiForm.apiKey || undefined,
-  });
-  aiForm.apiKey = "";
-}
-
-async function clearAIKey() {
-  await settings.saveAIKey({
-    providerId: aiForm.providerId,
-    providerName: aiForm.providerName,
-    modelId: aiForm.modelId,
-    baseUrl: aiForm.baseUrl || null,
-    clearApiKey: true,
-  });
-  aiForm.apiKey = "";
-}
-
-async function saveOpenaiProvider() {
-  await settings.saveOpenaiImageProvider({
-    providerId: openaiImageForm.providerId,
-    providerName: openaiImageForm.providerName,
-    modelId: openaiImageForm.modelId,
-    baseUrl: openaiImageForm.baseUrl || null,
-    apiKey: openaiImageForm.apiKey || undefined,
-  });
-  openaiImageForm.apiKey = "";
-}
-
-async function clearOpenaiProvider() {
-  await settings.saveOpenaiImageProvider({
-    providerId: openaiImageForm.providerId,
-    providerName: openaiImageForm.providerName,
-    modelId: openaiImageForm.modelId,
-    baseUrl: openaiImageForm.baseUrl || null,
-    clearApiKey: true,
-  });
-  openaiImageForm.apiKey = "";
-}
-
-async function saveDoubaoProvider() {
-  await settings.saveDoubaoImageProvider({
-    providerId: doubaoImageForm.providerId,
-    providerName: doubaoImageForm.providerName,
-    modelId: doubaoImageForm.modelId,
-    baseUrl: doubaoImageForm.baseUrl || null,
-    apiKey: doubaoImageForm.apiKey || undefined,
-  });
-  doubaoImageForm.apiKey = "";
-}
-
-async function clearDoubaoProvider() {
-  await settings.saveDoubaoImageProvider({
-    providerId: doubaoImageForm.providerId,
-    providerName: doubaoImageForm.providerName,
-    modelId: doubaoImageForm.modelId,
-    baseUrl: doubaoImageForm.baseUrl || null,
-    clearApiKey: true,
-  });
-  doubaoImageForm.apiKey = "";
-}
-
-async function saveGrokProvider() {
-  await settings.saveGrokImageProvider({
-    providerId: grokImageForm.providerId,
-    providerName: grokImageForm.providerName,
-    modelId: grokImageForm.modelId,
-    baseUrl: grokImageForm.baseUrl || null,
-    apiKey: grokImageForm.apiKey || undefined,
-  });
-  grokImageForm.apiKey = "";
-}
-
-async function clearGrokProvider() {
-  await settings.saveGrokImageProvider({
-    providerId: grokImageForm.providerId,
-    providerName: grokImageForm.providerName,
-    modelId: grokImageForm.modelId,
-    baseUrl: grokImageForm.baseUrl || null,
-    clearApiKey: true,
-  });
-  grokImageForm.apiKey = "";
-}
-
-async function saveRunwareProvider() {
-  await settings.saveRunwareImageProvider({
-    providerId: runwareImageForm.providerId,
-    providerName: runwareImageForm.providerName,
-    modelId: runwareImageForm.modelId,
-    baseUrl: runwareImageForm.baseUrl || null,
-    apiKey: runwareImageForm.apiKey || undefined,
-  });
-  runwareImageForm.apiKey = "";
-}
-
-async function clearRunwareProvider() {
-  await settings.saveRunwareImageProvider({
-    providerId: runwareImageForm.providerId,
-    providerName: runwareImageForm.providerName,
-    modelId: runwareImageForm.modelId,
-    baseUrl: runwareImageForm.baseUrl || null,
-    clearApiKey: true,
-  });
-  runwareImageForm.apiKey = "";
-}
-
-async function onSwitchProvider(event: Event) {
-  const value = (event.target as HTMLSelectElement).value as ImageProviderType;
-  await settings.switchImageProvider(value);
 }
 
 async function saveAppearance(theme: AppearanceTheme) {
@@ -794,14 +274,38 @@ async function saveAppearance(theme: AppearanceTheme) {
 }
 
 function openAddForm(kind: ManagedModelKind) {
+  editingModel.value = null;
   addFormKind.value = kind;
   addFormOpen.value = true;
+}
+
+function openEditForm(model: ManagedModelItem) {
+  editingModel.value = model;
+  addFormKind.value = model.kind;
+  addFormOpen.value = true;
+}
+
+function closeModelForm() {
+  addFormOpen.value = false;
+  editingModel.value = null;
+}
+
+function modelInitial(model: ManagedModelItem): string {
+  const initial = model.displayName.trim().charAt(0);
+  return initial ? initial.toUpperCase() : "?";
 }
 
 async function handleCreateModel(input: CreateManagedModelRequest) {
   await settings.createManagedModel(input);
   if (!settings.error) {
-    addFormOpen.value = false;
+    closeModelForm();
+  }
+}
+
+async function handleUpdateModel(id: string, input: UpdateManagedModelRequest) {
+  await settings.updateManagedModel(id, input);
+  if (!settings.error) {
+    closeModelForm();
   }
 }
 
@@ -812,20 +316,30 @@ async function activateModel(model: ManagedModelItem) {
   await settings.activateManagedModel(model.id);
 }
 
-async function deleteModel(model: ManagedModelItem) {
+function requestDeleteModel(model: ManagedModelItem) {
   if (model.active || settings.saving) {
     return;
   }
-  await settings.deleteManagedModel(model.id);
+  if (pendingDeleteTimer) {
+    clearTimeout(pendingDeleteTimer);
+  }
+  pendingDeleteId.value = model.id;
+  pendingDeleteTimer = setTimeout(() => {
+    pendingDeleteId.value = null;
+    pendingDeleteTimer = null;
+  }, 3000);
 }
 
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+async function confirmDeleteModel(model: ManagedModelItem) {
+  if (model.active || settings.saving) {
+    return;
+  }
+  if (pendingDeleteTimer) {
+    clearTimeout(pendingDeleteTimer);
+    pendingDeleteTimer = null;
+  }
+  pendingDeleteId.value = null;
+  await settings.deleteManagedModel(model.id);
 }
 </script>
 
@@ -851,54 +365,6 @@ function formatTime(value: string): string {
   align-content: start;
   gap: 6px;
   padding: 10px;
-}
-
-.provider-switch {
-  display: grid;
-  gap: 8px;
-  border: 1px solid rgba(204, 215, 245, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px;
-}
-
-.provider-form {
-  display: grid;
-  gap: 16px;
-  border: 1px solid rgba(204, 215, 245, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
-  padding: 16px;
-}
-
-.provider-form-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.provider-form-head strong {
-  color: #f8fbff;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.provider-note {
-  display: grid;
-  gap: 5px;
-  border: 1px solid rgba(139, 92, 246, 0.22);
-  border-radius: 8px;
-  background: rgba(139, 92, 246, 0.07);
-  padding: 11px 12px;
-  color: #aeb8cf;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.provider-note strong {
-  color: #b3a5ff;
-  font-size: 12px;
 }
 
 .settings-nav-btn {
@@ -930,8 +396,7 @@ function formatTime(value: string): string {
 }
 
 .settings-heading,
-.panel-title-row,
-.settings-actions {
+.panel-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -944,13 +409,6 @@ function formatTime(value: string): string {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
-}
-
-.key-meta span,
-label > span {
-  color: #8f97b3;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .settings-heading h1,
@@ -989,139 +447,76 @@ label > span {
   color: #cfd8ee;
 }
 
-.settings-alert {
-  border: 1px solid rgba(204, 215, 245, 0.14);
-  border-radius: 8px;
+.settings-toast {
+  position: fixed;
+  z-index: 120;
+  top: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 48px));
+  border-radius: 12px;
   padding: 12px 14px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.5;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
 }
 
-.settings-alert.is-error {
-  border-color: rgba(248, 113, 113, 0.34);
-  background: rgba(127, 29, 29, 0.18);
+.settings-toast.is-error {
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(69, 18, 24, 0.92);
   color: #fecaca;
 }
 
-.settings-alert.is-success {
-  border-color: rgba(34, 197, 94, 0.24);
-  background: rgba(20, 83, 45, 0.18);
+.settings-toast.is-success {
+  border: 1px solid rgba(34, 197, 94, 0.36);
+  background: rgba(13, 51, 32, 0.92);
   color: #bbf7d0;
+}
+
+.settings-toast-text {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.settings-toast-close {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.settings-toast-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.settings-toast-enter-active,
+.settings-toast-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.settings-toast-enter-from,
+.settings-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-12px);
 }
 
 .settings-panel {
   display: grid;
   gap: 20px;
   padding: 18px;
-}
-
-.status-pill {
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.1);
-  color: #cbd5e1 !important;
-  padding: 6px 10px;
-}
-
-.status-pill.is-ready {
-  border-color: rgba(34, 199, 169, 0.28);
-  background: rgba(34, 199, 169, 0.12);
-  color: #8df0dc !important;
-}
-
-.field-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-label.is-wide {
-  grid-column: 1 / -1;
-}
-
-input,
-select {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid rgba(204, 215, 245, 0.14);
-  border-radius: 8px;
-  background: rgba(7, 11, 23, 0.7);
-  color: #edf2ff;
-  padding: 0 12px;
-  outline: none;
-}
-
-input:focus,
-select:focus {
-  border-color: rgba(139, 92, 246, 0.58);
-}
-
-.secret-input {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.secret-input input {
-  padding-right: 44px;
-}
-
-.secret-input button {
-  position: absolute;
-  right: 6px;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #8b96b3;
-  cursor: pointer;
-}
-
-.secret-input button:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
-}
-
-.key-meta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.key-meta > div {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  border: 1px solid rgba(204, 215, 245, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px;
-}
-
-.key-meta strong {
-  overflow: hidden;
-  color: #f8fbff;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-actions {
-  justify-content: flex-end;
-}
-
-.primary-action,
-.secondary-action {
-  min-height: 40px;
 }
 
 .theme-options {
@@ -1161,8 +556,6 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .field-grid,
-  .key-meta,
   .theme-options {
     grid-template-columns: 1fr;
   }
@@ -1181,11 +574,53 @@ select:focus {
   padding-bottom: 2px;
 }
 
-.model-section-head > strong {
+.model-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.model-section-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.model-section-icon.is-text {
+  border: 1px solid rgba(157, 139, 255, 0.3);
+  background: rgba(124, 58, 237, 0.14);
+  color: #c4b5fd;
+}
+
+.model-section-icon.is-image {
+  border: 1px solid rgba(34, 199, 169, 0.3);
+  background: rgba(34, 199, 169, 0.1);
+  color: #8df0dc;
+}
+
+.model-section-title > strong {
   color: #f8fbff;
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.02em;
+}
+
+.model-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  color: #aeb8cf;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .model-add-btn {
@@ -1217,11 +652,15 @@ select:focus {
 }
 
 .model-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border: 1px dashed rgba(204, 215, 245, 0.2);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
   color: #8a94ab;
-  padding: 16px;
+  padding: 22px 16px;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1234,24 +673,23 @@ select:focus {
   list-style: none;
 }
 
-.model-item {
+.model-card {
   position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 58px;
+  min-height: 76px;
   overflow: hidden;
   border: 1px solid rgba(206, 216, 244, 0.12);
   border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
     rgba(10, 16, 30, 0.5);
-  padding: 10px 14px;
-  cursor: pointer;
+  padding: 12px 14px;
   transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
-.model-item::before {
+.model-card::before {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -1262,14 +700,14 @@ select:focus {
   transition: background 0.18s ease;
 }
 
-.model-item:hover {
-  border-color: rgba(142, 121, 255, 0.4);
+.model-card:hover {
+  border-color: rgba(142, 121, 255, 0.32);
   background:
-    linear-gradient(180deg, rgba(124, 58, 237, 0.08), rgba(255, 255, 255, 0.02)),
+    linear-gradient(180deg, rgba(124, 58, 237, 0.06), rgba(255, 255, 255, 0.02)),
     rgba(10, 16, 30, 0.6);
 }
 
-.model-item.is-active {
+.model-card.is-active {
   border-color: rgba(142, 121, 255, 0.65);
   background:
     linear-gradient(90deg, rgba(124, 58, 237, 0.16), rgba(79, 70, 229, 0.05) 62%),
@@ -1277,46 +715,71 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
 }
 
-.model-item.is-active::before {
+.model-card.is-active::before {
   background: linear-gradient(180deg, #9d8bff, #7c3aed);
 }
 
-.model-radio {
-  display: flex;
-  width: 20px;
-  height: 20px;
+.model-avatar {
+  display: grid;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid rgba(206, 216, 244, 0.32);
-  border-radius: 50%;
-  color: #ffffff;
-  background: transparent;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 900;
 }
 
-.model-item.is-active .model-radio {
-  border-color: #9d8bff;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+.model-avatar.is-text {
+  border: 1px solid rgba(157, 139, 255, 0.32);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.85), rgba(79, 70, 229, 0.8));
+  color: #ede9fe;
 }
 
-.model-info {
+.model-avatar.is-image {
+  border: 1px solid rgba(34, 199, 169, 0.3);
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.75), rgba(34, 199, 169, 0.55));
+  color: #e6fffa;
+}
+
+.model-card-body {
   display: grid;
   min-width: 0;
   flex: 1;
-  gap: 3px;
+  gap: 4px;
 }
 
-.model-info strong {
+.model-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.model-card-title strong {
   overflow: hidden;
   color: #f8fbff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.model-info span {
+.model-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(157, 139, 255, 0.42);
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.2);
+  color: #d8ccff;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.model-card-meta {
   overflow: hidden;
   color: #94a3b8;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
@@ -1325,13 +788,78 @@ select:focus {
   white-space: nowrap;
 }
 
-.model-delete-btn {
+.model-key-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #f0b45c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.model-key-status.is-ok {
+  color: #6fdcc3;
+}
+
+.model-card-actions {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  justify-items: end;
+}
+
+.model-use-btn {
+  min-height: 30px;
+  border: 1px solid rgba(142, 121, 255, 0.5);
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.14);
+  color: #d8ccff;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.model-use-btn:hover:not(:disabled) {
+  border-color: rgba(142, 121, 255, 0.85);
+  background: rgba(124, 58, 237, 0.28);
+  color: #ffffff;
+}
+
+.model-use-btn.is-warn {
+  border-color: rgba(240, 180, 92, 0.45);
+  background: rgba(240, 180, 92, 0.1);
+  color: #f4cd8d;
+}
+
+.model-use-btn.is-warn:hover:not(:disabled) {
+  border-color: rgba(240, 180, 92, 0.75);
+  background: rgba(240, 180, 92, 0.18);
+}
+
+.model-use-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.model-use-placeholder {
+  display: block;
+  height: 30px;
+}
+
+.model-icon-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
-  flex: 0 0 auto;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -1340,30 +868,67 @@ select:focus {
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
-.model-delete-btn:hover:not(:disabled) {
+.model-icon-btn:hover:not(:disabled) {
+  border-color: rgba(142, 121, 255, 0.3);
+  background: rgba(124, 58, 237, 0.12);
+  color: #d8ccff;
+}
+
+.model-icon-btn.is-danger:hover:not(:disabled) {
   border-color: rgba(248, 113, 113, 0.24);
   background: rgba(248, 113, 113, 0.12);
   color: #fca5a5;
 }
 
-.model-delete-btn:disabled {
+.model-icon-btn:disabled {
   cursor: not-allowed;
   opacity: 0.3;
 }
 
-
-.model-add-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+.model-delete-confirm {
+  min-height: 30px;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  border-radius: 8px;
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
+  animation: delete-confirm-in 0.15s ease;
+}
+
+.model-delete-confirm:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.28);
+  color: #ffffff;
+}
+
+@keyframes delete-confirm-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 560px) {
+  .model-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .model-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .model-use-placeholder {
+    display: none;
+  }
 }
 </style>

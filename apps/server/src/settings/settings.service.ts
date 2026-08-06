@@ -409,7 +409,7 @@ export class SettingsService implements OnModuleInit {
       // G1 credential_metadata trigger 只允许固定 owner 组合,且轮换/清除需要 Outbox;
       // 数据库模式下本期不支持带凭证的模型管理,避免与不可变约束冲突。
       if (this.prismaService?.isDatabaseMode()) {
-        throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持为模型配置密钥，请使用“AI 密钥/图片生成”页或等待运行时衔接");
+        throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持为模型配置密钥，密钥由运行时既有渠道管理");
       }
       const metadata = await this.requireSecretStore().put({
         credentialId: this.managedModelCredentialId(kind, id),
@@ -462,7 +462,7 @@ export class SettingsService implements OnModuleInit {
     const shouldClearApiKey = input.clearApiKey === true && !apiKeyInput;
     if (this.prismaService?.isDatabaseMode() && (apiKeyInput || shouldClearApiKey)) {
       // G1 trigger 限制凭证轮换/清除需 Outbox;数据库模式下本期不支持模型密钥变更。
-      throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持修改模型密钥，请使用“AI 密钥/图片生成”页或等待运行时衔接");
+      throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持修改模型密钥，密钥由运行时既有渠道管理");
     }
     if (shouldClearApiKey && model.secretRef) {
       await this.requireSecretStore().delete(credentialId);
@@ -510,7 +510,7 @@ export class SettingsService implements OnModuleInit {
         current.runwareImageProvider.providerId,
       ]);
       if (fixedProviderIds.has(model.providerId)) {
-        throw new BadRequestException("MANAGED_MODEL_FIXED_SLOT_DELETE_FORBIDDEN: 该模型由“AI 密钥/图片生成”槽位管理，不能在模型管理中删除");
+        throw new BadRequestException("MANAGED_MODEL_FIXED_SLOT_DELETE_FORBIDDEN: 该模型由固定密钥槽位镜像生成，不能在模型管理中删除");
       }
       const database = this.prismaService.database();
       const provider = await database.providerConfig.findUnique({ where: { providerId: model.providerId } });

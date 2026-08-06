@@ -5,11 +5,12 @@
         <header class="modal-header">
           <div class="title-group">
             <div class="title-icon" aria-hidden="true">
-              <MessageSquarePlus :size="20" />
+              <Pencil v-if="editing" :size="20" />
+              <MessageSquarePlus v-else :size="20" />
             </div>
             <div>
               <span>模型管理</span>
-              <h2 id="add-model-title">{{ kind === "image" ? "添加图片模型" : "添加对话模型" }}</h2>
+              <h2 id="add-model-title">{{ editing ? "编辑模型" : kind === "image" ? "添加图片模型" : "添加对话模型" }}</h2>
             </div>
           </div>
           <button class="icon-button" type="button" aria-label="关闭" :disabled="saving" @click="requestClose">
@@ -17,7 +18,7 @@
           </button>
         </header>
 
-        <div class="kind-tabs" role="tablist" aria-label="模型类型">
+        <div v-if="!editing" class="kind-tabs" role="tablist" aria-label="模型类型">
           <button
             type="button"
             role="tab"
@@ -91,8 +92,9 @@
                   v-model.trim="form.apiKey"
                   :type="showKey ? 'text' : 'password'"
                   autocomplete="new-password"
-                  placeholder="留空则不带凭证"
+                  :placeholder="editing ? '留空则保留当前密钥' : '留空则不带凭证'"
                   spellcheck="false"
+                  :disabled="clearKey"
                 />
                 <button class="secret-toggle" type="button" :aria-label="showKey ? '隐藏密钥' : '显示密钥'" @click="showKey = !showKey">
                   <EyeOff v-if="showKey" :size="16" />
@@ -100,6 +102,10 @@
                 </button>
               </span>
               <span class="field-help">密钥仅保存在本机（Keychain），不会在页面回显。</span>
+              <label v-if="editing?.configured" class="clear-key-row">
+                <input v-model="clearKey" type="checkbox" />
+                <span>清除已保存的密钥</span>
+              </label>
             </label>
           </div>
 
@@ -108,8 +114,9 @@
           <footer class="modal-footer">
             <button class="secondary-action" type="button" :disabled="saving" @click="requestClose">取消</button>
             <button class="primary-action" type="submit" :disabled="saving || !canSubmit">
-              <Plus :size="16" />
-              <span>{{ saving ? "添加中..." : "添加模型" }}</span>
+              <Pencil v-if="editing" :size="16" />
+              <Plus v-else :size="16" />
+              <span>{{ saving ? "保存中..." : editing ? "保存修改" : "添加模型" }}</span>
             </button>
           </footer>
         </form>
@@ -120,12 +127,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
-import { Eye, EyeOff, MessageSquarePlus, Plus, X } from "lucide-vue-next";
-import type { CreateManagedModelRequest, ManagedModelKind } from "@airoaming/shared";
+import { Eye, EyeOff, MessageSquarePlus, Pencil, Plus, X } from "lucide-vue-next";
+import type { CreateManagedModelRequest, ManagedModelItem, ManagedModelKind, UpdateManagedModelRequest } from "@airoaming/shared";
 
 const props = defineProps<{
   open: boolean;
   initialKind: ManagedModelKind;
+  editing: ManagedModelItem | null;
   saving: boolean;
   error: string | null;
 }>();
@@ -133,10 +141,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   create: [input: CreateManagedModelRequest];
+  update: [id: string, input: UpdateManagedModelRequest];
 }>();
 
 const kind = ref<ManagedModelKind>("text");
 const showKey = ref(false);
+const clearKey = ref(false);
 const nameInputRef = ref<HTMLInputElement | null>(null);
 const form = reactive({
   displayName: "",
@@ -153,7 +163,23 @@ const canSubmit = computed(() => {
     && form.baseUrl.trim().length > 0;
 });
 
-const errorMessage = computed(() => props.error);
+/** 去掉服务端错误码前缀(如 MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB:),只展示可读信息 */
+function formatErrorMessage(message: string): string {
+  return message.replace(/^[A-Z][A-Z0-9_]{2,}:\s*/, "");
+}
+
+/* 本地留存最近一次错误:页面 toast 自动消失会清空 store error,弹窗内联错误需保留到下次打开 */
+const localError = ref<string | null>(null);
+const errorMessage = computed(() => localError.value);
+
+watch(
+  () => props.error,
+  (error) => {
+    if (error) {
+      localError.value = formatErrorMessage(error);
+    }
+  },
+);
 
 watch(
   () => props.open,
@@ -161,13 +187,16 @@ watch(
     if (!isOpen) {
       return;
     }
-    kind.value = props.initialKind;
-    form.displayName = "";
-    form.providerId = "";
-    form.modelId = "";
-    form.baseUrl = "";
+    const editing = props.editing;
+    kind.value = editing?.kind ?? props.initialKind;
+    form.displayName = editing?.displayName ?? "";
+    form.providerId = editing?.providerId ?? "";
+    form.modelId = editing?.modelId ?? "";
+    form.baseUrl = editing?.baseUrl ?? "";
     form.apiKey = "";
     showKey.value = false;
+    clearKey.value = false;
+    localError.value = null;
     await nextTick();
     nameInputRef.value?.focus();
   },
@@ -190,6 +219,17 @@ onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 
 function submit() {
   if (!canSubmit.value || props.saving) {
+    return;
+  }
+  if (props.editing) {
+    emit("update", props.editing.id, {
+      displayName: form.displayName.trim(),
+      providerId: form.providerId.trim(),
+      modelId: form.modelId.trim(),
+      baseUrl: form.baseUrl.trim(),
+      apiKey: form.apiKey.trim() || undefined,
+      clearApiKey: clearKey.value || undefined,
+    });
     return;
   }
   emit("create", {
@@ -378,6 +418,24 @@ function submit() {
   color: #8190aa;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.clear-key-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #f0b45c;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.clear-key-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #7c3aed;
+  cursor: pointer;
 }
 
 .field-error {

@@ -41,6 +41,11 @@ export const useSettingsStore = defineStore("settings", {
     appearanceTheme: (state): AppearanceTheme => state.settings?.appearance.theme ?? "dark",
   },
   actions: {
+    clearFeedback() {
+      this.error = null;
+      this.notice = null;
+      this.noticeScope = null;
+    },
     async loadSettings() {
       this.loading = true;
       this.error = null;
