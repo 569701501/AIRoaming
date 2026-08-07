@@ -406,18 +406,19 @@ export class SettingsService implements OnModuleInit {
     let keyFingerprint: string | null = null;
     const apiKey = input.apiKey?.trim();
     if (apiKey) {
-      // G1 credential_metadata trigger 只允许固定 owner 组合,且轮换/清除需要 Outbox;
-      // 数据库模式下本期不支持带凭证的模型管理,避免与不可变约束冲突。
       if (this.prismaService?.isDatabaseMode()) {
-        throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持为模型配置密钥，密钥由运行时既有渠道管理");
+        // DB 模式不走 SecretStore(Linux 不可用),直接内存持有 + fingerprint 持久化。
+        keyFingerprint = fingerprintSecret(SecretString.from(apiKey));
+        this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
+      } else {
+        const metadata = await this.requireSecretStore().put({
+          credentialId: this.managedModelCredentialId(kind, id),
+          secret: SecretString.from(apiKey),
+        });
+        secretRef = metadata.secretRef;
+        keyFingerprint = metadata.fingerprint;
+        this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
       }
-      const metadata = await this.requireSecretStore().put({
-        credentialId: this.managedModelCredentialId(kind, id),
-        secret: SecretString.from(apiKey),
-      });
-      secretRef = metadata.secretRef;
-      keyFingerprint = metadata.fingerprint;
-      this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
     }
     const model: StoredManagedModel = {
       id,
@@ -460,24 +461,36 @@ export class SettingsService implements OnModuleInit {
     let keyFingerprint = model.keyFingerprint;
     const apiKeyInput = input.apiKey?.trim();
     const shouldClearApiKey = input.clearApiKey === true && !apiKeyInput;
-    if (this.prismaService?.isDatabaseMode() && (apiKeyInput || shouldClearApiKey)) {
-      // G1 trigger 限制凭证轮换/清除需 Outbox;数据库模式下本期不支持模型密钥变更。
-      throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下暂不支持修改模型密钥，密钥由运行时既有渠道管理");
-    }
-    if (shouldClearApiKey && model.secretRef) {
-      await this.requireSecretStore().delete(credentialId);
-      secretRef = null;
-      keyFingerprint = null;
-      this.runtimeManagedModelSecrets.delete(model.id);
+    const isDb = this.prismaService?.isDatabaseMode() ?? false;
+    if (shouldClearApiKey) {
+      if (isDb) {
+        if (model.keyFingerprint) {
+          keyFingerprint = null;
+          secretRef = null;
+          this.runtimeManagedModelSecrets.delete(model.id);
+        }
+      } else if (model.secretRef) {
+        await this.requireSecretStore().delete(credentialId);
+        secretRef = null;
+        keyFingerprint = null;
+        this.runtimeManagedModelSecrets.delete(model.id);
+      }
     }
     if (apiKeyInput) {
-      const metadata = await this.requireSecretStore().put({
-        credentialId,
-        secret: SecretString.from(apiKeyInput),
-      });
-      secretRef = metadata.secretRef;
-      keyFingerprint = metadata.fingerprint;
-      this.runtimeManagedModelSecrets.set(model.id, SecretString.from(apiKeyInput));
+      if (isDb) {
+        // DB 模式不走 SecretStore,直接内存持有。
+        keyFingerprint = fingerprintSecret(SecretString.from(apiKeyInput));
+        secretRef = null;
+        this.runtimeManagedModelSecrets.set(model.id, SecretString.from(apiKeyInput));
+      } else {
+        const metadata = await this.requireSecretStore().put({
+          credentialId,
+          secret: SecretString.from(apiKeyInput),
+        });
+        secretRef = metadata.secretRef;
+        keyFingerprint = metadata.fingerprint;
+        this.runtimeManagedModelSecrets.set(model.id, SecretString.from(apiKeyInput));
+      }
     }
     return {
       ...current,
@@ -498,10 +511,6 @@ export class SettingsService implements OnModuleInit {
       throw new BadRequestException("MANAGED_MODEL_ACTIVE_DELETE_FORBIDDEN");
     }
     if (this.prismaService?.isDatabaseMode()) {
-      // G1 trigger 不允许删除带凭证的 credential_metadata;数据库模式下带凭证模型暂不可删。
-      if (model.secretRef) {
-        throw new BadRequestException("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB: 数据库模式下带凭证的模型暂不支持删除");
-      }
       const fixedProviderIds = new Set([
         current.aiKey.providerId,
         current.openaiImageProvider.providerId,
@@ -518,6 +527,8 @@ export class SettingsService implements OnModuleInit {
         await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
         await database.providerConfig.delete({ where: { id: provider.id } });
       }
+      // DB 模式清理运行时内存中的密钥
+      this.runtimeManagedModelSecrets.delete(model.id);
     } else if (model.secretRef) {
       await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id));
       this.runtimeManagedModelSecrets.delete(model.id);
