@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="modal-backdrop" role="presentation" @click.self="requestClose">
+    <div v-if="open" class="modal-backdrop" role="presentation">
       <section class="modal-panel add-model-modal" role="dialog" aria-modal="true" aria-labelledby="add-model-title">
         <header class="modal-header">
           <div class="title-group">
