@@ -18,21 +18,12 @@
           </button>
         </header>
 
-        <div v-if="!editing" class="kind-tabs" role="tablist" aria-label="模型类型">
-          <button
-            type="button"
-            role="tab"
-            :class="{ 'is-active': kind === 'text' }"
-            :disabled="saving"
-            @click="kind = 'text'"
-          >对话模型</button>
-          <button
-            type="button"
-            role="tab"
-            :class="{ 'is-active': kind === 'image' }"
-            :disabled="saving"
-            @click="kind = 'image'"
-          >图片模型</button>
+        <div v-if="!editing" class="kind-label-bar">
+          <span class="kind-label-bar-icon" :class="`is-${kind}`" aria-hidden="true">
+            <MessageSquareText v-if="kind === 'text'" :size="16" />
+            <Image v-else :size="16" />
+          </span>
+          <span>{{ kind === 'text' ? '对话模型' : '图片生成模型' }}</span>
         </div>
 
         <form class="create-form" :aria-busy="saving" @submit.prevent="submit">
@@ -127,7 +118,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
-import { Eye, EyeOff, MessageSquarePlus, Pencil, Plus, X } from "lucide-vue-next";
+import { Eye, EyeOff, Image, MessageSquarePlus, MessageSquareText, Pencil, Plus, X } from "lucide-vue-next";
 import type { CreateManagedModelRequest, ManagedModelItem, ManagedModelKind, UpdateManagedModelRequest } from "@airoaming/shared";
 
 const props = defineProps<{
@@ -338,41 +329,37 @@ function submit() {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.kind-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.kind-label-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   border-bottom: 1px solid rgba(123, 104, 255, 0.1);
   background: rgba(8, 15, 31, 0.5);
-  padding: 10px 24px;
-}
-
-.kind-tabs button {
-  min-height: 38px;
-  border: 1px solid rgba(206, 216, 244, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #8190aa;
+  padding: 12px 24px;
+  color: #f8fbff;
   font-size: 13px;
   font-weight: 800;
-  cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
-.kind-tabs button:hover:not(:disabled) {
-  border-color: rgba(142, 121, 255, 0.4);
-  color: #d8e2f6;
+.kind-label-bar-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
 }
 
-.kind-tabs button.is-active {
-  border-color: rgba(142, 121, 255, 0.7);
-  background: rgba(124, 58, 237, 0.16);
-  color: #f8fbff;
+.kind-label-bar-icon.is-text {
+  border: 1px solid rgba(157, 139, 255, 0.3);
+  background: rgba(124, 58, 237, 0.14);
+  color: #c4b5fd;
 }
 
-.kind-tabs button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.kind-label-bar-icon.is-image {
+  border: 1px solid rgba(34, 199, 169, 0.3);
+  background: rgba(34, 199, 169, 0.1);
+  color: #8df0dc;
 }
 
 .create-form {
@@ -561,7 +548,7 @@ function submit() {
     padding: 18px;
   }
 
-  .kind-tabs {
+  .kind-label-bar {
     padding: 10px 16px;
   }
 
