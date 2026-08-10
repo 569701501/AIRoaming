@@ -4,7 +4,7 @@
 doc_id: AIR-PRODUCT-CURRENT-UI-IA-001
 status: active
 created: 2026-05-23
-updated: 2026-07-22
+updated: 2026-08-10
 owner: AI漫游项目
 audience: human, ai-agent, developer
 source: 核心用户流程、功能清单与页面链路、当前 UI 结论
@@ -22,6 +22,9 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 
 ```text
 /projects
+/documents
+/documents/:id
+/settings
 /projects/:projectId/script
 /projects/:projectId/characters
 /projects/:projectId/structure
@@ -32,7 +35,7 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 /projects/:projectId/assets
 ```
 
-`/projects/:projectId` 默认重定向到 `/projects/:projectId/script`。
+`/projects/:projectId` 默认重定向到 `/projects/:projectId/script`。`/documents` 与 `/settings` 是与 `/projects` 平级的全局侧边栏入口，不属于项目内 7 步主流程。
 
 剧本步骤后续应支持章节级定位。当前推荐路由形态为：
 
@@ -172,7 +175,7 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 
 ## 7. 当前实现状态
 
-更新时间：2026-07-22
+更新时间：2026-08-10
 
 | 页面或能力 | 实现状态 | 说明 |
 | --- | --- | --- |
@@ -188,8 +191,9 @@ source: 核心用户流程、功能清单与页面链路、当前 UI 结论
 | 分镜工作台 | current/completed_g2 | 按章节生成和编辑 pending StoryboardVersion；一次用户动作内部依次完成分镜骨架和章节级详细候选图说明，第二段只覆盖四个静态说明字段并整体提交。确认时使用 pending 冻结的剧情结构来源；有下游成果时先展示影响清单，切换后形成不可变版本与稳定 Shot，旧候选/排版/导出保留为历史、出图准备需更新且章节里程碑不倒退。缩略图、拖拽重排、单镜重写和批量重编号属于后置体验增强 |
 | 出图准备 | current/completed_g2 | 从 current StoryboardVersion、剧情结构已登记主体、角色/场景视觉和画风构建 `preflight-source-v2`，确认不可变 PreflightRevision；未就绪和来源变化均由服务端门禁，本页无生成/修复动作。更丰富的场景模板 UI 属于后置增强 |
 | 候选图工作台 | current/completed_g4 | 真实候选生成、Asset/Task 追溯、收藏/废弃、线性 CandidateLockRevision、更换/clear 影响预览、冲突重预览、历史恢复和布局 stale 均已完成；默认三段说明来自分镜生成时的自动整理，仍可本地编辑，服务端实时预览固定问题，硬问题阻断生图；`shot_prompt_generate` 是“重新优化本镜头”的可选返修，只返回需显式采用的建议且不写正式分镜；旧 `Shot.lockedCandidateId` 不再是 runtime 权威路径 |
-| 漫画成稿 | current/editor_simplified_2026_07_30 | 内部 stepKey=`layout_export`、路由=`/layout` 不变。首次无稿自动运行一次 `layout_compose` 并打开 V2 成稿；已有稿直接恢复同一画布；之后只由用户逐项编辑并自动保存。编辑器为画布优先形态（ADR-0023)：页面导航/镜头素材默认收起为浮层、选中元素就近浮动工具条、拖拽实时预览、双击就地改字、有限本地撤销（内存栈 ≤50 步、无 redo);「画布设置」抽屉承载画布尺寸/画格模板，「属性」浮层承载详细设置。顶栏保留自动保存状态、撤销、手机预览和一个「导出」动作；二次智能调整、范围/intent、建议对比和版本/出版历史 UI 仍不暴露。导出内部仍执行 Working Copy 预检、不可变 Revision、Publication 预检和确定性出版；系统文字错误阻断，用户改字/隐藏或新增自定义文字时弹窗对照原文与当前文字。当前规则 fallback 不宣称已识别视觉主体，气泡外观可由用户手调 |
+| 漫画成稿 | current/editor_simplified_2026_07_30 | 内部 stepKey=`layout_export`、路由=`/layout` 不变。首次无稿自动运行一次 `layout_compose` 并打开 V2 成稿；已有稿直接恢复同一画布；之后只由用户逐项编辑并自动保存。编辑器为画布优先形态（ADR-0023)：页面导航/镜头素材默认收起为浮层、选中元素就近浮动工具条、拖拽实时预览、双击就地改字、有限本地撤销（内存栈 ≤50 步、无 redo);「画布设置」抽屉承载画布尺寸/画格模板，「属性」浮层承载详细设置。顶栏保留自动保存状态、撤销、手机预览和一个「导出」动作；二次智能调整、范围/intent、建议对比和版本/出版历史 UI 仍不暴露。导出内部仍执行 Working Copy 预检、不可变 Revision、Publication 预检和确定性出版；系统文字错误阻断，用户改字/隐藏或新增自定义文字时弹窗对照原文与当前文字。自动排版的视觉主体识别已接真实多模态调用（`layout-visual-analyzer.service.ts:340`，由 `layout-composition-source-projector.service.ts:302` 按是否配置 AI key 开关），据此避让 `textSafeRegion`；未配置 key 时按 Shot 退回规则 fallback。气泡外观可由用户手调 |
 | 章节工作流 | current/partial | 已实现章节列表、`/projects/:projectId/script/:chapterId`、章节级保存与完成；AI 创作仅在大纲存在下一章卡时增加入口，切换不生成、用户明确提出后才生成且要求前章正式；已有剧本在目录确认后一次创建全部入口并逐章直接确认。角色库待处理只提示不阻塞剧情结构；手动新建、重命名、删除和下游失效提示仍未实现 |
 | 对话过程展示 | current | 已参考 AuroraPlatformWeb 的 reasoning/tool 展示模式：消息区独立滚动，长正文局部滚动，AI 思考、技能调用和工具结果以紧凑过程卡片展示 |
-| 设置 | current | 文本模型 key 交给本机 OpenCode，图片模型 key 由后端 SecretStore 保存；图片生成可切换 OpenAI、豆包、Grok、Runware，Runware 页面说明 Schnell 草稿 / FLUX.2 Dev 精修 / FLUX.1 Dev + IP-Adapter 多参考管线；前端只展示配置状态、来源和 fingerprint，不回显明文；外观支持深色、浅色和跟随系统 |
+| 文稿库 | current | 2026-08-04 落地、08-05 打通项目。`/documents` 列表与 `/documents/:id` 详情，上传 .txt/.md 自动识别编码并拆章，左侧按卷或按 100 章分桶折叠，右侧只读原文。创建项目时可选「引用文稿」，按文稿章节一次建齐章节壳。页面不提供 AI 入口，也不允许编辑原稿 |
+| 设置 | current/model_management_2026_08_10 | 「模型管理」tab 提供对话/图片模型 CRUD 与当前选中切换；凭证由 `apps/server/src/settings/credential.service.ts` 统一存取，DB 模式下 CredentialService 只读、写入统一走 SettingsService。页面只有「模型管理」和「外观设置」两个 tab；旧「AI 密钥」「图片生成」tab 已于 2026-08-06 卡片式重设计时移除。对话与图片生成运行时都跟随模型管理的选中项（`activeTextModelId` / `activeImageModelId`）。固定槽位（aiKey + 4 个图片 provider）只作为后端兼容层保留，与模型列表双向同步、无对应界面，其镜像出的模型行不可删除。图片模型可选 OpenAI、豆包、Grok、Runware，Runware 页面说明 Schnell 草稿 / FLUX.2 Dev 精修 / FLUX.1 Dev + IP-Adapter 多参考管线。前端只展示配置状态、来源和 fingerprint，不回显明文；外观支持深色、浅色和跟随系统 |
 | 素材库、通知、团队 | deferred | 不进入当前主路径 |

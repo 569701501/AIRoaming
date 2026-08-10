@@ -2,7 +2,7 @@
 doc_id: AIR-AI-CONTEXT-001
 status: active
 created: 2026-05-23
-updated: 2026-07-23
+updated: 2026-08-10
 owner: AI漫游项目
 audience: ai-agent
 source: AI漫游文档体系
@@ -25,11 +25,13 @@ source: AI漫游文档体系
 
 | 优先级 | 内容 |
 | --- | --- |
-| P0 | 故事输入与结构化、分镜生成与编辑、漫画图生成候选、候选选择、智能漫画成稿与出版、持久任务与数据库事实源 |
+| P0 | 故事输入与结构化、分镜生成与编辑、漫画图生成候选、候选选择、智能漫画成稿与出版、持久任务与数据库事实源。**七步主链路 1～6 步已闭环** |
 | P0 后置 | 素材包 V2、真实 ZIP、下载与七阶段 `exported` 总验收；保留第七步导航，本轮不写 G6 开发文档 |
-| P0.5 | 基础轻漫剧视频、TTS、字幕、BGM |
-| P1 | 局部重生成、角色一致性增强、批量导出、复杂版本对比 |
+| P0.5 | 基础轻漫剧视频、TTS、字幕、BGM。当前决策为**先做完漫画 + 模块文档，再做漫剧**；分镜阶段已预留 `cameraMovement`/`durationMs`/`voiceLines` 等漫剧字段（见 `packages/shared/src/dto.ts:442` 起“comic 和 motion 共用一份”注释） |
+| P1 | 局部重生成（inpaint/mask，当前零实现）、角色一致性增强（当前只有提示词 + 参考图，无 LoRA/IP-Adapter）、批量导出、复杂版本对比 |
 | P2 | 多人协作、云端扩容、商业化权限、复杂视频镜头运动 |
+
+2026-08-10 复核补充：P1 的两项是漫画与漫剧阶段都要复用的投入，第 6 步的排版/气泡/分页则是漫画独有、漫剧无法复用。
 
 ## 3. AI 执行前检查
 
@@ -98,7 +100,13 @@ source: AI漫游文档体系
 
 当前数据库切换事实：D2 capability=`blockedIds=[]`；S0、W1、R0B、SH-10、v5 C0～C7、首写边界和 R2 OBS-01～10 已通过，production status=`completedThrough=C7`，evidence=`sha256:987d9a9466c220544ea010b6d74ead34971b3b2eb1188388bb3a4ba66c6a1452`。G4-A～F=`G4_PASSED`；G5-M0～M8 技术验收与最终用户签收已通过，G5=`G5_COMPLETE`，总体=`G0_G5_COMPLETE`。旧授权门、窗口与 `BLOCKED_R2_*` 只作历史，不能覆盖当前状态。
 
-当前漫画成稿状态必须分层理解：G5 一等编辑器、版本、来源与确定性出版底座已完成；M3C-M0～M3 已完成离线语料、V2/人工保护、规则与视觉规划内核，M3 以 `complete_with_accepted_visual_risk` 退出。M4 已实现章节级持久 `layout_compose`、服务端权威来源冻结、V2 Working Copy 保存、初次原子应用、整章重排 Pending 预览、应用凭证、幂等/冲突与重启恢复；M5 已实现首次零设置自动成稿、有稿恢复、同一 V2 编辑器手调、当前/新排法对比、保留/应用/Undo 和条漫/页漫浏览器路径。真实持久 worker 当前仍使用 `rule_fallback`，尚未接入外部视觉 Provider；scoped reflow 和 V2 publication 属于 M6/M7。用户确认的长期闭环仍是“自动成稿 → 同一编辑器手调 → 视觉 AI 局部预览，可应用/放弃/撤销”；158 项 A/B 保持真实 `pending` 并作为可选内部研究，部分气泡外观不自然是已接受风险。禁止另建第二套简化编辑器。
+当前漫画成稿状态：**M3C M0～M6 已全部完成**（2026-07-23 收口）。G5 一等编辑器、版本、来源与确定性出版底座已完成；M0～M3 已完成离线语料、V2/人工保护、规则与视觉规划内核，M3 以 `complete_with_accepted_visual_risk` 退出。M4 已实现章节级持久 `layout_compose`、服务端权威来源冻结、V2 Working Copy 保存、初次原子应用、整章重排 Pending 预览、应用凭证、幂等/冲突与重启恢复；M5 已实现首次零设置自动成稿、有稿恢复、同一 V2 编辑器手调、当前/新排法对比、保留/应用/Undo 和条漫/页漫浏览器路径。
+
+M6 已实现真实视觉分析：`layout-composition-source-projector.service.ts:302` 在存在 AI key 时注入多模态 provider（`LAYOUT_VISUAL_ANALYSIS_ENABLED=false` 可强制关闭），`layout-visual-analyzer.service.ts:340` 走真实结构化分析并校验角色映射越界，仅在未配置或分析失败时逐 Shot 回退 `rule_fallback`。**此前“仍使用 rule_fallback、尚未接入外部视觉 Provider”的表述已过期，不得再作为现状引用。**V2 publication 已接通。
+
+**M6 的 scoped 智能调整已于 2026-07-24 按 ADR-0022 从页面删除**，最终口径以 ADR-0022 为准：漫画成稿只有四项用户能力——首次无感自动排版 → 人工画布编辑 → 自动保存 → 单一导出，AI 只在没有 Working Copy 时执行一次。已删除 full/scoped reflow、选区/页面/场景范围、四种 intent、MiniPreview 与建议对比、应用/放弃、撤销重做、AI Drawer、四步出版控制中心（已确认前端无这些入口）。视觉分析保留，仅用于 `textSafeRegion` 避让；无可靠证据时用保守规则位置，不得静默宣称看见画面主体。**因此“自动成稿 → 同一编辑器手调 → 视觉 AI 局部预览，可应用/放弃/撤销”这一旧长期闭环表述已作废。**
+
+158 项 A/B 保持真实 `pending` 并作为可选内部研究，部分气泡外观不自然是已接受风险。“代表性验收章节 80% 画格无需调整”仍无实测证据，是 M3 唯一未达成验收项。禁止另建第二套简化编辑器。
 
 当前 G0～G5 剩余连续施工的唯一总入口：
 
@@ -149,6 +157,8 @@ $deep-think
 | Web 工作台 | `apps/web` | Vue 3 + Vite + Pinia，已实现项目库首版和项目工作区第 1 步首屏；后续 5 个项目内页面仍按当前 UI 信息架构分阶段实现 |
 | 本地服务 | `apps/server` | NestJS API，当前提供健康检查、workspace 信息、项目 API、任务 mock API、OpenCode 对话运行时、对话 API 和 Prisma schema |
 | 共享契约 | `packages/shared` | 任务枚举、DTO、workspace 虚拟路径工具 |
+| 文稿库 | `apps/web/src/components/documents`、`apps/server/src/projects/document-library.*` | 长篇原著导入与只读浏览；拆章引擎与编码识别在 `packages/shared/src/document-splitter.ts`、`document-encoding.ts`。不属于七步主流程 |
+| 模型与凭证 | `apps/server/src/settings` | `settings.service.ts` 模型 CRUD 与 active 指针、`credential.service.ts` 统一凭证、`secret-store.ts` 图片密钥 |
 | 剧本双流程严格输出契约 | `packages/shared/src/script-workflow-contract.ts` | 七个模型阶段的灵感/大纲/章节/导入分析/忠实度可执行 Schema |
 | 剧本双流程来源状态 | `文档/02_架构与契约/2026-07-16_双流程来源与状态契约.md` | 0017 及生产链已实现不可变原稿、观察性分析、确认目录、整批整理/忠实度、AI/导入 pending 来源密封和逐章正式化；页面内容字段保持不变 |
 | 测试安全网 | `apps/server/src/**/*.spec.ts`、`tests/e2e` | Vitest Service characterization + Playwright API/Chromium；临时 workspace、loopback fake provider 与受控进程清理 |
@@ -215,7 +225,9 @@ G1 machine manifest 已按 ADR-0014 移除自签 Reviewer/attestation/sealed bun
 - 2026-05-26 剧本页右侧已简化：`ScriptDocumentEditor` 当前只展示和保存剧本正文 `sourceText`，不再展示项目名称、故事标题、题材标签、漫画格式和画风方向字段；`WorkbenchStageRail` 已由当时的 6 个大卡片改为紧凑标签栏，当前仍需迁移到 7 步口径。
 - 2026-05-26 OpenCode 剧本对话最小闭环已落地：后端新增 `ai-runtime` 与 `dialogue` 模块，可启动或连接 `opencode serve`，创建 OpenCode session，发送剧本步骤 prompt，并把 assistant 文本作为 AI漫游 `DialogueMessageItem` 返回；前端左侧 `ProjectDialoguePanel` 已支持输入、发送、展示消息和失败状态。
 - 2026-05-26 OpenCode 流式输出已落地：后端新增 `POST /api/projects/{projectId}/dialogue/threads/{stepKey}/messages/stream`，将 OpenCode `message.part.delta` 转换为 AI漫游 `dialogue.message.delta`；前端使用 fetch 流式读取 SSE 并增量更新 assistant 消息。当前仍不支持停止生成、上传剧本、灵感种子生成或 AI 受控写章节草稿。
-- 2026-05-26 对话框模型链路已接入，2026-07-21 清理后只保留实际使用的自动默认选择：前端启动时读取 `GET /api/ai-runtime/models`，选取 default/首项并把 provider/model 透传给后端和 OpenCode；页面没有手动切换控件，也不再保留无 UI 消费的模型列表状态和选择 action。当前不支持新增模型配置 UI、手动 model 或 variant 选择。
+- 2026-05-26 对话框模型链路已接入，2026-07-21 清理后只保留自动默认选择。**该口径已于 2026-08-05 被模型管理替代**：设置页新增「模型管理」tab（对话/图片两个区块），支持模型 CRUD、`models[]` + active 指针与预置 6 项；运行时默认对话模型跟随 `activeTextModelId`，对话面板已有模型选择器，消息气泡显示所用模型。“页面没有手动切换控件、不支持新增模型配置 UI”已过期。图片生成运行时同样已跟随 `activeImageModelId`（`settings.service.ts:267`，协议按 providerId 关键字推断，凭证两层回退＝模型凭证 → 同 providerId 固定槽位，无选中才整体回退固定槽位）。**"图片生成未跟随 activeImageModelId"是过期口径，不要再引用。**
+- 2026-08-10 模型凭证已统一：`apps/server/src/settings/credential.service.ts` 集中凭证读写与运行时解析，DB 模式凭证可跨重启恢复；DB 模式下 `CredentialService` 只读，写入统一由 `SettingsService` 处理以满足 migration trigger 与 Outbox 约束。固定槽位与 `models[]` 在数据模型层双轨仍并存（未按原计划废弃），固定槽位镜像出的模型行不可在模型管理删除（`MANAGED_MODEL_FIXED_SLOT_DELETE_FORBIDDEN`）；但 UI 层已于 2026-08-06（commit `25f8a3e`）移除「AI 密钥」「图片生成」tab，设置页只剩「模型管理」「外观设置」，固定槽位是用户不可见的后端兼容层。详见 `文档/04_方案与决策/2026-08-10_模型管理重构方案.md`。
+- 2026-08-04 文稿库已落地，是七步主流程之外的**输入侧独立模块**：`/documents` 与 `/documents/:id` 路由、`DocumentWork`/`DocumentChapter` 模型、上传 .txt/.md 自动拆章、只读原文浏览、重命名与删除。拆章引擎 `packages/shared/src/document-splitter.ts` 为三层规则（章节号变体 / 卷识别含卷章同行 / 空行分块兜底），编码识别 `packages/shared/src/document-encoding.ts` 为 UTF-8 严格校验 → gb18030 兜底。真实《凡人修仙传》GBK 2574 章 + UTF-8 1396 章合计 3970 章全部识别、0 断裂。2026-08-05（commit `bcd9b12`）文稿库已与项目打通：创建项目时可选「引用文稿」，按文稿章节一次建齐章节壳（只存 `documentWorkId`/`documentChapterId` 引用，不复制正文、不触发 AI），剧本页按 offset 从原文按需只读投影。**此前"尚未与项目章节目录打通"的表述已过期。**仍未实施的是长篇原著资产库方案（分卷世界观、人物档案、跨章检索），那部分停留在只读评估。
 - 2026-05-26 项目路由骨架已落地：前端引入 `vue-router`，`/projects` 为项目库，`/projects/:projectId/script` 为剧本工作区，`structure/storyboard/candidates/layout/assets` 为后续 5 个步骤预留地址；URL 表示当前位置，Pinia 和后端负责项目快照、对话线程和临时状态。
 - 2026-05-26 剧本文本编辑器已换成 CodeMirror Markdown：右侧剧本文档编辑器不再使用原生 `textarea`，支持 Markdown 标题、列表、加粗、斜体、删除线、引用、插入图片文本和纯文本保存；保存接口仍只提交 `sourceText`。右侧大纲仍未接入真实解析，本阶段不处理。
 - 2026-05-28 剧本页最右侧“当前章节信息”面板已废弃：第 1 步“剧本”的当前剧本区域就是写剧本正文，不再常驻展示当前章节、故事主线、出场角色和场景列表。主线、角色、场景的整理应后置到剧情结构步骤或用户主动打开的局部结果中；AI 对话框不再提供“分析剧情”快捷入口。
