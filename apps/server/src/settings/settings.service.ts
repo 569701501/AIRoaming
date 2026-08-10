@@ -523,29 +523,11 @@ export class SettingsService implements OnModuleInit {
       if (fixedProviderIds.has(model.providerId)) {
         throw new BadRequestException("MANAGED_MODEL_FIXED_SLOT_DELETE_FORBIDDEN: 该模型由固定密钥槽位镜像生成，不能在模型管理中删除");
       }
-      // 使用 CredentialService 清空凭证（保留 ProviderConfig，因为可能被其他作用域共享）
+      // DB 模式下，删除凭证和 ProviderConfig 的清理由 writeDatabaseSettings 在事务内统一处理
+      // 这里仅清理运行时缓存
       if (this.credentialService) {
-        await this.credentialService.deleteCredential({
-          scope: 'model',
-          scopeId: model.id,
-          providerId: model.providerId,
-          kind: model.kind === 'text' ? 'text' : 'image',
-        }).catch(() => undefined);
+        this.credentialService.clearCache();
       }
-
-      // 对于纯自定义模型（不与固定槽位共享 providerId），彻底删除 ProviderConfig
-      const database = this.prismaService.database();
-      const provider = await database.providerConfig.findUnique({ where: { providerId: model.providerId } });
-      if (provider) {
-        // 检查是否还有其他模型使用这个 providerId
-        const otherModels = current.models.filter(m => m.providerId === model.providerId && m.id !== model.id);
-        if (otherModels.length === 0) {
-          // 没有其他模型使用，可以彻底删除
-          await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
-          await database.providerConfig.delete({ where: { id: provider.id } });
-        }
-      }
-
       this.runtimeManagedModelSecrets.delete(model.id);
     } else if (model.secretRef || model.keyFingerprint) {
       // 使用 CredentialService 删除凭证（带降级）
@@ -1100,6 +1082,36 @@ export class SettingsService implements OnModuleInit {
     const providerRowIds = new Map<string, string>();
     await this.prismaService!.runBusinessTransaction(async (tx) => {
       const ids = new Map<string, string>();
+
+      // 清理已删除的模型：找出数据库中存在但 settings.models 中不存在的 ProviderConfig
+      const currentProviderIds = new Set([
+        ...providers.map(p => p.settings.providerId),
+        ...settings.models.map(m => m.providerId),
+      ]);
+      const allDbProviders = await tx.providerConfig.findMany({
+        select: { id: true, providerId: true },
+      });
+
+      for (const dbProvider of allDbProviders) {
+        if (!currentProviderIds.has(dbProvider.providerId)) {
+          // 检查是否被 AppPreference 引用
+          const preference = await tx.appPreference.findUnique({ where: { id: "primary" } });
+          const isReferenced = preference?.activeImageProviderId === dbProvider.id
+            || preference?.defaultTextProviderId === dbProvider.id;
+
+          if (!isReferenced) {
+            // 先删除 credential_metadata（FK 约束）
+            await tx.credentialMetadata.deleteMany({
+              where: { providerConfigId: dbProvider.id }
+            });
+            // 再删除 provider_config
+            await tx.providerConfig.delete({
+              where: { id: dbProvider.id }
+            });
+          }
+        }
+      }
+
       for (const item of providers) {
         const provider = await tx.providerConfig.upsert({
           where: { providerId: item.settings.providerId },
