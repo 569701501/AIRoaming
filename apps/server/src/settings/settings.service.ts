@@ -523,13 +523,7 @@ export class SettingsService implements OnModuleInit {
       if (fixedProviderIds.has(model.providerId)) {
         throw new BadRequestException("MANAGED_MODEL_FIXED_SLOT_DELETE_FORBIDDEN: 该模型由固定密钥槽位镜像生成，不能在模型管理中删除");
       }
-      const database = this.prismaService.database();
-      const provider = await database.providerConfig.findUnique({ where: { providerId: model.providerId } });
-      if (provider) {
-        await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
-        await database.providerConfig.delete({ where: { id: provider.id } });
-      }
-      // 使用 CredentialService 删除凭证（带降级）
+      // 使用 CredentialService 清空凭证（保留 ProviderConfig，因为可能被其他作用域共享）
       if (this.credentialService) {
         await this.credentialService.deleteCredential({
           scope: 'model',
@@ -537,10 +531,21 @@ export class SettingsService implements OnModuleInit {
           providerId: model.providerId,
           kind: model.kind === 'text' ? 'text' : 'image',
         }).catch(() => undefined);
-      } else {
-        // 降级：直接删除
-        await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
       }
+
+      // 对于纯自定义模型（不与固定槽位共享 providerId），彻底删除 ProviderConfig
+      const database = this.prismaService.database();
+      const provider = await database.providerConfig.findUnique({ where: { providerId: model.providerId } });
+      if (provider) {
+        // 检查是否还有其他模型使用这个 providerId
+        const otherModels = current.models.filter(m => m.providerId === model.providerId && m.id !== model.id);
+        if (otherModels.length === 0) {
+          // 没有其他模型使用，可以彻底删除
+          await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
+          await database.providerConfig.delete({ where: { id: provider.id } });
+        }
+      }
+
       this.runtimeManagedModelSecrets.delete(model.id);
     } else if (model.secretRef || model.keyFingerprint) {
       // 使用 CredentialService 删除凭证（带降级）
@@ -833,7 +838,7 @@ export class SettingsService implements OnModuleInit {
               // 直接从 runtimeImageSecrets 或 SecretStore 获取，而不是通过 credentialService
               const credentialId = this.credentialIdForImageProvider(type, providerSettings.providerId);
 
-              secret = this.runtimeImageSecrets.get(credentialId);
+              secret = this.runtimeImageSecrets.get(credentialId) ?? null;
               if (!secret && this.secretStore) {
                 try {
                   secret = await this.secretStore.get(credentialId);

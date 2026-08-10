@@ -781,7 +781,7 @@ describe("D2-A2 managed models CRUD", () => {
 
 function createService(workspaceRoot: string, store: FakeSecretStore | undefined, prisma?: PrismaService): SettingsService {
   const workspace = { resolveVirtualPath: (virtualPath: string) => path.join(workspaceRoot, virtualPath.replace(/^\/workspace\/?/, "")) };
-  const credentialService = new CredentialService(store, prisma);
+  const credentialService = store || prisma ? new CredentialService(store as never, prisma as never) : undefined;
   return new SettingsService(workspace as never, undefined, store as never, prisma, credentialService as never);
 }
 

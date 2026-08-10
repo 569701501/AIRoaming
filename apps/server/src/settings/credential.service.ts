@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Optional, BadRequestException } from '@nestjs/common';
+import { Injectable, OnModuleInit, BadRequestException, Inject } from '@nestjs/common';
 import { PrismaService } from '../persistence/prisma.service.js';
 import { SecretStoreService, SecretString, fingerprintSecret } from './secret-store.js';
 
@@ -48,19 +48,33 @@ export class CredentialService implements OnModuleInit {
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5分钟
 
   constructor(
-    @Optional() private readonly secretStore?: SecretStoreService,
-    @Optional() private readonly prisma?: PrismaService,
+    @Inject(SecretStoreService) private readonly secretStore: SecretStoreService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     // 预检：至少要有一个存储后端
-    if (!this.secretStore && !this.prisma) {
+    const hasPrisma = this.prisma?.isDatabaseMode() ?? false;
+    const hasSecretStore = this.secretStore != null;
+
+    if (!hasPrisma && !hasSecretStore) {
       throw new Error('CredentialService requires either SecretStore or Prisma');
+    }
+
+    // 文件模式下，检查 SecretStore 是否真的可用
+    if (!hasPrisma && hasSecretStore) {
+      const health = await this.secretStore!.probe();
+      if (!health.available) {
+        throw new Error(`SecretStore unavailable: ${health.reason}`);
+      }
     }
   }
 
   /**
    * 存储凭证（统一入口）
+   *
+   * DB 模式下不应使用此方法，应通过 SettingsService.writeSettings 统一写入。
+   * 此方法仅用于文件模式。
    *
    * @param descriptor 凭证描述符
    * @param apiKey 明文 API Key
@@ -80,12 +94,10 @@ export class CredentialService implements OnModuleInit {
     const credentialId = this.buildCredentialId(descriptor);
 
     if (this.prisma?.isDatabaseMode()) {
-      // DB模式：存到 ProviderConfig.CredentialMetadata
-      await this.storeToDatabase(descriptor, normalizedKey, fingerprint);
-
-      // 更新缓存
+      // DB 模式：不在此处写入 ProviderConfig/CredentialMetadata，
+      // 由 SettingsService.writeDatabaseSettings 统一处理以避免触发约束冲突。
+      // 这里仅更新缓存，返回 fingerprint 供调用方使用。
       this.setCache(credentialId, normalizedKey);
-
       return { secretRef: null, keyFingerprint: fingerprint };
     } else {
       // 文件模式：存到 SecretStore
@@ -109,6 +121,8 @@ export class CredentialService implements OnModuleInit {
   /**
    * 读取凭证（统一入口）
    *
+   * DB 模式下，凭证由 SettingsService 写入到 SecretStore，使用 settings.service 的 key 命名。
+   *
    * @param descriptor 凭证描述符
    * @param storedRef 存储引用（从 settings 读取）
    * @returns 明文 API Key，不存在返回 null
@@ -124,14 +138,26 @@ export class CredentialService implements OnModuleInit {
     if (cached) return cached;
 
     if (this.prisma?.isDatabaseMode()) {
-      // DB模式：从 ProviderConfig 读取
+      // DB 模式：从 SecretStore 读取（使用 settings.service 的 key）
       if (!storedRef.keyFingerprint) return null;
+      if (!this.secretStore) return null;
 
-      const key = await this.retrieveFromDatabase(descriptor);
-      if (key) {
+      const secretStoreKey = descriptor.scope === 'model'
+        ? `managed_${descriptor.kind}_${descriptor.scopeId}`  // 模型凭证
+        : descriptor.kind === 'image'
+          ? `image_${this.inferImageProviderType(descriptor.providerId)}_${descriptor.providerId}`  // 图片槽位
+          : null;  // text 槽位不走此路径
+
+      if (!secretStoreKey) return null;
+
+      try {
+        const secret = await this.secretStore.get(secretStoreKey);
+        const key = secret.reveal();
         this.setCache(credentialId, key);
+        return key;
+      } catch {
+        return null;
       }
-      return key;
     } else {
       // 文件模式：从 SecretStore 读取
       if (!storedRef.secretRef) return null;
@@ -175,13 +201,26 @@ export class CredentialService implements OnModuleInit {
     if (cached) return SecretString.from(cached);
 
     if (this.prisma?.isDatabaseMode()) {
-      // DB模式：从 ProviderConfig 读取
-      const key = await this.retrieveFromDatabase(descriptor);
-      if (key) {
-        this.setCache(credentialId, key);
-        return SecretString.from(key);
+      // DB 模式：凭证由 SettingsService 写入到 SecretStore，使用 settings.service 的 key 命名
+      // managed model: managed_<kind>_<modelId>
+      // legacy slot: image_<type>_<providerId> / 直接从 runtimeAIKey 读（不在此处）
+      if (!this.secretStore) return null;
+
+      const secretStoreKey = modelId
+        ? `managed_${kind}_${modelId}`  // 模型凭证
+        : kind === 'image'
+          ? `image_${this.inferImageProviderType(providerId)}_${providerId}`  // 图片槽位凭证
+          : null;  // text 槽位凭证不走 SecretStore，由 SettingsService.runtimeAIKey 直接持有
+
+      if (!secretStoreKey) return null;
+
+      try {
+        const secret = await this.secretStore.get(secretStoreKey);
+        this.setCache(credentialId, secret.reveal());
+        return secret;
+      } catch {
+        return null;
       }
-      return null;
     } else {
       // 文件模式：从 SecretStore 读取
       if (!this.secretStore) return null;
@@ -196,8 +235,19 @@ export class CredentialService implements OnModuleInit {
     }
   }
 
+  private inferImageProviderType(providerId: string): string {
+    const lower = providerId.toLowerCase();
+    if (lower.includes('doubao')) return 'doubao';
+    if (lower.includes('grok')) return 'grok';
+    if (lower.includes('runware')) return 'runware';
+    return 'openai';
+  }
+
   /**
    * 删除凭证（统一入口）
+   *
+   * DB 模式下不应使用此方法，应通过 SettingsService.writeSettings 统一处理清空逻辑。
+   * 此方法仅用于文件模式。
    *
    * @param descriptor 凭证描述符
    */
@@ -205,8 +255,11 @@ export class CredentialService implements OnModuleInit {
     const credentialId = this.buildCredentialId(descriptor);
 
     if (this.prisma?.isDatabaseMode()) {
-      // DB模式：删除 ProviderConfig.CredentialMetadata
-      await this.deleteFromDatabase(descriptor);
+      // DB 模式：不在此处删除 CredentialMetadata，
+      // 由 SettingsService.writeDatabaseSettings 统一处理以避免触发状态机约束。
+      // 仅清理缓存。
+      this.cache.delete(credentialId);
+      return;
     } else {
       // 文件模式：删除 SecretStore 条目
       if (this.secretStore) {
@@ -281,105 +334,6 @@ export class CredentialService implements OnModuleInit {
 
   private buildCredentialId(descriptor: CredentialDescriptor): string {
     return `credential:${descriptor.scope}:${descriptor.kind}:${descriptor.scopeId}:${descriptor.providerId}`;
-  }
-
-  private async storeToDatabase(
-    descriptor: CredentialDescriptor,
-    apiKey: string,
-    fingerprint: string,
-  ): Promise<void> {
-    if (!this.prisma) return;
-
-    const database = this.prisma.database();
-
-    // 查找或创建 ProviderConfig
-    const providerConfig = await database.providerConfig.upsert({
-      where: { providerId: descriptor.providerId },
-      create: {
-        providerId: descriptor.providerId,
-        runtimeKind: descriptor.kind,
-        displayName: descriptor.providerId,
-        modelId: 'default',
-        enabled: true,
-      },
-      update: {},
-    });
-
-    // 存储凭证到 CredentialMetadata
-    await database.credentialMetadata.upsert({
-      where: { providerConfigId: providerConfig.id },
-      create: {
-        providerConfigId: providerConfig.id,
-        owner: descriptor.scope,
-        status: 'active',
-        fingerprint,
-        configured: true,
-      },
-      update: {
-        fingerprint,
-        configured: true,
-        rotatedAt: new Date(),
-      },
-    });
-
-    // 存储加密的 apiKey 到 SecretStore（DB模式也用 SecretStore 存实际密钥）
-    if (this.secretStore) {
-      const secretId = `provider_${providerConfig.id}`;
-      await this.secretStore.put({
-        credentialId: secretId,
-        secret: SecretString.from(apiKey),
-      });
-    }
-  }
-
-  private async retrieveFromDatabase(descriptor: CredentialDescriptor): Promise<string | null> {
-    if (!this.prisma) return null;
-
-    const database = this.prisma.database();
-
-    // 查找 ProviderConfig
-    const providerConfig = await database.providerConfig.findUnique({
-      where: { providerId: descriptor.providerId },
-      include: { credentialMetadataByProviderConfig: true },
-    });
-
-    if (!providerConfig?.credentialMetadataByProviderConfig?.configured) {
-      return null;
-    }
-
-    // 从 SecretStore 读取实际密钥
-    if (!this.secretStore) return null;
-
-    const secretId = `provider_${providerConfig.id}`;
-    try {
-      const secret = await this.secretStore.get(secretId);
-      return secret.reveal();
-    } catch {
-      return null;
-    }
-  }
-
-  private async deleteFromDatabase(descriptor: CredentialDescriptor): Promise<void> {
-    if (!this.prisma) return;
-
-    const database = this.prisma.database();
-
-    const providerConfig = await database.providerConfig.findUnique({
-      where: { providerId: descriptor.providerId },
-    });
-
-    if (!providerConfig) return;
-
-    // 删除 CredentialMetadata
-    await database.credentialMetadata.deleteMany({
-      where: { providerConfigId: providerConfig.id },
-    });
-
-    // 删除 SecretStore 中的密钥
-    if (this.secretStore) {
-      const secretId = `provider_${providerConfig.id}`;
-      await this.secretStore.delete(secretId).catch(() => undefined);
-    }
   }
 
   // ==================== 缓存管理 ====================
