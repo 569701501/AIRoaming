@@ -67,7 +67,6 @@ interface WorkbenchState {
   dialogueSending: boolean;
   dialogueError: string | null;
   dialogueNotice: string | null;
-  selectedDialogueModel: AIRuntimeModelSelection | null;
   runtimeModelError: string | null;
   tasks: GenerationTaskItem[];
   dialogueCollapsedByStep: Record<string, boolean>;
@@ -138,7 +137,6 @@ export const useWorkbenchStore = defineStore("workbench", {
     dialogueSending: false,
     dialogueError: null,
     dialogueNotice: null,
-    selectedDialogueModel: null,
     runtimeModelError: null,
     tasks: [],
     dialogueCollapsedByStep: {},
@@ -156,6 +154,16 @@ export const useWorkbenchStore = defineStore("workbench", {
     },
     dialogueCollapsed: (state) => (stepKey: string) =>
       state.dialogueCollapsedByStep[stepKey] ?? stepKey === "image_candidates",
+    /**
+     * 当前对话模型 = 设置页「模型管理」中被设为当前的对话模型。
+     * 不再用 OpenCode registry 的 default 覆盖用户选择;未加载时返回 null,
+     * 请求不带 model,由服务端按 activeTextModelId 解析,结果一致。
+     */
+    selectedDialogueModel(): AIRuntimeModelSelection | null {
+      const active = (useSettingsStore().settings?.models ?? [])
+        .find((model) => model.kind === "text" && model.active);
+      return active ? { providerId: active.providerId, modelId: active.modelId } : null;
+    },
   },
   actions: {
     toggleDialogueCollapsed(stepKey: string) {
@@ -276,31 +284,30 @@ export const useWorkbenchStore = defineStore("workbench", {
       }
       await this.refresh();
     },
+    /**
+     * 确保模型管理列表已加载(对话模型选择器与当前模型都以它为准)。
+     * 不再从 OpenCode registry 推导当前模型,避免覆盖用户在设置页的选择。
+     */
     async loadRuntimeModels() {
       this.runtimeModelError = null;
+      const settingsStore = useSettingsStore();
       try {
-        const result = await api.listRuntimeModels();
-        const defaultModel = result.items.find((item) => item.default) ?? result.items[0];
-        this.selectedDialogueModel = defaultModel
-          ? {
-              providerId: defaultModel.providerId,
-              modelId: defaultModel.modelId,
-            }
-          : result.defaultModel;
+        if (!settingsStore.settings) {
+          await settingsStore.loadSettings();
+        }
+        if (!settingsStore.settings) {
+          this.runtimeModelError = settingsStore.error ?? "模型列表加载失败";
+        }
       } catch (error) {
         this.runtimeModelError = error instanceof Error ? error.message : "模型列表加载失败";
       }
     },
-    /** 对话面板快捷切换模型:持久化选中(activate)+ 更新运行时选择,后续消息立即生效。 */
+    /** 对话面板快捷切换模型:持久化选中(activate),selectedDialogueModel getter 随之更新。 */
     async selectDialogueModel(model: ManagedModelItem) {
       const settingsStore = useSettingsStore();
       if (!model.active) {
         await settingsStore.activateManagedModel(model.id);
       }
-      this.selectedDialogueModel = {
-        providerId: model.providerId,
-        modelId: model.modelId,
-      };
     },
     applyChapterUpdate(chapter: ChapterDetail, chapters: ChapterListItem[] | null = null) {
       if (!this.snapshot) {

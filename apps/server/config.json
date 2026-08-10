@@ -12,6 +12,19 @@
           "name": "grok-4.5"
         }
       }
+    },
+    "airoaming_probe": {
+      "name": "probe",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://example.invalid/v1"
+      },
+      "models": {
+        "probe-model": {
+          "name": "probe-model"
+        }
+      }
     }
-  }
+  },
+  "$schema": "https://opencode.ai/config.json"
 }

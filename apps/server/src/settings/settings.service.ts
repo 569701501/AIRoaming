@@ -407,19 +407,9 @@ export class SettingsService implements OnModuleInit {
     let keyFingerprint: string | null = null;
     const apiKey = input.apiKey?.trim();
     if (apiKey) {
-      if (this.prismaService?.isDatabaseMode()) {
-        // DB 模式不走 SecretStore(Linux 不可用),直接内存持有 + fingerprint 持久化。
-        keyFingerprint = fingerprintSecret(SecretString.from(apiKey));
-        this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
-      } else {
-        const metadata = await this.requireSecretStore().put({
-          credentialId: this.managedModelCredentialId(kind, id),
-          secret: SecretString.from(apiKey),
-        });
-        secretRef = metadata.secretRef;
-        keyFingerprint = metadata.fingerprint;
-        this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
-      }
+      const stored = await this.persistManagedModelSecret(kind, id, apiKey);
+      secretRef = stored.secretRef;
+      keyFingerprint = stored.keyFingerprint;
     }
     const model: StoredManagedModel = {
       id,
@@ -462,36 +452,18 @@ export class SettingsService implements OnModuleInit {
     let keyFingerprint = model.keyFingerprint;
     const apiKeyInput = input.apiKey?.trim();
     const shouldClearApiKey = input.clearApiKey === true && !apiKeyInput;
-    const isDb = this.prismaService?.isDatabaseMode() ?? false;
     if (shouldClearApiKey) {
-      if (isDb) {
-        if (model.keyFingerprint) {
-          keyFingerprint = null;
-          secretRef = null;
-          this.runtimeManagedModelSecrets.delete(model.id);
-        }
-      } else if (model.secretRef) {
-        await this.requireSecretStore().delete(credentialId);
+      if (model.secretRef || model.keyFingerprint) {
+        await this.requireSecretStore().delete(credentialId).catch(() => undefined);
         secretRef = null;
         keyFingerprint = null;
         this.runtimeManagedModelSecrets.delete(model.id);
       }
     }
     if (apiKeyInput) {
-      if (isDb) {
-        // DB 模式不走 SecretStore,直接内存持有。
-        keyFingerprint = fingerprintSecret(SecretString.from(apiKeyInput));
-        secretRef = null;
-        this.runtimeManagedModelSecrets.set(model.id, SecretString.from(apiKeyInput));
-      } else {
-        const metadata = await this.requireSecretStore().put({
-          credentialId,
-          secret: SecretString.from(apiKeyInput),
-        });
-        secretRef = metadata.secretRef;
-        keyFingerprint = metadata.fingerprint;
-        this.runtimeManagedModelSecrets.set(model.id, SecretString.from(apiKeyInput));
-      }
+      const stored = await this.persistManagedModelSecret(model.kind, model.id, apiKeyInput);
+      secretRef = stored.secretRef;
+      keyFingerprint = stored.keyFingerprint;
     }
     return {
       ...current,
@@ -528,10 +500,11 @@ export class SettingsService implements OnModuleInit {
         await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
         await database.providerConfig.delete({ where: { id: provider.id } });
       }
-      // DB 模式清理运行时内存中的密钥
+      // 清理运行时内存与本机存储中的密钥
+      await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
       this.runtimeManagedModelSecrets.delete(model.id);
-    } else if (model.secretRef) {
-      await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id));
+    } else if (model.secretRef || model.keyFingerprint) {
+      await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
       this.runtimeManagedModelSecrets.delete(model.id);
     }
     return {
@@ -802,30 +775,45 @@ export class SettingsService implements OnModuleInit {
       }
       provider.apiKey = undefined;
       if (provider.secretRef) {
-        const secret = this.runtimeImageSecrets.get(credentialId) ?? await this.requireSecretStore().get(credentialId);
-        if (provider.keyFingerprint && fingerprintSecret(secret) !== provider.keyFingerprint) {
-          throw new SecretStoreError("SECRET_STORE_ENTRY_MISSING");
+        try {
+          const secret = this.runtimeImageSecrets.get(credentialId) ?? await this.requireSecretStore().get(credentialId);
+          if (provider.keyFingerprint && fingerprintSecret(secret) !== provider.keyFingerprint) {
+            // 指纹不匹配:当作未配置,不阻断启动。
+            this.runtimeImageSecrets.delete(credentialId);
+            continue;
+          }
+          this.runtimeImageSecrets.set(credentialId, secret);
+        } catch (error) {
+          if (error instanceof SecretStoreError) {
+            // 固定槽位的 secretRef 可能由模型管理写入(credentialId 为 managed_image_*,
+            // 与槽位的 image_*_* 不同),取不到时当作未配置,不能因此打挂启动;
+            // 该模型的运行时凭证由下方的模型管理恢复循环按自身 credentialId 补齐。
+            this.runtimeImageSecrets.delete(credentialId);
+            continue;
+          }
+          throw error;
         }
-        this.runtimeImageSecrets.set(credentialId, secret);
       } else {
         this.runtimeImageSecrets.delete(credentialId);
       }
     }
 
-    // 模型管理凭证预加载:带 secretRef 的模型在运行时切换时直接可用。
-    // DB 模式的模型行与固定槽位共享 providerConfig/credentialMetadata(id 与 managed 凭证不匹配),跳过加载。
-    if (!this.prismaService?.isDatabaseMode()) {
-      for (const model of settings.models) {
-        if (model.secretRef) {
-          const secret = this.runtimeManagedModelSecrets.get(model.id)
-            ?? await this.requireSecretStore().get(this.managedModelCredentialId(model.kind, model.id));
-          if (model.keyFingerprint && fingerprintSecret(secret) !== model.keyFingerprint) {
-            throw new SecretStoreError("SECRET_STORE_ENTRY_MISSING");
-          }
-          this.runtimeManagedModelSecrets.set(model.id, secret);
-        } else {
-          this.runtimeManagedModelSecrets.delete(model.id);
-        }
+    // 模型管理凭证预加载:从 SecretStore 按稳定 credentialId 恢复,使重启后仍能直接调用。
+    // DB 模式下 text 行不存 secretRef(受 ck_credential_metadata_text_owner_shape 约束),
+    // 因此只要有 keyFingerprint 就尝试恢复。恢复失败不报错,只当作未配置处理。
+    for (const model of settings.models) {
+      if (!model.secretRef && !model.keyFingerprint) {
+        this.runtimeManagedModelSecrets.delete(model.id);
+        continue;
+      }
+      if (this.runtimeManagedModelSecrets.has(model.id)) {
+        continue;
+      }
+      const recovered = await this.recoverManagedModelSecret(model);
+      if (recovered) {
+        this.runtimeManagedModelSecrets.set(model.id, recovered);
+      } else {
+        this.runtimeManagedModelSecrets.delete(model.id);
       }
     }
 
@@ -914,8 +902,8 @@ export class SettingsService implements OnModuleInit {
           ? "runware"
           : "openai";
     // 模型管理列表 = provider_configs 全部行(runtimeKind=text|image)。
-    // 说明:DB 模式不持久化 active 指针(activeTextModelId/activeImageModelId),
-    // 读取时与当前 aiKey/activeImageProvider 对齐(保证运行时与设置一致),重启后保持。
+    // active 指针持久化在 app_preferences:default_text_provider_id / active_image_provider_id
+    // 直接指向 active managed model 所在的 provider 行,因此重启后与设置页选择一致。
     const models: StoredManagedModel[] = providers.map((provider) => ({
       id: `model_${provider.providerId}`,
       kind: provider.runtimeKind === "text" ? "text" : "image",
@@ -954,6 +942,19 @@ export class SettingsService implements OnModuleInit {
   private async writeDatabaseSettings(settings: StoredAppSettings): Promise<void> {
     const database = this.prismaService?.database();
     if (!database) throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
+    // 固定槽位与模型管理共享 provider 行(providerId 相同的模型行在 models 循环也写同一行):
+    // 模型管理刚写入新凭证时,必须先把新值同步回固定槽位,否则固定槽位循环会用从 DB
+    // 读出的旧 fingerprint/secretRef 把新凭证覆盖掉。
+    // 反过来,凭证由固定槽位接口写入时(SEC-08)模型行是空值,此时绝不能反向同步,
+    // 否则会把槽位刚写入的凭证清成 null。因此只在模型行确实有凭证时才同步。
+    for (const model of settings.models) {
+      if (model.kind !== "image") continue;
+      if (!model.secretRef && !model.keyFingerprint) continue;
+      const slot = this.getStoredImageProvider(settings, this.inferImageProviderType(model.providerId));
+      if (slot.providerId !== model.providerId) continue;
+      slot.secretRef = model.secretRef;
+      slot.keyFingerprint = model.keyFingerprint;
+    }
     const providers = [
       { type: "text" as const, settings: settings.aiKey, owner: "opencode" as const },
       { type: "image" as const, settings: settings.openaiImageProvider, owner: "image_secret_store" as const },
@@ -961,6 +962,10 @@ export class SettingsService implements OnModuleInit {
       { type: "image" as const, settings: settings.grokImageProvider, owner: "image_secret_store" as const },
       { type: "image" as const, settings: settings.runwareImageProvider, owner: "image_secret_store" as const },
     ];
+    // active 指针持久化载体:app_preferences 的 provider 外键直接指向 active managed model 所在的 provider 行。
+    const activeTextModel = settings.models.find((model) => model.kind === "text" && model.id === settings.activeTextModelId) ?? null;
+    const activeImageModel = settings.models.find((model) => model.kind === "image" && model.id === settings.activeImageModelId) ?? null;
+    const providerRowIds = new Map<string, string>();
     await this.prismaService!.runBusinessTransaction(async (tx) => {
       const ids = new Map<string, string>();
       for (const item of providers) {
@@ -982,42 +987,45 @@ export class SettingsService implements OnModuleInit {
           },
         });
         ids.set(item.settings.providerId, provider.id);
+        providerRowIds.set(item.settings.providerId, provider.id);
+        // configured 判定与下方 models 循环保持一致:有 secretRef 或 keyFingerprint 即视为已配置。
+        // image 行在 DB 模式下可能只有 fingerprint(secretRef 由模型管理共享写入),不能只认 secretRef。
+        const slotConfigured = Boolean(item.settings.secretRef || item.settings.keyFingerprint);
         await tx.credentialMetadata.upsert({
           where: { providerConfigId: provider.id },
           create: {
             providerConfigId: provider.id,
             owner: item.owner,
-            status: item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint) ? "configured" : "unconfigured",
+            status: slotConfigured ? "configured" : "unconfigured",
             secretRef: item.type === "image" ? item.settings.secretRef ?? null : null,
             fingerprint: item.settings.keyFingerprint ?? null,
-            configured: Boolean(item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint)),
+            configured: slotConfigured,
           },
           update: {
-            status: item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint) ? "configured" : "unconfigured",
+            status: slotConfigured ? "configured" : "unconfigured",
             secretRef: item.type === "image" ? item.settings.secretRef ?? null : null,
             fingerprint: item.settings.keyFingerprint ?? null,
-            configured: Boolean(item.settings.secretRef || (item.type === "text" && item.settings.keyFingerprint)),
+            configured: slotConfigured,
           },
         });
       }
-      const preferenceData = {
-        theme: settings.appearance.theme,
-        activeImageProviderId: ids.get(this.getStoredImageProvider(settings, settings.activeImageProvider).providerId) ?? null,
-        defaultTextProviderId: ids.get(settings.aiKey.providerId) ?? null,
-        defaultTextModelId: settings.aiKey.modelId,
-      };
-      const existingPreference = await tx.appPreference.findUnique({ where: { id: "primary" } });
-      if (existingPreference) {
-        await tx.appPreference.update({ where: { id: "primary" }, data: preferenceData });
-      } else {
-        await tx.appPreference.create({ data: { id: "primary", ...preferenceData } });
-      }
-      // 模型管理列表落库:providerId 与固定槽位(aiKey/4 个图片槽位)重复的行由固定槽位维护,跳过。
+      // 模型管理列表落库。
+      // text 固定槽位(aiKey)的凭证由 OpenCode 管理,同 providerId 的 text 模型行跳过,由固定槽位维护;
+      // image 固定槽位与模型管理共享 provider 行:该行的 credential 必须取「固定槽位值 ⊕ 模型值」
+      // 的合并——凭证可能由固定槽位接口(SEC-08)或模型管理编辑(本次修复)任意一侧写入,
+      // 任一侧有值即视为已配置,不能用模型行的空值把固定槽位刚写入的凭证覆盖掉(反之亦然)。
       const fixedProviderIds = new Set(providers.map((item) => item.settings.providerId));
       for (const model of settings.models) {
-        if (fixedProviderIds.has(model.providerId)) {
+        if (fixedProviderIds.has(model.providerId) && model.kind === "text") {
           continue;
         }
+        // 共享槽位行时合并两侧凭证;模型侧优先(更新更可能是用户本次的意图),槽位侧兜底。
+        const sharedSlot = model.kind === "image"
+          ? this.getStoredImageProvider(settings, this.inferImageProviderType(model.providerId))
+          : null;
+        const mergedSecretRef = model.kind === "text" ? null : (model.secretRef ?? (sharedSlot?.providerId === model.providerId ? sharedSlot.secretRef : null) ?? null);
+        const mergedFingerprint = model.keyFingerprint ?? (sharedSlot?.providerId === model.providerId ? sharedSlot.keyFingerprint : null) ?? null;
+        const mergedConfigured = Boolean(mergedSecretRef || mergedFingerprint);
         const provider = await tx.providerConfig.upsert({
           where: { providerId: model.providerId },
           create: {
@@ -1026,15 +1034,16 @@ export class SettingsService implements OnModuleInit {
             displayName: model.displayName,
             modelId: model.modelId,
             baseUrl: model.baseUrl,
-            enabled: model.kind === "text" || Boolean(model.secretRef),
+            enabled: model.kind === "text" || mergedConfigured,
           },
           update: {
             displayName: model.displayName,
             modelId: model.modelId,
             baseUrl: model.baseUrl,
-            enabled: model.kind === "text" || Boolean(model.secretRef),
+            enabled: model.kind === "text" || mergedConfigured,
           },
         });
+        providerRowIds.set(model.providerId, provider.id);
         await tx.credentialMetadata.upsert({
           where: { providerConfigId: provider.id },
           create: {
@@ -1042,18 +1051,37 @@ export class SettingsService implements OnModuleInit {
             // G1 trigger 白名单:text 行只允许 owner=opencode,image 行只允许 image_secret_store/environment。
             // CHECK ck_credential_metadata_text_owner_shape:text 行 configured=1 时 secret_ref 必须为 NULL。
             owner: model.kind === "text" ? "opencode" : "image_secret_store",
-            status: (model.secretRef || model.keyFingerprint) ? "configured" : "unconfigured",
-            secretRef: model.kind === "text" ? null : (model.secretRef ?? null),
-            fingerprint: model.keyFingerprint ?? null,
-            configured: Boolean(model.secretRef || model.keyFingerprint),
+            status: mergedConfigured ? "configured" : "unconfigured",
+            secretRef: mergedSecretRef,
+            fingerprint: mergedFingerprint,
+            configured: mergedConfigured,
           },
           update: {
-            status: (model.secretRef || model.keyFingerprint) ? "configured" : "unconfigured",
-            secretRef: model.kind === "text" ? null : (model.secretRef ?? null),
-            fingerprint: model.keyFingerprint ?? null,
-            configured: Boolean(model.secretRef || model.keyFingerprint),
+            status: mergedConfigured ? "configured" : "unconfigured",
+            secretRef: mergedSecretRef,
+            fingerprint: mergedFingerprint,
+            configured: mergedConfigured,
           },
         });
+      }
+      // preference 写在模型行之后:active 指针可能指向本次才新建的模型 provider 行。
+      const activeTextProviderRowId = (activeTextModel && providerRowIds.get(activeTextModel.providerId))
+        ?? ids.get(settings.aiKey.providerId)
+        ?? null;
+      const activeImageProviderRowId = (activeImageModel && providerRowIds.get(activeImageModel.providerId))
+        ?? ids.get(this.getStoredImageProvider(settings, settings.activeImageProvider).providerId)
+        ?? null;
+      const preferenceData = {
+        theme: settings.appearance.theme,
+        activeImageProviderId: activeImageProviderRowId,
+        defaultTextProviderId: activeTextProviderRowId,
+        defaultTextModelId: activeTextModel?.modelId ?? settings.aiKey.modelId,
+      };
+      const existingPreference = await tx.appPreference.findUnique({ where: { id: "primary" } });
+      if (existingPreference) {
+        await tx.appPreference.update({ where: { id: "primary" }, data: preferenceData });
+      } else {
+        await tx.appPreference.create({ data: { id: "primary", ...preferenceData } });
       }
     });
   }
@@ -1241,8 +1269,57 @@ export class SettingsService implements OnModuleInit {
     return fallback && candidates.some((model) => model.id === fallback) ? fallback : (candidates[0]?.id ?? null);
   }
 
+  /** 从 SecretStore 恢复一个模型密钥;条目缺失、存储不可用或指纹不匹配时返回 null。 */
+  private async recoverManagedModelSecret(model: StoredManagedModel): Promise<SecretString | null> {
+    if (!this.secretStore) {
+      return null;
+    }
+    try {
+      const secret = await this.secretStore.get(this.managedModelCredentialId(model.kind, model.id));
+      if (model.keyFingerprint && fingerprintSecret(secret) !== model.keyFingerprint) {
+        return null;
+      }
+      return secret;
+    } catch (error) {
+      if (error instanceof SecretStoreError) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   private managedModelCredentialId(kind: ManagedModelKind, id: string): string {
     return `managed_${kind}_${id}`;
+  }
+
+  /**
+   * 模型密钥写入:明文只进 SecretStore(macOS Keychain / 本机 0600 文件),内存同步持有一份供运行时使用。
+   * DB 模式下 text 行的 secret_ref 必须保持 NULL(ck_credential_metadata_text_owner_shape),
+   * 因此不回传 secretRef,恢复时改用稳定 credentialId 寻址。
+   */
+  private async persistManagedModelSecret(
+    kind: ManagedModelKind,
+    id: string,
+    apiKey: string,
+  ): Promise<{ secretRef: string | null; keyFingerprint: string | null }> {
+    const secret = SecretString.from(apiKey);
+    const credentialId = this.managedModelCredentialId(kind, id);
+    const isDb = this.prismaService?.isDatabaseMode() ?? false;
+    try {
+      const metadata = await this.requireSecretStore().put({ credentialId, secret });
+      this.runtimeManagedModelSecrets.set(id, secret);
+      return {
+        secretRef: isDb && kind === "text" ? null : metadata.secretRef,
+        keyFingerprint: metadata.fingerprint,
+      };
+    } catch (error) {
+      if (!(error instanceof SecretStoreError)) {
+        throw error;
+      }
+      // 存储不可用时降级为仅本进程可用(重启后丢失),优于直接拒绝保存。
+      this.runtimeManagedModelSecrets.set(id, secret);
+      return { secretRef: null, keyFingerprint: fingerprintSecret(secret) };
+    }
   }
 
   private defaultSettings(): StoredAppSettings {
@@ -1359,14 +1436,30 @@ export class SettingsService implements OnModuleInit {
       providerId: model.providerId,
       modelId: model.modelId,
       baseUrl: model.baseUrl,
-      // 对话模型凭证为 OpenCode-owned(fingerprint 存在、secretRef 恒 null);
-      // 图片模型凭证在 SecretStore(secretRef)。任一存在即视为已配置。
-      configured: Boolean(model.secretRef || model.keyFingerprint),
+      // configured = 运行时真的能为这个模型解析出密钥(自有凭证或共享固定槽位凭证)。
+      // 不能只看 fingerprint:旧数据可能只有指纹而明文已丢失,
+      // 那样页面会显示「已配置」但一调用就失败。
+      configured: this.hasUsableManagedModelCredential(model, settings),
       keyFingerprint: model.keyFingerprint,
       active: model.id === (model.kind === "text" ? settings.activeTextModelId : settings.activeImageModelId),
       createdAt: model.createdAt,
       updatedAt: model.updatedAt,
     };
+  }
+
+  /** 与 getRuntimeAIKeySettings/getRuntimeImageProviderSettings 的凭证解析顺序保持一致。 */
+  private hasUsableManagedModelCredential(model: StoredManagedModel, settings: StoredAppSettings): boolean {
+    if (this.runtimeManagedModelSecrets.has(model.id)) {
+      return true;
+    }
+    if (model.kind === "text") {
+      return model.providerId === settings.aiKey.providerId
+        && Boolean(this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime());
+    }
+    const type = this.inferImageProviderType(model.providerId);
+    const slot = this.getStoredImageProvider(settings, type);
+    return model.providerId === slot.providerId
+      && this.runtimeImageSecrets.has(this.credentialIdForImageProvider(type, slot.providerId));
   }
 
   private toPublicImageProvider(settings: StoredAIKeySettings): AppImageProviderSettings {

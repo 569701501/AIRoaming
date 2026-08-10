@@ -1,7 +1,7 @@
 import { BadGatewayException, Inject, Injectable, OnModuleDestroy } from "@nestjs/common";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import * as path from "node:path";
 import type { AIRuntimeModelItem, AIRuntimeModelSelection } from "@airoaming/shared";
@@ -141,6 +141,7 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
     if (this.child) {
       this.child.kill();
       this.child = null;
+      await this.clearServerPidFile();
     }
   }
 
@@ -591,13 +592,94 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       },
     });
     this.child = child;
+    void this.writeServerPidFile(child.pid ?? null);
     child.once("exit", () => {
       if (this.child === child) {
         this.child = null;
         this.readyPromise = null;
         this.managedProviderSignature = null;
+        void this.clearServerPidFile();
       }
     });
+  }
+
+  /**
+   * 受控 OpenCode 的 pid 记录文件。
+   * 后端进程被强杀或热重载时 onModuleDestroy 不会执行,子进程会被 init 收养并继续占用端口,
+   * 且仍然带着旧的 OPENCODE_CONFIG_CONTENT(新加的模型 provider 不在里面)。
+   * 记录 pid 才能在下一个生命周期里认领并结束它。
+   */
+  private getServerPidFilePath(): string {
+    const dataRoot = process.env.AIROAMING_DATA_ROOT?.trim() || path.join(homedir(), ".airoaming", "data");
+    return path.join(dataRoot, "opencode-runtime", `serve-${this.port}.pid`);
+  }
+
+  private async writeServerPidFile(pid: number | null): Promise<void> {
+    if (!pid) {
+      return;
+    }
+    try {
+      const filePath = this.getServerPidFilePath();
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, `${pid}\n`, "utf8");
+    } catch {
+      // pid 记录只是自愈手段,失败不影响本次运行。
+    }
+  }
+
+  private async clearServerPidFile(): Promise<void> {
+    await rm(this.getServerPidFilePath(), { force: true }).catch(() => undefined);
+  }
+
+  /** 结束上一个生命周期遗留的受控 OpenCode(仅限本服务自己启动过、且确实是 opencode serve 的进程)。 */
+  private async terminateOrphanedServer(): Promise<void> {
+    let pid: number;
+    try {
+      pid = Number((await readFile(this.getServerPidFilePath(), "utf8")).trim());
+    } catch {
+      return;
+    }
+    if (!Number.isInteger(pid) || pid <= 1 || pid === process.pid) {
+      return;
+    }
+    try {
+      process.kill(pid, 0);
+    } catch {
+      await this.clearServerPidFile();
+      return;
+    }
+    // pid 可能已被复用:能读到 cmdline 时必须确认仍是 opencode serve 才动手。
+    try {
+      const cmdline = await readFile(`/proc/${pid}/cmdline`, "utf8");
+      if (!cmdline.includes("opencode") || !cmdline.includes("serve")) {
+        await this.clearServerPidFile();
+        return;
+      }
+    } catch {
+      // 非 Linux 或进程已退出:回退到只信任 pid 文件。
+    }
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      await this.clearServerPidFile();
+      return;
+    }
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await this.delay(100);
+      try {
+        process.kill(pid, 0);
+      } catch {
+        await this.clearServerPidFile();
+        return;
+      }
+    }
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // 已经退出
+    }
+    await this.delay(200);
+    await this.clearServerPidFile();
   }
 
   private async waitUntilReady(): Promise<void> {
@@ -860,12 +942,12 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
       return binding;
     }
 
-    if (this.child && this.managedProviderSignature !== binding.signature) {
+    if (this.managedProviderSignature !== binding.signature) {
       await this.restartManagedServer();
     }
 
     let config = await this.requestJson<OpenCodeConfigResponse>("/config", { method: "GET" });
-    if (!this.isManagedProviderRegistered(config, binding) && this.child) {
+    if (!this.isManagedProviderRegistered(config, binding)) {
       await this.restartManagedServer();
       config = await this.requestJson<OpenCodeConfigResponse>("/config", { method: "GET" });
     }
@@ -893,20 +975,29 @@ export class OpenCodeRuntimeService implements OnModuleDestroy {
   }
 
   private async restartManagedServer(): Promise<void> {
-    const child = this.child;
-    if (!child) {
+    if (this.externalBaseUrl || !this.autoStart) {
+      // 外部 OpenCode 实例由外部自行管理,不由本服务重启。
       return;
     }
 
-    this.child = null;
+    const child = this.child;
+    if (child) {
+      this.child = null;
+      child.kill();
+      await Promise.race([
+        new Promise<void>((resolve) => child.once("exit", () => resolve())),
+        this.delay(3000),
+      ]);
+    } else {
+      // 本进程没有子进程,但端口上可能残留上一个后端生命周期启动的 OpenCode。
+      // 它带的是旧的 OPENCODE_CONFIG_CONTENT,不含新添加的模型 provider,
+      // 不结束它新模型就永远报 OPENCODE_PROVIDER_NOT_REGISTERED。
+      await this.terminateOrphanedServer();
+    }
+
     this.readyPromise = null;
     this.syncedAuthSignature = null;
     this.managedProviderSignature = null;
-    child.kill();
-    await Promise.race([
-      new Promise<void>((resolve) => child.once("exit", () => resolve())),
-      this.delay(3000),
-    ]);
     this.startServer();
     await this.waitUntilReady();
   }

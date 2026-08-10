@@ -69,7 +69,9 @@ export class CutoverCredentialVerifier {
 
   async probe(): Promise<{ adapter: "keychain" | "fake"; available: boolean }> {
     const health = await this.store.probe();
-    if (health.adapter === "unavailable") return { adapter: "keychain", available: false };
+    // cutover 只承认 keychain(生产)与 fake(隔离测试)两种 adapter;
+    // 其余(file/unavailable)一律视为不可用,不降低切换安全边界。
+    if (health.adapter !== "keychain" && health.adapter !== "fake") return { adapter: "keychain", available: false };
     return { adapter: health.adapter, available: health.available };
   }
 

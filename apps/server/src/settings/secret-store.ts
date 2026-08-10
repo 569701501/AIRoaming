@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import * as path from "node:path";
 import { inspect } from "node:util";
 
@@ -18,7 +19,7 @@ export interface SecretMetadata {
 
 export interface CredentialStoreHealth {
   available: boolean;
-  adapter: "fake" | "keychain" | "unavailable";
+  adapter: "fake" | "file" | "keychain" | "unavailable";
   reason: string | null;
 }
 
@@ -277,10 +278,12 @@ export class UnavailableSecretStore implements SecretStore {
 }
 
 /**
- * Test-only store. It deliberately uses a private 0600 file so tests can prove
- * restart/recovery semantics, but production never selects it implicitly.
+ * File-backed secret store. Secrets live in 0600 files under a private 0700
+ * root, which is the only durable option on platforms without a system
+ * keychain (Linux/Windows dev boxes). Production on macOS still prefers
+ * MacOSKeychainSecretStore.
  */
-export class FakeSecretStore implements SecretStore {
+export class FileSecretStore implements SecretStore {
   constructor(private readonly root: string) {}
 
   async put(input: { credentialId: string; secret: SecretString }): Promise<SecretMetadata> {
@@ -326,14 +329,18 @@ export class FakeSecretStore implements SecretStore {
   async probe(): Promise<CredentialStoreHealth> {
     try {
       await this.ensureRoot();
-      return { available: true, adapter: "fake", reason: null };
+      return { available: true, adapter: this.adapterName, reason: null };
     } catch (error) {
       return {
         available: false,
-        adapter: "fake",
+        adapter: this.adapterName,
         reason: error instanceof SecretStoreError ? error.code : "SECRET_STORE_ROOT_UNSAFE",
       };
     }
+  }
+
+  protected get adapterName(): CredentialStoreHealth["adapter"] {
+    return "file";
   }
 
   private async resolveSecretPath(credentialId: string, createRoot: boolean): Promise<string> {
@@ -373,7 +380,7 @@ export class FakeSecretStore implements SecretStore {
   }
 
   private secretRef(credentialId: string): string {
-    // Keep fake metadata wire-compatible with the production DB contract. The
+    // Keep metadata wire-compatible with the production DB contract. The
     // file-backed adapter resolves by credentialId; this opaque ref is only
     // persisted metadata and must never contain the secret itself.
     void credentialId;
@@ -383,6 +390,25 @@ export class FakeSecretStore implements SecretStore {
   private isNotFound(error: unknown): boolean {
     return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT");
   }
+}
+
+/**
+ * Test-only store. Same on-disk semantics as FileSecretStore but reported as
+ * the `fake` adapter, so production entry points can keep refusing it.
+ */
+export class FakeSecretStore extends FileSecretStore {
+  protected override get adapterName(): CredentialStoreHealth["adapter"] {
+    return "fake";
+  }
+}
+
+/** 非 macOS 平台的本机密钥根目录:默认 <dataRoot>/secrets,0700。 */
+function resolveFileSecretStoreRoot(): string {
+  const explicit = process.env.AIROAMING_SECRET_STORE_ROOT?.trim();
+  if (explicit) return path.resolve(explicit);
+  const dataRoot = process.env.AIROAMING_DATA_ROOT?.trim();
+  if (dataRoot) return path.resolve(dataRoot, "secrets");
+  return path.resolve(homedir(), ".airoaming", "data", "secrets");
 }
 
 @Injectable()
@@ -395,7 +421,9 @@ export class SecretStoreService implements SecretStore {
     } else if (process.platform === "darwin") {
       this.delegate = new MacOSKeychainSecretStore();
     } else {
-      this.delegate = new UnavailableSecretStore();
+      // Linux/Windows 没有系统 keychain:退回本机私有文件存储,而不是彻底不可用,
+      // 否则模型管理里配置的密钥重启后全部丢失。
+      this.delegate = new FileSecretStore(resolveFileSecretStoreRoot());
     }
   }
 

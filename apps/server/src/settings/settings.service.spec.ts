@@ -634,7 +634,7 @@ describe("D2-A2 managed models CRUD", () => {
     });
   });
 
-  it("M-08 DB mode rejects model credentials and fixed-slot deletion", async () => {
+  it("M-08 DB mode persists model credentials and active pointers, and refuses fixed-slot deletion", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-models-db-"));
     const secretRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-models-db-secret-"));
     roots.push(workspaceRoot, secretRoot);
@@ -652,14 +652,29 @@ describe("D2-A2 managed models CRUD", () => {
       await prisma.onModuleInit();
       const service = createService(workspaceRoot, store, prisma);
       await service.onModuleInit();
-      await expect(service.createManagedModel({
+      // DB 模式下模型可以带凭证:明文进 SecretStore,text 行不写 secret_ref(G1 CHECK)。
+      const withSecret = await service.createManagedModel({
         kind: "text",
         displayName: "带密钥",
         providerId: "secret_text",
         modelId: "m",
         baseUrl: "https://secret.example/v1",
         apiKey: "db-mode-secret",
-      })).rejects.toThrow("MANAGED_MODEL_SECRET_UNSUPPORTED_IN_DB");
+      });
+      const secretModel = withSecret.models.find((model) => model.providerId === "secret_text")!;
+      expect(secretModel.configured).toBe(true);
+      await service.activateManagedModel(secretModel.id);
+      expect(service.getRuntimeAIKeySettings()).toMatchObject({
+        providerId: "secret_text",
+        modelId: "m",
+        apiKey: "db-mode-secret",
+      });
+      // active 指针与密钥都必须跨重启存活。
+      const restarted = createService(workspaceRoot, new FakeSecretStore(secretRoot), prisma);
+      await restarted.onModuleInit();
+      const reloaded = await restarted.getSettings();
+      expect(reloaded.models.find((model) => model.id === secretModel.id)).toMatchObject({ active: true, configured: true });
+      expect(restarted.getRuntimeAIKeySettings()).toMatchObject({ providerId: "secret_text", apiKey: "db-mode-secret" });
       const created = await service.createManagedModel({
         kind: "text",
         displayName: "自定义文本",
@@ -699,6 +714,60 @@ describe("D2-A2 managed models CRUD", () => {
       const newText = createdWithLegacy.models.find((model) => model.providerId === "new_text")!;
       await service.activateManagedModel(newText.id);
       expect((await service.getSettings()).models.some((model) => model.id === newText.id)).toBe(true);
+    } finally {
+      await prisma?.onModuleDestroy();
+      if (previousMode === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE;
+      else process.env.AIROAMING_PERSISTENCE_MODE = previousMode;
+      if (previousDatabase === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = previousDatabase;
+    }
+  }, 20_000);
+
+  it("M-12 DB 模式编辑与固定槽位同 providerId 的图片模型密钥,必须落库并跨重启恢复", async () => {
+    // 回归:2026-08-10 用户编辑 Grok 图片模型填 key 后仍提示「未配置密钥」。
+    // 根因是 writeDatabaseSettings 的 models 循环跳过固定槽位 providerId,
+    // 固定槽位循环又用 DB 旧值回写,新 fingerprint/secretRef 永远落不了库。
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-models-db-"));
+    const secretRoot = await mkdtemp(path.join(os.tmpdir(), "airoaming-models-db-secret-"));
+    roots.push(workspaceRoot, secretRoot);
+    const databaseUrl = `file:${path.join(workspaceRoot, "models.db")}`;
+    const previousMode = process.env.AIROAMING_PERSISTENCE_MODE;
+    const previousDatabase = process.env.DATABASE_URL;
+    process.env.AIROAMING_PERSISTENCE_MODE = "db";
+    process.env.DATABASE_URL = databaseUrl;
+    let prisma: PrismaService | undefined;
+    try {
+      const deployed = await deployMigrations(databaseUrl);
+      expect(deployed.code, `${deployed.stdout}\n${deployed.stderr}`).toBe(0);
+      prisma = new PrismaService();
+      await prisma.onModuleInit();
+      const service = createService(workspaceRoot, new FakeSecretStore(secretRoot), prisma);
+      await service.onModuleInit();
+      // 预置 Grok 图片模型与固定槽位 grok_image 共享 provider 行。编辑补 key。
+      const updated = await service.updateManagedModel("model_grok_image", { apiKey: "grok-image-key-1" });
+      const edited = updated.models.find((model) => model.id === "model_grok_image")!;
+      expect(edited.configured).toBe(true);
+      // 关键断言:DB 里该行的 fingerprint/secretRef/configured 必须是新值,不是固定槽位旧值。
+      const row = await prisma.database().providerConfig.findUniqueOrThrow({
+        where: { providerId: "grok_image" },
+        include: { credentialMetadataByProviderConfig: true },
+      });
+      expect(row.credentialMetadataByProviderConfig).toMatchObject({
+        status: "configured",
+        configured: true,
+      });
+      expect(row.credentialMetadataByProviderConfig?.fingerprint).toMatch(/^sha256:/);
+      expect(row.credentialMetadataByProviderConfig?.secretRef).toBeTruthy();
+      // 跨重启:新服务实例从 DB fingerprint + SecretStore 恢复,运行时仍能拿到 key。
+      const restarted = createService(workspaceRoot, new FakeSecretStore(secretRoot), prisma);
+      await restarted.onModuleInit();
+      const reloaded = await restarted.getSettings();
+      expect(reloaded.models.find((model) => model.id === "model_grok_image")).toMatchObject({ configured: true });
+      await restarted.activateManagedModel("model_grok_image");
+      expect(restarted.getRuntimeImageProviderSettings()).toMatchObject({
+        providerId: "grok_image",
+        apiKey: "grok-image-key-1",
+      });
     } finally {
       await prisma?.onModuleDestroy();
       if (previousMode === undefined) delete process.env.AIROAMING_PERSISTENCE_MODE;
