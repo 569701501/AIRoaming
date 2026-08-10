@@ -1100,11 +1100,20 @@ export class SettingsService implements OnModuleInit {
             || preference?.defaultTextProviderId === dbProvider.id;
 
           if (!isReferenced) {
-            // 先删除 credential_metadata（FK 约束）
+            // DELETE trigger 要求删除前必须先清空凭证（status='unconfigured', configured=0, fingerprint=NULL, secretRef=NULL）
+            await tx.credentialMetadata.updateMany({
+              where: { providerConfigId: dbProvider.id },
+              data: {
+                status: 'unconfigured',
+                configured: false,
+                fingerprint: null,
+                secretRef: null,
+              }
+            });
+            // 现在可以安全删除了
             await tx.credentialMetadata.deleteMany({
               where: { providerConfigId: dbProvider.id }
             });
-            // 再删除 provider_config
             await tx.providerConfig.delete({
               where: { id: dbProvider.id }
             });
