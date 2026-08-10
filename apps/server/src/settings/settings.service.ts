@@ -28,6 +28,7 @@ import {
   SecretString,
   fingerprintSecret,
 } from "./secret-store.js";
+import { CredentialService } from "./credential.service.js";
 
 interface StoredAIKeySettings {
   providerId: string;
@@ -168,39 +169,89 @@ export class SettingsService implements OnModuleInit {
     @Optional() @Inject(MaintenanceCoordinator) private readonly maintenance?: MaintenanceCoordinator,
     @Optional() @Inject(SecretStoreService) private readonly secretStore?: SecretStoreService,
     @Optional() @Inject(PrismaService) private readonly prismaService?: PrismaService,
+    @Optional() @Inject(CredentialService) private readonly credentialService?: CredentialService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     this.settings = await this.readSettings();
+    // 预加载所有凭证到内存
+    await this.loadAllCredentials();
+  }
+
+  private async loadAllCredentials(): Promise<void> {
+    if (!this.credentialService) {
+      return;
+    }
+
+    // 1. 加载 aiKey 凭证
+    if (this.settings.aiKey.keyFingerprint) {
+      try {
+        const secret = await this.credentialService.get('text', this.settings.aiKey.providerId, null);
+        if (secret) {
+          this.runtimeAIKey = secret.reveal();
+        }
+      } catch (error) {
+        // 忽略加载失败
+      }
+    }
+
+    // 2. 加载图片provider凭证
+    const imageProviderTypes: ImageProviderType[] = ['openai', 'doubao', 'grok', 'runware'];
+    for (const type of imageProviderTypes) {
+      const provider = this.getStoredImageProvider(this.settings, type);
+      if (provider.keyFingerprint) {
+        try {
+          const secret = await this.credentialService.get('image', provider.providerId, null);
+          if (secret) {
+            this.runtimeImageSecrets.set(this.credentialIdForImageProvider(type, provider.providerId), secret);
+          }
+        } catch (error) {
+          // 忽略加载失败
+        }
+      }
+    }
+
+    // 3. 加载模型管理凭证
+    for (const model of this.settings.models) {
+      if (model.keyFingerprint) {
+        try {
+          const secret = await this.credentialService.get(model.kind, model.providerId, model.id);
+          if (secret) {
+            this.runtimeManagedModelSecrets.set(model.id, secret);
+          }
+        } catch (error) {
+          // 忽略加载失败
+        }
+      }
+    }
   }
 
   getRuntimeAIKeySettings(): RuntimeAIKeySettings {
     const activeModel = this.resolveActiveTextManagedModel();
     if (activeModel) {
-      // DB 模式 keyFingerprint 替代 secretRef;文件模式走 secretRef。
+      // 2层回退：
+      // 1. 模型自己的凭证
       const managedKey = (activeModel.secretRef || activeModel.keyFingerprint)
         ? this.runtimeManagedModelSecrets.get(activeModel.id)?.reveal() ?? null
         : null;
-      // 与当前 aiKey 同 provider 时复用其凭证(镜像模型/同源中转),其余模型走自身凭证或 OpenCode 原生 auth。
-      const sharedKey = activeModel.providerId === this.settings.aiKey.providerId
-        ? this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime()
-        : null;
+
+      // 2. 全局默认凭证（aiKey）
+      const fallbackKey = managedKey ?? this.runtimeAIKey;
+
       return {
         providerId: activeModel.providerId,
         modelId: activeModel.modelId,
         baseUrl: activeModel.baseUrl,
-        apiKey: managedKey ?? sharedKey,
+        apiKey: fallbackKey,
       };
     }
-    const recoveredSharedKey = this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime();
-    if (!this.runtimeAIKey && recoveredSharedKey) {
-      this.runtimeAIKey = recoveredSharedKey;
-    }
+
+    // 没有选中模型，回退到 aiKey
     return {
       providerId: this.settings.aiKey.providerId,
       modelId: this.settings.aiKey.modelId,
       baseUrl: this.settings.aiKey.baseUrl,
-      apiKey: recoveredSharedKey,
+      apiKey: this.runtimeAIKey,
     };
   }
 
@@ -217,22 +268,27 @@ export class SettingsService implements OnModuleInit {
     const activeModel = this.resolveActiveImageManagedModel();
     if (activeModel) {
       const type = this.inferImageProviderType(activeModel.providerId);
+
+      // 2层回退：
+      // 1. 模型自己的凭证
       const managedKey = (activeModel.secretRef || activeModel.keyFingerprint)
         ? this.runtimeManagedModelSecrets.get(activeModel.id)?.reveal() ?? null
         : null;
-      // 与对应固定槽位同 provider 时复用其凭证(DB 模式模型行共享槽位行凭证)。
+
+      // 2. 全局默认凭证（固定槽位）
       const slot = this.getStoredImageProvider(this.settings, type);
-      const sharedKey = activeModel.providerId === slot.providerId
-        ? this.runtimeImageSecrets.get(this.credentialIdForImageProvider(type, slot.providerId))?.reveal() ?? null
-        : null;
+      const fallbackKey = managedKey ?? this.runtimeImageSecrets.get(this.credentialIdForImageProvider(type, slot.providerId))?.reveal() ?? null;
+
       return {
         type,
         providerId: activeModel.providerId,
         modelId: activeModel.modelId,
         baseUrl: activeModel.baseUrl,
-        apiKey: managedKey ?? sharedKey,
+        apiKey: fallbackKey,
       };
     }
+
+    // 没有选中模型，回退到固定槽位
     const active = this.settings.activeImageProvider;
     const stored = this.getStoredImageProvider(this.settings, active);
     return {
@@ -266,33 +322,6 @@ export class SettingsService implements OnModuleInit {
       return "runware";
     }
     return "openai";
-  }
-
-  private findMatchingImageCredentialForTextRuntime(): string | null {
-    const textSettings = this.settings.aiKey;
-    if (!textSettings.keyFingerprint) {
-      return null;
-    }
-
-    const imageProviders: Array<[ImageProviderType, StoredAIKeySettings]> = [
-      ["openai", this.settings.openaiImageProvider],
-      ["doubao", this.settings.doubaoImageProvider],
-      ["grok", this.settings.grokImageProvider],
-      ["runware", this.settings.runwareImageProvider],
-    ];
-    for (const [type, provider] of imageProviders) {
-      if (
-        provider.keyFingerprint !== textSettings.keyFingerprint
-        || provider.baseUrl !== textSettings.baseUrl
-      ) {
-        continue;
-      }
-      const secret = this.runtimeImageSecrets.get(this.credentialIdForImageProvider(type, provider.providerId));
-      if (secret) {
-        return secret.reveal();
-      }
-    }
-    return null;
   }
 
   async getSettings(): Promise<AppSettings> {
@@ -407,7 +436,7 @@ export class SettingsService implements OnModuleInit {
     let keyFingerprint: string | null = null;
     const apiKey = input.apiKey?.trim();
     if (apiKey) {
-      const stored = await this.persistManagedModelSecret(kind, id, apiKey);
+      const stored = await this.persistManagedModelSecret(kind, id, apiKey, providerId);
       secretRef = stored.secretRef;
       keyFingerprint = stored.keyFingerprint;
     }
@@ -461,7 +490,7 @@ export class SettingsService implements OnModuleInit {
       }
     }
     if (apiKeyInput) {
-      const stored = await this.persistManagedModelSecret(model.kind, model.id, apiKeyInput);
+      const stored = await this.persistManagedModelSecret(model.kind, model.id, apiKeyInput, providerId);
       secretRef = stored.secretRef;
       keyFingerprint = stored.keyFingerprint;
     }
@@ -500,11 +529,32 @@ export class SettingsService implements OnModuleInit {
         await database.credentialMetadata.deleteMany({ where: { providerConfigId: provider.id } });
         await database.providerConfig.delete({ where: { id: provider.id } });
       }
-      // 清理运行时内存与本机存储中的密钥
-      await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
+      // 使用 CredentialService 删除凭证（带降级）
+      if (this.credentialService) {
+        await this.credentialService.deleteCredential({
+          scope: 'model',
+          scopeId: model.id,
+          providerId: model.providerId,
+          kind: model.kind === 'text' ? 'text' : 'image',
+        }).catch(() => undefined);
+      } else {
+        // 降级：直接删除
+        await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
+      }
       this.runtimeManagedModelSecrets.delete(model.id);
     } else if (model.secretRef || model.keyFingerprint) {
-      await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
+      // 使用 CredentialService 删除凭证（带降级）
+      if (this.credentialService) {
+        await this.credentialService.deleteCredential({
+          scope: 'model',
+          scopeId: model.id,
+          providerId: model.providerId,
+          kind: model.kind === 'text' ? 'text' : 'image',
+        }).catch(() => undefined);
+      } else {
+        // 降级：直接删除
+        await this.requireSecretStore().delete(this.managedModelCredentialId(model.kind, model.id)).catch(() => undefined);
+      }
       this.runtimeManagedModelSecrets.delete(model.id);
     }
     return {
@@ -749,9 +799,69 @@ export class SettingsService implements OnModuleInit {
       // Text credentials are OpenCode-owned, but legacy settings may still
       // contain one. Mark the file for sanitization without copying it into
       // AI漫游's persistent metadata.
+
+      // DB 模式下需要持久化到 CredentialService
+      if (this.prismaService?.isDatabaseMode() && this.credentialService) {
+        const storedRef = await this.credentialService.storeCredential(
+          {
+            scope: 'legacy_slot',
+            scopeId: 'aiKey',
+            providerId: settings.aiKey.providerId,
+            kind: 'text',
+          },
+          this.runtimeAIKey,
+        );
+        settings.aiKey.keyFingerprint = storedRef.keyFingerprint;
+        settings.aiKey.secretRef = storedRef.secretRef;
+      }
     }
     const hadLegacyTextKey = Boolean(settings.aiKey.apiKey?.trim());
     settings.aiKey.apiKey = undefined;
+
+    // DB 模式下从 keyFingerprint 恢复 aiKey 凭证
+    if (!this.runtimeAIKey && settings.aiKey.keyFingerprint && this.credentialService) {
+      try {
+        // 首先尝试从 aiKey 自己的槽位恢复
+        let secret = await this.credentialService.get('text', settings.aiKey.providerId, null);
+
+        // 如果 aiKey 槽位没有，尝试从图片提供商的凭证中查找匹配的 fingerprint
+        if (!secret) {
+          const imageProviderTypes: ImageProviderType[] = ['openai', 'doubao', 'grok', 'runware'];
+          for (const type of imageProviderTypes) {
+            const providerSettings = settings[`${type}ImageProvider` as keyof StoredAppSettings] as StoredAIKeySettings;
+            if (providerSettings?.keyFingerprint === settings.aiKey.keyFingerprint) {
+              // 直接从 runtimeImageSecrets 或 SecretStore 获取，而不是通过 credentialService
+              const credentialId = this.credentialIdForImageProvider(type, providerSettings.providerId);
+
+              secret = this.runtimeImageSecrets.get(credentialId);
+              if (!secret && this.secretStore) {
+                try {
+                  secret = await this.secretStore.get(credentialId);
+                } catch (err) {
+                  // 忽略读取错误
+                }
+              }
+
+              if (secret) {
+                break;
+              }
+            }
+          }
+        }
+
+        if (secret) {
+          const retrievedFingerprint = fingerprintSecret(secret);
+          if (retrievedFingerprint === settings.aiKey.keyFingerprint) {
+            this.runtimeAIKey = secret.reveal();
+          }
+        }
+      } catch (error) {
+        // 恢复失败不阻断启动，当作未配置处理
+        if (!(error instanceof SecretStoreError)) {
+          throw error;
+        }
+      }
+    }
 
     let changed = hadLegacyTextKey;
     const imageProviders: Array<[ImageProviderType, StoredAIKeySettings]> = [
@@ -942,6 +1052,23 @@ export class SettingsService implements OnModuleInit {
   private async writeDatabaseSettings(settings: StoredAppSettings): Promise<void> {
     const database = this.prismaService?.database();
     if (!database) throw new Error("DB_PERSISTENCE_PRISMA_SERVICE_MISSING");
+
+    // DB 模式下，如果 runtimeAIKey 有值且 keyFingerprint 匹配，需要先存储到 CredentialService
+    if (this.runtimeAIKey && settings.aiKey.keyFingerprint && this.credentialService) {
+      const currentFingerprint = this.fingerprintKey(this.runtimeAIKey);
+      if (currentFingerprint === settings.aiKey.keyFingerprint) {
+        await this.credentialService.storeCredential(
+          {
+            scope: 'legacy_slot',
+            scopeId: 'aiKey',
+            providerId: settings.aiKey.providerId,
+            kind: 'text',
+          },
+          this.runtimeAIKey,
+        );
+      }
+    }
+
     // 固定槽位与模型管理共享 provider 行(providerId 相同的模型行在 models 循环也写同一行):
     // 模型管理刚写入新凭证时,必须先把新值同步回固定槽位,否则固定槽位循环会用从 DB
     // 读出的旧 fingerprint/secretRef 把新凭证覆盖掉。
@@ -990,21 +1117,25 @@ export class SettingsService implements OnModuleInit {
         providerRowIds.set(item.settings.providerId, provider.id);
         // configured 判定与下方 models 循环保持一致:有 secretRef 或 keyFingerprint 即视为已配置。
         // image 行在 DB 模式下可能只有 fingerprint(secretRef 由模型管理共享写入),不能只认 secretRef。
-        const slotConfigured = Boolean(item.settings.secretRef || item.settings.keyFingerprint);
+        // CHECK 约束:image_secret_store owner 的 configured=1 行必须同时有 secretRef 和 fingerprint。
+        const slotConfigured = item.type === "image"
+          ? Boolean(item.settings.secretRef && item.settings.keyFingerprint)
+          : Boolean(item.settings.keyFingerprint);
         await tx.credentialMetadata.upsert({
           where: { providerConfigId: provider.id },
           create: {
             providerConfigId: provider.id,
             owner: item.owner,
             status: slotConfigured ? "configured" : "unconfigured",
-            secretRef: item.type === "image" ? item.settings.secretRef ?? null : null,
-            fingerprint: item.settings.keyFingerprint ?? null,
+            // CHECK 约束:configured=0 时 fingerprint 和 secretRef 必须都是 NULL。
+            secretRef: slotConfigured && item.type === "image" ? item.settings.secretRef ?? null : null,
+            fingerprint: slotConfigured ? item.settings.keyFingerprint ?? null : null,
             configured: slotConfigured,
           },
           update: {
             status: slotConfigured ? "configured" : "unconfigured",
-            secretRef: item.type === "image" ? item.settings.secretRef ?? null : null,
-            fingerprint: item.settings.keyFingerprint ?? null,
+            secretRef: slotConfigured && item.type === "image" ? item.settings.secretRef ?? null : null,
+            fingerprint: slotConfigured ? item.settings.keyFingerprint ?? null : null,
             configured: slotConfigured,
           },
         });
@@ -1025,7 +1156,10 @@ export class SettingsService implements OnModuleInit {
           : null;
         const mergedSecretRef = model.kind === "text" ? null : (model.secretRef ?? (sharedSlot?.providerId === model.providerId ? sharedSlot.secretRef : null) ?? null);
         const mergedFingerprint = model.keyFingerprint ?? (sharedSlot?.providerId === model.providerId ? sharedSlot.keyFingerprint : null) ?? null;
-        const mergedConfigured = Boolean(mergedSecretRef || mergedFingerprint);
+        // CHECK 约束:image_secret_store owner 的 configured=1 行必须同时有 secretRef 和 fingerprint。
+        const mergedConfigured = model.kind === "text"
+          ? Boolean(mergedFingerprint)  // text 模型只需要 fingerprint
+          : Boolean(mergedSecretRef && mergedFingerprint);  // image 模型需要两者都有
         const provider = await tx.providerConfig.upsert({
           where: { providerId: model.providerId },
           create: {
@@ -1050,16 +1184,17 @@ export class SettingsService implements OnModuleInit {
             providerConfigId: provider.id,
             // G1 trigger 白名单:text 行只允许 owner=opencode,image 行只允许 image_secret_store/environment。
             // CHECK ck_credential_metadata_text_owner_shape:text 行 configured=1 时 secret_ref 必须为 NULL。
+            // CHECK 约束:configured=0 时 fingerprint 和 secretRef 必须都是 NULL。
             owner: model.kind === "text" ? "opencode" : "image_secret_store",
             status: mergedConfigured ? "configured" : "unconfigured",
-            secretRef: mergedSecretRef,
-            fingerprint: mergedFingerprint,
+            secretRef: mergedConfigured ? mergedSecretRef : null,
+            fingerprint: mergedConfigured ? mergedFingerprint : null,
             configured: mergedConfigured,
           },
           update: {
             status: mergedConfigured ? "configured" : "unconfigured",
-            secretRef: mergedSecretRef,
-            fingerprint: mergedFingerprint,
+            secretRef: mergedConfigured ? mergedSecretRef : null,
+            fingerprint: mergedConfigured ? mergedFingerprint : null,
             configured: mergedConfigured,
           },
         });
@@ -1271,6 +1406,43 @@ export class SettingsService implements OnModuleInit {
 
   /** 从 SecretStore 恢复一个模型密钥;条目缺失、存储不可用或指纹不匹配时返回 null。 */
   private async recoverManagedModelSecret(model: StoredManagedModel): Promise<SecretString | null> {
+    const isDb = this.prismaService?.isDatabaseMode() ?? false;
+
+    // DB 模式下，managed model 使用 SecretStore，不使用 CredentialService
+    if (isDb || !this.credentialService) {
+      if (!this.secretStore) {
+        return null;
+      }
+      try {
+        const secret = await this.secretStore.get(this.managedModelCredentialId(model.kind, model.id));
+        if (model.keyFingerprint && fingerprintSecret(secret) !== model.keyFingerprint) {
+          return null;
+        }
+        return secret;
+      } catch (error) {
+        if (error instanceof SecretStoreError) {
+          return null;
+        }
+        throw error;
+      }
+    }
+
+    // 文件模式 + CredentialService：尝试使用 CredentialService
+    try {
+      const secret = await this.credentialService.get(
+        model.kind === 'text' ? 'text' : 'image',
+        model.providerId,
+        model.id,
+      );
+      if (secret && model.keyFingerprint && fingerprintSecret(secret) !== model.keyFingerprint) {
+        return null;
+      }
+      return secret;
+    } catch (error) {
+      // 降级到 SecretStore
+    }
+
+    // 降级方案：从 SecretStore 恢复
     if (!this.secretStore) {
       return null;
     }
@@ -1301,22 +1473,54 @@ export class SettingsService implements OnModuleInit {
     kind: ManagedModelKind,
     id: string,
     apiKey: string,
+    providerId: string,
   ): Promise<{ secretRef: string | null; keyFingerprint: string | null }> {
-    const secret = SecretString.from(apiKey);
-    const credentialId = this.managedModelCredentialId(kind, id);
+    // DB 模式下，managed model 继续使用 SecretStore，不使用 CredentialService
+    // 因为 CredentialService 使用 providerId 作为唯一键，不支持同一个 providerId 下有多个 scope
     const isDb = this.prismaService?.isDatabaseMode() ?? false;
+
+    if (isDb || !this.credentialService) {
+      // DB 模式或没有 CredentialService：使用 SecretStore
+      const secret = SecretString.from(apiKey);
+      const credentialId = this.managedModelCredentialId(kind, id);
+      try {
+        const metadata = await this.requireSecretStore().put({ credentialId, secret });
+        this.runtimeManagedModelSecrets.set(id, secret);
+        return {
+          secretRef: isDb && kind === "text" ? null : metadata.secretRef,
+          keyFingerprint: metadata.fingerprint,
+        };
+      } catch (error) {
+        if (!(error instanceof SecretStoreError)) {
+          throw error;
+        }
+        this.runtimeManagedModelSecrets.set(id, secret);
+        return { secretRef: null, keyFingerprint: fingerprintSecret(SecretString.from(apiKey)) };
+      }
+    }
+
+    // 文件模式 + CredentialService：通过 CredentialService
     try {
-      const metadata = await this.requireSecretStore().put({ credentialId, secret });
-      this.runtimeManagedModelSecrets.set(id, secret);
+      const result = await this.credentialService.storeCredential(
+        {
+          scope: 'model',
+          scopeId: id,
+          providerId,
+          kind: kind === 'text' ? 'text' : 'image',
+        },
+        apiKey,
+      );
+
+      // 更新内存缓存（保持兼容）
+      this.runtimeManagedModelSecrets.set(id, SecretString.from(apiKey));
+
       return {
-        secretRef: isDb && kind === "text" ? null : metadata.secretRef,
-        keyFingerprint: metadata.fingerprint,
+        secretRef: result.secretRef,
+        keyFingerprint: result.keyFingerprint,
       };
     } catch (error) {
-      if (!(error instanceof SecretStoreError)) {
-        throw error;
-      }
-      // 存储不可用时降级为仅本进程可用(重启后丢失),优于直接拒绝保存。
+      // 降级为仅本进程可用
+      const secret = SecretString.from(apiKey);
       this.runtimeManagedModelSecrets.set(id, secret);
       return { secretRef: null, keyFingerprint: fingerprintSecret(secret) };
     }
@@ -1454,7 +1658,7 @@ export class SettingsService implements OnModuleInit {
     }
     if (model.kind === "text") {
       return model.providerId === settings.aiKey.providerId
-        && Boolean(this.runtimeAIKey ?? this.findMatchingImageCredentialForTextRuntime());
+        && Boolean(this.runtimeAIKey);
     }
     const type = this.inferImageProviderType(model.providerId);
     const slot = this.getStoredImageProvider(settings, type);

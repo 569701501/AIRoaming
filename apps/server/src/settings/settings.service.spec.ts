@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { PrismaService } from "../persistence/prisma.service.js";
 import { SettingsService, type AtomicSettingsFileOps, writeSettingsFileAtomically } from "./settings.service.js";
 import { FakeSecretStore } from "./secret-store.js";
+import { CredentialService } from "./credential.service.js";
 
 describe("D2-A1 SettingsService secret boundary", () => {
   const roots: string[] = [];
@@ -780,7 +781,8 @@ describe("D2-A2 managed models CRUD", () => {
 
 function createService(workspaceRoot: string, store: FakeSecretStore | undefined, prisma?: PrismaService): SettingsService {
   const workspace = { resolveVirtualPath: (virtualPath: string) => path.join(workspaceRoot, virtualPath.replace(/^\/workspace\/?/, "")) };
-  return new SettingsService(workspace as never, undefined, store as never, prisma);
+  const credentialService = new CredentialService(store, prisma);
+  return new SettingsService(workspace as never, undefined, store as never, prisma, credentialService as never);
 }
 
 function deployMigrations(databaseUrl: string): Promise<{ code: number | null; stdout: string; stderr: string }> {
