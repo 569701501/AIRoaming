@@ -177,7 +177,8 @@ export class SettingsService implements OnModuleInit {
   getRuntimeAIKeySettings(): RuntimeAIKeySettings {
     const activeModel = this.resolveActiveTextManagedModel();
     if (activeModel) {
-      const managedKey = activeModel.secretRef
+      // DB 模式 keyFingerprint 替代 secretRef;文件模式走 secretRef。
+      const managedKey = (activeModel.secretRef || activeModel.keyFingerprint)
         ? this.runtimeManagedModelSecrets.get(activeModel.id)?.reveal() ?? null
         : null;
       // 与当前 aiKey 同 provider 时复用其凭证(镜像模型/同源中转),其余模型走自身凭证或 OpenCode 原生 auth。
@@ -216,7 +217,7 @@ export class SettingsService implements OnModuleInit {
     const activeModel = this.resolveActiveImageManagedModel();
     if (activeModel) {
       const type = this.inferImageProviderType(activeModel.providerId);
-      const managedKey = activeModel.secretRef
+      const managedKey = (activeModel.secretRef || activeModel.keyFingerprint)
         ? this.runtimeManagedModelSecrets.get(activeModel.id)?.reveal() ?? null
         : null;
       // 与对应固定槽位同 provider 时复用其凭证(DB 模式模型行共享槽位行凭证)。
