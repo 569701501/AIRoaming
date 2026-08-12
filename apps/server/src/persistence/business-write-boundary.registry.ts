@@ -20,6 +20,7 @@ export const BUSINESS_WRITE_OWNERS: readonly BusinessWriteOwner[] = [
   { owner: "dialogue", source: "dialogue/dialogue.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-06"] },
   { owner: "candidate-lock", source: "projects/candidate-lock.repository.ts", boundary: "runBusinessTransaction", evidence: ["G4-C", "M6A1-TX-05"] },
   { owner: "character-reference", source: "projects/character-reference.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-06"] },
+  { owner: "character-stage", source: "projects/character-stage.service.ts", boundary: "runBusinessTransaction", evidence: ["AIR-STAGE-01", "AIR-STAGE-02"] },
   { owner: "layout-working-copy", source: "projects/layout-working-copy.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "G5-M4"] },
   { owner: "layout-publication", source: "projects/layout-publication.service.ts", boundary: "runBusinessTransaction", evidence: ["G5-M7"] },
   { owner: "asset-package", source: "projects/asset-package.service.ts", boundary: "runBusinessTransaction", evidence: ["M6A1-TX-03", "M6A1-TX-05"] },

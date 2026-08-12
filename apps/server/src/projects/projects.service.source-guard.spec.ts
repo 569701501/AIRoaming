@@ -8,6 +8,7 @@ import type { LocalChapter, LocalProject } from "./local-types.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
+import { CharacterStageService } from "./character-stage.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
 import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
@@ -127,6 +128,7 @@ describe("ProjectsService sourceText 非空校验(回归 2026-06-24 空覆盖 bu
         findChapter: vi.fn((p: LocalProject, id: string) => p.chapters.find((c) => c.id === id)),
       } as unknown as ProjectStore,
       { hasActiveCharacterReferenceTask: vi.fn(() => false) } as unknown as CharacterReferenceService,
+      {} as unknown as CharacterStageService,
       {
         saveChapterDraft: vi.fn((_pid: string, _cid: string, input: { sourceText: string }) => {
           if (!input.sourceText?.trim()) throw new BadRequestException("CHAPTER_SCRIPT_REQUIRED");

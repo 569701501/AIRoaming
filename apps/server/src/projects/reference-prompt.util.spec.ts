@@ -137,4 +137,70 @@ describe("P23/P24 reference prompts", () => {
     expect(prompt).not.toContain("管理代号-1111");
     expect(prompt).toContain("作品名：（未确认）");
   });
+
+  it("有参考图时外貌以参考图为准，appearance 降级为补充细节", () => {
+    const prompt = buildCharacterReferencePrompt(project, {
+      id: "char-1",
+      projectId: "project-1",
+      name: "林舟",
+      role: "调查记者",
+      level: "lead",
+      entityType: "human",
+      appearance: "黑色短发，灰蓝风衣，左眉浅疤",
+      personality: "克制警觉",
+      promptFragment: "",
+    } as never, "preview_front", "v2", true);
+    expect(prompt).toContain("参考所提供的角色图片，保持面部特征、发型和整体气质一致");
+    expect(prompt).toContain("补充细节：黑色短发，灰蓝风衣，左眉浅疤");
+    expect(prompt).not.toContain("外貌设定：黑色短发，灰蓝风衣，左眉浅疤");
+  });
+
+  it("有参考图但无 appearance 时不输出补充细节", () => {
+    const prompt = buildCharacterReferencePrompt(project, {
+      id: "char-1",
+      projectId: "project-1",
+      name: "林舟",
+      role: "调查记者",
+      level: "lead",
+      entityType: "human",
+      appearance: "",
+      personality: "克制警觉",
+      promptFragment: "",
+    } as never, "preview_front", "v2", true);
+    expect(prompt).toContain("参考所提供的角色图片，保持面部特征、发型和整体气质一致");
+    expect(prompt).not.toContain("补充细节");
+  });
+
+  it("无参考图时提示词保持原样（文字外貌设定优先）", () => {
+    const prompt = buildCharacterReferencePrompt(project, {
+      id: "char-1",
+      projectId: "project-1",
+      name: "林舟",
+      role: "调查记者",
+      level: "lead",
+      entityType: "human",
+      appearance: "黑色短发，灰蓝风衣",
+      personality: "克制警觉",
+      promptFragment: "",
+    } as never, "preview_front");
+    expect(prompt).toContain("外貌设定：黑色短发，灰蓝风衣");
+    expect(prompt).not.toContain("参考所提供的角色图片");
+    expect(prompt).not.toContain("补充细节");
+  });
+
+  it("有参考图的定稿 Prompt 同样以参考图为身份锚点", () => {
+    const prompt = buildCharacterReferencePrompt(project, {
+      id: "char-1",
+      projectId: "project-1",
+      name: "林舟",
+      role: "调查记者",
+      level: "lead",
+      entityType: "human",
+      appearance: "黑色短发，灰蓝风衣",
+      personality: "克制警觉",
+      promptFragment: "",
+    } as never, "final_reference", "v2", true);
+    expect(prompt).toContain("参考所提供的角色图片，保持面部特征、发型和整体气质一致");
+    expect(prompt).toContain("补充细节：黑色短发，灰蓝风衣");
+  });
 });

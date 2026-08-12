@@ -94,6 +94,7 @@ export function buildCharacterReferencePrompt(
   character: ProjectCharacter,
   referenceKind: ProjectCharacterReferenceKind,
   version: ImagePromptVersion = "v2",
+  hasReferenceImage = false,
 ): string {
   if (referenceKind === "none" || character.entityType === "voice") {
     throw new TypeError("CHARACTER_REFERENCE_NOT_REQUIRED");
@@ -111,6 +112,12 @@ export function buildCharacterReferencePrompt(
   const styleGuide = buildCharacterReferenceStyleGuide(project);
   const genreTags = project.genreTags.join("、");
   const promptFragment = character.promptFragment?.trim() ?? "";
+  // 有参考图时以参考图为身份锚点，appearance 降级为补充细节；无参考图时仍以文字外貌设定为主。
+  const hasAppearance = Boolean(character.appearance?.trim());
+  const appearanceValue = hasReferenceImage
+    ? "参考所提供的角色图片，保持面部特征、发型和整体气质一致"
+    : character.appearance || REFERENCE_PROMPT_DEFAULTS.appearance;
+  const additionalNotes = hasReferenceImage && hasAppearance ? `补充细节：${character.appearance}` : "";
   const storyTitle = project.storyTitle.trim();
   const promptStoryTitle = storyTitle && storyTitle !== project.name.trim()
     ? storyTitle
@@ -128,7 +135,8 @@ export function buildCharacterReferencePrompt(
       STYLE_GUIDE_BULLETS: styleGuide.split("\n").map((line) => `- ${line}`).join("\n"),
       CHARACTER_NAME: character.name,
       CHARACTER_ROLE: character.role || character.level,
-      APPEARANCE: character.appearance || REFERENCE_PROMPT_DEFAULTS.appearance,
+      APPEARANCE: appearanceValue,
+      ADDITIONAL_NOTES: additionalNotes,
       PERSONALITY: character.personality || REFERENCE_PROMPT_DEFAULTS.personality,
       PROMPT_FRAGMENT_LINE: promptFragment ? `- 固定视觉特征：${promptFragment}` : "",
       PROMPT_FRAGMENT_TEXT: promptFragment ? `提示词片段：${promptFragment}` : "",

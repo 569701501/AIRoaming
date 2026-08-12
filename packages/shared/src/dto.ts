@@ -719,6 +719,8 @@ export interface ProjectCharacter {
   previewConfirmedAt: string | null;
   primaryReferenceAssetId: string | null;
   primaryReferenceKind: ProjectCharacterReferenceKind;
+  /** 定妆照/锚点图资产 id；未定妆时缺省，读取时降级用 previewReferenceAssetId。 */
+  anchorAssetId?: string;
   visualVersion: number;
   source: "script_outline" | "imported_script" | "manual" | "story_structure" | "image_preflight";
   createdAt: string;
@@ -812,6 +814,61 @@ export interface ConfirmCharacterPreviewResponse extends ProjectCharactersRespon
 }
 
 export interface ConfirmCharacterReferenceRequest {
+  assetId: string;
+}
+
+// ---------- 角色图生成与阶段管理（Character Stage） ----------
+
+/**
+ * 角色阶段。同一角色随时间变化的形象切片(如"练气期""金丹期"),
+ * 分镜生图时按章节范围自动选择对应阶段作为参考。
+ */
+export interface CharacterStage {
+  id: string;
+  projectId: string;
+  characterId: string;
+  /** 阶段顺序,从 1 起自动递增。 */
+  stageOrder: number;
+  /** 阶段名称,如"练气期""金丹期"。 */
+  name?: string;
+  /** 起始章节 id；缺省表示从最早可判定章节开始。 */
+  fromChapterId?: string;
+  /** 结束章节 id；缺省表示延续到下一阶段。 */
+  toChapterId?: string;
+  /** 相对上一阶段的差异描述,只存变化部分,如"改穿金色道袍、蓄短须"。 */
+  visualDelta: string;
+  /** 阶段预览图资产 id(创建阶段时自动生成)。 */
+  previewAssetId?: string;
+  /** 阶段定稿图资产 id(用户确认或重新生成后回填)。 */
+  finalAssetId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 创建角色阶段请求。visualDelta 必填,其余可选。 */
+export interface CreateCharacterStageRequest {
+  name?: string;
+  fromChapterId?: string;
+  visualDelta: string;
+}
+
+/** 更新角色阶段请求。全部可选;visualDelta 不允许清空(缺省或空串均视为不修改)。 */
+export interface UpdateCharacterStageRequest {
+  name?: string;
+  visualDelta?: string;
+  fromChapterId?: string;
+}
+
+/** 生成定妆候选请求。 */
+export interface GenerateAnchorCandidatesRequest {
+  /** 候选数量,缺省 3。 */
+  count?: number;
+  /** 自定义提示词补充,如"穿金色道袍、仙风道骨"。 */
+  customPrompt?: string;
+}
+
+/** 确认定妆请求:从候选图中选择一张作为角色定妆照。 */
+export interface ConfirmAnchorRequest {
   assetId: string;
 }
 

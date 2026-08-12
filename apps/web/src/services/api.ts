@@ -26,6 +26,7 @@ import type {
   DialogueThread,
   ExtractProjectCharactersRequest,
   ExtractProjectCharactersResponse,
+  GenerateAnchorCandidatesRequest,
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
   CandidateGenerationPreviewResponse,
@@ -34,7 +35,10 @@ import type {
   CandidateLockHistoryPage,
   CandidateLockImpactPreviewResponse,
   CandidatePreferenceResponse,
+  CharacterStage,
   CommitCandidateLockRequest,
+  ConfirmAnchorRequest,
+  CreateCharacterStageRequest,
   CompleteChapterImagesResponse,
   CreateGenerationTaskRequest,
   CreatePendingShotRequest,
@@ -44,6 +48,7 @@ import type {
   GetChapterResponse,
   HealthResponse,
   PreviewCandidateLockRequest,
+  ProjectCharacter,
   ProjectListItem,
   QueueCharacterReferenceResponse,
   QueueSceneReferenceResponse,
@@ -56,6 +61,7 @@ import type {
   SaveChapterStoryStructureResponse,
   SaveChapterStoryboardResponse,
   SendDialogueMessageRequest,
+  UpdateCharacterStageRequest,
   UpdateProjectCharacterRequest,
   UpdateChapterStoryStructureRequest,
   UpdateChapterStoryboardRequest,
@@ -63,6 +69,7 @@ import type {
   UpdateManagedModelRequest,
   UpdateProjectDraftRequest,
   WorkspaceInfo,
+  WorkbenchAsset,
   WorkbenchSnapshot,
   ScriptWorkingCopyDto,
   ScriptWorkingCopyUpdateRequest,
@@ -415,6 +422,69 @@ export const api = {
     {
       method: "POST",
       body: JSON.stringify(input),
+    },
+  ),
+  generateAnchorCandidates: (
+    projectId: string,
+    characterId: string,
+    input: GenerateAnchorCandidatesRequest,
+  ) => request<{ candidates: WorkbenchAsset[] }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/anchor-candidates`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  confirmAnchor: (
+    projectId: string,
+    characterId: string,
+    input: ConfirmAnchorRequest,
+  ) => request<{ character: ProjectCharacter }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/confirm-anchor`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  listCharacterStages: (projectId: string, characterId: string) => request<{ stages: CharacterStage[] }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/stages`,
+  ),
+  createCharacterStage: (
+    projectId: string,
+    characterId: string,
+    input: CreateCharacterStageRequest,
+  ) => request<{ stage: CharacterStage; previewAsset: WorkbenchAsset | null }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/stages`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  ),
+  updateCharacterStage: (
+    projectId: string,
+    characterId: string,
+    stageId: string,
+    input: UpdateCharacterStageRequest,
+  ) => request<{ stage: CharacterStage }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/stages/${encodeURIComponent(stageId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  ),
+  deleteCharacterStage: (projectId: string, characterId: string, stageId: string) => request<{ success: true }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/stages/${encodeURIComponent(stageId)}`,
+    {
+      method: "DELETE",
+    },
+  ),
+  regenerateCharacterStage: (projectId: string, characterId: string, stageId: string) => request<{
+    stage: CharacterStage;
+    previewAsset: WorkbenchAsset | null;
+  }>(
+    `/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(characterId)}/stages/${encodeURIComponent(stageId)}/regenerate`,
+    {
+      method: "POST",
     },
   ),
   projectAssetFileUrl: (projectId: string, assetId: string) =>

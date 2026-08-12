@@ -121,6 +121,7 @@ model Project {
   chapterScenesByProject                  ChapterScene[]                  @relation("ChapterScene_project_Project")
   chaptersByProject                       Chapter[]                       @relation("Chapter_project_Project")
   charactersByProject                     Character[]                     @relation("Character_project_Project")
+  characterStagesByProject                CharacterStage[]                @relation("CharacterStage_project_Project")
   conversationThreadsByProject            ConversationThread[]            @relation("ConversationThread_project_Project")
   exportRevisionsByProject                ExportRevision[]                @relation("ExportRevision_project_Project")
   generationTasksByProject                GenerationTask[]                @relation("GenerationTask_project_Project")
@@ -759,6 +760,7 @@ model Character {
   source          String
   previewVisualId String?   @map("preview_visual_id")
   primaryVisualId String?   @map("primary_visual_id")
+  anchorAssetId   String?   @map("anchor_asset_id")
   rowVersion      Int       @default(0) @map("row_version")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
@@ -768,6 +770,7 @@ model Character {
   previewVisual                       CharacterVisual?          @relation("Character_previewVisual_CharacterVisual", fields: [previewVisualId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   primaryVisual                       CharacterVisual?          @relation("Character_primaryVisual_CharacterVisual", fields: [primaryVisualId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   project                             Project                   @relation("Character_project_Project", fields: [projectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  stages                              CharacterStage[]          @relation("CharacterStage_character_Character")
   storyboardShotCharactersByCharacter StoryboardShotCharacter[] @relation("StoryboardShotCharacter_character_Character")
 
   @@unique([id, projectId], map: "uq_characters_id_project")
@@ -775,6 +778,29 @@ model Character {
   @@index([projectId(sort: Asc), level(sort: Asc)], map: "ix_characters_project_level")
   @@index([projectId(sort: Asc), status(sort: Asc)], map: "ix_characters_project_status")
   @@map("characters")
+}
+
+model CharacterStage {
+  id             String   @id @default(uuid())
+  projectId      String   @map("project_id")
+  characterId    String   @map("character_id")
+  stageOrder     Int      @map("stage_order")
+  name           String?
+  fromChapterId  String?  @map("from_chapter_id")
+  toChapterId    String?  @map("to_chapter_id")
+  visualDelta    String   @map("visual_delta")
+  previewAssetId String?  @map("preview_asset_id")
+  finalAssetId   String?  @map("final_asset_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  character Character @relation("CharacterStage_character_Character", fields: [characterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  project   Project   @relation("CharacterStage_project_Project", fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([characterId, stageOrder], map: "uq_character_stages_character_order")
+  @@index([projectId], map: "ix_character_stages_project")
+  @@index([characterId], map: "ix_character_stages_character")
+  @@map("character_stages")
 }
 
 model CharacterVisual {

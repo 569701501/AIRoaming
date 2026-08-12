@@ -17,4 +17,5 @@ No text labels, measurements, color names, logo, watermark, extra characters, pr
 角色身份：{{CHARACTER_ROLE}}
 外貌设定：{{APPEARANCE}}
 性格气质：{{PERSONALITY}}
+{{ADDITIONAL_NOTES}}
 {{PROMPT_FRAGMENT_TEXT}}

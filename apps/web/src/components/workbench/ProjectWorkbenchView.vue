@@ -83,6 +83,7 @@
         @regenerate-character-reference="$emit('regenerateCharacterReference', $event)"
         @confirm-character-preview="$emit('confirmCharacterPreview', $event)"
         @confirm-character-reference="$emit('confirmCharacterReference', $event)"
+        @confirm-anchor="$emit('confirmAnchor', $event)"
         @generate-scene-reference="$emit('generateSceneReference', $event)"
         @go-storyboard="$emit('selectStep', 'storyboard')"
       />
@@ -164,7 +165,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ChevronsRight, Sparkles } from "lucide-vue-next";
-import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, ManagedModelItem, SaveChapterDraftRequest, ScriptWorkingCopyDto, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, DialogueThread, DialogueToolResult, GenerationTaskItem, ManagedModelItem, ProjectCharacter, SaveChapterDraftRequest, ScriptWorkingCopyDto, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest, WorkbenchSnapshot } from "@airoaming/shared";
 import type { ChapterCompletionPrompt } from "../../stores/workbench-store";
 import { useWorkbenchStore } from "../../stores/workbench-store";
 import { getCurrentChapterSourceText } from "../../utils/workbench-chapter";
@@ -217,6 +218,7 @@ const emit = defineEmits<{
   regenerateCharacterReference: [payload: { characterId: string; referenceKind: "preview_front" | "final_reference"; input: UpdateProjectCharacterRequest }];
   confirmCharacterPreview: [payload: { characterId: string; assetId: string }];
   confirmCharacterReference: [payload: { characterId: string; assetId: string }];
+  confirmAnchor: [payload: { characterId: string; assetId: string; character?: ProjectCharacter }];
   generateSceneReference: [payload: { chapterId: string; sceneId: string }];
   confirmStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];
   updateStoryStructure: [payload: { chapterId: string; structureJson: StoryStructureJson }];

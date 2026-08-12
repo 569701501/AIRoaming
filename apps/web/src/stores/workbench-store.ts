@@ -1429,6 +1429,34 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.loading = false;
       }
     },
+    async confirmAnchor(characterId: string, assetId: string, character?: ProjectCharacter): Promise<ProjectCharacter | null> {
+      this.loading = true;
+      this.error = null;
+      try {
+        const projectId = this.activeProjectId;
+        if (!projectId) {
+          throw new Error("请先进入项目");
+        }
+        // character 由定妆弹窗内直接调用 API 成功后传入,避免重复请求;
+        // 未传入时这里兜底调用一次。
+        const result = character ?? (await api.confirmAnchor(projectId, characterId, { assetId })).character;
+        if (this.snapshot) {
+          this.snapshot = {
+            ...this.snapshot,
+            characters: this.snapshot.characters.map((item) =>
+              item.id === characterId ? result : item,
+            ),
+          };
+        }
+        this.dialogueNotice = `已确认「${result.name}」的定妆照。`;
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : "确认定妆失败";
+        return null;
+      } finally {
+        this.loading = false;
+      }
+    },
     async clearCurrentChapterScript(): Promise<ChapterDetail | null> {
       this.loading = true;
       this.error = null;

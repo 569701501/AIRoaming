@@ -168,6 +168,20 @@ const operations: DbCapabilityOperation[] = [
     evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-CHAR-02: extracts character identity into DB without a legacy characters file"],
   },
   {
+    operation: "generate_anchor_candidates",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.generateAnchorCandidates",
+    readStatus: "not_applicable",
+    writeStatus: "implemented",
+    evidenceTestIds: [
+      "src/projects/character-reference.service.spec.ts#默认生成 3 张候选,seed 互不相同,并发出图",
+      "src/projects/character-reference.service.spec.ts#count 钳制:0→3,7→6,2→2",
+      "src/projects/character-reference.service.spec.ts#资产行落库(role=character_anchor_candidate,metadata 含 characterId/kind/seed),status=ready",
+    ],
+  },
+  {
     operation: "update_character",
     capabilityId: "character_scene_asset_candidate_lock",
     ownerModule: "projects/character-asset-candidate",
@@ -216,6 +230,20 @@ const operations: DbCapabilityOperation[] = [
     readStatus: "not_applicable",
     writeStatus: "implemented",
     evidenceTestIds: ["src/projects/project-db-persistence.integration.spec.ts#P4-CHAR-07: confirms a DB final visual without workspace writes"],
+  },
+  {
+    operation: "confirm_anchor",
+    capabilityId: "character_scene_asset_candidate_lock",
+    ownerModule: "projects/character-asset-candidate",
+    sourceFile: "apps/server/src/projects/projects.service.ts",
+    sourceSymbol: "ProjectsService.confirmAnchor",
+    readStatus: "not_applicable",
+    writeStatus: "implemented",
+    evidenceTestIds: [
+      "src/projects/character-reference.service.spec.ts#校验通过后写入 anchorAssetId 并返回更新后的角色",
+      "src/projects/character-reference.service.spec.ts#资产不存在抛 ASSET_NOT_FOUND",
+      "src/projects/character-reference.service.spec.ts#资产不属于该角色(其他角色候选)抛 ASSET_NOT_FOUND",
+    ],
   },
   {
     operation: "delete_character_reference",

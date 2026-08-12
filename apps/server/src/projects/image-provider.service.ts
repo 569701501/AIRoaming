@@ -217,12 +217,13 @@ export class ImageProviderService {
     };
   }
 
-  /** 文生图:无参考图,纯 prompt 出图。 */
+  /** 文生图:无参考图,纯 prompt 出图。seed 可选(仅支持 seed 的 provider 透传,其余依赖 provider 随机采样)。 */
   async generateImage(input: {
     prompt: string;
     size: string;
     quality?: "auto" | "low" | "medium" | "high";
     outputFormat?: "webp" | "png" | "jpeg";
+    seed?: number;
   }): Promise<Buffer> {
     const config = this.resolveProviderConfig();
     if (config.type === "doubao") {
@@ -252,6 +253,7 @@ export class ImageProviderService {
         prompt: input.prompt,
         size: input.size,
         outputFormat: input.outputFormat ?? "webp",
+        seed: input.seed,
       });
     }
     return this.requestOpenAiImage({
@@ -361,6 +363,7 @@ export class ImageProviderService {
     prompt: string;
     size: string;
     outputFormat: "webp" | "png" | "jpeg";
+    seed?: number;
     editReferenceImage?: { buffer: Buffer; mimeType: string; fileName: string };
     references?: CandidateProviderImageReferenceInput[];
   }): Promise<Buffer> {
@@ -386,6 +389,7 @@ export class ImageProviderService {
       numberResults: 1,
       outputType: "base64Data",
       outputFormat: input.outputFormat === "jpeg" ? "JPG" : input.outputFormat.toUpperCase(),
+      ...(input.seed !== undefined ? { seed: input.seed } : {}),
       ...(input.model === "runware:100@1" ? { steps: 4 } : {}),
       ...(referenceImages ? {
         inputs: { referenceImages },

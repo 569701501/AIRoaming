@@ -75,6 +75,10 @@ const EXPECTED_DOCUMENT_LIBRARY_OVERLAY_MODELS = [
   "DocumentChapter",
 ] as const;
 
+const EXPECTED_CHARACTER_STAGE_OVERLAY_MODELS = [
+  "CharacterStage",
+] as const;
+
 const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly string[]> = {
   PersistenceState: ["storageContractVersion", "activationState", "firstBusinessWriteAt"],
   MigrationRun: ["kind", "status", "sourceManifestDigest", "snapshotManifestDigest", "reportDigest"],
@@ -100,7 +104,7 @@ const EXPECTED_KEY_FIELDS: Record<(typeof EXPECTED_G1_MODELS)[number], readonly 
   StoryboardShotProjection: ["storyboardVersionId", "shotId", "order", "semanticDigest"],
   StoryboardShotCharacter: ["storyboardShotProjectionId", "order", "sourceToken", "characterId"],
   PreflightRevision: ["projectId", "chapterId", "version", "status", "sourceDigest", "documentDigest", "ready"],
-  Character: ["projectId", "normalizedName", "role", "level", "entityType", "rowVersion"],
+  Character: ["projectId", "normalizedName", "role", "level", "entityType", "rowVersion", "anchorAssetId"],
   CharacterVisual: ["characterId", "assetId", "kind", "version", "status"],
   Asset: ["projectId", "chapterId", "storageKey", "status", "sha256", "bytes", "metadataDigest"],
   Candidate: ["projectId", "chapterId", "shotId", "taskId", "assetId", "index", "status"],
@@ -135,9 +139,10 @@ describe("SCH-00 G1 schema public contract", () => {
         ...EXPECTED_SCRIPT_WORKFLOW_OVERLAY_MODELS,
         ...EXPECTED_SMART_LAYOUT_OVERLAY_MODELS,
         ...EXPECTED_DOCUMENT_LIBRARY_OVERLAY_MODELS,
+        ...EXPECTED_CHARACTER_STAGE_OVERLAY_MODELS,
       ].sort(),
     );
-    expect(contract.models).toHaveLength(56);
+    expect(contract.models).toHaveLength(57);
     expect(contract.prismaVersion).toBe("6.19.3");
     expect(contract.prismaClientVersion).toBe("6.19.3");
   });

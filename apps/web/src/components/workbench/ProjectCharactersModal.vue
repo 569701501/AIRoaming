@@ -14,11 +14,11 @@
 
         <ProjectCharactersWorkspace
           class="characters-modal-workspace"
-          readonly
           :initial-view="initialView"
           :loading="loading"
           :snapshot="snapshot"
           :tasks="tasks"
+          @extract-characters="$emit('extractCharacters')"
         />
       </section>
     </div>
@@ -40,6 +40,7 @@ defineProps<{
 
 defineEmits<{
   close: [];
+  extractCharacters: [];
 }>();
 </script>
 

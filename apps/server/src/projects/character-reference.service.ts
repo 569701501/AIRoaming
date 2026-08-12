@@ -8,6 +8,7 @@ import {
   type ConfirmCharacterPreviewResponse,
   type ConfirmCharacterReferenceRequest,
   type DeleteCharacterReferenceResponse,
+  type GenerateAnchorCandidatesRequest,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
   type GenerateCharacterReferenceRequest,
@@ -36,6 +37,7 @@ import * as wsDomain from "./project-domain.util.js";
 import * as wsCharacter from "./character-domain.util.js";
 import * as referencePromptUtil from "./reference-prompt.util.js";
 import { WorkspacePathService } from "../workspace/workspace-path.service.js";
+import { readImageDimensions } from "./image-dimensions.util.js";
 import { ProjectRepository } from "./project-repository.service.js";
 import { ProjectStore } from "./project-store.service.js";
 import { ImageProviderService } from "./image-provider.service.js";
@@ -211,6 +213,13 @@ export class CharacterReferenceService {
 
   private getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  /** 角色是否已有可用参考图（定妆锚点图 / 定稿参考 / 已确认预览图）。 */
+  private hasCharacterReferenceImage(
+    character: Pick<ProjectCharacter, "anchorAssetId" | "primaryReferenceAssetId" | "previewReferenceAssetId">,
+  ): boolean {
+    return Boolean(character.anchorAssetId || character.primaryReferenceAssetId || character.previewReferenceAssetId);
   }
 
   private async readProjectAssetFile(project: Pick<LocalProject, "id">, asset: WorkbenchAsset): Promise<ProjectAssetFile> {
@@ -694,7 +703,13 @@ export class CharacterReferenceService {
     const fileName = referenceKind === "final_reference" ? "final-reference.webp" : "preview.webp";
     const relativePath = `projects/${project.id}/assets/characters/${character.id}/visual-v${String(nextVisualVersion).padStart(3, "0")}/${fileName}`;
     const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
-    const prompt = input.prompt?.trim() || referencePromptUtil.buildCharacterReferencePrompt(project, character, referenceKind);
+    const prompt = input.prompt?.trim() || referencePromptUtil.buildCharacterReferencePrompt(
+      project,
+      character,
+      referenceKind,
+      "v2",
+      this.hasCharacterReferenceImage(character),
+    );
     const referenceSource = referenceKind === "final_reference" ? await this.getConfirmedPreviewReferenceSource(project, character) : null;
     const providerType = this.imageProvider.getActiveProviderType();
     const size = providerType === "doubao"
@@ -791,7 +806,13 @@ export class CharacterReferenceService {
           projectId,
           characterId: character.id,
           referenceKind,
-          prompt: input.prompt?.trim() || referencePromptUtil.buildCharacterReferencePrompt(project, character, referenceKind),
+          prompt: input.prompt?.trim() || referencePromptUtil.buildCharacterReferencePrompt(
+            project,
+            character,
+            referenceKind,
+            "v2",
+            this.hasCharacterReferenceImage(character),
+          ),
           sourceProjection,
         },
         options: { concurrencyKey: "image-provider", concurrencySlots: 1, maxAttempts: 3 },
@@ -921,6 +942,203 @@ export class CharacterReferenceService {
     await this.projectStore.writeProjectFiles(nextProject);
     this.repository.setProject(nextProject);
     return { ...this.toProjectCharactersResponse(nextProject), character: nextCharacter };
+  }
+
+  // ====== 角色定妆(锚点图) ======
+
+  /**
+   * 生成定妆候选图:count 张并发出图(默认 3),每张使用不同 seed 确保多样性。
+   *
+   * prompt = customPrompt ?? character.appearance ?? `${角色名}，${角色定位}`。
+   * 候选资产以 kind=anchor_candidate 元数据落盘(不进 referenceAssetIds,不作为可用参考图),
+   * 用户选中后由 confirmAnchor 写入 anchorAssetId。
+   */
+  async generateAnchorCandidates(
+    projectId: string,
+    characterId: string,
+    input: GenerateAnchorCandidatesRequest = {},
+  ): Promise<WorkbenchAsset[]> {
+    const count = this.normalizeAnchorCandidateCount(input.count);
+    const project = this.isDatabaseMode()
+      ? await this.repository.refreshProjectFromDatabase(projectId)
+      : await this.projectStore.getReadyProject(projectId);
+    const character = this.findAnchorCharacter(project, characterId);
+    const prompt = input.customPrompt?.trim()
+      || character.appearance.trim()
+      || [character.name, character.role].filter(Boolean).join("，") || character.name;
+    const providerType = this.imageProvider.getActiveProviderType();
+    const size = providerType === "doubao" ? "1920x1920" : "1536x2048";
+    const settings = this.settingsService.getRuntimeImageProviderSettings();
+    const baseSeed = this.anchorCandidateBaseSeed();
+    const now = new Date().toISOString();
+
+    // 并发出图(不同 seed)→ 全部成功后再统一落盘,避免 file 模式并发写同一 project.json。
+    const generated = await Promise.all(
+      Array.from({ length: count }, (_, index) =>
+        this.imageProvider.generateImage({
+          prompt,
+          size,
+          quality: "high",
+          outputFormat: "webp",
+          seed: baseSeed + index,
+        }),
+      ),
+    );
+    this.projectStore.assertProjectStillActive(project.id);
+
+    const assets: WorkbenchAsset[] = [];
+    const dbAssets: Array<{ asset: WorkbenchAsset; meta: Record<string, string | number | null>; sha256: `sha256:${string}`; bytes: number; width: number | null; height: number | null }> = [];
+    for (let index = 0; index < generated.length; index += 1) {
+      const seed = baseSeed + index;
+      const relativePath = `projects/${project.id}/assets/characters/${character.id}/anchor-candidates/candidate-${index + 1}-${seed}.webp`;
+      const absolutePath = this.workspacePathService.resolveVirtualPath(`/workspace/${relativePath}`);
+      await mkdir(path.dirname(absolutePath), { recursive: true });
+      await writeFile(absolutePath, generated[index]);
+      const meta: Record<string, string | number | null> = {
+        characterId: character.id,
+        kind: "anchor_candidate",
+        seed,
+        provider: this.toProviderMetaId(providerType),
+        model: settings.modelId,
+        promptDigest: this.digestPrompt(prompt),
+        generationMode: "image_generation",
+        createdAt: now,
+      };
+      const asset: WorkbenchAsset = {
+        id: `asset_${randomUUID()}`,
+        chapterId: null,
+        type: "image",
+        name: `${character.name} 定妆候选 ${index + 1}`,
+        path: relativePath,
+        sourceTaskId: null,
+        meta: JSON.stringify(meta),
+      };
+      const dimensions = readImageDimensions(generated[index]);
+      assets.push(asset);
+      dbAssets.push({
+        asset,
+        meta,
+        sha256: `sha256:${createHash("sha256").update(generated[index]).digest("hex")}`,
+        bytes: generated[index].length,
+        width: dimensions?.width ?? null,
+        height: dimensions?.height ?? null,
+      });
+    }
+
+    if (this.isDatabaseMode()) {
+      await this.prismaService.runBusinessTransaction(async (tx) => {
+        for (const item of dbAssets) {
+          await tx.asset.create({
+            data: {
+              id: item.asset.id,
+              projectId,
+              chapterId: null,
+              type: "image",
+              role: "character_anchor_candidate",
+              mimeType: "image/webp",
+              storageKey: item.asset.path,
+              status: "staged",
+              sha256: null,
+              bytes: null,
+              width: null,
+              height: null,
+              durationMs: null,
+              sourceTaskId: null,
+              metadataJson: item.meta,
+              metadataSchemaVersion: 1,
+              metadataDigest: digestCanonicalJson(item.meta),
+              createdAt: new Date(now),
+              updatedAt: new Date(now),
+            },
+          });
+          await tx.asset.update({
+            where: { id: item.asset.id },
+            data: { status: "ready", sha256: item.sha256, bytes: item.bytes, width: item.width, height: item.height, readyAt: new Date(now) },
+          });
+        }
+      });
+      return assets;
+    }
+    const nextProject: LocalProject = { ...project, assets: [...project.assets, ...assets], updatedAt: now };
+    await this.projectStore.writeProjectFiles(nextProject);
+    this.repository.setProject(nextProject);
+    return assets;
+  }
+
+  /**
+   * 确认定妆:校验 assetId 属于该角色的定妆候选,写入 Character.anchorAssetId,刷新项目缓存。
+   * 旧项目兼容:anchorAssetId 为 null 时由读取方降级使用 previewReferenceAssetId(见核心数据模型)。
+   */
+  async confirmAnchor(projectId: string, characterId: string, assetId: string): Promise<ProjectCharacter> {
+    if (this.isDatabaseMode()) {
+      const project = await this.repository.refreshProjectFromDatabase(projectId);
+      this.findAnchorCharacter(project, characterId);
+      const asset = await this.prismaService.database().asset.findFirst({ where: { id: assetId, projectId } });
+      if (!asset || !this.isAnchorCandidateAssetRow(asset.metadataJson, characterId)) {
+        throw new NotFoundException("ASSET_NOT_FOUND");
+      }
+      await this.prismaService.runBusinessTransaction((tx) =>
+        tx.character.update({
+          where: { id: characterId },
+          data: { anchorAssetId: assetId, rowVersion: { increment: 1 }, updatedAt: new Date() },
+        }),
+      );
+      const refreshed = await this.repository.refreshProjectFromDatabase(projectId);
+      return this.findAnchorCharacter(refreshed, characterId);
+    }
+    const project = await this.projectStore.getReadyProject(projectId);
+    const character = this.findAnchorCharacter(project, characterId);
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || !this.isAnchorCandidateAsset(asset, character.id)) {
+      throw new NotFoundException("ASSET_NOT_FOUND");
+    }
+    const now = new Date().toISOString();
+    const nextCharacter: ProjectCharacter = { ...character, anchorAssetId: asset.id, updatedAt: now };
+    const nextProject = this.withUpdatedProjectCharacter(project, nextCharacter, now);
+    await this.projectStore.writeProjectFiles(nextProject);
+    this.repository.setProject(nextProject);
+    return nextCharacter;
+  }
+
+  /** 定妆角色查找:角色不存在抛 CHARACTER_NOT_FOUND。 */
+  private findAnchorCharacter(project: LocalProject, characterId: string): ProjectCharacter {
+    const character = project.characters.find((item) => item.id === characterId);
+    if (!character) {
+      throw new NotFoundException("CHARACTER_NOT_FOUND");
+    }
+    return character;
+  }
+
+  private normalizeAnchorCandidateCount(count: number | undefined): number {
+    const value = Number.isFinite(count) ? Math.floor(count as number) : 3;
+    return Math.min(6, Math.max(1, value || 3));
+  }
+
+  /** 批次基准 seed:取当前秒,保证同批内各候选 seed 唯一且可复现。 */
+  private anchorCandidateBaseSeed(): number {
+    return Math.floor(Date.now() / 1000) % 2_000_000_000;
+  }
+
+  private parseAssetMeta(asset: WorkbenchAsset): Record<string, unknown> | null {
+    try {
+      const value = JSON.parse(asset.meta) as Record<string, unknown>;
+      return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private isAnchorCandidateAsset(asset: WorkbenchAsset, characterId: string): boolean {
+    const meta = this.parseAssetMeta(asset);
+    return meta?.kind === "anchor_candidate" && meta.characterId === characterId;
+  }
+
+  private isAnchorCandidateAssetRow(metadata: unknown, characterId: string): boolean {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      return false;
+    }
+    const record = metadata as Record<string, unknown>;
+    return record.kind === "anchor_candidate" && record.characterId === characterId;
   }
 
   private async deleteCharacterReferenceInDatabase(projectId: string, characterId: string, assetId: string): Promise<DeleteCharacterReferenceResponse> {

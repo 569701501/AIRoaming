@@ -6,6 +6,7 @@ import { TasksModule } from "../tasks/tasks.module.js";
 import { WorkspaceModule } from "../workspace/workspace.module.js";
 import { ProjectsController } from "./projects.controller.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
+import { CharacterStageService } from "./character-stage.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
 import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
@@ -69,6 +70,7 @@ import { LayoutVisualAnalyzerService } from "./layout-visual-analyzer.service.js
     CandidateReferenceResolver,
     ProjectStore,
     CharacterReferenceService,
+    CharacterStageService,
     ChapterScriptService,
     StoryboardService,
     StoryStructureService,

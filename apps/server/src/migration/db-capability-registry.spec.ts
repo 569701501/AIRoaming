@@ -87,16 +87,18 @@ describe("M5-A0 DB capability registry", () => {
     expect(operations.map((operation) => operation.operation).sort()).toEqual(
       await readGuardedOperationsFromSource(),
     );
-    expect(operations).toHaveLength(27);
+    expect(operations).toHaveLength(29);
     expect(operations.every((operation) => operation.readStatus === "not_applicable")).toBe(true);
     expect(operations.filter((operation) => operation.writeStatus === "implemented").map((operation) => operation.operation)).toEqual([
       "update_project_draft",
       "extract_characters",
+      "generate_anchor_candidates",
       "update_character",
       "queue_scene_reference",
       "queue_character_reference",
       "confirm_character_preview",
       "confirm_character_reference",
+      "confirm_anchor",
       "delete_character_reference",
       "write_chapter_draft_from_ai",
       "save_script_outline_from_ai",
@@ -126,7 +128,7 @@ describe("M5-A0 DB capability registry", () => {
     const payload = JSON.parse(result.stdout) as { code: string; capabilities: unknown[]; operations: unknown[] };
     expect(payload.code).toBe("DB_CAPABILITIES_REPORTED");
     expect(payload.capabilities).toHaveLength(8);
-    expect(payload.operations).toHaveLength(27);
+    expect(payload.operations).toHaveLength(29);
   });
 
   it("CAP-01 reports an open activation gate after the D2 delete/outbox closeout", async () => {

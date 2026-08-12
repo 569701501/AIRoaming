@@ -3,12 +3,16 @@ import type {
   CompleteChapterRequest,
   ConfirmCharacterPreviewRequest,
   ConfirmCharacterReferenceRequest,
+  ConfirmAnchorRequest,
+  GenerateAnchorCandidatesRequest,
   ConfirmChapterImagePreflightRequest,
   ConfirmChapterStoryboardRequest,
   ConfirmChapterStoryStructureRequest,
   ExtractProjectCharactersRequest,
   GenerateCharacterReferenceRequest,
   GenerateSceneReferenceRequest,
+  CreateCharacterStageRequest,
+  UpdateCharacterStageRequest,
   ResolveImagePreflightCharacterRequest,
   SaveChapterDraftRequest,
   UpdateProjectCharacterRequest,
@@ -60,6 +64,12 @@ import { LayoutVersioningService } from "./layout-versioning.service.js";
 import { LayoutPendingCommandService } from "./layout-pending-command.service.js";
 import { LayoutCompositionService } from "./layout-composition.service.js";
 import { ScriptWorkflowSourceRepository } from "./script-workflow-source.repository.js";
+import {
+  assertJsonObjectBody,
+  assertOptionalStringField,
+  assertRequiredNonBlankString,
+  assertRouteId,
+} from "./id-validation.util.js";
 
 @Controller("projects")
 export class ProjectsController {
@@ -162,6 +172,94 @@ export class ProjectsController {
     @Body() body: ConfirmCharacterReferenceRequest,
   ) {
     return ok(await this.projectsService.confirmCharacterReference(projectId, characterId, body));
+  }
+
+  @Post(":projectId/characters/:characterId/anchor-candidates")
+  async generateAnchorCandidates(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: GenerateAnchorCandidatesRequest,
+  ) {
+    return ok({ candidates: await this.projectsService.generateAnchorCandidates(projectId, characterId, body) });
+  }
+
+  @Post(":projectId/characters/:characterId/confirm-anchor")
+  async confirmAnchor(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: ConfirmAnchorRequest,
+  ) {
+    return ok({ character: await this.projectsService.confirmAnchor(projectId, characterId, body.assetId) });
+  }
+
+  @Post(":projectId/characters/:characterId/stages")
+  async createCharacterStage(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Body() body: CreateCharacterStageRequest,
+  ) {
+    assertRouteId("projectId", projectId);
+    assertRouteId("characterId", characterId);
+    assertJsonObjectBody(body);
+    const normalized = {
+      visualDelta: assertRequiredNonBlankString(body.visualDelta),
+      ...(body.name === undefined ? {} : { name: assertOptionalStringField(body.name, "name") }),
+      ...(body.fromChapterId === undefined ? {} : { fromChapterId: assertOptionalStringField(body.fromChapterId, "fromChapterId") }),
+    };
+    return ok(await this.projectsService.createCharacterStage(projectId, characterId, normalized));
+  }
+
+  @Get(":projectId/characters/:characterId/stages")
+  async listCharacterStages(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+  ) {
+    assertRouteId("projectId", projectId);
+    assertRouteId("characterId", characterId);
+    return ok(await this.projectsService.listCharacterStages(projectId, characterId));
+  }
+
+  @Patch(":projectId/characters/:characterId/stages/:stageId")
+  async updateCharacterStage(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Param("stageId") stageId: string,
+    @Body() body: UpdateCharacterStageRequest,
+  ) {
+    assertRouteId("projectId", projectId);
+    assertRouteId("characterId", characterId);
+    assertRouteId("stageId", stageId);
+    assertJsonObjectBody(body);
+    const normalized: UpdateCharacterStageRequest = {
+      ...(body.name === undefined ? {} : { name: assertOptionalStringField(body.name, "name") }),
+      ...(body.visualDelta === undefined ? {} : { visualDelta: assertRequiredNonBlankString(body.visualDelta) }),
+      ...(body.fromChapterId === undefined ? {} : { fromChapterId: assertOptionalStringField(body.fromChapterId, "fromChapterId") }),
+    };
+    return ok(await this.projectsService.updateCharacterStage(projectId, characterId, stageId, normalized));
+  }
+
+  @Delete(":projectId/characters/:characterId/stages/:stageId")
+  async deleteCharacterStage(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Param("stageId") stageId: string,
+  ) {
+    assertRouteId("projectId", projectId);
+    assertRouteId("characterId", characterId);
+    assertRouteId("stageId", stageId);
+    return ok(await this.projectsService.deleteCharacterStage(projectId, characterId, stageId));
+  }
+
+  @Post(":projectId/characters/:characterId/stages/:stageId/regenerate")
+  async regenerateCharacterStage(
+    @Param("projectId") projectId: string,
+    @Param("characterId") characterId: string,
+    @Param("stageId") stageId: string,
+  ) {
+    assertRouteId("projectId", projectId);
+    assertRouteId("characterId", characterId);
+    assertRouteId("stageId", stageId);
+    return ok(await this.projectsService.regenerateCharacterStage(projectId, characterId, stageId));
   }
 
   @Delete(":projectId/characters/:characterId/references/:assetId")

@@ -38,6 +38,7 @@
           @regenerate-character-reference="regenerateCharacterReference"
           @confirm-character-preview="confirmCharacterPreview"
           @confirm-character-reference="confirmCharacterReference"
+          @confirm-anchor="confirmAnchor"
           @generate-scene-reference="generateSceneReference"
           @confirm-story-structure="confirmStoryStructure"
           @confirm-storyboard="confirmStoryboard"
@@ -87,7 +88,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import type { CandidatePromptOverrides, CompleteChapterRequest, ManagedModelItem, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
+import type { CandidatePromptOverrides, CompleteChapterRequest, ManagedModelItem, ProjectCharacter, SaveChapterDraftRequest, SendDialogueMessageRequest, StoryboardJson, StoryStructureJson, UpdateProjectCharacterRequest } from "@airoaming/shared";
 import AppSidebar from "./AppSidebar.vue";
 import TopBar from "./TopBar.vue";
 import AppSettingsView from "../settings/AppSettingsView.vue";
@@ -280,6 +281,10 @@ async function confirmCharacterPreview(payload: { characterId: string; assetId: 
 
 async function confirmCharacterReference(payload: { characterId: string; assetId: string }) {
   await workbench.confirmCharacterReference(payload.characterId, payload.assetId);
+}
+
+async function confirmAnchor(payload: { characterId: string; assetId: string; character?: ProjectCharacter }) {
+  await workbench.confirmAnchor(payload.characterId, payload.assetId, payload.character);
 }
 
 async function confirmStoryStructure(payload: { chapterId: string; structureJson: StoryStructureJson }) {

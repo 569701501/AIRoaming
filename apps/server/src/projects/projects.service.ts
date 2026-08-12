@@ -6,6 +6,7 @@ import * as workflowUtil from "./workflow.util.js";
 import * as imagePreflightUtil from "./image-preflight.util.js";
 import { ProjectStore } from "./project-store.service.js";
 import { CharacterReferenceService } from "./character-reference.service.js";
+import { CharacterStageService, type UpdateCharacterStageInput } from "./character-stage.service.js";
 import { ChapterScriptService } from "./chapter-script.service.js";
 import { StoryboardService } from "./storyboard.service.js";
 import { StoryStructureService } from "./story-structure.service.js";
@@ -50,6 +51,7 @@ import {
   type LayoutPublicationSummaryV2,
   type ExtractProjectCharactersRequest,
   type ExtractProjectCharactersResponse,
+  type GenerateAnchorCandidatesRequest,
   type GenerateCharacterReferenceRequest,
   type GetChapterStoryStructureResponse,
   type GetChapterStoryboardResponse,
@@ -58,6 +60,10 @@ import {
   type ListChaptersResponse,
   type QueueCharacterReferenceResponse,
   type QueueSceneReferenceResponse,
+  type ProjectCharacter,
+  type CharacterStage,
+  type CreateCharacterStageRequest,
+  type WorkbenchAsset,
   type GenerateSceneReferenceRequest,
   type ResolveImagePreflightCharacterRequest,
   type ResolveImagePreflightCharacterResponse,
@@ -174,6 +180,7 @@ export class ProjectsService implements OnModuleInit {
     @Inject(ProjectRepository) private readonly repository: ProjectRepository,
     @Inject(ProjectStore) private readonly projectStore: ProjectStore,
     @Inject(CharacterReferenceService) private readonly characterRef: CharacterReferenceService,
+    @Inject(CharacterStageService) private readonly characterStage: CharacterStageService,
     @Inject(ChapterScriptService) private readonly chapterScript: ChapterScriptService,
     @Inject(StoryboardService) private readonly storyboard: StoryboardService,
     @Inject(StoryStructureService) private readonly storyStructure: StoryStructureService,
@@ -436,6 +443,57 @@ export class ProjectsService implements OnModuleInit {
     input: ConfirmCharacterReferenceRequest,) : Promise<SaveProjectCharacterResponse> {
     if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("confirm_character_reference");
     return this.characterRef.confirmCharacterReference(projectId, characterId, input);
+  }
+
+  /** 生成定妆候选:count 张并发出图(不同 seed),返回候选图资产数组。 */
+  async generateAnchorCandidates(projectId: string,
+    characterId: string,
+    input: GenerateAnchorCandidatesRequest = {},) : Promise<WorkbenchAsset[]> {
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("generate_anchor_candidates");
+    return this.characterRef.generateAnchorCandidates(projectId, characterId, input);
+  }
+
+  /** 确认定妆:校验资产归属后写入 anchorAssetId 并刷新缓存,返回更新后的角色。 */
+  async confirmAnchor(projectId: string,
+    characterId: string,
+    assetId: string,) : Promise<ProjectCharacter> {
+    if (!this.isDatabaseMode()) this.repository.assertDatabaseOperationSupported("confirm_anchor");
+    return this.characterRef.confirmAnchor(projectId, characterId, assetId);
+  }
+
+  // ===== 角色阶段管理(CharacterStageService,DB 模式专用) =====
+
+  /** 创建角色阶段:stageOrder 自动递增,有参考图时垫图生成预览图。 */
+  async createCharacterStage(projectId: string,
+    characterId: string,
+    input: CreateCharacterStageRequest,) : Promise<{ stage: CharacterStage; previewAsset: WorkbenchAsset | null }> {
+    return this.characterStage.createCharacterStage(projectId, characterId, input);
+  }
+
+  /** 查询角色全部阶段,按 stageOrder 升序。 */
+  async listCharacterStages(projectId: string, characterId: string): Promise<{ stages: CharacterStage[] }> {
+    return { stages: await this.characterStage.getCharacterStages(projectId, characterId) };
+  }
+
+  /** 更新阶段:name/visualDelta/fromChapterId。visualDelta 不允许清空。 */
+  async updateCharacterStage(projectId: string,
+    characterId: string,
+    stageId: string,
+    input: UpdateCharacterStageInput,) : Promise<{ stage: CharacterStage }> {
+    return { stage: await this.characterStage.updateCharacterStage(projectId, characterId, stageId, input) };
+  }
+
+  /** 删除阶段:事务内回收本阶段预览/定稿资产(行+文件)。 */
+  async deleteCharacterStage(projectId: string, characterId: string, stageId: string): Promise<{ success: true }> {
+    await this.characterStage.deleteCharacterStage(projectId, characterId, stageId);
+    return { success: true };
+  }
+
+  /** 重新生成阶段预览图:优先以本阶段定稿图为参考。 */
+  async regenerateCharacterStage(projectId: string,
+    characterId: string,
+    stageId: string,) : Promise<{ stage: CharacterStage; previewAsset: WorkbenchAsset | null }> {
+    return this.characterStage.regenerateStagePreview(projectId, characterId, stageId);
   }
 
   async deleteCharacterReference(projectId: string,
@@ -1076,5 +1134,4 @@ export class ProjectsService implements OnModuleInit {
   private toChapterDetail(chapter: LocalChapter): ChapterDetail {
     return wsDomain.toChapterDetail(chapter);
   }
-
 }

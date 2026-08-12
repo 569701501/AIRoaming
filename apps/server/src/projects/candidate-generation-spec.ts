@@ -102,6 +102,15 @@ export interface CreateCandidateGenerationSpecInput {
       previewReferenceAssetId: string | null;
       previewConfirmedAt: string | null;
       primaryReferenceAssetId: string | null;
+      anchorAssetId?: string | null;
+      stages?: Array<{
+        id: string;
+        stageOrder: number;
+        fromChapterId?: string | null;
+        toChapterId?: string | null;
+        previewAssetId?: string | null;
+        finalAssetId?: string | null;
+      }>;
     }>;
     assets: Array<{ id: string; path: string }>;
   };
@@ -219,6 +228,42 @@ export function buildCandidatePromptContent(input: BuildCandidatePromptContentIn
 }
 
 /**
+ * 根据章节选择角色参考图：阶段图 > 锚点图 > 角色参考图
+ *
+ * 返回 { assetId: string, useStageLogic: boolean }
+ * - useStageLogic=true：使用了阶段图或锚点图，跳过原有的 previewConfirmedAt 检查
+ * - useStageLogic=false：降级到原有逻辑，需要检查 previewConfirmedAt
+ */
+function resolveCharacterReferenceForChapter(
+  character: CreateCandidateGenerationSpecInput["project"]["characters"][number],
+  chapterId: string,
+): { assetId: string; useStageLogic: boolean } | null {
+  // 1. 查询该章节对应的阶段（按 stageOrder 倒序，优先最新阶段）
+  const stage = character.stages
+    ?.slice()
+    .sort((a, b) => b.stageOrder - a.stageOrder)
+    .find((s) => {
+      // 如果没有设置 fromChapterId，则只有第一个阶段（stageOrder=1）适用所有章节
+      if (!s.fromChapterId) return s.stageOrder === 1;
+
+      // 如果设置了 fromChapterId，检查章节是否在范围内
+      const fromMatch = s.fromChapterId <= chapterId;
+      const toMatch = !s.toChapterId || s.toChapterId >= chapterId;
+      return fromMatch && toMatch;
+    });
+
+  // 2. 优先使用阶段图
+  if (stage?.finalAssetId) return { assetId: stage.finalAssetId, useStageLogic: true };
+  if (stage?.previewAssetId) return { assetId: stage.previewAssetId, useStageLogic: true };
+
+  // 3. 其次使用锚点图
+  if (character.anchorAssetId) return { assetId: character.anchorAssetId, useStageLogic: true };
+
+  // 4. 降级到原有逻辑：只使用已确认的 preview（保持向后兼容）
+  return null;
+}
+
+/**
  * 候选图最终生成规格的唯一纯函数。
  *
  * 只读取分镜中的静态画面事实。chapterTitle、comicFormat、dialogue、caption、
@@ -304,10 +349,26 @@ export function createCandidateGenerationSpec(input: CreateCandidateGenerationSp
       promptFragment: firstVisualSegment(projectCharacter?.promptFragment),
     });
 
-    const previewAssetId = projectCharacter?.previewReferenceAssetId ?? null;
-    if (previewAssetId && projectCharacter?.previewConfirmedAt && assetsById.has(previewAssetId)) {
+    // 使用阶段选择逻辑：阶段图 > 锚点图 > 角色参考图
+    const stageReference = projectCharacter
+      ? resolveCharacterReferenceForChapter(projectCharacter, input.chapter.id)
+      : null;
+
+    let referenceAssetId: string | null = null;
+    if (stageReference) {
+      // 有阶段图或锚点图，直接使用
+      referenceAssetId = stageReference.assetId;
+    } else if (projectCharacter) {
+      // 降级到原有逻辑：只使用已确认的 preview
+      const previewAssetId = projectCharacter.previewReferenceAssetId ?? null;
+      if (previewAssetId && projectCharacter.previewConfirmedAt) {
+        referenceAssetId = previewAssetId;
+      }
+    }
+
+    if (referenceAssetId && assetsById.has(referenceAssetId)) {
       references.push({
-        assetId: previewAssetId,
+        assetId: referenceAssetId,
         kind: "character_identity",
         entityId: characterId,
         label: characterName,

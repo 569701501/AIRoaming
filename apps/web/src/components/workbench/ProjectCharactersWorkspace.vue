@@ -27,8 +27,27 @@
             <div class="row-title">
               <strong>{{ character.name }}</strong>
               <span class="row-level">{{ getLevelLabel(character.level) }}</span>
+              <span v-if="needsAnchor(character)" class="row-anchor-badge">待定妆</span>
               <span v-if="isFinalLocked(character)" class="row-locked-badge">定稿已锁定</span>
               <span v-if="isPureVoice(character)" class="row-voice-badge">纯声音</span>
+              <button
+                v-if="!readonly && !isPureVoice(character)"
+                class="row-anchor-action"
+                type="button"
+                @click="openAnchorModal(character)"
+              >
+                <Sparkles :size="12" />
+                <span>{{ character.anchorAssetId ? "重设定妆" : "去定妆" }}</span>
+              </button>
+              <button
+                v-if="!readonly && !isPureVoice(character)"
+                class="row-stage-action"
+                type="button"
+                @click="openStageManager(character)"
+              >
+                <Layers :size="12" />
+                <span>阶段管理</span>
+              </button>
             </div>
             <p class="row-desc">{{ getCharacterDescription(character) }}</p>
           </div>
@@ -43,6 +62,24 @@
             </div>
           </div>
           <div v-else class="row-images">
+            <div class="row-image-slot">
+              <button
+                v-if="getAnchorAsset(character)"
+                class="row-image-frame is-clickable"
+                type="button"
+                @click="openPreview(getAnchorAsset(character)!, `${character.name} 定妆照`)"
+              >
+                <img :src="assetUrl(getAnchorAsset(character)!.id)" :alt="`${character.name} 定妆照`" />
+              </button>
+              <div v-else class="row-image-frame">
+                <div class="row-image-empty">
+                  <ImageOff :size="18" />
+                  <span>{{ character.anchorAssetId ? "暂不可用" : "待定妆" }}</span>
+                </div>
+              </div>
+              <span class="row-image-label">定妆照</span>
+            </div>
+
             <div class="row-image-slot">
               <button
                 v-if="getReferenceAsset(character, 'preview_front')"
@@ -93,12 +130,28 @@
         <span class="preview-caption">{{ activePreview.alt }}</span>
       </div>
     </Teleport>
+    <!-- 定妆弹窗 -->
+    <CharacterAnchorModal
+      :open="Boolean(anchorCharacter)"
+      :project-id="snapshot.project.id"
+      :character="anchorCharacter"
+      @close="closeAnchorModal"
+      @confirm-anchor="handleAnchorConfirmed"
+    />
+    <!-- 阶段管理弹窗 -->
+    <CharacterStageManager
+      :open="Boolean(stageCharacter)"
+      :project-id="snapshot.project.id"
+      :character="stageCharacter"
+      :chapters="snapshot.chapters ?? []"
+      @close="closeStageManager"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AudioLines, ImageOff, UserRound, UsersRound, X } from "lucide-vue-next";
+import { AudioLines, ImageOff, Layers, Sparkles, UserRound, UsersRound, X } from "lucide-vue-next";
 import { requiredCharacterReferenceKind } from "@airoaming/shared";
 import type {
   GenerationTaskItem,
@@ -108,6 +161,8 @@ import type {
   WorkbenchSnapshot,
 } from "@airoaming/shared";
 import { api } from "../../services/api";
+import CharacterAnchorModal from "./CharacterAnchorModal.vue";
+import CharacterStageManager from "./CharacterStageManager.vue";
 
 const props = defineProps<{
   snapshot: WorkbenchSnapshot;
@@ -118,14 +173,38 @@ const props = defineProps<{
   readonly?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   extractCharacters: [];
+  confirmAnchor: [payload: { characterId: string; assetId: string; character: ProjectCharacter }];
 }>();
 
 const characters = computed(() => props.snapshot.characters ?? []);
 const assets = computed(() => props.snapshot.assets ?? []);
 
 const activePreview = ref<{ asset: WorkbenchAsset; alt: string } | null>(null);
+const anchorCharacter = ref<ProjectCharacter | null>(null);
+const stageCharacter = ref<ProjectCharacter | null>(null);
+
+function openAnchorModal(character: ProjectCharacter) {
+  anchorCharacter.value = character;
+}
+
+function closeAnchorModal() {
+  anchorCharacter.value = null;
+}
+
+function openStageManager(character: ProjectCharacter) {
+  stageCharacter.value = character;
+}
+
+function closeStageManager() {
+  stageCharacter.value = null;
+}
+
+function handleAnchorConfirmed(payload: { characterId: string; assetId: string; character: ProjectCharacter }) {
+  closeAnchorModal();
+  emit("confirmAnchor", payload);
+}
 
 function openPreview(asset: WorkbenchAsset, alt: string) {
   activePreview.value = { asset, alt };
@@ -137,6 +216,15 @@ function closePreview() {
 
 function isPureVoice(character: ProjectCharacter) {
   return requiredCharacterReferenceKind(character) === "none";
+}
+
+/** 未定妆:缺少锚点图且不是纯声音角色 */
+function needsAnchor(character: ProjectCharacter) {
+  return !character.anchorAssetId && !isPureVoice(character);
+}
+
+function getAnchorAsset(character: ProjectCharacter): WorkbenchAsset | null {
+  return character.anchorAssetId ? assets.value.find((asset) => asset.id === character.anchorAssetId) ?? null : null;
 }
 
 function isFinalLocked(character: ProjectCharacter) {
@@ -417,6 +505,59 @@ button:disabled {
   padding: 2px 9px;
   font-size: 11px;
   font-weight: 900;
+}
+
+.row-anchor-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.row-anchor-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(34, 199, 169, 0.4);
+  border-radius: 999px;
+  background: rgba(34, 199, 169, 0.12);
+  color: #8df0dc;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.row-anchor-action:hover {
+  border-color: rgba(34, 199, 169, 0.65);
+  background: rgba(34, 199, 169, 0.22);
+}
+
+.row-stage-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.12);
+  color: #c4b5fd;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.row-stage-action:hover {
+  border-color: rgba(139, 92, 246, 0.65);
+  background: rgba(139, 92, 246, 0.22);
 }
 
 .row-desc {

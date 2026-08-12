@@ -15,4 +15,5 @@ No text labels, logo, watermark, extra characters, scene background, cropped fac
 角色身份：{{CHARACTER_ROLE}}
 外貌设定：{{APPEARANCE}}
 性格气质：{{PERSONALITY}}
+{{ADDITIONAL_NOTES}}
 {{PROMPT_FRAGMENT_TEXT}}
