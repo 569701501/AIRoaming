@@ -1,0 +1,9 @@
+{
+  "name": "AI漫游",
+  "install": "corepack pnpm install && corepack pnpm --filter @airoaming/shared build",
+  "start": "corepack pnpm dev",
+  "ports": [
+    { "name": "server", "port": 4310 },
+    { "name": "web", "port": 5173 }
+  ]
+}
