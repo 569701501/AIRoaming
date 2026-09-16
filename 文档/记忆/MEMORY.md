@@ -1,5 +1,6 @@
 # AI漫游长期记忆
 
+- 开发环境：pnpm 单仓（`apps/*`+`packages/*`），锁定 `pnpm@9.15.4`、Node 22，默认镜像经 corepack 提供。子包 `@airoaming/shared`（须先 build 出 `dist/` 供 server/web 解析）、`@airoaming/server`（NestJS，端口 4310，前缀 `/api`，`tsx watch`）、`@airoaming/web`（Vue3+Vite，端口 5173，`/api` 代理到 4310）。核心工作台数据落地本地 `workspace/projects/`，运行期不依赖 Prisma，无需任何密钥即可跑通；AI 生成类功能才需外部 provider。常用命令：`corepack pnpm install`、`corepack pnpm build`、`corepack pnpm dev`、`corepack pnpm typecheck`、`corepack pnpm test`。云端环境配置：install=`pnpm install`+构建 shared，start=`corepack pnpm dev`。
 - `文档/` 是项目事实源；实现前先读文档，改变产品、架构、数据、模块边界或功能完成后同步文档。
 - 正式文档使用中文，文档要服务人和 AI；重要结论必须落到对应 Markdown 文件，不把聊天隐含上下文当事实源。
 - `$deep-think` 是按需技能，只在用户明确调用、任务高风险或跨多模块时使用；不是每次对话默认流程。
